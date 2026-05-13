@@ -9,6 +9,7 @@ from src.core.uniform_batch_clearing import (
     UniformBatchFillV1,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+    UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     build_uniform_batch_settlement_v1,
@@ -127,6 +128,7 @@ def test_uniform_batch_certificate_builds_conservative_settlement() -> None:
     assert result.settlement is not None
     assert result.certificate_hash == certificate.hash()
     assert certificate.to_dict()["policy_id"] == UNIFORM_BATCH_POLICY_ID
+    assert certificate.to_dict()["price_objective_id"] == UNIFORM_BATCH_PRICE_OBJECTIVE_ID
     assert [fill.action for fill in result.settlement.fills] == [FillAction.FILL, FillAction.FILL]
     assert result.settlement.reserve_deltas == []
     valid, err = validate_settlement(result.settlement, balances, {"pool_ab": pool}, LPTable())
@@ -283,6 +285,112 @@ def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> Non
     assert sorted(
         (delta.asset, delta.delta_add, delta.delta_sub) for delta in settlement.reserve_deltas
     ) == [("A", 1, 0), ("B", 1, 0)]
+
+
+def test_uniform_batch_certificate_accepts_canonical_net_flow_ratio() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _swap("alice-a-to-b", "alice", "A", "B", amount_in=100, min_amount_out=90),
+        _swap("bob-b-to-a", "bob", "B", "A", amount_in=200, min_amount_out=90),
+    ]
+    certificate = UniformBatchCertificateV1(
+        pool_id="pool_ab",
+        base_asset="A",
+        quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=2,
+        price_den=1,
+        fills=tuple(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=int(intent.get_field("amount_in")),
+                executed_out=200 if str(intent.get_field("asset_in")) == "A" else 100,
+            )
+            for intent in sorted(intents, key=lambda item: item.intent_id)
+        ),
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.settlement is not None
+    assert result.settlement.reserve_deltas == []
+
+
+def test_uniform_batch_certificate_rejects_noncanonical_safe_one_sided_price() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [_swap("alice-a-to-b", "alice", "A", "B", amount_in=100, min_amount_out=1)]
+    certificate = UniformBatchCertificateV1(
+        pool_id="pool_ab",
+        base_asset="A",
+        quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=1,
+        price_den=2,
+        fills=(
+            UniformBatchFillV1(
+                intent_id=intents[0].intent_id,
+                executed_in=100,
+                executed_out=50,
+            ),
+        ),
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate price does not match canonical UPBA objective"
+
+
+def test_uniform_batch_certificate_rejects_noncanonical_safe_net_flow_price() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _swap("alice-a-to-b", "alice", "A", "B", amount_in=100, min_amount_out=1),
+        _swap("bob-b-to-a", "bob", "B", "A", amount_in=200, min_amount_out=1),
+    ]
+    certificate = UniformBatchCertificateV1(
+        pool_id="pool_ab",
+        base_asset="A",
+        quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=3,
+        price_den=2,
+        fills=tuple(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=int(intent.get_field("amount_in")),
+                executed_out=150 if str(intent.get_field("asset_in")) == "A" else 133,
+            )
+            for intent in sorted(intents, key=lambda item: item.intent_id)
+        ),
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate price does not match canonical UPBA objective"
 
 
 def test_uniform_batch_certificate_rejects_aggregate_k_decrease() -> None:
@@ -538,6 +646,34 @@ def test_uniform_batch_certificate_rejects_unsupported_policy_id() -> None:
 
     assert result.ok is False
     assert result.error == "unsupported uniform batch policy_id"
+
+
+def test_uniform_batch_certificate_rejects_unsupported_price_objective_id() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=certificate.price_num,
+        price_den=certificate.price_den,
+        fills=certificate.fills,
+        price_objective_id="zenodex/upba_v1/solver_supplied_price",
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "unsupported uniform batch price_objective_id"
 
 
 def test_uniform_batch_certificate_rejects_unknown_certificate_key() -> None:

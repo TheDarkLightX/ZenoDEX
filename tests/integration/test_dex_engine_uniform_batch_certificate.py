@@ -7,6 +7,7 @@ from src.core.uniform_batch_clearing import (
     UniformBatchFillV1,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+    UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     build_uniform_batch_settlement_v1,
@@ -60,6 +61,8 @@ def _swap_dict(
     asset_in: str,
     asset_out: str,
     nonce: int,
+    amount_in: int = 100,
+    min_amount_out: int = 90,
 ) -> dict[str, object]:
     return {
         "module": "TauSwap",
@@ -72,8 +75,8 @@ def _swap_dict(
         "pool_id": "pool_ab",
         "asset_in": asset_in,
         "asset_out": asset_out,
-        "amount_in": 100,
-        "min_amount_out": 90,
+        "amount_in": amount_in,
+        "min_amount_out": min_amount_out,
     }
 
 
@@ -83,6 +86,8 @@ def _intent(
     asset_in: str,
     asset_out: str,
     nonce: int,
+    amount_in: int = 100,
+    min_amount_out: int = 90,
 ) -> Intent:
     return Intent(
         module="TauSwap",
@@ -96,8 +101,8 @@ def _intent(
             "pool_id": "pool_ab",
             "asset_in": asset_in,
             "asset_out": asset_out,
-            "amount_in": 100,
-            "min_amount_out": 90,
+            "amount_in": amount_in,
+            "min_amount_out": min_amount_out,
         },
     )
 
@@ -130,6 +135,77 @@ def _certificate(intents: list[Intent]) -> UniformBatchCertificateV1:
                 intent_id=intent.intent_id,
                 executed_in=100,
                 executed_out=100,
+            )
+            for intent in sorted(intents, key=lambda item: item.intent_id)
+        ),
+    )
+
+
+def _ratio_intents() -> list[Intent]:
+    return [
+        _intent(
+            label="a-to-b",
+            asset_in="A",
+            asset_out="B",
+            nonce=1,
+            amount_in=100,
+            min_amount_out=1,
+        ),
+        _intent(
+            label="b-to-a",
+            asset_in="B",
+            asset_out="A",
+            nonce=2,
+            amount_in=200,
+            min_amount_out=1,
+        ),
+    ]
+
+
+def _ratio_intent_ops() -> list[dict[str, object]]:
+    return [
+        _swap_dict(
+            label="a-to-b",
+            asset_in="A",
+            asset_out="B",
+            nonce=1,
+            amount_in=100,
+            min_amount_out=1,
+        ),
+        _swap_dict(
+            label="b-to-a",
+            asset_in="B",
+            asset_out="A",
+            nonce=2,
+            amount_in=200,
+            min_amount_out=1,
+        ),
+    ]
+
+
+def _certificate_with_price(
+    intents: list[Intent],
+    *,
+    price_num: int,
+    price_den: int,
+) -> UniformBatchCertificateV1:
+    return UniformBatchCertificateV1(
+        pool_id="pool_ab",
+        base_asset="A",
+        quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(_pool()),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=price_num,
+        price_den=price_den,
+        fills=tuple(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=int(intent.get_field("amount_in")),
+                executed_out=(
+                    (int(intent.get_field("amount_in")) * price_num) // price_den
+                    if str(intent.get_field("asset_in")) == "A"
+                    else (int(intent.get_field("amount_in")) * price_den) // price_num
+                ),
             )
             for intent in sorted(intents, key=lambda item: item.intent_id)
         ),
@@ -346,6 +422,22 @@ def _ops_with_too_many_uniform_fills() -> dict[str, object]:
     return {"2": _intent_ops(), "3": settlement_op}
 
 
+def _ops_with_noncanonical_price_objective() -> dict[str, object]:
+    state = _state()
+    intents = _ratio_intents()
+    canonical_cert = _certificate_with_price(intents, price_num=2, price_den=1)
+    noncanonical_cert = _certificate_with_price(intents, price_num=3, price_den=2)
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=canonical_cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = noncanonical_cert.to_dict()
+    return {"2": _ratio_intent_ops(), "3": settlement_op}
+
+
 def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
     state = _state()
     result = apply_ops(
@@ -370,6 +462,7 @@ def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
             "type": "UNIFORM_BATCH_CLEARING_V1",
             "pool_id": "pool_ab",
             "policy_id": UNIFORM_BATCH_POLICY_ID,
+            "price_objective_id": UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
             "certificate_hash": _certificate(_intents()).hash(),
         }
     ]
@@ -533,6 +626,25 @@ def test_engine_rejects_uniform_batch_certificate_too_many_fills() -> None:
     assert (
         result.error
         == f"uniform batch certificate rejected: certificate.fills exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}"
+    )
+
+
+def test_engine_rejects_uniform_batch_certificate_noncanonical_price_objective() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_noncanonical_price_objective(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert (
+        result.error
+        == "uniform batch certificate rejected: certificate price does not match canonical UPBA objective"
     )
 
 

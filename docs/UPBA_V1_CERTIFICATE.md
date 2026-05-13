@@ -27,6 +27,7 @@ Supported:
 - `PoolStatus.ACTIVE`
 - `CURVE_TAG_CPMM`
 - explicit policy id `zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in`
+- explicit price objective id `zenodex/upba_v1/net_flow_ratio_or_pool_spot_price`
 - committed pre-pool snapshot hash
 - `SWAP_EXACT_IN` intents only
 - the pool's two assets only
@@ -62,6 +63,7 @@ optimality.
 ```text
 UniformBatchCertificateV1 :=
   policy_id
+  price_objective_id
   pool_id
   base_asset
   quote_asset
@@ -82,6 +84,28 @@ before settlement construction.
 different policy id fail closed, and v1 rejects unknown certificate or fill
 keys. This prevents a future UPBA variant from being silently interpreted under
 the current fixed-admission, full-fill exact-in semantics.
+
+`price_objective_id` is fixed to
+`zenodex/upba_v1/net_flow_ratio_or_pool_spot_price`. For batches with nonzero
+net input on both sides, the canonical price is the reduced ratio:
+
+```text
+price_num / price_den :=
+  total_net_quote_input_from_quote_to_base
+  /
+  total_net_base_input_from_base_to_quote
+```
+
+For one-sided batches, the canonical fallback is the reduced pre-pool spot
+ratio:
+
+```text
+price_num / price_den := reserve1 / reserve0
+```
+
+The verifier rejects certificates whose submitted price differs from this
+canonical objective, even when the submitted price would otherwise satisfy
+limit checks and the aggregate CPMM invariant.
 
 `price_num / price_den` must be reduced to lowest terms. This makes the
 certificate hash canonical for the represented rational price and rejects
@@ -155,13 +179,13 @@ v1 removes that dimension for this narrow surface because the certificate is
 keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
-rejection, a limit-price rejection, a pre-pool snapshot rejection, a
-nonreduced price rejection, price-domain and output-domain rejections, an
-oversize certificate rejection, an oversize admission-set rejection, an
-unsupported-policy rejection, closed-schema rejections, a noncanonical
-certificate-hash-schema rejection, a noncanonical fill-order rejection, an
-admitted-intent omission rejection, a partial-fill rejection, and a
-tampered-settlement rejection.
+rejection, a canonical net-flow price acceptance, noncanonical price-objective
+rejections, a limit-price rejection, a pre-pool snapshot rejection, a nonreduced
+price rejection, price-domain and output-domain rejections, an oversize
+certificate rejection, an oversize admission-set rejection, an unsupported-policy
+rejection, closed-schema rejections, a noncanonical certificate-hash-schema
+rejection, a noncanonical fill-order rejection, an admitted-intent omission
+rejection, a partial-fill rejection, and a tampered-settlement rejection.
 
 ## Promotion Boundary
 
@@ -180,7 +204,7 @@ executeUniform state fills1 = executeUniform state fills2
 The runtime bridge now accepts UPBA v1 only when the local verifier produces the
 exact accepted settlement. Remaining non-claims:
 
-- the submitted price maximizes volume or surplus;
+- the canonical price maximizes volume or surplus;
 - the fixed admission set is fair or inclusion-resistant;
 - support for partially-filled or rejected members of an admitted UPBA batch;
 - the price is safe as an oracle or derivatives mark;

@@ -25,6 +25,7 @@ from .settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
 UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v1"
 UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
 UNIFORM_BATCH_POLICY_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
+UNIFORM_BATCH_PRICE_OBJECTIVE_ID = "zenodex/upba_v1/net_flow_ratio_or_pool_spot_price"
 UNIFORM_BATCH_PRICE_RATIO_MAX = DEX_POOL_RESERVE_MAX
 UNIFORM_BATCH_OUTPUT_AMOUNT_MAX = DEX_SWAP_AMOUNT_MAX * UNIFORM_BATCH_PRICE_RATIO_MAX
 UNIFORM_BATCH_MAX_FILLS = 256
@@ -32,6 +33,7 @@ _UNIFORM_BATCH_CERTIFICATE_KEYS = frozenset(
     {
         "schema",
         "policy_id",
+        "price_objective_id",
         "pool_id",
         "base_asset",
         "quote_asset",
@@ -83,11 +85,13 @@ class UniformBatchCertificateV1:
     price_den: int
     fills: tuple[UniformBatchFillV1, ...]
     policy_id: str = UNIFORM_BATCH_POLICY_ID
+    price_objective_id: str = UNIFORM_BATCH_PRICE_OBJECTIVE_ID
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema": UNIFORM_BATCH_CERTIFICATE_SCHEMA,
             "policy_id": self.policy_id,
+            "price_objective_id": self.price_objective_id,
             "pool_id": self.pool_id,
             "base_asset": self.base_asset,
             "quote_asset": self.quote_asset,
@@ -106,6 +110,12 @@ class UniformBatchCertificateV1:
         policy_id = _require_str(obj.get("policy_id"), name="certificate.policy_id")
         if policy_id != UNIFORM_BATCH_POLICY_ID:
             raise ValueError("unsupported uniform batch policy_id")
+        price_objective_id = _require_str(
+            obj.get("price_objective_id"),
+            name="certificate.price_objective_id",
+        )
+        if price_objective_id != UNIFORM_BATCH_PRICE_OBJECTIVE_ID:
+            raise ValueError("unsupported uniform batch price_objective_id")
         fills_obj = obj.get("fills")
         if not isinstance(fills_obj, Sequence) or isinstance(fills_obj, (str, bytes, bytearray)):
             raise TypeError("certificate.fills must be a sequence")
@@ -135,6 +145,7 @@ class UniformBatchCertificateV1:
             ),
             fills=tuple(UniformBatchFillV1.from_obj(_require_mapping(fill, name="certificate.fill")) for fill in fills_obj),
             policy_id=policy_id,
+            price_objective_id=price_objective_id,
         )
 
     def hash(self) -> str:
@@ -299,6 +310,12 @@ def _build_uniform_batch_settlement_checked(
     expected_fill_ids = sorted(intents_by_id)
     if fill_ids != expected_fill_ids:
         raise ValueError("certificate must fill every admitted intent")
+    objective_price_num, objective_price_den = _canonical_price_ratio(
+        intents_by_id=intents_by_id,
+        pool=pool,
+    )
+    if (certificate.price_num, certificate.price_den) != (objective_price_num, objective_price_den):
+        raise ValueError("certificate price does not match canonical UPBA objective")
 
     balance_net: dict[tuple[PubKey, AssetId], int] = defaultdict(int)
     reserve_net: dict[AssetId, int] = defaultdict(int)
@@ -379,6 +396,7 @@ def _build_uniform_batch_settlement_checked(
                 "type": "UNIFORM_BATCH_CLEARING_V1",
                 "pool_id": pool.pool_id,
                 "policy_id": certificate.policy_id,
+                "price_objective_id": certificate.price_objective_id,
                 "certificate_hash": certificate_hash,
             }
         ],
@@ -388,6 +406,8 @@ def _build_uniform_batch_settlement_checked(
 def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
     if certificate.policy_id != UNIFORM_BATCH_POLICY_ID:
         raise ValueError("unsupported uniform batch policy_id")
+    if certificate.price_objective_id != UNIFORM_BATCH_PRICE_OBJECTIVE_ID:
+        raise ValueError("unsupported uniform batch price_objective_id")
     _require_str(certificate.pool_id, name="certificate.pool_id")
     _require_str(certificate.base_asset, name="certificate.base_asset")
     _require_str(certificate.quote_asset, name="certificate.quote_asset")
@@ -436,6 +456,8 @@ def _validate_pool_scope(*, pool: PoolState, certificate: UniformBatchCertificat
         raise ValueError("uniform batch pool must be active")
     if pool.curve_tag != CURVE_TAG_CPMM:
         raise ValueError("uniform batch v1 supports CPMM pools only")
+    if pool.reserve0 <= 0 or pool.reserve1 <= 0:
+        raise ValueError("uniform batch pool reserves must be positive")
 
 
 def _validate_intent_scope(*, intent: Intent, pool: PoolState, certificate: UniformBatchCertificateV1) -> None:
@@ -467,6 +489,36 @@ def _intent_direction(*, intent: Intent, pool: PoolState) -> str:
     if asset_in == pool.asset1 and asset_out == pool.asset0:
         return "quote_to_base"
     raise ValueError("intent direction does not match pool assets")
+
+
+def _canonical_price_ratio(*, intents_by_id: Mapping[str, Intent], pool: PoolState) -> tuple[int, int]:
+    base_to_quote_net = 0
+    quote_to_base_net = 0
+    for intent in intents_by_id.values():
+        amount_in = _require_positive_int(
+            intent.get_field("amount_in"),
+            name="intent.amount_in",
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+        fee_paid = compute_fee_total(amount_in, pool.fee_bps)
+        net_in = amount_in - fee_paid
+        if net_in <= 0:
+            raise ValueError("certificate fill net input is zero")
+        direction = _intent_direction(intent=intent, pool=pool)
+        if direction == "base_to_quote":
+            base_to_quote_net += net_in
+        else:
+            quote_to_base_net += net_in
+    if base_to_quote_net > 0 and quote_to_base_net > 0:
+        return _reduce_ratio(quote_to_base_net, base_to_quote_net)
+    return _reduce_ratio(pool.reserve1, pool.reserve0)
+
+
+def _reduce_ratio(numerator: int, denominator: int) -> tuple[int, int]:
+    if numerator <= 0 or denominator <= 0:
+        raise ValueError("canonical UPBA price ratio must be positive")
+    divisor = gcd(int(numerator), int(denominator))
+    return int(numerator) // divisor, int(denominator) // divisor
 
 
 def _uniform_price_out(*, net_in: int, direction: str, price_num: int, price_den: int) -> int:
