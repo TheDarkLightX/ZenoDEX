@@ -27,6 +27,7 @@ UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
 UNIFORM_BATCH_POLICY_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
 UNIFORM_BATCH_PRICE_RATIO_MAX = DEX_POOL_RESERVE_MAX
 UNIFORM_BATCH_OUTPUT_AMOUNT_MAX = DEX_SWAP_AMOUNT_MAX * UNIFORM_BATCH_PRICE_RATIO_MAX
+UNIFORM_BATCH_MAX_FILLS = 256
 _UNIFORM_BATCH_CERTIFICATE_KEYS = frozenset(
     {
         "schema",
@@ -108,6 +109,8 @@ class UniformBatchCertificateV1:
         fills_obj = obj.get("fills")
         if not isinstance(fills_obj, Sequence) or isinstance(fills_obj, (str, bytes, bytearray)):
             raise TypeError("certificate.fills must be a sequence")
+        if len(fills_obj) > UNIFORM_BATCH_MAX_FILLS:
+            raise ValueError(f"certificate.fills exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}")
         return cls(
             pool_id=_require_str(obj.get("pool_id"), name="certificate.pool_id"),
             base_asset=_require_str(obj.get("base_asset"), name="certificate.base_asset"),
@@ -267,6 +270,8 @@ def _build_uniform_batch_settlement_checked(
     _validate_pool_scope(pool=pool, certificate=certificate)
     if not intents:
         raise ValueError("uniform batch requires at least one intent")
+    if len(intents) > UNIFORM_BATCH_MAX_FILLS:
+        raise ValueError(f"uniform batch intent count exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}")
     expected_intent_set_hash = uniform_batch_intent_set_hash(intents)
     if certificate.intent_set_hash != expected_intent_set_hash:
         raise ValueError("certificate intent_set_hash mismatch")
@@ -394,6 +399,8 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
         raise ValueError("certificate price ratio must be reduced")
     if not isinstance(certificate.fills, tuple):
         raise TypeError("certificate.fills must be a tuple")
+    if len(certificate.fills) > UNIFORM_BATCH_MAX_FILLS:
+        raise ValueError(f"certificate.fills exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}")
     for fill in certificate.fills:
         if not isinstance(fill, UniformBatchFillV1):
             raise TypeError("certificate.fills must contain UniformBatchFillV1 values")

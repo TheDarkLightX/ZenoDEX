@@ -34,6 +34,7 @@ Supported:
 - `price_num` and `price_den` bounded by the UPBA price-ratio domain
 - certificate outputs and intent `min_amount_out` bounded by the UPBA output
   domain
+- at most 256 admitted intents and 256 certificate fills
 - deterministic ceil fee on gross input
 - deterministic floor output on net input
 - canonical fill ordering by `intent_id`
@@ -103,6 +104,11 @@ Certificate `executed_out` values and intent `min_amount_out` values are capped
 by this derived maximum. This keeps the limit-price cross multiplication inside
 a documented finite domain.
 
+The fixed admission set and certificate fill list are also capped at 256
+entries. The verifier checks the intent count before computing the
+`intent_set_hash`, so oversize UPBA batches fail before entering the heavier
+canonical-hash and fill-matching path.
+
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.
 This prevents a certificate from being replayed against a different order set.
@@ -146,6 +152,7 @@ keyed by the order multiset and canonical fill list rather than input sequence.
 The tests include a permutation-invariance check, an aggregate `k` decrease
 rejection, a limit-price rejection, a pre-pool snapshot rejection, a
 nonreduced price rejection, price-domain and output-domain rejections, an
+oversize certificate rejection, an oversize admission-set rejection, an
 unsupported-policy rejection, closed-schema rejections, a noncanonical
 fill-order rejection, an admitted-intent omission rejection, a partial-fill
 rejection, and a tampered-settlement rejection.
