@@ -7,6 +7,7 @@ from src.core.settlement import FillAction
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
+    UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
@@ -392,6 +393,44 @@ def test_uniform_batch_certificate_rejects_min_amount_out_above_domain() -> None
 
     assert result.ok is False
     assert result.error == "intent.min_amount_out exceeds maximum"
+
+
+def test_uniform_batch_certificate_rejects_too_many_fills() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate_obj = _certificate_for(intents).to_dict()
+    certificate_obj["fills"] = [certificate_obj["fills"][0]] * (UNIFORM_BATCH_MAX_FILLS + 1)
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate_obj,
+    )
+
+    assert result.ok is False
+    assert result.error == f"certificate.fills exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}"
+
+
+def test_uniform_batch_certificate_rejects_too_many_intents_before_hashing() -> None:
+    pool = _pool()
+    balances = _balances()
+    certificate = _certificate_for(_balanced_intents())
+    intents = [
+        _swap(f"many-{i}", "alice", "A", "B", min_amount_out=1)
+        for i in range(UNIFORM_BATCH_MAX_FILLS + 1)
+    ]
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == f"uniform batch intent count exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}"
 
 
 def test_uniform_batch_certificate_rejects_unsupported_policy_id() -> None:
