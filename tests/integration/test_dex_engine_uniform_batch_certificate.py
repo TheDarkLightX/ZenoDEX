@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 from hashlib import sha256
+from math import gcd
 
+from src.core.cpmm import compute_fee_total
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
+    UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
     UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
+    UNIFORM_BATCH_POLICY_V2_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
+    UNIFORM_BATCH_UNFILLED_REASON,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
 )
+from src.core.settlement import FillAction
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
 from src.state.balances import BalanceTable
@@ -44,6 +50,12 @@ def _pool() -> PoolState:
     )
 
 
+def _high_fee_pool() -> PoolState:
+    pool = _pool()
+    pool.fee_bps = 1_000
+    return pool
+
+
 def _state() -> DexState:
     balances = BalanceTable()
     balances.set(SENDER, "A", 1_000)
@@ -51,6 +63,17 @@ def _state() -> DexState:
     return DexState(
         balances=balances,
         pools={"pool_ab": _pool()},
+        lp_balances=LPTable(),
+    )
+
+
+def _high_fee_state() -> DexState:
+    balances = BalanceTable()
+    balances.set(SENDER, "A", 1_000)
+    balances.set(SENDER, "B", 1_000)
+    return DexState(
+        balances=balances,
+        pools={"pool_ab": _high_fee_pool()},
         lp_balances=LPTable(),
     )
 
@@ -138,6 +161,64 @@ def _certificate(intents: list[Intent]) -> UniformBatchCertificateV1:
             )
             for intent in sorted(intents, key=lambda item: item.intent_id)
         ),
+    )
+
+
+def _reduce_ratio(numerator: int, denominator: int) -> tuple[int, int]:
+    divisor = gcd(numerator, denominator)
+    return numerator // divisor, denominator // divisor
+
+
+def _v2_certificate_for(
+    *,
+    intents: list[Intent],
+    pool: PoolState,
+    executed_in_by_id: dict[str, int],
+) -> UniformBatchCertificateV1:
+    base_to_quote_net = 0
+    quote_to_base_net = 0
+    for intent in intents:
+        executed_in = int(executed_in_by_id[intent.intent_id])
+        if executed_in == 0:
+            continue
+        net_in = executed_in - compute_fee_total(executed_in, pool.fee_bps)
+        if str(intent.get_field("asset_in")) == pool.asset0:
+            base_to_quote_net += net_in
+        else:
+            quote_to_base_net += net_in
+    if base_to_quote_net > 0 and quote_to_base_net > 0:
+        price_num, price_den = _reduce_ratio(quote_to_base_net, base_to_quote_net)
+    else:
+        price_num, price_den = _reduce_ratio(pool.reserve1, pool.reserve0)
+    fills = []
+    for intent in sorted(intents, key=lambda item: item.intent_id):
+        executed_in = int(executed_in_by_id[intent.intent_id])
+        if executed_in == 0:
+            executed_out = 0
+        else:
+            net_in = executed_in - compute_fee_total(executed_in, pool.fee_bps)
+            if str(intent.get_field("asset_in")) == pool.asset0:
+                executed_out = (net_in * price_num) // price_den
+            else:
+                executed_out = (net_in * price_den) // price_num
+        fills.append(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=executed_in,
+                executed_out=executed_out,
+            )
+        )
+    return UniformBatchCertificateV1(
+        pool_id=pool.pool_id,
+        base_asset=pool.asset0,
+        quote_asset=pool.asset1,
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=price_num,
+        price_den=price_den,
+        fills=tuple(fills),
+        policy_id=UNIFORM_BATCH_POLICY_V2_ID,
+        schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
     )
 
 
@@ -438,6 +519,50 @@ def _ops_with_noncanonical_price_objective() -> dict[str, object]:
     return {"2": _ratio_intent_ops(), "3": settlement_op}
 
 
+def _ops_with_v2_partial_certificate() -> dict[str, object]:
+    state = _state()
+    intents = _ratio_intents()
+    cert = _v2_certificate_for(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        executed_in_by_id={
+            intents[0].intent_id: 100,
+            intents[1].intent_id: 100,
+        },
+    )
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = cert.to_dict()
+    return {"2": _ratio_intent_ops(), "3": settlement_op}
+
+
+def _ops_with_v2_zero_fill_certificate() -> dict[str, object]:
+    state = _high_fee_state()
+    intents = _ratio_intents()
+    cert = _v2_certificate_for(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        executed_in_by_id={
+            intents[0].intent_id: 100,
+            intents[1].intent_id: 0,
+        },
+    )
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = cert.to_dict()
+    return {"2": _ratio_intent_ops(), "3": settlement_op}
+
+
 def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
     state = _state()
     result = apply_ops(
@@ -466,6 +591,48 @@ def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
             "certificate_hash": _certificate(_intents()).hash(),
         }
     ]
+
+
+def test_engine_accepts_uniform_batch_v2_partial_certificate_when_enabled() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_v2_partial_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V2"
+    assert result.settlement.events[0]["policy_id"] == UNIFORM_BATCH_POLICY_V2_ID
+    assert [fill.action for fill in result.settlement.fills] == [FillAction.FILL, FillAction.FILL]
+    assert [fill.amount_in_filled for fill in result.settlement.fills] == [100, 100]
+
+
+def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_high_fee_state(),
+        operations=_ops_with_v2_zero_fill_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V2"
+    assert FillAction.REJECT in [fill.action for fill in result.settlement.fills]
+    rejected = [fill for fill in result.settlement.fills if fill.action == FillAction.REJECT]
+    assert rejected[0].reason == UNIFORM_BATCH_UNFILLED_REASON
 
 
 def test_engine_rejects_uniform_batch_certificate_unless_enabled() -> None:

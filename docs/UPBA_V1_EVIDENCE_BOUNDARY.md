@@ -124,3 +124,10 @@ The production-candidate value is narrower and still important: for the scoped
 single-pool exact-in surface, the accepted settlement is bound to a deterministic
 certificate whose execution and price-objective checks depend on aggregate flow
 rather than input order.
+
+## V2 Extension
+
+UPBA v2 is documented separately in `docs/UPBA_V2_CERTIFICATE.md` and
+`docs/UPBA_V2_EVIDENCE_BOUNDARY.md`. It preserves the same aggregate-flow price
+objective and adds bounded partial fills plus explicit zero-fill rejects under a
+new certificate schema and policy id.

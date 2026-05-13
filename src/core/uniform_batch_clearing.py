@@ -1,6 +1,6 @@
 """Uniform-price batch clearing certificate verifier.
 
-This module is intentionally narrow. UPBA v1 supports one existing CPMM pool
+This module is intentionally narrow. UPBA supports one existing CPMM pool
 and exact-in swap intents only. The verifier checks a proposed uniform price
 certificate with deterministic integer arithmetic, then constructs the canonical
 settlement implied by that certificate.
@@ -22,13 +22,23 @@ from .domain_limits import DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX
 from .quote_receipts import pool_state_fingerprint
 from .settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
 
-UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v1"
+UNIFORM_BATCH_CERTIFICATE_SCHEMA_V1 = "zenodex/uniform_batch_clearing_certificate/v1"
+UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2 = "zenodex/uniform_batch_clearing_certificate/v2"
+UNIFORM_BATCH_CERTIFICATE_SCHEMA = UNIFORM_BATCH_CERTIFICATE_SCHEMA_V1
 UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
-UNIFORM_BATCH_POLICY_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
+UNIFORM_BATCH_POLICY_V1_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
+UNIFORM_BATCH_POLICY_V2_ID = "zenodex/upba_v2/fixed_admission_partial_fill_cpmm_exact_in"
+UNIFORM_BATCH_POLICY_ID = UNIFORM_BATCH_POLICY_V1_ID
 UNIFORM_BATCH_PRICE_OBJECTIVE_ID = "zenodex/upba_v1/net_flow_ratio_or_pool_spot_price"
 UNIFORM_BATCH_PRICE_RATIO_MAX = DEX_POOL_RESERVE_MAX
 UNIFORM_BATCH_OUTPUT_AMOUNT_MAX = DEX_SWAP_AMOUNT_MAX * UNIFORM_BATCH_PRICE_RATIO_MAX
 UNIFORM_BATCH_MAX_FILLS = 256
+UNIFORM_BATCH_UNFILLED_REASON = "UNIFORM_BATCH_UNFILLED"
+_UNIFORM_BATCH_SUPPORTED_POLICY_IDS = frozenset({UNIFORM_BATCH_POLICY_V1_ID, UNIFORM_BATCH_POLICY_V2_ID})
+_UNIFORM_BATCH_SCHEMA_BY_POLICY = {
+    UNIFORM_BATCH_POLICY_V1_ID: UNIFORM_BATCH_CERTIFICATE_SCHEMA_V1,
+    UNIFORM_BATCH_POLICY_V2_ID: UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
+}
 _UNIFORM_BATCH_CERTIFICATE_KEYS = frozenset(
     {
         "schema",
@@ -65,8 +75,12 @@ class UniformBatchFillV1:
         _reject_unknown_keys(obj, allowed=_UNIFORM_BATCH_FILL_KEYS, name="certificate.fill")
         return cls(
             intent_id=_require_str(obj.get("intent_id"), name="fill.intent_id"),
-            executed_in=_require_positive_int(obj.get("executed_in"), name="fill.executed_in"),
-            executed_out=_require_positive_int(
+            executed_in=_require_nonnegative_int(
+                obj.get("executed_in"),
+                name="fill.executed_in",
+                maximum=DEX_SWAP_AMOUNT_MAX,
+            ),
+            executed_out=_require_nonnegative_int(
                 obj.get("executed_out"),
                 name="fill.executed_out",
                 maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
@@ -86,10 +100,11 @@ class UniformBatchCertificateV1:
     fills: tuple[UniformBatchFillV1, ...]
     policy_id: str = UNIFORM_BATCH_POLICY_ID
     price_objective_id: str = UNIFORM_BATCH_PRICE_OBJECTIVE_ID
+    schema: str = UNIFORM_BATCH_CERTIFICATE_SCHEMA
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": UNIFORM_BATCH_CERTIFICATE_SCHEMA,
+            "schema": self.schema,
             "policy_id": self.policy_id,
             "price_objective_id": self.price_objective_id,
             "pool_id": self.pool_id,
@@ -105,11 +120,15 @@ class UniformBatchCertificateV1:
     @classmethod
     def from_obj(cls, obj: Mapping[str, Any]) -> "UniformBatchCertificateV1":
         _reject_unknown_keys(obj, allowed=_UNIFORM_BATCH_CERTIFICATE_KEYS, name="certificate")
-        if _require_str(obj.get("schema"), name="certificate.schema") != UNIFORM_BATCH_CERTIFICATE_SCHEMA:
+        schema = _require_str(obj.get("schema"), name="certificate.schema")
+        if schema not in (UNIFORM_BATCH_CERTIFICATE_SCHEMA_V1, UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2):
             raise ValueError("unsupported uniform batch certificate schema")
         policy_id = _require_str(obj.get("policy_id"), name="certificate.policy_id")
-        if policy_id != UNIFORM_BATCH_POLICY_ID:
+        if policy_id not in _UNIFORM_BATCH_SUPPORTED_POLICY_IDS:
             raise ValueError("unsupported uniform batch policy_id")
+        expected_schema = _UNIFORM_BATCH_SCHEMA_BY_POLICY[policy_id]
+        if schema != expected_schema:
+            raise ValueError("uniform batch certificate schema does not match policy_id")
         price_objective_id = _require_str(
             obj.get("price_objective_id"),
             name="certificate.price_objective_id",
@@ -146,6 +165,7 @@ class UniformBatchCertificateV1:
             fills=tuple(UniformBatchFillV1.from_obj(_require_mapping(fill, name="certificate.fill")) for fill in fills_obj),
             policy_id=policy_id,
             price_objective_id=price_objective_id,
+            schema=schema,
         )
 
     def hash(self) -> str:
@@ -168,8 +188,9 @@ def uniform_batch_certificate_hash(certificate: UniformBatchCertificateV1 | Mapp
     )
     _validate_certificate_shape(parsed)
     body = parsed.to_dict()
+    hash_version = 2 if parsed.schema == UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2 else 1
     return sha256_hex(
-        domain_sep_bytes("uniform_batch_clearing_certificate", version=1)
+        domain_sep_bytes("uniform_batch_clearing_certificate", version=hash_version)
         + canonical_json_bytes(body)
     )
 
@@ -313,6 +334,7 @@ def _build_uniform_batch_settlement_checked(
     objective_price_num, objective_price_den = _canonical_price_ratio(
         intents_by_id=intents_by_id,
         pool=pool,
+        certificate=certificate,
     )
     if (certificate.price_num, certificate.price_den) != (objective_price_num, objective_price_den):
         raise ValueError("certificate price does not match canonical UPBA objective")
@@ -326,10 +348,30 @@ def _build_uniform_batch_settlement_checked(
         if intent is None:
             raise ValueError("certificate fill references unknown intent_id")
         direction = _intent_direction(intent=intent, pool=pool)
-        amount_in = _require_positive_int(intent.get_field("amount_in"), name="intent.amount_in")
-        min_amount_out = _require_nonnegative_int(intent.get_field("min_amount_out"), name="intent.min_amount_out")
-        if cert_fill.executed_in != amount_in:
+        amount_in = _require_positive_int(
+            intent.get_field("amount_in"),
+            name="intent.amount_in",
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+        min_amount_out = _require_nonnegative_int(
+            intent.get_field("min_amount_out"),
+            name="intent.min_amount_out",
+            maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+        )
+        _validate_fill_amount_for_policy(cert_fill=cert_fill, amount_in=amount_in, policy_id=certificate.policy_id)
+        if certificate.policy_id == UNIFORM_BATCH_POLICY_V1_ID and cert_fill.executed_in != amount_in:
             raise ValueError("certificate fill must consume full intent amount_in")
+        if cert_fill.executed_in == 0:
+            if cert_fill.executed_out != 0:
+                raise ValueError("unfilled certificate fill output must be zero")
+            fills.append(
+                Fill(
+                    intent_id=cert_fill.intent_id,
+                    action=FillAction.REJECT,
+                    reason=UNIFORM_BATCH_UNFILLED_REASON,
+                )
+            )
+            continue
         fee_paid = compute_fee_total(cert_fill.executed_in, pool.fee_bps)
         net_in = cert_fill.executed_in - fee_paid
         if net_in <= 0:
@@ -393,7 +435,7 @@ def _build_uniform_batch_settlement_checked(
         lp_deltas=[],
         events=[
             {
-                "type": "UNIFORM_BATCH_CLEARING_V1",
+                "type": _uniform_batch_event_type(certificate.policy_id),
                 "pool_id": pool.pool_id,
                 "policy_id": certificate.policy_id,
                 "price_objective_id": certificate.price_objective_id,
@@ -404,8 +446,13 @@ def _build_uniform_batch_settlement_checked(
 
 
 def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
-    if certificate.policy_id != UNIFORM_BATCH_POLICY_ID:
+    if certificate.schema not in (UNIFORM_BATCH_CERTIFICATE_SCHEMA_V1, UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2):
+        raise ValueError("unsupported uniform batch certificate schema")
+    if certificate.policy_id not in _UNIFORM_BATCH_SUPPORTED_POLICY_IDS:
         raise ValueError("unsupported uniform batch policy_id")
+    expected_schema = _UNIFORM_BATCH_SCHEMA_BY_POLICY[certificate.policy_id]
+    if certificate.schema != expected_schema:
+        raise ValueError("uniform batch certificate schema does not match policy_id")
     if certificate.price_objective_id != UNIFORM_BATCH_PRICE_OBJECTIVE_ID:
         raise ValueError("unsupported uniform batch price_objective_id")
     _require_str(certificate.pool_id, name="certificate.pool_id")
@@ -433,16 +480,34 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
         if not isinstance(fill, UniformBatchFillV1):
             raise TypeError("certificate.fills must contain UniformBatchFillV1 values")
         _require_str(fill.intent_id, name="certificate.fill.intent_id")
-        _require_positive_int(
+        if certificate.policy_id == UNIFORM_BATCH_POLICY_V1_ID:
+            _require_positive_int(
+                fill.executed_in,
+                name="certificate.fill.executed_in",
+                maximum=DEX_SWAP_AMOUNT_MAX,
+            )
+            _require_positive_int(
+                fill.executed_out,
+                name="certificate.fill.executed_out",
+                maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+            )
+            continue
+        _require_nonnegative_int(
             fill.executed_in,
             name="certificate.fill.executed_in",
             maximum=DEX_SWAP_AMOUNT_MAX,
         )
-        _require_positive_int(
+        _require_nonnegative_int(
             fill.executed_out,
             name="certificate.fill.executed_out",
             maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
         )
+
+
+def _uniform_batch_event_type(policy_id: str) -> str:
+    if policy_id == UNIFORM_BATCH_POLICY_V2_ID:
+        return "UNIFORM_BATCH_CLEARING_V2"
+    return "UNIFORM_BATCH_CLEARING_V1"
 
 
 def _validate_pool_scope(*, pool: PoolState, certificate: UniformBatchCertificateV1) -> None:
@@ -491,17 +556,54 @@ def _intent_direction(*, intent: Intent, pool: PoolState) -> str:
     raise ValueError("intent direction does not match pool assets")
 
 
-def _canonical_price_ratio(*, intents_by_id: Mapping[str, Intent], pool: PoolState) -> tuple[int, int]:
+def _validate_fill_amount_for_policy(*, cert_fill: UniformBatchFillV1, amount_in: int, policy_id: str) -> None:
+    if policy_id == UNIFORM_BATCH_POLICY_V1_ID:
+        _require_positive_int(
+            cert_fill.executed_in,
+            name="certificate.fill.executed_in",
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+        if cert_fill.executed_in != amount_in:
+            raise ValueError("certificate fill must consume full intent amount_in")
+        return
+    if policy_id == UNIFORM_BATCH_POLICY_V2_ID:
+        _require_nonnegative_int(
+            cert_fill.executed_in,
+            name="certificate.fill.executed_in",
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+        if cert_fill.executed_in > amount_in:
+            raise ValueError("certificate fill exceeds intent amount_in")
+        return
+    raise ValueError("unsupported uniform batch policy_id")
+
+
+def _canonical_price_ratio(
+    *,
+    intents_by_id: Mapping[str, Intent],
+    pool: PoolState,
+    certificate: UniformBatchCertificateV1,
+) -> tuple[int, int]:
     base_to_quote_net = 0
     quote_to_base_net = 0
-    for intent in intents_by_id.values():
+    positive_fill_count = 0
+    fills_by_id = {fill.intent_id: fill for fill in certificate.fills}
+    for intent_id, intent in intents_by_id.items():
         amount_in = _require_positive_int(
             intent.get_field("amount_in"),
             name="intent.amount_in",
             maximum=DEX_SWAP_AMOUNT_MAX,
         )
-        fee_paid = compute_fee_total(amount_in, pool.fee_bps)
-        net_in = amount_in - fee_paid
+        fill = fills_by_id.get(intent_id)
+        if fill is None:
+            raise ValueError("certificate must fill every admitted intent")
+        _validate_fill_amount_for_policy(cert_fill=fill, amount_in=amount_in, policy_id=certificate.policy_id)
+        executed_in = amount_in if certificate.policy_id == UNIFORM_BATCH_POLICY_V1_ID else fill.executed_in
+        if executed_in == 0:
+            continue
+        positive_fill_count += 1
+        fee_paid = compute_fee_total(executed_in, pool.fee_bps)
+        net_in = executed_in - fee_paid
         if net_in <= 0:
             raise ValueError("certificate fill net input is zero")
         direction = _intent_direction(intent=intent, pool=pool)
@@ -509,6 +611,8 @@ def _canonical_price_ratio(*, intents_by_id: Mapping[str, Intent], pool: PoolSta
             base_to_quote_net += net_in
         else:
             quote_to_base_net += net_in
+    if certificate.policy_id == UNIFORM_BATCH_POLICY_V2_ID and positive_fill_count == 0:
+        raise ValueError("uniform batch v2 requires at least one positive fill")
     if base_to_quote_net > 0 and quote_to_base_net > 0:
         return _reduce_ratio(quote_to_base_net, base_to_quote_net)
     return _reduce_ratio(pool.reserve1, pool.reserve0)

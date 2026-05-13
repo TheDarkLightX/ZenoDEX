@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 from hashlib import sha256
+from math import gcd
+from random import Random
 
 from src.core.batch_clearing import validate_settlement
+from src.core.cpmm import compute_fee_total
 from src.core.settlement import FillAction
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
+    UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
     UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
+    UNIFORM_BATCH_POLICY_V2_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
+    UNIFORM_BATCH_UNFILLED_REASON,
     build_uniform_batch_settlement_v1,
     uniform_batch_certificate_hash,
     uniform_batch_intent_set_hash,
@@ -46,6 +52,12 @@ def _pool() -> PoolState:
 def _fee_pool() -> PoolState:
     pool = _pool()
     pool.fee_bps = 100
+    return pool
+
+
+def _high_fee_pool() -> PoolState:
+    pool = _pool()
+    pool.fee_bps = 1_000
     return pool
 
 
@@ -88,6 +100,65 @@ def _balanced_intents() -> list[Intent]:
         _swap("alice-a-to-b", "alice", "A", "B"),
         _swap("bob-b-to-a", "bob", "B", "A"),
     ]
+
+
+def _reduce_ratio(numerator: int, denominator: int) -> tuple[int, int]:
+    divisor = gcd(numerator, denominator)
+    return numerator // divisor, denominator // divisor
+
+
+def _v2_certificate_for(
+    *,
+    intents: list[Intent],
+    pool: PoolState,
+    executed_in_by_id: dict[str, int],
+) -> UniformBatchCertificateV1:
+    base_to_quote_net = 0
+    quote_to_base_net = 0
+    for intent in intents:
+        executed_in = int(executed_in_by_id[intent.intent_id])
+        if executed_in == 0:
+            continue
+        net_in = executed_in - compute_fee_total(executed_in, pool.fee_bps)
+        if str(intent.get_field("asset_in")) == pool.asset0:
+            base_to_quote_net += net_in
+        else:
+            quote_to_base_net += net_in
+    if base_to_quote_net > 0 and quote_to_base_net > 0:
+        price_num, price_den = _reduce_ratio(quote_to_base_net, base_to_quote_net)
+    else:
+        price_num, price_den = _reduce_ratio(pool.reserve1, pool.reserve0)
+
+    fills: list[UniformBatchFillV1] = []
+    for intent in sorted(intents, key=lambda item: item.intent_id):
+        executed_in = int(executed_in_by_id[intent.intent_id])
+        if executed_in == 0:
+            executed_out = 0
+        else:
+            net_in = executed_in - compute_fee_total(executed_in, pool.fee_bps)
+            if str(intent.get_field("asset_in")) == pool.asset0:
+                executed_out = (net_in * price_num) // price_den
+            else:
+                executed_out = (net_in * price_den) // price_num
+        fills.append(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=executed_in,
+                executed_out=executed_out,
+            )
+        )
+    return UniformBatchCertificateV1(
+        pool_id=pool.pool_id,
+        base_asset=pool.asset0,
+        quote_asset=pool.asset1,
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=price_num,
+        price_den=price_den,
+        fills=tuple(fills),
+        policy_id=UNIFORM_BATCH_POLICY_V2_ID,
+        schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
+    )
 
 
 def _certificate_for(intents: list[Intent]) -> UniformBatchCertificateV1:
@@ -250,6 +321,222 @@ def test_uniform_batch_certificate_hash_rejects_invalid_mapping_shape() -> None:
         assert str(exc) == "certificate price ratio must be reduced"
     else:  # pragma: no cover - explicit failure branch for assertion clarity
         raise AssertionError("expected parsed mapping hash rejection")
+
+
+def test_uniform_batch_v2_certificate_accepts_partial_fills() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _swap("alice-a-to-b", "alice", "A", "B", amount_in=100, min_amount_out=1),
+        _swap("bob-b-to-a", "bob", "B", "A", amount_in=200, min_amount_out=1),
+    ]
+    certificate = _v2_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 100,
+            intents[1].intent_id: 100,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.settlement is not None
+    assert certificate.to_dict()["schema"] == UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2
+    assert certificate.to_dict()["policy_id"] == UNIFORM_BATCH_POLICY_V2_ID
+    assert result.settlement.events == [
+        {
+            "type": "UNIFORM_BATCH_CLEARING_V2",
+            "pool_id": "pool_ab",
+            "policy_id": UNIFORM_BATCH_POLICY_V2_ID,
+            "price_objective_id": UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
+            "certificate_hash": certificate.hash(),
+        }
+    ]
+    assert [fill.action for fill in result.settlement.fills] == [FillAction.FILL, FillAction.FILL]
+    assert [fill.amount_in_filled for fill in result.settlement.fills] == [100, 100]
+    assert sorted(
+        (delta.pubkey, delta.asset, delta.delta_add, delta.delta_sub)
+        for delta in result.settlement.balance_deltas
+    ) == [
+        ("alice", "A", 0, 100),
+        ("alice", "B", 100, 0),
+        ("bob", "A", 100, 0),
+        ("bob", "B", 0, 100),
+    ]
+
+
+def test_uniform_batch_v2_certificate_accepts_zero_fill_rejected_member() -> None:
+    pool = _high_fee_pool()
+    balances = _balances()
+    intents = [
+        _swap("alice-a-to-b", "alice", "A", "B", amount_in=100, min_amount_out=1),
+        _swap("bob-b-to-a", "bob", "B", "A", amount_in=200, min_amount_out=1),
+    ]
+    certificate = _v2_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 100,
+            intents[1].intent_id: 0,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.settlement is not None
+    actions_by_id = dict(result.settlement.included_intents)
+    assert actions_by_id[intents[0].intent_id] == FillAction.FILL
+    assert actions_by_id[intents[1].intent_id] == FillAction.REJECT
+    rejected = [fill for fill in result.settlement.fills if fill.action == FillAction.REJECT]
+    assert len(rejected) == 1
+    assert rejected[0].intent_id == intents[1].intent_id
+    assert rejected[0].reason == UNIFORM_BATCH_UNFILLED_REASON
+
+
+def test_uniform_batch_v2_certificate_rejects_fill_above_intent_amount() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _v2_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 101,
+            intents[1].intent_id: 100,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate fill exceeds intent amount_in"
+
+
+def test_uniform_batch_v2_certificate_rejects_all_zero_fills() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _v2_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 0,
+            intents[1].intent_id: 0,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch v2 requires at least one positive fill"
+
+
+def test_uniform_batch_v2_certificate_rejects_schema_policy_mismatch() -> None:
+    pool = _pool()
+    intents = _balanced_intents()
+    certificate_obj = _v2_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={intent.intent_id: 100 for intent in intents},
+    ).to_dict()
+    certificate_obj["schema"] = "zenodex/uniform_batch_clearing_certificate/v1"
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=_balances(),
+        certificate=certificate_obj,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate schema does not match policy_id"
+
+
+def test_uniform_batch_v2_adapter_property_permutation_invariance_over_partial_fills() -> None:
+    rng = Random(20260513)
+    for case_index in range(50):
+        pool = _pool()
+        pool.reserve0 = rng.randint(1_000, 10_000)
+        pool.reserve1 = rng.randint(1_000, 10_000)
+        pool.fee_bps = rng.randint(0, 300)
+        balances = BalanceTable()
+        balances.set("alice", "A", 1_000_000)
+        balances.set("alice", "B", 0)
+        balances.set("bob", "A", 0)
+        balances.set("bob", "B", 1_000_000)
+        amount_a = rng.randint(10, 500)
+        amount_b = rng.randint(10, 500)
+        intents = [
+            _swap(
+                f"case-{case_index}-alice",
+                "alice",
+                "A",
+                "B",
+                amount_in=amount_a,
+                min_amount_out=0,
+            ),
+            _swap(
+                f"case-{case_index}-bob",
+                "bob",
+                "B",
+                "A",
+                amount_in=amount_b,
+                min_amount_out=0,
+            ),
+        ]
+        executed_a = rng.randint(1, amount_a)
+        executed_b = rng.randint(1, amount_b)
+        certificate = _v2_certificate_for(
+            intents=intents,
+            pool=pool,
+            executed_in_by_id={
+                intents[0].intent_id: executed_a,
+                intents[1].intent_id: executed_b,
+            },
+        )
+
+        settlement_a = build_uniform_batch_settlement_v1(
+            intents=intents,
+            pool=pool,
+            balances=balances,
+            certificate=certificate,
+        )
+        settlement_b = build_uniform_batch_settlement_v1(
+            intents=list(reversed(intents)),
+            pool=pool,
+            balances=balances,
+            certificate=certificate,
+        )
+
+        assert settlement_a.included_intents == settlement_b.included_intents
+        assert settlement_a.fills == settlement_b.fills
+        assert settlement_a.balance_deltas == settlement_b.balance_deltas
+        assert settlement_a.reserve_deltas == settlement_b.reserve_deltas
 
 
 def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> None:
