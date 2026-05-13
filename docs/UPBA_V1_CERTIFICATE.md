@@ -220,6 +220,19 @@ zenodex/upba_v1/net_flow_ratio_or_pool_spot_price`: the certificate price must
 be the reduced aggregate net-flow ratio when both directions are present, or the
 reduced pre-pool spot ratio for one-sided batches.
 
+The proof file also includes a stronger aggregate-sum boundary:
+
+```text
+same aggregate net base input
+and same aggregate net quote input
+->
+same canonicalPriceObjective
+```
+
+That theorem is the direct model of the verifier's local arithmetic. The
+permutation theorem is then a consequence of sum preservation under
+permutation.
+
 The runtime bridge now accepts UPBA v1 only when the local verifier produces the
 exact accepted settlement. Remaining non-claims:
 
