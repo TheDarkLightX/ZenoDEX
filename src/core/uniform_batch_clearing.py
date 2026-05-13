@@ -150,7 +150,12 @@ class UniformBatchVerificationResult:
 
 
 def uniform_batch_certificate_hash(certificate: UniformBatchCertificateV1 | Mapping[str, Any]) -> str:
-    body = certificate.to_dict() if isinstance(certificate, UniformBatchCertificateV1) else dict(certificate)
+    parsed = (
+        certificate
+        if isinstance(certificate, UniformBatchCertificateV1)
+        else UniformBatchCertificateV1.from_obj(_require_mapping(certificate, name="certificate"))
+    )
+    body = parsed.to_dict()
     return sha256_hex(
         domain_sep_bytes("uniform_batch_clearing_certificate", version=1)
         + canonical_json_bytes(body)
@@ -162,6 +167,8 @@ def uniform_batch_pool_state_hash(pool: PoolState) -> str:
 
 
 def uniform_batch_intent_set_hash(intents: Sequence[Intent]) -> str:
+    if len(intents) > UNIFORM_BATCH_MAX_FILLS:
+        raise ValueError(f"uniform batch intent count exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}")
     entries: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
     for intent in intents:

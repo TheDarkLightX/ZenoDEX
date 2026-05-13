@@ -12,6 +12,7 @@ from src.core.uniform_batch_clearing import (
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     build_uniform_batch_settlement_v1,
+    uniform_batch_certificate_hash,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
     validate_uniform_batch_settlement_v1,
@@ -163,12 +164,56 @@ def test_uniform_batch_intent_set_hash_is_permutation_invariant() -> None:
     assert uniform_batch_intent_set_hash(intents) == uniform_batch_intent_set_hash(list(reversed(intents)))
 
 
+def test_uniform_batch_intent_set_hash_rejects_too_many_intents() -> None:
+    intents = [
+        _swap(f"many-{i}", "alice", "A", "B", min_amount_out=1)
+        for i in range(UNIFORM_BATCH_MAX_FILLS + 1)
+    ]
+
+    try:
+        uniform_batch_intent_set_hash(intents)
+    except ValueError as exc:
+        assert str(exc) == f"uniform batch intent count exceeds maximum length {UNIFORM_BATCH_MAX_FILLS}"
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected oversized intent-set hash rejection")
+
+
 def test_uniform_batch_pool_state_hash_changes_with_reserves() -> None:
     pool_a = _pool()
     pool_b = _pool()
     pool_b.reserve0 += 1
 
     assert uniform_batch_pool_state_hash(pool_a) != uniform_batch_pool_state_hash(pool_b)
+
+
+def test_uniform_batch_certificate_hash_rejects_unknown_mapping_key() -> None:
+    certificate_obj = _certificate_for(_balanced_intents()).to_dict()
+    certificate_obj["future_policy_knob"] = True
+
+    try:
+        uniform_batch_certificate_hash(certificate_obj)
+    except ValueError as exc:
+        assert str(exc) == "certificate contains unsupported keys: future_policy_knob"
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected unsupported certificate key rejection")
+
+
+def test_uniform_batch_certificate_hash_rejects_unknown_fill_mapping_key() -> None:
+    certificate_obj = _certificate_for(_balanced_intents()).to_dict()
+    certificate_obj["fills"][0]["future_fill_knob"] = True
+
+    try:
+        uniform_batch_certificate_hash(certificate_obj)
+    except ValueError as exc:
+        assert str(exc) == "certificate.fill contains unsupported keys: future_fill_knob"
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected unsupported fill key rejection")
+
+
+def test_uniform_batch_certificate_hash_accepts_canonical_mapping() -> None:
+    certificate = _certificate_for(_balanced_intents())
+
+    assert uniform_batch_certificate_hash(certificate.to_dict()) == certificate.hash()
 
 
 def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> None:

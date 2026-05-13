@@ -109,6 +109,11 @@ entries. The verifier checks the intent count before computing the
 `intent_set_hash`, so oversize UPBA batches fail before entering the heavier
 canonical-hash and fill-matching path.
 
+The exported certificate-hash and intent-set-hash helpers enforce the same
+closed schema and count domains as the verifier. A malformed certificate object
+cannot be assigned a local hash that the verifier would later reject under a
+different semantic interpretation.
+
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.
 This prevents a certificate from being replayed against a different order set.
@@ -154,8 +159,9 @@ rejection, a limit-price rejection, a pre-pool snapshot rejection, a
 nonreduced price rejection, price-domain and output-domain rejections, an
 oversize certificate rejection, an oversize admission-set rejection, an
 unsupported-policy rejection, closed-schema rejections, a noncanonical
-fill-order rejection, an admitted-intent omission rejection, a partial-fill
-rejection, and a tampered-settlement rejection.
+certificate-hash-schema rejection, a noncanonical fill-order rejection, an
+admitted-intent omission rejection, a partial-fill rejection, and a
+tampered-settlement rejection.
 
 ## Promotion Boundary
 
