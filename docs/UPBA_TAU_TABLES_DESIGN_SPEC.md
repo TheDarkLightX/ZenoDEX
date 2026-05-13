@@ -485,6 +485,21 @@ should enable `require_uniform_batch_price_grid_evidence=True` together with
 `allow_uniform_batch_certificate=True`. With that posture, the engine rejects a
 UPBA certificate that lacks the table evidence bundle.
 
+The recommended scoped helper is:
+
+```python
+from src.integration.upba_production_config import (
+    make_upba_v1_bounded_price_grid_engine_config,
+)
+```
+
+It forces the UPBA bridge on, requires a uniform batch certificate for swap
+batches, requires bounded price-grid table evidence for every accepted UPBA
+certificate, keeps settlement matching enabled, disables external tools, and
+keeps consensus mode enabled. This helper is scoped to UPBA v1 swap batches; it
+does not claim exact-out, multi-hop, LP-management, order-inclusion, oracle, or
+batch-boundary safety.
+
 ### Phase 4: Claim Registry
 
 Add a scoped claim only after Phase 1 and Phase 3 tests pass:

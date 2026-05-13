@@ -4,6 +4,7 @@ from hashlib import sha256
 from math import gcd
 
 from src.core.cpmm import compute_fee_total
+from src.core.batch_clearing import compute_settlement
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
@@ -29,6 +30,7 @@ from src.core.uniform_batch_price_grid_table import build_uniform_batch_price_gr
 from src.core.settlement import FillAction
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
+from src.integration.upba_production_config import make_upba_v1_bounded_price_grid_engine_config
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -319,6 +321,17 @@ def _ops_with_uniform_certificate(*, tamper_settlement: bool = False) -> dict[st
     settlement_op = create_settlement_operation(settlement)["3"]
     settlement_op["uniform_batch_certificate"] = cert.to_dict()
     return {"2": _intent_ops(), "3": settlement_op}
+
+
+def _ops_with_sequential_settlement() -> dict[str, object]:
+    state = _state()
+    settlement = compute_settlement(
+        intents=_intents(),
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+    )
+    return {"2": _intent_ops(), "3": create_settlement_operation(settlement)["3"]}
 
 
 def _optimality_certificate_for_uniform_certificate(
@@ -749,6 +762,76 @@ def test_engine_config_rejects_required_price_grid_without_uniform_batch_bridge(
         )
     else:  # pragma: no cover - explicit failure branch for assertion clarity
         raise AssertionError("expected price-grid requirement config rejection")
+
+
+def test_engine_config_rejects_required_uniform_batch_without_bridge() -> None:
+    try:
+        DexEngineConfig(require_uniform_batch_certificate=True)
+    except ValueError as exc:
+        assert str(exc) == (
+            "require_uniform_batch_certificate=True requires allow_uniform_batch_certificate=True"
+        )
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected uniform-batch requirement config rejection")
+
+
+def test_upba_bounded_price_grid_engine_config_forces_strict_posture() -> None:
+    cfg = make_upba_v1_bounded_price_grid_engine_config(
+        DexEngineConfig(
+            allow_missing_settlement=True,
+            require_settlement_match=False,
+            require_intent_signatures=False,
+            allow_external_tools=True,
+            consensus_mode=False,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+        )
+    )
+
+    assert cfg.allow_missing_settlement is False
+    assert cfg.require_settlement_match is True
+    assert cfg.require_intent_signatures is True
+    assert cfg.allow_unsigned_intents_if_tx_sender_matches is False
+    assert cfg.allow_external_tools is False
+    assert cfg.consensus_mode is True
+    assert cfg.allow_uniform_batch_certificate is True
+    assert cfg.require_uniform_batch_certificate is True
+    assert cfg.require_uniform_batch_price_grid_evidence is True
+    assert cfg.enable_test_fault_injection is False
+    assert cfg.fault_injection is None
+
+
+def test_engine_rejects_swap_batch_without_uniform_certificate_when_required() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_sequential_settlement(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate required"
+
+
+def test_upba_bounded_price_grid_engine_config_accepts_bound_certificate() -> None:
+    result = apply_ops(
+        config=make_upba_v1_bounded_price_grid_engine_config(
+            DexEngineConfig(require_intent_signatures=False)
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate_and_price_grid(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
 
 
 def test_engine_rejects_uniform_batch_price_grid_without_uniform_certificate() -> None:

@@ -33,7 +33,7 @@ from ..state.canonical import (
     domain_sep_bytes,
     sha256_hex,
 )
-from ..state.intents import Intent
+from ..state.intents import Intent, IntentKind
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
@@ -209,6 +209,10 @@ class DexEngineConfig:
     # uniform-price batch. The default keeps the existing sequential settlement
     # path authoritative.
     allow_uniform_batch_certificate: bool = False
+    # Optional UPBA-only swap posture. When enabled, any swap batch must carry a
+    # uniform batch certificate instead of falling back to sequential settlement.
+    # Non-swap intents remain outside the UPBA v1 scope.
+    require_uniform_batch_certificate: bool = False
     # Production UPBA optimality posture. When enabled, every accepted
     # uniform_batch_certificate must carry bounded price-grid evidence that
     # passes the functional-core table verifier.
@@ -234,6 +238,8 @@ class DexEngineConfig:
             raise ValueError(
                 "require_uniform_batch_price_grid_evidence=True requires allow_uniform_batch_certificate=True"
             )
+        if self.require_uniform_batch_certificate and not self.allow_uniform_batch_certificate:
+            raise ValueError("require_uniform_batch_certificate=True requires allow_uniform_batch_certificate=True")
 
         if self.settlement_certificate_proof_flags is not None and not isinstance(
             self.settlement_certificate_proof_flags, SettlementProofFlags
@@ -1139,6 +1145,15 @@ def apply_ops(
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
         if intents:
+            if (
+                config.require_uniform_batch_certificate
+                and uniform_batch_certificate is None
+                and any(
+                    intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT)
+                    for intent in validation_intents
+                )
+            ):
+                return DexTxResult(ok=False, error="uniform batch certificate required")
             if uniform_batch_certificate is not None:
                 if not config.allow_uniform_batch_certificate:
                     return DexTxResult(ok=False, error="uniform batch certificate not enabled")
