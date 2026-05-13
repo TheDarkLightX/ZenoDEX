@@ -279,6 +279,40 @@ def test_uniform_batch_certificate_rejects_missing_admitted_intent_fill() -> Non
     assert result.error == "certificate must fill every admitted intent"
 
 
+def test_uniform_batch_certificate_rejects_partial_fill() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    first = certificate.fills[0]
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=certificate.price_num,
+        price_den=certificate.price_den,
+        fills=(
+            UniformBatchFillV1(
+                intent_id=first.intent_id,
+                executed_in=99,
+                executed_out=99,
+            ),
+            certificate.fills[1],
+        ),
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate fill must consume full intent amount_in"
+
+
 def test_uniform_batch_certificate_rejects_invalid_direct_dataclass_shape() -> None:
     pool = _pool()
     balances = _balances()

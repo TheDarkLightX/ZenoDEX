@@ -248,8 +248,8 @@ def _build_uniform_batch_settlement_checked(
         direction = _intent_direction(intent=intent, pool=pool)
         amount_in = _require_positive_int(intent.get_field("amount_in"), name="intent.amount_in")
         min_amount_out = _require_nonnegative_int(intent.get_field("min_amount_out"), name="intent.min_amount_out")
-        if cert_fill.executed_in > amount_in:
-            raise ValueError("certificate fill exceeds intent amount_in")
+        if cert_fill.executed_in != amount_in:
+            raise ValueError("certificate fill must consume full intent amount_in")
         fee_paid = compute_fee_total(cert_fill.executed_in, pool.fee_bps)
         net_in = cert_fill.executed_in - fee_paid
         if net_in <= 0:
