@@ -18,6 +18,7 @@ from ..state.intents import Intent, IntentKind
 from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .cpmm import compute_fee_total
 from .domain_limits import DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX
+from .quote_receipts import pool_state_fingerprint
 from .settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
 
 UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v1"
@@ -51,6 +52,7 @@ class UniformBatchCertificateV1:
     pool_id: str
     base_asset: str
     quote_asset: str
+    pool_state_hash: str
     intent_set_hash: str
     price_num: int
     price_den: int
@@ -62,6 +64,7 @@ class UniformBatchCertificateV1:
             "pool_id": self.pool_id,
             "base_asset": self.base_asset,
             "quote_asset": self.quote_asset,
+            "pool_state_hash": self.pool_state_hash,
             "intent_set_hash": self.intent_set_hash,
             "price_num": int(self.price_num),
             "price_den": int(self.price_den),
@@ -79,6 +82,10 @@ class UniformBatchCertificateV1:
             pool_id=_require_str(obj.get("pool_id"), name="certificate.pool_id"),
             base_asset=_require_str(obj.get("base_asset"), name="certificate.base_asset"),
             quote_asset=_require_str(obj.get("quote_asset"), name="certificate.quote_asset"),
+            pool_state_hash=_require_str(
+                obj.get("pool_state_hash"),
+                name="certificate.pool_state_hash",
+            ),
             intent_set_hash=_require_str(
                 obj.get("intent_set_hash"),
                 name="certificate.intent_set_hash",
@@ -106,6 +113,10 @@ def uniform_batch_certificate_hash(certificate: UniformBatchCertificateV1 | Mapp
         domain_sep_bytes("uniform_batch_clearing_certificate", version=1)
         + canonical_json_bytes(body)
     )
+
+
+def uniform_batch_pool_state_hash(pool: PoolState) -> str:
+    return pool_state_fingerprint(pool)
 
 
 def uniform_batch_intent_set_hash(intents: Sequence[Intent]) -> str:
@@ -325,6 +336,7 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
     _require_str(certificate.pool_id, name="certificate.pool_id")
     _require_str(certificate.base_asset, name="certificate.base_asset")
     _require_str(certificate.quote_asset, name="certificate.quote_asset")
+    _require_str(certificate.pool_state_hash, name="certificate.pool_state_hash")
     _require_str(certificate.intent_set_hash, name="certificate.intent_set_hash")
     _require_positive_int(certificate.price_num, name="certificate.price_num")
     _require_positive_int(certificate.price_den, name="certificate.price_den")
@@ -345,6 +357,8 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
 def _validate_pool_scope(*, pool: PoolState, certificate: UniformBatchCertificateV1) -> None:
     if pool.pool_id != certificate.pool_id:
         raise ValueError("certificate pool_id mismatch")
+    if uniform_batch_pool_state_hash(pool) != certificate.pool_state_hash:
+        raise ValueError("certificate pool_state_hash mismatch")
     if pool.asset0 != certificate.base_asset or pool.asset1 != certificate.quote_asset:
         raise ValueError("certificate asset pair mismatch")
     if pool.status != PoolStatus.ACTIVE:
