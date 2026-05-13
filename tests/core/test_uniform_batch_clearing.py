@@ -8,6 +8,7 @@ from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
     build_uniform_batch_settlement_v1,
+    uniform_batch_intent_set_hash,
     validate_uniform_batch_settlement_v1,
     verify_uniform_batch_certificate_v1,
 )
@@ -87,6 +88,7 @@ def _certificate_for(intents: list[Intent]) -> UniformBatchCertificateV1:
         pool_id="pool_ab",
         base_asset="A",
         quote_asset="B",
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
         price_num=1,
         price_den=1,
         fills=tuple(
@@ -148,6 +150,12 @@ def test_uniform_batch_certificate_is_permutation_invariant() -> None:
     assert settlement_a.reserve_deltas == settlement_b.reserve_deltas
 
 
+def test_uniform_batch_intent_set_hash_is_permutation_invariant() -> None:
+    intents = _balanced_intents()
+
+    assert uniform_batch_intent_set_hash(intents) == uniform_batch_intent_set_hash(list(reversed(intents)))
+
+
 def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> None:
     pool = _fee_pool()
     balances = _balances()
@@ -156,6 +164,7 @@ def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> Non
         pool_id="pool_ab",
         base_asset="A",
         quote_asset="B",
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
         price_num=1,
         price_den=1,
         fills=tuple(
@@ -227,6 +236,7 @@ def test_uniform_batch_certificate_rejects_noncanonical_fill_order() -> None:
         pool_id=certificate.pool_id,
         base_asset=certificate.base_asset,
         quote_asset=certificate.quote_asset,
+        intent_set_hash=certificate.intent_set_hash,
         price_num=certificate.price_num,
         price_den=certificate.price_den,
         fills=tuple(reversed(certificate.fills)),
@@ -252,6 +262,7 @@ def test_uniform_batch_certificate_rejects_invalid_direct_dataclass_shape() -> N
         pool_id=certificate.pool_id,
         base_asset=certificate.base_asset,
         quote_asset=certificate.quote_asset,
+        intent_set_hash=certificate.intent_set_hash,
         price_num=0,
         price_den=certificate.price_den,
         fills=certificate.fills,
@@ -266,6 +277,26 @@ def test_uniform_batch_certificate_rejects_invalid_direct_dataclass_shape() -> N
 
     assert result.ok is False
     assert result.error == "certificate.price_num must be positive"
+
+
+def test_uniform_batch_certificate_rejects_intent_set_hash_mismatch() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    tampered = _swap("alice-a-to-b", "alice", "A", "B", min_amount_out=1)
+    tampered.intent_id = intents[0].intent_id
+    changed_intents = [tampered, intents[1]]
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=changed_intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate intent_set_hash mismatch"
 
 
 def test_uniform_batch_settlement_validator_rejects_tampering() -> None:

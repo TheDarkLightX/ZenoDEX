@@ -50,10 +50,15 @@ UniformBatchCertificateV1 :=
   pool_id
   base_asset
   quote_asset
+  intent_set_hash
   price_num
   price_den
   fills: [(intent_id, executed_in, executed_out)]
 ```
+
+`intent_set_hash` is the canonical hash of the fixed admission set. It includes
+the sorted intent identifiers, common intent fields, and full intent field maps.
+This prevents a certificate from being replayed against a different order set.
 
 For every filled exact-in intent, the verifier checks:
 
