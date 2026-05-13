@@ -26,6 +26,7 @@ UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v
 UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
 UNIFORM_BATCH_POLICY_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
 UNIFORM_BATCH_PRICE_RATIO_MAX = DEX_POOL_RESERVE_MAX
+UNIFORM_BATCH_OUTPUT_AMOUNT_MAX = DEX_SWAP_AMOUNT_MAX * UNIFORM_BATCH_PRICE_RATIO_MAX
 _UNIFORM_BATCH_CERTIFICATE_KEYS = frozenset(
     {
         "schema",
@@ -62,7 +63,11 @@ class UniformBatchFillV1:
         return cls(
             intent_id=_require_str(obj.get("intent_id"), name="fill.intent_id"),
             executed_in=_require_positive_int(obj.get("executed_in"), name="fill.executed_in"),
-            executed_out=_require_positive_int(obj.get("executed_out"), name="fill.executed_out"),
+            executed_out=_require_positive_int(
+                obj.get("executed_out"),
+                name="fill.executed_out",
+                maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+            ),
         )
 
 
@@ -398,7 +403,11 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
             name="certificate.fill.executed_in",
             maximum=DEX_SWAP_AMOUNT_MAX,
         )
-        _require_positive_int(fill.executed_out, name="certificate.fill.executed_out")
+        _require_positive_int(
+            fill.executed_out,
+            name="certificate.fill.executed_out",
+            maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+        )
 
 
 def _validate_pool_scope(*, pool: PoolState, certificate: UniformBatchCertificateV1) -> None:
@@ -428,7 +437,11 @@ def _validate_intent_scope(*, intent: Intent, pool: PoolState, certificate: Unif
     _require_str(intent.sender_pubkey, name="intent.sender_pubkey")
     _require_str(intent.get_field("recipient", intent.sender_pubkey), name="intent.recipient")
     _require_positive_int(intent.get_field("amount_in"), name="intent.amount_in", maximum=DEX_SWAP_AMOUNT_MAX)
-    _require_nonnegative_int(intent.get_field("min_amount_out"), name="intent.min_amount_out")
+    _require_nonnegative_int(
+        intent.get_field("min_amount_out"),
+        name="intent.min_amount_out",
+        maximum=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+    )
 
 
 def _intent_direction(*, intent: Intent, pool: PoolState) -> str:

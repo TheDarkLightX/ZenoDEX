@@ -32,6 +32,8 @@ Supported:
 - the pool's two assets only
 - one reduced rational price vector `price_num / price_den`
 - `price_num` and `price_den` bounded by the UPBA price-ratio domain
+- certificate outputs and intent `min_amount_out` bounded by the UPBA output
+  domain
 - deterministic ceil fee on gross input
 - deterministic floor output on net input
 - canonical fill ordering by `intent_id`
@@ -90,6 +92,17 @@ used by the CPMM reserve bound. Since v1 requires
 `net_in * price_num` stays within the intended bounded-integer envelope instead
 of falling back to arbitrary-size arithmetic as a protocol feature.
 
+The derived output domain is:
+
+```text
+UNIFORM_BATCH_OUTPUT_AMOUNT_MAX :=
+  DEX_SWAP_AMOUNT_MAX * UNIFORM_BATCH_PRICE_RATIO_MAX
+```
+
+Certificate `executed_out` values and intent `min_amount_out` values are capped
+by this derived maximum. This keeps the limit-price cross multiplication inside
+a documented finite domain.
+
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.
 This prevents a certificate from being replayed against a different order set.
@@ -132,10 +145,10 @@ keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
 rejection, a limit-price rejection, a pre-pool snapshot rejection, a
-nonreduced price rejection, a price-domain rejection, an unsupported-policy
-rejection, closed-schema rejections, a noncanonical fill-order rejection, an
-admitted-intent omission rejection, a partial-fill rejection, and a
-tampered-settlement rejection.
+nonreduced price rejection, price-domain and output-domain rejections, an
+unsupported-policy rejection, closed-schema rejections, a noncanonical
+fill-order rejection, an admitted-intent omission rejection, a partial-fill
+rejection, and a tampered-settlement rejection.
 
 ## Promotion Boundary
 
