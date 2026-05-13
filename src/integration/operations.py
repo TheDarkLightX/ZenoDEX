@@ -84,6 +84,9 @@ class SettlementEnvelope:
     oracle_authorization: Optional[Dict[str, Any]] = None
     uniform_batch_certificate: Optional[Dict[str, Any]] = None
     uniform_batch_optimality_certificate: Optional[Dict[str, Any]] = None
+    uniform_batch_price_grid_config: Optional[Dict[str, Any]] = None
+    uniform_batch_price_grid_rows: Optional[List[Dict[str, Any]]] = None
+    uniform_batch_price_grid_witness: Optional[Dict[str, Any]] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -426,6 +429,11 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
     UPBA bounded optimality certificate payload is passed through as an opaque
     JSON object under:
     - settlement_data["uniform_batch_optimality_certificate"]
+
+    UPBA bounded price-grid evidence is passed through as opaque JSON under:
+    - settlement_data["uniform_batch_price_grid_config"]
+    - settlement_data["uniform_batch_price_grid_rows"]
+    - settlement_data["uniform_batch_price_grid_witness"]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -470,6 +478,30 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement uniform_batch_optimality_certificate must be an object")
         uniform_batch_optimality_certificate = raw_uniform_batch_optimality_certificate
 
+    uniform_batch_price_grid_config = None
+    raw_uniform_batch_price_grid_config = settlement_data.get("uniform_batch_price_grid_config")
+    if raw_uniform_batch_price_grid_config is not None:
+        if not isinstance(raw_uniform_batch_price_grid_config, dict):
+            raise ValueError("settlement uniform_batch_price_grid_config must be an object")
+        uniform_batch_price_grid_config = raw_uniform_batch_price_grid_config
+
+    uniform_batch_price_grid_rows = None
+    raw_uniform_batch_price_grid_rows = settlement_data.get("uniform_batch_price_grid_rows")
+    if raw_uniform_batch_price_grid_rows is not None:
+        if not isinstance(raw_uniform_batch_price_grid_rows, list):
+            raise ValueError("settlement uniform_batch_price_grid_rows must be a list")
+        for row in raw_uniform_batch_price_grid_rows:
+            if not isinstance(row, dict):
+                raise ValueError("settlement uniform_batch_price_grid_rows entries must be objects")
+        uniform_batch_price_grid_rows = raw_uniform_batch_price_grid_rows
+
+    uniform_batch_price_grid_witness = None
+    raw_uniform_batch_price_grid_witness = settlement_data.get("uniform_batch_price_grid_witness")
+    if raw_uniform_batch_price_grid_witness is not None:
+        if not isinstance(raw_uniform_batch_price_grid_witness, dict):
+            raise ValueError("settlement uniform_batch_price_grid_witness must be an object")
+        uniform_batch_price_grid_witness = raw_uniform_batch_price_grid_witness
+
     settlement_data_no_proof = {
         k: v
         for k, v in settlement_data.items()
@@ -479,6 +511,9 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             "oracle_authorization",
             "uniform_batch_certificate",
             "uniform_batch_optimality_certificate",
+            "uniform_batch_price_grid_config",
+            "uniform_batch_price_grid_rows",
+            "uniform_batch_price_grid_witness",
         )
     }
     settlement = _parse_settlement(settlement_data_no_proof)
@@ -488,6 +523,9 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
         oracle_authorization=oracle_authorization,
         uniform_batch_certificate=uniform_batch_certificate,
         uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
+        uniform_batch_price_grid_config=uniform_batch_price_grid_config,
+        uniform_batch_price_grid_rows=uniform_batch_price_grid_rows,
+        uniform_batch_price_grid_witness=uniform_batch_price_grid_witness,
     )
 
 

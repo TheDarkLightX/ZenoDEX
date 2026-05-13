@@ -451,10 +451,13 @@ or missing.
 
 ### Phase 3: Engine Attachment
 
+Status: implemented for the Python DEX engine envelope.
+
 Extend settlement envelope with:
 
 ```text
-uniform_batch_price_grid_table
+uniform_batch_price_grid_config
+uniform_batch_price_grid_rows
 uniform_batch_price_grid_witness
 ```
 
@@ -463,14 +466,16 @@ Engine checks:
 ```text
 if price_grid_witness is present:
   require uniform_batch_certificate
-  require optimality_certificate
-  verify table root and witness
-  pass boolean fact packet to Tau gate
+  require config, rows, and witness together
+  verify table root, full bounded-grid coverage, row scores, and winner dominance
+  verify the attached UPBA certificate against the same pre-state and intents
 ```
 
 The existing optional optimality certificate remains valid for audited-set
 claims. The table witness upgrades the claim to bounded-grid global weak
-optimality.
+optimality for the v1 single-pool exact-in full-fill scorer. Tau-facing fact
+packets are produced by the table verifier and will feed the Tau gate once Tau
+Tables are available.
 
 ### Phase 4: Claim Registry
 
