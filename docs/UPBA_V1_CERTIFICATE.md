@@ -111,8 +111,8 @@ canonical-hash and fill-matching path.
 
 The exported certificate-hash and intent-set-hash helpers enforce the same
 closed schema and count domains as the verifier. A malformed certificate object
-cannot be assigned a local hash that the verifier would later reject under a
-different semantic interpretation.
+or invalid direct certificate dataclass cannot be assigned a local hash that the
+verifier would later reject under a different semantic interpretation.
 
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.

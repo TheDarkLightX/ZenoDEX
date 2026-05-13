@@ -155,6 +155,7 @@ def uniform_batch_certificate_hash(certificate: UniformBatchCertificateV1 | Mapp
         if isinstance(certificate, UniformBatchCertificateV1)
         else UniformBatchCertificateV1.from_obj(_require_mapping(certificate, name="certificate"))
     )
+    _validate_certificate_shape(parsed)
     body = parsed.to_dict()
     return sha256_hex(
         domain_sep_bytes("uniform_batch_clearing_certificate", version=1)
