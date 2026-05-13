@@ -33,6 +33,7 @@ Supported:
 - deterministic floor output on net input
 - canonical fill ordering by `intent_id`
 - one fill for every intent in the fixed admission set
+- full gross input consumption for every admitted intent
 - one aggregate reserve update
 - aggregate CPMM invariant check
 
@@ -67,7 +68,8 @@ UniformBatchCertificateV1 :=
 the sorted intent identifiers, common intent fields, and full intent field maps.
 This prevents a certificate from being replayed against a different order set.
 The certificate must then provide exactly one sorted fill for every admitted
-intent. v1 fails closed instead of producing local `REJECT` fills.
+intent, and each fill must consume the intent's full `amount_in`. v1 fails
+closed instead of producing local `REJECT` or partial-fill outcomes.
 
 For every filled exact-in intent, the verifier checks:
 
@@ -104,7 +106,8 @@ keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
 rejection, a limit-price rejection, a noncanonical fill-order rejection, an
-admitted-intent omission rejection, and a tampered-settlement rejection.
+admitted-intent omission rejection, a partial-fill rejection, and a
+tampered-settlement rejection.
 
 ## Promotion Boundary
 
