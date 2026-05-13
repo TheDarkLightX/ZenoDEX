@@ -31,6 +31,7 @@ Supported:
 - `SWAP_EXACT_IN` intents only
 - the pool's two assets only
 - one reduced rational price vector `price_num / price_den`
+- `price_num` and `price_den` bounded by the UPBA price-ratio domain
 - deterministic ceil fee on gross input
 - deterministic floor output on net input
 - canonical fill ordering by `intent_id`
@@ -83,6 +84,12 @@ the current fixed-admission, full-fill exact-in semantics.
 certificate hash canonical for the represented rational price and rejects
 duplicate encodings such as `1 / 1` and `2 / 2`.
 
+`price_num` and `price_den` are also capped at the same 3,000,000,000 domain
+used by the CPMM reserve bound. Since v1 requires
+`executed_in <= 3,000,000,000`, the uniform-price multiplication
+`net_in * price_num` stays within the intended bounded-integer envelope instead
+of falling back to arbitrary-size arithmetic as a protocol feature.
+
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.
 This prevents a certificate from being replayed against a different order set.
@@ -125,9 +132,10 @@ keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
 rejection, a limit-price rejection, a pre-pool snapshot rejection, a
-nonreduced price rejection, an unsupported-policy rejection, closed-schema
-rejections, a noncanonical fill-order rejection, an admitted-intent omission
-rejection, a partial-fill rejection, and a tampered-settlement rejection.
+nonreduced price rejection, a price-domain rejection, an unsupported-policy
+rejection, closed-schema rejections, a noncanonical fill-order rejection, an
+admitted-intent omission rejection, a partial-fill rejection, and a
+tampered-settlement rejection.
 
 ## Promotion Boundary
 

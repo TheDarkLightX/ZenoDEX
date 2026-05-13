@@ -25,6 +25,7 @@ from .settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
 UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v1"
 UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
 UNIFORM_BATCH_POLICY_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
+UNIFORM_BATCH_PRICE_RATIO_MAX = DEX_POOL_RESERVE_MAX
 _UNIFORM_BATCH_CERTIFICATE_KEYS = frozenset(
     {
         "schema",
@@ -114,8 +115,16 @@ class UniformBatchCertificateV1:
                 obj.get("intent_set_hash"),
                 name="certificate.intent_set_hash",
             ),
-            price_num=_require_positive_int(obj.get("price_num"), name="certificate.price_num"),
-            price_den=_require_positive_int(obj.get("price_den"), name="certificate.price_den"),
+            price_num=_require_positive_int(
+                obj.get("price_num"),
+                name="certificate.price_num",
+                maximum=UNIFORM_BATCH_PRICE_RATIO_MAX,
+            ),
+            price_den=_require_positive_int(
+                obj.get("price_den"),
+                name="certificate.price_den",
+                maximum=UNIFORM_BATCH_PRICE_RATIO_MAX,
+            ),
             fills=tuple(UniformBatchFillV1.from_obj(_require_mapping(fill, name="certificate.fill")) for fill in fills_obj),
             policy_id=policy_id,
         )
@@ -366,8 +375,16 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
     _require_str(certificate.quote_asset, name="certificate.quote_asset")
     _require_str(certificate.pool_state_hash, name="certificate.pool_state_hash")
     _require_str(certificate.intent_set_hash, name="certificate.intent_set_hash")
-    _require_positive_int(certificate.price_num, name="certificate.price_num")
-    _require_positive_int(certificate.price_den, name="certificate.price_den")
+    _require_positive_int(
+        certificate.price_num,
+        name="certificate.price_num",
+        maximum=UNIFORM_BATCH_PRICE_RATIO_MAX,
+    )
+    _require_positive_int(
+        certificate.price_den,
+        name="certificate.price_den",
+        maximum=UNIFORM_BATCH_PRICE_RATIO_MAX,
+    )
     if gcd(int(certificate.price_num), int(certificate.price_den)) != 1:
         raise ValueError("certificate price ratio must be reduced")
     if not isinstance(certificate.fills, tuple):
