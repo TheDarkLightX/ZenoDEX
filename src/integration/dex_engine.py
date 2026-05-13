@@ -24,6 +24,7 @@ from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..core.uniform_batch_clearing import UniformBatchCertificateV1, build_uniform_batch_settlement_v1
 from ..core.uniform_batch_optimality import verify_uniform_batch_bound_optimality_certificate_v1
+from ..core.uniform_batch_price_grid_table import verify_uniform_batch_price_grid_table_v1
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
@@ -1012,14 +1013,51 @@ def apply_ops(
             return DexTxResult(ok=False, error="invalid settlement")
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
-        uniform_batch_certificate = settlement_env.uniform_batch_certificate if settlement_env else None
+        uniform_batch_certificate = (
+            getattr(settlement_env, "uniform_batch_certificate", None) if settlement_env else None
+        )
         uniform_batch_optimality_certificate = (
-            settlement_env.uniform_batch_optimality_certificate if settlement_env else None
+            getattr(settlement_env, "uniform_batch_optimality_certificate", None) if settlement_env else None
+        )
+        uniform_batch_price_grid_config = (
+            getattr(settlement_env, "uniform_batch_price_grid_config", None) if settlement_env else None
+        )
+        uniform_batch_price_grid_rows = (
+            getattr(settlement_env, "uniform_batch_price_grid_rows", None) if settlement_env else None
+        )
+        uniform_batch_price_grid_witness = (
+            getattr(settlement_env, "uniform_batch_price_grid_witness", None) if settlement_env else None
         )
         if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
             return DexTxResult(
                 ok=False,
                 error="uniform batch optimality certificate requires uniform batch certificate",
+            )
+        price_grid_evidence_present = any(
+            item is not None
+            for item in (
+                uniform_batch_price_grid_config,
+                uniform_batch_price_grid_rows,
+                uniform_batch_price_grid_witness,
+            )
+        )
+        price_grid_evidence_complete = all(
+            item is not None
+            for item in (
+                uniform_batch_price_grid_config,
+                uniform_batch_price_grid_rows,
+                uniform_batch_price_grid_witness,
+            )
+        )
+        if price_grid_evidence_present and not price_grid_evidence_complete:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch price grid evidence requires config, rows, and witness",
+            )
+        if price_grid_evidence_present and uniform_batch_certificate is None:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch price grid evidence requires uniform batch certificate",
             )
         proof_scheme: Optional[str] = None
         if proof is not None:
@@ -1116,6 +1154,24 @@ def apply_ops(
                         ok=False,
                         error=f"uniform batch certificate pool not found: {cert.pool_id}",
                     )
+                if price_grid_evidence_present:
+                    price_grid_result = verify_uniform_batch_price_grid_table_v1(
+                        intents=validation_intents,
+                        pool=pool,
+                        balances=state.balances,
+                        uniform_batch_certificate=cert,
+                        config=uniform_batch_price_grid_config,
+                        rows=uniform_batch_price_grid_rows or (),
+                        witness=uniform_batch_price_grid_witness,
+                    )
+                    if not price_grid_result.ok:
+                        return DexTxResult(
+                            ok=False,
+                            error=(
+                                "uniform batch price grid evidence rejected: "
+                                f"{price_grid_result.error or 'invalid evidence'}"
+                            ),
+                        )
                 try:
                     computed_settlement = build_uniform_batch_settlement_v1(
                         intents=validation_intents,
