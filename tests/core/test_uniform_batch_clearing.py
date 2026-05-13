@@ -7,6 +7,7 @@ from src.core.settlement import FillAction
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
+    UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     build_uniform_batch_settlement_v1,
@@ -347,6 +348,50 @@ def test_uniform_batch_certificate_rejects_price_ratio_above_domain() -> None:
 
     assert result.ok is False
     assert result.error == "certificate.price_num exceeds maximum"
+
+
+def test_uniform_batch_certificate_rejects_fill_output_above_domain() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate_obj = _certificate_for(intents).to_dict()
+    certificate_obj["fills"][0]["executed_out"] = UNIFORM_BATCH_OUTPUT_AMOUNT_MAX + 1
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate_obj,
+    )
+
+    assert result.ok is False
+    assert result.error == "fill.executed_out exceeds maximum"
+
+
+def test_uniform_batch_certificate_rejects_min_amount_out_above_domain() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _swap(
+            "alice-a-to-b",
+            "alice",
+            "A",
+            "B",
+            min_amount_out=UNIFORM_BATCH_OUTPUT_AMOUNT_MAX + 1,
+        ),
+        _swap("bob-b-to-a", "bob", "B", "A"),
+    ]
+    certificate = _certificate_for(intents)
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "intent.min_amount_out exceeds maximum"
 
 
 def test_uniform_batch_certificate_rejects_unsupported_policy_id() -> None:
