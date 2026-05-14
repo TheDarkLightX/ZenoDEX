@@ -35,6 +35,17 @@ def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _resolve_manifest_path(manifest_path: Path, path_text: object, *, name: str) -> Path:
+    if not isinstance(path_text, str) or path_text == "":
+        raise ValueError(f"{name} must be a non-empty string")
+    path = Path(path_text)
+    if path.is_absolute():
+        return path
+    if ".." in path.parts:
+        raise ValueError(f"{name} must not escape its manifest root")
+    return manifest_path.parent / path
+
+
 def _tau_app_spot_body_v0(*, chain_id: str, time_ms: int, sequencer_id: str) -> dict[str, Any]:
     sender = "00" * 48
     tx = {
@@ -296,6 +307,11 @@ def build_core_feature_suite_v0(
     )
     bootstrap_manifest_path = Path(str(bootstrap_report["manifest_path"]))
     bootstrap_manifest = bootstrap_report["manifest"]
+    bootstrap_profile_path = _resolve_manifest_path(
+        bootstrap_manifest_path,
+        bootstrap_manifest.get("profile_path"),
+        name="bootstrap_manifest.profile_path",
+    )
 
     tau_body_path = tau_app_dir / "source" / "tau_app_spot_body.json"
     tau_app_state_path = tau_app_dir / "source" / "app_state.json"
@@ -311,7 +327,7 @@ def build_core_feature_suite_v0(
     )
     tau_lane_report = build_feature_lane_manifest_v0(
         out_dir=tau_app_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=tau_app_state_path,
         zusd_state_path=None,
@@ -382,7 +398,7 @@ def build_core_feature_suite_v0(
         zusd_body_paths.append(path)
     zusd_lane_report = build_feature_lane_manifest_v0(
         out_dir=zusd_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=zusd_state_path,
@@ -466,7 +482,7 @@ def build_core_feature_suite_v0(
         perp_body_paths.append(path)
     perp_lane_report = build_feature_lane_manifest_v0(
         out_dir=perp_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,
@@ -528,7 +544,7 @@ def build_core_feature_suite_v0(
         oracle_body_paths.append(path)
     oracle_lane_report = build_feature_lane_manifest_v0(
         out_dir=oracle_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,
@@ -639,7 +655,7 @@ def build_core_feature_suite_v0(
         oracle_reporter_body_paths.append(path)
     oracle_reporter_lane_report = build_feature_lane_manifest_v0(
         out_dir=oracle_reporter_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,
@@ -770,7 +786,7 @@ def build_core_feature_suite_v0(
         upba_body_paths.append(path)
     upba_lane_report = build_feature_lane_manifest_v0(
         out_dir=upba_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,
@@ -924,7 +940,7 @@ def build_core_feature_suite_v0(
         proof_mining_body_paths.append(path)
     proof_mining_lane_report = build_feature_lane_manifest_v0(
         out_dir=proof_mining_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,
@@ -1090,7 +1106,7 @@ def build_core_feature_suite_v0(
         autotrader_body_paths.append(path)
     autotrader_lane_report = build_feature_lane_manifest_v0(
         out_dir=autotrader_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,
@@ -1225,7 +1241,7 @@ def build_core_feature_suite_v0(
         confidential_body_paths.append(path)
     confidential_lane_report = build_feature_lane_manifest_v0(
         out_dir=confidential_dir,
-        profile_path=Path(str(bootstrap_manifest["profile_path"])),
+        profile_path=bootstrap_profile_path,
         genesis_snapshot_path=None,
         tau_app_state_path=None,
         zusd_state_path=None,

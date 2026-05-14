@@ -10,9 +10,37 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
+ROOT = Path(__file__).resolve().parents[1]
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_manifest_report.v0"
 MANIFEST_SCHEMA = "zenodex.zeno_ledger.testnet_bundle.v0"
+PATH_VALUE_FLAGS = {
+    "--attestation",
+    "--autotrader-state",
+    "--bodies-dir",
+    "--body",
+    "--checkpoints-dir",
+    "--confidential-state",
+    "--headers-dir",
+    "--index",
+    "--manifest",
+    "--mirror-root",
+    "--oracle-reporter-state",
+    "--oracle-state",
+    "--out",
+    "--out-dir",
+    "--perp-state",
+    "--prev-header",
+    "--prev-snapshot",
+    "--profile",
+    "--proof-mining-state",
+    "--source-root",
+    "--tau-app-state",
+    "--tau-chain-balances",
+    "--upba-state",
+    "--zusd-state",
+    "--pre-snapshot",
+}
 
 
 def _load_manifest(path: Path) -> dict[str, Any]:
@@ -75,8 +103,34 @@ def _run_command(command: Sequence[str], *, cwd: Path) -> dict[str, Any]:
     }
 
 
+def _resolve_manifest_path(path_text: str, *, manifest_dir: Path) -> str:
+    path = Path(path_text)
+    if path.is_absolute():
+        return str(path)
+    if path_text == "" or ".." in path.parts:
+        raise ValueError(f"unsafe manifest-relative path: {path_text}")
+    return str(manifest_dir / path)
+
+
+def _resolve_command(command: Sequence[str], *, manifest_dir: Path) -> list[str]:
+    resolved: list[str] = []
+    previous = ""
+    for index, item in enumerate(command):
+        if index == 0 and item in {"python", "python3"}:
+            resolved.append(sys.executable)
+        elif item.startswith("tools/") and item.endswith(".py"):
+            resolved.append(str(ROOT / item))
+        elif previous in PATH_VALUE_FLAGS:
+            resolved.append(_resolve_manifest_path(item, manifest_dir=manifest_dir))
+        else:
+            resolved.append(item)
+        previous = item
+    return resolved
+
+
 def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
     manifest = _load_manifest(manifest_path)
+    manifest_dir = manifest_path.parent
     run_commands = _require_commands(manifest.get("run_commands"), name="run_commands")
     verify_command = _require_command(manifest.get("verify_command"), name="verify_command")
     feature_gate_commands = _require_optional_commands(
@@ -88,7 +142,7 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
         raw_report_path = manifest.get("feature_gate_report_path")
         if not isinstance(raw_report_path, str) or raw_report_path == "":
             raise ValueError("feature_gate_report_path must be a non-empty string")
-        feature_gate_report_path = Path(raw_report_path)
+        feature_gate_report_path = Path(_resolve_manifest_path(raw_report_path, manifest_dir=manifest_dir))
     attest_command: list[str] | None = None
     if "attest_command" in manifest:
         attest_command = _require_command(manifest.get("attest_command"), name="attest_command")
@@ -101,7 +155,7 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
 
     block_reports = []
     for command in run_commands:
-        report = _run_command(command, cwd=cwd)
+        report = _run_command(_resolve_command(command, manifest_dir=manifest_dir), cwd=cwd)
         block_reports.append(report)
         if report["returncode"] != 0:
             raise RuntimeError(f"block command failed: {command}")
@@ -109,7 +163,7 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
         if not isinstance(stdout_json, dict) or stdout_json.get("ok") is not True:
             raise RuntimeError(f"block command did not return ok=true: {command}")
 
-    verify_report = _run_command(verify_command, cwd=cwd)
+    verify_report = _run_command(_resolve_command(verify_command, manifest_dir=manifest_dir), cwd=cwd)
     if verify_report["returncode"] != 0:
         raise RuntimeError("verify command failed")
     verify_stdout = verify_report.get("stdout_json")
@@ -118,7 +172,7 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
 
     feature_gate_reports = []
     for index, command in enumerate(feature_gate_commands):
-        report = _run_command(command, cwd=cwd)
+        report = _run_command(_resolve_command(command, manifest_dir=manifest_dir), cwd=cwd)
         feature_gate_reports.append(report)
         if report["returncode"] != 0:
             raise RuntimeError(f"feature gate command failed: {command}")
@@ -140,7 +194,7 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
 
     attest_report: dict[str, Any] | None = None
     if attest_command is not None:
-        raw_attest_report = _run_command(attest_command, cwd=cwd)
+        raw_attest_report = _run_command(_resolve_command(attest_command, manifest_dir=manifest_dir), cwd=cwd)
         if raw_attest_report["returncode"] != 0:
             raise RuntimeError("attest command failed")
         attest_stdout = raw_attest_report.get("stdout_json")
@@ -150,7 +204,10 @@ def run_manifest_v0(*, manifest_path: Path, cwd: Path) -> dict[str, Any]:
 
     mirror_index_report: dict[str, Any] | None = None
     if mirror_index_command is not None:
-        raw_mirror_index_report = _run_command(mirror_index_command, cwd=cwd)
+        raw_mirror_index_report = _run_command(
+            _resolve_command(mirror_index_command, manifest_dir=manifest_dir),
+            cwd=cwd,
+        )
         if raw_mirror_index_report["returncode"] != 0:
             raise RuntimeError("mirror index command failed")
         mirror_stdout = raw_mirror_index_report.get("stdout_json")

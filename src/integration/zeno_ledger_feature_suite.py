@@ -55,6 +55,18 @@ def _resolve_lane_path(path_text: str, base_dir: Path | None) -> Path:
     return base_dir / path
 
 
+def _optional_relative_to_base(value: object, base_dir: Path | None) -> object:
+    if base_dir is None or not isinstance(value, str) or value == "":
+        return value
+    path = Path(value)
+    if not path.is_absolute():
+        return value
+    rel = path.resolve().relative_to(base_dir.resolve()).as_posix()
+    if not _is_relative_safe(rel):
+        raise ValueError(f"unsafe feature metadata path: {rel}")
+    return rel
+
+
 def _validate_lane_manifest(path: Path) -> Mapping[str, Any]:
     if not path.is_file():
         raise ValueError(f"feature lane manifest missing: {path}")
@@ -101,8 +113,8 @@ def build_feature_suite_manifest_v0(
                 "from_height": manifest.get("from_height", 1),
                 "to_height": manifest.get("to_height"),
                 "bundle_kind": manifest.get("bundle_kind", "bootstrap"),
-                "profile_path": manifest.get("profile_path"),
-                "mirror_index_path": manifest.get("mirror_index_path"),
+                "profile_path": _optional_relative_to_base(manifest.get("profile_path"), base_dir),
+                "mirror_index_path": _optional_relative_to_base(manifest.get("mirror_index_path"), base_dir),
             }
         )
 

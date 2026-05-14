@@ -19,6 +19,33 @@ from src.integration.zeno_ledger_v0 import hash_v0, validate_body_v0
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_feature_lane_report.v0"
 MANIFEST_SCHEMA = "zenodex.zeno_ledger.testnet_bundle.v0"
+PATH_VALUE_FLAGS = {
+    "--attestation",
+    "--autotrader-state",
+    "--bodies-dir",
+    "--body",
+    "--checkpoints-dir",
+    "--confidential-state",
+    "--headers-dir",
+    "--index",
+    "--manifest",
+    "--mirror-root",
+    "--oracle-reporter-state",
+    "--oracle-state",
+    "--out",
+    "--out-dir",
+    "--perp-state",
+    "--prev-header",
+    "--prev-snapshot",
+    "--profile",
+    "--proof-mining-state",
+    "--source-root",
+    "--tau-app-state",
+    "--tau-chain-balances",
+    "--upba-state",
+    "--zusd-state",
+    "--pre-snapshot",
+}
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -31,6 +58,36 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _rel(root: Path, path: Path) -> str:
+    rel = path.resolve().relative_to(root.resolve()).as_posix()
+    return rel if rel else "."
+
+
+def _relativize_command(command: list[str], *, root: Path) -> list[str]:
+    out: list[str] = []
+    previous = ""
+    for index, item in enumerate(command):
+        if index == 0 and item == sys.executable:
+            out.append("python3")
+        elif previous in PATH_VALUE_FLAGS:
+            path = Path(item)
+            if path.is_absolute():
+                try:
+                    out.append(_rel(root, path))
+                except ValueError:
+                    out.append(item)
+            else:
+                out.append(item)
+        else:
+            out.append(item)
+        previous = item
+    return out
+
+
+def _relativize_optional_path(root: Path, path: Path | None) -> str | None:
+    return None if path is None else _rel(root, path)
 
 
 def _default_module_versions_digest() -> str:
@@ -432,6 +489,11 @@ def build_feature_lane_manifest_v0(
         "--out",
         str(mirror_index_path),
     ]
+    run_commands = [_relativize_command(command, root=out_dir) for command in run_commands]
+    verify_command = _relativize_command(verify_command, root=out_dir)
+    gates = [_relativize_command(command, root=out_dir) for command in gates]
+    attest_command = _relativize_command(attest_command, root=out_dir)
+    mirror_index_command = _relativize_command(mirror_index_command, root=out_dir)
     manifest = {
         "schema": MANIFEST_SCHEMA,
         "bundle_kind": "feature_lane",
@@ -441,7 +503,7 @@ def build_feature_lane_manifest_v0(
         "config_digest": config_digest,
         "module_versions_digest": module_versions_digest,
         "sequencer_set_hash": sequencer_set_hash,
-        "profile_path": str(profile_out),
+        "profile_path": _rel(out_dir, profile_out),
         "execution_mode": (
             "snapshot"
             if genesis is not None
@@ -463,31 +525,46 @@ def build_feature_lane_manifest_v0(
             if autotrader_state is not None
             else "confidential"
         ),
-        "genesis_snapshot_path": str(genesis_out) if genesis is not None else None,
-        "tau_app_state_path": str(tau_app_state_out) if tau_app_state_text is not None else None,
-        "zusd_state_path": str(zusd_state_out) if zusd_state is not None else None,
-        "perp_state_path": str(perp_state_out) if perp_state is not None else None,
-        "oracle_state_path": str(oracle_state_out) if oracle_state is not None else None,
-        "oracle_reporter_state_path": (
-            str(oracle_reporter_state_out) if oracle_reporter_state is not None else None
+        "genesis_snapshot_path": _relativize_optional_path(out_dir, genesis_out if genesis is not None else None),
+        "tau_app_state_path": _relativize_optional_path(
+            out_dir,
+            tau_app_state_out if tau_app_state_text is not None else None,
         ),
-        "upba_state_path": str(upba_state_out) if upba_state is not None else None,
-        "proof_mining_state_path": str(proof_mining_state_out) if proof_mining_state is not None else None,
-        "autotrader_state_path": str(autotrader_state_out) if autotrader_state is not None else None,
-        "confidential_state_path": str(confidential_state_out) if confidential_state is not None else None,
-        "tau_chain_balances_path": str(tau_chain_balances_out) if tau_chain_balances is not None else None,
+        "zusd_state_path": _relativize_optional_path(out_dir, zusd_state_out if zusd_state is not None else None),
+        "perp_state_path": _relativize_optional_path(out_dir, perp_state_out if perp_state is not None else None),
+        "oracle_state_path": _relativize_optional_path(out_dir, oracle_state_out if oracle_state is not None else None),
+        "oracle_reporter_state_path": (
+            _rel(out_dir, oracle_reporter_state_out) if oracle_reporter_state is not None else None
+        ),
+        "upba_state_path": _relativize_optional_path(out_dir, upba_state_out if upba_state is not None else None),
+        "proof_mining_state_path": _relativize_optional_path(
+            out_dir,
+            proof_mining_state_out if proof_mining_state is not None else None,
+        ),
+        "autotrader_state_path": _relativize_optional_path(
+            out_dir,
+            autotrader_state_out if autotrader_state is not None else None,
+        ),
+        "confidential_state_path": _relativize_optional_path(
+            out_dir,
+            confidential_state_out if confidential_state is not None else None,
+        ),
+        "tau_chain_balances_path": _relativize_optional_path(
+            out_dir,
+            tau_chain_balances_out if tau_chain_balances is not None else None,
+        ),
         "tau_chain_id": tau_chain_id,
         "tau_enable_faucet": bool(tau_enable_faucet),
-        "body_paths": [str(path) for path in body_out_paths],
-        "ledger_out_dir": str(ledger_out_dir),
+        "body_paths": [_rel(out_dir, path) for path in body_out_paths],
+        "ledger_out_dir": _rel(out_dir, ledger_out_dir),
         "run_commands": run_commands,
         "verify_command": verify_command,
         "feature_gate_commands": gates,
-        "feature_gate_report_path": str(feature_gate_report_path),
+        "feature_gate_report_path": _rel(out_dir, feature_gate_report_path),
         "attest_command": attest_command,
-        "attestation_path": str(attestation_path),
+        "attestation_path": _rel(out_dir, attestation_path),
         "mirror_index_command": mirror_index_command,
-        "mirror_index_path": str(mirror_index_path),
+        "mirror_index_path": _rel(out_dir, mirror_index_path),
     }
     _write_json(manifest_path, manifest)
     return {

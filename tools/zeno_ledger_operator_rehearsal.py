@@ -92,6 +92,16 @@ def _rewrite_value(value: object, *, old_root: Path, new_root: Path) -> object:
     return value
 
 
+def _contains_absolute_path(value: object) -> bool:
+    if isinstance(value, list):
+        return any(_contains_absolute_path(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_absolute_path(item) for item in value.values())
+    if isinstance(value, str):
+        return Path(value).is_absolute()
+    return False
+
+
 def _relocate_manifest(
     *,
     source_manifest_path: Path,
@@ -139,6 +149,28 @@ def _old_lane_root_from_manifest(manifest: Mapping[str, Any], *, current_manifes
                 if key == "first_body_path":
                     return path.parent.parent
     return current_manifest_path.parent
+
+
+def _feature_suite_needs_relocation(source_suite_path: Path) -> bool:
+    suite = dict(_load_json_object(source_suite_path))
+    if _contains_absolute_path(suite):
+        return True
+    features = suite.get("features")
+    if not isinstance(features, list):
+        raise ValueError("feature suite must contain features list")
+
+    for raw_feature in features:
+        feature = dict(raw_feature)
+        raw_manifest_path = feature.get("manifest_path")
+        if not isinstance(raw_manifest_path, str) or raw_manifest_path == "":
+            raise ValueError("feature manifest_path must be a non-empty string")
+        source_manifest_path = _resolve_feature_manifest_path(
+            raw_path=raw_manifest_path,
+            new_suite_root=source_suite_path.parent,
+        )
+        if _contains_absolute_path(_load_json_object(source_manifest_path)):
+            return True
+    return False
 
 
 def _relocate_feature_suite(
@@ -201,11 +233,15 @@ def run_operator_rehearsal_v0(
         public_manifest.get("bootstrap_manifest_path"),
         fallback_current_path=bootstrap_manifest_path,
     )
-    relocated_bootstrap_manifest_path = _relocate_manifest(
-        source_manifest_path=bootstrap_manifest_path,
-        old_root=old_bootstrap_root,
-        new_root=bootstrap_root,
-        out_path=out_dir / "bootstrap_manifest.relocated.json",
+    relocated_bootstrap_manifest_path = (
+        _relocate_manifest(
+            source_manifest_path=bootstrap_manifest_path,
+            old_root=old_bootstrap_root,
+            new_root=bootstrap_root,
+            out_path=out_dir / "bootstrap_manifest.relocated.json",
+        )
+        if _contains_absolute_path(bootstrap_manifest)
+        else bootstrap_manifest_path
     )
 
     bootstrap_run_report = run_manifest_v0(manifest_path=relocated_bootstrap_manifest_path, cwd=ROOT)
@@ -217,10 +253,14 @@ def run_operator_rehearsal_v0(
         bundle_root=bundle,
         fallback=_known_bundle_path(bundle, "core_features", "feature_suite.json"),
     )
-    relocated_suite_path = _relocate_feature_suite(
-        source_suite_path=core_suite_path,
-        new_suite_root=core_suite_path.parent,
-        out_dir=out_dir,
+    relocated_suite_path = (
+        _relocate_feature_suite(
+            source_suite_path=core_suite_path,
+            new_suite_root=core_suite_path.parent,
+            out_dir=out_dir,
+        )
+        if _feature_suite_needs_relocation(core_suite_path)
+        else core_suite_path
     )
     core_suite_run_report = run_feature_suite_v0(suite_path=relocated_suite_path, cwd=ROOT)
     if core_suite_run_report.get("ok") is not True:

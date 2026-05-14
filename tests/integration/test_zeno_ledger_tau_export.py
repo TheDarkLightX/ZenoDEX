@@ -35,20 +35,25 @@ def _load_json(path: Path) -> dict[str, object]:
     return obj
 
 
-def _executed_bundle(tmp_path: Path) -> dict[str, object]:
+def _manifest_relative_path(manifest_path: Path, value: object) -> Path:
+    path = Path(str(value))
+    return path if path.is_absolute() else manifest_path.parent / path
+
+
+def _executed_bundle(tmp_path: Path) -> tuple[Path, dict[str, object]]:
     bundle = _run_script(MAKE_BUNDLE_SCRIPT, "--out-dir", str(tmp_path / "bundle"))
     assert bundle.returncode == 0, bundle.stderr
     bundle_report = json.loads(bundle.stdout)
-    manifest_path = str(bundle_report["manifest_path"])
-    executed = _run_script(RUN_MANIFEST_SCRIPT, "--manifest", manifest_path, "--cwd", str(ROOT))
+    manifest_path = Path(str(bundle_report["manifest_path"]))
+    executed = _run_script(RUN_MANIFEST_SCRIPT, "--manifest", str(manifest_path), "--cwd", str(ROOT))
     assert executed.returncode == 0, executed.stderr
-    return _load_json(Path(manifest_path))
+    return manifest_path, _load_json(manifest_path)
 
 
 def test_tau_export_packet_binds_profile_checkpoint_header_and_body(tmp_path: Path) -> None:
-    manifest = _executed_bundle(tmp_path)
-    ledger = Path(str(manifest["ledger_out_dir"]))
-    profile = _load_json(Path(str(manifest["profile_path"])))
+    manifest_path, manifest = _executed_bundle(tmp_path)
+    ledger = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile = _load_json(_manifest_relative_path(manifest_path, manifest["profile_path"]))
     checkpoint = _load_json(ledger / "checkpoints" / "5.json")
     header = _load_json(ledger / "headers" / "5.json")
     body = _load_json(ledger / "bodies" / "5.json")
@@ -91,8 +96,9 @@ def test_tau_export_packet_binds_profile_checkpoint_header_and_body(tmp_path: Pa
 
 
 def test_tau_export_packet_cli_writes_verified_packet(tmp_path: Path) -> None:
-    manifest = _executed_bundle(tmp_path)
-    ledger = Path(str(manifest["ledger_out_dir"]))
+    manifest_path, manifest = _executed_bundle(tmp_path)
+    ledger = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
     out_path = tmp_path / "tau_export_packet.json"
 
     proc = _run_script(
@@ -104,7 +110,7 @@ def test_tau_export_packet_cli_writes_verified_packet(tmp_path: Path) -> None:
         "--body",
         str(ledger / "bodies" / "5.json"),
         "--profile",
-        str(manifest["profile_path"]),
+        str(profile_path),
         "--tau-network-id",
         "tau-testnet-alpha",
         "--tau-adapter-ref",
@@ -122,8 +128,9 @@ def test_tau_export_packet_cli_writes_verified_packet(tmp_path: Path) -> None:
 
 
 def test_tau_export_packet_cli_rejects_body_tampering(tmp_path: Path) -> None:
-    manifest = _executed_bundle(tmp_path)
-    ledger = Path(str(manifest["ledger_out_dir"]))
+    manifest_path, manifest = _executed_bundle(tmp_path)
+    ledger = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
     tampered_body_path = tmp_path / "tampered_body.json"
     body = _load_json(ledger / "bodies" / "5.json")
     body["transactions"] = [{"bad": "tx"}]
@@ -138,7 +145,7 @@ def test_tau_export_packet_cli_rejects_body_tampering(tmp_path: Path) -> None:
         "--body",
         str(tampered_body_path),
         "--profile",
-        str(manifest["profile_path"]),
+        str(profile_path),
         "--tau-network-id",
         "tau-testnet-alpha",
         "--tau-adapter-ref",

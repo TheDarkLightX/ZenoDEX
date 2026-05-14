@@ -194,6 +194,61 @@ def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def _manifest_relative_path(manifest_path: Path, value: object) -> Path:
+    path = Path(str(value))
+    return path if path.is_absolute() else manifest_path.parent / path
+
+
+def _load_manifest(report: dict[str, object]) -> tuple[Path, dict[str, object]]:
+    manifest_path = Path(str(report["manifest_path"]))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert isinstance(manifest, dict)
+    return manifest_path, manifest
+
+
+def _resolve_command_against_manifest(manifest_path: Path, command: list[str]) -> list[str]:
+    path_flags = {
+        "--attestation",
+        "--autotrader-state",
+        "--bodies-dir",
+        "--body",
+        "--checkpoints-dir",
+        "--confidential-state",
+        "--headers-dir",
+        "--index",
+        "--manifest",
+        "--mirror-root",
+        "--oracle-reporter-state",
+        "--oracle-state",
+        "--out",
+        "--out-dir",
+        "--perp-state",
+        "--prev-header",
+        "--prev-snapshot",
+        "--profile",
+        "--proof-mining-state",
+        "--source-root",
+        "--tau-app-state",
+        "--tau-chain-balances",
+        "--upba-state",
+        "--zusd-state",
+        "--pre-snapshot",
+    }
+    out: list[str] = []
+    previous = ""
+    for index, item in enumerate(command):
+        if index == 0 and item in {"python", "python3"}:
+            out.append(sys.executable)
+        elif item.startswith("tools/") and item.endswith(".py"):
+            out.append(str(ROOT / item))
+        elif previous in path_flags:
+            out.append(str(_manifest_relative_path(manifest_path, item)))
+        else:
+            out.append(item)
+        previous = item
+    return out
+
+
 def _run_verify(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(VERIFY_SCRIPT), *args],
@@ -1041,8 +1096,8 @@ def test_make_testnet_bundle_can_run_and_verify_bootstrap_scenario(tmp_path: Pat
     report = json.loads(proc.stdout)
     assert report["ok"] is True
 
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    profile = json.loads(Path(manifest["profile_path"]).read_text(encoding="utf-8"))
+    manifest_path, manifest = _load_manifest(report)
+    profile = json.loads(_manifest_relative_path(manifest_path, manifest["profile_path"]).read_text(encoding="utf-8"))
     assert profile["deployment_mode"] == "zeno_sovereign_testnet"
     assert profile["tau_net_adapter_required"] is False
     assert profile["bridge_policy"]["requires_tau_checkpoint"] is False
@@ -1056,7 +1111,7 @@ def test_make_testnet_bundle_can_run_and_verify_bootstrap_scenario(tmp_path: Pat
     run_reports = []
     for command in manifest["run_commands"]:
         run = subprocess.run(
-            command,
+            _resolve_command_against_manifest(manifest_path, command),
             cwd=ROOT,
             text=True,
             capture_output=True,
@@ -1072,7 +1127,7 @@ def test_make_testnet_bundle_can_run_and_verify_bootstrap_scenario(tmp_path: Pat
     assert receipts[0]["error_code"] == "transactions_0_operations_is_required"
 
     verify = subprocess.run(
-        manifest["verify_command"],
+        _resolve_command_against_manifest(manifest_path, manifest["verify_command"]),
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -1112,8 +1167,9 @@ def test_watcher_attestation_binds_verified_sovereign_range(tmp_path: Path) -> N
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
 
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    ledger_out_dir = Path(manifest["ledger_out_dir"])
+    manifest_path, manifest = _load_manifest(report)
+    ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
     attestation_path = tmp_path / "watcher.json"
     attest = _run_attest(
         "--headers-dir",
@@ -1123,7 +1179,7 @@ def test_watcher_attestation_binds_verified_sovereign_range(tmp_path: Path) -> N
         "--checkpoints-dir",
         str(ledger_out_dir / "checkpoints"),
         "--profile",
-        manifest["profile_path"],
+        str(profile_path),
         "--from-height",
         "1",
         "--to-height",
@@ -1140,7 +1196,7 @@ def test_watcher_attestation_binds_verified_sovereign_range(tmp_path: Path) -> N
     attest_report = json.loads(attest.stdout)
     assert attest_report["ok"] is True
     attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
-    profile = json.loads(Path(manifest["profile_path"]).read_text(encoding="utf-8"))
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
     assert attestation["status"] == "range_verified"
     assert attestation["deployment_mode"] == "zeno_sovereign_testnet"
     assert attestation["checked_heights"] == [1, 2, 3, 4, 5]
@@ -1161,8 +1217,9 @@ def test_watcher_attestation_rejects_tampered_verified_range(tmp_path: Path) -> 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
 
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    ledger_out_dir = Path(manifest["ledger_out_dir"])
+    manifest_path, manifest = _load_manifest(report)
+    ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
     body_path = ledger_out_dir / "bodies" / "5.json"
     body = json.loads(body_path.read_text(encoding="utf-8"))
     body["transactions"] = []
@@ -1176,7 +1233,7 @@ def test_watcher_attestation_rejects_tampered_verified_range(tmp_path: Path) -> 
         "--checkpoints-dir",
         str(ledger_out_dir / "checkpoints"),
         "--profile",
-        manifest["profile_path"],
+        str(profile_path),
         "--from-height",
         "1",
         "--to-height",
@@ -1204,8 +1261,8 @@ def test_mirror_index_binds_public_testnet_artifacts(tmp_path: Path) -> None:
     runner_report = json.loads(runner.stdout)
     assert runner_report["mirror_index_report"]["stdout_json"]["ok"] is True
 
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    mirror_index_path = Path(manifest["mirror_index_path"])
+    manifest_path, manifest = _load_manifest(report)
+    mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
     mirror_index = json.loads(mirror_index_path.read_text(encoding="utf-8"))
     assert mirror_index["artifact_count"] >= 1
     assert all(not Path(entry["relative_path"]).is_absolute() for entry in mirror_index["artifacts"])
@@ -1234,15 +1291,15 @@ def test_mirror_index_rejects_tampered_artifact(tmp_path: Path) -> None:
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    body_path = Path(manifest["ledger_out_dir"]) / "bodies" / "5.json"
+    manifest_path, manifest = _load_manifest(report)
+    body_path = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"]) / "bodies" / "5.json"
     body = json.loads(body_path.read_text(encoding="utf-8"))
     body["transactions"] = []
     _write_json(body_path, body)
 
     verify = _run_verify_mirror_index(
         "--index",
-        manifest["mirror_index_path"],
+        str(_manifest_relative_path(manifest_path, manifest["mirror_index_path"])),
         "--mirror-root",
         str(bundle_dir),
     )
@@ -1260,9 +1317,9 @@ def test_testnet_status_binds_mirror_and_watcher_attestation(tmp_path: Path) -> 
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    mirror_index_path = Path(manifest["mirror_index_path"])
-    attestation_path = Path(manifest["attestation_path"])
+    manifest_path, manifest = _load_manifest(report)
+    mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
+    attestation_path = _manifest_relative_path(manifest_path, manifest["attestation_path"])
     status_path = tmp_path / "testnet_status.json"
 
     status_proc = _run_make_testnet_status(
@@ -1304,8 +1361,8 @@ def test_testnet_status_rejects_tampered_watcher_attestation(tmp_path: Path) -> 
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    attestation_path = Path(manifest["attestation_path"])
+    manifest_path, manifest = _load_manifest(report)
+    attestation_path = _manifest_relative_path(manifest_path, manifest["attestation_path"])
     bad_attestation_path = tmp_path / "bad_attestation.json"
     bad_attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
     bad_attestation["last_header_hash"] = _root("bad-status-header")
@@ -1315,7 +1372,7 @@ def test_testnet_status_rejects_tampered_watcher_attestation(tmp_path: Path) -> 
         "--network-id",
         "zeno-ledger-devnet-0",
         "--mirror-index",
-        manifest["mirror_index_path"],
+        str(_manifest_relative_path(manifest_path, manifest["mirror_index_path"])),
         "--mirror-root",
         str(bundle_dir),
         "--watcher-attestation",
@@ -1336,17 +1393,21 @@ def test_testnet_status_rejects_disagreeing_watcher_ranges(tmp_path: Path) -> No
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
+    manifest_path, manifest = _load_manifest(report)
+    ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
+    mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
+    attestation_path = _manifest_relative_path(manifest_path, manifest["attestation_path"])
     short_attestation_path = tmp_path / "short_range_attestation.json"
     short_attest = _run_attest(
         "--headers-dir",
-        str(Path(manifest["ledger_out_dir"]) / "headers"),
+        str(ledger_out_dir / "headers"),
         "--bodies-dir",
-        str(Path(manifest["ledger_out_dir"]) / "bodies"),
+        str(ledger_out_dir / "bodies"),
         "--checkpoints-dir",
-        str(Path(manifest["ledger_out_dir"]) / "checkpoints"),
+        str(ledger_out_dir / "checkpoints"),
         "--profile",
-        manifest["profile_path"],
+        str(profile_path),
         "--from-height",
         "1",
         "--to-height",
@@ -1364,11 +1425,11 @@ def test_testnet_status_rejects_disagreeing_watcher_ranges(tmp_path: Path) -> No
         "--network-id",
         "zeno-ledger-devnet-0",
         "--mirror-index",
-        manifest["mirror_index_path"],
+        str(mirror_index_path),
         "--mirror-root",
         str(bundle_dir),
         "--watcher-attestation",
-        manifest["attestation_path"],
+        str(attestation_path),
         "--watcher-attestation",
         str(short_attestation_path),
     )
@@ -1453,7 +1514,7 @@ def test_make_feature_lane_manifest_runs_custom_body_sequence(tmp_path: Path) ->
     assert report["ok"] is True
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["bundle_kind"] == "feature_lane"
-    assert manifest["body_paths"] == [str(out_dir / "bodies" / "1.json"), str(out_dir / "bodies" / "2.json")]
+    assert manifest["body_paths"] == ["bodies/1.json", "bodies/2.json"]
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -1538,7 +1599,7 @@ def test_make_feature_lane_manifest_supports_tau_app_bridge_mode(tmp_path: Path)
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "tau_app"
-    assert manifest["tau_app_state_path"] == str(out_dir / "tau_app_state.json")
+    assert manifest["tau_app_state_path"] == "tau_app_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -1646,7 +1707,7 @@ def test_make_feature_lane_manifest_supports_perp_mode(tmp_path: Path) -> None:
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "perp"
-    assert manifest["perp_state_path"] == str(out_dir / "perp_state.json")
+    assert manifest["perp_state_path"] == "perp_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -1750,7 +1811,7 @@ def test_make_feature_lane_manifest_supports_oracle_mode(tmp_path: Path) -> None
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "oracle"
-    assert manifest["oracle_state_path"] == str(out_dir / "oracle_state.json")
+    assert manifest["oracle_state_path"] == "oracle_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -1896,7 +1957,7 @@ def test_make_feature_lane_manifest_supports_oracle_reporter_mode(tmp_path: Path
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "oracle_reporter"
-    assert manifest["oracle_reporter_state_path"] == str(out_dir / "oracle_reporter_state.json")
+    assert manifest["oracle_reporter_state_path"] == "oracle_reporter_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -2083,7 +2144,7 @@ def test_make_feature_lane_manifest_supports_upba_mode(tmp_path: Path) -> None:
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "upba"
-    assert manifest["upba_state_path"] == str(out_dir / "upba_state.json")
+    assert manifest["upba_state_path"] == "upba_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -2273,7 +2334,7 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "proof_mining"
-    assert manifest["proof_mining_state_path"] == str(out_dir / "proof_mining_state.json")
+    assert manifest["proof_mining_state_path"] == "proof_mining_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -2472,7 +2533,7 @@ def test_make_feature_lane_manifest_supports_autotrader_mode(tmp_path: Path) -> 
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "autotrader"
-    assert manifest["autotrader_state_path"] == str(out_dir / "autotrader_state.json")
+    assert manifest["autotrader_state_path"] == "autotrader_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -2648,7 +2709,7 @@ def test_make_feature_lane_manifest_supports_confidential_mode(tmp_path: Path) -
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
     assert manifest["execution_mode"] == "confidential"
-    assert manifest["confidential_state_path"] == str(out_dir / "confidential_state.json")
+    assert manifest["confidential_state_path"] == "confidential_state.json"
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -2753,7 +2814,7 @@ def test_feature_lane_runs_feature_gate_and_mirrors_report(tmp_path: Path) -> No
     assert proc.returncode == 0, proc.stderr
     report = json.loads(proc.stdout)
     manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    assert manifest["feature_gate_commands"] == [gate_command]
+    assert manifest["feature_gate_commands"] == [["python3", *gate_command[1:]]]
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
@@ -3002,16 +3063,19 @@ def test_make_core_feature_suite_runs_spot_and_tau_adapter_lanes(tmp_path: Path)
     suite_run_report_path = out_dir / "core_suite_run_report.json"
     status_path = out_dir / "core_suite_status.json"
     _write_json(suite_run_report_path, runner_report)
-    spot_manifest = json.loads(Path(report["spot_bootstrap_manifest_path"]).read_text(encoding="utf-8"))
+    spot_manifest_path = Path(report["spot_bootstrap_manifest_path"])
+    spot_manifest = json.loads(spot_manifest_path.read_text(encoding="utf-8"))
+    spot_mirror_index_path = _manifest_relative_path(spot_manifest_path, spot_manifest["mirror_index_path"])
+    spot_attestation_path = _manifest_relative_path(spot_manifest_path, spot_manifest["attestation_path"])
     status_proc = _run_make_testnet_status(
         "--network-id",
         "zeno-ledger-devnet-0",
         "--mirror-index",
-        spot_manifest["mirror_index_path"],
+        str(spot_mirror_index_path),
         "--mirror-root",
         str(out_dir / "spot_bootstrap"),
         "--watcher-attestation",
-        spot_manifest["attestation_path"],
+        str(spot_attestation_path),
         "--feature-suite",
         report["suite_path"],
         "--feature-suite-run-report",
@@ -3170,9 +3234,17 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
     for feature in feature_suite_manifest["features"]:
         assert not Path(feature["manifest_path"]).is_absolute()
 
-    bootstrap_manifest = json.loads(Path(report["bootstrap_manifest_path"]).read_text(encoding="utf-8"))
-    mirror_index = json.loads(Path(bootstrap_manifest["mirror_index_path"]).read_text(encoding="utf-8"))
-    attestation = json.loads(Path(bootstrap_manifest["attestation_path"]).read_text(encoding="utf-8"))
+    bootstrap_manifest_path = Path(report["bootstrap_manifest_path"])
+    bootstrap_manifest = json.loads(bootstrap_manifest_path.read_text(encoding="utf-8"))
+    bootstrap_root = bootstrap_manifest_path.parent
+    bootstrap_mirror_index_path = Path(bootstrap_manifest["mirror_index_path"])
+    if not bootstrap_mirror_index_path.is_absolute():
+        bootstrap_mirror_index_path = bootstrap_root / bootstrap_mirror_index_path
+    bootstrap_attestation_path = Path(bootstrap_manifest["attestation_path"])
+    if not bootstrap_attestation_path.is_absolute():
+        bootstrap_attestation_path = bootstrap_root / bootstrap_attestation_path
+    mirror_index = json.loads(bootstrap_mirror_index_path.read_text(encoding="utf-8"))
+    attestation = json.loads(bootstrap_attestation_path.read_text(encoding="utf-8"))
     feature_suite = json.loads(Path(report["core_suite_path"]).read_text(encoding="utf-8"))
     feature_suite_run = json.loads(Path(report["core_suite_run_report_path"]).read_text(encoding="utf-8"))
     validate_testnet_status_v0(
@@ -3192,11 +3264,11 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
         "--network-id",
         "zeno-ledger-devnet-0",
         "--mirror-index",
-        bootstrap_manifest["mirror_index_path"],
+        str(bootstrap_mirror_index_path),
         "--mirror-root",
         str(out_dir / "bootstrap"),
         "--watcher-attestation",
-        bootstrap_manifest["attestation_path"],
+        str(bootstrap_attestation_path),
         "--feature-suite",
         report["core_suite_path"],
         "--feature-suite-run-report",
@@ -3309,12 +3381,12 @@ def test_export_tau_packet_binds_sovereign_checkpoint_without_tau_acceptance_cla
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
 
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    ledger_out_dir = Path(manifest["ledger_out_dir"])
+    manifest_path, manifest = _load_manifest(report)
+    ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
     checkpoint_path = ledger_out_dir / "checkpoints" / "5.json"
     header_path = ledger_out_dir / "headers" / "5.json"
     body_path = ledger_out_dir / "bodies" / "5.json"
-    profile_path = Path(manifest["profile_path"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
     packet_path = tmp_path / "tau_packet.json"
 
     export = _run_export_tau_packet(
@@ -3373,8 +3445,9 @@ def test_export_tau_packet_rejects_tampered_body(tmp_path: Path) -> None:
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
 
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    ledger_out_dir = Path(manifest["ledger_out_dir"])
+    manifest_path, manifest = _load_manifest(report)
+    ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
+    profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
     body_path = ledger_out_dir / "bodies" / "5.json"
     bad_body_path = tmp_path / "bad_body.json"
     body = json.loads(body_path.read_text(encoding="utf-8"))
@@ -3389,7 +3462,7 @@ def test_export_tau_packet_rejects_tampered_body(tmp_path: Path) -> None:
         "--body",
         str(bad_body_path),
         "--profile",
-        manifest["profile_path"],
+        str(profile_path),
         "--tau-network-id",
         "tau-local",
         "--tau-adapter-ref",
@@ -3410,9 +3483,9 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    attestation_path = Path(manifest["attestation_path"])
-    mirror_index_path = Path(manifest["mirror_index_path"])
+    manifest_path, manifest = _load_manifest(report)
+    attestation_path = _manifest_relative_path(manifest_path, manifest["attestation_path"])
+    mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
     attestation_envelope_path = tmp_path / "watcher_signature.json"
     mirror_envelope_path = tmp_path / "mirror_signature.json"
 
@@ -3498,8 +3571,8 @@ def test_signed_artifact_envelope_rejects_tampered_artifact_hash(tmp_path: Path)
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    attestation_path = Path(manifest["attestation_path"])
+    manifest_path, manifest = _load_manifest(report)
+    attestation_path = _manifest_relative_path(manifest_path, manifest["attestation_path"])
     attestation_envelope_path = tmp_path / "watcher_signature.json"
 
     sign = _run_sign_artifact(
@@ -3713,8 +3786,8 @@ def test_publish_mirror_copies_indexed_artifacts_and_extra_signature(tmp_path: P
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
-    mirror_index_path = Path(manifest["mirror_index_path"])
+    manifest_path, manifest = _load_manifest(report)
+    mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
     signature_path = bundle_dir / "mirror_index.sig.json"
     sign = _run_sign_artifact(
         "--artifact",
@@ -3773,10 +3846,11 @@ def test_publish_mirror_rejects_publish_dir_inside_source_tree(tmp_path: Path) -
 
     runner = _run_manifest("--manifest", report["manifest_path"], "--cwd", str(ROOT))
     assert runner.returncode == 0, runner.stderr
-    manifest = json.loads(Path(report["manifest_path"]).read_text(encoding="utf-8"))
+    manifest_path, manifest = _load_manifest(report)
+    mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
     publish = _run_publish_mirror(
         "--index",
-        manifest["mirror_index_path"],
+        str(mirror_index_path),
         "--source-root",
         str(bundle_dir),
         "--publish-root",

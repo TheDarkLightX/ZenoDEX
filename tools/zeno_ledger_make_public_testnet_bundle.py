@@ -45,6 +45,21 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
     return obj
 
 
+def _rel(root: Path, path: Path) -> str:
+    return path.resolve().relative_to(root.resolve()).as_posix()
+
+
+def _resolve_relative_to(path_text: object, *, root: Path, name: str) -> Path:
+    if not isinstance(path_text, str) or path_text == "":
+        raise ValueError(f"{name} must be a non-empty string")
+    path = Path(path_text)
+    if path.is_absolute():
+        return path
+    if ".." in path.parts:
+        raise ValueError(f"{name} must not escape its bundle root")
+    return root / path
+
+
 def _run_command(command: Sequence[str], *, cwd: Path) -> dict[str, Any]:
     proc = subprocess.run(
         list(command),
@@ -102,8 +117,8 @@ def build_public_testnet_bundle_v0(
     )
     bootstrap_manifest_path = Path(str(bootstrap_build_report["manifest_path"]))
     bootstrap_run_command = [
-        sys.executable,
-        str(RUN_MANIFEST_SCRIPT),
+        "python3",
+        "tools/zeno_ledger_run_manifest.py",
         "--manifest",
         str(bootstrap_manifest_path),
         "--cwd",
@@ -123,8 +138,8 @@ def build_public_testnet_bundle_v0(
     _write_json(core_suite_build_report_path, core_suite_build_report)
     core_suite_path = Path(str(core_suite_build_report["suite_path"]))
     core_suite_run_command = [
-        sys.executable,
-        str(RUN_FEATURE_SUITE_SCRIPT),
+        "python3",
+        "tools/zeno_ledger_run_feature_suite.py",
         "--suite",
         str(core_suite_path),
         "--cwd",
@@ -135,8 +150,16 @@ def build_public_testnet_bundle_v0(
     _write_json(core_suite_run_report_path, core_suite_run_stdout)
 
     bootstrap_manifest = _load_json_object(bootstrap_manifest_path)
-    mirror_index_path = Path(str(bootstrap_manifest["mirror_index_path"]))
-    watcher_attestation_path = Path(str(bootstrap_manifest["attestation_path"]))
+    mirror_index_path = _resolve_relative_to(
+        bootstrap_manifest.get("mirror_index_path"),
+        root=bootstrap_manifest_path.parent,
+        name="bootstrap_manifest.mirror_index_path",
+    )
+    watcher_attestation_path = _resolve_relative_to(
+        bootstrap_manifest.get("attestation_path"),
+        root=bootstrap_manifest_path.parent,
+        name="bootstrap_manifest.attestation_path",
+    )
     mirror_index = _load_json_object(mirror_index_path)
     watcher_attestation = _load_json_object(watcher_attestation_path)
     feature_suite = _load_json_object(core_suite_path)
@@ -164,14 +187,28 @@ def build_public_testnet_bundle_v0(
         "chain_id": chain_id,
         "sequencer_id": sequencer_id,
         "token_symbol": token_symbol,
-        "bootstrap_manifest_path": str(bootstrap_manifest_path),
-        "bootstrap_run_command": bootstrap_run_command,
-        "bootstrap_run_report_path": str(bootstrap_run_report_path),
-        "core_suite_path": str(core_suite_path),
-        "core_suite_run_command": core_suite_run_command,
-        "core_suite_build_report_path": str(core_suite_build_report_path),
-        "core_suite_run_report_path": str(core_suite_run_report_path),
-        "testnet_status_path": str(testnet_status_path),
+        "bootstrap_manifest_path": _rel(out_dir, bootstrap_manifest_path),
+        "bootstrap_run_command": [
+            "python3",
+            "tools/zeno_ledger_run_manifest.py",
+            "--manifest",
+            _rel(out_dir, bootstrap_manifest_path),
+            "--cwd",
+            ".",
+        ],
+        "bootstrap_run_report_path": _rel(out_dir, bootstrap_run_report_path),
+        "core_suite_path": _rel(out_dir, core_suite_path),
+        "core_suite_run_command": [
+            "python3",
+            "tools/zeno_ledger_run_feature_suite.py",
+            "--suite",
+            _rel(out_dir, core_suite_path),
+            "--cwd",
+            ".",
+        ],
+        "core_suite_build_report_path": _rel(out_dir, core_suite_build_report_path),
+        "core_suite_run_report_path": _rel(out_dir, core_suite_run_report_path),
+        "testnet_status_path": _rel(out_dir, testnet_status_path),
         "testnet_status_hash": testnet_status["testnet_status_hash"],
         "covered_features": core_suite_run_stdout["covered_features"],
         "tau_posture": {
