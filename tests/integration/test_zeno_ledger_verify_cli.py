@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -56,6 +57,7 @@ VERIFY_MIRROR_INDEX_SCRIPT = ROOT / "tools" / "zeno_ledger_verify_mirror_index.p
 SIGN_ARTIFACT_SCRIPT = ROOT / "tools" / "zeno_ledger_sign_artifact.py"
 VERIFY_ARTIFACT_SIGNATURE_SCRIPT = ROOT / "tools" / "zeno_ledger_verify_artifact_signature.py"
 PUBLISH_MIRROR_SCRIPT = ROOT / "tools" / "zeno_ledger_publish_mirror.py"
+OPERATOR_REHEARSAL_SCRIPT = ROOT / "tools" / "zeno_ledger_operator_rehearsal.py"
 ZERO_ROOT = "0x" + "00" * 32
 TEST_SIGNING_SECRET = "0x" + "42" * 32
 TEST_BLS_PRIVATE_KEY = "0x" + "01" * 32
@@ -276,6 +278,15 @@ def _run_feature_suite(*args: str) -> subprocess.CompletedProcess[str]:
 def _run_make_testnet_status(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(MAKE_TESTNET_STATUS_SCRIPT), *args],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+
+def _run_operator_rehearsal(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(OPERATOR_REHEARSAL_SCRIPT), *args],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -3155,6 +3166,10 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
     assert status["feature_suite"]["feature_count"] == 10
     assert status["feature_suite_run"]["covered_feature_count"] == 10
 
+    feature_suite_manifest = json.loads(Path(report["core_suite_path"]).read_text(encoding="utf-8"))
+    for feature in feature_suite_manifest["features"]:
+        assert not Path(feature["manifest_path"]).is_absolute()
+
     bootstrap_manifest = json.loads(Path(report["bootstrap_manifest_path"]).read_text(encoding="utf-8"))
     mirror_index = json.loads(Path(bootstrap_manifest["mirror_index_path"]).read_text(encoding="utf-8"))
     attestation = json.loads(Path(bootstrap_manifest["attestation_path"]).read_text(encoding="utf-8"))
@@ -3191,6 +3206,62 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
     incomplete_status_report = json.loads(incomplete_status.stdout)
     assert incomplete_status_report["ok"] is False
     assert "feature suite coverage mismatch" in incomplete_status_report["errors"][0]
+
+
+def test_operator_rehearsal_replays_copied_public_testnet_bundle(tmp_path: Path) -> None:
+    out_dir = tmp_path / "public_testnet"
+    proc = _run_make_public_testnet_bundle(
+        "--out-dir",
+        str(out_dir),
+        "--network-id",
+        "zeno-ledger-devnet-0",
+        "--chain-id",
+        "zeno-ledger-devnet-0",
+    )
+    assert proc.returncode == 0, proc.stderr
+    report = json.loads(proc.stdout)
+    assert report["ok"] is True
+
+    copied_bundle_dir = tmp_path / "operator_b_bundle_copy"
+    shutil.copytree(out_dir, copied_bundle_dir)
+    peer_attestation_path = copied_bundle_dir / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
+    operator_out_dir = tmp_path / "operator_b"
+    rehearsal = _run_operator_rehearsal(
+        "--bundle-root",
+        str(copied_bundle_dir),
+        "--operator-id",
+        "operator-b",
+        "--out-dir",
+        str(operator_out_dir),
+        "--observed-time-ms",
+        "1778730015000",
+        "--peer-watcher-attestation",
+        str(peer_attestation_path),
+    )
+
+    assert rehearsal.returncode == 0, rehearsal.stderr
+    rehearsal_report = json.loads(rehearsal.stdout)
+    assert rehearsal_report["ok"] is True
+    assert rehearsal_report["combined_watcher_count"] == 2
+    assert rehearsal_report["peer_watcher_count"] == 1
+    assert rehearsal_report["mirror_index_hash"]
+    assert rehearsal_report["feature_suite_hash"]
+    assert rehearsal_report["last_header_hash"]
+    assert rehearsal_report["last_app_hash"]
+
+    operator_attestation_path = Path(rehearsal_report["operator_attestation_path"])
+    combined_status_path = Path(rehearsal_report["combined_testnet_status_path"])
+    assert operator_attestation_path.is_file()
+    assert combined_status_path.is_file()
+    operator_attestation = json.loads(operator_attestation_path.read_text(encoding="utf-8"))
+    combined_status = json.loads(combined_status_path.read_text(encoding="utf-8"))
+    assert operator_attestation["watcher_id"] == "operator-b"
+    assert combined_status["watcher_count"] == 2
+    assert [watcher["watcher_id"] for watcher in combined_status["watchers"]] == [
+        "bootstrap-watcher-0",
+        "operator-b",
+    ]
+    assert combined_status["feature_suite_run"]["covered_feature_count"] == 10
 
 
 def test_make_assurance_feature_suite_smoke_runs_feature_gates(tmp_path: Path) -> None:

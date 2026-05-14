@@ -1272,6 +1272,7 @@ def build_core_feature_suite_v0(
             "autotrader_core",
             "confidential_core",
         ],
+        base_dir=suite_path.parent,
     )
     _write_json(suite_path, suite)
     return {

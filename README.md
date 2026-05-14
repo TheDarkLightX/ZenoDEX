@@ -1,10 +1,9 @@
 # ZenoDEX
 
-ZenoDEX is a high-assurance decentralized exchange and token-economics stack
-targeting Tau Net. The preferred release path is Tau Net because Tau Language
-can express policy, governance, and protocol constraints directly. ZenoLedger
-v0 gives the project an independent replayable testnet path while Tau Net
-integration matures.
+ZenoDEX is a high-assurance decentralized exchange and token-economics stack.
+Its preferred release target is Tau Net, where Tau Language can express policy,
+governance, and protocol constraints directly. ZenoLedger v0 provides an
+independent replayable testnet path while Tau Net integration matures.
 
 Current status:
 
@@ -12,22 +11,18 @@ Current status:
 public-testnet candidate
 high-assurance functional core
 Tau Net handoff adapter available
-production mainnet readiness still gated by public operations hardening
+production mainnet readiness gated by validator-network hardening and live-value deployment
 ```
 
-ZenoLedger v0 can run ZenoDEX feature suites through a replayable
-mirror/watcher workflow. Independent machines can rebuild the same headers,
-checkpoints, feature-suite reports, watcher attestations, and status roots.
-This is decentralized replay and verification. A production validator network,
-peer-to-peer availability layer, signer-governance process, and live value
-deployment remain separate release work.
+ZenoLedger v0 runs ZenoDEX feature suites through a replayable mirror/watcher
+workflow: independent machines rebuild the same headers, checkpoints,
+feature-suite reports, watcher attestations, and status roots. A production
+validator network, P2P availability layer, and live-value deployment are
+separate release work.
 
-ZenoDEX uses one public product name. Older internal fixtures may still contain
-legacy module identifiers for compatibility with historical test bodies. Public
-documentation and user-facing surfaces should use `ZenoDEX`.
-
-**Invalid states must be unrepresentable. Tests confirm behavior. CBC creates
-the shape where bad states cannot be expressed.**
+**Invalid states must be unrepresentable. Correct-by-construction design
+eliminates bad states at the type level; tests confirm the behavior that
+remains.**
 
 ## Core Ideas
 
@@ -35,9 +30,9 @@ the shape where bad states cannot be expressed.**
 
 ZenoDEX keeps consensus-critical logic small, deterministic, and replayable.
 The core avoids floating point arithmetic, uses canonical serialization, and
-commits state through reproducible roots. Lean proofs, Tau specs, ESSO kernels,
-property tests, replay receipts, fuzzing, and adversarial simulations are used
-as complementary evidence.
+commits state through reproducible roots. Complementary evidence includes Lean
+proofs, Tau specs, ESSO kernels, property tests, replay receipts, fuzzing, and
+adversarial simulations.
 
 Proof-backed and evidence-backed areas include:
 
@@ -50,20 +45,19 @@ Proof-backed and evidence-backed areas include:
 - ZenoLedger headers, checkpoints, watcher attestations, mirror roots, and Tau
   handoff packets
 
-The repository should be read as a high-assurance public-testnet candidate. It
-is stronger than a conventional prototype, and production value deployment
-still needs operational hardening and fresh release evidence.
+This is a high-assurance public-testnet candidate. It exceeds conventional
+prototype rigor. Production value deployment still requires operational
+hardening and fresh release evidence.
 
 ### Batch Clearing And Mechanism Design
 
-Continuous markets create an unsolvable latency race for participants competing
-over ordering, observation time, and inclusion. ZenoDEX responds by moving key
-surfaces toward deterministic batch mechanisms.
+Continuous markets force a latency race over ordering, observation time, and
+inclusion. ZenoDEX moves key surfaces to deterministic batch mechanisms.
 
 Uniform Price Batch Auction (UPBA) is the target clearing architecture for
-reducing intra-batch ordering games. In a true uniform-clearing model,
-execution depends on the admitted order multiset and the clearing certificate,
-rather than on an arbitrary sequence of individual swaps.
+reducing intra-batch ordering games. Under true uniform clearing, execution
+depends on the admitted order multiset and the clearing certificate, instead
+of an arbitrary sequence of individual swaps.
 
 The current UPBA work is scoped:
 
@@ -74,21 +68,21 @@ verify certificate conditions deterministically
 commit accepted result through ZenoLedger feature suites
 ```
 
-UPBA reduces intra-batch ordering MEV. It does not by itself solve
-inclusion/exclusion games, batch-boundary timing, oracle timing, censorship, or
-cross-domain latency. Those surfaces are modeled separately.
+UPBA reduces intra-batch ordering MEV. By itself it does not address
+inclusion/exclusion games, batch-boundary timing, oracle timing, censorship,
+or cross-domain latency; those surfaces are modeled separately.
 
-The solver incentive model has a checked local payoff theorem: if the bounty
-exceeds compute cost, the slash penalty is positive, and invalid submissions are
-always caught by the verifier, honest solving is strictly better than idling or
-submitting a bad solution. That is a useful mechanism-design bound with explicit
-assumptions, not a blanket claim that every production actor game is solved.
+The solver incentive model has a checked local payoff theorem. When the bounty
+exceeds compute cost, the slash penalty is positive, and the verifier always
+catches invalid submissions, honest solving strictly dominates idling or
+submitting a bad solution. The bound is conditional on those assumptions and
+does not claim that every production actor game is solved.
 
 ### ZenoLedger
 
-ZenoLedger v0 is the liveness and replay layer for the public-testnet candidate.
-It is designed to keep ZenoDEX testable while Tau Net integration is not ready
-or if a Tau-side rule change blocks a ZenoDEX adapter.
+ZenoLedger v0 is the liveness and replay layer for the public-testnet
+candidate. It keeps ZenoDEX testable pending Tau Net integration, and provides a fallback
+if a Tau-side rule change blocks a ZenoDEX adapter.
 
 ZenoLedger provides:
 
@@ -133,7 +127,7 @@ The core feature suite currently covers:
 - autotrader policy surface
 - confidential TEE/FHE alpha verifier surfaces
 
-Latest focused ZenoLedger evidence from this workspace:
+Recent focused ZenoLedger evidence from this workspace:
 
 ```text
 pytest -q tests/integration/test_zeno_ledger_profile.py \
@@ -148,31 +142,31 @@ pytest -q tests/integration/test_zeno_ledger_profile.py \
 
 - **Spot DEX:** deterministic CPMM execution, LP accounting, settlement replay,
   and state-root commitments.
-- **UPBA:** uniform-clearing research and testnet feature-suite coverage for
+- **UPBA:** uniform-clearing research with testnet feature-suite coverage for
   aggregate batch-auction verification.
-- **ZUSD:** overcollateralized stablecoin mechanics with redemption and
+- **ZUSD:** overcollateralized stablecoin mechanics, redemption, and
   collateral-ratio analysis.
 - **Perpetuals:** epoch-based funding, margin checks, insurance boundaries, and
   liquidation research.
-- **ZenoOracle:** oracle freshness checks, reporter lifecycle replay,
-  token-settlement replay, and fail-closed malformed-input handling.
-- **Confidential Extensions:** TEE-first confidential admission and experimental
+- **ZenoOracle:** freshness checks, reporter lifecycle replay, token-settlement
+  replay, and fail-closed handling of malformed input.
+- **Confidential Extensions:** TEE-first confidential admission with experimental
   FHE sealed-bid verification surfaces.
-- **Autotrader Policy Surface:** local deterministic controller checks around
+- **Autotrader Policy Surface:** local deterministic controller checks over
   quote receipts, cadence, budgets, and rejected actions.
-- **ZenoLedger:** replayable public-testnet candidate, watcher attestations,
+- **ZenoLedger:** replayable public-testnet candidate with watcher attestations,
   mirror roots, status roots, and Tau handoff.
 
 ## Why The Name ZenoDEX?
 
 Zeno of Elea posed paradoxes about motion and division. In the Dichotomy
-paradox, reaching a goal requires first going halfway, then halfway through the
-remaining distance, then halfway again. Modern mathematics resolves this with
-limits: a countably infinite sequence of shrinking steps can sum to a finite
+paradox, reaching a goal requires first going halfway, then halfway through
+the remaining distance, then halfway again. Modern mathematics resolves this
+with limits; a countably infinite sequence of shrinking steps sums to a finite
 total.
 
-The analogy matters for tokenomics and protocol accounting. A supply schedule
-can approach a floor forever without crossing it:
+The analogy applies directly to tokenomics and protocol accounting. A supply
+schedule can approach a floor forever without crossing it:
 
 ```text
 S_{n+1} = F + r(S_n - F)
@@ -199,12 +193,13 @@ total burn remains bounded:
 S_0 - S_n = (1 - r^n)(S_0 - F) <= S_0 - F
 ```
 
-The number of steps can be unbounded while the total amount burned is finite.
-That is the core Zeno analogy.
+Steps can be unbounded while the cumulative burn stays finite. That is the
+core Zeno analogy.
 
-Real ledgers add an integer constraint. A token can be displayed with decimals,
-but committed balances are integer base units. Once an ideal real-valued change
-falls below one base unit, the protocol must define a deterministic dust policy.
+Real ledgers add an integer constraint. A token may be displayed with
+decimals; committed balances are integer base units. Once an ideal real-valued
+change falls below one base unit, the protocol must define a deterministic
+dust policy.
 
 ZenoDEX therefore uses:
 
@@ -223,9 +218,9 @@ bounded by one base unit:
 0 <= T* - t / 10^d < 10^(-d)
 ```
 
-This keeps convergent tokenomics deterministic on real ledgers. The protocol
-can keep approaching a floor without floating point arithmetic, implicit
-precision upgrades, or ambiguous rounding.
+Convergent tokenomics stay deterministic on real ledgers. The protocol
+approaches a floor without floating point arithmetic, implicit precision
+upgrades, or ambiguous rounding.
 
 ## Quick Start
 
@@ -279,6 +274,21 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
   --chain-id zeno-ledger-devnet-0
 ```
 
+Run the copied-bundle rehearsal on a second machine:
+
+```bash
+python3 tools/zeno_ledger_operator_rehearsal.py \
+  --bundle-root /path/to/copied/zeno-ledger-public-testnet \
+  --operator-id operator-b \
+  --out-dir /tmp/zeno-ledger-operator-b \
+  --peer-watcher-attestation \
+    /path/to/copied/zeno-ledger-public-testnet/bootstrap/watcher_attestations/bootstrap_range_1_5.json
+```
+
+The rehearsal succeeds when the second machine emits `ok=true`, an
+`operator_attestation_hash`, and a `combined_testnet_status_hash` with
+`combined_watcher_count=2`.
+
 ## Repository Layout
 
 - `src/core/`: deterministic DEX, AMM, zUSD, perps, oracle, and confidential
@@ -292,8 +302,8 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
 - `tools/`: operational scripts, replay helpers, feature-suite builders, and UI
 - `docs/`: public specs, architecture notes, and release evidence
 - `tests/`: unit, integration, replay, and assurance tests
-- `experimental/` and `knowledge/`: discovery, simulations, and negative
-  knowledge artifacts
+- `experimental/` and `knowledge/`: discovery artifacts, simulations, and
+  negative-knowledge records
 
 ## Documentation
 

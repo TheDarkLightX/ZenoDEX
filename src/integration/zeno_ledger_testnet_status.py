@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from src.integration.zeno_ledger_feature_suite import validate_feature_suite_manifest_v0
+from src.integration.zeno_ledger_feature_suite import validate_feature_suite_manifest_digest_v0
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_signer_registry import SIGNATURE_QUORUM_REPORT_SCHEMA_V0
 from src.integration.zeno_ledger_v0 import hash_v0
@@ -60,7 +60,7 @@ def _feature_suite_summary(feature_suite: Mapping[str, Any] | None) -> dict[str,
     if feature_suite is None:
         return None
     obj = dict(_require_mapping(feature_suite, name="feature_suite"))
-    validate_feature_suite_manifest_v0(obj)
+    validate_feature_suite_manifest_digest_v0(obj)
     return {
         "feature_suite_hash": obj["feature_suite_hash"],
         "feature_count": obj["feature_count"],
