@@ -1,9 +1,12 @@
 # ZenoDEX
 
-ZenoDEX is a high-assurance decentralized exchange and token-economics stack.
-Its preferred release target is Tau Net, where Tau Language can express policy,
-governance, and protocol constraints directly. ZenoLedger v0 provides an
-independent replayable testnet path while Tau Net integration matures.
+ZenoDEX is a high-assurance, production-candidate decentralized autonomous
+exchange for Tau Network. It uses a hybrid model: deterministic Python computes
+operational state, while Tau Language specs, ESSO kernels, Lean proofs, and
+replayable certificates check the safety boundaries around settlement.
+
+This README is the front door. Detailed assurance evidence lives in the linked
+docs, proof files, kernels, and replay scripts.
 
 Current status:
 
@@ -32,7 +35,8 @@ ZenoDEX keeps consensus-critical logic small, deterministic, and replayable.
 The core avoids floating point arithmetic, uses canonical serialization, and
 commits state through reproducible roots. Complementary evidence includes Lean
 proofs, Tau specs, ESSO kernels, property tests, replay receipts, fuzzing, and
-adversarial simulations.
+adversarial simulations. ZenoLedger v0 provides the replayable testnet layer
+that makes this evidence independently verifiable across machines.
 
 Proof-backed and evidence-backed areas include:
 
@@ -42,6 +46,9 @@ Proof-backed and evidence-backed areas include:
 - oracle freshness and reporter lifecycle checks
 - zUSD collateral and redemption math
 - perps funding and margin boundaries
+- ZenoProof evidence registry and verifier checks
+- FIRE settlement receipts, verifier rules, and budget-safety claims
+- Certified Financial Math Object payoff, collateral, and fixed-point bridges
 - ZenoLedger headers, checkpoints, watcher attestations, mirror roots, and Tau
   handoff packets
 
@@ -78,65 +85,32 @@ catches invalid submissions, honest solving strictly dominates idling or
 submitting a bad solution. The bound is conditional on those assumptions and
 does not claim that every production actor game is solved.
 
-### ZenoLedger
+### ZenoProof, FIRE, And Certified Financial Math Objects
 
-ZenoLedger v0 is the liveness and replay layer for the public-testnet
-candidate. It keeps ZenoDEX testable pending Tau Net integration, and provides
-a fallback if an upstream Tau Net rule change blocks a ZenoDEX adapter.
+ZenoProof is the internal evidence registry and verifier layer. Its public
+role is to connect checked evidence to replayable claims and verifier gates.
+Mechanism details are intentionally kept out of the public README until the
+release surface is finalized.
 
-ZenoLedger provides:
+FIRE is the internal framework for turning financial mechanisms into checked
+object packages: templates, instances, certificates, verifier receipts, replay
+receipts, and settlement-authority predicates. FIRE proposals are
+non-authoritative until they compile into accepted artifacts and pass the
+FIRE verifier surface.
 
-- independent local execution
-- canonical headers, bodies, and checkpoints
-- deterministic rejection receipts
-- watcher attestations over verified ranges
-- mirror indexes over published artifacts
-- public testnet status roots
-- feature-suite coverage reports
-- Tau Net handoff packets
-
-Build the current public-testnet candidate:
-
-```bash
-python3 tools/zeno_ledger_make_public_testnet_bundle.py \
-  --out-dir /tmp/zeno-ledger-public-testnet \
-  --network-id zeno-ledger-devnet-0 \
-  --chain-id zeno-ledger-devnet-0
-```
-
-The generated launch manifest records:
+Certified Financial Math Objects are the financial instruments that FIRE is
+meant to package. A live object should specify:
 
 ```text
-Tau release preference: Tau Net
-current Tau mode: handoff adapter available
-testnet liveness dependency: ZenoLedger
-testnet token scope: zeno_ledger_testnet
-release token scope: tau_net_exclusive
+formula + units + bounds + state transition + oracle policy
++ collateral rule + proof/certificate
 ```
 
-The core feature suite currently covers:
-
-- spot bootstrap
-- Tau app bridge spot path
-- zUSD
-- perps
-- oracle freshness
-- oracle reporter lifecycle and token-settlement replay
-- UPBA
-- proof mining
-- autotrader policy surface
-- confidential TEE/FHE alpha verifier surfaces
-
-Recent focused ZenoLedger evidence from this workspace:
-
-```text
-pytest -q tests/integration/test_zeno_ledger_profile.py \
-  tests/integration/test_zeno_ledger_v0.py \
-  tests/integration/test_zeno_ledger_tau_export.py \
-  tests/integration/test_zeno_ledger_verify_cli.py
-
-80 passed in 393.97s
-```
+The point is bounded liability, replayable settlement, and clear evidence
+labels. A certified object may still be economically unwise or unprofitable;
+the certification claim is about mechanical invariants such as payoff bounds,
+collateral sufficiency, fixed-point rounding buffers, conservation, and
+settlement replay.
 
 ## Features
 
@@ -150,6 +124,15 @@ pytest -q tests/integration/test_zeno_ledger_profile.py \
   liquidation research.
 - **ZenoOracle:** freshness checks, reporter lifecycle replay, token-settlement
   replay, and fail-closed handling of malformed input.
+- **ZenoProof:** evidence registry and verifier layer for replayable assurance
+  claims. Mechanism details are intentionally withheld from the public README
+  until release.
+- **FIRE:** internal object pipeline with verifier receipts, proof-tree
+  certificates, budget-safety checks, and replay gates for promoted financial
+  mechanisms.
+- **Certified Financial Math Objects:** formula-bound financial instruments
+  with explicit units, payoff bounds, collateral rules, oracle policy, and
+  proof or certificate bundles.
 - **Confidential Extensions:** TEE-first confidential admission with experimental
   FHE sealed-bid verification surfaces.
 - **Autotrader Policy Surface:** local deterministic controller checks over
@@ -309,6 +292,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 
 - `docs/SPECIFICATION.md`
 - `docs/ALGORITHMS.md`
+- `docs/FIRE_MANIFESTO.md`
+- `docs/derivatives/CERTIFIED_FINANCIAL_MATH_OBJECTS.md`
 - `docs/TAU_ARCHITECTURE.md`
 - `docs/TAU_LANGUAGE_CONSTRAINTS.md`
 - `docs/ASSURANCE_RELEASE_SNAPSHOT.md`
