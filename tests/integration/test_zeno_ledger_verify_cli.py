@@ -45,6 +45,7 @@ MAKE_FEATURE_LANE_SCRIPT = ROOT / "tools" / "zeno_ledger_make_feature_lane.py"
 MAKE_CORE_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_make_core_feature_suite.py"
 MAKE_ASSURANCE_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_make_assurance_feature_suite.py"
 MAKE_PUBLIC_TESTNET_BUNDLE_SCRIPT = ROOT / "tools" / "zeno_ledger_make_public_testnet_bundle.py"
+DUAL_OPERATOR_REHEARSAL_SCRIPT = ROOT / "tools" / "zeno_ledger_dual_operator_rehearsal.py"
 MAKE_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_make_feature_suite.py"
 RUN_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_run_feature_suite.py"
 MAKE_TESTNET_STATUS_SCRIPT = ROOT / "tools" / "zeno_ledger_make_testnet_status.py"
@@ -315,6 +316,15 @@ def _run_make_assurance_feature_suite(*args: str) -> subprocess.CompletedProcess
 def _run_make_public_testnet_bundle(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(MAKE_PUBLIC_TESTNET_BUNDLE_SCRIPT), *args],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+
+def _run_dual_operator_rehearsal(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(DUAL_OPERATOR_REHEARSAL_SCRIPT), *args],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -3334,6 +3344,33 @@ def test_operator_rehearsal_replays_copied_public_testnet_bundle(tmp_path: Path)
         "operator-b",
     ]
     assert combined_status["feature_suite_run"]["covered_feature_count"] == 10
+
+
+def test_dual_operator_rehearsal_builds_matching_bundles_and_replays_copy(tmp_path: Path) -> None:
+    proc = _run_dual_operator_rehearsal(
+        "--out-dir",
+        str(tmp_path / "dual_operator"),
+        "--network-id",
+        "zeno-ledger-devnet-0",
+        "--chain-id",
+        "zeno-ledger-devnet-0",
+        "--observed-time-ms",
+        "1778730015000",
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    report = json.loads(proc.stdout)
+    assert report["ok"] is True
+    assert report["independent_build_match"] is True
+    assert report["operator_b_rehearsal_ok"] is True
+    assert report["combined_watcher_count"] == 2
+    assert report["covered_feature_count"] == 10
+    assert report["testnet_status_hash"] == report["operator_a2_testnet_status_hash"]
+    assert report["mirror_index_hash"] == report["operator_a2_mirror_index_hash"]
+    assert report["feature_suite_hash"] == report["operator_a2_feature_suite_hash"]
+    assert Path(report["report_path"]).is_file()
+    assert Path(report["operator_b_bundle_root"]).is_dir()
+    assert Path(report["operator_b_out_dir"]).is_dir()
 
 
 def test_make_assurance_feature_suite_smoke_runs_feature_gates(tmp_path: Path) -> None:

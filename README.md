@@ -257,6 +257,20 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
   --chain-id zeno-ledger-devnet-0
 ```
 
+Run the same-machine dual-operator rehearsal before copying to another
+computer:
+
+```bash
+python3 tools/zeno_ledger_dual_operator_rehearsal.py \
+  --out-dir /tmp/zeno-ledger-dual-operator \
+  --network-id zeno-ledger-devnet-0 \
+  --chain-id zeno-ledger-devnet-0
+```
+
+This builds two independent public-testnet bundles, checks their hashes match,
+copies one bundle into a second operator directory, replays it, and emits a
+combined two-watcher status report.
+
 Run the copied-bundle rehearsal on a second machine:
 
 ```bash
