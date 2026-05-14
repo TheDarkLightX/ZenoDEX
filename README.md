@@ -14,16 +14,16 @@ docs, proof files, kernels, and replay scripts.
 
 ## Current Status
 
-This checkout is a **strong bounded-assurance, production-candidate research
-stack**. The main value-moving surfaces are backed by deterministic functional
-core code, replayable certificates, Lean proofs, ESSO kernels, Tau specs, and
-explicit claim boundaries. Full live-production readiness still depends on
-deployment gates, oracle-network evidence, external audit, and live proof
-operations.
+This checkout is a **strong bounded-assurance, production-candidate DEX
+implementation**. The main value-moving surfaces are backed by deterministic
+functional core code, replayable certificates, Lean proofs, ESSO kernels, Tau
+specs, and explicit claim boundaries. Full live-production readiness still
+depends on deployment gates, oracle-network evidence, external audit, and live
+proof operations.
 
 ```text
 bounded spot / UPBA assurance: strong production-candidate
-general protocol architecture: strong research / production-candidate
+general protocol architecture: production-candidate with scoped open gates
 full live production readiness: open deployment, oracle, audit, and live-proof gates
 ```
 
@@ -89,8 +89,8 @@ VITE_DEMO_MODE=false \
   consumer profiles, and critical-action mapping.
 - **Proof-carrying optimization**: route, settlement, and batch certificates bind
   solver output to deterministic verifiers.
-- **Confidential extensions**: sealed-bid and TEE/FHE research surfaces, kept
-  behind explicit experimental boundaries.
+- **Confidential extensions**: sealed-bid and TEE/FHE private-compute surfaces,
+  kept behind explicit experimental boundaries.
 - **Permissionless hosting**: rootless local-node and operator tooling for
   reproducible deployment experiments.
 
