@@ -81,8 +81,8 @@ does not claim that every production actor game is solved.
 ### ZenoLedger
 
 ZenoLedger v0 is the liveness and replay layer for the public-testnet
-candidate. It keeps ZenoDEX testable pending Tau Net integration, and provides a fallback
-if a Tau-side rule change blocks a ZenoDEX adapter.
+candidate. It keeps ZenoDEX testable pending Tau Net integration, and provides
+a fallback if an upstream Tau Net rule change blocks a ZenoDEX adapter.
 
 ZenoLedger provides:
 
