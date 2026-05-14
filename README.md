@@ -4,28 +4,35 @@
 
 # ZenoDex
 
-ZenoDex is a decentralized exchange and token-economics stack for Tau Network.
-It uses a hybrid model: deterministic Python computes operational state, while
-Tau Language specs, ESSO kernels, Lean proofs, and replayable certificates check
-the safety boundaries around settlement.
+ZenoDex is a high-assurance, production-candidate decentralized exchange and
+token-economics stack for Tau Network. It uses a hybrid model: deterministic
+Python computes operational state, while Tau Language specs, ESSO kernels, Lean
+proofs, and replayable certificates check the safety boundaries around
+settlement.
 
 This README is the front door. Detailed assurance evidence lives in the linked
 docs, proof files, kernels, and replay scripts.
 
 ## Current Status
 
-This checkout is a **strong bounded-assurance, production-candidate DEX
-implementation**. The main value-moving surfaces are backed by deterministic
-functional core code, replayable certificates, Lean proofs, ESSO kernels, Tau
-specs, and explicit claim boundaries. Full live-production readiness still
-depends on deployment gates, oracle-network evidence, external audit, and live
-proof operations.
+This checkout is a **high-assurance, production-candidate DEX implementation
+with scoped correct-by-construction safety lanes**. The strongest value-moving
+surfaces are backed by deterministic functional core code, replayable
+certificates, Lean proofs, ESSO kernels, Tau specs, and explicit claim
+boundaries. Full live-production readiness still depends on deployment gates,
+oracle-network evidence, external audit, and live proof operations.
 
 ```text
-bounded spot / UPBA assurance: strong production-candidate
+bounded spot / UPBA assurance: high, production-candidate
+CBC posture: scoped to lanes with runtime verifier / proof-gate binding
 general protocol architecture: production-candidate with scoped open gates
 full live production readiness: open deployment, oracle, audit, and live-proof gates
 ```
+
+Correct-by-construction means the claim is tied to a concrete lane where invalid
+states are blocked by constructors, runtime verifiers, proof gates, or committed
+certificate checks. The README avoids treating that as a blanket guarantee for
+every future feature or unbounded search space.
 
 Current high-signal status:
 
