@@ -48,6 +48,45 @@ More detail:
 
 Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
 
+## Current Checkout Status (May 2026)
+
+This checkout is best described as a **strong bounded-assurance, production-candidate research stack**.
+It is stronger than a prototype because the main value-moving surfaces are backed by deterministic
+functional-core code, replayable certificates, Lean proofs, ESSO kernels, Tau specs, and explicit
+claim boundaries. It is not yet a final live-production DEX with all operational assumptions closed.
+
+Current practical status:
+
+```text
+bounded spot / UPBA assurance: strong production-candidate
+general protocol architecture: strong research / production-candidate
+full live production readiness: blocked by remaining deployment, oracle, audit, and live-proof gates
+```
+
+The newest spot-clearing lane is the **UPBA v1 bounded price-grid path**:
+
+- `src/core/uniform_batch_price_grid_table.py` recomputes every candidate in a configured bounded price grid.
+- `src/integration/dex_engine.py` can require complete UPBA price-grid evidence before accepting a UPBA certificate.
+- `src/integration/upba_production_config.py` exposes the strict helper
+  `make_upba_v1_bounded_price_grid_engine_config()`.
+- `lean-mathlib/Proofs/UniformBatchOptimality.lean` proves the bounded-grid weak-optimality theorem used by the claim.
+- `tools/run_spot_evidence.sh` and `tools/run_spot_proof_assurance_gate.sh` now exercise the UPBA runtime and proof lane.
+
+The UPBA v1 claim is intentionally scoped:
+
+```text
+single-pool exact-in full-fill UPBA
++ bounded integer price grid
++ complete table evidence
++ deterministic runtime verifier
++ strict engine config
++ focused Python tests
++ Lean bounded-grid optimality proof
+```
+
+This does not claim exact-out UPBA, partial-fill optimality, multi-hop clearing, LP add/remove actions in the
+same uniform batch, fair order inclusion, oracle/mark-price safety, or batch-boundary MEV closure.
+
 ## Disaster Hardness Level
 
 Current bounded disaster-hardening metric:
@@ -468,6 +507,61 @@ state commitments**. This repo additionally proposes an opt-in, DHT-bound state 
   - Tau Testnet patch (local, PR-ready): `docs/tau_testnet_state_proof_patch.md`
   - Risc0 implementation for TauSwap transitions (v1 scope): `docs/tau_state_proof_risc0_tauswap_v1.md` and `zk/state_proof_risc0/`
   - Local demo (requires Rust + Risc0 toolchain): `TAU_STATE_PROOF_RISC0=1 bash tools/run_tau_testnet_local_smoke.sh`
+
+### How ZK / validity proofs fit ZenoDEX
+
+The useful idea is **proof-carrying execution**:
+
+```text
+pre_state_commitment + tx_or_batch_commitment + program_id
+  -> proved execution
+  -> post_state_commitment
+```
+
+A prover runs the transition once, produces a validity proof, and publishes the proof with the block or settlement
+artifact. Every validator, light client, bridge, or indexer can then verify the short proof instead of re-running the
+whole transition. The verifier checks that the proof is bound to the committed inputs, the approved program, and the
+claimed post-state.
+
+In this repo, the current concrete version is a Risc0 state-proof lane for a restricted TauSwap transition. It proves a
+Rust zkVM guest that mirrors the supported DEX transition subset. It does not yet prove arbitrary Python execution.
+To prove Python directly, the proving system would need either a verified Python interpreter inside the zkVM or a
+compiled/lowered deterministic program whose semantics are proven equivalent to the Python functional core. The second
+path is usually the practical one:
+
+```text
+Python functional core as reference
+-> small deterministic Rust/zkVM guest or generated kernel
+-> parity tests + certificates + proof receipts
+-> succinct validity proof for clients
+```
+
+This still gives the main scaling benefit. Expensive execution happens once in the prover. Many other machines verify
+the result cheaply. That enables:
+
+- **light clients**: verify signed headers plus `state_hash` / `app_hash` plus a state proof;
+- **bridges**: accept ZenoDEX state transitions only when the proof is bound to a finalized committed state;
+- **rollup-style scaling**: aggregate many trades into one proven batch transition;
+- **proof-carrying solvers**: allow complex off-chain solvers while keeping the on-chain/Tau-side verifier small;
+- **private witness lanes**: hide selected witness data when a future circuit supports it, while still proving the public
+  state transition.
+
+The hard requirements are:
+
+- deterministic integer semantics, no floats or host-dependent behavior;
+- a fixed circuit/program id governed like consensus code;
+- canonical serialization for all public inputs;
+- data availability for any state or transaction data clients must audit;
+- fail-closed behavior when a required proof is missing, stale, or bound to the wrong state;
+- replay tests proving the zk guest and Python reference produce the same commitments on the supported domain.
+
+The near-term expansion path is:
+
+1. Extend the Risc0 guest from `CREATE_POOL` and `SWAP_EXACT_IN` toward the UPBA v1 bounded-grid settlement path.
+2. Bind the UPBA certificate, price-grid table root, pre-state hash, transaction commitment, and post-state hash into the
+   proof journal.
+3. Add recursive or batched proofs once single-batch proof generation is stable.
+4. Make proof requirement a deployment profile, not a default assumption.
 
 ## Spec Risk Profiles
 ZenoDex organizes specs into **risk-based profiles** so communities can choose the level of exposure they are comfortable with.
