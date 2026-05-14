@@ -459,6 +459,7 @@ Extend settlement envelope with:
 uniform_batch_price_grid_config
 uniform_batch_price_grid_rows
 uniform_batch_price_grid_witness
+uniform_batch_hypergraph_root
 ```
 
 Engine checks:
@@ -472,6 +473,11 @@ if price_grid_witness is present:
 
 if require_uniform_batch_price_grid_evidence is true:
   every accepted uniform_batch_certificate must include config, rows, and witness
+
+if require_uniform_batch_hypergraph_root is true:
+  every accepted bounded-grid uniform_batch_certificate must include the
+  canonical ZenoHypergraph root over the batch, grid, policy, table root, and
+  winner row
 ```
 
 The existing optional optimality certificate remains valid for audited-set
@@ -482,8 +488,11 @@ Tables are available.
 
 Production deployments that want the bounded-grid global weak optimality claim
 should enable `require_uniform_batch_price_grid_evidence=True` together with
-`allow_uniform_batch_certificate=True`. With that posture, the engine rejects a
-UPBA certificate that lacks the table evidence bundle.
+`allow_uniform_batch_certificate=True`. Deployments that also want the
+runtime-bound ZenoHypergraph evidence claim should enable
+`require_uniform_batch_hypergraph_root=True`. With that posture, the engine
+rejects a UPBA certificate that lacks the table evidence bundle or canonical
+hypergraph root.
 
 The recommended scoped helper is:
 
@@ -495,9 +504,10 @@ from src.integration.upba_production_config import (
 
 It forces the UPBA bridge on, requires a uniform batch certificate for swap
 batches, requires bounded price-grid table evidence for every accepted UPBA
-certificate, keeps settlement matching enabled, disables external tools, and
-keeps consensus mode enabled. This helper is scoped to UPBA v1 swap batches; it
-does not claim exact-out, multi-hop, LP-management, order-inclusion, oracle, or
+certificate, requires the canonical ZenoHypergraph root, keeps settlement
+matching enabled, disables external tools, and keeps consensus mode enabled.
+This helper is scoped to UPBA v1 swap batches; it does not claim exact-out,
+multi-hop, LP-management, order-inclusion, oracle, privacy, FHE, or
 batch-boundary safety.
 
 ### Phase 4: Claim Registry

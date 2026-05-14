@@ -72,6 +72,7 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_uniform_batch_clearing.py" \
   "$ROOT_DIR/tests/core/test_uniform_batch_optimality.py" \
   "$ROOT_DIR/tests/core/test_uniform_batch_price_grid_table.py" \
+  "$ROOT_DIR/tests/core/test_zenohypergraph_upba.py" \
   "$ROOT_DIR/tests/core/test_settlement_swap_runtime_v1.py" \
   "$ROOT_DIR/tests/core/test_settlement_normal_form.py" \
   "$ROOT_DIR/tests/core/test_settlement_strong_validator.py" \

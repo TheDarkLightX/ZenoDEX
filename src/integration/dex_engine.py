@@ -25,6 +25,7 @@ from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..core.uniform_batch_clearing import UniformBatchCertificateV1, build_uniform_batch_settlement_v1
 from ..core.uniform_batch_optimality import verify_uniform_batch_bound_optimality_certificate_v1
 from ..core.uniform_batch_price_grid_table import verify_uniform_batch_price_grid_table_v1
+from ..core.zenohypergraph_upba import verify_uniform_batch_hypergraph_root_v1
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
@@ -217,6 +218,10 @@ class DexEngineConfig:
     # uniform_batch_certificate must carry bounded price-grid evidence that
     # passes the functional-core table verifier.
     require_uniform_batch_price_grid_evidence: bool = False
+    # Production UPBA evidence posture. When enabled, every accepted bounded
+    # price-grid UPBA certificate must bind to the canonical ZenoHypergraph
+    # root computed from the batch, grid, policy, and price-grid evidence.
+    require_uniform_batch_hypergraph_root: bool = False
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -237,6 +242,15 @@ class DexEngineConfig:
         if self.require_uniform_batch_price_grid_evidence and not self.allow_uniform_batch_certificate:
             raise ValueError(
                 "require_uniform_batch_price_grid_evidence=True requires allow_uniform_batch_certificate=True"
+            )
+        if self.require_uniform_batch_hypergraph_root and not self.allow_uniform_batch_certificate:
+            raise ValueError(
+                "require_uniform_batch_hypergraph_root=True requires allow_uniform_batch_certificate=True"
+            )
+        if self.require_uniform_batch_hypergraph_root and not self.require_uniform_batch_price_grid_evidence:
+            raise ValueError(
+                "require_uniform_batch_hypergraph_root=True requires "
+                "require_uniform_batch_price_grid_evidence=True"
             )
         if self.require_uniform_batch_certificate and not self.allow_uniform_batch_certificate:
             raise ValueError("require_uniform_batch_certificate=True requires allow_uniform_batch_certificate=True")
@@ -1042,6 +1056,9 @@ def apply_ops(
         uniform_batch_price_grid_witness = (
             getattr(settlement_env, "uniform_batch_price_grid_witness", None) if settlement_env else None
         )
+        uniform_batch_hypergraph_root = (
+            getattr(settlement_env, "uniform_batch_hypergraph_root", None) if settlement_env else None
+        )
         if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
             return DexTxResult(
                 ok=False,
@@ -1073,12 +1090,23 @@ def apply_ops(
                 ok=False,
                 error="uniform batch price grid evidence requires uniform batch certificate",
             )
+        if uniform_batch_hypergraph_root is not None and not price_grid_evidence_complete:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch hypergraph root requires price grid evidence",
+            )
         if (
             uniform_batch_certificate is not None
             and config.require_uniform_batch_price_grid_evidence
             and not price_grid_evidence_complete
         ):
             return DexTxResult(ok=False, error="uniform batch price grid evidence required")
+        if (
+            uniform_batch_certificate is not None
+            and config.require_uniform_batch_hypergraph_root
+            and uniform_batch_hypergraph_root is None
+        ):
+            return DexTxResult(ok=False, error="uniform batch hypergraph root required")
         proof_scheme: Optional[str] = None
         if proof is not None:
             scheme_raw = proof.get("scheme")
@@ -1201,6 +1229,25 @@ def apply_ops(
                                 f"{price_grid_result.error or 'invalid evidence'}"
                             ),
                         )
+                    if uniform_batch_hypergraph_root is not None:
+                        hypergraph_result = verify_uniform_batch_hypergraph_root_v1(
+                            expected_root=uniform_batch_hypergraph_root,
+                            intents=validation_intents,
+                            pool=pool,
+                            balances=state.balances,
+                            uniform_batch_certificate=cert,
+                            price_grid_config=uniform_batch_price_grid_config,
+                            price_grid_rows=uniform_batch_price_grid_rows or (),
+                            price_grid_witness=uniform_batch_price_grid_witness,
+                        )
+                        if not hypergraph_result.ok:
+                            return DexTxResult(
+                                ok=False,
+                                error=(
+                                    "uniform batch hypergraph root rejected: "
+                                    f"{hypergraph_result.error or 'invalid root'}"
+                                ),
+                            )
                 try:
                     computed_settlement = build_uniform_batch_settlement_v1(
                         intents=validation_intents,

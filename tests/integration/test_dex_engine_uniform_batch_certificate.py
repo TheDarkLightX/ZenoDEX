@@ -27,6 +27,7 @@ from src.core.uniform_batch_optimality import (
     uniform_batch_optimality_candidate_set_hash,
 )
 from src.core.uniform_batch_price_grid_table import build_uniform_batch_price_grid_table_v1
+from src.core.zenohypergraph_upba import uniform_batch_hypergraph_root_v1
 from src.core.settlement import FillAction
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
@@ -377,7 +378,7 @@ def _ops_with_uniform_certificate_and_optimality(
     return ops
 
 
-def _ops_with_uniform_certificate_and_price_grid() -> dict[str, object]:
+def _ops_with_uniform_certificate_and_price_grid(*, include_hypergraph_root: bool = True) -> dict[str, object]:
     state = _state()
     intents = _intents()
     cert = _certificate(intents)
@@ -394,6 +395,16 @@ def _ops_with_uniform_certificate_and_price_grid() -> dict[str, object]:
     ops["3"]["uniform_batch_price_grid_config"] = config.to_dict()
     ops["3"]["uniform_batch_price_grid_rows"] = [row.to_dict() for row in rows]
     ops["3"]["uniform_batch_price_grid_witness"] = witness.to_dict()
+    if include_hypergraph_root:
+        ops["3"]["uniform_batch_hypergraph_root"] = uniform_batch_hypergraph_root_v1(
+            intents=intents,
+            pool=state.pools["pool_ab"],
+            balances=state.balances,
+            uniform_batch_certificate=cert,
+            price_grid_config=config,
+            price_grid_rows=rows,
+            price_grid_witness=witness,
+        )
     return ops
 
 
@@ -796,6 +807,7 @@ def test_upba_bounded_price_grid_engine_config_forces_strict_posture() -> None:
     assert cfg.allow_uniform_batch_certificate is True
     assert cfg.require_uniform_batch_certificate is True
     assert cfg.require_uniform_batch_price_grid_evidence is True
+    assert cfg.require_uniform_batch_hypergraph_root is True
     assert cfg.enable_test_fault_injection is False
     assert cfg.fault_injection is None
 
@@ -832,6 +844,76 @@ def test_upba_bounded_price_grid_engine_config_accepts_bound_certificate() -> No
     assert result.settlement is not None
     assert result.settlement.events is not None
     assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+
+
+def test_upba_bounded_price_grid_engine_config_rejects_missing_hypergraph_root() -> None:
+    result = apply_ops(
+        config=make_upba_v1_bounded_price_grid_engine_config(
+            DexEngineConfig(require_intent_signatures=False)
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate_and_price_grid(include_hypergraph_root=False),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch hypergraph root required"
+
+
+def test_engine_rejects_tampered_uniform_batch_hypergraph_root() -> None:
+    ops = _ops_with_uniform_certificate_and_price_grid()
+    ops["3"]["uniform_batch_hypergraph_root"] = "0x" + "00" * 32
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_price_grid_evidence=True,
+            require_uniform_batch_hypergraph_root=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch hypergraph root rejected: zenohypergraph root mismatch"
+
+
+def test_engine_rejects_non_string_uniform_batch_hypergraph_root() -> None:
+    ops = _ops_with_uniform_certificate_and_price_grid()
+    ops["3"]["uniform_batch_hypergraph_root"] = {"root": "bad"}
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "invalid settlement: settlement uniform_batch_hypergraph_root must be a string"
+
+
+def test_engine_config_rejects_required_hypergraph_without_price_grid_requirement() -> None:
+    try:
+        DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_hypergraph_root=True,
+        )
+    except ValueError as exc:
+        assert str(exc) == (
+            "require_uniform_batch_hypergraph_root=True requires "
+            "require_uniform_batch_price_grid_evidence=True"
+        )
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected hypergraph requirement config rejection")
 
 
 def test_engine_rejects_uniform_batch_price_grid_without_uniform_certificate() -> None:

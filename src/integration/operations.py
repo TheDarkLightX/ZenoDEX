@@ -87,6 +87,7 @@ class SettlementEnvelope:
     uniform_batch_price_grid_config: Optional[Dict[str, Any]] = None
     uniform_batch_price_grid_rows: Optional[List[Dict[str, Any]]] = None
     uniform_batch_price_grid_witness: Optional[Dict[str, Any]] = None
+    uniform_batch_hypergraph_root: Optional[str] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -434,6 +435,9 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
     - settlement_data["uniform_batch_price_grid_config"]
     - settlement_data["uniform_batch_price_grid_rows"]
     - settlement_data["uniform_batch_price_grid_witness"]
+
+    UPBA ZenoHypergraph evidence is passed through under:
+    - settlement_data["uniform_batch_hypergraph_root"]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -502,6 +506,13 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement uniform_batch_price_grid_witness must be an object")
         uniform_batch_price_grid_witness = raw_uniform_batch_price_grid_witness
 
+    uniform_batch_hypergraph_root = None
+    raw_uniform_batch_hypergraph_root = settlement_data.get("uniform_batch_hypergraph_root")
+    if raw_uniform_batch_hypergraph_root is not None:
+        if not isinstance(raw_uniform_batch_hypergraph_root, str):
+            raise ValueError("settlement uniform_batch_hypergraph_root must be a string")
+        uniform_batch_hypergraph_root = raw_uniform_batch_hypergraph_root
+
     settlement_data_no_proof = {
         k: v
         for k, v in settlement_data.items()
@@ -514,6 +525,7 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             "uniform_batch_price_grid_config",
             "uniform_batch_price_grid_rows",
             "uniform_batch_price_grid_witness",
+            "uniform_batch_hypergraph_root",
         )
     }
     settlement = _parse_settlement(settlement_data_no_proof)
@@ -526,6 +538,7 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
         uniform_batch_price_grid_config=uniform_batch_price_grid_config,
         uniform_batch_price_grid_rows=uniform_batch_price_grid_rows,
         uniform_batch_price_grid_witness=uniform_batch_price_grid_witness,
+        uniform_batch_hypergraph_root=uniform_batch_hypergraph_root,
     )
 
 

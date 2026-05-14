@@ -65,6 +65,7 @@ LEAN_FILES=(
   "lean-mathlib/Proofs/CPMMInvariants.lean"
   "lean-mathlib/Proofs/SettlementAlgebra.lean"
   "lean-mathlib/Proofs/UniformBatchOptimality.lean"
+  "lean-mathlib/Proofs/ZenoHypergraphPadding.lean"
 )
 
 LEAN_MODULES=(
@@ -95,8 +96,10 @@ echo "== spot-proof: lean build =="
     echo "  lake build $module"
     lake build "$module"
   done
-  echo "  lean Proofs/UniformBatchOptimality.lean"
-  lean Proofs/UniformBatchOptimality.lean
+  echo "  lake env lean Proofs/UniformBatchOptimality.lean"
+  lake env lean Proofs/UniformBatchOptimality.lean
+  echo "  lake env lean Proofs/ZenoHypergraphPadding.lean"
+  lake env lean Proofs/ZenoHypergraphPadding.lean
 )
 
 VERIFY_MULTI_COMMON=(

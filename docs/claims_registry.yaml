@@ -564,6 +564,56 @@ claims:
         - UniformBatchOptimality.priceGridCandidates_complete_audit_set
         - UniformBatchOptimality.price_grid_upper_bound_certificate_implies_global_weak_optimal
 
+  - id: py_lean:zenohypergraph:upba_runtime_root_v1
+    status: supported
+    layer: assurance
+    statement: >
+      For the UPBA v1 single-pool exact-in full-fill bounded price-grid lane,
+      ZenoDEX can bind the admitted batch, UPBA certificate, price-grid table
+      root, canonical order vertices, canonical price-row vertices, complete
+      order-by-price-row incidence summary, and winner row into a canonical
+      `uniform_batch_hypergraph_root`. When
+      `require_uniform_batch_hypergraph_root=True`, the DEX engine fails closed
+      unless the supplied root matches the functional-core root recomputed from
+      the same intents, pool, balances, certificate, and complete price-grid
+      evidence. The strict helper
+      `make_upba_v1_bounded_price_grid_engine_config()` requires this root in
+      addition to the UPBA certificate and bounded price-grid evidence. The Lean
+      model proof `ZenoHypergraphPadding.lean` proves row-score permutation
+      invariance and inactive padding neutrality for the abstract order-price
+      hyperedge score model. This claim does not cover production FHE, encrypted
+      argmax, private balances, exact-out UPBA, partial fills, multi-hop routes,
+      fair inclusion, or unbounded price optimality.
+    evidence:
+      kind: python+lean
+      check:
+        - cmd: >
+            python3 -m py_compile src/core/zenohypergraph_upba.py
+            src/integration/dex_engine.py src/integration/operations.py
+            src/integration/upba_production_config.py
+        - cmd: >
+            pytest -q tests/core/test_zenohypergraph_upba.py
+            tests/core/test_uniform_batch_price_grid_table.py
+        - cmd: >
+            pytest -q tests/integration/test_dex_engine_uniform_batch_certificate.py
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoHypergraphPadding.lean
+      files:
+        - src/core/zenohypergraph_upba.py
+        - src/core/uniform_batch_price_grid_table.py
+        - src/integration/dex_engine.py
+        - src/integration/operations.py
+        - src/integration/upba_production_config.py
+        - tests/core/test_zenohypergraph_upba.py
+        - tests/core/test_uniform_batch_price_grid_table.py
+        - tests/integration/test_dex_engine_uniform_batch_certificate.py
+        - lean-mathlib/Proofs/ZenoHypergraphPadding.lean
+        - docs/ZENOHYPERGRAPH_UPBA_EVIDENCE_V1.md
+      theorems:
+        - ZenoHypergraph.rowScore_perm_invariant
+        - ZenoHypergraph.rowScore_padRight_neutral
+        - ZenoHypergraph.evalFiber_direct_score_equiv
+        - ZenoHypergraph.evalFiber_padRight_neutral
+
   - id: smt:settlement_swap_apply_witness_v1:inductive_z3_cvc5
     status: supported
     layer: spec

@@ -31,6 +31,7 @@ def make_upba_v1_bounded_price_grid_engine_config(
         allow_uniform_batch_certificate=True,
         require_uniform_batch_certificate=True,
         require_uniform_batch_price_grid_evidence=True,
+        require_uniform_batch_hypergraph_root=True,
         enable_test_fault_injection=False,
         fault_injection=None,
     )
