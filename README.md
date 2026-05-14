@@ -4,9 +4,252 @@
 
 # ZenoDex
 
-ZenoDex is a decentralized exchange (DEX) and token-economics stack for Tau Network. It uses a **hybrid model**: Python computes operational state, while **Tau Language specs validate invariants** and settlement rules.
+ZenoDex is a decentralized exchange and token-economics stack for Tau Network.
+It uses a hybrid model: deterministic Python computes operational state, while
+Tau Language specs, ESSO kernels, Lean proofs, and replayable certificates check
+the safety boundaries around settlement.
 
-## Pinned Release Snapshot
+This README is the front door. Detailed assurance evidence lives in the linked
+docs, proof files, kernels, and replay scripts.
+
+## Current Status
+
+This checkout is a **strong bounded-assurance, production-candidate research
+stack**. The main value-moving surfaces are backed by deterministic functional
+core code, replayable certificates, Lean proofs, ESSO kernels, Tau specs, and
+explicit claim boundaries. Full live-production readiness still depends on
+deployment gates, oracle-network evidence, external audit, and live proof
+operations.
+
+```text
+bounded spot / UPBA assurance: strong production-candidate
+general protocol architecture: strong research / production-candidate
+full live production readiness: open deployment, oracle, audit, and live-proof gates
+```
+
+Current high-signal status:
+
+- **UPBA v1 bounded price-grid path** is integrated into runtime, docs, tests,
+  claims registry, the spot evidence gate, and the spot proof gate.
+- **DHAI** is currently `81 / 100`, level `L3_STRONG_BOUNDED_DISASTER_HARDENING`.
+- **Core closed disaster axes** are currently `29/29` under the bounded public
+  replay lane, with a larger `125`-axis inventory tracked as search backlog.
+- **ZenoOracle devnet disaster harness** covers `17/17` promoted local oracle
+  disaster states under the verifier shell.
+- **Risc0 state proofs** exist as an opt-in restricted TauSwap transition lane.
+
+Run live local status checks from the current checkout with:
+
+```bash
+python3 tools/permissionless_assurance.py status
+python3 tools/check_claims_registry.py
+```
+
+## Quick Start
+
+Install the runtime and test dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Clone Tau dependencies if you want to run Tau-backed checks locally:
+
+```bash
+mkdir -p external
+cd external
+git clone https://github.com/IDNI/tau-lang.git
+git clone https://github.com/IDNI/tau-testnet.git
+cd ..
+```
+
+Start the local API and UI:
+
+```bash
+PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret \
+  python3 -m src.integration.api_server
+
+cd tools/dex-ui
+npm install
+VITE_DEMO_MODE=false \
+  API_PROXY_TARGET=http://127.0.0.1:8000 \
+  VITE_API_TOKEN=sekret \
+  npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+## Key Features
+
+- **Spot DEX core**: deterministic CPMM settlement, LP accounting, bounded
+  integer arithmetic, and replayable settlement checks.
+- **UPBA v1**: uniform-price batch auction lane for scoped single-pool exact-in
+  full-fill batches with bounded price-grid evidence.
+- **Perpetuals and zUSD**: epoch funding, bounded insurance modeling, synthetic
+  stablecoin components, and risk gates.
+- **ZenoOracle**: devnet oracle pipeline, signed reports, aggregate reads,
+  consumer profiles, and critical-action mapping.
+- **Proof-carrying optimization**: route, settlement, and batch certificates bind
+  solver output to deterministic verifiers.
+- **Confidential extensions**: sealed-bid and TEE/FHE research surfaces, kept
+  behind explicit experimental boundaries.
+- **Permissionless hosting**: rootless local-node and operator tooling for
+  reproducible deployment experiments.
+
+## UPBA v1 Status
+
+The newest spot-clearing lane is the UPBA v1 bounded price-grid path:
+
+- `src/core/uniform_batch_price_grid_table.py` recomputes every candidate in a
+  configured bounded price grid.
+- `src/integration/dex_engine.py` can require complete UPBA price-grid evidence
+  before accepting a UPBA certificate.
+- `src/integration/upba_production_config.py` exposes the strict helper
+  `make_upba_v1_bounded_price_grid_engine_config()`.
+- `lean-mathlib/Proofs/UniformBatchOptimality.lean` proves the bounded-grid
+  weak-optimality theorem used by the claim.
+- `tools/run_spot_evidence.sh` and `tools/run_spot_proof_assurance_gate.sh`
+  exercise the runtime and proof lane.
+
+The scoped claim is:
+
+```text
+single-pool exact-in full-fill UPBA
++ bounded integer price grid
++ complete table evidence
++ deterministic runtime verifier
++ strict engine config
++ focused Python tests
++ Lean bounded-grid optimality proof
+```
+
+Open UPBA work:
+
+- exact-out support;
+- partial-fill optimality;
+- multi-hop and multi-pool clearing;
+- LP add/remove exclusion or a separate safe batch lane;
+- fair order-inclusion policy;
+- oracle / mark-price separation;
+- batch-boundary MEV modeling;
+- Tau Tables integration once Tau Tables is available;
+- zkVM proof support for the UPBA transition.
+
+## Architecture
+
+ZenoDex uses a layered assurance model:
+
+1. **Functional core**: small deterministic settlement and math code under
+   `src/core/`.
+2. **Domain state**: balances, pools, LP tables, nonces, and canonical state
+   roots under `src/state/`.
+3. **Integration shell**: parsing, signature policy, certificates, Tau gates,
+   oracle authorization, and API surfaces under `src/integration/`.
+4. **Verified kernels**: ESSO models and generated/reference adapters under
+   `src/kernels/` and `generated/`.
+5. **Proof layer**: Lean theorem files under `lean-mathlib/Proofs/`.
+6. **Replay gates**: focused test, fuzz, proof, and evidence scripts under
+   `tests/` and `tools/`.
+
+Value-moving decisions should follow this pattern:
+
+```text
+raw input
+-> parsed / typed domain object
+-> deterministic functional-core result
+-> certificate or proof witness
+-> runtime verifier
+-> state transition
+```
+
+## Trust Model and Verification
+
+The goal is: verify the transition, then accept the state.
+
+Users and operators can verify ZenoDex at several levels:
+
+- **Full replay**: run a node and recompute blocks, state commitments, and DEX
+  transitions.
+- **Header and commitment checks**: verify signed headers, `state_hash`, and
+  `app_hash` across independent nodes.
+- **Certificate checks**: verify route, settlement, batch, and proof packets
+  against canonical commitments.
+- **ZK / validity proofs**: verify a succinct proof that a committed transition
+  was executed correctly, when the deployment profile requires such proofs.
+
+Tau Testnet Alpha currently provides signed blocks, state commitments, and
+optional DHT-bound state proofs. The concrete Risc0 lane in this repo proves a
+restricted TauSwap transition subset:
+
+- `CREATE_POOL`
+- `SWAP_EXACT_IN`
+- restricted transaction shape and native sync semantics
+
+Reference docs:
+
+- [docs/tau_state_proof_v1.md](docs/tau_state_proof_v1.md)
+- [docs/tau_state_proof_risc0_tauswap_v1.md](docs/tau_state_proof_risc0_tauswap_v1.md)
+- [docs/tau_testnet_state_proof_patch.md](docs/tau_testnet_state_proof_patch.md)
+- `zk/state_proof_risc0/`
+
+## How ZK Proofs Can Scale ZenoDex
+
+The useful pattern is proof-carrying execution:
+
+```text
+pre_state_commitment + tx_or_batch_commitment + program_id
+  -> proved execution
+  -> post_state_commitment
+```
+
+A prover runs the transition once, produces a validity proof, and publishes that
+proof with the block or settlement artifact. Validators, light clients, bridges,
+and indexers can verify the short proof instead of replaying the whole
+transition.
+
+The current Risc0 lane proves a Rust zkVM guest that mirrors a supported DEX
+transition subset. It does not prove arbitrary Python execution directly. The
+practical expansion path is:
+
+```text
+Python functional core as reference
+-> deterministic Rust/zkVM guest or generated kernel
+-> parity tests and certificates
+-> succinct validity proof for clients
+```
+
+This enables:
+
+- light clients that verify signed headers plus `state_hash` / `app_hash` plus a
+  state proof;
+- bridge contracts or bridge agents that accept ZenoDex state only when a proof
+  binds to a finalized committed state;
+- rollup-style batching, where many trades are folded into one proven state
+  transition;
+- proof-carrying UPBA solvers, where complex price discovery is proposed
+  off-chain and verified by a small deterministic checker;
+- future private witness lanes, when a circuit can hide selected witness data
+  while proving the public state transition.
+
+Hard requirements:
+
+- deterministic integer semantics;
+- canonical serialization for public inputs;
+- fixed circuit / program ids governed like consensus code;
+- data availability for state and transactions clients need to audit;
+- fail-closed behavior when a required proof is missing or bound to the wrong
+  state;
+- parity tests proving the zk guest and Python reference produce identical
+  commitments on the supported domain.
+
+Near-term ZK expansion target:
+
+1. Extend the Risc0 guest toward UPBA v1 bounded-grid settlement.
+2. Bind the UPBA certificate, price-grid table root, pre-state hash, batch
+   commitment, and post-state hash into the proof journal.
+3. Add recursive or batched proofs after single-batch proof generation is
+   stable.
+4. Make proof requirement a deployment profile.
+
+## Assurance Snapshot
 
 <!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 The pinned release replay for the release tree dated `2026-04-10` was green:
@@ -46,48 +289,10 @@ More detail:
 - [docs/claims_registry.yaml](docs/claims_registry.yaml)
 <!-- END GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 
-Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
+Replay commands are documented in
+[docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
 
-## Current Checkout Status (May 2026)
-
-This checkout is best described as a **strong bounded-assurance, production-candidate research stack**.
-It is stronger than a prototype because the main value-moving surfaces are backed by deterministic
-functional-core code, replayable certificates, Lean proofs, ESSO kernels, Tau specs, and explicit
-claim boundaries. It is not yet a final live-production DEX with all operational assumptions closed.
-
-Current practical status:
-
-```text
-bounded spot / UPBA assurance: strong production-candidate
-general protocol architecture: strong research / production-candidate
-full live production readiness: blocked by remaining deployment, oracle, audit, and live-proof gates
-```
-
-The newest spot-clearing lane is the **UPBA v1 bounded price-grid path**:
-
-- `src/core/uniform_batch_price_grid_table.py` recomputes every candidate in a configured bounded price grid.
-- `src/integration/dex_engine.py` can require complete UPBA price-grid evidence before accepting a UPBA certificate.
-- `src/integration/upba_production_config.py` exposes the strict helper
-  `make_upba_v1_bounded_price_grid_engine_config()`.
-- `lean-mathlib/Proofs/UniformBatchOptimality.lean` proves the bounded-grid weak-optimality theorem used by the claim.
-- `tools/run_spot_evidence.sh` and `tools/run_spot_proof_assurance_gate.sh` now exercise the UPBA runtime and proof lane.
-
-The UPBA v1 claim is intentionally scoped:
-
-```text
-single-pool exact-in full-fill UPBA
-+ bounded integer price grid
-+ complete table evidence
-+ deterministic runtime verifier
-+ strict engine config
-+ focused Python tests
-+ Lean bounded-grid optimality proof
-```
-
-This does not claim exact-out UPBA, partial-fill optimality, multi-hop clearing, LP add/remove actions in the
-same uniform batch, fair order inclusion, oracle/mark-price safety, or batch-boundary MEV closure.
-
-## Disaster Hardness Level
+## Disaster Hardening
 
 Current bounded disaster-hardening metric:
 
@@ -98,696 +303,156 @@ hardness_subscore = 100.0 / 100
 assurance_subscore = 72.6 / 100
 ```
 
-`DHAI` is the Disaster Hardness and Assurance Index. It is computed from the
-promoted disaster closure rate, open disaster frontier, pre/post witness-space
-reduction, proof-schema coverage, and MacOS scout search pressure. The current
-public statistics are `29/29` closed core disaster axes over a `125`-axis
-inventory, `17/17` closed ZenoOracle devnet disaster states, `65/65` closed
-MacOS scout witnesses with `43 -> 0` reachable witnesses after hardening, and
-`29/29` closed core axes mapped to proof schemas.
+The public replay lane currently reports:
 
-The detailed formula, replay command, and production blocker cap are in
-[docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md](docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md).
+- `29/29` closed core disaster axes;
+- `29/29` closed core axes mapped to proof schemas;
+- `17/17` closed ZenoOracle devnet disaster states;
+- `65/65` closed MacOS scout witnesses;
+- `43 -> 0` reachable MacOS scout witnesses after hardening.
 
-## Stateful Witness Coverage
+Detailed evidence:
 
-The stateful assurance lane is stronger than ordinary code-coverage reporting.
-Code coverage says which branches ran. Witness coverage records that specific
-dangerous semantic states were constructed, rejected, and kept as replayable
-receipts.
-
-The important check is not only whether a branch executed. It is whether
-attack-shaped multi-step states such as stale settlement replay, repaired quote
-drift, route canonicalization drift, and attestation time drift still fail
-closed.
-
-Current stateful snapshot for the deep lane as of `2026-04-08`:
-- deep gate: `108 passed, 1 warning in 1135.88s`
-- dangerous surfaces: `10/10 witnessed`
-- reached-but-unwitnessed surfaces: `0`
-- unique ranked witnesses: `18`
-- hotspot count: `10`
-
-These are not just ten concrete examples. The count is organized around
-dangerous protocol surfaces and witness families: each witnessed surface can
-cover many concrete action sequences, payload mutations, stale-state variants,
-and boundary cases. The important assertion is that the selected high-risk
-stateful families in the current release lane were reachable by the harness and
-were rejected in replayable form.
-
-This is not just a measurement of execution breadth. It is a replayable corpus
-of dangerous reject states. If line coverage stayed high but one of the
-critical witnesses disappeared, that would still be a serious regression.
-
-More detail:
-- [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md)
+- [docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md](docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md)
+- [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md)
 - [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](docs/STATEFUL_DISASTER_STATE_WITNESSES.md)
 - [docs/STATEFUL_RELEASE_GUARDRAILS.md](docs/STATEFUL_RELEASE_GUARDRAILS.md)
 
-## Current Assurance Shape
+## Zeno-Style Tokenomics
 
-The public assurance case in this repo is organized as a shape, not as a single monolithic proof.
+The name ZenoDex references Zeno-style convergence: a rule can keep applying
+smaller steps while approaching a floor.
 
-The review path is:
-
-1. **Functional core**: the consensus-critical execution path stays small and deterministic.
-   - examples: `src/core/split_routing_dispatch.py`, `src/core/batch_clearing.py`
-2. **Verified kernel layer**: bounded arithmetic and contract surfaces are expressed as ESSO kernels.
-   - examples: `src/kernels/dex/exact_*`, `src/kernels/dex/settlement_*`
-3. **Replayable certificate layer**: Python build/verify packets bind runtime outputs to canonical witnesses.
-   - examples: `src/integration/exact_in_route_certificate.py`
-   - `src/integration/exact_out_route_certificate.py`
-   - `src/integration/settlement_end_to_end_certificate_packet.py`
-4. **Machine-checked proof layer**: Lean proofs justify the canonical winner and settlement packet shells.
-   - examples: `lean-mathlib/Proofs/ZenoDEXExact*.lean`
-   - `lean-mathlib/Proofs/ZenoDEXSettlement*.lean`
-   - `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
-5. **Public regression layer**: focused core, integration, and formal tests keep the shipped surfaces replayable.
-
-At the promoted bounded runtime scope shipped here, the current assurance shape supports these top-level claims:
-
-- batch-clearing validity
-- unique canonical winner for the shipped exact-in / exact-out routing lanes
-- exact fee-aware accounting
-- value-aware settlement safety
-- proof-carrying optimizer certificates
-- anti-fragmentation by theorem
-- non-commutativity quarantine
-- oracle divergence safety
-- liquidation spiral containment
-- cross-layer replay parity
-
-This is the sense in which the repo argues for a **correct-by-construction** posture:
-
-- objective and tie-break relations are explicit
-- winner selection is reduced to replayable canonical witnesses
-- settlement acceptance is bound to replayable end-to-end certificates
-- functional-core edits are backed by kernels, proofs, or bounded trusted-model checks before adoption
-
-Scope limit:
-
-- this is a claim about the shipped, bounded, replayable surfaces in this tree
-- it is not a claim that every future heuristic or every unbounded search family is already universally proved
-
-## Disaster-State Coverage
-
-The current checkout has a green bounded disaster-state replay receipt covering
-`29` named disaster-state families. An axis is a scenario family, not one
-concrete state; each family is backed by one or more replay commands that
-exercise concrete inputs, sequences, boundary cases, or proof/certificate
-artifacts.
-
-```text
-selected_axis_count = 29
-unreachable_count = 29
-failed_count = 0
-inconclusive_count = 0
-```
-
-That is the current positive claim. A broader exploratory plan now names `125`
-candidate what-if axes, but the public checkout does not justify a 125-axis
-guarantee yet. The remaining `96` axes are still search inventory until their
-commands are refreshed, their skipped external-tool lanes are split out, or
-their checks are promoted into replayable proof/certificate lanes.
-
-This is a bounded replay claim, not an exhaustive proof over all possible future
-states. The detailed axis list, replay commands, interpretation, and residual
-backlog are in [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
-The Lean proof receipt
-[disaster_trace_lifting_v1.json](lean-mathlib/proof_receipts/disaster_trace_lifting_v1.json)
-records the reusable theorem shape for turning a harness/barrier/simulation
-certificate into a named unreachability claim. That proof strengthens how
-promoted axes can be justified; it does not by itself raise the replayed
-29-family count.
-
-The proof layer has also been extended with reusable theorem schemas and
-adapters:
-
-- [AMMIntegerRuntimeBridge.lean](lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean)
-  connects ideal CPMM quote facts to integer-runtime receipts, including
-  no-overdelivery and bounded rounding envelopes.
-- [DisasterAntichainBasis.lean](lean-mathlib/Proofs/DisasterAntichainBasis.lean)
-  captures the pattern where a small rejected basis of forbidden traces rules
-  out a larger bad trace family.
-- [ForbiddenTraceMinor.lean](lean-mathlib/Proofs/ForbiddenTraceMinor.lean)
-  captures the pattern where every bad trace embeds a forbidden motif, and
-  motif rejection or guard blocking lifts through that embedding.
-- [NoFreeResourceTraceLedger.lean](lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean)
-  captures the pattern where accepted traces cannot create protected resources
-  outside the safe ledger cone, and budget claims cannot exceed total or prefix
-  spend bounds.
-- [ZenoDEXDisasterSchemaInstantiations.lean](lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean)
-  binds those schemas to small ZenoDEX-shaped budget and forbidden-motif
-  adapters for future replay receipts.
-- [CertificateGluing.lean](lean-mathlib/Proofs/CertificateGluing.lean)
-  captures cross-surface consistency: if local certificates glue into one
-  compatible global section, accepted bundles cannot also witness the named
-  global bad state.
-
-Those theorems make future disaster-state promotion cheaper and more rigorous,
-but they remain schemas until instantiated against concrete quote, settlement,
-oracle, signer, reward, and routing objects. The receipt is
-[aristotle_runtime_disaster_gluing_2026-04-28.md](lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md).
-The forbidden-minor receipt is
-[forbidden_trace_minor_2026-04-28.md](lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md).
-The no-free-resource receipt is
-[no_free_resource_trace_ledger_2026-04-28.md](lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md).
-The adapter receipt is
-[zenodex_disaster_schema_instantiations_2026-04-28.md](lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md).
-The closed-axis proof-schema map is checked by
-[check_disaster_proof_schema_map.py](tools/check_disaster_proof_schema_map.py)
-and currently maps all `29` closed axes to one or more proof-schema lanes.
-The Lean-side mirror is
-[ZenoDEXClosedAxisProofSchemaMap.lean](lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean);
-the checker also rejects drift between the Python map used by the replay
-tooling and the Lean-side enumeration.
-
-The closed receipt is CI-ratcheted by
-`.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails
-if any pinned closed axis becomes failed, skipped, inconclusive, or missing from
-the current search inventory. The same workflow also checks critical Lean proof
-artifacts for active placeholders and keeps the deployment posture tests on the
-default API/resource-safety boundary.
-
-The ZenoOracle devnet branch also has a separate local disaster harness:
-
-```bash
-python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
-```
-
-It currently covers `17` promoted Oracle devnet disaster states with
-`17` unreachable, `0` failed, and `0` inconclusive under the local verifier
-shell. These include missing/tampered replay artifacts, duplicate/reordered
-events, partial event writes, unregistered reporter admission, high-uncertainty
-aggregate rejection, receipt borrowing, missing consumer profiles, and budget
-overspend rejection. The detailed list is in
-[docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
-
-The Oracle critical-action map is also checked against runtime wiring:
-
-```bash
-python3 tools/check_zeno_oracle_critical_action_map.py
-```
-
-It currently verifies four runtime-wired surfaces and separates two design-only
-backlog profiles. The detailed map is in
-[docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md](docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md).
-
-If you want to review that claim directly, start with:
-
-- `src/core/split_routing_dispatch.py`
-- `src/integration/exact_in_route_certificate.py`
-- `src/integration/exact_out_route_certificate.py`
-- `src/integration/settlement_end_to_end_certificate_packet.py`
-- `tests/core/test_split_routing_dispatch.py`
-- `tests/integration/test_api_server_dex_api.py`
-- `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
-
-## Why this repo exists
-- **Formal correctness** for DEX settlement and tokenomics
-- **Composable spec modules** (lego blocks) with explicit invariants
-- **DAC-style ecosystem design** for sustainable, sticky economics
-
-## Why the name “ZenoDex” (Zeno, Cantor, and “never running out”)
-Zeno of Elea (5th century BCE) posed paradoxes about motion and division (e.g., the **Dichotomy**: to reach a goal you
-must first go halfway, then half the remainder, etc.). The modern resolution is the idea of a **limit**: a *countably
-infinite* sequence of shrinking steps can sum to a finite total (a convergent series).
-
-In the late 19th century, Georg Cantor made “infinity” precise by distinguishing **sizes of infinite sets** (a ladder of
-infinities): for example, the integers are *countably infinite* (ℵ₀), while the real numbers are *uncountably infinite*.
-Zeno-style processes live in the “countably many steps” world; you don’t need larger infinities to get “infinitely many
-steps with finite total change”.
-
-### The token-supply analogy (what is true, and what is not)
-You can model a deflation schedule like Zeno’s paradox: burn a **fraction of what remains above a floor** each step.
-
-Let:
-- `S_n` = total supply after step `n`
-- `F` = supply floor (minimum supply you never burn below)
-- `0 < r < 1` = “remaining fraction” per step
-
-Define:
 ```text
 S_{n+1} = F + r (S_n - F)
 ```
-Then:
-```text
-S_n = F + r^n (S_0 - F)
-```
-So for every finite `n`, `S_n > F`, but as `n → ∞`, `S_n → F`. This is the precise sense in which you can have
-“never actually run out” (never hit the floor in finitely many steps) while allowing arbitrarily many deflation steps.
 
-What you **cannot** get from this math is “infinite tokens burned”: the total burn is bounded:
-```text
-S_0 - S_n = (1 - r^n)(S_0 - F) ≤ (S_0 - F)
-```
-So the *number of steps* can be infinite, but the *total amount burned* is finite.
+`S_n` is supply after step `n`, `F` is the floor, and `0 < r < 1` is the
+remaining fraction. Every finite step stays above the floor, and the sequence
+approaches the floor as the number of steps grows.
 
-### Where “infinite deflationary pressure” can be meaningful (and where it’s wrong)
-“Deflationary pressure reaches infinity” is **not** a well-typed statement unless you define a quantity that can
-diverge. For example, a derived metric like `-log(S_n - F)` or `1/(S_n - F)` grows without bound as `S_n` approaches `F`,
-even though the supply itself stays finite and above the floor.
+Ledger reality is discrete. Amounts are integers in base units, so the protocol
+uses deterministic rounding and dust accounting rather than infinite decimal
+precision or repeated redenomination. The high-safety recommendation is `18`
+base-unit decimals for protocol tokens and LP shares, plus explicit dust
+accounting where fractional ideal math would otherwise disappear.
 
-In real implementations, supply is **discrete** (there is a smallest unit), so Zeno-style “infinite steps” becomes:
-eventually the computed burn rounds to zero, or a guard prevents burning below a floor.
+Related docs:
 
-**Nuance: “moving decimals forever” is math, not ledger reality.** In pure mathematics you can always write smaller
-positive numbers (`0.1, 0.01, 0.001, …`) and they never hit zero. But ledgers store amounts as **integers of a base
-unit**, so there is always a minimum positive quantity.
+- [docs/TOKEN_VERSIONS.md](docs/TOKEN_VERSIONS.md)
+- [docs/TOKEN_GOVERNANCE.md](docs/TOKEN_GOVERNANCE.md)
+- [docs/ALGORITHMS.md](docs/ALGORITHMS.md)
 
-- Bitcoin amounts are integers of **satoshis**: `1 sat = 0.00000001 BTC` (8 decimals). You cannot represent
-  `0.000000001 BTC` on-chain without changing the protocol’s unit system.
-- Second-layer systems can introduce finer units (e.g., Lightning “millisats”), but at any given settlement layer the
-  precision is still finite.
+## Risk Profiles
 
-For protocol design, this is a feature: it forces every burn/mint rule to define deterministic behavior once the “ideal”
-real-valued burn becomes less than 1 base unit (round-to-zero, carry dust, or fail-closed below a floor). That’s exactly
-how you avoid accidental full depletion due to rounding.
+ZenoDex organizes specs into risk-based profiles:
 
-**Can we “just upgrade” to add more decimals forever?** You can upgrade *occasionally*, but it is not a free way to get
-infinite precision:
-- Changing *display decimals* is cosmetic; it doesn’t create finer on-ledger units.
-- Getting finer units requires a **redenomination / split** (rescaling every balance, every reserve, every LP share
-  supply, and every price/risk/oracle quantity that is denominated in the token). That is a protocol migration with real
-  risk and coordination cost.
-- Making this “algorithmic” turns it into a built-in **rebase/split mechanism**. That can be made deterministic, but it
-  still imposes integration complexity and adds an attack surface at every rescale boundary.
+- **Tier 1 / Recommended**: lowest-risk deterministic bounded rules.
+- **Tier 2 / Medium**: more aggressive tokenomics and feature combinations.
+- **Tier 3 / High**: experimental or dynamic designs.
 
-The high-safety alternative is: choose a sufficiently fine base unit up front and use explicit **dust accounting**
-(carry fractional remainders in a separate integer accumulator) so the economics can keep “approaching a floor” without
-needing perpetual unit-system upgrades.
+Start with:
 
-**recommendation**: choose `d = 18` base-unit decimals (i.e., `1 token = 10^18` base units) for protocol tokens and LP
-shares, plus explicit dust accounting.
-
-Mathematical reasons / formal logic behind this choice:
-- **Representation**: amounts are integers `a ∈ ℕ` base units, interpreted as real token amounts `A = a / 10^d`.
-- **Deterministic rounding error bound**: if an “ideal” real-valued transfer/burn is `T*`, any deterministic rounding to
-  base units (e.g., `t = floor(T* · 10^d)`) introduces error strictly less than one base unit:
-  ```text
-  0 ≤ T* - t/10^d < 10^(-d)
-  ```
-- **Zeno-style “many steps before rounding to zero”**: for a geometric approach-to-floor with delta
-  `D_n = S_n - F = r^n (S_0 - F)`, a non-zero change remains representable while `D_n ≥ 10^(-d)`. The number of steps
-  until you *must* round to zero is approximately:
-  ```text
-  N ≈ log((S_0 - F) · 10^d) / log(1/r)
-  ```
-  For the common “halving the remainder” case (`r = 1/2`): `N ≈ log2((S_0 - F) · 10^d)`. With `(S_0 - F) ≈ 10^9` tokens
-  and `d = 18`, that’s about `log2(10^27) ≈ 90` non-zero halvings; for gentler decay like `r = 0.99`, it’s on the order
-  of thousands of non-zero steps.
-- **Safety tradeoff (why not arbitrarily large `d`)**: increasing `d` increases granularity but also scales up every
-  integer quantity, which can stress fixed-width integer backends and AMM multiplications. A practical `d` should be
-  “large enough that rounding is negligible” and “small enough that arithmetic stays safe”; `18` is a widely-used
-  compromise that typically satisfies both.
-
-### Can this be expressed in Tau Language?
-Mostly yes, but not as real-number “limits”, and not with naïve 256-bit arithmetic.
-
-Tau is a **constraint/specification** language over streams. In practice (and in this repo) it is used to validate
-relationships and safety properties using **bounded bitvectors** and Boolean logic. That has two consequences:
-
-1) **Decimals are not a native concept** in Tau. The “18 decimals” choice is best modeled as:
-   - a UI/display convention, and/or
-   - a small *parameter* (e.g., `d = 18`) that governance can restrict,
-   while the actual ledger values are **integers in base units**.
-
-2) **Full-precision arithmetic is usually external.** Large-token amounts (e.g., `10^9` tokens at `d=18` ⇒ `10^27` base
-   units) exceed small bitvector widths. So the standard pattern is:
-   - Python (or the execution layer) computes big-int results (burn, fee, amount_out, updated balances),
-   - Tau validates that the provided results satisfy conservation/bounds/ordering constraints (often using hi/lo limb
-     witnesses). See `src/tau_specs/protocol_token_v1.tau`.
-
-What Tau *can* express cleanly is the **discrete Zeno behavior** that actually matters on-ledger:
-- burn rules using integer division (implicit floors) and explicit supply floors (see `src/tau_specs/token_v2_percentage.tau`)
-- “never go below floor” and “no negative balance” invariants
-- deterministic dust policies (“round-to-zero”, or “carry dust” as an extra state variable), provided the dust/state
-  representation fits the chosen bitvector/limb encoding.
-
-What Tau generally *won’t* express directly is “keep adding decimals forever”: changing base units is a **redenomination
-/ split** (rescaling every balance/reserve/share) and is best treated as an explicit, governed migration step with its
-own validation constraints (not an automatic background process).
-
-## Public Design Rules (Risk-Reducing by Design)
-These are the explicit design constraints we follow to reduce risk for everyone involved and keep the protocol predictable and transparent.
-- **No investment framing**: we do not present the token as an investment or promote price appreciation.
-- **Deterministic economics**: fee splits, burns, and rebates are rule-bound and non-discretionary.
-- **Bounded parameters**: all adjustable rates and caps are constrained by hard limits.
-- **Time-delayed governance**: changes are time-locked and publicly visible before activation.
-- **No discretionary custody**: the protocol does not take custody via an operator-controlled wallet or allow arbitrary fund movement. Liquidity providers do deposit assets into pools, but funds move only by deterministic rules (mint/burn LP shares, swap pricing, withdrawals) rather than by a privileged custodian.
-- **Clear separation of layers**: off-chain computation proposes values, Tau specs validate them.
-- **No special access**: no privileged order flow, no hidden switches, no private liquidity advantages.
-
-## Ecosystem Overview (How the Specs Connect)
-The system is a **graph of validators** rather than a single monolithic spec. Each module validates one slice of behavior and emits an `ok` signal. A composite policy spec ANDs those signals, and settlement only proceeds when **all** modules pass.
-
-**Flow (left to right):**
-1. **Inputs & Oracles** provide prices, volume/risk signals, and user intents.
-2. **Core DEX math specs** validate swaps and reserves (`cpmm_v1.tau`, `swap_exact_in_v1.tau`, `swap_exact_out_v1.tau`).
-3. **Tokenomics modules** validate fee splits, buybacks, burns, rebates, and rewards (e.g., `tokenomics_fee_split_32_v1.tau`, `tokenomics_buyback_floor_32_v1.tau`).
-4. **Token state validation** enforces transfer/mint/burn conservation (`protocol_token_v1.tau`).
-5. **Governance & parameter registry** constrain how rates/caps/floors can change (`revision_policy_v1.tau`, `parameter_registry_v1.tau`, `governance_timelock_v1.tau`).
-6. **Composite policy** gates the step: `dex_step_ok = AND(all_ok_flags)`.
-7. **Settlement** applies the state transition only if the composite policy passes.
-
-## Trust Model / Verification (How users know nodes are honest)
-The goal is **don’t trust a computer, verify a transition**.
-
-### What "formally guaranteed" means in this repo
-ZenoDex treats specs as the source of truth.
-
-- **Formal specification**: DEX-critical rules are encoded as executable Tau specs (swap, settlement rails, tokenomics gates).
-- **Evidence that specs execute**: we run trace-level execution tests against production spec sets (not just parsing).
-  - Trace harness: `tools/tau_trace_harness.py`
-  - Production trace test: `tests/tau/test_production_tau_traces.py`
-- **Multiple versions with explicit tradeoffs**: some checks are Tau-only (more trust-minimized, can be slower), while others are proof-gated (small Tau gate plus external verified computation).
-  - Profiles and budgets: `docs/TAU_SPECS_PROFILES.md`
-  - Machine-readable mapping: `src/tau_specs/recommended/spec_profiles.json`
-
-### What "cryptographically guaranteed" means in this repo
-Cryptography provides authenticity and tamper evidence. Verification can be:
-
-- **By replay**: verify signed headers and recompute the committed hashes by re-executing.
-- **By proof**: verify a succinct proof bound to the committed state.
-
-In Tau Testnet Alpha, the main integrity anchors are:
-- **Signed blocks (PoA)**: block signatures can be verified with BLS keys.
-- **State commitments**: `header.state_hash` commits to rules text and an accounts snapshot hash, and may include an application `app_hash`.
-- **Optional state proofs**: a DHT record `state_proof:<state_hash>` can carry a ZK proof of the DEX transition (opt-in, fail-closed). In this repo, "state proof" means a proof of correct state transition, not a Merkle inclusion proof.
-
-### What “verified computation” looks like on Tau Testnet Alpha (today)
-Tau Testnet Alpha (`external/tau-testnet`) is a hybrid system:
-- A Python node handles networking/storage and “extralogical” work (e.g., signature verification).
-- A Tau program (rules) is intended to be the arbiter of validity; it can be executed via Docker.
-- **Important:** runtime Tau evaluation is currently gated by a dev switch (`TAU_FORCE_TEST`). When it is enabled, the node
-  runs a deterministic test validator path instead of actually executing Tau rules.
-
-The testnet provides integrity anchors a verifier can check:
-- **Signed blocks (PoA)**: blocks can be signed/verified with BLS keys (authority model).
-- **Commitments**: block headers include a transaction `merkle_root` and a `state_hash`. The `state_hash` commits to the
-  rules text plus an accounts snapshot hash, and can also include an optional ZenoDex state snapshot hash.
-- **Fetchable snapshots (best-effort)**: nodes can publish a JSON payload under `tau_state:<state_hash>` containing the
-  rules text and the committed accounts hash (and optional DEX hash). This supports syncing and cross-checking against
-  the block header commitment.
-
-### What a user can do
-- **Strongest (full verification)**: run your own node and re-verify every block/transition (rules + signatures +
-  state-hash recomputation). If a proposer lies, your node rejects the block.
-- **Medium (header + commitment verification)**: verify signed headers and compare `state_hash` across multiple
-  independent nodes; optionally fetch the `tau_state:<state_hash>` payload and confirm it matches the header commitment.
-- **Weakest**: trust a single RPC/provider.
-
-### What we still need for “light client” verification
-If you want a browser/phone client to verify correctness without replaying execution, you typically need a proof
-mechanism (e.g., fraud proofs or zk validity proofs). Tau Testnet Alpha mainline offers **replicable verification and
-state commitments**. This repo additionally proposes an opt-in, DHT-bound state proof mechanism:
-
-- **State proofs (optional)**: publish a proof envelope to the DHT under `state_proof:<state_hash>` and fail-closed when enabled.
-  - Protocol: `docs/tau_state_proof_v1.md`
-  - Tau Testnet patch (local, PR-ready): `docs/tau_testnet_state_proof_patch.md`
-  - Risc0 implementation for TauSwap transitions (v1 scope): `docs/tau_state_proof_risc0_tauswap_v1.md` and `zk/state_proof_risc0/`
-  - Local demo (requires Rust + Risc0 toolchain): `TAU_STATE_PROOF_RISC0=1 bash tools/run_tau_testnet_local_smoke.sh`
-
-### How ZK / validity proofs fit ZenoDEX
-
-The useful idea is **proof-carrying execution**:
-
-```text
-pre_state_commitment + tx_or_batch_commitment + program_id
-  -> proved execution
-  -> post_state_commitment
-```
-
-A prover runs the transition once, produces a validity proof, and publishes the proof with the block or settlement
-artifact. Every validator, light client, bridge, or indexer can then verify the short proof instead of re-running the
-whole transition. The verifier checks that the proof is bound to the committed inputs, the approved program, and the
-claimed post-state.
-
-In this repo, the current concrete version is a Risc0 state-proof lane for a restricted TauSwap transition. It proves a
-Rust zkVM guest that mirrors the supported DEX transition subset. It does not yet prove arbitrary Python execution.
-To prove Python directly, the proving system would need either a verified Python interpreter inside the zkVM or a
-compiled/lowered deterministic program whose semantics are proven equivalent to the Python functional core. The second
-path is usually the practical one:
-
-```text
-Python functional core as reference
--> small deterministic Rust/zkVM guest or generated kernel
--> parity tests + certificates + proof receipts
--> succinct validity proof for clients
-```
-
-This still gives the main scaling benefit. Expensive execution happens once in the prover. Many other machines verify
-the result cheaply. That enables:
-
-- **light clients**: verify signed headers plus `state_hash` / `app_hash` plus a state proof;
-- **bridges**: accept ZenoDEX state transitions only when the proof is bound to a finalized committed state;
-- **rollup-style scaling**: aggregate many trades into one proven batch transition;
-- **proof-carrying solvers**: allow complex off-chain solvers while keeping the on-chain/Tau-side verifier small;
-- **private witness lanes**: hide selected witness data when a future circuit supports it, while still proving the public
-  state transition.
-
-The hard requirements are:
-
-- deterministic integer semantics, no floats or host-dependent behavior;
-- a fixed circuit/program id governed like consensus code;
-- canonical serialization for all public inputs;
-- data availability for any state or transaction data clients must audit;
-- fail-closed behavior when a required proof is missing, stale, or bound to the wrong state;
-- replay tests proving the zk guest and Python reference produce the same commitments on the supported domain.
-
-The near-term expansion path is:
-
-1. Extend the Risc0 guest from `CREATE_POOL` and `SWAP_EXACT_IN` toward the UPBA v1 bounded-grid settlement path.
-2. Bind the UPBA certificate, price-grid table root, pre-state hash, transaction commitment, and post-state hash into the
-   proof journal.
-3. Add recursive or batched proofs once single-batch proof generation is stable.
-4. Make proof requirement a deployment profile, not a default assumption.
-
-## Spec Risk Profiles
-ZenoDex organizes specs into **risk-based profiles** so communities can choose the level of exposure they are comfortable with.
-- **Tier 1 (Recommended)**: lowest-risk, deterministic, bounded rules.
-- **Tier 2 (Medium)**: more aggressive tokenomics and features.
-- **Tier 3 (High)**: experimental or highly dynamic designs.
-
-Start with the **Recommended** profile: `src/tau_specs/recommended/`.
-
-Then review the full tier rationale in `src/tau_specs/RISK_TIERS.md`, and explore:
-- `src/tau_specs/risk_medium/`
-- `src/tau_specs/risk_high/`
+- `src/tau_specs/recommended/`
+- [docs/TAU_SPECS_PROFILES.md](docs/TAU_SPECS_PROFILES.md)
+- `src/tau_specs/RISK_TIERS.md`
 
 ## Repository Layout
-- `src/`: core implementation
-  - `src/core/` DEX math (CPMM, sealed-bid, confidential extensions)
-  - `src/state/` state transitions
-  - `src/agents/` agent workflows
-  - `src/tau_specs/` Tau specifications (recommended / risk_medium / risk_high tiers)
-  - `src/integration/` API server, testnet bridge, attestation layer
-  - `src/kernels/` ESSO-verified kernels (DEX, Python, Rust targets)
-  - `src/exotic_state_machines/` experimental ESSO state machines
-- `tools/`: operational scripts and tooling
-  - `tools/dex-ui/` Vite + React frontend SPA
-- `docs/`: protocol/spec notes and ecosystem design
-  - `docs/derivatives/` perpetuals and zUSD specifications
-- `tests/`: test scripts and spec checks
-- `external/`: Tau dependencies (git-ignored)
 
-## Perpetuals and Derivatives
-ZenoDEX includes an epoch-based perpetual futures system with the following components:
+- `src/core/`: deterministic DEX math and settlement core.
+- `src/state/`: state tables, canonical roots, balances, pools, LPs, nonces.
+- `src/integration/`: API, engine shell, certificates, Tau and oracle bridges.
+- `src/tau_specs/`: Tau specifications and recommended profiles.
+- `src/kernels/`: ESSO models and proof-oriented kernels.
+- `lean-mathlib/Proofs/`: Lean proof artifacts.
+- `tools/`: evidence gates, operator scripts, replay tools, and UI.
+- `tools/dex-ui/`: Vite + React frontend.
+- `docs/`: protocol notes, assurance docs, papers, and roadmaps.
+- `tests/`: unit, integration, property, formal, and replay tests.
+- `external/`: Tau dependencies, usually git-ignored locally.
+- `zk/`: Risc0 state-proof implementation.
 
-- **Epoch-based funding**: funding rates settle per epoch, not continuously
-- **Insurance fund**: bounded drawdown with deterministic rebalancing
-- **Circuit breaker**: halts trading on extreme price moves
-- **zUSD**: synthetic stablecoin used as margin collateral
-- **Poka-yoke order confirmation**: typed-confirm interlocks for large positions
+## Important Docs
 
-Specifications:
-- Epoch safety: `docs/derivatives/PERP_EPOCH_SAFETY_V1.md`
-- Incentive design: `docs/derivatives/PERP_INCENTIVES_V1.md`
-- SotA roadmap: `docs/derivatives/PERP_SOTA_ROADMAP.md`
-- zUSD design: `docs/derivatives/ZUSD_V1.md`
+System and assurance:
 
-The UI provides a full perpetuals trading interface with market selection, order form, position management, collateral controls, and trade history.
+- [docs/SPECIFICATION.md](docs/SPECIFICATION.md)
+- [docs/SECURITY_POSTURE.md](docs/SECURITY_POSTURE.md)
+- [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md)
+- [docs/claims_registry.yaml](docs/claims_registry.yaml)
+- [docs/PRODUCTION_GATE.md](docs/PRODUCTION_GATE.md)
 
-## Confidential Extensions and Sealed-Bid Auctions
-- Plain-language explainer: `docs/CONFIDENTIAL_FEATURES_USE_CASES.md`
-- Operator beta runbook: `docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md`
-- Experimental FHE alpha: `docs/FHE_SEALED_BID_ALPHA.md`
-- **TEE-first confidential extensions**: attested sidecars can meter private routing / risk logic without exposing source code.
-  - Runtime receipts: `src/core/confidential_extension_receipts.py`
-  - Attestation bridge: `src/integration/confidential_attestation.py`
-  - ESSO gate: `src/kernels/dex/confidential_extension_tee_gate_v1.yaml`
-- **Sealed-bid private-state lane**: bounded commit/reveal auction with deterministic uniform-price settlement.
-  - Experiment core: `src/core/sealed_bid_auction.py`
-  - ESSO gate: `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
-  - Additional non-public evaluation methods were used during development; they are not part of the public release surface.
-- **Non-reveal bond kernel**: closes the free-griefing path for non-reveal bidders.
-  - Accounting core: `src/core/sealed_bid_bonds.py`
-  - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
-  - Additional non-public evaluation methods were used during development; they are not part of the public release surface.
-- **Experimental FHE sealed-bid alpha**: bounded 8-bid planning surface for encrypted comparison / hidden-bid auction pilots.
-  - Alpha planner: `src/core/fhe_sealed_bid_alpha.py`
-  - ESSO gate: `src/kernels/dex/fhe_sealed_bid_alpha_gate_v1.yaml`
-  - Tau guard: `src/tau_specs/recommended/fhe_sealed_bid_alpha_guard_v1.tau`
-- **Disaster-state catalog**: explicit terminal hazards and their discharge actions.
-  - Catalog doc: `docs/SEALED_BID_DISASTER_STATE_CATALOG.md`
-  - Replay tool: `python3 tools/sealed_bid_disaster_catalog.py`
+UPBA and spot:
 
-Who this is for:
-- large trades that would leak too much intent on a public path
-- batch auctions / token sales where hidden bids improve fairness
-- private RFQ / institutional flow
-- strategy providers who want to get paid for private execution logic
+- [docs/UPBA_V1_EVIDENCE_BOUNDARY.md](docs/UPBA_V1_EVIDENCE_BOUNDARY.md)
+- [docs/UPBA_TAU_TABLES_DESIGN_SPEC.md](docs/UPBA_TAU_TABLES_DESIGN_SPEC.md)
+- [docs/UPBA_V1_CERTIFICATE.md](docs/UPBA_V1_CERTIFICATE.md)
+- [docs/ALGORITHMS.md](docs/ALGORITHMS.md)
 
-## Permissionless Hosting
-- Operator guide: `docs/PERMISSIONLESS_HOSTING.md`
-- Local Tau node + app bridge: `docs/tau_testnet_local_node.md`
-- Static/IPFS frontend publisher: `bash tools/publish_ui_ipfs.sh`
+Oracle, perps, and zUSD:
 
-Recommended posture:
-- run the public path with a rootless container or Podman
-- keep `TAU_NET_RPC` unset unless you intentionally want a remote fallback
-- prefer a local Tau node over a managed RPC
-- pin/mirror the static frontend independently of the API if you want globally replicable hosting
+- [docs/ZENO_ORACLE_MVP_STATUS.md](docs/ZENO_ORACLE_MVP_STATUS.md)
+- [docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md](docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md)
+- [docs/derivatives/PERP_SOTA_ROADMAP.md](docs/derivatives/PERP_SOTA_ROADMAP.md)
+- [docs/ZUSD_TAU_WALLET.md](docs/ZUSD_TAU_WALLET.md)
 
-Useful operator commands:
+State proofs:
+
+- [docs/tau_state_proof_v1.md](docs/tau_state_proof_v1.md)
+- [docs/tau_state_proof_risc0_tauswap_v1.md](docs/tau_state_proof_risc0_tauswap_v1.md)
+- [docs/tau_testnet_state_proof_patch.md](docs/tau_testnet_state_proof_patch.md)
+
+Operations:
+
+- [docs/PERMISSIONLESS_HOSTING.md](docs/PERMISSIONLESS_HOSTING.md)
+- [docs/RC1_SCOPE.md](docs/RC1_SCOPE.md)
+- [docs/RC1_READINESS.md](docs/RC1_READINESS.md)
+
+## Tests and Evidence Gates
+
+Common local checks:
 
 ```bash
-# Optional local-node-first stack
-docker compose -f docker-compose.yml -f docker-compose.permissionless.yml --profile local-node up -d
-
-# IPFS/static release artifact + manifest
-bash tools/publish_ui_ipfs.sh
-
-# Rootless Linux service file + preflight
-python3 tools/generate_operator_systemd.py --engine podman --local-node --out ~/.config/systemd/user/zenodex-operator.service
-python3 tools/permissionless_operator_preflight.py --engine podman --local-node --ipfs --json
-
-# Objective useful-work round + payout plan (prototype)
-python3 tools/gpu_jobs/improvement_bounty_round_route_v1.py --help
-
-# Proof-mining-compatible claim bridge
-python3 tools/permissionless_solver_proof_mining_claim.py --help
-
-# Public append-only ledger for round winners + reward artifacts
-python3 tools/permissionless_round_ledger.py --help
+python3 tools/check_claims_registry.py
+pytest -q tests/core/test_uniform_batch_clearing.py \
+  tests/core/test_uniform_batch_optimality.py \
+  tests/core/test_uniform_batch_price_grid_table.py \
+  tests/integration/test_dex_engine_uniform_batch_certificate.py
 ```
 
-Who this is not for:
-- ordinary retail swaps where the public path is simpler and faster
-- always-on low-latency execution where extra coordination hurts UX
-- use cases that need encrypted on-chain state rather than private off-chain execution
+Spot evidence:
 
-Useful commands:
 ```bash
-python3 tools/sealed_bid_disaster_catalog.py
+bash tools/run_spot_evidence.sh
+bash tools/run_spot_proof_assurance_gate.sh
 ```
 
-Additional non-public evaluation methods for sealed-bid flows are intentionally not documented in the public README.
-## Experimental Curves (Research)
-ZenoDex is designed to support multiple **integer-auditable AMM curves** (CFMM invariants). The production path is CPMM;
-other curves live behind “research / not-default” status until they have strong evidence (tests + specs + proofs).
+Production-style local gate:
 
-- **CPMM (baseline)**: `K = x*y` with deterministic fee+rounding semantics (`src/core/cpmm.py`, `src/kernels/dex/cpmm_swap_v8.yaml`).
-- **Quadratic CPMM (experimental)**: `K = x^2*y` (`src/core/quadratic_cpmm.py`).
-- **Cubic-sum AMM (experimental)**: `K(x,y)=x*y*(p*x+q*y)` (baseline `p=q=1` ⇒ `K=x*y*(x+y)`)
-  (`src/core/cubic_sum_amm.py`, `src/kernels/python/cubic_sum_swap_v1.py`, `src/kernels/dex/cubic_sum_swap_v1.yaml`).
-  - Exact-out is designed to be **quadratic-solvable** (integer `ceil_isqrt` + `ceil_div`) and **minimal** (by construction + certificates).
-  - Like CPMM, integer exact-out may **overdeliver** due to rounding granularity; specs must treat “≥ requested out” as success.
-  - Research result (continuous, fee-free): cubic-sum improves near-balance slippage but has higher IL than CPMM for all tested price moves; see `docs/CUBIC_SUM_CURVE_ANALYSIS.md`.
-  - Formal result (local, continuous): for the power-family `K=x*y*(x+y)^α` (includes cubic-sum as `α=1`), a Lean-verified local tradeoff holds:
-    improving near-balance “slippage coefficient” worsens local IL curvature vs CPMM; see `docs/CUBIC_SUM_CURVE_ANALYSIS.md` and `lean-mathlib/Proofs/ImpossibilityTheorem.lean`.
-  - Research result (discrete, integer rounding): deterministic sweeps suggest smaller exact-out overdelivery gaps vs CPMM in small-reserve regimes; see `tools/curve_comparison_sweep.py`.
-
-## Quick Start (Local)
 ```bash
-# Full local checkout (runtime + agent helpers + tests)
-pip install -r requirements.txt
-
-# Minimal runtime-only install
-# pip install -r requirements-core.txt
-
-# Clone Tau dependencies (git-ignored)
-mkdir -p external
-cd external
-git clone https://github.com/IDNI/tau-lang.git
-git clone https://github.com/IDNI/tau-testnet.git
+bash tools/prod_gate.sh --skip-docker --skip-ui
 ```
 
-## UI (Local)
-```bash
-# 1) Start the stdlib demo/dev API (perps + zUSD).
-# DEMO_API_TOKEN is optional on loopback (`API_HOST=127.0.0.1`), and required on non-loopback binds.
-PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret python3 -m src.integration.api_server
+Tau syntax and traces:
 
-# 2) Start the UI (Vite dev server). Recommended: use the proxy (no CORS needed).
-cd tools/dex-ui
-npm install
-VITE_DEMO_MODE=false API_PROXY_TARGET=http://127.0.0.1:8000 VITE_API_TOKEN=sekret npm run dev -- --host 127.0.0.1 --port 5173
-```
-
-## Build Tau (example)
 ```bash
-cmake -S external/tau-lang -B external/tau-lang/build-Release -DCMAKE_BUILD_TYPE=Release
-cmake --build external/tau-lang/build-Release -j
-```
-
-## Tests / Spec Checks
-```bash
-pytest tests/
 bash tests/tau/test_specs_syntax.sh
+python3 tools/recommended_tau_smoke.py
 ```
 
-## Docs (current)
-- `docs/SPECIFICATION.md` — Protocol specification overview
-- `docs/SECURITY_POSTURE.md` — Runtime hardening choices and operator-facing security posture
-- `docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md` — bounded disaster-hardness and assurance metric
-- `docs/ZDEX_TOKEN.md` — ZDEX tokenomics and spec references
-- `docs/ZENO_ORACLE_MVP_STATUS.md` — current Zeno Oracle MVP branch status
-- `docs/ZENO_ORACLE_MVP_DESIGN.md` — Zeno Oracle MVP design snapshot
-- `docs/ZENO_ORACLE_CLI_V1.md` — current local Zeno Oracle CLI wrapper
-- `docs/ZENO_ORACLE_DEVNET_ALPHA.md` — local Zeno Oracle devnet service, replay store, and API boundary
-- `docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf` — academic-style Zeno Oracle whitepaper by Dana Edwards
-- `docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md` — next ZenoOracle/ZenoDEX disaster-state minimization goal
-- `docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md` — current Oracle critical-action runtime wiring map
-- `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
-- `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
-- `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md` — current local Oracle signed-report format
-- `docs/ZENO_ORACLE_REPORT_ADMISSION_V1.md` — current local Oracle report-admission bridge format
-- `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md` — current local Oracle median3 aggregate format
-- `docs/ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md` — current local Oracle admitted-report median3 aggregate format
-- `docs/ZENO_ORACLE_AGGREGATE_READ_V1.md` — current local Oracle aggregate-to-read bridge format
-- `docs/ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md` — current local Oracle aggregate-to-action adapter bridge format
-- `docs/ZENO_ORACLE_RUNTIME_BRIDGE_V1.md` — runtime Oracle bridge hooks for perps settlement, zUSD demo API actions, and guarded routing quotes
-- `docs/ZENO_ORACLE_FEED_REGISTRY_V1.md` — current local Oracle feed creation and registry admission format
-- `docs/ZENO_ORACLE_SOURCE_DIVERSITY_V1.md` — current local Oracle source-diversity format
-- `docs/ZENO_ORACLE_QUERY_POLICY_V1.md` — current local Oracle query-policy versioning format
-- `docs/ZENO_ORACLE_ADAPTER_V1.md` — current local Oracle critical-action adapter format
-- `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md` — current local Oracle critical consumer profile catalog
-- `docs/ZENO_ORACLE_ECONOMIC_SECURITY_V1.md` — current local Oracle economic security envelope
-- `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md` — current local Oracle token budget format
-- `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md` — current local Oracle reporter lifecycle format
-- `docs/ZENO_ORACLE_CHAOS_ENGINEERING.md` — Zeno Oracle disaster-shape replay lane
-- `docs/ECOSYSTEM_STRATEGY.md` — Deflationary DAC ecosystem design
-- `docs/ECOSYSTEM_GRAPH.md` — Ecosystem module graph
-- `docs/TOKEN_VERSIONS.md` — Token spec hierarchy (V1–V8)
-- `docs/TOKEN_GOVERNANCE.md` — Governance parameter design
-- `docs/ALGORITHMS.md` — Algorithm catalog
-- `docs/CONFIDENTIAL_FEATURES_USE_CASES.md` — Confidential extensions plain-language guide
-- `docs/TAU_LANGUAGE_CONSTRAINTS.md` — Tau Language bitvector and stream constraints
-- `docs/TAU_ARCHITECTURE.md` — Tau integration architecture
-- `docs/REVISION_PIPELINE.md` — Spec revision workflow
-- `docs/KERNEL_ABI_AND_COMPOSITION.md` — Kernel interface and composition
-- `docs/VERIFIED_COMPUTATION_MPRD_TAU_TESTNET.md` — MPRD verification on testnet
-- `docs/PROOF_MINING.md` — Proof-of-useful-work mining
-- `docs/PERMISSIONLESS_HOSTING.md` — Operator hosting guide
-- `docs/CUBIC_SUM_CURVE_ANALYSIS.md` — Curve tradeoff analysis
-- `docs/papers/zenodex-full-system/README.md` — Full-system paper package
-- `docs/PRODUCTION_GATE.md` — Production readiness gate
-- `docs/DEX_READINESS_PEER_REVIEW.md` — Peer review of readiness
-- `docs/derivatives/` — Perpetuals and zUSD specifications
+## Current Limits
 
-## Status
-Active research and implementation. Specs evolve frequently; check `docs/dex_readiness.md` for coverage status.
+Open work before a full live-production claim:
+
+- production Oracle network evidence;
+- live reporter/proof economics settlement;
+- external audit;
+- production code signing and release transparency;
+- broader zkVM proof coverage beyond the current restricted TauSwap lane;
+- exact-out UPBA and partial-fill UPBA;
+- multi-hop UPBA and routing-generator completeness;
+- snapshot and migration replay for all production state surfaces.
 
 ## License
-TBD
+
+See [LICENSE](LICENSE).
