@@ -14,6 +14,7 @@ from src.integration.zeno_ledger_v0 import hash_v0, tx_hash_v0
 
 
 CONFLICT_GRAPH_SCHEMA_V0 = "zenodex/zeno_ledger/conflict_graph/v0"
+CONFLICT_SCHEDULE_SCHEMA_V0 = "zenodex/zeno_ledger/conflict_schedule/v0"
 GLOBAL_DEX_CELL_V0 = "global:dex_state"
 
 
@@ -224,3 +225,72 @@ def build_conflict_graph_v0(transactions: list[object]) -> dict[str, Any]:
         "component_count": len(components),
     }
     return {**graph_body, "conflict_graph_hash": hash_v0("conflict_graph_v0", graph_body)}
+
+
+def build_conflict_schedule_v0(
+    transactions: list[object],
+    *,
+    max_parallel_components: int | None = None,
+) -> dict[str, Any]:
+    """Build deterministic parallel execution waves from conflict components."""
+
+    if max_parallel_components is not None and max_parallel_components <= 0:
+        raise ValueError("max_parallel_components must be positive when provided")
+
+    graph = build_conflict_graph_v0(transactions)
+    vertices_by_index = {int(vertex["index"]): vertex for vertex in graph["vertices"]}
+    tasks: list[dict[str, Any]] = []
+    for component in graph["components"]:
+        indices = [int(index) for index in component["transaction_indices"]]
+        touched_cells: set[str] = set()
+        tx_hashes: list[str] = []
+        for index in indices:
+            vertex = vertices_by_index[index]
+            tx_hashes.append(str(vertex["tx_hash"]))
+            touched_cells.update(str(cell) for cell in vertex["touched_cells"])
+        tasks.append(
+            {
+                "task_id": len(tasks),
+                "component_id": int(component["component_id"]),
+                "transaction_indices": indices,
+                "transaction_hashes": tx_hashes,
+                "transaction_count": len(indices),
+                "touched_cells": sorted(touched_cells),
+                "touched_cell_count": len(touched_cells),
+                "requires_sequential_order": len(indices) > 1,
+            }
+        )
+
+    width = len(tasks) if max_parallel_components is None else max_parallel_components
+    waves: list[dict[str, Any]] = []
+    if tasks:
+        for start in range(0, len(tasks), width):
+            wave_tasks = tasks[start : start + width]
+            waves.append(
+                {
+                    "wave_id": len(waves),
+                    "task_ids": [int(task["task_id"]) for task in wave_tasks],
+                    "component_ids": [int(task["component_id"]) for task in wave_tasks],
+                    "transaction_indices": [
+                        int(index)
+                        for task in wave_tasks
+                        for index in task["transaction_indices"]
+                    ],
+                    "parallel_task_count": len(wave_tasks),
+                }
+            )
+
+    schedule_body = {
+        "schema": CONFLICT_SCHEDULE_SCHEMA_V0,
+        "schedule_mode": "connected_components",
+        "conflict_graph_hash": graph["conflict_graph_hash"],
+        "transaction_count": graph["transaction_count"],
+        "edge_count": graph["edge_count"],
+        "component_count": graph["component_count"],
+        "task_count": len(tasks),
+        "wave_count": len(waves),
+        "max_parallel_components": max_parallel_components,
+        "tasks": tasks,
+        "waves": waves,
+    }
+    return {**schedule_body, "conflict_schedule_hash": hash_v0("conflict_schedule_v0", schedule_body)}
