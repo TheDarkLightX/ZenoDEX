@@ -33,6 +33,7 @@ INGRESS_RECEIPT_SCHEMA_V0 = "zenodex/zeno_ledger/ingress_receipt/v0"
 FORCED_INCLUSION_REQUEST_SCHEMA_V0 = "zenodex/zeno_ledger/forced_inclusion_request/v0"
 FORCED_INCLUSION_DECISION_SCHEMA_V0 = "zenodex/zeno_ledger/forced_inclusion_decision/v0"
 TX_RECEIPT_SCHEMA_V0 = "zenodex/zeno_ledger/tx_receipt/v0"
+PROOF_METADATA_SCHEMA_V0 = "zenodex/zeno_ledger/proof_metadata/v0"
 
 LEDGER_ROOT_VERSION = 1
 ROOT_NBYTES = 32
@@ -61,6 +62,18 @@ FORCED_INCLUSION_DECISIONS_V0 = frozenset(
         "expired_missing_body",
     }
 )
+
+PROOF_KINDS_V0 = frozenset(
+    {
+        "deterministic_replay_v0",
+        "risc0_zkvm_v0",
+        "sp1_zkvm_v0",
+        "tee_attestation_v0",
+        "recursive_epoch_v0",
+    }
+)
+
+ZK_PROOF_KINDS_V0 = frozenset({"risc0_zkvm_v0", "sp1_zkvm_v0"})
 
 EVIDENCE_KEYS_V0 = (
     "upba_certificates",
@@ -137,6 +150,13 @@ def _require_root(value: object, *, name: str) -> str:
     if value != canonical:
         raise ValueError(f"{name} must be canonical lowercase 0x-prefixed hex")
     return canonical
+
+
+def _require_nonzero_root(value: object, *, name: str) -> str:
+    root = _require_root(value, name=name)
+    if root == ZERO_ROOT_V0:
+        raise ValueError(f"{name} must be non-zero")
+    return root
 
 
 def _validate_domain(domain: str) -> str:
@@ -279,6 +299,134 @@ def build_tx_receipt_v0(
         "state_changed": state_changed,
     }
     return {**body, "receipt_hash": hash_v0("tx_receipt_v0", body)}
+
+
+def build_proof_metadata_v0(
+    *,
+    chain_id: str,
+    height: int,
+    proof_kind: str,
+    program_id: str,
+    verifier_id: str,
+    proof_commitment: str,
+    public_input_hash: str,
+    journal_hash: str,
+    pre_state_root: str,
+    post_state_root: str,
+    tx_root: str,
+    evidence_root: str,
+    body_root: str,
+    conflict_schedule_hash: str,
+    feature_suite_hash: str,
+    dependency_lock_hash: str,
+    tee_measurement_hash: str = ZERO_ROOT_V0,
+    child_receipts_root: str = ZERO_ROOT_V0,
+) -> dict[str, Any]:
+    """Build proof metadata that can be bound into `header.proof_journal_hash`.
+
+    This object is backend-neutral. It does not verify Risc0/SP1/TEE cryptography;
+    it records the public binding contract that those verifiers must satisfy.
+    """
+
+    metadata = {
+        "schema": PROOF_METADATA_SCHEMA_V0,
+        "chain_id": chain_id,
+        "height": height,
+        "proof_kind": proof_kind,
+        "program_id": program_id,
+        "verifier_id": verifier_id,
+        "proof_commitment": proof_commitment,
+        "public_input_hash": public_input_hash,
+        "journal_hash": journal_hash,
+        "pre_state_root": pre_state_root,
+        "post_state_root": post_state_root,
+        "tx_root": tx_root,
+        "evidence_root": evidence_root,
+        "body_root": body_root,
+        "conflict_schedule_hash": conflict_schedule_hash,
+        "feature_suite_hash": feature_suite_hash,
+        "dependency_lock_hash": dependency_lock_hash,
+        "tee_measurement_hash": tee_measurement_hash,
+        "child_receipts_root": child_receipts_root,
+    }
+    validate_proof_metadata_v0(metadata)
+    return metadata
+
+
+def validate_proof_metadata_v0(metadata: dict[str, Any]) -> None:
+    obj = _require_mapping(metadata, name="proof_metadata")
+    expected = {
+        "schema",
+        "chain_id",
+        "height",
+        "proof_kind",
+        "program_id",
+        "verifier_id",
+        "proof_commitment",
+        "public_input_hash",
+        "journal_hash",
+        "pre_state_root",
+        "post_state_root",
+        "tx_root",
+        "evidence_root",
+        "body_root",
+        "conflict_schedule_hash",
+        "feature_suite_hash",
+        "dependency_lock_hash",
+        "tee_measurement_hash",
+        "child_receipts_root",
+    }
+    if set(obj.keys()) != expected:
+        raise ValueError("proof_metadata keys mismatch")
+    if obj.get("schema") != PROOF_METADATA_SCHEMA_V0:
+        raise ValueError("proof_metadata schema mismatch")
+
+    _require_str(obj.get("chain_id"), name="proof_metadata.chain_id")
+    _require_nonnegative_int(obj.get("height"), name="proof_metadata.height")
+    proof_kind = _require_str(obj.get("proof_kind"), name="proof_metadata.proof_kind")
+    if proof_kind not in PROOF_KINDS_V0:
+        raise ValueError("proof_metadata proof_kind is not allowed")
+    _require_str(obj.get("program_id"), name="proof_metadata.program_id")
+    _require_str(obj.get("verifier_id"), name="proof_metadata.verifier_id")
+    for key in (
+        "proof_commitment",
+        "public_input_hash",
+        "journal_hash",
+        "pre_state_root",
+        "post_state_root",
+        "tx_root",
+        "evidence_root",
+        "body_root",
+        "conflict_schedule_hash",
+        "feature_suite_hash",
+        "dependency_lock_hash",
+    ):
+        _require_nonzero_root(obj.get(key), name=f"proof_metadata.{key}")
+    for key in (
+        "tee_measurement_hash",
+        "child_receipts_root",
+    ):
+        _require_root(obj.get(key), name=f"proof_metadata.{key}")
+
+    tee_measurement_hash = obj["tee_measurement_hash"]
+    child_receipts_root = obj["child_receipts_root"]
+    if proof_kind == "tee_attestation_v0":
+        _require_nonzero_root(tee_measurement_hash, name="proof_metadata.tee_measurement_hash")
+    elif tee_measurement_hash != ZERO_ROOT_V0:
+        raise ValueError("proof_metadata tee_measurement_hash must be zero for non-TEE proof")
+
+    if proof_kind == "recursive_epoch_v0":
+        _require_nonzero_root(child_receipts_root, name="proof_metadata.child_receipts_root")
+    elif child_receipts_root != ZERO_ROOT_V0:
+        raise ValueError("proof_metadata child_receipts_root must be zero for non-recursive proof")
+
+    if proof_kind in ZK_PROOF_KINDS_V0 and obj["program_id"] == obj["verifier_id"]:
+        raise ValueError("proof_metadata zk program_id and verifier_id must be distinct")
+
+
+def proof_metadata_hash_v0(metadata: dict[str, Any]) -> str:
+    validate_proof_metadata_v0(metadata)
+    return hash_v0("proof_metadata_v0", metadata)
 
 
 def _extract_tx_operations_v0(tx: object, *, index: int) -> Mapping[str, Any]:
@@ -654,6 +802,31 @@ def validate_header_body_roots_v0(header: dict[str, Any], body: dict[str, Any]) 
     )
     if header["app_hash"] != expected_app_hash:
         raise ValueError("header app_hash mismatch")
+
+
+def validate_proof_metadata_header_binding_v0(
+    metadata: dict[str, Any],
+    header: dict[str, Any],
+) -> None:
+    """Fail closed unless proof metadata is exactly bound to a header."""
+
+    validate_proof_metadata_v0(metadata)
+    validate_header_v0(header)
+    if metadata["chain_id"] != header["chain_id"]:
+        raise ValueError("proof_metadata/header chain_id mismatch")
+    if metadata["height"] != header["height"]:
+        raise ValueError("proof_metadata/header height mismatch")
+    for key in (
+        "pre_state_root",
+        "post_state_root",
+        "tx_root",
+        "evidence_root",
+        "body_root",
+    ):
+        if metadata[key] != header[key]:
+            raise ValueError(f"proof_metadata/header {key} mismatch")
+    if proof_metadata_hash_v0(metadata) != header["proof_journal_hash"]:
+        raise ValueError("proof_metadata/header proof_journal_hash mismatch")
 
 
 def validate_checkpoint_v0(checkpoint: dict[str, Any]) -> None:

@@ -4,7 +4,10 @@ use base64::Engine;
 use risc0_zkvm::{default_prover, ExecutorEnv, Receipt};
 use serde_json::{json, Value};
 
-use tau_state_proof_risc0_methods::{TAU_STATE_PROOF_GUEST_ELF, TAU_STATE_PROOF_GUEST_ID};
+use tau_state_proof_risc0_methods::{
+    TAU_STATE_PROOF_RISC0_GUEST_ELF as TAU_STATE_PROOF_GUEST_ELF,
+    TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
+};
 use tau_state_proof_risc0_shared::{
     txs_commitment_v1, ChainBalanceV1, DexSnapshotV1, DexStateV1, StateProofInputV1,
     StateProofJournalV1, TauTxAppOpsV1, TauTxV1, PROOF_TYPE,
@@ -70,7 +73,8 @@ fn handle_generate(req: &Value) {
     if expected_post_app_hash_hex.is_empty() {
         die("tau_state.app_hash missing/empty (app bridge not enabled?)");
     }
-    let expected_post_app_hash = parse_hex32(&expected_post_app_hash_hex).unwrap_or_else(|e| die(&e));
+    let expected_post_app_hash =
+        parse_hex32(&expected_post_app_hash_hex).unwrap_or_else(|e| die(&e));
 
     let context = req.get("context").cloned().unwrap_or(Value::Null);
     if !context.is_object() {
@@ -91,7 +95,10 @@ fn handle_generate(req: &Value) {
     let (pre_app_hash_present, pre_app_hash) = if pre_app_hash_hex.is_empty() {
         (false, [0u8; 32])
     } else {
-        (true, parse_hex32(&pre_app_hash_hex).unwrap_or_else(|e| die(&e)))
+        (
+            true,
+            parse_hex32(&pre_app_hash_hex).unwrap_or_else(|e| die(&e)),
+        )
     };
 
     let chain_balances_post = parse_chain_balances(
@@ -143,13 +150,19 @@ fn handle_generate(req: &Value) {
         die("journal.state_hash mismatch");
     }
 
-    let receipt_bytes =
-        bincode::serialize(&receipt).unwrap_or_else(|e| die(&format!("failed to serialize receipt: {e}")));
+    let receipt_bytes = bincode::serialize(&receipt)
+        .unwrap_or_else(|e| die(&format!("failed to serialize receipt: {e}")));
     let proof_b64 = base64::engine::general_purpose::STANDARD.encode(receipt_bytes);
 
     let mut meta = serde_json::Map::new();
-    meta.insert("risc0_image_id".to_string(), Value::String(hex_u32_words(TAU_STATE_PROOF_GUEST_ID)));
-    meta.insert("txs_commitment".to_string(), Value::String(hex_lower(&journal.txs_commitment)));
+    meta.insert(
+        "risc0_image_id".to_string(),
+        Value::String(hex_u32_words(TAU_STATE_PROOF_GUEST_ID)),
+    );
+    meta.insert(
+        "txs_commitment".to_string(),
+        Value::String(hex_lower(&journal.txs_commitment)),
+    );
     meta.insert(
         "pre_app_hash".to_string(),
         Value::String(if journal.pre_app_hash_present {
@@ -158,7 +171,10 @@ fn handle_generate(req: &Value) {
             "".to_string()
         }),
     );
-    meta.insert("post_app_hash".to_string(), Value::String(hex_lower(&journal.post_app_hash)));
+    meta.insert(
+        "post_app_hash".to_string(),
+        Value::String(hex_lower(&journal.post_app_hash)),
+    );
 
     let out = json!({
         "schema": "tau_state_proof",
@@ -196,7 +212,10 @@ fn try_verify(req: &Value) -> Result<(), String> {
         return Err("proof must be an object".into());
     }
 
-    let proof_type = proof.get("proof_type").and_then(Value::as_str).unwrap_or("");
+    let proof_type = proof
+        .get("proof_type")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
     }
@@ -305,7 +324,8 @@ fn validate_embedded_methods() {
 }
 
 fn parse_dex_snapshot_json(app_state_json: &str) -> Result<DexSnapshotV1, String> {
-    let v: Value = serde_json::from_str(app_state_json).map_err(|e| format!("app_state_pre invalid JSON: {e}"))?;
+    let v: Value = serde_json::from_str(app_state_json)
+        .map_err(|e| format!("app_state_pre invalid JSON: {e}"))?;
     if !v.is_object() {
         return Err("app_state_pre must be a JSON object".into());
     }
@@ -322,7 +342,10 @@ fn parse_chain_balances(v: Option<&Value>, name: &str) -> Vec<ChainBalanceV1> {
         if !pk.is_empty() {
             let n = amt
                 .as_u64()
-                .or_else(|| amt.as_i64().and_then(|i| if i >= 0 { Some(i as u64) } else { None }))
+                .or_else(|| {
+                    amt.as_i64()
+                        .and_then(|i| if i >= 0 { Some(i as u64) } else { None })
+                })
                 .unwrap_or_else(|| die(&format!("{name}: invalid amount for pubkey")));
             out.push(ChainBalanceV1 {
                 pubkey: pk.clone(),
@@ -339,7 +362,9 @@ fn parse_block_txs(v: Option<&Value>) -> Result<Vec<TauTxV1>, String> {
         .ok_or_else(|| "block.transactions must be a list".to_string())?;
     let mut out = Vec::with_capacity(txs.len());
     for tx in txs {
-        let tx_obj = tx.as_object().ok_or_else(|| "tx must be an object".to_string())?;
+        let tx_obj = tx
+            .as_object()
+            .ok_or_else(|| "tx must be an object".to_string())?;
         let sender = tx_obj
             .get("sender_pubkey")
             .and_then(Value::as_str)
@@ -391,8 +416,12 @@ fn parse_faucet(v4: &Value) -> Result<Vec<tau_state_proof_risc0_shared::FaucetMi
             if arr.len() != 3 {
                 return Err("faucet mint entry must have length 3".into());
             }
-            let pk = arr[0].as_str().ok_or_else(|| "mint pubkey must be a string".to_string())?;
-            let asset = arr[1].as_str().ok_or_else(|| "mint asset must be a string".to_string())?;
+            let pk = arr[0]
+                .as_str()
+                .ok_or_else(|| "mint pubkey must be a string".to_string())?;
+            let asset = arr[1]
+                .as_str()
+                .ok_or_else(|| "mint asset must be a string".to_string())?;
             let amount = arr[2]
                 .as_u64()
                 .ok_or_else(|| "mint amount must be a non-negative int".to_string())?;
@@ -403,10 +432,21 @@ fn parse_faucet(v4: &Value) -> Result<Vec<tau_state_proof_risc0_shared::FaucetMi
             });
             continue;
         }
-        let obj = entry.as_object().ok_or_else(|| "mint entry must be list or object".to_string())?;
-        let pk = obj.get("pubkey").and_then(Value::as_str).ok_or_else(|| "mint pubkey missing".to_string())?;
-        let asset = obj.get("asset").and_then(Value::as_str).ok_or_else(|| "mint asset missing".to_string())?;
-        let amount = obj.get("amount").and_then(Value::as_u64).ok_or_else(|| "mint amount missing".to_string())?;
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| "mint entry must be list or object".to_string())?;
+        let pk = obj
+            .get("pubkey")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "mint pubkey missing".to_string())?;
+        let asset = obj
+            .get("asset")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "mint asset missing".to_string())?;
+        let amount = obj
+            .get("amount")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| "mint amount missing".to_string())?;
         out.push(tau_state_proof_risc0_shared::FaucetMintV1 {
             pubkey: pk.to_string(),
             asset: asset.to_string(),
@@ -431,32 +471,78 @@ fn parse_intents(v2: &Value) -> Result<Vec<tau_state_proof_risc0_shared::SignedI
                 .ok_or_else(|| "intent must be an object".to_string())?;
             let sig = pair[1].as_str().map(|s| s.to_string());
             let intent = parse_intent_obj(intent_obj)?;
-            out.push(tau_state_proof_risc0_shared::SignedIntentV1 { intent, signature: sig });
+            out.push(tau_state_proof_risc0_shared::SignedIntentV1 {
+                intent,
+                signature: sig,
+            });
             continue;
         }
-        let obj = entry.as_object().ok_or_else(|| "intent entry must be [intent, sig] or object".to_string())?;
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| "intent entry must be [intent, sig] or object".to_string())?;
         let intent = parse_intent_obj(obj)?;
-        out.push(tau_state_proof_risc0_shared::SignedIntentV1 { intent, signature: None });
+        out.push(tau_state_proof_risc0_shared::SignedIntentV1 {
+            intent,
+            signature: None,
+        });
     }
     Ok(out)
 }
 
-fn parse_intent_obj(obj: &serde_json::Map<String, Value>) -> Result<tau_state_proof_risc0_shared::DexIntentV1, String> {
-    let module = obj.get("module").and_then(Value::as_str).ok_or_else(|| "intent.module missing".to_string())?;
-    let version = obj.get("version").and_then(Value::as_str).ok_or_else(|| "intent.version missing".to_string())?;
-    let kind = obj.get("kind").and_then(Value::as_str).ok_or_else(|| "intent.kind missing".to_string())?;
-    let intent_id = obj.get("intent_id").and_then(Value::as_str).ok_or_else(|| "intent.intent_id missing".to_string())?;
-    let sender = obj.get("sender_pubkey").and_then(Value::as_str).ok_or_else(|| "intent.sender_pubkey missing".to_string())?;
-    let deadline = obj.get("deadline").and_then(Value::as_u64).ok_or_else(|| "intent.deadline missing".to_string())?;
-    let salt = obj.get("salt").and_then(Value::as_str).map(|s| s.to_string());
+fn parse_intent_obj(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<tau_state_proof_risc0_shared::DexIntentV1, String> {
+    let module = obj
+        .get("module")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "intent.module missing".to_string())?;
+    let version = obj
+        .get("version")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "intent.version missing".to_string())?;
+    let kind = obj
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "intent.kind missing".to_string())?;
+    let intent_id = obj
+        .get("intent_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "intent.intent_id missing".to_string())?;
+    let sender = obj
+        .get("sender_pubkey")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "intent.sender_pubkey missing".to_string())?;
+    let deadline = obj
+        .get("deadline")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "intent.deadline missing".to_string())?;
+    let salt = obj
+        .get("salt")
+        .and_then(Value::as_str)
+        .map(|s| s.to_string());
 
     match kind {
         "CREATE_POOL" => {
-            let asset0 = obj.get("asset0").and_then(Value::as_str).ok_or_else(|| "intent.asset0 missing".to_string())?;
-            let asset1 = obj.get("asset1").and_then(Value::as_str).ok_or_else(|| "intent.asset1 missing".to_string())?;
-            let fee_bps = obj.get("fee_bps").and_then(Value::as_u64).ok_or_else(|| "intent.fee_bps missing".to_string())?;
-            let amount0 = obj.get("amount0").and_then(Value::as_u64).ok_or_else(|| "intent.amount0 missing".to_string())?;
-            let amount1 = obj.get("amount1").and_then(Value::as_u64).ok_or_else(|| "intent.amount1 missing".to_string())?;
+            let asset0 = obj
+                .get("asset0")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset0 missing".to_string())?;
+            let asset1 = obj
+                .get("asset1")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset1 missing".to_string())?;
+            let fee_bps = obj
+                .get("fee_bps")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.fee_bps missing".to_string())?;
+            let amount0 = obj
+                .get("amount0")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount0 missing".to_string())?;
+            let amount1 = obj
+                .get("amount1")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount1 missing".to_string())?;
             Ok(tau_state_proof_risc0_shared::DexIntentV1::CreatePool(
                 tau_state_proof_risc0_shared::CreatePoolIntentV1 {
                     module: module.to_string(),
@@ -474,12 +560,30 @@ fn parse_intent_obj(obj: &serde_json::Map<String, Value>) -> Result<tau_state_pr
             ))
         }
         "SWAP_EXACT_IN" => {
-            let pool_id = obj.get("pool_id").and_then(Value::as_str).ok_or_else(|| "intent.pool_id missing".to_string())?;
-            let asset_in = obj.get("asset_in").and_then(Value::as_str).ok_or_else(|| "intent.asset_in missing".to_string())?;
-            let asset_out = obj.get("asset_out").and_then(Value::as_str).ok_or_else(|| "intent.asset_out missing".to_string())?;
-            let amount_in = obj.get("amount_in").and_then(Value::as_u64).ok_or_else(|| "intent.amount_in missing".to_string())?;
-            let min_amount_out = obj.get("min_amount_out").and_then(Value::as_u64).ok_or_else(|| "intent.min_amount_out missing".to_string())?;
-            let recipient = obj.get("recipient").and_then(Value::as_str).ok_or_else(|| "intent.recipient missing".to_string())?;
+            let pool_id = obj
+                .get("pool_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.pool_id missing".to_string())?;
+            let asset_in = obj
+                .get("asset_in")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset_in missing".to_string())?;
+            let asset_out = obj
+                .get("asset_out")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.asset_out missing".to_string())?;
+            let amount_in = obj
+                .get("amount_in")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount_in missing".to_string())?;
+            let min_amount_out = obj
+                .get("min_amount_out")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.min_amount_out missing".to_string())?;
+            let recipient = obj
+                .get("recipient")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.recipient missing".to_string())?;
             Ok(tau_state_proof_risc0_shared::DexIntentV1::SwapExactIn(
                 tau_state_proof_risc0_shared::SwapExactInIntentV1 {
                     module: module.to_string(),
