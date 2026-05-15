@@ -453,6 +453,20 @@ python3 tools/zeno_ledger_node.py create-token \
   --creator-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ```
 
+For execution scaling analysis, build a conservative conflict graph and
+deterministic parallel schedule from a ZenoLedger body or transaction list:
+
+```bash
+python3 tools/zeno_ledger_conflict_graph.py \
+  --transactions /path/to/transactions.json \
+  --max-parallel-components 8 \
+  --out /tmp/zeno-ledger-conflict-schedule.json
+```
+
+The scheduler treats each connected component as one task. Independent tasks can
+run in the same wave; transactions inside a conflicted component retain their
+deterministic order.
+
 This is the first public-node layer for ZenoLedger. The node bootstraps from a
 bundle, verifies the ledger, emits a watcher attestation, and serves
 `/health`, `/status`, `/features`, `/tokens`, `/network`, `/live`,

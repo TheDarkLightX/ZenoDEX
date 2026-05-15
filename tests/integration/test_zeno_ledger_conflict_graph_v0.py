@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.integration.zeno_ledger_conflict_graph_v0 import (
     GLOBAL_DEX_CELL_V0,
     build_conflict_graph_v0,
+    build_conflict_schedule_v0,
     touched_cells_for_transaction_v0,
     transactions_conflict_v0,
 )
@@ -60,6 +61,34 @@ def test_disjoint_pools_with_disjoint_users_do_not_conflict() -> None:
     graph = build_conflict_graph_v0([left, right])
     assert graph["edge_count"] == 0
     assert graph["component_count"] == 2
+    schedule = build_conflict_schedule_v0([left, right])
+    assert schedule["wave_count"] == 1
+    assert schedule["waves"][0]["parallel_task_count"] == 2
+    assert schedule["tasks"][0]["requires_sequential_order"] is False
+    assert schedule["tasks"][1]["requires_sequential_order"] is False
+
+
+def test_conflict_schedule_chunks_parallel_components_when_width_is_limited() -> None:
+    pool_ab = compute_pool_id(ASSET_A, ASSET_B, 30)
+    pool_bc = compute_pool_id(ASSET_B, ASSET_C, 30)
+    first = _swap_tx(sender=SENDER_A, pool_id=pool_ab, asset_in=ASSET_A, asset_out=ASSET_B, nonce=1)
+    second = _swap_tx(sender=SENDER_B, pool_id=pool_bc, asset_in=ASSET_C, asset_out=ASSET_B, nonce=2)
+    schedule = build_conflict_schedule_v0([first, second], max_parallel_components=1)
+    assert schedule["task_count"] == 2
+    assert schedule["wave_count"] == 2
+    assert schedule["waves"][0]["task_ids"] == [0]
+    assert schedule["waves"][1]["task_ids"] == [1]
+
+
+def test_conflict_schedule_marks_multi_tx_components_as_sequential() -> None:
+    pool_id = compute_pool_id(ASSET_A, ASSET_B, 30)
+    left = _swap_tx(sender=SENDER_A, pool_id=pool_id, asset_in=ASSET_A, asset_out=ASSET_B, nonce=1)
+    right = _swap_tx(sender=SENDER_B, pool_id=pool_id, asset_in=ASSET_B, asset_out=ASSET_A, nonce=2)
+    schedule = build_conflict_schedule_v0([left, right])
+    assert schedule["task_count"] == 1
+    assert schedule["wave_count"] == 1
+    assert schedule["tasks"][0]["transaction_indices"] == [0, 1]
+    assert schedule["tasks"][0]["requires_sequential_order"] is True
 
 
 def test_token_create_conflicts_by_registry_symbol_or_asset() -> None:
@@ -115,3 +144,4 @@ def test_conflict_graph_report_reads_transaction_list(tmp_path) -> None:
     assert report["transaction_count"] == 2
     assert report["edge_count"] == 1
     assert report["parallel_component_count"] == 1
+    assert report["conflict_schedule"]["task_count"] == 1

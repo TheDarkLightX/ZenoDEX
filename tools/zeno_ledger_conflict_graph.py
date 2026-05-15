@@ -13,7 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_ledger_conflict_graph_v0 import build_conflict_graph_v0
+from src.integration.zeno_ledger_conflict_graph_v0 import (
+    build_conflict_graph_v0,
+    build_conflict_schedule_v0,
+)
 from src.integration.zeno_ledger_v0 import validate_body_v0
 
 
@@ -48,9 +51,14 @@ def build_conflict_graph_report_v0(
     *,
     body_path: Path | None = None,
     txs_path: Path | None = None,
+    max_parallel_components: int | None = None,
 ) -> dict[str, Any]:
     transactions = _transactions_from_input(body_path=body_path, txs_path=txs_path)
     graph = build_conflict_graph_v0(transactions)
+    schedule = build_conflict_schedule_v0(
+        transactions,
+        max_parallel_components=max_parallel_components,
+    )
     return {
         "schema": "zenodex.zeno_ledger.conflict_graph_report.v0",
         "ok": True,
@@ -63,6 +71,7 @@ def build_conflict_graph_report_v0(
         "edge_count": graph["edge_count"],
         "parallel_component_count": graph["component_count"],
         "conflict_graph": graph,
+        "conflict_schedule": schedule,
     }
 
 
@@ -71,6 +80,11 @@ def _build_parser() -> argparse.ArgumentParser:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--body", type=Path, help="ZenoLedger body JSON")
     source.add_argument("--transactions", type=Path, help="JSON list of transactions")
+    parser.add_argument(
+        "--max-parallel-components",
+        type=int,
+        help="Limit scheduled components per wave; omit to schedule all independent components together.",
+    )
     parser.add_argument("--out", type=Path)
     return parser
 
@@ -82,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         report = build_conflict_graph_report_v0(
             body_path=args.body,
             txs_path=args.transactions,
+            max_parallel_components=args.max_parallel_components,
         )
         if args.out is not None:
             _write_json(args.out, report)
