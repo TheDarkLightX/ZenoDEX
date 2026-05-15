@@ -176,7 +176,20 @@ def evaluate_proof_mining_claimability(
 
     sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
     checks["sender_valid"] = True
-    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=False)
+    try:
+        claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    except (TypeError, ValueError) as exc:
+        return ProofMiningClaimabilityStatus(
+            enabled=True,
+            claimable=False,
+            error=str(exc),
+            reward_pool_pubkey=canonical_pool,
+            proposal_hash=None,
+            reward_amount=None,
+            reward_pool_before=None,
+            reward_pool_after=None,
+            checks=checks,
+        )
     checks["claim_valid"] = True
     if proof_mining_context_obj is not None:
         verified_context = proof_mining_context_from_obj(proof_mining_context_obj)
@@ -221,18 +234,21 @@ def evaluate_proof_mining_claimability(
                 reward_pool_balance=actual_pool_balance,
                 claim_artifact=claim_artifact,
             )
-        next_state, result = apply_proof_mining_claim(
-            runtime_state=runtime_state,
-            claim_artifact=claim_artifact,
-            actual_reward_pool_balance=actual_pool_balance,
-            proof_mining_context=verified_context,
-        )
-        manager_ok = bool(result.ok and result.effects is not None)
-        manager_error = result.error_message
-        if manager_ok:
-            reward_pool_before = int(runtime_state.snapshot.reward_pool_balance)
-            reward_pool_after = int(next_state.snapshot.reward_pool_balance)
-            reward_amount = int(result.effects.get("reward_amount", reward_pool_before - reward_pool_after))
+        try:
+            next_state, result = apply_proof_mining_claim(
+                runtime_state=runtime_state,
+                claim_artifact=claim_artifact,
+                actual_reward_pool_balance=actual_pool_balance,
+                proof_mining_context=verified_context,
+            )
+            manager_ok = bool(result.ok and result.effects is not None)
+            manager_error = result.error_message
+            if manager_ok:
+                reward_pool_before = int(runtime_state.snapshot.reward_pool_balance)
+                reward_pool_after = int(next_state.snapshot.reward_pool_balance)
+                reward_amount = int(result.effects.get("reward_amount", reward_pool_before - reward_pool_after))
+        except (TypeError, ValueError) as exc:
+            manager_error = str(exc)
     elif (
         checks["winner_matches_sender"]
         and checks["proposal_hash_matches_context"]

@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from ...agents.policy_artifacts import TauPolicyBundle
 from ...agents.strategy_ir import AUTOTRADER_TAU_POLICY_SPECS
 
-
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 
 
@@ -31,10 +30,7 @@ def check_strategy_policy_bundle_contract(bundle: TauPolicyBundle) -> StrategyPo
     source_artifact_hash_ok = bool(bundle.source_artifact_hash)
     canonical_specs_ok = bundle.required_spec_ids == AUTOTRADER_TAU_POLICY_SPECS
     receipt = dict(bundle.compile_contract_tau_receipt)
-    compile_contract_ok = (
-        bool(receipt.get("expected_ok"))
-        and receipt.get("spec_id") == "autotrader_compile_contract_v1"
-    )
+    compile_contract_ok = bool(receipt.get("expected_ok")) and receipt.get("spec_id") == "autotrader_compile_contract_v1"
     witness_receipt = dict(bundle.compilation_witness_tau_receipt)
     compilation_witness_ok = (
         bool(witness_receipt.get("expected_ok"))
