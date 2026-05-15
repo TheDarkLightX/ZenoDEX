@@ -6,13 +6,12 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
-    append_dex_transaction_v0,
     load_node_status_v0,
     make_node_http_server_v0,
     pull_live_from_peer_v0,
@@ -25,6 +24,21 @@ def _read_url_json(url: str) -> dict[str, object]:
     with urlopen(url, timeout=5) as response:  # noqa: S310 - local test server
         payload = response.read().decode("utf-8")
     obj = json.loads(payload)
+    assert isinstance(obj, dict)
+    return obj
+
+
+def _post_url_json(url: str, value: dict[str, object]) -> dict[str, object]:
+    payload = json.dumps(value, sort_keys=True).encode("utf-8")
+    request = Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=5) as response:  # noqa: S310 - local test server
+        body = response.read().decode("utf-8")
+    obj = json.loads(body)
     assert isinstance(obj, dict)
     return obj
 
@@ -90,45 +104,65 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     peer_node_dir = tmp_path / "node-c"
     shutil.copytree(node_dir, peer_node_dir)
 
-    asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
-    asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
-    append_report = append_dex_transaction_v0(
+    server = make_node_http_server_v0(
         data_dir=node_dir,
-        time_ms=1_778_731_123_000,
-        tx={
-            "tx_id": "node-live-swap-v0",
-            "block_timestamp": 1_778_731_123,
-            "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-            "operations": {
-                "2": [
-                    {
-                        "module": "TauSwap",
-                        "version": "0.1",
-                        "kind": "SWAP_EXACT_IN",
-                        "intent_id": "0x" + "bb" * 32,
-                        "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-                        "deadline": 1_999_999_999,
-                        "nonce": 5,
-                        "pool_id": compute_pool_id(asset_a, asset_b, 30),
-                        "asset_in": asset_a,
-                        "asset_out": asset_b,
-                        "amount_in": 100,
-                        "min_amount_out": 1,
-                        "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                    }
-                ]
-            },
-        },
+        host="127.0.0.1",
+        port=0,
+        enable_testnet_intake=True,
+        enable_testnet_faucet=True,
     )
-    assert append_report["ok"] is True
-    assert append_report["height"] == 6
-    assert append_report["receipt"]["accepted"] is True
-
-    server = make_node_http_server_v0(data_dir=node_dir, host="127.0.0.1", port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         host, port = server.server_address
+        asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
+        asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
+        faucet_report = _post_url_json(
+            f"http://{host}:{port}/faucet",
+            {
+                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "asset": asset_a,
+                "amount": 1234,
+                "time_ms": 1_778_731_122_000,
+                "tx_id": "node-http-faucet-v0",
+            },
+        )
+        assert faucet_report["ok"] is True
+        assert faucet_report["height"] == 6
+        append_report = _post_url_json(
+            f"http://{host}:{port}/tx",
+            {
+                "time_ms": 1_778_731_123_000,
+                "tx": {
+                    "tx_id": "node-live-swap-v0",
+                    "block_timestamp": 1_778_731_123,
+                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "operations": {
+                        "2": [
+                            {
+                                "module": "TauSwap",
+                                "version": "0.1",
+                                "kind": "SWAP_EXACT_IN",
+                                "intent_id": "0x" + "bb" * 32,
+                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "deadline": 1_999_999_999,
+                                "nonce": 5,
+                                "pool_id": compute_pool_id(asset_a, asset_b, 30),
+                                "asset_in": asset_a,
+                                "asset_out": asset_b,
+                                "amount_in": 100,
+                                "min_amount_out": 1,
+                                "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                            }
+                        ]
+                    },
+                },
+            },
+        )
+        assert append_report["ok"] is True
+        assert append_report["height"] == 7
+        assert append_report["receipt"]["accepted"] is True
+
         health = _read_url_json(f"http://{host}:{port}/health")
         served_status = _read_url_json(f"http://{host}:{port}/status")
         features = _read_url_json(f"http://{host}:{port}/features")
@@ -146,14 +180,14 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert features["covered_feature_count"] == 10
         assert len(tokens["test_token_catalog"]) == 3
         assert live["live"] is True
-        assert live["state"]["latest_height"] == 6
+        assert live["state"]["latest_height"] == 7
         assert pull_report["ok"] is True
-        assert pull_report["pulled_count"] == 1
-        assert pull_report["to_height"] == 6
-        peer_live = _read_url_json(f"http://{host}:{port}/live/header/6")
-        assert peer_live["height"] == 6
+        assert pull_report["pulled_count"] == 2
+        assert pull_report["to_height"] == 7
+        peer_live = _read_url_json(f"http://{host}:{port}/live/header/7")
+        assert peer_live["height"] == 7
         assert load_node_status_v0(peer_node_dir)["ok"] is True
-        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 6
+        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 7
         assert testnet_status["watcher_count"] == 2
     finally:
         server.shutdown()

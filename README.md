@@ -359,7 +359,15 @@ python3 tools/zeno_ledger_node.py serve \
   --host 127.0.0.1 \
   --port 8788 \
   --peer-url http://127.0.0.1:8787 \
-  --poll-seconds 5
+  --poll-seconds 5 \
+  --enable-testnet-intake \
+  --enable-testnet-faucet
+
+python3 tools/zeno_ledger_node.py faucet \
+  --data-dir /tmp/zeno-ledger-node-a \
+  --to-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --asset 0x1111111111111111111111111111111111111111111111111111111111111111 \
+  --amount 100000
 ```
 
 This is the first public-node layer: it bootstraps from a bundle, verifies the
@@ -372,8 +380,10 @@ testnet-only faucet posture for feature testing. The `append` command writes
 post-bootstrap testnet DEX blocks under the node data directory. The `pull-live`
 command fetches live block bodies from a peer and accepts them only after local
 deterministic replay produces the same header. A served node can also poll peer
-URLs with `--peer-url` and `--poll-seconds`. Live P2P block gossip and validator
-scheduling remain future network work.
+URLs with `--peer-url` and `--poll-seconds`. Testnet HTTP intake is disabled by
+default; `--enable-testnet-intake` opens `POST /tx`, and
+`--enable-testnet-faucet` opens `POST /faucet` for bounded fake-token minting.
+Live P2P block gossip and validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer:

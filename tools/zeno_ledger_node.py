@@ -30,11 +30,22 @@ from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
     INGRESS_RECEIPT_SCHEMA_V0,
+    build_checkpoint_v0,
+    build_header_v0,
+    build_tx_receipt_v0,
+    canonical_body_root_v0,
     canonical_header_hash_v0,
+    compute_app_hash_v0,
+    compute_evidence_root_v0,
+    compute_ingress_root_v0,
+    compute_tx_root_v0,
+    dex_state_root_v0,
     hash_v0,
     tx_hash_v0,
     validate_body_v0,
 )
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
+from src.state.canonical import canonical_hex_fixed_allow_0x
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_CHAIN_ID,
@@ -51,6 +62,9 @@ NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
+MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
+MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
+TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -462,6 +476,66 @@ def _body_for_tx_v0(
     return body
 
 
+def _read_http_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
+    raw_length = handler.headers.get("Content-Length")
+    if raw_length is None:
+        raise ValueError("Content-Length is required")
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("Content-Length must be an integer") from exc
+    if length < 0 or length > MAX_HTTP_POST_BYTES:
+        raise ValueError("request body too large")
+    payload = handler.rfile.read(length)
+    obj = json.loads(payload.decode("utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError("request body must be a JSON object")
+    return obj
+
+
+def _require_pubkey_v0(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=48, name=name)
+
+
+def _require_asset_v0(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+
+
+def _require_positive_amount_v0(value: object, *, name: str, maximum: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive int")
+    if value > maximum:
+        raise ValueError(f"{name} exceeds maximum")
+    return int(value)
+
+
+def _faucet_tx_v0(
+    *,
+    tx_id: str,
+    to_pubkey: str,
+    asset: str,
+    amount: int,
+) -> dict[str, Any]:
+    return {
+        "tx_id": tx_id,
+        "kind": TESTNET_FAUCET_KIND,
+        "to_pubkey": to_pubkey,
+        "asset": asset,
+        "amount": amount,
+    }
+
+
+def _is_faucet_body_v0(body: Mapping[str, Any]) -> bool:
+    txs = body.get("transactions")
+    if not isinstance(txs, list) or len(txs) != 1 or not isinstance(txs[0], Mapping):
+        return False
+    return txs[0].get("kind") == TESTNET_FAUCET_KIND
+
+
 def _latest_live_state_path(data_dir: Path) -> Path:
     return data_dir / "live_state.json"
 
@@ -581,6 +655,167 @@ def append_dex_transaction_v0(
     return {**report, "append_report_path": str(append_report_path)}
 
 
+def _build_faucet_block_from_body_v0(
+    *,
+    data_dir: Path,
+    body: Mapping[str, Any],
+    time_ms: int,
+    prev_header_path: Path,
+    pre_snapshot_path: Path,
+    sequencer_set_hash: str,
+    config_digest: str,
+    module_versions_digest: str,
+) -> dict[str, Any]:
+    body_obj = dict(body)
+    validate_body_v0(body_obj)
+    if not _is_faucet_body_v0(body_obj):
+        raise ValueError("body is not a testnet faucet body")
+    tx = dict(body_obj["transactions"][0])
+    to_pubkey = _require_pubkey_v0(tx.get("to_pubkey"), name="faucet.to_pubkey")
+    asset = _require_asset_v0(tx.get("asset"), name="faucet.asset")
+    amount = _require_positive_amount_v0(
+        tx.get("amount"),
+        name="faucet.amount",
+        maximum=MAX_TESTNET_FAUCET_AMOUNT,
+    )
+    pre_snapshot = _load_json_object(pre_snapshot_path)
+    pre_state = state_from_snapshot(pre_snapshot)
+    pre_state_root = dex_state_root_v0(pre_state)
+    pre_state.balances.add(to_pubkey, asset, amount)
+    post_state_root = dex_state_root_v0(pre_state)
+    post_snapshot = snapshot_from_state(pre_state).data
+    height = int(body_obj["height"])
+    chain_id = str(body_obj["chain_id"])
+    prev_header = dict(_load_json_object(prev_header_path))
+    prev_header_hash = canonical_header_hash_v0(prev_header)
+    evidence_root = compute_evidence_root_v0(body_obj["evidence"])  # type: ignore[arg-type]
+    app_hash = compute_app_hash_v0(
+        {
+            "chain_id": chain_id,
+            "height": height,
+            "post_state_root": post_state_root,
+            "evidence_root": evidence_root,
+            "config_digest": config_digest,
+            "module_versions_digest": module_versions_digest,
+        }
+    )
+    header = build_header_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        prev_header_hash=prev_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        ingress_root=compute_ingress_root_v0(body_obj["ingress"]),  # type: ignore[arg-type]
+        tx_root=compute_tx_root_v0(body_obj["transactions"]),  # type: ignore[arg-type]
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+        app_hash=app_hash,
+        evidence_root=evidence_root,
+        body_root=canonical_body_root_v0(body_obj),
+        data_availability_root=ZERO_ROOT,
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=config_digest,
+        module_versions_digest=module_versions_digest,
+        signature_set_root=ZERO_ROOT,
+    )
+    checkpoint = build_checkpoint_v0(header)
+    header_hash = canonical_header_hash_v0(header)
+    tx_hash = tx_hash_v0(tx)
+    receipt = build_tx_receipt_v0(
+        tx_hash=tx_hash,
+        height=height,
+        index=0,
+        accepted=True,
+        error_code=None,
+        state_changed=True,
+    )
+    live_ledger_dir = data_dir / "live_ledger"
+    header_path = live_ledger_dir / "headers" / f"{height}.json"
+    body_path = live_ledger_dir / "bodies" / f"{height}.json"
+    checkpoint_path = live_ledger_dir / "checkpoints" / f"{height}.json"
+    receipts_path = live_ledger_dir / "receipts" / f"{height}.json"
+    snapshot_path = live_ledger_dir / "snapshots" / f"{height}.json"
+    _write_json(header_path, header)
+    _write_json(body_path, body_obj)
+    _write_json(checkpoint_path, checkpoint)
+    _write_json(receipts_path, [receipt])
+    _write_json(snapshot_path, post_snapshot)
+    return {
+        "height": height,
+        "tx_hash": tx_hash,
+        "header_hash": header_hash,
+        "app_hash": app_hash,
+        "body_path": str(body_path),
+        "header_path": str(header_path),
+        "checkpoint_path": str(checkpoint_path),
+        "receipts_path": str(receipts_path),
+        "post_snapshot_path": str(snapshot_path),
+        "receipt": receipt,
+    }
+
+
+def append_testnet_faucet_v0(
+    *,
+    data_dir: Path,
+    to_pubkey: str,
+    asset: str,
+    amount: int,
+    time_ms: int,
+    tx_id: str = "node-testnet-faucet-v0",
+) -> dict[str, Any]:
+    """Append a testnet-only faucet mint to the node-local live ledger."""
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    latest_height = int(base["latest_height"])
+    height = latest_height + 1
+    tx = _faucet_tx_v0(
+        tx_id=tx_id,
+        to_pubkey=_require_pubkey_v0(to_pubkey, name="to_pubkey"),
+        asset=_require_asset_v0(asset, name="asset"),
+        amount=_require_positive_amount_v0(amount, name="amount", maximum=MAX_TESTNET_FAUCET_AMOUNT),
+    )
+    body = _body_for_tx_v0(
+        chain_id=str(public_manifest["chain_id"]),
+        height=height,
+        time_ms=time_ms,
+        sequencer_id=str(public_manifest["sequencer_id"]),
+        tx=tx,
+    )
+    block_report = _build_faucet_block_from_body_v0(
+        data_dir=data_dir,
+        body=body,
+        time_ms=time_ms,
+        prev_header_path=Path(str(base["prev_header_path"])),
+        pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+        sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+        config_digest=str(bootstrap_manifest["config_digest"]),
+        module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+    )
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(block_report["header_path"]),
+        snapshot_path=str(block_report["post_snapshot_path"]),
+        header_hash=str(block_report["header_hash"]),
+        app_hash=str(block_report["app_hash"]),
+    )
+    report = {
+        "schema": NODE_APPEND_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "node_id": node_status["node_id"],
+        "append_kind": "testnet_faucet",
+        **block_report,
+    }
+    append_report_path = data_dir / "append_reports" / f"{height}.json"
+    _write_json(append_report_path, report)
+    return {**report, "append_report_path": str(append_report_path)}
+
+
 def _live_artifact_path(*, data_dir: Path, kind: str, height: int) -> Path:
     if kind == "header":
         return data_dir / "live_ledger" / "headers" / f"{height}.json"
@@ -637,24 +872,36 @@ def pull_live_from_peer_v0(
     for height in range(local_latest + 1, peer_latest + 1):
         peer_body = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"))
         peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
-        body_path = data_dir / "pulled_bodies" / f"{height}.json"
-        _write_json(body_path, peer_body)
-        block_report = build_local_block_v0(
-            body_path=body_path,
-            out_dir=live_ledger_dir,
-            time_ms=int(peer_header["time_ms"]),
-            pre_snapshot_path=current_pre_snapshot,
-            prev_header_path=current_prev_header,
-            trusted_prev_header_hash=ZERO_ROOT,
-            sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
-            data_availability_root=ZERO_ROOT,
-            proof_journal_hash=ZERO_ROOT,
-            config_digest=str(bootstrap_manifest["config_digest"]),
-            module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
-            signature_set_root=ZERO_ROOT,
-            allow_missing_settlement=True,
-            require_intent_signatures=False,
-        )
+        if _is_faucet_body_v0(peer_body):
+            block_report = _build_faucet_block_from_body_v0(
+                data_dir=data_dir,
+                body=peer_body,
+                time_ms=int(peer_header["time_ms"]),
+                prev_header_path=current_prev_header,
+                pre_snapshot_path=current_pre_snapshot,
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        else:
+            body_path = data_dir / "pulled_bodies" / f"{height}.json"
+            _write_json(body_path, peer_body)
+            block_report = build_local_block_v0(
+                body_path=body_path,
+                out_dir=live_ledger_dir,
+                time_ms=int(peer_header["time_ms"]),
+                pre_snapshot_path=current_pre_snapshot,
+                prev_header_path=current_prev_header,
+                trusted_prev_header_hash=ZERO_ROOT,
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                data_availability_root=ZERO_ROOT,
+                proof_journal_hash=ZERO_ROOT,
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+                signature_set_root=ZERO_ROOT,
+                allow_missing_settlement=True,
+                require_intent_signatures=False,
+            )
         local_header = _load_json_object(Path(str(block_report["header_path"])))
         if dict(local_header) != dict(peer_header):
             raise ValueError(f"peer header mismatch at height {height}")
@@ -715,10 +962,18 @@ def _load_optional_json(path_text: object) -> object | None:
     return _load_json_object(path)
 
 
-def make_node_http_server_v0(*, data_dir: Path, host: str, port: int) -> ThreadingHTTPServer:
+def make_node_http_server_v0(
+    *,
+    data_dir: Path,
+    host: str,
+    port: int,
+    enable_testnet_intake: bool = False,
+    enable_testnet_faucet: bool = False,
+) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
 
     root = data_dir.resolve()
+    append_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "ZenoLedgerNode/0"
@@ -805,6 +1060,53 @@ def make_node_http_server_v0(*, data_dir: Path, host: str, port: int) -> Threadi
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
+        def do_POST(self) -> None:  # noqa: N802
+            try:
+                if self.path == "/tx":
+                    if not enable_testnet_intake:
+                        self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    tx_raw = payload.get("tx", payload)
+                    if not isinstance(tx_raw, Mapping):
+                        self._send_json({"ok": False, "error": "tx_must_be_object"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    time_ms = payload.get("time_ms")
+                    if time_ms is None:
+                        time_ms = int(time.time() * 1000)
+                    if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
+                        self._send_json({"ok": False, "error": "time_ms_must_be_nonnegative_int"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    with append_lock:
+                        report = append_dex_transaction_v0(data_dir=root, tx=tx_raw, time_ms=int(time_ms))
+                    self._send_json(report, status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST)
+                    return
+                if self.path == "/faucet":
+                    if not enable_testnet_faucet:
+                        self._send_json({"ok": False, "error": "testnet_faucet_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    time_ms = payload.get("time_ms")
+                    if time_ms is None:
+                        time_ms = int(time.time() * 1000)
+                    if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
+                        self._send_json({"ok": False, "error": "time_ms_must_be_nonnegative_int"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    with append_lock:
+                        report = append_testnet_faucet_v0(
+                            data_dir=root,
+                            to_pubkey=str(payload.get("to_pubkey", "")),
+                            asset=str(payload.get("asset", "")),
+                            amount=payload.get("amount"),
+                            tx_id=str(payload.get("tx_id", "node-testnet-faucet-v0")),
+                            time_ms=int(time_ms),
+                        )
+                    self._send_json(report)
+                    return
+                self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+
         def log_message(self, format: str, *args: object) -> None:
             return
 
@@ -842,13 +1144,21 @@ def serve_node_v0(
     port: int,
     peer_urls: list[str] | None = None,
     poll_seconds: int = 0,
+    enable_testnet_intake: bool = False,
+    enable_testnet_faucet: bool = False,
 ) -> None:
     _start_peer_follow_loop(
         data_dir=data_dir,
         peer_urls=list(peer_urls or []),
         poll_seconds=poll_seconds,
     )
-    server = make_node_http_server_v0(data_dir=data_dir, host=host, port=port)
+    server = make_node_http_server_v0(
+        data_dir=data_dir,
+        host=host,
+        port=port,
+        enable_testnet_intake=enable_testnet_intake,
+        enable_testnet_faucet=enable_testnet_faucet,
+    )
     address, actual_port = server.server_address
     print(
         json.dumps(
@@ -859,6 +1169,8 @@ def serve_node_v0(
                 "port": actual_port,
                 "peer_count": len(peer_urls or []),
                 "poll_seconds": poll_seconds,
+                "testnet_intake_enabled": enable_testnet_intake,
+                "testnet_faucet_enabled": enable_testnet_faucet,
                 "status_url": f"http://{address}:{actual_port}/status",
             },
             indent=2,
@@ -918,6 +1230,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             port=args.port,
             peer_urls=list(args.peer_url),
             poll_seconds=args.poll_seconds,
+            enable_testnet_intake=args.enable_testnet_intake,
+            enable_testnet_faucet=args.enable_testnet_faucet,
         )
     return 0
 
@@ -948,6 +1262,22 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_faucet(args: argparse.Namespace) -> int:
+    try:
+        report = append_testnet_faucet_v0(
+            data_dir=args.data_dir,
+            to_pubkey=args.to_pubkey,
+            asset=args.asset,
+            amount=args.amount,
+            tx_id=args.tx_id,
+            time_ms=args.time_ms,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     load_node_status_v0(args.data_dir)
     serve_node_v0(
@@ -956,6 +1286,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         port=args.port,
         peer_urls=list(args.peer_url),
         poll_seconds=args.poll_seconds,
+        enable_testnet_intake=args.enable_testnet_intake,
+        enable_testnet_faucet=args.enable_testnet_faucet,
     )
     return 0
 
@@ -989,6 +1321,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--port", type=int, default=8787)
     run.add_argument("--peer-url", action="append", default=[])
     run.add_argument("--poll-seconds", type=int, default=0)
+    run.add_argument("--enable-testnet-intake", action="store_true")
+    run.add_argument("--enable-testnet-faucet", action="store_true")
     run.set_defaults(func=_cmd_run)
 
     append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
@@ -1002,12 +1336,23 @@ def main(argv: list[str] | None = None) -> int:
     pull_live.add_argument("--peer-url", required=True)
     pull_live.set_defaults(func=_cmd_pull_live)
 
+    faucet = sub.add_parser("faucet", help="append a testnet-only faucet mint to the live ledger")
+    faucet.add_argument("--data-dir", required=True, type=Path)
+    faucet.add_argument("--to-pubkey", required=True)
+    faucet.add_argument("--asset", required=True)
+    faucet.add_argument("--amount", required=True, type=int)
+    faucet.add_argument("--tx-id", default="node-testnet-faucet-v0")
+    faucet.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
+    faucet.set_defaults(func=_cmd_faucet)
+
     serve = sub.add_parser("serve", help="serve an existing node data directory")
     serve.add_argument("--data-dir", required=True, type=Path)
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8787)
     serve.add_argument("--peer-url", action="append", default=[])
     serve.add_argument("--poll-seconds", type=int, default=0)
+    serve.add_argument("--enable-testnet-intake", action="store_true")
+    serve.add_argument("--enable-testnet-faucet", action="store_true")
     serve.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)
