@@ -599,6 +599,7 @@ claims:
         - ZenoLedgerZkTeeProofComposition.accepted_non_recursive_child_root_zero
         - ZenoLedgerZkTeeProofComposition.accepted_zk_program_verifier_distinct
         - ZenoLedgerZkTeeProofComposition.accepted_metadata_unique_under_digest_injective
+        - ZenoLedgerZkTeeProofComposition.accepted_bound_chain_bridge_nonempty
         - ZenoLedgerZkTeeProofComposition.apply_chunks_perm_invariant
 
   - id: py:zeno_ledger:risc0_proof_metadata_adapter_v0
