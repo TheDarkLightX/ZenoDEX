@@ -129,9 +129,12 @@ def _require_verifier_domain_id(value: Any, *, name: str) -> int:
     return domain_id
 
 
-def _require_verifier_threshold(value: Any, *, name: str, maximum: int) -> int:
+def _require_verifier_threshold(
+    value: Any, *, name: str, minimum: int, maximum: int
+) -> int:
+    """DbC: require protocol-bounded thresholds before admissibility checks."""
     threshold = _require_int(value, name=name)
-    if threshold <= 0 or threshold > maximum:
+    if threshold < minimum or threshold > maximum:
         raise ValueError(f"{name} out of range")
     return threshold
 
@@ -172,11 +175,13 @@ def _canonical_verifier_evidence(
     min_quorum = _require_verifier_threshold(
         min_verifier_quorum,
         name="min_verifier_quorum",
+        minimum=DEFAULT_MIN_VERIFIER_QUORUM,
         maximum=MAX_VERIFIER_QUORUM,
     )
     min_domain_diversity = _require_verifier_threshold(
         min_verifier_domain_diversity,
         name="min_verifier_domain_diversity",
+        minimum=DEFAULT_MIN_VERIFIER_DOMAIN_DIVERSITY,
         maximum=MAX_VERIFIER_DOMAIN_DIVERSITY,
     )
     if min_domain_diversity > min_quorum:

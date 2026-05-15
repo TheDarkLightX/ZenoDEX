@@ -10,7 +10,10 @@ from src.core.proof_mining_manager import (
     build_submit_proof_packet,
     preferred_proposal_slot,
 )
-from tools.permissionless_solver_proof_mining_claim import build_proof_mining_claim
+from tools.permissionless_solver_proof_mining_claim import (
+    build_proof_mining_claim,
+    proof_mining_claim_hash,
+)
 
 
 def _round_obj(*, miner_id: str = "alice", witness_sha256: str = "sha:a", improvement_u64: int = 7, job_digest: str = "job1") -> dict:
@@ -140,6 +143,37 @@ def test_build_submit_proof_packet_rejects_stale_snapshot_budget() -> None:
     snapshot = _snapshot(reward_pool_balance=19, total_paid=1)
     with pytest.raises(ValueError, match="reward_pool_before does not match snapshot"):
         build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=_verification_flags())
+
+
+def test_build_submit_proof_packet_rejects_claim_controlled_verifier_thresholds() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=7),
+        round_id="r-threshold-downgrade",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+        verifier_evidence=[{"verifier_id": 0, "domain_id": 0, "accepted": 1}],
+        allow_rejected=True,
+    )
+    claim["body"]["verifier_evidence"]["min_quorum"] = 1
+    claim["body"]["verifier_evidence"]["min_domain_diversity"] = 1
+    claim["body"]["conditions"]["verifier_quorum_ok"] = True
+    claim["body"]["conditions"]["verifier_diversity_ok"] = True
+    claim["body"]["conditions"]["admissible_expected_ok"] = True
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+
+    with pytest.raises(ValueError, match="min_verifier_quorum out of range"):
+        build_submit_proof_packet(
+            claim_artifact=claim,
+            snapshot=_snapshot(),
+            verification_flags=_verification_flags(),
+        )
 
 
 def test_build_submit_proof_packet_rejects_nonadmissible_verifier_evidence() -> None:

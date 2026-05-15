@@ -192,6 +192,54 @@ def test_build_proof_mining_claim_fails_closed_on_insufficient_verifier_quorum()
         )
 
 
+@pytest.mark.parametrize(
+    ("verifier_evidence", "min_quorum", "min_domain_diversity", "expected_error"),
+    [
+        (
+            [{"verifier_id": 0, "domain_id": 0, "accepted": 1}],
+            1,
+            1,
+            "min_verifier_quorum out of range",
+        ),
+        (
+            [
+                {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+                {"verifier_id": 1, "domain_id": 0, "accepted": 1},
+            ],
+            2,
+            1,
+            "min_verifier_domain_diversity out of range",
+        ),
+    ],
+)
+def test_validate_proof_mining_claim_rejects_claim_controlled_verifier_thresholds(
+    verifier_evidence: list[dict[str, int]],
+    min_quorum: int,
+    min_domain_diversity: int,
+    expected_error: str,
+) -> None:
+    claim = _build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=5),
+        round_id="round-proof-verifier-threshold-downgrade",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+        verifier_evidence=verifier_evidence,
+        allow_rejected=True,
+    )
+    claim["body"]["verifier_evidence"]["min_quorum"] = min_quorum
+    claim["body"]["verifier_evidence"]["min_domain_diversity"] = min_domain_diversity
+    claim["body"]["conditions"]["verifier_quorum_ok"] = True
+    claim["body"]["conditions"]["verifier_diversity_ok"] = True
+    claim["body"]["conditions"]["admissible_expected_ok"] = True
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+
+    with pytest.raises(ValueError, match=expected_error):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
 def test_validate_proof_mining_claim_rejects_verifier_domain_collapse() -> None:
     claim = _build_proof_mining_claim(
         round_obj=_round_obj(improvement_u64=5),
