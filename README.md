@@ -349,6 +349,7 @@ python3 tools/zeno_ledger_node.py join-network \
   --node-id operator-b \
   --bundle-root /tmp/zeno-ledger-public-testnet-synced \
   --data-dir /tmp/zeno-ledger-node-b \
+  --expected-network-config-hash <NETWORK_CONFIG_HASH> \
   --serve
 ```
 
@@ -472,7 +473,8 @@ check, and optional serving into one JSON-configured operator flow. The
 `check-peers` command compares network ID, chain ID, feature-suite hash, peer
 height, and the common header hash before an operator trusts a peer. The
 `write-network-config` and `join-network` commands let any operator join from
-one published URL.
+one published URL. Operators can pin `--expected-network-config-hash` when the
+URL is shared with a fingerprint.
 
 Live P2P block gossip and validator scheduling remain future network work.
 

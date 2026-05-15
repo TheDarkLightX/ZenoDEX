@@ -8,6 +8,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import pytest
+
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
@@ -334,6 +336,18 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                 json.dumps(public_network_config, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
+            with pytest.raises(ValueError, match="network config hash"):
+                join_public_node_from_network_config_url_v0(
+                    config_url=f"http://{mirror_host}:{mirror_port}/public_network_config.json",
+                    node_id="node-network-join-bad-hash",
+                    bundle_root=tmp_path / "network-join-bad-hash-bundle",
+                    data_dir=tmp_path / "node-network-join-bad-hash",
+                    host="127.0.0.1",
+                    port=None,
+                    poll_seconds=None,
+                    serve=False,
+                    expected_network_config_hash="0x" + "00" * 32,
+                )
             join_network_report = join_public_node_from_network_config_url_v0(
                 config_url=f"http://{mirror_host}:{mirror_port}/public_network_config.json",
                 node_id="node-network-join",
@@ -343,6 +357,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                 port=None,
                 poll_seconds=None,
                 serve=False,
+                expected_network_config_hash=str(public_network_config["network_config_hash"]),
             )
         finally:
             mirror_server.shutdown()
