@@ -10,8 +10,10 @@ from src.integration.zeno_ledger_v0 import (
     FORCED_INCLUSION_REQUEST_SCHEMA_V0,
     HEADER_SCHEMA_V0,
     INGRESS_RECEIPT_SCHEMA_V0,
+    PROOF_METADATA_SCHEMA_V0,
     build_checkpoint_v0,
     build_header_v0,
+    build_proof_metadata_v0,
     canonical_body_root_v0,
     canonical_header_hash_v0,
     compute_app_hash_v0,
@@ -21,10 +23,13 @@ from src.integration.zeno_ledger_v0 import (
     expected_header_roots_from_body_v0,
     hash_v0,
     merkle_root_v0,
+    proof_metadata_hash_v0,
     validate_checkpoint_header_binding_v0,
     validate_body_v0,
     validate_header_body_roots_v0,
     validate_header_v0,
+    validate_proof_metadata_header_binding_v0,
+    validate_proof_metadata_v0,
 )
 
 
@@ -128,6 +133,7 @@ def _header(
     body: dict[str, object] | None = None,
     ingress_root: str | None = None,
     tx_root: str | None = None,
+    proof_journal_hash: str = ZERO_ROOT,
 ) -> dict[str, object]:
     actual_body = _body() if body is None else body
     actual_ingress_root = ingress_root or compute_ingress_root_v0(actual_body["ingress"])  # type: ignore[arg-type]
@@ -157,10 +163,31 @@ def _header(
         evidence_root=evidence_root,
         body_root=canonical_body_root_v0(actual_body),
         data_availability_root=_root("da"),
-        proof_journal_hash=ZERO_ROOT,
+        proof_journal_hash=proof_journal_hash,
         config_digest=_root("config"),
         module_versions_digest=_root("modules"),
         signature_set_root=ZERO_ROOT,
+    )
+
+
+def _proof_metadata(*, header: dict[str, object], proof_kind: str = "risc0_zkvm_v0") -> dict[str, object]:
+    return build_proof_metadata_v0(
+        chain_id=str(header["chain_id"]),
+        height=int(header["height"]),
+        proof_kind=proof_kind,
+        program_id="risc0:zenodex-spot-transition-v1",
+        verifier_id="risc0:receipt-verifier-v1",
+        proof_commitment=_root("proof-commitment"),
+        public_input_hash=_root("public-input"),
+        journal_hash=_root("journal"),
+        pre_state_root=str(header["pre_state_root"]),
+        post_state_root=str(header["post_state_root"]),
+        tx_root=str(header["tx_root"]),
+        evidence_root=str(header["evidence_root"]),
+        body_root=str(header["body_root"]),
+        conflict_schedule_hash=_root("sequential-schedule"),
+        feature_suite_hash=_root("feature-suite"),
+        dependency_lock_hash=_root("dependency-lock"),
     )
 
 
@@ -324,3 +351,82 @@ def test_header_schema_is_explicit() -> None:
     header = _header()
     assert header["schema"] == HEADER_SCHEMA_V0
     validate_header_v0(header)
+
+
+def test_proof_metadata_hash_binds_header_roots() -> None:
+    header_without_proof = _header()
+    metadata = _proof_metadata(header=header_without_proof)
+    assert metadata["schema"] == PROOF_METADATA_SCHEMA_V0
+    header = _header(proof_journal_hash=proof_metadata_hash_v0(metadata))
+
+    validate_proof_metadata_header_binding_v0(metadata, header)
+
+
+def test_proof_metadata_header_binding_rejects_tampered_root() -> None:
+    header_without_proof = _header()
+    metadata = _proof_metadata(header=header_without_proof)
+    metadata_hash = proof_metadata_hash_v0(metadata)
+    header = _header(proof_journal_hash=metadata_hash)
+    tampered = dict(metadata)
+    tampered["post_state_root"] = _root("different-post")
+    with pytest.raises(ValueError, match="post_state_root mismatch"):
+        validate_proof_metadata_header_binding_v0(tampered, header)
+
+
+def test_proof_metadata_rejects_missing_commitment_and_wrong_kind() -> None:
+    header = _header()
+    metadata = _proof_metadata(header=header)
+    no_commitment = dict(metadata)
+    no_commitment["proof_commitment"] = ZERO_ROOT
+    with pytest.raises(ValueError, match="proof_commitment must be non-zero"):
+        validate_proof_metadata_v0(no_commitment)
+
+    bad_kind = dict(metadata)
+    bad_kind["proof_kind"] = "unknown_proof"
+    with pytest.raises(ValueError, match="proof_kind is not allowed"):
+        validate_proof_metadata_v0(bad_kind)
+
+
+def test_proof_metadata_rejects_placeholder_binding_roots() -> None:
+    header = _header()
+    metadata = _proof_metadata(header=header)
+    for key in (
+        "public_input_hash",
+        "journal_hash",
+        "pre_state_root",
+        "post_state_root",
+        "tx_root",
+        "evidence_root",
+        "body_root",
+        "conflict_schedule_hash",
+        "feature_suite_hash",
+        "dependency_lock_hash",
+    ):
+        bad = dict(metadata)
+        bad[key] = ZERO_ROOT
+        with pytest.raises(ValueError, match=rf"proof_metadata.{key} must be non-zero"):
+            validate_proof_metadata_v0(bad)
+
+
+def test_proof_metadata_enforces_tee_and_recursive_specific_roots() -> None:
+    header = _header()
+    metadata = _proof_metadata(header=header)
+
+    zk_with_tee_measurement = dict(metadata)
+    zk_with_tee_measurement["tee_measurement_hash"] = _root("tee-measurement")
+    with pytest.raises(ValueError, match="tee_measurement_hash must be zero"):
+        validate_proof_metadata_v0(zk_with_tee_measurement)
+
+    tee_missing_measurement = dict(metadata)
+    tee_missing_measurement["proof_kind"] = "tee_attestation_v0"
+    tee_missing_measurement["program_id"] = "tee:confidential-advisory-v1"
+    tee_missing_measurement["verifier_id"] = "tee:attestation-verifier-v1"
+    with pytest.raises(ValueError, match="tee_measurement_hash must be non-zero"):
+        validate_proof_metadata_v0(tee_missing_measurement)
+
+    recursive_missing_children = dict(metadata)
+    recursive_missing_children["proof_kind"] = "recursive_epoch_v0"
+    recursive_missing_children["program_id"] = "recursive:epoch-aggregator-v1"
+    recursive_missing_children["verifier_id"] = "recursive:receipt-verifier-v1"
+    with pytest.raises(ValueError, match="child_receipts_root must be non-zero"):
+        validate_proof_metadata_v0(recursive_missing_children)

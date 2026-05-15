@@ -564,6 +564,218 @@ claims:
         - UniformBatchOptimality.priceGridCandidates_complete_audit_set
         - UniformBatchOptimality.price_grid_upper_bound_certificate_implies_global_weak_optimal
 
+  - id: lean:zeno_ledger:zk_tee_proof_composition_v1
+    status: proved
+    layer: math
+    statement: >
+      The ZenoLedger ZK/TEE proof-composition model proves deterministic
+      metadata binding for accepted proof receipts: accepted proof metadata
+      exposes the same pre-state, post-state, transaction, evidence, and body
+      roots as the ZenoLedger header; kind-specific TEE, recursive, and zkVM
+      fields are fail-closed; metadata bound to the same header is unique under
+      an explicit digest-injectivity assumption; and pairwise-commuting proof
+      chunks can be reordered without changing the final state. This is a
+      deterministic composition claim. It does not prove zkVM soundness, TEE
+      hardware soundness, hash collision resistance, Rust/Python runtime
+      equivalence, or production network readiness.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerZkTeeProofComposition"
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs"
+        - cmd: pytest -q tests/integration/test_zeno_ledger_v0.py tests/integration/test_zeno_ledger_verify_cli.py
+      files:
+        - lean-mathlib/Proofs/ZenoLedgerZkTeeProofComposition.lean
+        - lean-mathlib/proof_receipts/zeno_ledger_zk_tee_proof_composition_v1.md
+        - src/integration/zeno_ledger_v0.py
+        - tests/integration/test_zeno_ledger_v0.py
+        - tests/integration/test_zeno_ledger_verify_cli.py
+      theorems:
+        - ZenoLedgerZkTeeProofComposition.accepted_metadata_binds_header_roots
+        - ZenoLedgerZkTeeProofComposition.accepted_metadata_digest_matches_header
+        - ZenoLedgerZkTeeProofComposition.accepted_tee_requires_measurement
+        - ZenoLedgerZkTeeProofComposition.accepted_non_tee_measurement_zero
+        - ZenoLedgerZkTeeProofComposition.accepted_recursive_requires_child_root
+        - ZenoLedgerZkTeeProofComposition.accepted_non_recursive_child_root_zero
+        - ZenoLedgerZkTeeProofComposition.accepted_zk_program_verifier_distinct
+        - ZenoLedgerZkTeeProofComposition.accepted_metadata_unique_under_digest_injective
+        - ZenoLedgerZkTeeProofComposition.apply_chunks_perm_invariant
+
+  - id: py:zeno_ledger:risc0_proof_metadata_adapter_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The ZenoLedger Risc0 metadata adapter converts a scoped
+      `risc0.zenodex_spot_transition.v1` Tau state-proof envelope into
+      `zenodex/zeno_ledger/proof_metadata/v0`, binds the generated metadata to
+      a ZenoLedger header, and fails closed on unsupported proof types,
+      malformed base64 receipt payloads, malformed image/state/transaction/app
+      hashes, body/header root mismatch, post-app-hash mismatch when required,
+      missing metadata/header binding when required, and zero placeholder
+      metadata roots. The adapter binds the Risc0 pre-app-hash presence bit
+      into both the public-input hash and journal hash. When
+      `--require-risc0-verifier` is supplied, the adapter also requires an
+      external verifier command to accept the normalized proof envelope before
+      metadata is emitted. This is a binding-adapter and verifier-command
+      plumbing claim; it does not implement Risc0 cryptography in Python or
+      prove guest/runtime semantic equivalence.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/zeno_ledger_risc0_proof_metadata.py tools/zeno_ledger_run_local.py tools/zeno_ledger_verify.py src/integration/zeno_ledger_v0.py tests/integration/test_zeno_ledger_v0.py tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/integration/test_zeno_ledger_verify_cli.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/integration/test_zeno_ledger_v0.py::test_proof_metadata_hash_binds_header_roots tests/integration/test_zeno_ledger_v0.py::test_proof_metadata_header_binding_rejects_tampered_root tests/integration/test_zeno_ledger_v0.py::test_proof_metadata_rejects_missing_commitment_and_wrong_kind tests/integration/test_zeno_ledger_v0.py::test_proof_metadata_rejects_placeholder_binding_roots tests/integration/test_zeno_ledger_v0.py::test_proof_metadata_enforces_tee_and_recursive_specific_roots tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata
+      files:
+        - tools/zeno_ledger_risc0_proof_metadata.py
+        - tools/zeno_ledger_verify.py
+        - tools/zeno_ledger_run_local.py
+        - src/integration/zeno_ledger_v0.py
+        - tests/integration/test_zeno_ledger_risc0_proof_metadata.py
+        - tests/integration/test_zeno_ledger_v0.py
+        - tests/integration/test_zeno_ledger_verify_cli.py
+
+  - id: rust_py:zeno_ledger:risc0_zenodex_spot_v1_fixture_equivalence_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The Risc0 ZenoDEX spot v1 shared transition crate and Python ZenoDEX core
+      agree on deterministic fixture values for CPMM pool-id hashing, initial
+      LP lock accounting, exact-in fee/output/reserve math, and canonical
+      snapshot hashes for create-pool and swap-exact-in transitions. The
+      fixture also checks that insufficient initial liquidity and zero-output
+      exact-in swaps reject on both sides. The Rust guest rejection fixtures
+      additionally check that failed create-pool and zero-output swap attempts
+      do not mutate guest balances, LP balances, pools, or reserves, closing
+      semantic divergences where the guest could previously accept a tiny
+      `min_amount_out = 0` swap or partially debit a failed create-pool
+      attempt.
+      The Risc0 guest now delegates to the same shared
+      `execute_state_proof_input_v1` function exercised by the no-prover Rust
+      fixture, which checks pre-root binding, post-root binding, and transaction
+      commitment emission at the shared transition boundary. The CLI and
+      methods crate now compile in both placeholder mode and
+      `RISC0_FORCE_BUILD=1` real-method mode, using the same generated method
+      constant names in both paths.
+      This is a bounded runtime-equivalence fixture claim for the current Risc0
+      v1 guest scope; it does not prove full Rust/Python equivalence,
+      multi-intent batches, exact-out, multi-hop routing, or cryptographic
+      Risc0 receipt soundness.
+    evidence:
+      kind: rust_pytest
+      check:
+        - cmd: CARGO_TARGET_DIR=/tmp/zenodex_risc0_target cargo test --manifest-path zk/state_proof_risc0/Cargo.toml -p tau-state-proof-risc0-shared
+        - cmd: RISC0_FORCE_BUILD=1 CARGO_TARGET_DIR=/tmp/zenodex_risc0_force_target cargo check --manifest-path zk/state_proof_risc0/Cargo.toml -p tau-state-proof-risc0-cli
+        - cmd: CARGO_TARGET_DIR=/tmp/zenodex_risc0_target cargo check --manifest-path zk/state_proof_risc0/Cargo.toml -p tau-state-proof-risc0-cli
+        - cmd: pytest -q tests/integration/test_risc0_shared_fixture_equivalence.py
+      files:
+        - zk/state_proof_risc0/shared/src/lib.rs
+        - zk/state_proof_risc0/methods/build.rs
+        - zk/state_proof_risc0/methods/guest/src/main.rs
+        - zk/state_proof_risc0/cli/src/main.rs
+        - tests/integration/test_risc0_shared_fixture_equivalence.py
+        - src/core/cpmm.py
+        - src/state/pools.py
+        - src/state/canonical.py
+
+  - id: rust:zeno_ledger:risc0_supported_transition_real_proof_smoke_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The opt-in Risc0 real-proof smoke builds the ZenoDEX spot v1 guest with
+      `RISC0_FORCE_BUILD=1`, generates non-empty Risc0 receipts for an empty
+      transition plus the current supported spot v1 operation families
+      (faucet mint, create-pool, and swap-exact-in), and verifies each receipt
+      through the host CLI with state-hash, transaction-commitment,
+      pre-app-hash, post-app-hash, and block timestamp checks. This is a real
+      local proof-of-execution smoke for the current v1 guest operation set; it
+      does not prove rejection-path receipt coverage, production prover
+      performance, dependency currency, or ZenoLedger network readiness.
+    evidence:
+      kind: rust
+      check:
+        - cmd: python3 tools/zeno_ledger_risc0_real_proof_smoke.py --case all --timeout 180 --out-dir /tmp/zenodex_risc0_real_proof_smoke_all
+      files:
+        - tools/zeno_ledger_risc0_real_proof_smoke.py
+        - zk/state_proof_risc0/shared/src/lib.rs
+        - zk/state_proof_risc0/methods/build.rs
+        - zk/state_proof_risc0/methods/guest/src/main.rs
+        - zk/state_proof_risc0/cli/src/main.rs
+
+  - id: py:zeno_ledger:tee_proof_metadata_adapter_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The ZenoLedger TEE metadata adapter converts a verified confidential
+      extension advisory receipt into `zenodex/zeno_ledger/proof_metadata/v0`,
+      binds the generated metadata to a ZenoLedger header, and fails closed on
+      unapproved measurements, invalid receipt guards, body/header root mismatch,
+      missing metadata/header binding when required, and verifier-command
+      rejection when external attestation verification is required. The adapter
+      checks that external verifier output matches the receipt measurement,
+      policy digest, and attestation epoch before emitting metadata. This is a
+      binding-adapter and verifier-command plumbing claim; it does not prove TEE
+      hardware confidentiality, vendor attestation soundness, or settlement
+      correctness from TEE output alone.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/zeno_ledger_tee_proof_metadata.py tests/integration/test_zeno_ledger_tee_proof_metadata.py
+        - cmd: cargo test --manifest-path tools/confidential_attestation_verifier_rust/Cargo.toml
+        - cmd: pytest -q tests/integration/test_zeno_ledger_tee_proof_metadata.py tests/integration/test_zeno_ledger_risc0_proof_metadata.py
+      files:
+        - tools/zeno_ledger_tee_proof_metadata.py
+        - tools/confidential_attestation_verifier_rust/src/main.rs
+        - src/core/confidential_extension_receipts.py
+        - src/integration/zeno_ledger_v0.py
+        - tests/integration/test_zeno_ledger_tee_proof_metadata.py
+        - tests/integration/test_zeno_ledger_risc0_proof_metadata.py
+
+  - id: py:zeno_ledger:proof_required_profile_metadata_replay_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The ZenoLedger range verifier requires a proof metadata directory whenever
+      the active profile requires a proof journal directly or through its bridge
+      policy. In that mode, every checked height must include proof metadata
+      whose hash equals the header `proof_journal_hash` and whose public roots
+      match the header. This is a replay-gating claim; it does not verify any
+      zkVM receipt cryptography or TEE hardware attestation.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata tests/integration/test_zeno_ledger_verify_cli.py::test_verify_cli_rejects_tau_exclusive_profile_without_proof
+        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py
+      files:
+        - tools/zeno_ledger_verify.py
+        - tests/integration/test_zeno_ledger_verify_cli.py
+        - src/integration/zeno_ledger_v0.py
+        - src/integration/zeno_ledger_profile.py
+
+  - id: py:zeno_ledger:proof_verification_report_replay_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The ZenoLedger range verifier can require per-height proof-verification
+      reports in addition to proof metadata. In that mode, every checked height
+      must include a report whose proof journal hash, proof kind, program id,
+      verifier id, and kind-specific verifier flag match the header-bound
+      proof metadata. Risc0 metadata requires a Risc0 verification report with
+      `risc0_verified = true`; TEE metadata requires a TEE verification report
+      with `tee_verified = true` and matching measurement hash. This gates
+      metadata-only replay from being accepted as verifier-backed replay. The
+      reports still remain replay artifacts; cryptographic soundness comes from
+      the verifier binaries that generated them.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/zeno_ledger_verify.py tests/integration/test_zeno_ledger_verify_cli.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata
+      files:
+        - tools/zeno_ledger_verify.py
+        - tests/integration/test_zeno_ledger_verify_cli.py
+        - tools/zeno_ledger_risc0_proof_metadata.py
+        - tools/zeno_ledger_tee_proof_metadata.py
+
+
   - id: smt:settlement_swap_apply_witness_v1:inductive_z3_cvc5
     status: supported
     layer: spec
