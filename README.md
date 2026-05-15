@@ -425,6 +425,13 @@ python3 tools/zeno_ledger_node.py faucet \
   --to-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --asset 0x1111111111111111111111111111111111111111111111111111111111111111 \
   --amount 100000
+
+python3 tools/zeno_ledger_node.py create-token \
+  --data-dir /tmp/zeno-ledger-node-a \
+  --symbol tMANGO \
+  --name "Test Mango Credit" \
+  --decimals 8 \
+  --creator-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ```
 
 This is the first public-node layer: it bootstraps from a bundle, verifies the
@@ -441,15 +448,18 @@ deterministic replay produces the same header. A served node can also poll peer
 URLs with `--peer-url` and `--poll-seconds`. Testnet HTTP intake is disabled by
 default; `--enable-testnet-intake` opens `POST /tx`, and
 `--enable-testnet-faucet` opens `POST /faucet` for bounded fake-token minting.
-The faucet accepts canonical 32-byte test asset IDs, so operators can mint
-throwaway assets for live test pools without touching release token policy.
+The same testnet flag also opens `POST /tokens` for live test-token registry
+entries. Operators can register named throwaway assets, mint them through the
+faucet, create live test pools, and have peers rebuild the same registry while
+pulling live blocks. The faucet still accepts canonical 32-byte test asset IDs
+for raw fixture assets without touching release token policy.
 The `join` command wraps sync, replay, watcher attestation, optional peer check,
 and optional serving into one JSON-configured operator flow. The `check-peers`
 command compares network ID, chain ID, feature-suite hash, peer height, and the
 common header hash before an operator trusts a peer. A follower can expose
-`POST /tx` and `POST /faucet` while forwarding submissions to a designated
-writer with `--submit-peer-url`, then it follows the resulting live blocks by
-deterministic replay. The `write-network-config` and `join-network` commands
+`POST /tx`, `POST /faucet`, and `POST /tokens` while forwarding submissions to
+a designated writer with `--submit-peer-url`, then it follows the resulting
+live blocks by deterministic replay. The `write-network-config` and `join-network` commands
 let any operator join from one published URL. Live P2P block gossip and
 validator scheduling remain future network work.
 
