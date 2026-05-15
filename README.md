@@ -1,5 +1,9 @@
 # ZenoDEX
 
+<p align="center">
+  <img src="assets/branding/zenodex/zenodex_full_transparent_1024.png" alt="ZenoDEX logo" width="320">
+</p>
+
 ZenoDEX is a high-assurance, production-candidate decentralized autonomous
 exchange for Tau Network. It uses a hybrid model: deterministic Python computes
 operational state, while Tau Language specs, ESSO kernels, Lean proofs, and
@@ -10,6 +14,7 @@ docs, proof files, kernels, and replay scripts.
 
 ## Contents
 
+- [Why The Name ZenoDEX?](#why-the-name-zenodex)
 - [Current Status](#current-status)
 - [Assurance Snapshot](#assurance-snapshot)
 - [Design Principles](#design-principles)
@@ -19,8 +24,72 @@ docs, proof files, kernels, and replay scripts.
 - [ZenoLedger Node Operations](#zenoledger-node-operations)
 - [Repository Layout](#repository-layout)
 - [Documentation](#documentation)
-- [Why The Name ZenoDEX?](#why-the-name-zenodex)
 - [License](#license)
+
+## Why The Name ZenoDEX?
+
+Zeno of Elea posed paradoxes about motion and division. In the Dichotomy
+paradox, reaching a goal requires first going halfway, then halfway through
+the remaining distance, then halfway again. Modern mathematics resolves this
+with limits; a countably infinite sequence of shrinking steps sums to a finite
+total.
+
+The analogy applies directly to tokenomics and protocol accounting. A supply
+schedule can approach a floor forever without crossing it:
+
+```text
+S_{n+1} = F + r(S_n - F)
+```
+
+Where:
+
+```text
+S_n = total supply after step n
+F   = supply floor
+r   = remaining fraction per step, with 0 < r < 1
+```
+
+The closed form is:
+
+```text
+S_n = F + r^n(S_0 - F)
+```
+
+For every finite `n`, `S_n > F`, while `S_n` approaches `F` as `n` grows. The
+total burn remains bounded:
+
+```text
+S_0 - S_n = (1 - r^n)(S_0 - F) <= S_0 - F
+```
+
+Steps can be unbounded while the cumulative burn stays finite. That is the
+core Zeno analogy.
+
+Real ledgers add an integer constraint. A token may be displayed with
+decimals; committed balances are integer base units. Once an ideal real-valued
+change falls below one base unit, the protocol must define a deterministic
+dust policy.
+
+ZenoDEX therefore uses:
+
+- integer base units
+- explicit supply floors
+- deterministic rounding
+- explicit dust accounting
+- bounded arithmetic proofs
+
+For protocol tokens and LP shares, the practical target is `18` base-unit
+decimals plus explicit dust accounting. If an ideal transfer is `T*` and the
+ledger rounds down to `t` base units at decimal scale `d`, the rounding error is
+bounded by one base unit:
+
+```text
+0 <= T* - t / 10^d < 10^(-d)
+```
+
+Convergent tokenomics stay deterministic on real ledgers. The protocol
+approaches a floor without floating point arithmetic, implicit precision
+upgrades, or ambiguous rounding.
 
 ## Current Status
 
@@ -445,71 +514,6 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `docs/TAU_LANGUAGE_CONSTRAINTS.md`
 - `docs/ASSURANCE_RELEASE_SNAPSHOT.md`
 - `docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md`
-
-## Why The Name ZenoDEX?
-
-Zeno of Elea posed paradoxes about motion and division. In the Dichotomy
-paradox, reaching a goal requires first going halfway, then halfway through
-the remaining distance, then halfway again. Modern mathematics resolves this
-with limits; a countably infinite sequence of shrinking steps sums to a finite
-total.
-
-The analogy applies directly to tokenomics and protocol accounting. A supply
-schedule can approach a floor forever without crossing it:
-
-```text
-S_{n+1} = F + r(S_n - F)
-```
-
-Where:
-
-```text
-S_n = total supply after step n
-F   = supply floor
-r   = remaining fraction per step, with 0 < r < 1
-```
-
-The closed form is:
-
-```text
-S_n = F + r^n(S_0 - F)
-```
-
-For every finite `n`, `S_n > F`, while `S_n` approaches `F` as `n` grows. The
-total burn remains bounded:
-
-```text
-S_0 - S_n = (1 - r^n)(S_0 - F) <= S_0 - F
-```
-
-Steps can be unbounded while the cumulative burn stays finite. That is the
-core Zeno analogy.
-
-Real ledgers add an integer constraint. A token may be displayed with
-decimals; committed balances are integer base units. Once an ideal real-valued
-change falls below one base unit, the protocol must define a deterministic
-dust policy.
-
-ZenoDEX therefore uses:
-
-- integer base units
-- explicit supply floors
-- deterministic rounding
-- explicit dust accounting
-- bounded arithmetic proofs
-
-For protocol tokens and LP shares, the practical target is `18` base-unit
-decimals plus explicit dust accounting. If an ideal transfer is `T*` and the
-ledger rounds down to `t` base units at decimal scale `d`, the rounding error is
-bounded by one base unit:
-
-```text
-0 <= T* - t / 10^d < 10^(-d)
-```
-
-Convergent tokenomics stay deterministic on real ledgers. The protocol
-approaches a floor without floating point arithmetic, implicit precision
-upgrades, or ambiguous rounding.
 
 ## License
 
