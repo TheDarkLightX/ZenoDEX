@@ -1,10 +1,18 @@
-# TauSwap Risc0 State Proof (v1)
+---
+title: zenodex_spot_state_proof_risc0_v1
+type: note
+permalink: autonomous-tau-dex-review/docs/zenodex-spot-state-proof-risc0-v1
+---
 
-This document specifies the concrete **Risc0 proof type** used by this repo’s TauSwap DEX integration, carried in the generic Tau Testnet `state_proof:<state_hash>` envelope (see `docs/tau_state_proof_v1.md`).
+# ZenoDEX Spot Risc0 State Proof (v1)
+
+This document specifies the concrete **Risc0 proof type** used by this repo’s
+ZenoDEX spot integration, carried in the generic Tau Testnet
+`state_proof:<state_hash>` envelope (see `docs/tau_state_proof_v1.md`).
 
 ## Proof type
 
-- `proof_type`: `risc0.tauswap_transition.v1`
+- `proof_type`: `risc0.zenodex_spot_transition.v1`
 - Guest program (source): `zk/state_proof_risc0/methods/guest`
 - Generator/verifier CLI: `zk/state_proof_risc0/cli` (binary `tau-state-proof-risc0-cli`)
 
@@ -16,7 +24,8 @@ Given:
 - the previous DEX `app_hash` (optional; empty for “no app state yet”),
 - the current block’s expected DEX `app_hash`,
 
-the prover shows that executing the TauSwap transition rules over the committed transactions produces exactly the expected `app_hash`.
+the prover shows that executing the ZenoDEX spot transition rules over the
+committed transactions produces exactly the expected `app_hash`.
 
 ### Public outputs (Risc0 journal)
 
@@ -42,7 +51,8 @@ Verifier flow:
 
 ## Transition semantics (v1 scope)
 
-This v1 guest proves the TauSwap DEX state transition for a restricted but useful subset:
+This v1 guest proves the ZenoDEX spot state transition for a restricted but
+useful subset:
 
 - Supported intent kinds:
   - `CREATE_POOL`
@@ -60,6 +70,9 @@ The swap math and pool-id derivation match the Python implementation:
 - Fee: `ceil(amount_in * fee_bps / 10_000)`
 - Output: `floor(reserve_out * net_in / (reserve_in + net_in))`
 - Reserves: input reserve increases by **full** `amount_in` (fees stay in pool)
+
+`TauSwapPool` is a legacy hash-domain prefix. It remains part of the pool-id
+derivation so existing deterministic fixtures and state roots do not change.
 
 ## Generator/verifier request `context` (Tau Testnet subprocess I/O)
 
@@ -89,4 +102,3 @@ Planned v2 extensions:
 - multi-intent settlement / batch clearing proofs
 - native-asset support by including per-tx `chain_balances` views (or an explicit commitment to them)
 - optional signature checks in-guest where appropriate (likely still prefer “verify off-chain, prove transition”)
-

@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+#[cfg(test)]
+extern crate std;
 
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
@@ -10,7 +12,7 @@ use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-pub const PROOF_TYPE: &str = "risc0.tauswap_transition.v1";
+pub const PROOF_TYPE: &str = "risc0.zenodex_spot_transition.v1";
 pub const JOURNAL_VERSION: u32 = 1;
 
 pub const MIN_LP_LOCK: u128 = 1000;
@@ -177,6 +179,38 @@ pub struct StateProofJournalV1 {
     pub post_app_hash: [u8; 32],
 }
 
+pub fn execute_state_proof_input_v1(
+    input: StateProofInputV1,
+) -> Result<StateProofJournalV1, TransitionError> {
+    let mut state = DexStateV1::from_snapshot(input.pre_state)?;
+
+    let computed_pre = state.canonical_app_hash_sha256();
+    if input.pre_app_hash_present && computed_pre != input.pre_app_hash {
+        return Err(TransitionError::InvalidInput("pre_app_hash mismatch"));
+    }
+
+    let txs_commitment = txs_commitment_v1(&input.txs);
+    for tx in &input.txs {
+        state.apply_tx(tx, input.block_timestamp)?;
+    }
+
+    state.sync_native_balances_post(&input.chain_balances_post);
+
+    let post = state.canonical_app_hash_sha256();
+    if post != input.expected_post_app_hash {
+        return Err(TransitionError::InvalidInput("post_app_hash mismatch"));
+    }
+
+    Ok(StateProofJournalV1 {
+        journal_version: JOURNAL_VERSION,
+        state_hash: input.state_hash,
+        txs_commitment,
+        pre_app_hash_present: input.pre_app_hash_present,
+        pre_app_hash: input.pre_app_hash,
+        post_app_hash: post,
+    })
+}
+
 #[derive(Clone, Debug)]
 pub enum TransitionError {
     InvalidInput(&'static str),
@@ -214,14 +248,18 @@ impl DexStateV1 {
         let mut balances: BTreeMap<(String, String), u128> = BTreeMap::new();
         for entry in snapshot.balances {
             if entry.pubkey.is_empty() || entry.asset.is_empty() {
-                return Err(TransitionError::InvalidInput("snapshot balance pubkey/asset empty"));
+                return Err(TransitionError::InvalidInput(
+                    "snapshot balance pubkey/asset empty",
+                ));
             }
             if entry.amount == 0 {
                 continue;
             }
             let key = (entry.pubkey, entry.asset);
             if balances.contains_key(&key) {
-                return Err(TransitionError::InvalidInput("duplicate snapshot balance entry"));
+                return Err(TransitionError::InvalidInput(
+                    "duplicate snapshot balance entry",
+                ));
             }
             balances.insert(key, entry.amount);
         }
@@ -240,7 +278,9 @@ impl DexStateV1 {
         let mut lp_balances: BTreeMap<(String, String), u128> = BTreeMap::new();
         for entry in snapshot.lp_balances {
             if entry.pubkey.is_empty() || entry.pool_id.is_empty() {
-                return Err(TransitionError::InvalidInput("snapshot lp entry pubkey/pool_id empty"));
+                return Err(TransitionError::InvalidInput(
+                    "snapshot lp entry pubkey/pool_id empty",
+                ));
             }
             if entry.amount == 0 {
                 continue;
@@ -326,7 +366,12 @@ impl DexStateV1 {
             .unwrap_or(0)
     }
 
-    pub fn add_balance(&mut self, pubkey: &str, asset: &str, amount: u128) -> Result<(), TransitionError> {
+    pub fn add_balance(
+        &mut self,
+        pubkey: &str,
+        asset: &str,
+        amount: u128,
+    ) -> Result<(), TransitionError> {
         let current = self.get_balance(pubkey, asset);
         let next = current
             .checked_add(amount)
@@ -335,7 +380,12 @@ impl DexStateV1 {
         Ok(())
     }
 
-    pub fn sub_balance(&mut self, pubkey: &str, asset: &str, amount: u128) -> Result<(), TransitionError> {
+    pub fn sub_balance(
+        &mut self,
+        pubkey: &str,
+        asset: &str,
+        amount: u128,
+    ) -> Result<(), TransitionError> {
         let current = self.get_balance(pubkey, asset);
         if amount > current {
             return Err(TransitionError::InvalidInput("insufficient balance"));
@@ -360,7 +410,12 @@ impl DexStateV1 {
             .unwrap_or(0)
     }
 
-    pub fn add_lp(&mut self, pubkey: &str, pool_id: &str, amount: u128) -> Result<(), TransitionError> {
+    pub fn add_lp(
+        &mut self,
+        pubkey: &str,
+        pool_id: &str,
+        amount: u128,
+    ) -> Result<(), TransitionError> {
         let current = self.get_lp(pubkey, pool_id);
         let next = current
             .checked_add(amount)
@@ -369,7 +424,12 @@ impl DexStateV1 {
         Ok(())
     }
 
-    pub fn sub_lp(&mut self, pubkey: &str, pool_id: &str, amount: u128) -> Result<(), TransitionError> {
+    pub fn sub_lp(
+        &mut self,
+        pubkey: &str,
+        pool_id: &str,
+        amount: u128,
+    ) -> Result<(), TransitionError> {
         let current = self.get_lp(pubkey, pool_id);
         if amount > current {
             return Err(TransitionError::InvalidInput("insufficient lp balance"));
@@ -402,13 +462,19 @@ impl DexStateV1 {
     pub fn apply_faucet(&mut self, mints: &[FaucetMintV1]) -> Result<(), TransitionError> {
         for mint in mints {
             if mint.pubkey.is_empty() || mint.asset.is_empty() {
-                return Err(TransitionError::InvalidInput("faucet mint pubkey/asset empty"));
+                return Err(TransitionError::InvalidInput(
+                    "faucet mint pubkey/asset empty",
+                ));
             }
             if mint.asset == NATIVE_ASSET {
-                return Err(TransitionError::InvalidInput("faucet cannot mint native asset"));
+                return Err(TransitionError::InvalidInput(
+                    "faucet cannot mint native asset",
+                ));
             }
             if mint.amount == 0 {
-                return Err(TransitionError::InvalidInput("faucet mint amount must be positive"));
+                return Err(TransitionError::InvalidInput(
+                    "faucet mint amount must be positive",
+                ));
             }
             self.add_balance(&mint.pubkey, &mint.asset, mint.amount)?;
         }
@@ -438,8 +504,12 @@ impl DexStateV1 {
 
         let env = &tx.app_ops.intents[0];
         match &env.intent {
-            DexIntentV1::CreatePool(intent) => self.apply_create_pool(intent, &tx.sender_pubkey, block_timestamp),
-            DexIntentV1::SwapExactIn(intent) => self.apply_swap_exact_in(intent, &tx.sender_pubkey, block_timestamp),
+            DexIntentV1::CreatePool(intent) => {
+                self.apply_create_pool(intent, &tx.sender_pubkey, block_timestamp)
+            }
+            DexIntentV1::SwapExactIn(intent) => {
+                self.apply_swap_exact_in(intent, &tx.sender_pubkey, block_timestamp)
+            }
         }
     }
 
@@ -450,7 +520,9 @@ impl DexStateV1 {
         block_timestamp: u64,
     ) -> Result<(), TransitionError> {
         if intent.module != "TauSwap" {
-            return Err(TransitionError::InvalidInput("intent.module must be TauSwap"));
+            return Err(TransitionError::InvalidInput(
+                "intent.module must be TauSwap",
+            ));
         }
         if intent.kind_str() != "CREATE_POOL" {
             return Err(TransitionError::InvalidInput("intent.kind mismatch"));
@@ -464,26 +536,40 @@ impl DexStateV1 {
             return Err(TransitionError::InvalidInput("intent expired"));
         }
         if intent.asset0 >= intent.asset1 {
-            return Err(TransitionError::InvalidInput("assets must be in canonical order"));
+            return Err(TransitionError::InvalidInput(
+                "assets must be in canonical order",
+            ));
         }
         if intent.asset0 == NATIVE_ASSET || intent.asset1 == NATIVE_ASSET {
-            return Err(TransitionError::Unsupported("native asset unsupported in proof v1"));
+            return Err(TransitionError::Unsupported(
+                "native asset unsupported in proof v1",
+            ));
         }
         if intent.amount0 == 0 || intent.amount1 == 0 {
-            return Err(TransitionError::InvalidInput("initial deposits must be positive"));
+            return Err(TransitionError::InvalidInput(
+                "initial deposits must be positive",
+            ));
         }
         if intent.fee_bps > 10_000 {
             return Err(TransitionError::InvalidInput("fee_bps out of range"));
         }
 
-        let pool_id = compute_pool_id(&intent.asset0, &intent.asset1, intent.fee_bps, CURVE_TAG, CURVE_PARAMS);
+        let pool_id = compute_pool_id(
+            &intent.asset0,
+            &intent.asset1,
+            intent.fee_bps,
+            CURVE_TAG,
+            CURVE_PARAMS,
+        );
         if self.pools.contains_key(&pool_id) {
             return Err(TransitionError::InvalidInput("pool already exists"));
         }
-
-        // Withdraw from sender.
-        self.sub_balance(&intent.sender_pubkey, &intent.asset0, intent.amount0)?;
-        self.sub_balance(&intent.sender_pubkey, &intent.asset1, intent.amount1)?;
+        if intent.amount0 > self.get_balance(&intent.sender_pubkey, &intent.asset0) {
+            return Err(TransitionError::InvalidInput("insufficient balance"));
+        }
+        if intent.amount1 > self.get_balance(&intent.sender_pubkey, &intent.asset1) {
+            return Err(TransitionError::InvalidInput("insufficient balance"));
+        }
 
         // LP mint: total supply = floor(sqrt(amount0*amount1))
         let product = intent
@@ -492,9 +578,15 @@ impl DexStateV1 {
             .ok_or(TransitionError::Arithmetic("amount0*amount1 overflow"))?;
         let lp_supply_total = isqrt_u128(product);
         if lp_supply_total <= MIN_LP_LOCK {
-            return Err(TransitionError::InvalidInput("insufficient initial liquidity"));
+            return Err(TransitionError::InvalidInput(
+                "insufficient initial liquidity",
+            ));
         }
         let lp_to_creator = lp_supply_total - MIN_LP_LOCK;
+
+        // Withdraw from sender only after all pool-creation validity checks pass.
+        self.sub_balance(&intent.sender_pubkey, &intent.asset0, intent.amount0)?;
+        self.sub_balance(&intent.sender_pubkey, &intent.asset1, intent.amount1)?;
 
         self.add_lp(&intent.sender_pubkey, &pool_id, lp_to_creator)?;
         self.add_lp(LP_LOCK_PUBKEY, &pool_id, MIN_LP_LOCK)?;
@@ -523,7 +615,9 @@ impl DexStateV1 {
         block_timestamp: u64,
     ) -> Result<(), TransitionError> {
         if intent.module != "TauSwap" {
-            return Err(TransitionError::InvalidInput("intent.module must be TauSwap"));
+            return Err(TransitionError::InvalidInput(
+                "intent.module must be TauSwap",
+            ));
         }
         if intent.kind_str() != "SWAP_EXACT_IN" {
             return Err(TransitionError::InvalidInput("intent.kind mismatch"));
@@ -540,7 +634,9 @@ impl DexStateV1 {
             return Err(TransitionError::InvalidInput("amount_in must be positive"));
         }
         if intent.asset_in == NATIVE_ASSET || intent.asset_out == NATIVE_ASSET {
-            return Err(TransitionError::Unsupported("native asset unsupported in proof v1"));
+            return Err(TransitionError::Unsupported(
+                "native asset unsupported in proof v1",
+            ));
         }
 
         let pool = self
@@ -557,8 +653,9 @@ impl DexStateV1 {
             return Err(TransitionError::InvalidInput("swap asset pair mismatch"));
         }
 
-        // Withdraw input from sender.
-        self.sub_balance(&intent.sender_pubkey, &intent.asset_in, intent.amount_in)?;
+        if intent.amount_in > self.get_balance(&intent.sender_pubkey, &intent.asset_in) {
+            return Err(TransitionError::InvalidInput("insufficient balance"));
+        }
 
         let (reserve_in, reserve_out) = if intent.asset_in == pool.asset0 {
             (pool.reserve0, pool.reserve1)
@@ -570,7 +667,8 @@ impl DexStateV1 {
             return Err(TransitionError::InvalidInput("pool fee_bps out of range"));
         }
         let fee_total = ceil_div_u128(
-            intent.amount_in
+            intent
+                .amount_in
                 .checked_mul(pool.fee_bps as u128)
                 .ok_or(TransitionError::Arithmetic("fee mul overflow"))?,
             10_000,
@@ -590,12 +688,20 @@ impl DexStateV1 {
             .checked_mul(net_in)
             .ok_or(TransitionError::Arithmetic("numerator overflow"))?;
         let amount_out = numerator / denom;
+        if amount_out == 0 {
+            return Err(TransitionError::InvalidInput("amount_out is zero"));
+        }
         if amount_out < intent.min_amount_out {
             return Err(TransitionError::InvalidInput("min_amount_out not met"));
         }
         if amount_out > reserve_out {
-            return Err(TransitionError::InvalidInput("insufficient pool reserve_out"));
+            return Err(TransitionError::InvalidInput(
+                "insufficient pool reserve_out",
+            ));
         }
+
+        // Withdraw input from sender only after all quote validity checks pass.
+        self.sub_balance(&intent.sender_pubkey, &intent.asset_in, intent.amount_in)?;
 
         // Credit output.
         self.add_balance(&intent.recipient, &intent.asset_out, amount_out)?;
@@ -638,7 +744,13 @@ impl SwapExactInIntentV1 {
     }
 }
 
-pub fn compute_pool_id(asset0: &str, asset1: &str, fee_bps: u32, curve_tag: &str, curve_params: &str) -> String {
+pub fn compute_pool_id(
+    asset0: &str,
+    asset1: &str,
+    fee_bps: u32,
+    curve_tag: &str,
+    curve_params: &str,
+) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"TauSwapPool");
     hasher.update(asset0.as_bytes());
@@ -970,5 +1082,422 @@ fn write_opt_str(hasher: &mut Sha256, s: Option<&str>) {
             hasher.update([1u8]);
             write_str(hasher, v);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ASSET0: &str = "0x1111111111111111111111111111111111111111111111111111111111111111";
+    const ASSET1: &str = "0x2222222222222222222222222222222222222222222222222222222222222222";
+    const SENDER: &str =
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const RECIPIENT: &str =
+        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const POOL_ID: &str = "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686";
+
+    fn empty_snapshot() -> DexSnapshotV1 {
+        DexSnapshotV1 {
+            version: 1,
+            balances: Vec::new(),
+            pools: Vec::new(),
+            lp_balances: Vec::new(),
+            fee_accumulator: FeeAccumulatorV1 { dust: 0 },
+            vault: None,
+            oracle: None,
+        }
+    }
+
+    fn decode_hex_32(s: &str) -> [u8; 32] {
+        let hex = s.strip_prefix("0x").unwrap_or(s);
+        assert_eq!(hex.len(), 64);
+        let mut out = [0u8; 32];
+        for i in 0..32 {
+            out[i] = u8::from_str_radix(&hex[(i * 2)..(i * 2 + 2)], 16).unwrap();
+        }
+        out
+    }
+
+    fn pool_entry(reserve0: u128, reserve1: u128) -> DexPoolEntryV1 {
+        DexPoolEntryV1 {
+            pool_id: POOL_ID.to_string(),
+            asset0: ASSET0.to_string(),
+            asset1: ASSET1.to_string(),
+            reserve0,
+            reserve1,
+            fee_bps: 30,
+            lp_supply: 10_000,
+            status: "ACTIVE".to_string(),
+            created_at: 0,
+        }
+    }
+
+    #[test]
+    fn pool_id_matches_python_fixture() {
+        assert_eq!(
+            compute_pool_id(ASSET0, ASSET1, 30, CURVE_TAG, CURVE_PARAMS),
+            POOL_ID
+        );
+    }
+
+    #[test]
+    fn create_pool_transition_matches_python_fixture() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: 10_000,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: 20_000,
+            },
+        ];
+        assert_eq!(
+            sha256_canonical_dex_snapshot_v1(&snapshot),
+            decode_hex_32("9fcb79d0240177f11f37905ed608fca2dc60b907a0d8de157ff68a22db2874e4"),
+        );
+
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::CreatePool(CreatePoolIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "create-1".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        asset0: ASSET0.to_string(),
+                        asset1: ASSET1.to_string(),
+                        fee_bps: 30,
+                        amount0: 10_000,
+                        amount1: 10_000,
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        state.apply_tx(&tx, 1).unwrap();
+        let post = state.to_snapshot();
+        assert_eq!(state.get_balance(SENDER, ASSET0), 0);
+        assert_eq!(state.get_balance(SENDER, ASSET1), 10_000);
+        assert_eq!(state.get_lp(SENDER, POOL_ID), 9_000);
+        assert_eq!(state.get_lp(LP_LOCK_PUBKEY, POOL_ID), MIN_LP_LOCK);
+        assert_eq!(post.pools.len(), 1);
+        assert_eq!(post.pools[0].pool_id, POOL_ID);
+        assert_eq!(post.pools[0].asset0, ASSET0);
+        assert_eq!(post.pools[0].asset1, ASSET1);
+        assert_eq!(post.pools[0].reserve0, 10_000);
+        assert_eq!(post.pools[0].reserve1, 10_000);
+        assert_eq!(post.pools[0].fee_bps, 30);
+        assert_eq!(post.pools[0].lp_supply, 10_000);
+        assert_eq!(post.pools[0].status, "ACTIVE");
+        assert_eq!(post.pools[0].created_at, 0);
+        assert_eq!(
+            sha256_canonical_dex_snapshot_v1(&post),
+            decode_hex_32("cdedb50a4a2388af0f479062e0ea6d5288b7c460b55237c419b46fc5dd7b6f75"),
+        );
+    }
+
+    #[test]
+    fn create_pool_insufficient_second_asset_rejects_without_mutation() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: 10_000,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: 9_999,
+            },
+        ];
+
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::CreatePool(CreatePoolIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "create-insufficient-balance".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        asset0: ASSET0.to_string(),
+                        asset1: ASSET1.to_string(),
+                        fee_bps: 30,
+                        amount0: 10_000,
+                        amount1: 10_000,
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            state.apply_tx(&tx, 1),
+            Err(TransitionError::InvalidInput("insufficient balance"))
+        ));
+        assert_eq!(state.get_balance(SENDER, ASSET0), 10_000);
+        assert_eq!(state.get_balance(SENDER, ASSET1), 9_999);
+        assert_eq!(state.get_lp(SENDER, POOL_ID), 0);
+        assert_eq!(state.get_lp(LP_LOCK_PUBKEY, POOL_ID), 0);
+        assert!(state.to_snapshot().pools.is_empty());
+    }
+
+    #[test]
+    fn create_pool_insufficient_initial_liquidity_rejects_without_mutation() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: 1_000,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: 1_000,
+            },
+        ];
+
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::CreatePool(CreatePoolIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "create-insufficient-liquidity".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        asset0: ASSET0.to_string(),
+                        asset1: ASSET1.to_string(),
+                        fee_bps: 30,
+                        amount0: 1_000,
+                        amount1: 1_000,
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            state.apply_tx(&tx, 1),
+            Err(TransitionError::InvalidInput(
+                "insufficient initial liquidity"
+            ))
+        ));
+        assert_eq!(state.get_balance(SENDER, ASSET0), 1_000);
+        assert_eq!(state.get_balance(SENDER, ASSET1), 1_000);
+        assert_eq!(state.get_lp(SENDER, POOL_ID), 0);
+        assert_eq!(state.get_lp(LP_LOCK_PUBKEY, POOL_ID), 0);
+        assert!(state.to_snapshot().pools.is_empty());
+    }
+
+    #[test]
+    fn swap_exact_in_transition_matches_python_fixture() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![DexBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 1_000,
+        }];
+        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
+        assert_eq!(
+            sha256_canonical_dex_snapshot_v1(&snapshot),
+            decode_hex_32("daa4d1cdf1f5082e87030c1a2962de376d05c4e73bab26e8c2857520be699d02"),
+        );
+
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::SwapExactIn(SwapExactInIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "swap-1".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        asset_in: ASSET0.to_string(),
+                        asset_out: ASSET1.to_string(),
+                        amount_in: 1_000,
+                        min_amount_out: 900,
+                        recipient: RECIPIENT.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        state.apply_tx(&tx, 1).unwrap();
+        let post = state.to_snapshot();
+        assert_eq!(state.get_balance(SENDER, ASSET0), 0);
+        assert_eq!(state.get_balance(RECIPIENT, ASSET1), 906);
+        assert_eq!(post.pools.len(), 1);
+        assert_eq!(post.pools[0].pool_id, POOL_ID);
+        assert_eq!(post.pools[0].asset0, ASSET0);
+        assert_eq!(post.pools[0].asset1, ASSET1);
+        assert_eq!(post.pools[0].reserve0, 11_000);
+        assert_eq!(post.pools[0].reserve1, 9_094);
+        assert_eq!(post.pools[0].fee_bps, 30);
+        assert_eq!(post.pools[0].lp_supply, 10_000);
+        assert_eq!(post.pools[0].status, "ACTIVE");
+        assert_eq!(post.pools[0].created_at, 0);
+        assert_eq!(
+            sha256_canonical_dex_snapshot_v1(&post),
+            decode_hex_32("168c616c3e9cbc832f9accf6022fcf5153f4611de71115e36a6e540a1230101b"),
+        );
+    }
+
+    #[test]
+    fn state_proof_input_execution_commits_expected_journal() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![DexBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 1_000,
+        }];
+        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
+
+        let txs = alloc::vec![TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::SwapExactIn(SwapExactInIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "swap-1".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        asset_in: ASSET0.to_string(),
+                        asset_out: ASSET1.to_string(),
+                        amount_in: 1_000,
+                        min_amount_out: 900,
+                        recipient: RECIPIENT.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        }];
+
+        let input = StateProofInputV1 {
+            state_hash: [7u8; 32],
+            block_timestamp: 1,
+            pre_app_hash_present: true,
+            pre_app_hash: decode_hex_32(
+                "daa4d1cdf1f5082e87030c1a2962de376d05c4e73bab26e8c2857520be699d02",
+            ),
+            pre_state: snapshot,
+            txs: txs.clone(),
+            chain_balances_post: Vec::new(),
+            expected_post_app_hash: decode_hex_32(
+                "168c616c3e9cbc832f9accf6022fcf5153f4611de71115e36a6e540a1230101b",
+            ),
+        };
+
+        let journal = execute_state_proof_input_v1(input.clone()).unwrap();
+        assert_eq!(journal.journal_version, JOURNAL_VERSION);
+        assert_eq!(journal.state_hash, [7u8; 32]);
+        assert_eq!(journal.txs_commitment, txs_commitment_v1(&txs));
+        assert!(journal.pre_app_hash_present);
+        assert_eq!(journal.pre_app_hash, input.pre_app_hash);
+        assert_eq!(journal.post_app_hash, input.expected_post_app_hash);
+
+        let mut bad_pre = input.clone();
+        bad_pre.pre_app_hash = [8u8; 32];
+        assert!(matches!(
+            execute_state_proof_input_v1(bad_pre),
+            Err(TransitionError::InvalidInput("pre_app_hash mismatch"))
+        ));
+
+        let mut bad_post = input;
+        bad_post.expected_post_app_hash = [9u8; 32];
+        assert!(matches!(
+            execute_state_proof_input_v1(bad_post),
+            Err(TransitionError::InvalidInput("post_app_hash mismatch"))
+        ));
+    }
+
+    #[test]
+    fn swap_exact_in_zero_output_rejects_like_python_core() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![DexBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 2,
+        }];
+        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
+
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let tx = TauTxV1 {
+            sender_pubkey: SENDER.to_string(),
+            app_ops: TauTxAppOpsV1 {
+                has_faucet: false,
+                faucet_mint: Vec::new(),
+                has_intents: true,
+                intents: alloc::vec![SignedIntentV1 {
+                    signature: None,
+                    intent: DexIntentV1::SwapExactIn(SwapExactInIntentV1 {
+                        module: "TauSwap".to_string(),
+                        version: "v1".to_string(),
+                        intent_id: "swap-zero-output".to_string(),
+                        sender_pubkey: SENDER.to_string(),
+                        deadline: 100,
+                        pool_id: POOL_ID.to_string(),
+                        asset_in: ASSET0.to_string(),
+                        asset_out: ASSET1.to_string(),
+                        amount_in: 2,
+                        min_amount_out: 0,
+                        recipient: RECIPIENT.to_string(),
+                        salt: None,
+                    }),
+                }],
+            },
+        };
+
+        assert!(matches!(
+            state.apply_tx(&tx, 1),
+            Err(TransitionError::InvalidInput("amount_out is zero"))
+        ));
+        assert_eq!(state.get_balance(SENDER, ASSET0), 2);
+        assert_eq!(state.get_balance(RECIPIENT, ASSET1), 0);
+        let post = state.to_snapshot();
+        assert_eq!(post.pools.len(), 1);
+        assert_eq!(post.pools[0].reserve0, 10_000);
+        assert_eq!(post.pools[0].reserve1, 10_000);
     }
 }

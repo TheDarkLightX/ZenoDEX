@@ -407,6 +407,18 @@ python3 tools/zeno_ledger_node.py run \
   --port 8787
 ```
 
+ZenoLedger also has opt-in Risc0 proof-of-execution coverage for the current
+ZenoDEX spot v1 guest subset. The real-proof smoke builds the guest with
+`RISC0_FORCE_BUILD=1`, generates non-empty receipts, and verifies them through
+the host CLI for an empty transition, faucet mint, create-pool, and
+swap-exact-in. The receipt journal binds the state hash, transaction
+commitment, pre-app hash, post-app hash, and block timestamp.
+
+This is current local evidence for the restricted guest path. It does not yet
+prove the full Python ZenoDEX runtime, multi-intent batches, exact-out,
+multi-hop routing, production prover performance, or validator-network
+readiness.
+
 After the node has verified its bootstrap bundle, a local operator can append
 testnet DEX transactions into the node-local live ledger:
 
@@ -485,6 +497,18 @@ The receipt journal binds the pre-state root, ordered body root, conflict
 schedule hash, post-state root, app hash, data-availability root, feature-suite
 hash, token-registry hash, and rejection-receipt root. ZK and TEE adapters use
 the same journal hash as their public input.
+
+ZenoLedger also has opt-in Risc0 proof-of-execution coverage for the current
+ZenoDEX spot v1 guest subset. The real-proof smoke builds the guest with
+`RISC0_FORCE_BUILD=1`, generates non-empty receipts, and verifies them through
+the host CLI for an empty transition, faucet mint, create-pool, and
+swap-exact-in. The receipt journal binds the state hash, transaction
+commitment, pre-app hash, post-app hash, and block timestamp.
+
+This is current local evidence for the restricted guest path. It does not yet
+prove the full Python ZenoDEX runtime, multi-intent batches, exact-out,
+multi-hop routing, production prover performance, or validator-network
+readiness.
 
 This is the first public-node layer for ZenoLedger. The node bootstraps from a
 bundle, verifies the ledger, emits a watcher attestation, and serves
