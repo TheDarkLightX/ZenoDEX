@@ -467,6 +467,25 @@ The scheduler treats each connected component as one task. Independent tasks can
 run in the same wave; transactions inside a conflicted component retain their
 deterministic order.
 
+That schedule hash can be bound into a transition receipt for deterministic
+replay, ZK, TEE, or recursive proof backends:
+
+```bash
+python3 tools/zeno_ledger_make_transition_receipt.py \
+  --header /path/to/header.json \
+  --out /tmp/zeno-ledger-transition-receipt.json \
+  --conflict-schedule-hash <CONFLICT_SCHEDULE_HASH> \
+  --verifier-kind risc0_zkvm_v0 \
+  --verifier-version risc0-zkvm-0 \
+  --proof-commitment <PROOF_COMMITMENT> \
+  --proof-metadata /path/to/proof_metadata.json
+```
+
+The receipt journal binds the pre-state root, ordered body root, conflict
+schedule hash, post-state root, app hash, data-availability root, feature-suite
+hash, token-registry hash, and rejection-receipt root. ZK and TEE adapters use
+the same journal hash as their public input.
+
 This is the first public-node layer for ZenoLedger. The node bootstraps from a
 bundle, verifies the ledger, emits a watcher attestation, and serves
 `/health`, `/status`, `/features`, `/tokens`, `/network`, `/live`,

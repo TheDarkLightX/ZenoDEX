@@ -18,7 +18,9 @@ from src.integration.zeno_ledger_scaling_v0 import (
     build_execution_journal_from_header_v0,
     build_transition_receipt_v0,
     execution_journal_hash_v0,
+    proof_metadata_hash_v0,
     validate_header_transition_receipt_binding_v0,
+    validate_proof_metadata_journal_binding_v0,
 )
 from src.integration.zeno_ledger_v0 import validate_header_v0
 
@@ -42,11 +44,13 @@ def build_transition_receipt_report_v0(
     proof_policy_id: str,
     feature_suite_hash: str,
     token_registry_hash: str,
+    conflict_schedule_hash: str,
     rejection_receipt_root: str,
     verifier_kind: str,
     verifier_version: str,
     proof_commitment: str,
     receipt_metadata_hash: str,
+    proof_metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     validate_header_v0(dict(header))
     journal = build_execution_journal_from_header_v0(
@@ -55,14 +59,28 @@ def build_transition_receipt_report_v0(
         proof_policy_id=proof_policy_id,
         feature_suite_hash=feature_suite_hash,
         token_registry_hash=token_registry_hash,
+        conflict_schedule_hash=conflict_schedule_hash,
         rejection_receipt_root=rejection_receipt_root,
     )
+    proof_metadata_obj: dict[str, Any] | None = None
+    effective_receipt_metadata_hash = receipt_metadata_hash
+    if proof_metadata is not None:
+        proof_metadata_obj = dict(proof_metadata)
+        validate_proof_metadata_journal_binding_v0(
+            metadata=proof_metadata_obj,
+            execution_journal=journal,
+        )
+        if proof_metadata_obj["verifier_kind"] != verifier_kind:
+            raise ValueError("proof_metadata verifier_kind does not match receipt")
+        if proof_metadata_obj["verifier_version"] != verifier_version:
+            raise ValueError("proof_metadata verifier_version does not match receipt")
+        effective_receipt_metadata_hash = proof_metadata_hash_v0(proof_metadata_obj)
     receipt = build_transition_receipt_v0(
         execution_journal=journal,
         verifier_kind=verifier_kind,
         verifier_version=verifier_version,
         proof_commitment=proof_commitment,
-        receipt_metadata_hash=receipt_metadata_hash,
+        receipt_metadata_hash=effective_receipt_metadata_hash,
     )
     journal_hash = execution_journal_hash_v0(journal)
     binding_ok = True
@@ -85,6 +103,8 @@ def build_transition_receipt_report_v0(
         },
         "execution_journal": journal,
         "execution_journal_hash": journal_hash,
+        "proof_metadata": proof_metadata_obj,
+        "proof_metadata_hash": effective_receipt_metadata_hash if proof_metadata_obj is not None else None,
         "transition_receipt": receipt,
     }
 
@@ -97,11 +117,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--proof-policy-id", default="public-testnet-replay-v0")
     parser.add_argument("--feature-suite-hash", default=ZERO_ROOT_V0)
     parser.add_argument("--token-registry-hash", default=ZERO_ROOT_V0)
+    parser.add_argument("--conflict-schedule-hash", default=ZERO_ROOT_V0)
     parser.add_argument("--rejection-receipt-root", default=ZERO_ROOT_V0)
     parser.add_argument("--verifier-kind", default="deterministic_replay_v0")
     parser.add_argument("--verifier-version", default="zeno-ledger-replay-0")
     parser.add_argument("--proof-commitment", default=ZERO_ROOT_V0)
     parser.add_argument("--receipt-metadata-hash", default=ZERO_ROOT_V0)
+    parser.add_argument("--proof-metadata", type=Path, help="Optional proof metadata JSON bound as receipt metadata")
     parser.add_argument(
         "--require-header-binding",
         action="store_true",
@@ -119,11 +141,13 @@ def main(argv: list[str] | None = None) -> int:
         proof_policy_id=args.proof_policy_id,
         feature_suite_hash=args.feature_suite_hash,
         token_registry_hash=args.token_registry_hash,
+        conflict_schedule_hash=args.conflict_schedule_hash,
         rejection_receipt_root=args.rejection_receipt_root,
         verifier_kind=args.verifier_kind,
         verifier_version=args.verifier_version,
         proof_commitment=args.proof_commitment,
         receipt_metadata_hash=args.receipt_metadata_hash,
+        proof_metadata=_load_json_object(args.proof_metadata) if args.proof_metadata is not None else None,
     )
     if args.require_header_binding and not report["header_binding"]["ok"]:
         print(json.dumps(report, indent=2, sort_keys=True), file=sys.stderr)
@@ -135,4 +159,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
