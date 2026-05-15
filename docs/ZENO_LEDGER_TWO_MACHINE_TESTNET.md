@@ -35,6 +35,11 @@ git pull --ff-only origin main
 python3 --version
 ```
 
+Use Python 3.10 or newer. On macOS, `/usr/bin/python3` may still be Python
+3.9; in that case run the examples with `python3.11` or another Python 3.10+
+interpreter. The bundle builder keeps child script execution on the same
+interpreter that launched it.
+
 Machine A must expose two reachable ports:
 
 - `8000` for the static bootstrap mirror.
@@ -49,6 +54,21 @@ python3 tools/zeno_ledger_node.py doctor
 ```
 
 ## Machine A: Build, Mirror, And Run Writer
+
+The shortest path is the Machine A host runner. Replace `<MACHINE_A_IP>` with
+the address Machine B can reach:
+
+```bash
+python3 tools/zeno_ledger_machine_a_host.py \
+  --public-host <MACHINE_A_IP>
+```
+
+The command builds the public-testnet bundle, replays it as `operator-a`, serves
+the static mirror, starts the writer API with testnet intake and faucet enabled,
+writes `public_network_config.json`, and prints the exact Machine B acceptance
+command. Keep the process running while Machine B joins.
+
+Manual steps are below for operators who want to inspect each stage.
 
 Build the public-testnet bundle:
 
