@@ -20,6 +20,8 @@ from src.integration.zeno_ledger_testnet_status import (
 )
 from tools.zeno_ledger_make_core_feature_suite import build_core_feature_suite_v0
 from tools.zeno_ledger_make_testnet_bundle import (
+    DEFAULT_ASSET0,
+    DEFAULT_ASSET1,
     DEFAULT_CHAIN_ID,
     DEFAULT_SEQUENCER_ID,
     DEFAULT_TIME_MS,
@@ -150,6 +152,7 @@ def build_public_testnet_bundle_v0(
     _write_json(core_suite_run_report_path, core_suite_run_stdout)
 
     bootstrap_manifest = _load_json_object(bootstrap_manifest_path)
+    token_asset_id = str(bootstrap_manifest["token_asset_id"])
     mirror_index_path = _resolve_relative_to(
         bootstrap_manifest.get("mirror_index_path"),
         root=bootstrap_manifest_path.parent,
@@ -220,6 +223,29 @@ def build_public_testnet_bundle_v0(
             "testnet_scope": "zeno_ledger_testnet",
             "release_scope": "tau_net_exclusive",
             "external_minting_allowed": False,
+        },
+        "test_token_catalog": [
+            {
+                "symbol": token_symbol,
+                "asset_id": token_asset_id,
+                "purpose": "testnet ZenoDEX accounting token",
+            },
+            {
+                "symbol": "tASSET0",
+                "asset_id": DEFAULT_ASSET0,
+                "purpose": "deterministic spot and feature-suite asset",
+            },
+            {
+                "symbol": "tASSET1",
+                "asset_id": DEFAULT_ASSET1,
+                "purpose": "deterministic spot and feature-suite asset",
+            },
+        ],
+        "testnet_faucet_posture": {
+            "scope": "testnet_only",
+            "operation_key": "7",
+            "supports_fixture_mint": True,
+            "supports_token_ops": True,
         },
     }
     _write_json(launch_manifest_path, launch_manifest)
