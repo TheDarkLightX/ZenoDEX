@@ -13,8 +13,9 @@ ZenoLedger v0 gives ZenoDEX a Tau Net independent rehearsal layer:
 - Machine A runs the writer node with testnet intake and faucet enabled.
 - Machine B joins from the public HTTP mirror, verifies all bundle hashes, and
   runs as a follower/watcher.
-- Machine B can expose `POST /tx` and `POST /faucet`, forward those submissions
-  to Machine A, and then replay Machine A's resulting live blocks.
+- Machine B can expose `POST /tx`, `POST /faucet`, and `POST /tokens`, forward
+  those submissions to Machine A, and then replay Machine A's resulting live
+  blocks.
 - Both machines can check that they share the same network ID, chain ID,
   feature-suite hash, and common header hash.
 
@@ -22,6 +23,24 @@ The current mode is enough for a two-machine public-testnet rehearsal with fake
 tokens and elaborate ZenoDEX feature tests. It is still a designated-writer
 testnet, so validator scheduling, open P2P block gossip, and fork-choice remain
 future network work.
+
+## Prerequisites
+
+Both machines should run from the same Git commit:
+
+```bash
+git clone https://github.com/TheDarkLightX/ZenoDEX.git
+cd ZenoDEX
+git pull --ff-only origin main
+python3 --version
+```
+
+Machine A must expose two reachable ports:
+
+- `8000` for the static bootstrap mirror.
+- `8787` for the writer node HTTP API.
+
+Machine B defaults to `8788` for its follower node server.
 
 ## Machine A: Build, Mirror, And Run Writer
 
@@ -79,6 +98,7 @@ Machine A exposes:
 - `GET /live`
 - `POST /tx`
 - `POST /faucet`
+- `POST /tokens`
 
 ## Machine B: Join And Follow
 
@@ -126,7 +146,25 @@ Machine B is forwarding testnet submissions to Machine A.
 
 ## Test Fake Tokens
 
-Submit a faucet request through Machine B. Machine B forwards it to Machine A.
+Create a named fake test token through Machine B. Machine B forwards it to
+Machine A.
+
+```bash
+curl -sS http://127.0.0.1:8788/tokens \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "creator_pubkey": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "decimals": 8,
+    "name": "Test Mango Credit",
+    "salt": "manual-two-machine-token-v0",
+    "symbol": "tMANGO",
+    "tx_id": "manual-create-test-token-v0"
+  }'
+```
+
+The response includes `testnet_token.asset`. Use that asset ID in the faucet
+request. This example uses a raw fixture asset ID, which is still accepted for
+quick testing:
 
 ```bash
 curl -sS http://127.0.0.1:8788/faucet \
@@ -150,6 +188,18 @@ python3 tools/zeno_ledger_node.py pull-live \
 The follower accepts a live block only when local deterministic replay produces
 the same header as the writer node.
 
+Inspect the follower token registry:
+
+```bash
+curl http://127.0.0.1:8788/tokens
+```
+
+Expected result:
+
+- `created_test_token_count` is at least `1` after the `POST /tokens` request.
+- `created_test_tokens` includes `tMANGO`.
+- `testnet_token_registry_hash` is present.
+
 ## Local Smoke Test
 
 Run this on one machine before involving the MacBook:
@@ -162,6 +212,6 @@ python3 tools/zeno_ledger_public_network_smoke.py \
 ```
 
 The smoke test builds a mirror, syncs two independent nodes, appends faucet and
-swap blocks, creates a fake-token pool, adds and removes liquidity in that
-pool, forwards a faucet request through the follower, and verifies both nodes
-end on the same live header.
+swap blocks, registers a named fake token, creates a fake-token pool, adds and
+removes liquidity in that pool, forwards a faucet request through the follower,
+and verifies both nodes end on the same live header.
