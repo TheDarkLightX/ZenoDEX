@@ -67,6 +67,7 @@ NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
+NODE_DOCTOR_REPORT_SCHEMA = "zenodex.zeno_ledger.node_doctor_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
@@ -1973,6 +1974,91 @@ def _public_network_config_to_join_config_v0(
     }
 
 
+def doctor_public_node_v0(
+    *,
+    config_url: str | None = None,
+    expected_network_config_hash: str | None = None,
+) -> dict[str, Any]:
+    """Check local and optional remote prerequisites before joining a testnet."""
+
+    checks: list[dict[str, Any]] = []
+    python_ok = sys.version_info >= (3, 10)
+    checks.append(
+        {
+            "name": "python_version",
+            "ok": python_ok,
+            "value": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "minimum": "3.10",
+        }
+    )
+    repo_files = [
+        ROOT / "tools" / "zeno_ledger_node.py",
+        ROOT / "tools" / "zeno_ledger_make_public_testnet_bundle.py",
+        ROOT / "src" / "integration" / "zeno_ledger_v0.py",
+    ]
+    repo_ok = all(path.is_file() for path in repo_files)
+    checks.append(
+        {
+            "name": "repo_layout",
+            "ok": repo_ok,
+            "root": str(ROOT),
+            "required_files": [str(path.relative_to(ROOT)) for path in repo_files],
+        }
+    )
+    remote_summary: dict[str, Any] | None = None
+    if config_url is not None:
+        try:
+            network_config = _fetch_json_url(config_url)
+            if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+                raise ValueError("public network config schema mismatch")
+            expected_hash = network_config.get("network_config_hash")
+            actual_hash = _public_network_config_hash_v0(network_config)
+            if expected_hash != actual_hash:
+                raise ValueError("public network config hash mismatch")
+            if expected_network_config_hash is not None:
+                pinned_hash = _require_root_v0(
+                    expected_network_config_hash,
+                    name="expected_network_config_hash",
+                )
+                if actual_hash != pinned_hash:
+                    raise ValueError("public network config hash did not match expected hash")
+            writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
+            peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
+            if not writer_urls:
+                raise ValueError("public network config must contain at least one writer URL")
+            remote_summary = {
+                "network_id": network_config.get("network_id"),
+                "chain_id": network_config.get("chain_id"),
+                "network_config_hash": actual_hash,
+                "mirror_base_url": network_config.get("mirror_base_url"),
+                "writer_urls": writer_urls,
+                "peer_urls": peer_urls,
+                "feature_suite_hash": network_config.get("feature_suite_hash"),
+                "feature_count": network_config.get("feature_count"),
+            }
+            checks.append({"name": "public_network_config", "ok": True, **remote_summary})
+        except Exception as exc:
+            checks.append(
+                {
+                    "name": "public_network_config",
+                    "ok": False,
+                    "config_url": config_url,
+                    "error": str(exc),
+                }
+            )
+    ok = all(check.get("ok") is True for check in checks)
+    return {
+        "schema": NODE_DOCTOR_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "root": str(ROOT),
+        "config_url": config_url,
+        "expected_network_config_hash": expected_network_config_hash,
+        "checks": checks,
+        "remote_network": remote_summary,
+    }
+
+
 def join_public_node_from_network_config_url_v0(
     *,
     config_url: str,
@@ -2184,6 +2270,18 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    try:
+        report = doctor_public_node_v0(
+            config_url=args.config_url,
+            expected_network_config_hash=args.expected_network_config_hash,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_DOCTOR_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_faucet(args: argparse.Namespace) -> int:
     try:
         report = append_testnet_faucet_v0(
@@ -2280,6 +2378,11 @@ def main(argv: list[str] | None = None) -> int:
     join_network.add_argument("--poll-seconds", type=int)
     join_network.add_argument("--expected-network-config-hash")
     join_network.set_defaults(func=_cmd_join_network)
+
+    doctor = sub.add_parser("doctor", help="check local and optional public-network bootstrap prerequisites")
+    doctor.add_argument("--config-url")
+    doctor.add_argument("--expected-network-config-hash")
+    doctor.set_defaults(func=_cmd_doctor)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")
     run.add_argument("--bundle-root", required=True, type=Path)
