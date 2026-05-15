@@ -6,10 +6,12 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
 
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_dex_intent_for_engine
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
@@ -47,11 +49,21 @@ def _post_url_json(url: str, value: dict[str, object]) -> dict[str, object]:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urlopen(request, timeout=5) as response:  # noqa: S310 - local test server
-        body = response.read().decode("utf-8")
+    try:
+        with urlopen(request, timeout=5) as response:  # noqa: S310 - local test server
+            body = response.read().decode("utf-8")
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8")
     obj = json.loads(body)
     assert isinstance(obj, dict)
     return obj
+
+
+def _signed_intent(intent: dict[str, object], *, chain_id: str, privkey: int) -> dict[str, object]:
+    return {
+        **intent,
+        "signature": sign_dex_intent_for_engine(intent, privkey=privkey, chain_id=chain_id),
+    }
 
 
 class _QuietStaticHandler(SimpleHTTPRequestHandler):
@@ -145,10 +157,13 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         host, port = server.server_address
         asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
         asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
+        user_privkey = 7
+        user_pubkey = bls_pubkey_hex_from_privkey(user_privkey)
+        chain_id = "zeno-ledger-node-testnet-0"
         faucet_report = _post_url_json(
             f"http://{host}:{port}/faucet",
             {
-                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "to_pubkey": user_pubkey,
                 "asset": asset_a,
                 "amount": 1234,
                 "time_ms": 1_778_731_122_000,
@@ -157,13 +172,13 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         )
         assert faucet_report["ok"] is True
         assert faucet_report["height"] == 6
-        append_report = _post_url_json(
+        spoofed_unsigned_report = _post_url_json(
             f"http://{host}:{port}/tx",
             {
-                "time_ms": 1_778_731_123_000,
+                "time_ms": 1_778_731_122_500,
                 "tx": {
-                    "tx_id": "node-live-swap-v0",
-                    "block_timestamp": 1_778_731_123,
+                    "tx_id": "node-live-unsigned-spoof-v0",
+                    "block_timestamp": 1_778_731_122,
                     "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                     "operations": {
                         "2": [
@@ -171,7 +186,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                                 "module": "TauSwap",
                                 "version": "0.1",
                                 "kind": "SWAP_EXACT_IN",
-                                "intent_id": "0x" + "bb" * 32,
+                                "intent_id": "0x" + "ba" * 32,
                                 "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                                 "deadline": 1_999_999_999,
                                 "nonce": 5,
@@ -182,6 +197,42 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                                 "min_amount_out": 1,
                                 "recipient": DEFAULT_BOOTSTRAP_SENDER,
                             }
+                        ]
+                    },
+                },
+            },
+        )
+        assert spoofed_unsigned_report["ok"] is False
+        assert spoofed_unsigned_report["tx_accepted"] is False
+        assert spoofed_unsigned_report["height"] == 7
+        assert spoofed_unsigned_report["receipt"]["accepted"] is False
+        assert "missing_intent_signature" in spoofed_unsigned_report["receipt"]["error_code"]
+        assert _read_url_json(f"http://{host}:{port}/live")["state"]["latest_height"] == 6
+        append_report = _post_url_json(
+            f"http://{host}:{port}/tx",
+            {
+                "time_ms": 1_778_731_123_000,
+                "tx": {
+                    "tx_id": "node-live-swap-v0",
+                    "block_timestamp": 1_778_731_123,
+                    "tx_sender_pubkey": user_pubkey,
+                    "operations": {
+                        "2": [
+                            _signed_intent({
+                                "module": "TauSwap",
+                                "version": "0.1",
+                                "kind": "SWAP_EXACT_IN",
+                                "intent_id": "0x" + "bb" * 32,
+                                "sender_pubkey": user_pubkey,
+                                "deadline": 1_999_999_999,
+                                "nonce": 1,
+                                "pool_id": compute_pool_id(asset_a, asset_b, 30),
+                                "asset_in": asset_a,
+                                "asset_out": asset_b,
+                                "amount_in": 100,
+                                "min_amount_out": 1,
+                                "recipient": user_pubkey,
+                            }, chain_id=chain_id, privkey=user_privkey)
                         ]
                     },
                 },
@@ -210,7 +261,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         fake_asset_faucet_report = _post_url_json(
             f"http://{host}:{port}/faucet",
             {
-                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "to_pubkey": user_pubkey,
                 "asset": new_fake_asset,
                 "amount": 50_000,
                 "time_ms": 1_778_731_125_000,
@@ -229,24 +280,24 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                 "tx": {
                     "tx_id": "node-live-create-fake-token-pool-v0",
                     "block_timestamp": 1_778_731_125,
-                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "tx_sender_pubkey": user_pubkey,
                     "operations": {
                         "2": [
-                            {
+                            _signed_intent({
                                 "module": "TauSwap",
                                 "version": "0.1",
                                 "kind": "CREATE_POOL",
                                 "intent_id": "0x" + "cc" * 32,
-                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "sender_pubkey": user_pubkey,
                                 "deadline": 1_999_999_999,
-                                "nonce": 6,
+                                "nonce": 2,
                                 "asset0": asset0_for_new_pool,
                                 "asset1": asset1_for_new_pool,
                                 "fee_bps": 30,
                                 "amount0": 100,
                                 "amount1": 100,
                                 "created_at": 1_778_731_125,
-                            }
+                            }, chain_id=chain_id, privkey=user_privkey)
                         ]
                     },
                 },
@@ -263,24 +314,24 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                 "tx": {
                     "tx_id": "node-live-add-fake-token-liquidity-v0",
                     "block_timestamp": 1_778_731_126,
-                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "tx_sender_pubkey": user_pubkey,
                     "operations": {
                         "2": [
-                            {
+                            _signed_intent({
                                 "module": "TauSwap",
                                 "version": "0.1",
                                 "kind": "ADD_LIQUIDITY",
                                 "intent_id": "0x" + "cd" * 32,
-                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "sender_pubkey": user_pubkey,
                                 "deadline": 1_999_999_999,
-                                "nonce": 7,
+                                "nonce": 3,
                                 "pool_id": fake_pool_id,
                                 "amount0_desired": 10,
                                 "amount1_desired": 10,
                                 "amount0_min": 0,
                                 "amount1_min": 0,
-                                "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                            }
+                                "recipient": user_pubkey,
+                            }, chain_id=chain_id, privkey=user_privkey)
                         ]
                     },
                 },
@@ -296,23 +347,23 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                 "tx": {
                     "tx_id": "node-live-remove-fake-token-liquidity-v0",
                     "block_timestamp": 1_778_731_127,
-                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "tx_sender_pubkey": user_pubkey,
                     "operations": {
                         "2": [
-                            {
+                            _signed_intent({
                                 "module": "TauSwap",
                                 "version": "0.1",
                                 "kind": "REMOVE_LIQUIDITY",
                                 "intent_id": "0x" + "ce" * 32,
-                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "sender_pubkey": user_pubkey,
                                 "deadline": 1_999_999_999,
-                                "nonce": 8,
+                                "nonce": 4,
                                 "pool_id": fake_pool_id,
                                 "lp_amount": 1,
                                 "amount0_min": 0,
                                 "amount1_min": 0,
-                                "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                            }
+                                "recipient": user_pubkey,
+                            }, chain_id=chain_id, privkey=user_privkey)
                         ]
                     },
                 },

@@ -1375,6 +1375,7 @@ def build_local_block_v0(
     signature_set_root: str,
     allow_missing_settlement: bool = False,
     require_intent_signatures: bool = True,
+    allow_unsigned_intents_if_tx_sender_matches: bool = True,
 ) -> dict[str, Any]:
     body = dict(_load_json_object(body_path))
     validate_body_v0(body)
@@ -1413,6 +1414,7 @@ def build_local_block_v0(
         engine_config = DexEngineConfig(
             allow_missing_settlement=allow_missing_settlement,
             require_intent_signatures=require_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
         )
         post_state, body, receipts = apply_body_transactions_v0(
             state=pre_state,
