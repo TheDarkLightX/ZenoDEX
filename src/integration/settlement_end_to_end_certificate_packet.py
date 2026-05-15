@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from src.core.settlement import Settlement
 from src.core.settlement_strong_validator import validate_settlement_strong
+from src.state.nonces import NonceTable
 
 from .settlement_endogenous_lp_value_packet import (
     SettlementEndogenousLPValuePacket,
@@ -468,6 +469,7 @@ def enforce_settlement_end_to_end_certificate(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Any | None = None,
+    pre_nonces: NonceTable | None = None,
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
@@ -493,6 +495,7 @@ def enforce_settlement_end_to_end_certificate(
             pre_balances=pre_balances,
             pre_pools=pre_pools,
             pre_lp_balances=pre_lp_balances,
+            pre_nonces=pre_nonces,
         )
     except Exception as exc:
         return False, f"settlement replay context commitment failed: {exc}", None

@@ -16,6 +16,7 @@ from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_un
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
+from ..state.nonces import NonceTable
 from ..state.pools import PoolState
 from .settlement_end_to_end_certificate_packet import (
     SettlementEndToEndCertificateInputs,
@@ -37,6 +38,7 @@ def validate_operations(
     lp_balances: Optional[LPTable],
     block_timestamp: int,
     *,
+    nonces: Optional[NonceTable] = None,
     tau_gate_config: Optional["TauGateConfig"] = None,
     settlement_validation: str = "strong_proof_carrying",
     swap_ordering: str = "greedy_ab_refined",
@@ -109,6 +111,7 @@ def validate_operations(
                     pre_balances=balances,
                     pre_pools=pools,
                     pre_lp_balances=lp_balances,
+                    pre_nonces=nonces,
                     mode=str(settlement_validation),
                     allow_cow_netting=bool(allow_cow_netting),
                     allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
