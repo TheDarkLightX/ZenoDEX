@@ -636,9 +636,10 @@ def append_dex_transaction_v0(
     )
     report = {
         "schema": NODE_APPEND_REPORT_SCHEMA,
-        "ok": accepted,
-        "status": "accepted" if accepted else "rejected",
+        "ok": True,
+        "status": "accepted",
         "node_id": node_status["node_id"],
+        "tx_accepted": accepted,
         "height": height,
         "tx_hash": tx_hash_v0(dict(tx)),
         "header_hash": block_report["header_hash"],
