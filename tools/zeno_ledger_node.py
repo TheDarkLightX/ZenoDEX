@@ -571,6 +571,12 @@ def _require_asset_v0(value: object, *, name: str) -> str:
     return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
 
 
+def _require_root_v0(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+
+
 def _require_positive_amount_v0(value: object, *, name: str, maximum: int) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise ValueError(f"{name} must be a positive int")
@@ -1977,10 +1983,16 @@ def join_public_node_from_network_config_url_v0(
     port: int | None,
     poll_seconds: int | None,
     serve: bool,
+    expected_network_config_hash: str | None = None,
 ) -> dict[str, Any]:
     """Join a public ZenoLedger testnet from one published network config URL."""
 
     network_config = _fetch_json_url(config_url)
+    if expected_network_config_hash is not None:
+        expected_hash = _require_root_v0(expected_network_config_hash, name="expected_network_config_hash")
+        actual_hash = network_config.get("network_config_hash")
+        if actual_hash != expected_hash:
+            raise ValueError("public network config hash did not match expected hash")
     join_config = _public_network_config_to_join_config_v0(
         network_config=network_config,
         node_id=node_id,
@@ -2000,6 +2012,7 @@ def join_public_node_from_network_config_url_v0(
     report["network_config_url"] = config_url
     report["network_config_path"] = str(network_config_path)
     report["network_config_hash"] = network_config.get("network_config_hash")
+    report["expected_network_config_hash"] = expected_network_config_hash
     return report
 
 
@@ -2149,6 +2162,7 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             port=args.port,
             poll_seconds=args.poll_seconds,
             serve=args.serve,
+            expected_network_config_hash=args.expected_network_config_hash,
         )
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -2264,6 +2278,7 @@ def main(argv: list[str] | None = None) -> int:
     join_network.add_argument("--host", default="0.0.0.0")
     join_network.add_argument("--port", type=int)
     join_network.add_argument("--poll-seconds", type=int)
+    join_network.add_argument("--expected-network-config-hash")
     join_network.set_defaults(func=_cmd_join_network)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")

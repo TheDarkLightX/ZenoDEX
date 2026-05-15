@@ -88,6 +88,9 @@ python3 tools/zeno_ledger_node.py write-network-config \
   --out /tmp/zeno-ledger-public-testnet/public_network_config.json
 ```
 
+Record the printed `network_config_hash`. Share it beside the URL when
+possible, so Machine B can reject a stale or unintended config.
+
 Machine A exposes:
 
 - `GET /health`
@@ -110,6 +113,7 @@ python3 tools/zeno_ledger_node.py join-network \
   --node-id operator-b \
   --bundle-root /tmp/zeno-ledger-public-testnet-synced \
   --data-dir /tmp/zeno-ledger-node-b \
+  --expected-network-config-hash <NETWORK_CONFIG_HASH> \
   --serve
 ```
 
