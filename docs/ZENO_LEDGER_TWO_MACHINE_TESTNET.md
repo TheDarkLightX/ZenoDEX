@@ -162,6 +162,23 @@ python3 tools/zeno_ledger_node.py evidence \
   --out /tmp/zeno-ledger-node-b/evidence_report.json
 ```
 
+Verify that the evidence report satisfies the two-machine acceptance gate:
+
+```bash
+python3 tools/zeno_ledger_verify_two_machine_evidence.py \
+  --evidence-report /tmp/zeno-ledger-node-b/evidence_report.json \
+  --expected-created-token-symbol tMANGO \
+  --min-height 13 \
+  --out /tmp/zeno-ledger-node-b/two_machine_evidence_verification.json
+```
+
+Expected result:
+
+- `ok: true`
+- `peer_same_height` check is `true`
+- `common_header_binding` check is `true`
+- `created_test_tokens` check includes `tMANGO`
+
 Inspect Machine B's mode:
 
 ```bash

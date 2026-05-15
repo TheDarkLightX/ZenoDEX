@@ -31,6 +31,7 @@ from tools.zeno_ledger_node import (
     append_dex_transaction_v0,
     append_testnet_faucet_v0,
     append_testnet_token_create_v0,
+    build_node_evidence_report_v0,
     check_peer_status_v0,
     make_node_http_server_v0,
     poll_live_peers_once_v0,
@@ -106,6 +107,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
     mirror_server, mirror_url = _start_static_server(source_bundle)
     node_a_server: ThreadingHTTPServer | None = None
     node_b_forward_server: ThreadingHTTPServer | None = None
+    evidence_report_path = node_b_dir / "evidence_report.json"
     try:
         sync_a = sync_public_bundle_from_url_v0(base_url=mirror_url, out_dir=node_a_bundle)
         sync_b = sync_public_bundle_from_url_v0(base_url=mirror_url, out_dir=node_b_bundle)
@@ -290,6 +292,14 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         )
         forwarded_pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
         final_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
+        evidence_report = build_node_evidence_report_v0(
+            data_dir=node_b_dir,
+            peer_urls=[node_a_url],
+        )
+        evidence_report_path.write_text(
+            json.dumps(evidence_report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     finally:
         if node_b_forward_server is not None:
             node_b_forward_server.shutdown()
@@ -320,6 +330,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             forwarded_faucet,
             forwarded_pull,
             final_peer_check,
+            evidence_report,
         )
     )
     return {
@@ -360,6 +371,8 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "final_peer_check_ok": final_peer_check["ok"],
         "final_peer_height_relation": final_peer_check["peers"][0]["height_relation"],
         "final_common_height": final_peer_check["peers"][0]["common_height"],
+        "evidence_report_ok": evidence_report["ok"],
+        "evidence_report_path": str(evidence_report_path),
     }
 
 

@@ -28,6 +28,7 @@ from tools.zeno_ledger_node import (
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
 )
+from tools.zeno_ledger_verify_two_machine_evidence import verify_two_machine_evidence_report_v0
 
 
 def _read_url_json(url: str) -> dict[str, object]:
@@ -435,6 +436,11 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
             data_dir=peer_node_dir,
             peer_urls=[f"http://{host}:{port}"],
         )
+        evidence_verification = verify_two_machine_evidence_report_v0(
+            evidence_report=evidence_report,
+            expected_created_token_symbols=["tMANGO"],
+            min_height=13,
+        )
 
         assert health["ok"] is True
         assert health["node_status_hash"] == status["node_status_hash"]
@@ -484,6 +490,8 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert evidence_report["created_test_token_count"] == 1
         assert evidence_report["created_test_tokens"][0]["symbol"] == "tMANGO"
         assert evidence_report["peer_check"]["ok"] is True
+        assert evidence_verification["ok"] is True
+        assert evidence_verification["same_height_peer"]["height_relation"] == "same_height"
         peer_live = _read_url_json(f"http://{host}:{port}/live/header/13")
         assert peer_live["height"] == 13
         assert load_node_status_v0(peer_node_dir)["ok"] is True
