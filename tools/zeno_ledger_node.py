@@ -23,12 +23,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
     INGRESS_RECEIPT_SCHEMA_V0,
+    canonical_header_hash_v0,
+    hash_v0,
     tx_hash_v0,
     validate_body_v0,
 )
@@ -46,6 +47,7 @@ NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
 NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
 NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
+NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 
 
@@ -101,6 +103,14 @@ def _download_json(*, base_url: str, rel_path: str, out_root: Path) -> dict[str,
     obj = json.loads(data.decode("utf-8"))
     if not isinstance(obj, dict):
         raise ValueError(f"{rel_path} must decode to a JSON object")
+    return obj
+
+
+def _fetch_json_url(url: str) -> dict[str, Any]:
+    data = _fetch_remote_bytes(url)
+    obj = json.loads(data.decode("utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError(f"{url} must decode to a JSON object")
     return obj
 
 
@@ -474,6 +484,26 @@ def _live_base_paths(*, bundle_root: Path, data_dir: Path, node_status: Mapping[
     }
 
 
+def _write_live_state(
+    *,
+    data_dir: Path,
+    height: int,
+    header_path: str,
+    snapshot_path: str,
+    header_hash: str,
+    app_hash: str,
+) -> None:
+    live_state = {
+        "schema": "zenodex.zeno_ledger.node_live_state.v0",
+        "latest_height": height,
+        "latest_header_path": header_path,
+        "latest_snapshot_path": snapshot_path,
+        "latest_header_hash": header_hash,
+        "latest_app_hash": app_hash,
+    }
+    _write_json(_latest_live_state_path(data_dir), live_state)
+
+
 def append_dex_transaction_v0(
     *,
     data_dir: Path,
@@ -520,15 +550,14 @@ def append_dex_transaction_v0(
     receipts_path = Path(str(block_report["receipts_path"]))
     receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
     accepted = bool(receipts and isinstance(receipts[0], Mapping) and receipts[0].get("accepted") is True)
-    live_state = {
-        "schema": "zenodex.zeno_ledger.node_live_state.v0",
-        "latest_height": height,
-        "latest_header_path": block_report["header_path"],
-        "latest_snapshot_path": block_report["post_snapshot_path"],
-        "latest_header_hash": block_report["header_hash"],
-        "latest_app_hash": block_report["app_hash"],
-    }
-    _write_json(_latest_live_state_path(data_dir), live_state)
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(block_report["header_path"]),
+        snapshot_path=str(block_report["post_snapshot_path"]),
+        header_hash=str(block_report["header_hash"]),
+        app_hash=str(block_report["app_hash"]),
+    )
     report = {
         "schema": NODE_APPEND_REPORT_SCHEMA,
         "ok": accepted,
@@ -548,6 +577,122 @@ def append_dex_transaction_v0(
     append_report_path = data_dir / "append_reports" / f"{height}.json"
     _write_json(append_report_path, report)
     return {**report, "append_report_path": str(append_report_path)}
+
+
+def _live_artifact_path(*, data_dir: Path, kind: str, height: int) -> Path:
+    if kind == "header":
+        return data_dir / "live_ledger" / "headers" / f"{height}.json"
+    if kind == "body":
+        return data_dir / "live_ledger" / "bodies" / f"{height}.json"
+    if kind == "checkpoint":
+        return data_dir / "live_ledger" / "checkpoints" / f"{height}.json"
+    if kind == "snapshot":
+        return data_dir / "live_ledger" / "snapshots" / f"{height}.json"
+    raise ValueError(f"unsupported live artifact kind: {kind}")
+
+
+def pull_live_from_peer_v0(
+    *,
+    data_dir: Path,
+    peer_url: str,
+) -> dict[str, Any]:
+    """Pull live blocks from a peer and accept only deterministic replays."""
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    local_latest = int(base["latest_height"])
+    peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
+    if peer_live.get("ok") is not True or peer_live.get("live") is not True:
+        return {
+            "schema": NODE_PULL_REPORT_SCHEMA,
+            "ok": True,
+            "status": "accepted",
+            "pulled_count": 0,
+            "local_latest_height": local_latest,
+            "peer_live": False,
+        }
+    peer_state = peer_live.get("state")
+    if not isinstance(peer_state, Mapping):
+        raise ValueError("peer live state must be an object")
+    peer_latest = int(peer_state["latest_height"])
+    if peer_latest <= local_latest:
+        return {
+            "schema": NODE_PULL_REPORT_SCHEMA,
+            "ok": True,
+            "status": "accepted",
+            "pulled_count": 0,
+            "local_latest_height": local_latest,
+            "peer_latest_height": peer_latest,
+        }
+
+    pulled: list[dict[str, Any]] = []
+    current_prev_header = Path(str(base["prev_header_path"]))
+    current_pre_snapshot = Path(str(base["pre_snapshot_path"]))
+    live_ledger_dir = data_dir / "live_ledger"
+    for height in range(local_latest + 1, peer_latest + 1):
+        peer_body = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"))
+        peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+        body_path = data_dir / "pulled_bodies" / f"{height}.json"
+        _write_json(body_path, peer_body)
+        block_report = build_local_block_v0(
+            body_path=body_path,
+            out_dir=live_ledger_dir,
+            time_ms=int(peer_header["time_ms"]),
+            pre_snapshot_path=current_pre_snapshot,
+            prev_header_path=current_prev_header,
+            trusted_prev_header_hash=ZERO_ROOT,
+            sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+            data_availability_root=ZERO_ROOT,
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=str(bootstrap_manifest["config_digest"]),
+            module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            signature_set_root=ZERO_ROOT,
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+        )
+        local_header = _load_json_object(Path(str(block_report["header_path"])))
+        if dict(local_header) != dict(peer_header):
+            raise ValueError(f"peer header mismatch at height {height}")
+        if canonical_header_hash_v0(dict(local_header)) != canonical_header_hash_v0(dict(peer_header)):
+            raise ValueError(f"peer header hash mismatch at height {height}")
+        current_prev_header = Path(str(block_report["header_path"]))
+        current_pre_snapshot = Path(str(block_report["post_snapshot_path"]))
+        pulled.append(
+            {
+                "height": height,
+                "header_hash": block_report["header_hash"],
+                "app_hash": block_report["app_hash"],
+            }
+        )
+
+    last = pulled[-1]
+    _write_live_state(
+        data_dir=data_dir,
+        height=int(last["height"]),
+        header_path=str(current_prev_header),
+        snapshot_path=str(current_pre_snapshot),
+        header_hash=str(last["header_hash"]),
+        app_hash=str(last["app_hash"]),
+    )
+    report = {
+        "schema": NODE_PULL_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "peer_url": peer_url,
+        "network_id": public_manifest["network_id"],
+        "chain_id": public_manifest["chain_id"],
+        "from_height": local_latest + 1,
+        "to_height": peer_latest,
+        "pulled_count": len(pulled),
+        "pulled": pulled,
+        "local_latest_height": peer_latest,
+    }
+    pull_report_path = data_dir / "pull_reports" / f"{peer_latest}.json"
+    _write_json(pull_report_path, report)
+    return {**report, "pull_report_path": str(pull_report_path)}
 
 
 def load_node_status_v0(data_dir: Path) -> dict[str, Any]:
@@ -587,6 +732,19 @@ def make_node_http_server_v0(*, data_dir: Path, host: str, port: int) -> Threadi
         def do_GET(self) -> None:  # noqa: N802
             try:
                 status = load_node_status_v0(root)
+                parts = [part for part in self.path.split("?", 1)[0].split("/") if part]
+                if len(parts) == 3 and parts[0] == "live" and parts[1] in {"header", "body", "checkpoint", "snapshot"}:
+                    try:
+                        height = int(parts[2])
+                    except ValueError:
+                        self._send_json({"ok": False, "error": "invalid_height"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    artifact_path = _live_artifact_path(data_dir=root, kind=parts[1], height=height)
+                    if not artifact_path.is_file():
+                        self._send_json({"ok": False, "error": "live_artifact_missing"}, status=HTTPStatus.NOT_FOUND)
+                    else:
+                        self._send_json(_load_json_object(artifact_path))
+                    return
                 if self.path in {"/", "/health"}:
                     self._send_json(
                         {
@@ -732,6 +890,18 @@ def _cmd_append(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_pull_live(args: argparse.Namespace) -> int:
+    try:
+        report = pull_live_from_peer_v0(
+            data_dir=args.data_dir,
+            peer_url=args.peer_url,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_PULL_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     load_node_status_v0(args.data_dir)
     serve_node_v0(data_dir=args.data_dir, host=args.host, port=args.port)
@@ -772,6 +942,11 @@ def main(argv: list[str] | None = None) -> int:
     append.add_argument("--tx", required=True, type=Path)
     append.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
     append.set_defaults(func=_cmd_append)
+
+    pull_live = sub.add_parser("pull-live", help="pull and replay live blocks from a peer node")
+    pull_live.add_argument("--data-dir", required=True, type=Path)
+    pull_live.add_argument("--peer-url", required=True)
+    pull_live.set_defaults(func=_cmd_pull_live)
 
     serve = sub.add_parser("serve", help="serve an existing node data directory")
     serve.add_argument("--data-dir", required=True, type=Path)

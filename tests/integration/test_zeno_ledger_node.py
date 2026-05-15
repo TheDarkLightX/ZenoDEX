@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -14,6 +15,7 @@ from tools.zeno_ledger_node import (
     append_dex_transaction_v0,
     load_node_status_v0,
     make_node_http_server_v0,
+    pull_live_from_peer_v0,
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
 )
@@ -85,6 +87,9 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     assert status["testnet_faucet_posture"]["supports_fixture_mint"] is True
     assert status["testnet_token_support"]["faucet_scope"] == "testnet-only feature lanes"
 
+    peer_node_dir = tmp_path / "node-c"
+    shutil.copytree(node_dir, peer_node_dir)
+
     asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
     asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
     append_report = append_dex_transaction_v0(
@@ -130,6 +135,10 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         tokens = _read_url_json(f"http://{host}:{port}/tokens")
         live = _read_url_json(f"http://{host}:{port}/live")
         testnet_status = _read_url_json(f"http://{host}:{port}/testnet-status")
+        pull_report = pull_live_from_peer_v0(
+            data_dir=peer_node_dir,
+            peer_url=f"http://{host}:{port}",
+        )
 
         assert health["ok"] is True
         assert health["node_status_hash"] == status["node_status_hash"]
@@ -138,6 +147,13 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert len(tokens["test_token_catalog"]) == 3
         assert live["live"] is True
         assert live["state"]["latest_height"] == 6
+        assert pull_report["ok"] is True
+        assert pull_report["pulled_count"] == 1
+        assert pull_report["to_height"] == 6
+        peer_live = _read_url_json(f"http://{host}:{port}/live/header/6")
+        assert peer_live["height"] == 6
+        assert load_node_status_v0(peer_node_dir)["ok"] is True
+        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 6
         assert testnet_status["watcher_count"] == 2
     finally:
         server.shutdown()

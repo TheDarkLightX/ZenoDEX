@@ -349,6 +349,10 @@ python3 tools/zeno_ledger_node.py append \
   --data-dir /tmp/zeno-ledger-node-a \
   --tx /path/to/testnet_tx.json \
   --time-ms 1778731000000
+
+python3 tools/zeno_ledger_node.py pull-live \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --peer-url http://127.0.0.1:8787
 ```
 
 This is the first public-node layer: it bootstraps from a bundle, verifies the
@@ -358,8 +362,10 @@ ledger, emits a watcher attestation, and serves `/health`, `/status`,
 and verifies every mirror hash before the node runs. The public bundle carries
 a deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
 testnet-only faucet posture for feature testing. The `append` command writes
-post-bootstrap testnet DEX blocks under the node data directory. Live P2P block
-gossip and validator scheduling remain future network work.
+post-bootstrap testnet DEX blocks under the node data directory. The `pull-live`
+command fetches live block bodies from a peer and accepts them only after local
+deterministic replay produces the same header. Live P2P block gossip and
+validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer:
