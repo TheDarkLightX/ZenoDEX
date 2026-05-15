@@ -251,6 +251,39 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
             data_dir=peer_node_dir,
             peer_urls=[f"http://{host}:{port}"],
         )
+        forward_server = make_node_http_server_v0(
+            data_dir=peer_node_dir,
+            host="127.0.0.1",
+            port=0,
+            enable_testnet_intake=True,
+            enable_testnet_faucet=True,
+            submit_peer_url=f"http://{host}:{port}",
+        )
+        forward_thread = threading.Thread(target=forward_server.serve_forever, daemon=True)
+        forward_thread.start()
+        try:
+            forward_host, forward_port = forward_server.server_address
+            forwarded_faucet_report = _post_url_json(
+                f"http://{forward_host}:{forward_port}/faucet",
+                {
+                    "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "asset": asset_a,
+                    "amount": 55,
+                    "time_ms": 1_778_731_126_000,
+                    "tx_id": "node-http-forwarded-faucet-v0",
+                },
+            )
+        finally:
+            forward_server.shutdown()
+            forward_server.server_close()
+        forwarded_pull_report = pull_live_from_peer_v0(
+            data_dir=peer_node_dir,
+            peer_url=f"http://{host}:{port}",
+        )
+        final_peer_check = check_peer_status_v0(
+            data_dir=peer_node_dir,
+            peer_urls=[f"http://{host}:{port}"],
+        )
 
         assert health["ok"] is True
         assert health["node_status_hash"] == status["node_status_hash"]
@@ -268,10 +301,19 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert post_pull_peer_check["ok"] is True
         assert post_pull_peer_check["peers"][0]["height_relation"] == "same_height"
         assert post_pull_peer_check["peers"][0]["common_height"] == 9
-        peer_live = _read_url_json(f"http://{host}:{port}/live/header/9")
-        assert peer_live["height"] == 9
+        assert forwarded_faucet_report["ok"] is True
+        assert forwarded_faucet_report["forwarded_to"] == f"http://{host}:{port}"
+        assert forwarded_faucet_report["height"] == 10
+        assert forwarded_pull_report["ok"] is True
+        assert forwarded_pull_report["pulled_count"] == 1
+        assert forwarded_pull_report["to_height"] == 10
+        assert final_peer_check["ok"] is True
+        assert final_peer_check["peers"][0]["height_relation"] == "same_height"
+        assert final_peer_check["peers"][0]["common_height"] == 10
+        peer_live = _read_url_json(f"http://{host}:{port}/live/header/10")
+        assert peer_live["height"] == 10
         assert load_node_status_v0(peer_node_dir)["ok"] is True
-        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 9
+        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 10
         assert testnet_status["watcher_count"] == 2
     finally:
         server.shutdown()

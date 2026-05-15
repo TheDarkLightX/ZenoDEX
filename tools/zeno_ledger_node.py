@@ -18,8 +18,9 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.error import HTTPError
 from urllib.parse import urljoin
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -131,6 +132,29 @@ def _fetch_json_url(url: str) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError(f"{url} must decode to a JSON object")
     return obj
+
+
+def _post_json_url(url: str, value: Mapping[str, Any]) -> tuple[dict[str, Any], HTTPStatus]:
+    payload = json.dumps(dict(value), sort_keys=True).encode("utf-8")
+    request = Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=30) as response:  # noqa: S310 - explicit operator-configured peer URL
+            status = HTTPStatus(response.status)
+            data = response.read(MAX_REMOTE_ARTIFACT_BYTES + 1)
+    except HTTPError as exc:
+        status = HTTPStatus(exc.code)
+        data = exc.read(MAX_REMOTE_ARTIFACT_BYTES + 1)
+    if len(data) > MAX_REMOTE_ARTIFACT_BYTES:
+        raise ValueError(f"remote response too large: {url}")
+    obj = json.loads(data.decode("utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError(f"{url} must decode to a JSON object")
+    return obj, status
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -1138,6 +1162,7 @@ def make_node_http_server_v0(
     port: int,
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
+    submit_peer_url: str | None = None,
 ) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
 
@@ -1236,6 +1261,13 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
                         return
                     payload = _read_http_json_body(self)
+                    if submit_peer_url:
+                        report, peer_status = _post_json_url(
+                            urljoin(submit_peer_url.rstrip("/") + "/", "tx"),
+                            payload,
+                        )
+                        self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
+                        return
                     tx_raw = payload.get("tx", payload)
                     if not isinstance(tx_raw, Mapping):
                         self._send_json({"ok": False, "error": "tx_must_be_object"}, status=HTTPStatus.BAD_REQUEST)
@@ -1255,6 +1287,13 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "testnet_faucet_disabled"}, status=HTTPStatus.FORBIDDEN)
                         return
                     payload = _read_http_json_body(self)
+                    if submit_peer_url:
+                        report, peer_status = _post_json_url(
+                            urljoin(submit_peer_url.rstrip("/") + "/", "faucet"),
+                            payload,
+                        )
+                        self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
+                        return
                     time_ms = payload.get("time_ms")
                     if time_ms is None:
                         time_ms = int(time.time() * 1000)
@@ -1315,6 +1354,7 @@ def serve_node_v0(
     poll_seconds: int = 0,
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
+    submit_peer_url: str | None = None,
 ) -> None:
     _start_peer_follow_loop(
         data_dir=data_dir,
@@ -1327,6 +1367,7 @@ def serve_node_v0(
         port=port,
         enable_testnet_intake=enable_testnet_intake,
         enable_testnet_faucet=enable_testnet_faucet,
+        submit_peer_url=submit_peer_url,
     )
     address, actual_port = server.server_address
     print(
@@ -1340,6 +1381,7 @@ def serve_node_v0(
                 "poll_seconds": poll_seconds,
                 "testnet_intake_enabled": enable_testnet_intake,
                 "testnet_faucet_enabled": enable_testnet_faucet,
+                "submit_peer_url": submit_peer_url,
                 "status_url": f"http://{address}:{actual_port}/status",
             },
             indent=2,
@@ -1406,6 +1448,7 @@ def join_public_node_from_config_v0(*, config_path: Path) -> dict[str, Any]:
         "node_id": node_id,
         "bundle_root": str(bundle_root),
         "data_dir": str(data_dir),
+        "submit_peer_url": config.get("submit_peer_url"),
         "sync_report": sync_report,
         "run_report": run_report,
         "peer_check": peer_check,
@@ -1472,6 +1515,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             poll_seconds=args.poll_seconds,
             enable_testnet_intake=args.enable_testnet_intake,
             enable_testnet_faucet=args.enable_testnet_faucet,
+            submit_peer_url=args.submit_peer_url,
         )
     return 0
 
@@ -1532,6 +1576,7 @@ def _cmd_join(args: argparse.Namespace) -> int:
             poll_seconds=int(config.get("poll_seconds", 0)),
             enable_testnet_intake=config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=config.get("enable_testnet_faucet") is True,
+            submit_peer_url=str(config["submit_peer_url"]) if config.get("submit_peer_url") else None,
         )
     return 0
 
@@ -1562,6 +1607,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         poll_seconds=args.poll_seconds,
         enable_testnet_intake=args.enable_testnet_intake,
         enable_testnet_faucet=args.enable_testnet_faucet,
+        submit_peer_url=args.submit_peer_url,
     )
     return 0
 
@@ -1601,6 +1647,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--poll-seconds", type=int, default=0)
     run.add_argument("--enable-testnet-intake", action="store_true")
     run.add_argument("--enable-testnet-faucet", action="store_true")
+    run.add_argument("--submit-peer-url")
     run.set_defaults(func=_cmd_run)
 
     append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
@@ -1636,6 +1683,7 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--poll-seconds", type=int, default=0)
     serve.add_argument("--enable-testnet-intake", action="store_true")
     serve.add_argument("--enable-testnet-faucet", action="store_true")
+    serve.add_argument("--submit-peer-url")
     serve.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)

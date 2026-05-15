@@ -11,6 +11,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -54,18 +55,34 @@ def _start_static_server(root: Path) -> tuple[ThreadingHTTPServer, str]:
     return server, f"http://{host}:{port}"
 
 
-def _start_node_server(data_dir: Path) -> tuple[ThreadingHTTPServer, str]:
+def _start_node_server(data_dir: Path, *, submit_peer_url: str | None = None) -> tuple[ThreadingHTTPServer, str]:
     server = make_node_http_server_v0(
         data_dir=data_dir,
         host="127.0.0.1",
         port=0,
         enable_testnet_intake=True,
         enable_testnet_faucet=True,
+        submit_peer_url=submit_peer_url,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     host, port = server.server_address
     return server, f"http://{host}:{port}"
+
+
+def _post_json(url: str, value: dict[str, object]) -> dict[str, object]:
+    payload = json.dumps(value, sort_keys=True).encode("utf-8")
+    request = Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=30) as response:  # noqa: S310 - local smoke server
+        body = response.read().decode("utf-8")
+    obj = json.loads(body)
+    assert isinstance(obj, dict)
+    return obj
 
 
 def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str) -> dict[str, Any]:
@@ -86,6 +103,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
     )
     mirror_server, mirror_url = _start_static_server(source_bundle)
     node_a_server: ThreadingHTTPServer | None = None
+    node_b_forward_server: ThreadingHTTPServer | None = None
     try:
         sync_a = sync_public_bundle_from_url_v0(base_url=mirror_url, out_dir=node_a_bundle)
         sync_b = sync_public_bundle_from_url_v0(base_url=mirror_url, out_dir=node_b_bundle)
@@ -190,7 +208,23 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         pre_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
         pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
         post_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
+        node_b_forward_server, node_b_url = _start_node_server(node_b_dir, submit_peer_url=node_a_url)
+        forwarded_faucet = _post_json(
+            f"{node_b_url}/faucet",
+            {
+                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "asset": asset_a,
+                "amount": 55,
+                "time_ms": DEFAULT_TIME_MS + 1_004_000,
+                "tx_id": "smoke-forwarded-faucet-v0",
+            },
+        )
+        forwarded_pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
+        final_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
     finally:
+        if node_b_forward_server is not None:
+            node_b_forward_server.shutdown()
+            node_b_forward_server.server_close()
         if node_a_server is not None:
             node_a_server.shutdown()
             node_a_server.server_close()
@@ -210,6 +244,9 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             pre_pull_peer_check,
             pull,
             post_pull_peer_check,
+            forwarded_faucet,
+            forwarded_pull,
+            final_peer_check,
         )
     )
     return {
@@ -229,13 +266,21 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "faucet_new_asset_height": faucet_new["height"],
         "create_fake_pool_height": create_fake_pool["height"],
         "node_b_pulled_count": pull["pulled_count"],
-        "node_b_latest_height": pull["local_latest_height"],
+        "node_b_total_pulled_count": int(pull["pulled_count"]) + int(forwarded_pull["pulled_count"]),
+        "node_b_latest_height": forwarded_pull["local_latest_height"],
         "pre_pull_peer_check_ok": pre_pull_peer_check["ok"],
         "pre_pull_peer_height_relation": pre_pull_peer_check["peers"][0]["height_relation"],
         "pre_pull_common_height": pre_pull_peer_check["peers"][0]["common_height"],
         "post_pull_peer_check_ok": post_pull_peer_check["ok"],
         "post_pull_peer_height_relation": post_pull_peer_check["peers"][0]["height_relation"],
         "post_pull_common_height": post_pull_peer_check["peers"][0]["common_height"],
+        "forwarded_faucet_height": forwarded_faucet["height"],
+        "forwarded_faucet_submit_peer": forwarded_faucet["forwarded_to"],
+        "forwarded_pull_count": forwarded_pull["pulled_count"],
+        "forwarded_pull_to_height": forwarded_pull["to_height"],
+        "final_peer_check_ok": final_peer_check["ok"],
+        "final_peer_height_relation": final_peer_check["peers"][0]["height_relation"],
+        "final_common_height": final_peer_check["peers"][0]["common_height"],
     }
 
 

@@ -346,7 +346,10 @@ cat > /tmp/zeno-ledger-node-b.json <<'JSON'
   "serve": true,
   "host": "0.0.0.0",
   "port": 8788,
-  "poll_seconds": 5
+  "poll_seconds": 5,
+  "enable_testnet_intake": true,
+  "enable_testnet_faucet": true,
+  "submit_peer_url": "http://127.0.0.1:8787"
 }
 JSON
 
@@ -392,6 +395,7 @@ python3 tools/zeno_ledger_node.py serve \
   --port 8788 \
   --peer-url http://127.0.0.1:8787 \
   --poll-seconds 5 \
+  --submit-peer-url http://127.0.0.1:8787 \
   --enable-testnet-intake \
   --enable-testnet-faucet
 
@@ -420,8 +424,11 @@ throwaway assets for live test pools without touching release token policy.
 The `join` command wraps sync, replay, watcher attestation, optional peer check,
 and optional serving into one JSON-configured operator flow. The `check-peers`
 command compares network ID, chain ID, feature-suite hash, peer height, and the
-common header hash before an operator trusts a peer. Live P2P block gossip and
-validator scheduling remain future network work.
+common header hash before an operator trusts a peer. A follower can expose
+`POST /tx` and `POST /faucet` while forwarding submissions to a designated
+writer with `--submit-peer-url`, then it follows the resulting live blocks by
+deterministic replay. Live P2P block gossip and validator scheduling remain
+future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer:
