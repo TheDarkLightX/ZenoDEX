@@ -180,6 +180,78 @@ def ProofMetadataAccepted
   RecursiveChildRootOk metadata ∧
   ZkProgramVerifierOk metadata
 
+theorem accepted_metadata_header_binding
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (haccept : ProofMetadataAccepted metadataDigest metadata header) :
+    MetadataHeaderBinding metadataDigest metadata header := by
+  exact haccept.2.1
+
+theorem header_binding_chain_id_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.chainId = header.chainId := by
+  exact hbind.1
+
+theorem header_binding_height_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.height = header.height := by
+  exact hbind.2.1
+
+theorem header_binding_pre_root_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.preRoot = header.preRoot := by
+  exact hbind.2.2.1
+
+theorem header_binding_post_root_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.postRoot = header.postRoot := by
+  exact hbind.2.2.2.1
+
+theorem header_binding_tx_root_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.txRoot = header.txRoot := by
+  exact hbind.2.2.2.2.1
+
+theorem header_binding_evidence_root_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.evidenceRoot = header.evidenceRoot := by
+  exact hbind.2.2.2.2.2.1
+
+theorem header_binding_body_root_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadata.bodyRoot = header.bodyRoot := by
+  exact hbind.2.2.2.2.2.2.1
+
+theorem header_binding_digest_matches
+    {metadataDigest : ProofMetadata → Nat}
+    {metadata : ProofMetadata}
+    {header : HeaderBinding}
+    (hbind : MetadataHeaderBinding metadataDigest metadata header) :
+    metadataDigest metadata = header.proofJournalHash := by
+  exact hbind.2.2.2.2.2.2.2
+
 theorem accepted_metadata_binds_header_roots
     {metadataDigest : ProofMetadata → Nat}
     {metadata : ProofMetadata}
@@ -190,9 +262,14 @@ theorem accepted_metadata_binds_header_roots
     metadata.txRoot = header.txRoot ∧
     metadata.evidenceRoot = header.evidenceRoot ∧
     metadata.bodyRoot = header.bodyRoot := by
-  rcases haccept with ⟨_, hbind, _, _, _⟩
-  rcases hbind with ⟨_, _, hpre, hpost, htx, hevidence, hbody, _⟩
-  exact ⟨hpre, hpost, htx, hevidence, hbody⟩
+  have hbind := accepted_metadata_header_binding haccept
+  exact ⟨
+    header_binding_pre_root_matches hbind,
+    header_binding_post_root_matches hbind,
+    header_binding_tx_root_matches hbind,
+    header_binding_evidence_root_matches hbind,
+    header_binding_body_root_matches hbind
+  ⟩
 
 theorem accepted_metadata_digest_matches_header
     {metadataDigest : ProofMetadata → Nat}
@@ -200,9 +277,7 @@ theorem accepted_metadata_digest_matches_header
     {header : HeaderBinding}
     (haccept : ProofMetadataAccepted metadataDigest metadata header) :
     metadataDigest metadata = header.proofJournalHash := by
-  rcases haccept with ⟨_, hbind, _, _, _⟩
-  rcases hbind with ⟨_, _, _, _, _, _, _, hdigest⟩
-  exact hdigest
+  exact header_binding_digest_matches (accepted_metadata_header_binding haccept)
 
 theorem accepted_tee_requires_measurement
     {metadataDigest : ProofMetadata → Nat}
@@ -266,7 +341,7 @@ theorem bound_metadata_unique_under_digest_injective
     (hb : MetadataHeaderBinding metadataDigest b header) :
     a = b := by
   apply hdigestInjective
-  exact ha.2.2.2.2.2.2.2.trans hb.2.2.2.2.2.2.2.symm
+  exact (header_binding_digest_matches ha).trans (header_binding_digest_matches hb).symm
 
 theorem accepted_metadata_unique_under_digest_injective
     {metadataDigest : ProofMetadata → Nat}
@@ -278,6 +353,70 @@ theorem accepted_metadata_unique_under_digest_injective
     a = b := by
   exact bound_metadata_unique_under_digest_injective
     hdigestInjective ha.2.1 hb.2.1
+
+structure BoundSegment where
+  metadata : ProofMetadata
+  header : HeaderBinding
+
+def BoundSegment.toSegment (s : BoundSegment) : Segment :=
+  {
+    preRoot := s.header.preRoot
+    postRoot := s.header.postRoot
+    journalHash := s.header.proofJournalHash
+    metadataHash := s.metadata.proofCommitment
+  }
+
+def BoundSegmentAccepted
+    (metadataDigest : ProofMetadata → Nat)
+    (s : BoundSegment) : Prop :=
+  ProofMetadataAccepted metadataDigest s.metadata s.header
+
+def BoundSegmentsAccepted
+    (metadataDigest : ProofMetadata → Nat)
+    (xs : List BoundSegment) : Prop :=
+  ∀ s ∈ xs, BoundSegmentAccepted metadataDigest s
+
+def BoundSegmentsChain (xs : List BoundSegment) : Prop :=
+  Chains (xs.map BoundSegment.toSegment)
+
+theorem bound_segment_accepted_roots_match
+    {metadataDigest : ProofMetadata → Nat}
+    {s : BoundSegment}
+    (haccept : BoundSegmentAccepted metadataDigest s) :
+    s.metadata.preRoot = (BoundSegment.toSegment s).preRoot ∧
+    s.metadata.postRoot = (BoundSegment.toSegment s).postRoot := by
+  have hbind := accepted_metadata_header_binding haccept
+  exact ⟨
+    header_binding_pre_root_matches hbind,
+    header_binding_post_root_matches hbind
+  ⟩
+
+theorem accepted_bound_chain_bridge_nonempty
+    {metadataDigest : ProofMetadata → Nat}
+    {xs : List BoundSegment}
+    (hne : xs ≠ [])
+    (hchain : BoundSegmentsChain xs)
+    (haccepted : BoundSegmentsAccepted metadataDigest xs) :
+    ∃ first last, first ∈ xs ∧ last ∈ xs ∧
+      BoundSegmentAccepted metadataDigest first ∧
+      BoundSegmentAccepted metadataDigest last ∧
+      first.metadata.preRoot = FirstPre (xs.map BoundSegment.toSegment) ∧
+      last.metadata.postRoot = LastPost (xs.map BoundSegment.toSegment) := by
+  have hmap_ne : xs.map BoundSegment.toSegment ≠ [] := by
+    cases xs with
+    | nil => exact absurd rfl hne
+    | cons _ _ => simp
+  rcases chain_bridge_nonempty hmap_ne hchain with
+    ⟨firstSeg, lastSeg, hfirstMem, hlastMem, hfirstRoot, hlastRoot⟩
+  rcases List.mem_map.mp hfirstMem with ⟨first, hfirstIn, hfirstEq⟩
+  rcases List.mem_map.mp hlastMem with ⟨last, hlastIn, hlastEq⟩
+  have hfirstAccepted := haccepted first hfirstIn
+  have hlastAccepted := haccepted last hlastIn
+  have hfirstRoots := bound_segment_accepted_roots_match hfirstAccepted
+  have hlastRoots := bound_segment_accepted_roots_match hlastAccepted
+  refine ⟨first, last, hfirstIn, hlastIn, hfirstAccepted, hlastAccepted, ?_, ?_⟩
+  · exact hfirstRoots.1.trans (hfirstEq.symm ▸ hfirstRoot)
+  · exact hlastRoots.2.trans (hlastEq.symm ▸ hlastRoot)
 
 structure Chunk (Key State : Type) where
   touched : List Key
