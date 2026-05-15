@@ -63,8 +63,11 @@ def _resolve_relative_to(path_text: object, *, root: Path, name: str) -> Path:
 
 
 def _run_command(command: Sequence[str], *, cwd: Path) -> dict[str, Any]:
+    resolved = list(command)
+    if resolved and resolved[0] in {"python", "python3"}:
+        resolved[0] = sys.executable
     proc = subprocess.run(
-        list(command),
+        resolved,
         cwd=cwd,
         text=True,
         capture_output=True,
@@ -76,7 +79,7 @@ def _run_command(command: Sequence[str], *, cwd: Path) -> dict[str, Any]:
         except json.JSONDecodeError:
             stdout_json = None
     return {
-        "command": list(command),
+        "command": resolved,
         "returncode": int(proc.returncode),
         "stdout_json": stdout_json,
         "stderr": proc.stderr,

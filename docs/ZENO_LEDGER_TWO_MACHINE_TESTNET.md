@@ -35,6 +35,11 @@ git pull --ff-only origin main
 python3 --version
 ```
 
+Use Python 3.10 or newer. On macOS, `/usr/bin/python3` may still be Python
+3.9; in that case run the examples with `python3.11` or another Python 3.10+
+interpreter. The bundle builder keeps child script execution on the same
+interpreter that launched it.
+
 Machine A must expose two reachable ports:
 
 - `8000` for the static bootstrap mirror.
