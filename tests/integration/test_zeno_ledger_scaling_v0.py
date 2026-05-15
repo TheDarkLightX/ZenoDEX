@@ -15,6 +15,7 @@ from src.integration.zeno_ledger_scaling_v0 import (
     validate_transition_receipt_v0,
 )
 from src.integration.zeno_ledger_v0 import build_header_v0, compute_app_hash_v0, hash_v0
+from tools.zeno_ledger_make_transition_receipt import build_transition_receipt_report_v0
 
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -184,3 +185,21 @@ def test_header_transition_receipt_binding_rejects_mismatched_header() -> None:
     with pytest.raises(ValueError, match="binding mismatch"):
         validate_header_transition_receipt_binding_v0(mismatched_header, receipt)
 
+
+def test_transition_receipt_report_marks_unbound_legacy_header() -> None:
+    report = build_transition_receipt_report_v0(
+        header=_header(),
+        program_id="zenodex.scaling.replay.v0",
+        proof_policy_id="public-testnet-replay-v0",
+        feature_suite_hash=_root("features"),
+        token_registry_hash=_root("tokens"),
+        rejection_receipt_root=_root("reject"),
+        verifier_kind="deterministic_replay_v0",
+        verifier_version="zeno-ledger-replay-0",
+        proof_commitment=_root("proof"),
+        receipt_metadata_hash=_root("metadata"),
+    )
+    assert report["ok"] is True
+    assert report["header_binding"]["ok"] is False
+    assert report["header_binding"]["header_proof_journal_hash"] == ZERO_ROOT
+    assert report["header_binding"]["required_proof_journal_hash"] == report["execution_journal_hash"]
