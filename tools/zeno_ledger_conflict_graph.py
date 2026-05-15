@@ -51,9 +51,6 @@ def build_conflict_graph_report_v0(
 ) -> dict[str, Any]:
     transactions = _transactions_from_input(body_path=body_path, txs_path=txs_path)
     graph = build_conflict_graph_v0(transactions)
-    parallel_component_count = graph["transaction_count"] - graph["edge_count"]
-    if isinstance(parallel_component_count, int) and parallel_component_count < 1 and graph["transaction_count"] > 0:
-        parallel_component_count = 1
     return {
         "schema": "zenodex.zeno_ledger.conflict_graph_report.v0",
         "ok": True,
@@ -64,7 +61,7 @@ def build_conflict_graph_report_v0(
         },
         "transaction_count": graph["transaction_count"],
         "edge_count": graph["edge_count"],
-        "parallel_component_lower_bound": parallel_component_count,
+        "parallel_component_count": graph["component_count"],
         "conflict_graph": graph,
     }
 
@@ -102,4 +99,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

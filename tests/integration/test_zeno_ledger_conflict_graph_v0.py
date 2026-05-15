@@ -47,6 +47,7 @@ def test_same_pool_swaps_conflict_even_for_different_users() -> None:
     assert transactions_conflict_v0(left, right)
     graph = build_conflict_graph_v0([left, right])
     assert graph["edge_count"] == 1
+    assert graph["component_count"] == 1
     assert "pool:" + pool_id in graph["edges"][0]["shared_cells"]
 
 
@@ -58,6 +59,7 @@ def test_disjoint_pools_with_disjoint_users_do_not_conflict() -> None:
     assert not transactions_conflict_v0(left, right)
     graph = build_conflict_graph_v0([left, right])
     assert graph["edge_count"] == 0
+    assert graph["component_count"] == 2
 
 
 def test_token_create_conflicts_by_registry_symbol_or_asset() -> None:
@@ -112,3 +114,4 @@ def test_conflict_graph_report_reads_transaction_list(tmp_path) -> None:
     assert report["ok"] is True
     assert report["transaction_count"] == 2
     assert report["edge_count"] == 1
+    assert report["parallel_component_count"] == 1

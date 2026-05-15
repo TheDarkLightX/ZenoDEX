@@ -185,12 +185,42 @@ def build_conflict_graph_v0(transactions: list[object]) -> dict[str, Any]:
                     }
                 )
 
+    parent = list(range(len(vertices)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parent[right_root] = left_root
+
+    for edge in edges:
+        union(int(edge["left_index"]), int(edge["right_index"]))
+
+    components_by_root: dict[int, list[int]] = {}
+    for index in range(len(vertices)):
+        components_by_root.setdefault(find(index), []).append(index)
+    components = [
+        {
+            "component_id": component_index,
+            "transaction_indices": indices,
+            "transaction_count": len(indices),
+        }
+        for component_index, indices in enumerate(sorted(components_by_root.values(), key=lambda items: items[0]))
+    ]
+
     graph_body = {
         "schema": CONFLICT_GRAPH_SCHEMA_V0,
         "transaction_count": len(vertices),
         "vertices": vertices,
         "edges": edges,
         "edge_count": len(edges),
+        "components": components,
+        "component_count": len(components),
     }
     return {**graph_body, "conflict_graph_hash": hash_v0("conflict_graph_v0", graph_body)}
-
