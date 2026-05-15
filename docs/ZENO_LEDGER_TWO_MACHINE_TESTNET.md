@@ -135,6 +135,27 @@ When `poll_seconds` is positive in the published network config, the served
 follower also polls peers for live blocks in the background and writes
 `peer_follow_state.json`.
 
+For a one-command Machine B acceptance run, use:
+
+```bash
+python3 tools/zeno_ledger_machine_b_acceptance.py \
+  --config-url http://<MACHINE_A_IP>:8000/public_network_config.json \
+  --expected-network-config-hash <NETWORK_CONFIG_HASH> \
+  --node-id operator-b \
+  --bundle-root /tmp/zeno-ledger-public-testnet-synced \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --token-symbol tMANGO \
+  --out /tmp/zeno-ledger-node-b/machine_b_acceptance_report.json
+```
+
+This command runs remote doctor checks, joins the network, submits the named
+test token to Machine A, follows the resulting live block, writes
+`evidence_report.json`, and writes
+`two_machine_evidence_verification.json`.
+
+Use a different `--token-symbol` if the same Machine A writer already created
+`tMANGO` in an earlier run.
+
 ## Verify Both Nodes
 
 On Machine B:

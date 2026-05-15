@@ -28,6 +28,7 @@ testnet ZenoDEX tokens plus created fake test tokens for feature testing.
 | Replay created token registry across peers | `testnet_token_registry.json`, pull-live token-create handling | Integration asserts Node B registry contains `tMANGO` after pulling live blocks | Built and locally tested |
 | Produce portable node evidence | `evidence`, `build_node_evidence_report_v0` | Integration checks local tip `13`, created token count `1`, and peer check `ok: true` | Built and locally tested |
 | Verify separate-machine evidence | `tools/zeno_ledger_verify_two_machine_evidence.py` | Integration verifies the evidence report's same-height peer, common header binding, and expected `tMANGO` token | Built and locally tested |
+| Run the Machine B acceptance path from one command | `tools/zeno_ledger_machine_b_acceptance.py` | Local command-level smoke accepted with `tACCEPT`, `evidence_report_ok=true`, and `verification_report_ok=true` | Built and locally tested |
 | Provide two-machine operator steps | `docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md` | Runbook includes prerequisites, ports, hash pinning, doctor, join, evidence, tokens, faucet, and peer checks | Documented |
 
 ## Latest Local Evidence
@@ -101,6 +102,19 @@ python3 tools/zeno_ledger_verify_two_machine_evidence.py \
   --evidence-report /tmp/zeno-ledger-node-b/evidence_report.json \
   --expected-created-token-symbol tMANGO \
   --min-height 13
+```
+
+The one-command Machine B runner that produces those evidence files is:
+
+```bash
+python3 tools/zeno_ledger_machine_b_acceptance.py \
+  --config-url http://<MACHINE_A_IP>:8000/public_network_config.json \
+  --expected-network-config-hash <NETWORK_CONFIG_HASH> \
+  --node-id operator-b \
+  --bundle-root /tmp/zeno-ledger-public-testnet-synced \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --token-symbol tMANGO \
+  --out /tmp/zeno-ledger-node-b/machine_b_acceptance_report.json
 ```
 
 Until that separate-machine artifact exists, the implementation is a
