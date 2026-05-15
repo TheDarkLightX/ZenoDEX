@@ -61,6 +61,9 @@ NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
 NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
+NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
+NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
+NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
@@ -158,6 +161,24 @@ def _header_heights(headers_dir: Path) -> list[int]:
         except ValueError:
             continue
     return sorted(heights)
+
+
+def _as_path(value: object, *, name: str) -> Path:
+    if not isinstance(value, str) or value == "":
+        raise ValueError(f"{name} must be a non-empty string path")
+    return Path(value)
+
+
+def _as_string_list(value: object, *, name: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{name} must be a list of strings")
+    return list(value)
+
+
+def _as_path_list(value: object, *, name: str) -> list[Path]:
+    return [Path(item) for item in _as_string_list(value, name=name)]
 
 
 def _read_public_manifest(bundle_root: Path) -> dict[str, Any]:
@@ -954,6 +975,153 @@ def load_node_status_v0(data_dir: Path) -> dict[str, Any]:
     return status
 
 
+def _local_header_hash_at_height_v0(*, data_dir: Path, bundle_root: Path, height: int) -> str:
+    live_header_path = _live_artifact_path(data_dir=data_dir, kind="header", height=height)
+    if live_header_path.is_file():
+        return canonical_header_hash_v0(dict(_load_json_object(live_header_path)))
+    bootstrap_header_path = bundle_root / "bootstrap" / "ledger" / "headers" / f"{height}.json"
+    if bootstrap_header_path.is_file():
+        return canonical_header_hash_v0(dict(_load_json_object(bootstrap_header_path)))
+    raise ValueError(f"local header missing at height {height}")
+
+
+def _local_tip_v0(*, data_dir: Path, node_status: Mapping[str, Any]) -> dict[str, Any]:
+    live_path = _latest_live_state_path(data_dir)
+    if live_path.is_file():
+        live_state = dict(_load_json_object(live_path))
+        return {
+            "live": True,
+            "height": int(live_state["latest_height"]),
+            "header_hash": str(live_state["latest_header_hash"]),
+            "app_hash": str(live_state["latest_app_hash"]),
+        }
+    return {
+        "live": False,
+        "height": int(node_status["latest_height"]),
+        "header_hash": str(node_status["last_header_hash"]),
+        "app_hash": str(node_status["last_app_hash"]),
+    }
+
+
+def _peer_tip_from_http_v0(*, peer_url: str, peer_status: Mapping[str, Any]) -> dict[str, Any]:
+    peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
+    if peer_live.get("ok") is True and peer_live.get("live") is True:
+        state = peer_live.get("state")
+        if not isinstance(state, Mapping):
+            raise ValueError("peer live state must be an object")
+        return {
+            "live": True,
+            "height": int(state["latest_height"]),
+            "header_hash": str(state["latest_header_hash"]),
+            "app_hash": str(state["latest_app_hash"]),
+        }
+    return {
+        "live": False,
+        "height": int(peer_status["latest_height"]),
+        "header_hash": str(peer_status["last_header_hash"]),
+        "app_hash": str(peer_status["last_app_hash"]),
+    }
+
+
+def _peer_header_hash_at_height_v0(
+    *,
+    peer_url: str,
+    peer_status: Mapping[str, Any],
+    height: int,
+) -> str:
+    bootstrap_latest = int(peer_status["latest_height"])
+    if height == bootstrap_latest:
+        return str(peer_status["last_header_hash"])
+    if height > bootstrap_latest:
+        peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+        return canonical_header_hash_v0(dict(peer_header))
+    raise ValueError(f"cannot fetch peer bootstrap header at height {height}")
+
+
+def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, Any]:
+    """Check that peer nodes are on the same network and common live prefix."""
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    local_tip = _local_tip_v0(data_dir=data_dir, node_status=node_status)
+    peer_reports: list[dict[str, Any]] = []
+    for peer_url in peer_urls:
+        try:
+            peer_status = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "status"))
+            if peer_status.get("schema") != NODE_STATUS_SCHEMA:
+                raise ValueError("peer node status schema mismatch")
+            if peer_status.get("node_status_hash") != _node_status_hash(peer_status):
+                raise ValueError("peer node status hash mismatch")
+            peer_tip = _peer_tip_from_http_v0(peer_url=peer_url, peer_status=peer_status)
+            network_match = peer_status.get("network_id") == node_status.get("network_id")
+            chain_match = peer_status.get("chain_id") == node_status.get("chain_id")
+            feature_suite_match = peer_status.get("feature_suite_hash") == node_status.get("feature_suite_hash")
+            common_height = min(int(local_tip["height"]), int(peer_tip["height"]))
+            if common_height == int(local_tip["height"]):
+                local_common_hash = str(local_tip["header_hash"])
+            else:
+                local_common_hash = _local_header_hash_at_height_v0(
+                    data_dir=data_dir,
+                    bundle_root=bundle_root,
+                    height=common_height,
+                )
+            peer_common_hash = _peer_header_hash_at_height_v0(
+                peer_url=peer_url,
+                peer_status=peer_status,
+                height=common_height,
+            )
+            common_header_match = local_common_hash == peer_common_hash
+            compatible = bool(network_match and chain_match and feature_suite_match and common_header_match)
+            if int(peer_tip["height"]) > int(local_tip["height"]):
+                relation = "peer_ahead"
+            elif int(peer_tip["height"]) < int(local_tip["height"]):
+                relation = "peer_behind"
+            else:
+                relation = "same_height"
+            peer_reports.append(
+                {
+                    "peer_url": peer_url,
+                    "ok": compatible,
+                    "status": "accepted" if compatible else "rejected",
+                    "peer_node_id": peer_status.get("node_id"),
+                    "network_match": network_match,
+                    "chain_match": chain_match,
+                    "feature_suite_match": feature_suite_match,
+                    "common_header_match": common_header_match,
+                    "height_relation": relation,
+                    "local_tip": local_tip,
+                    "peer_tip": peer_tip,
+                    "common_height": common_height,
+                    "common_header_hash": local_common_hash if common_header_match else None,
+                    "local_common_header_hash": local_common_hash,
+                    "peer_common_header_hash": peer_common_hash,
+                }
+            )
+        except Exception as exc:
+            peer_reports.append(
+                {
+                    "peer_url": peer_url,
+                    "ok": False,
+                    "status": "rejected",
+                    "error": str(exc),
+                    "local_tip": local_tip,
+                }
+            )
+    ok = all(report.get("ok") is True for report in peer_reports)
+    return {
+        "schema": NODE_PEER_CHECK_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "node_id": node_status["node_id"],
+        "network_id": node_status["network_id"],
+        "chain_id": node_status["chain_id"],
+        "feature_suite_hash": node_status["feature_suite_hash"],
+        "local_tip": local_tip,
+        "peer_count": len(peer_reports),
+        "peers": peer_reports,
+    }
+
+
 def _load_optional_json(path_text: object) -> object | None:
     if not isinstance(path_text, str) or path_text == "":
         return None
@@ -1182,6 +1350,77 @@ def serve_node_v0(
     server.serve_forever()
 
 
+def join_public_node_from_config_v0(*, config_path: Path) -> dict[str, Any]:
+    """Sync, verify, and optionally serve a node from one operator config."""
+
+    config = dict(_load_json_object(config_path))
+    if config.get("schema") not in {None, NODE_JOIN_CONFIG_SCHEMA}:
+        raise ValueError("node join config schema mismatch")
+    node_id = str(config.get("node_id", "")).strip()
+    if node_id == "":
+        raise ValueError("node_id is required")
+    data_dir = _as_path(config.get("data_dir"), name="data_dir")
+    bundle_root: Path
+    sync_report: dict[str, Any] | None = None
+    base_url = config.get("base_url")
+    if base_url is not None:
+        if not isinstance(base_url, str) or base_url == "":
+            raise ValueError("base_url must be a non-empty string")
+        bundle_root = _as_path(config.get("bundle_root"), name="bundle_root")
+        sync_report = sync_public_bundle_from_url_v0(base_url=base_url, out_dir=bundle_root)
+    else:
+        bundle_root = _as_path(config.get("bundle_root"), name="bundle_root")
+        _read_public_manifest(bundle_root)
+
+    peer_watcher_attestations = _as_path_list(
+        config.get("peer_watcher_attestation_paths"),
+        name="peer_watcher_attestation_paths",
+    )
+    if not peer_watcher_attestations:
+        default_attestation = bundle_root / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
+        if default_attestation.is_file():
+            peer_watcher_attestations = [default_attestation]
+
+    observed_time_ms = config.get("observed_time_ms")
+    if observed_time_ms is not None and (not isinstance(observed_time_ms, int) or isinstance(observed_time_ms, bool)):
+        raise ValueError("observed_time_ms must be an integer")
+    run_report = run_node_once_v0(
+        bundle_root=bundle_root,
+        node_id=node_id,
+        data_dir=data_dir,
+        observed_time_ms=observed_time_ms,
+        peer_watcher_attestation_paths=peer_watcher_attestations,
+    )
+    peer_urls = _as_string_list(config.get("peer_urls"), name="peer_urls")
+    peer_check = check_peer_status_v0(data_dir=data_dir, peer_urls=peer_urls) if peer_urls else None
+    ok = (
+        run_report.get("ok") is True
+        and (sync_report is None or sync_report.get("ok") is True)
+        and (peer_check is None or peer_check.get("ok") is True)
+    )
+    report = {
+        "schema": NODE_JOIN_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted",
+        "config_path": str(config_path),
+        "node_id": node_id,
+        "bundle_root": str(bundle_root),
+        "data_dir": str(data_dir),
+        "sync_report": sync_report,
+        "run_report": run_report,
+        "peer_check": peer_check,
+        "peer_count": len(peer_urls),
+    }
+    if peer_check is not None and peer_check.get("ok") is not True:
+        report["status"] = "peer_check_rejected"
+    elif report["ok"] is True:
+        report["status"] = "accepted"
+    else:
+        report["status"] = "rejected"
+    _write_json(data_dir / "node_join_report.json", report)
+    return report
+
+
 def _cmd_bootstrap(args: argparse.Namespace) -> int:
     try:
         report = build_public_testnet_bundle_v0(
@@ -1263,6 +1502,40 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_check_peers(args: argparse.Namespace) -> int:
+    try:
+        report = check_peer_status_v0(
+            data_dir=args.data_dir,
+            peer_urls=list(args.peer_url),
+        )
+    except Exception as exc:
+        report = {"schema": NODE_PEER_CHECK_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
+def _cmd_join(args: argparse.Namespace) -> int:
+    try:
+        report = join_public_node_from_config_v0(config_path=args.config)
+    except Exception as exc:
+        report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    if report.get("ok") is not True:
+        return 1
+    config = dict(_load_json_object(args.config))
+    if config.get("serve") is True:
+        serve_node_v0(
+            data_dir=_as_path(config.get("data_dir"), name="data_dir"),
+            host=str(config.get("host", "127.0.0.1")),
+            port=int(config.get("port", 8787)),
+            peer_urls=_as_string_list(config.get("peer_urls"), name="peer_urls"),
+            poll_seconds=int(config.get("poll_seconds", 0)),
+            enable_testnet_intake=config.get("enable_testnet_intake") is True,
+            enable_testnet_faucet=config.get("enable_testnet_faucet") is True,
+        )
+    return 0
+
+
 def _cmd_faucet(args: argparse.Namespace) -> int:
     try:
         report = append_testnet_faucet_v0(
@@ -1311,6 +1584,10 @@ def main(argv: list[str] | None = None) -> int:
     sync.add_argument("--out-dir", required=True, type=Path)
     sync.set_defaults(func=_cmd_sync)
 
+    join = sub.add_parser("join", help="sync, replay, and optionally serve a node from a JSON config")
+    join.add_argument("--config", required=True, type=Path)
+    join.set_defaults(func=_cmd_join)
+
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")
     run.add_argument("--bundle-root", required=True, type=Path)
     run.add_argument("--node-id", required=True)
@@ -1336,6 +1613,11 @@ def main(argv: list[str] | None = None) -> int:
     pull_live.add_argument("--data-dir", required=True, type=Path)
     pull_live.add_argument("--peer-url", required=True)
     pull_live.set_defaults(func=_cmd_pull_live)
+
+    check_peers = sub.add_parser("check-peers", help="check peer compatibility and common header prefixes")
+    check_peers.add_argument("--data-dir", required=True, type=Path)
+    check_peers.add_argument("--peer-url", action="append", required=True)
+    check_peers.set_defaults(func=_cmd_check_peers)
 
     faucet = sub.add_parser("faucet", help="append a testnet-only faucet mint to the live ledger")
     faucet.add_argument("--data-dir", required=True, type=Path)

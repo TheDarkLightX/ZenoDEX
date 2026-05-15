@@ -329,7 +329,35 @@ python3 tools/zeno_ledger_node.py bootstrap \
 python3 tools/zeno_ledger_node.py sync \
   --base-url https://example.test/zeno-ledger-public-testnet/ \
   --out-dir /tmp/zeno-ledger-public-testnet-synced
+```
 
+For a remote operator, use a join config to combine sync, replay, peer checking,
+and serving:
+
+```bash
+cat > /tmp/zeno-ledger-node-b.json <<'JSON'
+{
+  "schema": "zenodex.zeno_ledger.node_join_config.v0",
+  "base_url": "https://example.test/zeno-ledger-public-testnet/",
+  "bundle_root": "/tmp/zeno-ledger-public-testnet-synced",
+  "node_id": "operator-b",
+  "data_dir": "/tmp/zeno-ledger-node-b",
+  "peer_urls": ["http://127.0.0.1:8787"],
+  "serve": true,
+  "host": "0.0.0.0",
+  "port": 8788,
+  "poll_seconds": 5
+}
+JSON
+
+python3 tools/zeno_ledger_node.py join \
+  --config /tmp/zeno-ledger-node-b.json
+```
+
+The lower-level run command is still available when an operator wants to manage
+each step manually:
+
+```bash
 python3 tools/zeno_ledger_node.py run \
   --bundle-root /tmp/zeno-ledger-public-testnet-synced \
   --node-id operator-a \
@@ -351,6 +379,10 @@ python3 tools/zeno_ledger_node.py append \
   --time-ms 1778731000000
 
 python3 tools/zeno_ledger_node.py pull-live \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --peer-url http://127.0.0.1:8787
+
+python3 tools/zeno_ledger_node.py check-peers \
   --data-dir /tmp/zeno-ledger-node-b \
   --peer-url http://127.0.0.1:8787
 
@@ -385,7 +417,11 @@ default; `--enable-testnet-intake` opens `POST /tx`, and
 `--enable-testnet-faucet` opens `POST /faucet` for bounded fake-token minting.
 The faucet accepts canonical 32-byte test asset IDs, so operators can mint
 throwaway assets for live test pools without touching release token policy.
-Live P2P block gossip and validator scheduling remain future network work.
+The `join` command wraps sync, replay, watcher attestation, optional peer check,
+and optional serving into one JSON-configured operator flow. The `check-peers`
+command compares network ID, chain ID, feature-suite hash, peer height, and the
+common header hash before an operator trusts a peer. Live P2P block gossip and
+validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer:

@@ -29,6 +29,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
 from tools.zeno_ledger_node import (
     append_dex_transaction_v0,
     append_testnet_faucet_v0,
+    check_peer_status_v0,
     make_node_http_server_v0,
     pull_live_from_peer_v0,
     run_node_once_v0,
@@ -186,7 +187,9 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                 },
             },
         )
+        pre_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
         pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
+        post_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
     finally:
         if node_a_server is not None:
             node_a_server.shutdown()
@@ -194,7 +197,20 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
 
     ok = all(
         item.get("ok") is True
-        for item in (build_report, sync_a, sync_b, node_a, node_b, faucet_existing, swap, faucet_new, create_fake_pool, pull)
+        for item in (
+            build_report,
+            sync_a,
+            sync_b,
+            node_a,
+            node_b,
+            faucet_existing,
+            swap,
+            faucet_new,
+            create_fake_pool,
+            pre_pull_peer_check,
+            pull,
+            post_pull_peer_check,
+        )
     )
     return {
         "schema": REPORT_SCHEMA,
@@ -214,6 +230,12 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "create_fake_pool_height": create_fake_pool["height"],
         "node_b_pulled_count": pull["pulled_count"],
         "node_b_latest_height": pull["local_latest_height"],
+        "pre_pull_peer_check_ok": pre_pull_peer_check["ok"],
+        "pre_pull_peer_height_relation": pre_pull_peer_check["peers"][0]["height_relation"],
+        "pre_pull_common_height": pre_pull_peer_check["peers"][0]["common_height"],
+        "post_pull_peer_check_ok": post_pull_peer_check["ok"],
+        "post_pull_peer_height_relation": post_pull_peer_check["peers"][0]["height_relation"],
+        "post_pull_common_height": post_pull_peer_check["peers"][0]["common_height"],
     }
 
 

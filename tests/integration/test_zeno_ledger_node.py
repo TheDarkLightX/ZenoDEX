@@ -12,6 +12,9 @@ from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
+    NODE_JOIN_CONFIG_SCHEMA,
+    check_peer_status_v0,
+    join_public_node_from_config_v0,
     load_node_status_v0,
     make_node_http_server_v0,
     pull_live_from_peer_v0,
@@ -100,6 +103,23 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     assert [item["symbol"] for item in status["test_token_catalog"]] == ["tZENO", "tASSET0", "tASSET1"]
     assert status["testnet_faucet_posture"]["supports_fixture_mint"] is True
     assert status["testnet_token_support"]["faucet_scope"] == "testnet-only feature lanes"
+
+    join_config_path = tmp_path / "node-join-config.json"
+    join_config_path.write_text(
+        json.dumps(
+            {
+                "schema": NODE_JOIN_CONFIG_SCHEMA,
+                "bundle_root": str(synced_bundle_root),
+                "node_id": "node-join",
+                "data_dir": str(tmp_path / "node-join"),
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    join_report = join_public_node_from_config_v0(config_path=join_config_path)
+    assert join_report["ok"] is True
+    assert join_report["run_report"]["covered_feature_count"] == 10
 
     peer_node_dir = tmp_path / "node-c"
     shutil.copytree(node_dir, peer_node_dir)
@@ -219,9 +239,17 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         tokens = _read_url_json(f"http://{host}:{port}/tokens")
         live = _read_url_json(f"http://{host}:{port}/live")
         testnet_status = _read_url_json(f"http://{host}:{port}/testnet-status")
+        pre_pull_peer_check = check_peer_status_v0(
+            data_dir=peer_node_dir,
+            peer_urls=[f"http://{host}:{port}"],
+        )
         pull_report = pull_live_from_peer_v0(
             data_dir=peer_node_dir,
             peer_url=f"http://{host}:{port}",
+        )
+        post_pull_peer_check = check_peer_status_v0(
+            data_dir=peer_node_dir,
+            peer_urls=[f"http://{host}:{port}"],
         )
 
         assert health["ok"] is True
@@ -231,9 +259,15 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert len(tokens["test_token_catalog"]) == 3
         assert live["live"] is True
         assert live["state"]["latest_height"] == 9
+        assert pre_pull_peer_check["ok"] is True
+        assert pre_pull_peer_check["peers"][0]["height_relation"] == "peer_ahead"
+        assert pre_pull_peer_check["peers"][0]["common_height"] == 5
         assert pull_report["ok"] is True
         assert pull_report["pulled_count"] == 4
         assert pull_report["to_height"] == 9
+        assert post_pull_peer_check["ok"] is True
+        assert post_pull_peer_check["peers"][0]["height_relation"] == "same_height"
+        assert post_pull_peer_check["peers"][0]["common_height"] == 9
         peer_live = _read_url_json(f"http://{host}:{port}/live/header/9")
         assert peer_live["height"] == 9
         assert load_node_status_v0(peer_node_dir)["ok"] is True
