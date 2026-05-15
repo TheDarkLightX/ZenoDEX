@@ -20,6 +20,7 @@ from src.state.canonical import canonical_hex_fixed_allow_0x
 
 
 EXECUTION_JOURNAL_SCHEMA_V0 = "zenodex/zeno_ledger/execution_journal/v0"
+PROOF_METADATA_SCHEMA_V0 = "zenodex/zeno_ledger/proof_metadata/v0"
 TRANSITION_RECEIPT_SCHEMA_V0 = "zenodex/zeno_ledger/transition_receipt/v0"
 ZERO_ROOT_V0 = "0x" + "00" * ROOT_NBYTES
 
@@ -83,6 +84,7 @@ def build_execution_journal_v0(
     data_availability_root: str,
     feature_suite_hash: str,
     token_registry_hash: str,
+    conflict_schedule_hash: str = ZERO_ROOT_V0,
     rejection_receipt_root: str = ZERO_ROOT_V0,
 ) -> dict[str, Any]:
     journal = {
@@ -96,6 +98,7 @@ def build_execution_journal_v0(
         "post_state_root": post_state_root,
         "app_hash": app_hash,
         "data_availability_root": data_availability_root,
+        "conflict_schedule_hash": conflict_schedule_hash,
         "feature_suite_hash": feature_suite_hash,
         "token_registry_hash": token_registry_hash,
         "rejection_receipt_root": rejection_receipt_root,
@@ -117,6 +120,7 @@ def validate_execution_journal_v0(journal: Mapping[str, Any]) -> None:
         "post_state_root",
         "app_hash",
         "data_availability_root",
+        "conflict_schedule_hash",
         "feature_suite_hash",
         "token_registry_hash",
         "rejection_receipt_root",
@@ -135,6 +139,7 @@ def validate_execution_journal_v0(journal: Mapping[str, Any]) -> None:
         "post_state_root",
         "app_hash",
         "data_availability_root",
+        "conflict_schedule_hash",
         "feature_suite_hash",
         "token_registry_hash",
         "rejection_receipt_root",
@@ -147,6 +152,75 @@ def execution_journal_hash_v0(journal: Mapping[str, Any]) -> str:
     return hash_v0("execution_journal_v0", dict(journal))
 
 
+def build_proof_metadata_v0(
+    *,
+    verifier_kind: str,
+    verifier_version: str,
+    program_id: str,
+    code_commitment: str,
+    public_input_hash: str,
+    backend_claim_hash: str = ZERO_ROOT_V0,
+    tee_measurement_hash: str = ZERO_ROOT_V0,
+) -> dict[str, Any]:
+    metadata = {
+        "schema": PROOF_METADATA_SCHEMA_V0,
+        "verifier_kind": verifier_kind,
+        "verifier_version": verifier_version,
+        "program_id": program_id,
+        "code_commitment": code_commitment,
+        "public_input_hash": public_input_hash,
+        "backend_claim_hash": backend_claim_hash,
+        "tee_measurement_hash": tee_measurement_hash,
+    }
+    validate_proof_metadata_v0(metadata)
+    return metadata
+
+
+def validate_proof_metadata_v0(metadata: Mapping[str, Any]) -> None:
+    obj = _require_mapping(metadata, name="proof_metadata")
+    expected = {
+        "schema",
+        "verifier_kind",
+        "verifier_version",
+        "program_id",
+        "code_commitment",
+        "public_input_hash",
+        "backend_claim_hash",
+        "tee_measurement_hash",
+    }
+    if set(obj.keys()) != expected:
+        raise ValueError("proof_metadata keys mismatch")
+    if obj.get("schema") != PROOF_METADATA_SCHEMA_V0:
+        raise ValueError("proof_metadata schema mismatch")
+    kind = _require_id(obj.get("verifier_kind"), name="proof_metadata.verifier_kind")
+    if kind not in VERIFIER_KINDS_V0:
+        raise ValueError("proof_metadata verifier_kind is not allowed")
+    _require_id(obj.get("verifier_version"), name="proof_metadata.verifier_version")
+    _require_id(obj.get("program_id"), name="proof_metadata.program_id")
+    for key in ("code_commitment", "public_input_hash", "backend_claim_hash", "tee_measurement_hash"):
+        _require_root(obj.get(key), name=f"proof_metadata.{key}")
+    if kind == "tee_attestation_v0" and obj["tee_measurement_hash"] == ZERO_ROOT_V0:
+        raise ValueError("proof_metadata TEE measurement must be nonzero for TEE receipts")
+
+
+def proof_metadata_hash_v0(metadata: Mapping[str, Any]) -> str:
+    validate_proof_metadata_v0(metadata)
+    return hash_v0("proof_metadata_v0", dict(metadata))
+
+
+def validate_proof_metadata_journal_binding_v0(
+    *,
+    metadata: Mapping[str, Any],
+    execution_journal: Mapping[str, Any],
+) -> None:
+    validate_proof_metadata_v0(metadata)
+    validate_execution_journal_v0(execution_journal)
+    if metadata["program_id"] != execution_journal["program_id"]:
+        raise ValueError("proof_metadata program_id does not match journal")
+    if metadata["public_input_hash"] != execution_journal_hash_v0(execution_journal):
+        raise ValueError("proof_metadata public_input_hash does not match journal")
+
+
 def build_execution_journal_from_header_v0(
     *,
     header: Mapping[str, Any],
@@ -154,6 +228,7 @@ def build_execution_journal_from_header_v0(
     proof_policy_id: str,
     feature_suite_hash: str,
     token_registry_hash: str,
+    conflict_schedule_hash: str = ZERO_ROOT_V0,
     rejection_receipt_root: str = ZERO_ROOT_V0,
 ) -> dict[str, Any]:
     validate_header_v0(dict(header))
@@ -167,6 +242,7 @@ def build_execution_journal_from_header_v0(
         post_state_root=str(header["post_state_root"]),
         app_hash=str(header["app_hash"]),
         data_availability_root=str(header["data_availability_root"]),
+        conflict_schedule_hash=conflict_schedule_hash,
         feature_suite_hash=feature_suite_hash,
         token_registry_hash=token_registry_hash,
         rejection_receipt_root=rejection_receipt_root,
@@ -242,16 +318,21 @@ def validate_transition_receipt_body_v0(receipt_body: Mapping[str, Any]) -> None
         name="transition_receipt.execution_journal_hash",
     ) != expected_journal_hash:
         raise ValueError("transition_receipt execution_journal_hash mismatch")
-    _require_root(obj.get("proof_commitment"), name="transition_receipt.proof_commitment")
+    proof_commitment = _require_root(obj.get("proof_commitment"), name="transition_receipt.proof_commitment")
     if _require_root(
         obj.get("data_availability_root"),
         name="transition_receipt.data_availability_root",
     ) != journal["data_availability_root"]:
         raise ValueError("transition_receipt data_availability_root mismatch")
-    _require_root(
+    receipt_metadata_hash = _require_root(
         obj.get("receipt_metadata_hash"),
         name="transition_receipt.receipt_metadata_hash",
     )
+    if kind != "deterministic_replay_v0":
+        if proof_commitment == ZERO_ROOT_V0:
+            raise ValueError("transition_receipt proof_commitment must be nonzero for proof backends")
+        if receipt_metadata_hash == ZERO_ROOT_V0:
+            raise ValueError("transition_receipt receipt_metadata_hash must be nonzero for proof backends")
 
 
 def validate_transition_receipt_v0(receipt: Mapping[str, Any]) -> None:
@@ -310,4 +391,3 @@ def validate_header_transition_receipt_binding_v0(
         raise ValueError("transition_receipt/header binding mismatch: proof_journal_hash")
     if header_hash == ZERO_ROOT_V0:
         raise ValueError("header hash must not be zero")
-
