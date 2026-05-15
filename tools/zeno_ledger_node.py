@@ -1999,6 +1999,8 @@ def build_public_network_config_v0(
     peer_urls: list[str],
     poll_seconds: int,
     node_port: int,
+    enable_testnet_intake: bool = True,
+    enable_testnet_faucet: bool = True,
 ) -> dict[str, Any]:
     """Build a public operator config for joining a ZenoLedger testnet."""
 
@@ -2028,8 +2030,8 @@ def build_public_network_config_v0(
             "host": "0.0.0.0",
             "port": node_port,
             "poll_seconds": poll_seconds,
-            "enable_testnet_intake": True,
-            "enable_testnet_faucet": True,
+            "enable_testnet_intake": enable_testnet_intake,
+            "enable_testnet_faucet": enable_testnet_faucet,
             "submit_peer_url": writer_urls[0],
         },
     }
