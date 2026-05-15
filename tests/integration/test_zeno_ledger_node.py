@@ -234,6 +234,72 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert create_new_pool_report["ok"] is True
         assert create_new_pool_report["height"] == 9
         assert create_new_pool_report["receipt"]["accepted"] is True
+        fake_pool_id = compute_pool_id(asset0_for_new_pool, asset1_for_new_pool, 30)
+        add_fake_pool_liquidity_report = _post_url_json(
+            f"http://{host}:{port}/tx",
+            {
+                "time_ms": 1_778_731_126_000,
+                "tx": {
+                    "tx_id": "node-live-add-fake-token-liquidity-v0",
+                    "block_timestamp": 1_778_731_126,
+                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "operations": {
+                        "2": [
+                            {
+                                "module": "TauSwap",
+                                "version": "0.1",
+                                "kind": "ADD_LIQUIDITY",
+                                "intent_id": "0x" + "cd" * 32,
+                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "deadline": 1_999_999_999,
+                                "nonce": 7,
+                                "pool_id": fake_pool_id,
+                                "amount0_desired": 10,
+                                "amount1_desired": 10,
+                                "amount0_min": 0,
+                                "amount1_min": 0,
+                                "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                            }
+                        ]
+                    },
+                },
+            },
+        )
+        assert add_fake_pool_liquidity_report["ok"] is True
+        assert add_fake_pool_liquidity_report["height"] == 10
+        assert add_fake_pool_liquidity_report["receipt"]["accepted"] is True
+        remove_fake_pool_liquidity_report = _post_url_json(
+            f"http://{host}:{port}/tx",
+            {
+                "time_ms": 1_778_731_127_000,
+                "tx": {
+                    "tx_id": "node-live-remove-fake-token-liquidity-v0",
+                    "block_timestamp": 1_778_731_127,
+                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "operations": {
+                        "2": [
+                            {
+                                "module": "TauSwap",
+                                "version": "0.1",
+                                "kind": "REMOVE_LIQUIDITY",
+                                "intent_id": "0x" + "ce" * 32,
+                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "deadline": 1_999_999_999,
+                                "nonce": 8,
+                                "pool_id": fake_pool_id,
+                                "lp_amount": 1,
+                                "amount0_min": 0,
+                                "amount1_min": 0,
+                                "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                            }
+                        ]
+                    },
+                },
+            },
+        )
+        assert remove_fake_pool_liquidity_report["ok"] is True
+        assert remove_fake_pool_liquidity_report["height"] == 11
+        assert remove_fake_pool_liquidity_report["receipt"]["accepted"] is True
 
         mirror_handler = partial(_QuietStaticHandler, directory=str(source_bundle_root))
         mirror_server = ThreadingHTTPServer(("127.0.0.1", 0), mirror_handler)
@@ -304,7 +370,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                     "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                     "asset": asset_a,
                     "amount": 55,
-                    "time_ms": 1_778_731_126_000,
+                    "time_ms": 1_778_731_128_000,
                     "tx_id": "node-http-forwarded-faucet-v0",
                 },
             )
@@ -329,34 +395,34 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert join_network_report["ok"] is True
         assert join_network_report["peer_check"]["ok"] is True
         assert join_network_report["run_report"]["covered_feature_count"] == 10
-        assert network["local_tip"]["height"] == 9
+        assert network["local_tip"]["height"] == 11
         assert network["capabilities"]["submission_forwarding_enabled"] is False
         assert live["live"] is True
-        assert live["state"]["latest_height"] == 9
+        assert live["state"]["latest_height"] == 11
         assert pre_pull_peer_check["ok"] is True
         assert pre_pull_peer_check["peers"][0]["height_relation"] == "peer_ahead"
         assert pre_pull_peer_check["peers"][0]["common_height"] == 5
         assert pull_report["ok"] is True
-        assert pull_report["pulled_count"] == 4
-        assert pull_report["to_height"] == 9
+        assert pull_report["pulled_count"] == 6
+        assert pull_report["to_height"] == 11
         assert post_pull_peer_check["ok"] is True
         assert post_pull_peer_check["peers"][0]["height_relation"] == "same_height"
-        assert post_pull_peer_check["peers"][0]["common_height"] == 9
+        assert post_pull_peer_check["peers"][0]["common_height"] == 11
         assert forwarded_faucet_report["ok"] is True
         assert forwarded_faucet_report["forwarded_to"] == f"http://{host}:{port}"
-        assert forwarded_faucet_report["height"] == 10
+        assert forwarded_faucet_report["height"] == 12
         assert forward_network["capabilities"]["submission_forwarding_enabled"] is True
         assert forward_network["submit_peer_url"] == f"http://{host}:{port}"
         assert forwarded_pull_report["ok"] is True
         assert forwarded_pull_report["pulled_count"] == 1
-        assert forwarded_pull_report["to_height"] == 10
+        assert forwarded_pull_report["to_height"] == 12
         assert final_peer_check["ok"] is True
         assert final_peer_check["peers"][0]["height_relation"] == "same_height"
-        assert final_peer_check["peers"][0]["common_height"] == 10
-        peer_live = _read_url_json(f"http://{host}:{port}/live/header/10")
-        assert peer_live["height"] == 10
+        assert final_peer_check["peers"][0]["common_height"] == 12
+        peer_live = _read_url_json(f"http://{host}:{port}/live/header/12")
+        assert peer_live["height"] == 12
         assert load_node_status_v0(peer_node_dir)["ok"] is True
-        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 10
+        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 12
         assert testnet_status["watcher_count"] == 2
     finally:
         server.shutdown()

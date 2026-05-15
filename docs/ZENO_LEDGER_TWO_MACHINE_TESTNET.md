@@ -162,5 +162,6 @@ python3 tools/zeno_ledger_public_network_smoke.py \
 ```
 
 The smoke test builds a mirror, syncs two independent nodes, appends faucet and
-swap blocks, creates a fake-token pool, forwards a faucet request through the
-follower, and verifies both nodes end on the same live header.
+swap blocks, creates a fake-token pool, adds and removes liquidity in that
+pool, forwards a faucet request through the follower, and verifies both nodes
+end on the same live header.

@@ -205,6 +205,62 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                 },
             },
         )
+        fake_pool_id = compute_pool_id(new_pool_asset0, new_pool_asset1, 30)
+        add_fake_pool_liquidity = append_dex_transaction_v0(
+            data_dir=node_a_dir,
+            time_ms=DEFAULT_TIME_MS + 1_004_000,
+            tx={
+                "tx_id": "smoke-add-fake-token-liquidity-v0",
+                "block_timestamp": (DEFAULT_TIME_MS + 1_004_000) // 1000,
+                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "operations": {
+                    "2": [
+                        {
+                            "module": "TauSwap",
+                            "version": "0.1",
+                            "kind": "ADD_LIQUIDITY",
+                            "intent_id": "0x" + "cd" * 32,
+                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "deadline": 1_999_999_999,
+                            "nonce": 7,
+                            "pool_id": fake_pool_id,
+                            "amount0_desired": 10,
+                            "amount1_desired": 10,
+                            "amount0_min": 0,
+                            "amount1_min": 0,
+                            "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                        }
+                    ]
+                },
+            },
+        )
+        remove_fake_pool_liquidity = append_dex_transaction_v0(
+            data_dir=node_a_dir,
+            time_ms=DEFAULT_TIME_MS + 1_005_000,
+            tx={
+                "tx_id": "smoke-remove-fake-token-liquidity-v0",
+                "block_timestamp": (DEFAULT_TIME_MS + 1_005_000) // 1000,
+                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "operations": {
+                    "2": [
+                        {
+                            "module": "TauSwap",
+                            "version": "0.1",
+                            "kind": "REMOVE_LIQUIDITY",
+                            "intent_id": "0x" + "ce" * 32,
+                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "deadline": 1_999_999_999,
+                            "nonce": 8,
+                            "pool_id": fake_pool_id,
+                            "lp_amount": 1,
+                            "amount0_min": 0,
+                            "amount1_min": 0,
+                            "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                        }
+                    ]
+                },
+            },
+        )
         pre_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
         pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
         post_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
@@ -215,7 +271,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                 "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                 "asset": asset_a,
                 "amount": 55,
-                "time_ms": DEFAULT_TIME_MS + 1_004_000,
+                "time_ms": DEFAULT_TIME_MS + 1_006_000,
                 "tx_id": "smoke-forwarded-faucet-v0",
             },
         )
@@ -241,6 +297,8 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             swap,
             faucet_new,
             create_fake_pool,
+            add_fake_pool_liquidity,
+            remove_fake_pool_liquidity,
             pre_pull_peer_check,
             pull,
             post_pull_peer_check,
@@ -265,6 +323,8 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "swap_height": swap["height"],
         "faucet_new_asset_height": faucet_new["height"],
         "create_fake_pool_height": create_fake_pool["height"],
+        "add_fake_pool_liquidity_height": add_fake_pool_liquidity["height"],
+        "remove_fake_pool_liquidity_height": remove_fake_pool_liquidity["height"],
         "node_b_pulled_count": pull["pulled_count"],
         "node_b_total_pulled_count": int(pull["pulled_count"]) + int(forwarded_pull["pulled_count"]),
         "node_b_latest_height": forwarded_pull["local_latest_height"],
