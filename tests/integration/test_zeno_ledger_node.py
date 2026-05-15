@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import threading
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
 
@@ -10,6 +12,7 @@ from tools.zeno_ledger_node import (
     load_node_status_v0,
     make_node_http_server_v0,
     run_node_once_v0,
+    sync_public_bundle_from_url_v0,
 )
 
 
@@ -21,10 +24,15 @@ def _read_url_json(url: str) -> dict[str, object]:
     return obj
 
 
-def test_zeno_ledger_node_replays_bundle_and_serves_status(tmp_path: Path) -> None:
-    bundle_root = tmp_path / "bundle"
+class _QuietStaticHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
+def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path) -> None:
+    source_bundle_root = tmp_path / "source_bundle"
     build_report = build_public_testnet_bundle_v0(
-        out_dir=bundle_root,
+        out_dir=source_bundle_root,
         network_id="zeno-ledger-node-testnet-0",
         chain_id="zeno-ledger-node-testnet-0",
         sequencer_id="sequencer-node-testnet-0",
@@ -33,10 +41,29 @@ def test_zeno_ledger_node_replays_bundle_and_serves_status(tmp_path: Path) -> No
     )
     assert build_report["ok"] is True
 
-    peer_attestation = bundle_root / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
+    static_handler = partial(_QuietStaticHandler, directory=str(source_bundle_root))
+    static_server = ThreadingHTTPServer(("127.0.0.1", 0), static_handler)
+    static_thread = threading.Thread(target=static_server.serve_forever, daemon=True)
+    static_thread.start()
+    try:
+        host, port = static_server.server_address
+        synced_bundle_root = tmp_path / "synced_bundle"
+        sync_report = sync_public_bundle_from_url_v0(
+            base_url=f"http://{host}:{port}",
+            out_dir=synced_bundle_root,
+        )
+    finally:
+        static_server.shutdown()
+        static_server.server_close()
+
+    assert sync_report["ok"] is True
+    assert sync_report["feature_count"] == 10
+    assert sync_report["downloaded_mirror_count"] == 11
+
+    peer_attestation = synced_bundle_root / "bootstrap" / "watcher_attestations" / "bootstrap_range_1_5.json"
     node_dir = tmp_path / "node-b"
     node_report = run_node_once_v0(
-        bundle_root=bundle_root,
+        bundle_root=synced_bundle_root,
         node_id="node-b",
         data_dir=node_dir,
         peer_watcher_attestation_paths=[peer_attestation],

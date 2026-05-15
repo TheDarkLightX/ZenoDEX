@@ -326,12 +326,16 @@ python3 tools/zeno_ledger_node.py bootstrap \
   --chain-id zeno-ledger-devnet-0 \
   --token-symbol tZENO
 
+python3 tools/zeno_ledger_node.py sync \
+  --base-url https://example.test/zeno-ledger-public-testnet/ \
+  --out-dir /tmp/zeno-ledger-public-testnet-synced
+
 python3 tools/zeno_ledger_node.py run \
-  --bundle-root /tmp/zeno-ledger-public-testnet \
+  --bundle-root /tmp/zeno-ledger-public-testnet-synced \
   --node-id operator-a \
   --data-dir /tmp/zeno-ledger-node-a \
   --peer-watcher-attestation \
-    /tmp/zeno-ledger-public-testnet/bootstrap/watcher_attestations/bootstrap_range_1_5.json \
+    /tmp/zeno-ledger-public-testnet-synced/bootstrap/watcher_attestations/bootstrap_range_1_5.json \
   --serve \
   --host 127.0.0.1 \
   --port 8787
@@ -339,10 +343,12 @@ python3 tools/zeno_ledger_node.py run \
 
 This is the first public-node layer: it bootstraps from a bundle, verifies the
 ledger, emits a watcher attestation, and serves `/health`, `/status`,
-`/features`, `/tokens`, `/attestation`, and `/testnet-status`. The public
-bundle carries a deterministic test-token catalog (`tZENO`, `tASSET0`, and
-`tASSET1`) plus testnet-only faucet posture for feature testing. Live P2P block
-gossip and validator scheduling remain future network work.
+`/features`, `/tokens`, `/attestation`, and `/testnet-status`. The `sync`
+command downloads only indexed JSON artifacts from a public HTTP mirror and
+verifies every mirror hash before the node runs. The public bundle carries a
+deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
+testnet-only faucet posture for feature testing. Live P2P block gossip and
+validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer:

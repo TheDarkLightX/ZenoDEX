@@ -9,18 +9,22 @@ emit a watcher attestation, and serve the resulting node status over HTTP.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urljoin
+from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_ledger_v0 import hash_v0
+from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_CHAIN_ID,
@@ -32,6 +36,8 @@ from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
 
 NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
 NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
+NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
+MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -44,6 +50,53 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _is_safe_relative(path_text: str) -> bool:
+    path = Path(path_text)
+    return path_text != "" and not path.is_absolute() and ".." not in path.parts
+
+
+def _remote_url(base_url: str, rel_path: str) -> str:
+    if not _is_safe_relative(rel_path):
+        raise ValueError(f"unsafe remote path: {rel_path}")
+    base = base_url.rstrip("/") + "/"
+    return urljoin(base, rel_path)
+
+
+def _fetch_remote_bytes(url: str, *, max_bytes: int = MAX_REMOTE_ARTIFACT_BYTES) -> bytes:
+    with urlopen(url, timeout=30) as response:  # noqa: S310 - explicit user-supplied mirror URL
+        length = response.headers.get("Content-Length")
+        if length is not None:
+            try:
+                if int(length) > max_bytes:
+                    raise ValueError(f"remote artifact too large: {url}")
+            except ValueError:
+                raise
+        data = response.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError(f"remote artifact too large: {url}")
+    return data
+
+
+def _write_remote_file(*, base_url: str, rel_path: str, out_root: Path) -> bytes:
+    data = _fetch_remote_bytes(_remote_url(base_url, rel_path))
+    out_path = out_root / rel_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
+    return data
+
+
+def _download_json(*, base_url: str, rel_path: str, out_root: Path) -> dict[str, Any]:
+    data = _write_remote_file(base_url=base_url, rel_path=rel_path, out_root=out_root)
+    obj = json.loads(data.decode("utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError(f"{rel_path} must decode to a JSON object")
+    return obj
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return "0x" + hashlib.sha256(data).hexdigest()
 
 
 def _safe_bundle_path(raw: object, *, bundle_root: Path, fallback: Path) -> Path:
@@ -87,6 +140,114 @@ def _read_feature_suite(bundle_root: Path, public_manifest: Mapping[str, Any]) -
         fallback=bundle_root / "core_features" / "feature_suite.json",
     )
     return dict(_load_json_object(suite_path))
+
+
+def _download_mirror_artifacts(
+    *,
+    base_url: str,
+    out_root: Path,
+    mirror_root_rel: str,
+    mirror_index_rel: str,
+) -> dict[str, Any]:
+    """Download one mirror index and all artifacts it binds."""
+
+    if not _is_safe_relative(mirror_root_rel):
+        raise ValueError(f"unsafe mirror root: {mirror_root_rel}")
+    if not _is_safe_relative(mirror_index_rel):
+        raise ValueError(f"unsafe mirror index path: {mirror_index_rel}")
+    index_path_rel = str(Path(mirror_root_rel) / mirror_index_rel)
+    index = _download_json(base_url=base_url, rel_path=index_path_rel, out_root=out_root)
+    artifacts = index.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise ValueError(f"{index_path_rel} artifacts must be a list")
+    for raw_entry in artifacts:
+        if not isinstance(raw_entry, Mapping):
+            raise ValueError(f"{index_path_rel} artifact entry must be an object")
+        rel = raw_entry.get("relative_path")
+        expected_sha = raw_entry.get("sha256")
+        if not isinstance(rel, str) or not _is_safe_relative(rel):
+            raise ValueError(f"{index_path_rel} artifact relative_path is unsafe")
+        if not isinstance(expected_sha, str) or not expected_sha.startswith("0x"):
+            raise ValueError(f"{index_path_rel} artifact sha256 is invalid")
+        artifact_rel = str(Path(mirror_root_rel) / rel)
+        data = _write_remote_file(base_url=base_url, rel_path=artifact_rel, out_root=out_root)
+        if _sha256_bytes(data) != expected_sha:
+            raise ValueError(f"artifact hash mismatch: {artifact_rel}")
+    validate_mirror_index_v0(index=index, mirror_root=out_root / mirror_root_rel)
+    return index
+
+
+def sync_public_bundle_from_url_v0(*, base_url: str, out_dir: Path) -> dict[str, Any]:
+    """Download and verify a public ZenoLedger bundle from an HTTP directory."""
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    public_manifest = _download_json(
+        base_url=base_url,
+        rel_path="public_testnet_manifest.json",
+        out_root=out_dir,
+    )
+    if public_manifest.get("schema") != "zenodex.zeno_ledger.public_testnet_bundle.v0":
+        raise ValueError("public testnet manifest schema mismatch")
+
+    bootstrap_manifest_path = str(public_manifest.get("bootstrap_manifest_path", "bootstrap/manifest.json"))
+    if not _is_safe_relative(bootstrap_manifest_path):
+        raise ValueError("bootstrap_manifest_path must be relative and safe")
+    bootstrap_root = Path(bootstrap_manifest_path).parent.as_posix()
+    bootstrap_index = _download_mirror_artifacts(
+        base_url=base_url,
+        out_root=out_dir,
+        mirror_root_rel=bootstrap_root,
+        mirror_index_rel="mirror_index.json",
+    )
+
+    core_suite_path = str(public_manifest.get("core_suite_path", "core_features/feature_suite.json"))
+    if not _is_safe_relative(core_suite_path):
+        raise ValueError("core_suite_path must be relative and safe")
+    feature_suite = _download_json(base_url=base_url, rel_path=core_suite_path, out_root=out_dir)
+    features = feature_suite.get("features")
+    if not isinstance(features, list):
+        raise ValueError("feature_suite.features must be a list")
+
+    feature_indexes: list[dict[str, Any]] = []
+    suite_root = Path(core_suite_path).parent
+    for raw_feature in features:
+        if not isinstance(raw_feature, Mapping):
+            raise ValueError("feature entry must be an object")
+        manifest_path = raw_feature.get("manifest_path")
+        if not isinstance(manifest_path, str) or not _is_safe_relative(manifest_path):
+            raise ValueError("feature manifest_path must be relative and safe")
+        feature_root = (suite_root / Path(manifest_path).parent).as_posix()
+        mirror_index_rel = str(raw_feature.get("mirror_index_path", "mirror_index.json"))
+        if not _is_safe_relative(mirror_index_rel):
+            raise ValueError("feature mirror_index_path must be relative and safe")
+        feature_indexes.append(
+            _download_mirror_artifacts(
+                base_url=base_url,
+                out_root=out_dir,
+                mirror_root_rel=feature_root,
+                mirror_index_rel=mirror_index_rel,
+            )
+        )
+
+    # Re-read through the same local validators used by node run.
+    local_public_manifest = _read_public_manifest(out_dir)
+    local_feature_suite = _read_feature_suite(out_dir, local_public_manifest)
+    return {
+        "schema": NODE_SYNC_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "base_url": base_url,
+        "bundle_root": str(out_dir),
+        "network_id": local_public_manifest["network_id"],
+        "chain_id": local_public_manifest["chain_id"],
+        "bootstrap_mirror_index_hash": bootstrap_index["mirror_index_hash"],
+        "feature_suite_hash": local_feature_suite["feature_suite_hash"],
+        "feature_count": local_feature_suite["feature_count"],
+        "feature_mirror_count": len(feature_indexes),
+        "downloaded_mirror_count": 1 + len(feature_indexes),
+        "downloaded_artifact_count": int(bootstrap_index["artifact_count"])
+        + sum(int(index["artifact_count"]) for index in feature_indexes),
+    }
 
 
 def _node_status_hash(status: Mapping[str, Any]) -> str:
@@ -328,6 +489,18 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_sync(args: argparse.Namespace) -> int:
+    try:
+        report = sync_public_bundle_from_url_v0(
+            base_url=args.base_url,
+            out_dir=args.out_dir,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_SYNC_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     try:
         report = run_node_once_v0(
@@ -365,6 +538,11 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS)
     bootstrap.add_argument("--token-symbol", default="tZENO")
     bootstrap.set_defaults(func=_cmd_bootstrap)
+
+    sync = sub.add_parser("sync", help="download and verify a public-testnet bundle from an HTTP mirror")
+    sync.add_argument("--base-url", required=True)
+    sync.add_argument("--out-dir", required=True, type=Path)
+    sync.set_defaults(func=_cmd_sync)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")
     run.add_argument("--bundle-root", required=True, type=Path)
