@@ -1,5 +1,5 @@
 """
-Tau validation bridge for TauSwap operations.
+Tau validation bridge for ZenoDEX operations.
 
 This module bridges between Python operations and Tau Language validation.
 In production, this would call the Tau Docker container to validate operations.
@@ -49,7 +49,7 @@ def validate_operations(
     uniform_batch_certificate: Optional[Dict[str, object]] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
-    Validate TauSwap operations using Tau Language validation.
+    Validate ZenoDEX operations using Tau Language validation.
     
     In production, this would:
     1. Serialize state and operations to Tau Language format
@@ -83,7 +83,6 @@ def validate_operations(
         )
         if uniform_batch_certificate is not None and use_end_to_end_certificate:
             return False, "uniform batch certificate cannot be combined with settlement end-to-end certificate"
-
         if uniform_batch_certificate is not None:
             try:
                 cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)

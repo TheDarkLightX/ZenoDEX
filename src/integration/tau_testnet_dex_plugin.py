@@ -1,5 +1,5 @@
 """
-Tau Testnet Alpha app-bridge plugin for the TauSwap DEX (this repo).
+Tau Testnet Alpha app-bridge plugin for ZenoDEX.
 
 This module implements the generic `external/tau-testnet/app_bridge.py` plugin API:
   apply_app_tx(...)

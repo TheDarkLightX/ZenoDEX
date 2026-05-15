@@ -16,14 +16,16 @@ fn main() {
 //
 // For fail-closed builds, set RISC0_FORCE_BUILD=1.
 
-pub const TAU_STATE_PROOF_GUEST_ELF: &[u8] = &[];
-pub const TAU_STATE_PROOF_GUEST_ID: [u32; 8] = [0; 8];
+pub const TAU_STATE_PROOF_RISC0_GUEST_ELF: &[u8] = &[];
+pub const TAU_STATE_PROOF_RISC0_GUEST_ID: [u32; 8] = [0; 8];
 "#;
         std::fs::write(&methods_rs, stub).expect("write placeholder methods.rs");
     };
 
     if std::env::var("RISC0_SKIP_BUILD").as_deref() == Ok("1") {
-        println!("cargo:warning=RISC0_SKIP_BUILD=1: using placeholder methods (ELF empty, ID all-zero)");
+        println!(
+            "cargo:warning=RISC0_SKIP_BUILD=1: using placeholder methods (ELF empty, ID all-zero)"
+        );
         write_placeholder();
         return;
     }
@@ -48,4 +50,3 @@ pub const TAU_STATE_PROOF_GUEST_ID: [u32; 8] = [0; 8];
 
     risc0_build::embed_methods();
 }
-
