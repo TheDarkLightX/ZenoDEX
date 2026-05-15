@@ -1,11 +1,8 @@
 """Intent creation and signing for autonomous agents."""
 
-from __future__ import annotations
-
 import hashlib
 from typing import Any, Dict, Optional
 
-from ..core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from ..core.quote_receipts import pool_state_fingerprint
 from ..integration.tau_net_client import sign_dex_intent_for_engine
 from ..state.balances import Amount, AssetId, PubKey
@@ -633,7 +630,21 @@ def _generate_intent_id(
 
 
 def _intent_signing_dict(intent: Intent) -> dict[str, Any]:
-    return build_dex_intent_signing_dict_v1(intent)
+    fields = intent.fields or {}
+    if not isinstance(fields, dict):
+        raise TypeError("intent.fields must be a dict")
+    out: dict[str, Any] = {
+        "module": intent.module,
+        "version": intent.version,
+        "kind": intent.kind.value,
+        "intent_id": intent.intent_id,
+        "sender_pubkey": intent.sender_pubkey,
+        "deadline": int(intent.deadline),
+        "fields": dict(fields),
+    }
+    if intent.salt is not None:
+        out["salt"] = intent.salt
+    return out
 
 
 def _intent_transport_dict(intent: Intent) -> dict[str, Any]:

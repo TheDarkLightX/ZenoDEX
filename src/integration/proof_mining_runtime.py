@@ -1,28 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import Any, Mapping
 
+from ..core.proof_mining_manager import (
+    ProofMiningManagerSnapshot,
+    ProofMiningManagerApplyResult,
+    apply_submit_proof_packet,
+    build_submit_proof_packet,
+    snapshot_to_kernel_state,
+)
 from ..core.proof_mining_claims import validate_proof_mining_claim_artifact
 from .proof_mining_context import (
     ProofMiningContext,
     derive_proof_mining_verification_flags,
 )
 
-if TYPE_CHECKING:
-    from ..core.proof_mining_manager import ProofMiningManagerApplyResult, ProofMiningManagerSnapshot
-
 
 @dataclass(frozen=True)
 class ProofMiningRuntimeState:
     reward_pool_pubkey: str
     snapshot: ProofMiningManagerSnapshot
-
-
-def _manager_module() -> Any:
-    from ..core import proof_mining_manager  # pylint: disable=import-outside-toplevel
-
-    return proof_mining_manager
 
 
 def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
@@ -61,8 +59,7 @@ def proof_mining_runtime_state_from_obj(obj: Mapping[str, Any]) -> ProofMiningRu
         if slot in claimed_slots:
             raise ValueError("duplicate proof mining claimed slot")
         claimed_slots[int(slot)] = proposal_hash
-    manager = _manager_module()
-    snapshot = manager.ProofMiningManagerSnapshot(
+    snapshot = ProofMiningManagerSnapshot(
         epoch=_require_int(body.get("epoch"), name="proof_mining.epoch"),
         base_reward=_require_int(body.get("base_reward"), name="proof_mining.base_reward"),
         initial_pool=_require_int(body.get("initial_pool"), name="proof_mining.initial_pool"),
@@ -70,7 +67,7 @@ def proof_mining_runtime_state_from_obj(obj: Mapping[str, Any]) -> ProofMiningRu
         total_paid=_require_int(body.get("total_paid"), name="proof_mining.total_paid"),
         claimed_slots=claimed_slots,
     )
-    manager.snapshot_to_kernel_state(snapshot)
+    snapshot_to_kernel_state(snapshot)
     return ProofMiningRuntimeState(
         reward_pool_pubkey=_require_str(body.get("reward_pool_pubkey"), name="proof_mining.reward_pool_pubkey"),
         snapshot=snapshot,
@@ -104,8 +101,7 @@ def initialize_proof_mining_runtime_state(
     balance = _require_int(reward_pool_balance, name="reward_pool_balance")
     if balance < 0:
         raise ValueError("reward_pool_balance must be non-negative")
-    manager = _manager_module()
-    snapshot = manager.ProofMiningManagerSnapshot(
+    snapshot = ProofMiningManagerSnapshot(
         epoch=_require_int(claim.get("epoch"), name="claim.epoch"),
         base_reward=_require_int(claim.get("base_reward"), name="claim.base_reward"),
         initial_pool=balance,
@@ -113,7 +109,7 @@ def initialize_proof_mining_runtime_state(
         total_paid=0,
         claimed_slots={},
     )
-    manager.snapshot_to_kernel_state(snapshot)
+    snapshot_to_kernel_state(snapshot)
     return ProofMiningRuntimeState(
         reward_pool_pubkey=_require_str(reward_pool_pubkey, name="reward_pool_pubkey"),
         snapshot=snapshot,
@@ -130,9 +126,8 @@ def sync_proof_mining_runtime_balance(
         raise ValueError("actual_reward_pool_balance must be non-negative")
     if balance == int(runtime_state.snapshot.reward_pool_balance):
         return runtime_state
-    manager = _manager_module()
     snapshot = runtime_state.snapshot
-    synced_snapshot = manager.ProofMiningManagerSnapshot(
+    synced_snapshot = ProofMiningManagerSnapshot(
         epoch=int(snapshot.epoch),
         base_reward=int(snapshot.base_reward),
         initial_pool=int(snapshot.total_paid) + int(balance),
@@ -140,7 +135,7 @@ def sync_proof_mining_runtime_balance(
         total_paid=int(snapshot.total_paid),
         claimed_slots=dict(snapshot.claimed_slots),
     )
-    manager.snapshot_to_kernel_state(synced_snapshot)
+    snapshot_to_kernel_state(synced_snapshot)
     return ProofMiningRuntimeState(
         reward_pool_pubkey=str(runtime_state.reward_pool_pubkey),
         snapshot=synced_snapshot,
@@ -161,13 +156,12 @@ def apply_proof_mining_claim(
         claim_artifact=claim_artifact,
         context=proof_mining_context,
     )
-    manager = _manager_module()
-    packet = manager.build_submit_proof_packet(
+    packet = build_submit_proof_packet(
         claim_artifact=claim_artifact,
         snapshot=runtime_state.snapshot,
         verification_flags=verification_flags,
     )
-    result = manager.apply_submit_proof_packet(
+    result = apply_submit_proof_packet(
         packet=packet,
         snapshot=runtime_state.snapshot,
         verification_flags=verification_flags,
@@ -176,7 +170,7 @@ def apply_proof_mining_claim(
         return runtime_state, result
     next_state = ProofMiningRuntimeState(
         reward_pool_pubkey=str(runtime_state.reward_pool_pubkey),
-        snapshot=manager.ProofMiningManagerSnapshot(
+        snapshot=ProofMiningManagerSnapshot(
             epoch=int(result.state_after["epoch"]),
             base_reward=int(result.state_after["base_reward"]),
             initial_pool=int(result.state_after["initial_pool"]),
