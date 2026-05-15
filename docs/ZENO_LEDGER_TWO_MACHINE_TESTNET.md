@@ -149,6 +149,15 @@ Expected result:
 - matching `feature_suite_hash`
 - matching common header hash
 
+Write a portable evidence report from Machine B:
+
+```bash
+python3 tools/zeno_ledger_node.py evidence \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --peer-url http://<MACHINE_A_IP>:8787 \
+  --out /tmp/zeno-ledger-node-b/evidence_report.json
+```
+
 Inspect Machine B's mode:
 
 ```bash

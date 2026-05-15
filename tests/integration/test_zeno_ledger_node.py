@@ -15,6 +15,7 @@ from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bu
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
     NODE_JOIN_CONFIG_SCHEMA,
+    build_node_evidence_report_v0,
     build_public_network_config_v0,
     check_peer_status_v0,
     doctor_public_node_v0,
@@ -428,6 +429,10 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
             data_dir=peer_node_dir,
             peer_urls=[f"http://{host}:{port}"],
         )
+        evidence_report = build_node_evidence_report_v0(
+            data_dir=peer_node_dir,
+            peer_urls=[f"http://{host}:{port}"],
+        )
 
         assert health["ok"] is True
         assert health["node_status_hash"] == status["node_status_hash"]
@@ -468,6 +473,11 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert final_peer_check["ok"] is True
         assert final_peer_check["peers"][0]["height_relation"] == "same_height"
         assert final_peer_check["peers"][0]["common_height"] == 13
+        assert evidence_report["ok"] is True
+        assert evidence_report["local_tip"]["height"] == 13
+        assert evidence_report["created_test_token_count"] == 1
+        assert evidence_report["created_test_tokens"][0]["symbol"] == "tMANGO"
+        assert evidence_report["peer_check"]["ok"] is True
         peer_live = _read_url_json(f"http://{host}:{port}/live/header/13")
         assert peer_live["height"] == 13
         assert load_node_status_v0(peer_node_dir)["ok"] is True
