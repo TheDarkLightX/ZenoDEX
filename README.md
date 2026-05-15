@@ -408,7 +408,8 @@ python3 tools/zeno_ledger_node.py faucet \
 
 This is the first public-node layer: it bootstraps from a bundle, verifies the
 ledger, emits a watcher attestation, and serves `/health`, `/status`,
-`/features`, `/tokens`, `/live`, `/attestation`, and `/testnet-status`. The
+`/features`, `/tokens`, `/network`, `/live`, `/attestation`, and
+`/testnet-status`. The
 `sync` command downloads only indexed JSON artifacts from a public HTTP mirror
 and verifies every mirror hash before the node runs. The public bundle carries
 a deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
@@ -431,7 +432,8 @@ deterministic replay. Live P2P block gossip and validator scheduling remain
 future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
-computer:
+computer. The two-machine operator runbook is
+`docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md`.
 
 ```bash
 python3 tools/zeno_ledger_public_network_smoke.py \

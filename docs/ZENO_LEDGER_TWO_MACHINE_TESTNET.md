@@ -1,0 +1,170 @@
+# ZenoLedger Two-Machine Testnet Rehearsal
+
+This runbook describes the current ZenoLedger v0 public-testnet shape. It is a
+deterministic follower/watcher network with one designated writer node for live
+testnet blocks and any number of follower nodes that verify the bootstrap
+bundle, serve status, forward submissions, and replay live blocks from peers.
+
+## Current Mode
+
+ZenoLedger v0 gives ZenoDEX a Tau Net independent rehearsal layer:
+
+- Machine A builds and serves the public-testnet bundle.
+- Machine A runs the writer node with testnet intake and faucet enabled.
+- Machine B joins from the public HTTP mirror, verifies all bundle hashes, and
+  runs as a follower/watcher.
+- Machine B can expose `POST /tx` and `POST /faucet`, forward those submissions
+  to Machine A, and then replay Machine A's resulting live blocks.
+- Both machines can check that they share the same network ID, chain ID,
+  feature-suite hash, and common header hash.
+
+The current mode is enough for a two-machine public-testnet rehearsal with fake
+tokens and elaborate ZenoDEX feature tests. It is still a designated-writer
+testnet, so validator scheduling, open P2P block gossip, and fork-choice remain
+future network work.
+
+## Machine A: Build, Mirror, And Run Writer
+
+Build the public-testnet bundle:
+
+```bash
+python3 tools/zeno_ledger_node.py bootstrap \
+  --out-dir /tmp/zeno-ledger-public-testnet \
+  --network-id zeno-ledger-devnet-0 \
+  --chain-id zeno-ledger-devnet-0 \
+  --token-symbol tZENO
+```
+
+Serve the bundle as an HTTP mirror:
+
+```bash
+cd /tmp/zeno-ledger-public-testnet
+python3 -m http.server 8000
+```
+
+In another terminal, run the writer node:
+
+```bash
+python3 tools/zeno_ledger_node.py run \
+  --bundle-root /tmp/zeno-ledger-public-testnet \
+  --node-id operator-a \
+  --data-dir /tmp/zeno-ledger-node-a \
+  --peer-watcher-attestation \
+    /tmp/zeno-ledger-public-testnet/bootstrap/watcher_attestations/bootstrap_range_1_5.json \
+  --serve \
+  --host 0.0.0.0 \
+  --port 8787 \
+  --enable-testnet-intake \
+  --enable-testnet-faucet
+```
+
+Machine A exposes:
+
+- `GET /health`
+- `GET /status`
+- `GET /network`
+- `GET /features`
+- `GET /tokens`
+- `GET /live`
+- `POST /tx`
+- `POST /faucet`
+
+## Machine B: Join And Follow
+
+Create a join config on Machine B. Replace `<MACHINE_A_IP>` with Machine A's
+reachable LAN or public IP.
+
+```bash
+cat > /tmp/zeno-ledger-node-b.json <<'JSON'
+{
+  "schema": "zenodex.zeno_ledger.node_join_config.v0",
+  "base_url": "http://<MACHINE_A_IP>:8000/",
+  "bundle_root": "/tmp/zeno-ledger-public-testnet-synced",
+  "node_id": "operator-b",
+  "data_dir": "/tmp/zeno-ledger-node-b",
+  "peer_urls": ["http://<MACHINE_A_IP>:8787"],
+  "serve": true,
+  "host": "0.0.0.0",
+  "port": 8788,
+  "poll_seconds": 5,
+  "enable_testnet_intake": true,
+  "enable_testnet_faucet": true,
+  "submit_peer_url": "http://<MACHINE_A_IP>:8787"
+}
+JSON
+
+python3 tools/zeno_ledger_node.py join \
+  --config /tmp/zeno-ledger-node-b.json
+```
+
+The join command downloads the mirror, verifies the mirror indexes, replays the
+bundle, emits a watcher attestation, checks the configured peer, and starts the
+node server.
+
+## Verify Both Nodes
+
+On Machine B:
+
+```bash
+python3 tools/zeno_ledger_node.py check-peers \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --peer-url http://<MACHINE_A_IP>:8787
+```
+
+Expected result:
+
+- `ok: true`
+- matching `network_id`
+- matching `chain_id`
+- matching `feature_suite_hash`
+- matching common header hash
+
+Inspect Machine B's mode:
+
+```bash
+curl http://127.0.0.1:8788/network
+```
+
+The `capabilities.submission_forwarding_enabled` field should be `true` when
+Machine B is forwarding testnet submissions to Machine A.
+
+## Test Fake Tokens
+
+Submit a faucet request through Machine B. Machine B forwards it to Machine A.
+
+```bash
+curl -sS http://127.0.0.1:8788/faucet \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "to_pubkey": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "asset": "0x3333333333333333333333333333333333333333333333333333333333333333",
+    "amount": 100000,
+    "tx_id": "manual-fake-token-faucet-v0"
+  }'
+```
+
+Then confirm Machine B catches up:
+
+```bash
+python3 tools/zeno_ledger_node.py pull-live \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --peer-url http://<MACHINE_A_IP>:8787
+```
+
+The follower accepts a live block only when local deterministic replay produces
+the same header as the writer node.
+
+## Local Smoke Test
+
+Run this on one machine before involving the MacBook:
+
+```bash
+python3 tools/zeno_ledger_public_network_smoke.py \
+  --out-dir /tmp/zeno-ledger-public-network-smoke \
+  --network-id zeno-ledger-devnet-0 \
+  --chain-id zeno-ledger-devnet-0
+```
+
+The smoke test builds a mirror, syncs two independent nodes, appends faucet and
+swap blocks, creates a fake-token pool, forwards a faucet request through the
+follower, and verifies both nodes end on the same live header.

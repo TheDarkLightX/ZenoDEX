@@ -1163,6 +1163,7 @@ def make_node_http_server_v0(
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
     submit_peer_url: str | None = None,
+    peer_urls: list[str] | None = None,
 ) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
 
@@ -1226,6 +1227,28 @@ def make_node_http_server_v0(
                             "token_posture": status["token_posture"],
                             "test_token_catalog": status["test_token_catalog"],
                             "testnet_faucet_posture": status["testnet_faucet_posture"],
+                        }
+                    )
+                    return
+                if self.path == "/network":
+                    self._send_json(
+                        {
+                            "schema": "zenodex.zeno_ledger.node_network_status.v0",
+                            "ok": status["ok"],
+                            "node_id": status["node_id"],
+                            "node_role": status["node_role"],
+                            "network_id": status["network_id"],
+                            "chain_id": status["chain_id"],
+                            "bootstrap_latest_height": status["latest_height"],
+                            "local_tip": _local_tip_v0(data_dir=root, node_status=status),
+                            "peer_urls": list(peer_urls or []),
+                            "peer_count": len(peer_urls or []),
+                            "submit_peer_url": submit_peer_url,
+                            "capabilities": {
+                                "testnet_intake_enabled": enable_testnet_intake,
+                                "testnet_faucet_enabled": enable_testnet_faucet,
+                                "submission_forwarding_enabled": submit_peer_url is not None,
+                            },
                         }
                     )
                     return
@@ -1368,6 +1391,7 @@ def serve_node_v0(
         enable_testnet_intake=enable_testnet_intake,
         enable_testnet_faucet=enable_testnet_faucet,
         submit_peer_url=submit_peer_url,
+        peer_urls=list(peer_urls or []),
     )
     address, actual_port = server.server_address
     print(

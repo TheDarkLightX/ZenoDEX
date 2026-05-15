@@ -238,6 +238,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         features = _read_url_json(f"http://{host}:{port}/features")
         tokens = _read_url_json(f"http://{host}:{port}/tokens")
         live = _read_url_json(f"http://{host}:{port}/live")
+        network = _read_url_json(f"http://{host}:{port}/network")
         testnet_status = _read_url_json(f"http://{host}:{port}/testnet-status")
         pre_pull_peer_check = check_peer_status_v0(
             data_dir=peer_node_dir,
@@ -273,6 +274,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                     "tx_id": "node-http-forwarded-faucet-v0",
                 },
             )
+            forward_network = _read_url_json(f"http://{forward_host}:{forward_port}/network")
         finally:
             forward_server.shutdown()
             forward_server.server_close()
@@ -290,6 +292,8 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert served_status["node_status_hash"] == status["node_status_hash"]
         assert features["covered_feature_count"] == 10
         assert len(tokens["test_token_catalog"]) == 3
+        assert network["local_tip"]["height"] == 9
+        assert network["capabilities"]["submission_forwarding_enabled"] is False
         assert live["live"] is True
         assert live["state"]["latest_height"] == 9
         assert pre_pull_peer_check["ok"] is True
@@ -304,6 +308,8 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert forwarded_faucet_report["ok"] is True
         assert forwarded_faucet_report["forwarded_to"] == f"http://{host}:{port}"
         assert forwarded_faucet_report["height"] == 10
+        assert forward_network["capabilities"]["submission_forwarding_enabled"] is True
+        assert forward_network["submit_peer_url"] == f"http://{host}:{port}"
         assert forwarded_pull_report["ok"] is True
         assert forwarded_pull_report["pulled_count"] == 1
         assert forwarded_pull_report["to_height"] == 10
