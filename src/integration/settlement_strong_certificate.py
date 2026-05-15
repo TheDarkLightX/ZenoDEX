@@ -7,6 +7,7 @@ from typing import Any, Mapping, Optional
 
 from src.core.settlement import Settlement
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
+from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from src.state.state_root import compute_state_root
 from src.state.support_root import compute_support_state_root_for_batch
 
@@ -440,9 +441,23 @@ def build_settlement_replay_context_commitment(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Optional[Any] = None,
+    pre_nonces: Optional[NonceTable] = None,
 ) -> SettlementReplayContextCommitment:
     from src.core.batch_clearing import apply_settlement_pure
     from src.state.lp import LPTable
+
+    # DbC precondition: supplied nonce state must be canonical so replay roots
+    # bind to the same replay-protection state enforced by the DEX engine.
+    nonce_table = NonceTable() if pre_nonces is None else pre_nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("pre_nonces must be a NonceTable")
+    ok, err, post_nonces = validate_and_apply_intent_nonce_batch(
+        nonces=nonce_table,
+        intents=list(intents),
+        require_all_nonces=False,
+    )
+    if not ok or post_nonces is None:
+        raise ValueError(err or "invalid replay nonce state")
 
     lp_balances = LPTable() if pre_lp_balances is None else pre_lp_balances
     intent_commitment = _sha256_json(create_intent_operation(list(intents)))
@@ -451,12 +466,14 @@ def build_settlement_replay_context_commitment(
         balances=pre_balances,
         pools=dict(pre_pools),
         lp_balances=lp_balances,
+        nonces=nonce_table,
     )
     pre_support_root = compute_support_state_root_for_batch(
         intents=list(intents),
         balances=pre_balances,
         pools=dict(pre_pools),
         lp_balances=lp_balances,
+        nonces=nonce_table,
     )
     post_balances, post_pools, post_lp = apply_settlement_pure(
         settlement=settlement,
@@ -468,12 +485,14 @@ def build_settlement_replay_context_commitment(
         balances=post_balances,
         pools=post_pools,
         lp_balances=post_lp,
+        nonces=post_nonces,
     )
     post_support_root = compute_support_state_root_for_batch(
         intents=list(intents),
         balances=post_balances,
         pools=post_pools,
         lp_balances=post_lp,
+        nonces=post_nonces,
     )
     unsigned = {
         "schema": SETTLEMENT_REPLAY_CONTEXT_COMMITMENT_SCHEMA,
@@ -650,6 +669,7 @@ def verify_settlement_replay_context_commitment(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Optional[Any] = None,
+    pre_nonces: Optional[NonceTable] = None,
 ) -> tuple[bool, Optional[str]]:
     try:
         expected = build_settlement_replay_context_commitment(
@@ -658,6 +678,7 @@ def verify_settlement_replay_context_commitment(
             pre_balances=pre_balances,
             pre_pools=pre_pools,
             pre_lp_balances=pre_lp_balances,
+            pre_nonces=pre_nonces,
         )
     except Exception as exc:
         return False, f"settlement replay context commitment recompute failed: {exc}"
@@ -683,6 +704,7 @@ def validate_settlement_strong_with_certificate(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Optional[Any] = None,
+    pre_nonces: Optional[NonceTable] = None,
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
@@ -698,6 +720,7 @@ def validate_settlement_strong_with_certificate(
             pre_balances=pre_balances,
             pre_pools=pre_pools,
             pre_lp_balances=pre_lp_balances,
+            pre_nonces=pre_nonces,
         )
         if not ok:
             return False, err
@@ -726,6 +749,7 @@ def enforce_replay_bound_settlement_certificate(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Optional[Any] = None,
+    pre_nonces: Optional[NonceTable] = None,
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
@@ -750,6 +774,7 @@ def enforce_replay_bound_settlement_certificate(
             pre_balances=pre_balances,
             pre_pools=pre_pools,
             pre_lp_balances=pre_lp_balances,
+            pre_nonces=pre_nonces,
         )
     except Exception as exc:
         return False, f"settlement replay context commitment failed: {exc}", None
