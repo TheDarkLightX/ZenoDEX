@@ -127,6 +127,16 @@ def CompleteAuditSet
     (Feasible : SettlementCandidate -> Prop) : Prop :=
   ∀ candidate, Feasible candidate -> candidate ∈ candidates
 
+def SoundAuditSet
+    (candidates : List SettlementCandidate)
+    (Feasible : SettlementCandidate -> Prop) : Prop :=
+  ∀ candidate, candidate ∈ candidates -> Feasible candidate
+
+def ExactAuditSet
+    (candidates : List SettlementCandidate)
+    (Feasible : SettlementCandidate -> Prop) : Prop :=
+  CompleteAuditSet candidates Feasible ∧ SoundAuditSet candidates Feasible
+
 /--
 Global weak optimality over a feasibility predicate.
 
@@ -297,6 +307,51 @@ def FeasibleGridCandidate
     (candidate : SettlementCandidate) : Prop :=
   ∃ price, PriceInGridBounds maxNum maxDen price ∧ candidate = scoreAt price
 
+def PriceInPositiveGridBounds
+    (maxNum maxDen : Nat)
+    (price : Price) : Prop :=
+  0 < price.num ∧ price.num <= maxNum ∧ 0 < price.den ∧ price.den <= maxDen
+
+def positivePriceGrid (maxNum maxDen : Nat) : List Price :=
+  (priceGrid maxNum maxDen).filter fun price =>
+    decide (0 < price.num ∧ 0 < price.den)
+
+def positivePriceGridCandidates
+    (maxNum maxDen : Nat)
+    (scoreAt : Price -> SettlementCandidate) : List SettlementCandidate :=
+  (positivePriceGrid maxNum maxDen).map scoreAt
+
+def FeasiblePositiveGridCandidate
+    (maxNum maxDen : Nat)
+    (scoreAt : Price -> SettlementCandidate)
+    (candidate : SettlementCandidate) : Prop :=
+  ∃ price, PriceInPositiveGridBounds maxNum maxDen price ∧ candidate = scoreAt price
+
+def priceReducedBool (price : Price) : Bool :=
+  Nat.gcd price.num price.den == 1
+
+def PriceReduced (price : Price) : Prop :=
+  priceReducedBool price = true
+
+def PriceInCanonicalGridBounds
+    (maxNum maxDen : Nat)
+    (price : Price) : Prop :=
+  PriceInPositiveGridBounds maxNum maxDen price ∧ PriceReduced price
+
+def canonicalPriceGrid (maxNum maxDen : Nat) : List Price :=
+  (positivePriceGrid maxNum maxDen).filter priceReducedBool
+
+def canonicalPriceGridCandidates
+    (maxNum maxDen : Nat)
+    (scoreAt : Price -> SettlementCandidate) : List SettlementCandidate :=
+  (canonicalPriceGrid maxNum maxDen).map scoreAt
+
+def FeasibleCanonicalGridCandidate
+    (maxNum maxDen : Nat)
+    (scoreAt : Price -> SettlementCandidate)
+    (candidate : SettlementCandidate) : Prop :=
+  ∃ price, PriceInCanonicalGridBounds maxNum maxDen price ∧ candidate = scoreAt price
+
 /--
 Every bounded integer price pair is present in the canonical finite grid.
 
@@ -318,6 +373,17 @@ theorem priceGrid_complete
       price.den,
       Nat.lt_succ_of_le hDen,
       by cases price; rfl⟩
+
+theorem priceGrid_sound
+    {maxNum maxDen : Nat}
+    {price : Price}
+    (hMember : price ∈ priceGrid maxNum maxDen) :
+    PriceInGridBounds maxNum maxDen price := by
+  unfold priceGrid at hMember
+  simp only [List.mem_flatMap, List.mem_map, List.mem_range] at hMember
+  rcases hMember with ⟨num, hNum, den, hDen, hEq⟩
+  cases hEq
+  exact ⟨Nat.le_of_lt_succ hNum, Nat.le_of_lt_succ hDen⟩
 
 /-- Scoring preserves price-grid completeness at the candidate-list level. -/
 theorem priceGridCandidates_complete
@@ -344,6 +410,150 @@ theorem priceGridCandidates_complete_audit_set
   rcases hFeasible with ⟨price, hBounds, hCandidate⟩
   rw [hCandidate]
   exact priceGridCandidates_complete hBounds
+
+theorem priceGridCandidates_sound_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    SoundAuditSet
+      (priceGridCandidates maxNum maxDen scoreAt)
+      (FeasibleGridCandidate maxNum maxDen scoreAt) := by
+  unfold SoundAuditSet FeasibleGridCandidate priceGridCandidates
+  intro candidate hMember
+  rcases List.mem_map.mp hMember with ⟨price, hPriceMember, hCandidate⟩
+  exact ⟨price, priceGrid_sound hPriceMember, hCandidate.symm⟩
+
+theorem priceGridCandidates_exact_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    ExactAuditSet
+      (priceGridCandidates maxNum maxDen scoreAt)
+      (FeasibleGridCandidate maxNum maxDen scoreAt) :=
+  ⟨priceGridCandidates_complete_audit_set, priceGridCandidates_sound_audit_set⟩
+
+theorem positivePriceGrid_complete
+    {maxNum maxDen : Nat}
+    {price : Price}
+    (hBounds : PriceInPositiveGridBounds maxNum maxDen price) :
+    price ∈ positivePriceGrid maxNum maxDen := by
+  rcases hBounds with ⟨hNumPositive, hNumBound, hDenPositive, hDenBound⟩
+  unfold positivePriceGrid
+  exact
+    List.mem_filter.mpr
+      ⟨priceGrid_complete ⟨hNumBound, hDenBound⟩,
+        by simpa using And.intro hNumPositive hDenPositive⟩
+
+theorem positivePriceGrid_sound
+    {maxNum maxDen : Nat}
+    {price : Price}
+    (hMember : price ∈ positivePriceGrid maxNum maxDen) :
+    PriceInPositiveGridBounds maxNum maxDen price := by
+  unfold positivePriceGrid at hMember
+  rcases List.mem_filter.mp hMember with ⟨hGridMember, hPositive⟩
+  rcases priceGrid_sound hGridMember with ⟨hNumBound, hDenBound⟩
+  have hPositivePair : 0 < price.num ∧ 0 < price.den := by
+    exact of_decide_eq_true hPositive
+  exact ⟨hPositivePair.1, hNumBound, hPositivePair.2, hDenBound⟩
+
+theorem positivePriceGridCandidates_complete
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate}
+    {price : Price}
+    (hBounds : PriceInPositiveGridBounds maxNum maxDen price) :
+    scoreAt price ∈ positivePriceGridCandidates maxNum maxDen scoreAt := by
+  unfold positivePriceGridCandidates
+  exact List.mem_map.mpr ⟨price, positivePriceGrid_complete hBounds, rfl⟩
+
+theorem positivePriceGridCandidates_complete_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    CompleteAuditSet
+      (positivePriceGridCandidates maxNum maxDen scoreAt)
+      (FeasiblePositiveGridCandidate maxNum maxDen scoreAt) := by
+  unfold CompleteAuditSet FeasiblePositiveGridCandidate
+  intro candidate hFeasible
+  rcases hFeasible with ⟨price, hBounds, hCandidate⟩
+  rw [hCandidate]
+  exact positivePriceGridCandidates_complete hBounds
+
+theorem positivePriceGridCandidates_sound_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    SoundAuditSet
+      (positivePriceGridCandidates maxNum maxDen scoreAt)
+      (FeasiblePositiveGridCandidate maxNum maxDen scoreAt) := by
+  unfold SoundAuditSet FeasiblePositiveGridCandidate positivePriceGridCandidates
+  intro candidate hMember
+  rcases List.mem_map.mp hMember with ⟨price, hPriceMember, hCandidate⟩
+  exact ⟨price, positivePriceGrid_sound hPriceMember, hCandidate.symm⟩
+
+theorem positivePriceGridCandidates_exact_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    ExactAuditSet
+      (positivePriceGridCandidates maxNum maxDen scoreAt)
+      (FeasiblePositiveGridCandidate maxNum maxDen scoreAt) :=
+  ⟨positivePriceGridCandidates_complete_audit_set, positivePriceGridCandidates_sound_audit_set⟩
+
+theorem canonicalPriceGrid_complete
+    {maxNum maxDen : Nat}
+    {price : Price}
+    (hBounds : PriceInCanonicalGridBounds maxNum maxDen price) :
+    price ∈ canonicalPriceGrid maxNum maxDen := by
+  rcases hBounds with ⟨hPositiveBounds, hReduced⟩
+  unfold canonicalPriceGrid
+  exact
+    List.mem_filter.mpr
+      ⟨positivePriceGrid_complete hPositiveBounds,
+        by simpa [PriceReduced] using hReduced⟩
+
+theorem canonicalPriceGrid_sound
+    {maxNum maxDen : Nat}
+    {price : Price}
+    (hMember : price ∈ canonicalPriceGrid maxNum maxDen) :
+    PriceInCanonicalGridBounds maxNum maxDen price := by
+  unfold canonicalPriceGrid at hMember
+  rcases List.mem_filter.mp hMember with ⟨hPositiveMember, hReduced⟩
+  exact ⟨positivePriceGrid_sound hPositiveMember, by simpa [PriceReduced] using hReduced⟩
+
+theorem canonicalPriceGridCandidates_complete
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate}
+    {price : Price}
+    (hBounds : PriceInCanonicalGridBounds maxNum maxDen price) :
+    scoreAt price ∈ canonicalPriceGridCandidates maxNum maxDen scoreAt := by
+  unfold canonicalPriceGridCandidates
+  exact List.mem_map.mpr ⟨price, canonicalPriceGrid_complete hBounds, rfl⟩
+
+theorem canonicalPriceGridCandidates_complete_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    CompleteAuditSet
+      (canonicalPriceGridCandidates maxNum maxDen scoreAt)
+      (FeasibleCanonicalGridCandidate maxNum maxDen scoreAt) := by
+  unfold CompleteAuditSet FeasibleCanonicalGridCandidate
+  intro candidate hFeasible
+  rcases hFeasible with ⟨price, hBounds, hCandidate⟩
+  rw [hCandidate]
+  exact canonicalPriceGridCandidates_complete hBounds
+
+theorem canonicalPriceGridCandidates_sound_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    SoundAuditSet
+      (canonicalPriceGridCandidates maxNum maxDen scoreAt)
+      (FeasibleCanonicalGridCandidate maxNum maxDen scoreAt) := by
+  unfold SoundAuditSet FeasibleCanonicalGridCandidate canonicalPriceGridCandidates
+  intro candidate hMember
+  rcases List.mem_map.mp hMember with ⟨price, hPriceMember, hCandidate⟩
+  exact ⟨price, canonicalPriceGrid_sound hPriceMember, hCandidate.symm⟩
+
+theorem canonicalPriceGridCandidates_exact_audit_set
+    {maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate} :
+    ExactAuditSet
+      (canonicalPriceGridCandidates maxNum maxDen scoreAt)
+      (FeasibleCanonicalGridCandidate maxNum maxDen scoreAt) :=
+  ⟨canonicalPriceGridCandidates_complete_audit_set, canonicalPriceGridCandidates_sound_audit_set⟩
 
 /--
 A runtime-strengthened upper-bound certificate over the complete bounded
@@ -376,6 +586,72 @@ theorem price_grid_upper_bound_certificate_implies_global_weak_optimal
         (priceGridCandidates maxNum maxDen scoreAt)
         (FeasibleGridCandidate maxNum maxDen scoreAt) :=
     priceGridCandidates_complete_audit_set
+  exact
+    ⟨complete_audit_set_lifts_weak_optimal_to_global
+      hWinnerFeasible
+      hComplete
+      hAudit,
+      hWinnerMember⟩
+
+theorem positive_price_grid_upper_bound_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate}
+    (hWinnerFeasible : FeasiblePositiveGridCandidate maxNum maxDen scoreAt winner)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        (positivePriceGridCandidates maxNum maxDen scoreAt)) :
+    GloballyWeaklyOptimal
+      winner
+      (FeasiblePositiveGridCandidate maxNum maxDen scoreAt) ∧
+      winner ∈ positivePriceGridCandidates maxNum maxDen scoreAt := by
+  rcases hCert with ⟨hUpper, hWinnerMember⟩
+  have hAudit :
+      WeaklyOptimalIn
+        winner
+        (positivePriceGridCandidates maxNum maxDen scoreAt) :=
+    upper_bound_certificate_implies_weak_optimal hUpper
+  have hComplete :
+      CompleteAuditSet
+        (positivePriceGridCandidates maxNum maxDen scoreAt)
+        (FeasiblePositiveGridCandidate maxNum maxDen scoreAt) :=
+    positivePriceGridCandidates_complete_audit_set
+  exact
+    ⟨complete_audit_set_lifts_weak_optimal_to_global
+      hWinnerFeasible
+      hComplete
+      hAudit,
+      hWinnerMember⟩
+
+theorem canonical_price_grid_upper_bound_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume maxNum maxDen : Nat}
+    {scoreAt : Price -> SettlementCandidate}
+    (hWinnerFeasible : FeasibleCanonicalGridCandidate maxNum maxDen scoreAt winner)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        (canonicalPriceGridCandidates maxNum maxDen scoreAt)) :
+    GloballyWeaklyOptimal
+      winner
+      (FeasibleCanonicalGridCandidate maxNum maxDen scoreAt) ∧
+      winner ∈ canonicalPriceGridCandidates maxNum maxDen scoreAt := by
+  rcases hCert with ⟨hUpper, hWinnerMember⟩
+  have hAudit :
+      WeaklyOptimalIn
+        winner
+        (canonicalPriceGridCandidates maxNum maxDen scoreAt) :=
+    upper_bound_certificate_implies_weak_optimal hUpper
+  have hComplete :
+      CompleteAuditSet
+        (canonicalPriceGridCandidates maxNum maxDen scoreAt)
+        (FeasibleCanonicalGridCandidate maxNum maxDen scoreAt) :=
+    canonicalPriceGridCandidates_complete_audit_set
   exact
     ⟨complete_audit_set_lifts_weak_optimal_to_global
       hWinnerFeasible
