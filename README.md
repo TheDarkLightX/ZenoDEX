@@ -328,6 +328,15 @@ bootstrap bundle, run a follower/watcher node, and optionally serve node status
 over HTTP:
 
 ```bash
+python3 tools/zeno_ledger_machine_a_host.py \
+  --public-host <MACHINE_A_IP>
+```
+
+The Machine A host runner builds the public-testnet bundle, starts the static
+mirror, starts the writer API, writes `public_network_config.json`, and prints
+the exact Machine B acceptance command with the config hash.
+
+```bash
 python3 tools/zeno_ledger_node.py bootstrap \
   --out-dir /tmp/zeno-ledger-public-testnet \
   --network-id zeno-ledger-devnet-0 \

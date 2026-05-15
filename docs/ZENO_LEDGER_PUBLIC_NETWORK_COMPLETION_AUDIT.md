@@ -14,6 +14,7 @@ testnet ZenoDEX tokens plus created fake test tokens for feature testing.
 | Requirement | Current artifact | Evidence | Status |
 | --- | --- | --- | --- |
 | Build a public bootstrap bundle | `tools/zeno_ledger_node.py bootstrap`, `tools/zeno_ledger_make_public_testnet_bundle.py` | `tools/zeno_ledger_public_network_smoke.py` builds a source bundle with `source_feature_count=10` | Built and locally tested |
+| Run Machine A from one command | `tools/zeno_ledger_machine_a_host.py` | Builds the bundle, starts the mirror and writer API, writes `public_network_config.json`, and prints Machine B's acceptance command | Built |
 | Let a remote computer bootstrap from one public entrypoint | `write-network-config`, `join-network`, `sync_public_bundle_from_url_v0` | Integration test joins from `public_network_config.json`; smoke syncs two independent node bundles from HTTP | Built and locally tested |
 | Let operators pin the expected bootstrap config | `--expected-network-config-hash` on `join-network` | `tests/integration/test_zeno_ledger_node.py` checks accepted hash and rejects `0x00...00` | Built and locally tested |
 | Preflight local and remote setup | `tools/zeno_ledger_node.py doctor` | Local `doctor` returns `ok: true`; integration validates a remote network config with expected hash | Built and locally tested |
@@ -65,8 +66,12 @@ final_common_height: 13
 
 ## Remaining Acceptance Item
 
-This audit does not mark the public-network goal complete because one claim has
-not been externally observed from this session:
+This audit previously held the public-network goal open until a second physical
+machine joined Machine A. The operator has now reported that Machine B works.
+For durable release evidence, archive the Machine B acceptance report or
+equivalent evidence JSON from the physical run.
+
+The release evidence claim is:
 
 ```text
 Machine B on a separate physical computer bootstraps from Machine A's public
@@ -117,6 +122,5 @@ python3 tools/zeno_ledger_machine_b_acceptance.py \
   --out /tmp/zeno-ledger-node-b/machine_b_acceptance_report.json
 ```
 
-Until that separate-machine artifact exists, the implementation is a
-public-testnet candidate with strong local two-node evidence, not a completed
-public-network goal.
+Until that separate-machine artifact is committed or otherwise archived, the
+separate-machine check is operator-reported rather than repository-recorded.
