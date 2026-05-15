@@ -1218,6 +1218,7 @@ def apply_ops(
             pools=state.pools,
             lp_balances=state.lp_balances,
             block_timestamp=block_timestamp,
+            nonces=state.nonces,
             tau_gate_config=config.tau_gate_config,
             settlement_validation=config.dex_config.settlement_validation,
             swap_ordering=str(config.swap_ordering),
