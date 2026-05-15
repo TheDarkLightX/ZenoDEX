@@ -30,6 +30,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
 from tools.zeno_ledger_node import (
     append_dex_transaction_v0,
     append_testnet_faucet_v0,
+    append_testnet_token_create_v0,
     check_peer_status_v0,
     make_node_http_server_v0,
     pull_live_from_peer_v0,
@@ -166,23 +167,33 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                 },
             },
         )
-        new_asset = "0x" + "33" * 32
+        token_create = append_testnet_token_create_v0(
+            data_dir=node_a_dir,
+            symbol="tMANGO",
+            name="Test Mango Credit",
+            decimals=8,
+            creator_pubkey=DEFAULT_BOOTSTRAP_SENDER,
+            salt="smoke-token-v0",
+            time_ms=DEFAULT_TIME_MS + 1_002_000,
+            tx_id="smoke-create-test-token-v0",
+        )
+        new_asset = token_create["testnet_token"]["asset"]
         faucet_new = append_testnet_faucet_v0(
             data_dir=node_a_dir,
             to_pubkey=DEFAULT_BOOTSTRAP_SENDER,
             asset=new_asset,
             amount=50_000,
-            time_ms=DEFAULT_TIME_MS + 1_002_000,
+            time_ms=DEFAULT_TIME_MS + 1_003_000,
             tx_id="smoke-faucet-new-asset-v0",
         )
         new_pool_asset0 = min(asset_a, new_asset)
         new_pool_asset1 = max(asset_a, new_asset)
         create_fake_pool = append_dex_transaction_v0(
             data_dir=node_a_dir,
-            time_ms=DEFAULT_TIME_MS + 1_003_000,
+            time_ms=DEFAULT_TIME_MS + 1_004_000,
             tx={
                 "tx_id": "smoke-create-fake-token-pool-v0",
-                "block_timestamp": (DEFAULT_TIME_MS + 1_003_000) // 1000,
+                "block_timestamp": (DEFAULT_TIME_MS + 1_004_000) // 1000,
                 "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                 "operations": {
                     "2": [
@@ -199,7 +210,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                             "fee_bps": 30,
                             "amount0": 100,
                             "amount1": 100,
-                            "created_at": (DEFAULT_TIME_MS + 1_003_000) // 1000,
+                            "created_at": (DEFAULT_TIME_MS + 1_004_000) // 1000,
                         }
                     ]
                 },
@@ -208,10 +219,10 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         fake_pool_id = compute_pool_id(new_pool_asset0, new_pool_asset1, 30)
         add_fake_pool_liquidity = append_dex_transaction_v0(
             data_dir=node_a_dir,
-            time_ms=DEFAULT_TIME_MS + 1_004_000,
+            time_ms=DEFAULT_TIME_MS + 1_005_000,
             tx={
                 "tx_id": "smoke-add-fake-token-liquidity-v0",
-                "block_timestamp": (DEFAULT_TIME_MS + 1_004_000) // 1000,
+                "block_timestamp": (DEFAULT_TIME_MS + 1_005_000) // 1000,
                 "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                 "operations": {
                     "2": [
@@ -236,10 +247,10 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         )
         remove_fake_pool_liquidity = append_dex_transaction_v0(
             data_dir=node_a_dir,
-            time_ms=DEFAULT_TIME_MS + 1_005_000,
+            time_ms=DEFAULT_TIME_MS + 1_006_000,
             tx={
                 "tx_id": "smoke-remove-fake-token-liquidity-v0",
-                "block_timestamp": (DEFAULT_TIME_MS + 1_005_000) // 1000,
+                "block_timestamp": (DEFAULT_TIME_MS + 1_006_000) // 1000,
                 "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                 "operations": {
                     "2": [
@@ -267,13 +278,13 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         node_b_forward_server, node_b_url = _start_node_server(node_b_dir, submit_peer_url=node_a_url)
         forwarded_faucet = _post_json(
             f"{node_b_url}/faucet",
-            {
-                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
-                "asset": asset_a,
-                "amount": 55,
-                "time_ms": DEFAULT_TIME_MS + 1_006_000,
-                "tx_id": "smoke-forwarded-faucet-v0",
-            },
+                {
+                    "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "asset": asset_a,
+                    "amount": 55,
+                    "time_ms": DEFAULT_TIME_MS + 1_007_000,
+                    "tx_id": "smoke-forwarded-faucet-v0",
+                },
         )
         forwarded_pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
         final_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
@@ -295,6 +306,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             node_b,
             faucet_existing,
             swap,
+            token_create,
             faucet_new,
             create_fake_pool,
             add_fake_pool_liquidity,
@@ -321,6 +333,9 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "node_b_watcher_count": node_b["combined_watcher_count"],
         "faucet_existing_height": faucet_existing["height"],
         "swap_height": swap["height"],
+        "token_create_height": token_create["height"],
+        "created_test_token_symbol": token_create["testnet_token"]["symbol"],
+        "created_test_token_asset": token_create["testnet_token"]["asset"],
         "faucet_new_asset_height": faucet_new["height"],
         "create_fake_pool_height": create_fake_pool["height"],
         "add_fake_pool_liquidity_height": add_fake_pool_liquidity["height"],

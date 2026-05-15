@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import threading
 import time
@@ -70,6 +71,10 @@ MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
 TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
+TESTNET_TOKEN_CREATE_KIND = "ZENODEX_TESTNET_TOKEN_CREATE"
+MAX_TESTNET_TOKEN_SYMBOL_LEN = 16
+MAX_TESTNET_TOKEN_NAME_LEN = 80
+_TESTNET_TOKEN_SYMBOL_RE = re.compile(r"^t[A-Z0-9][A-Z0-9_]{0,14}$")
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -590,11 +595,116 @@ def _faucet_tx_v0(
     }
 
 
+def _testnet_token_registry_path(data_dir: Path) -> Path:
+    return data_dir / "testnet_token_registry.json"
+
+
+def _testnet_token_registry_hash_v0(registry: Mapping[str, Any]) -> str:
+    body = {key: value for key, value in dict(registry).items() if key != "token_registry_hash"}
+    return hash_v0("testnet_token_registry_v0", body)
+
+
+def _empty_testnet_token_registry_v0() -> dict[str, Any]:
+    body = {
+        "schema": "zenodex.zeno_ledger.testnet_token_registry.v0",
+        "tokens": [],
+    }
+    return {**body, "token_registry_hash": _testnet_token_registry_hash_v0(body)}
+
+
+def _load_testnet_token_registry_v0(data_dir: Path) -> dict[str, Any]:
+    path = _testnet_token_registry_path(data_dir)
+    if not path.is_file():
+        return _empty_testnet_token_registry_v0()
+    registry = dict(_load_json_object(path))
+    if registry.get("schema") != "zenodex.zeno_ledger.testnet_token_registry.v0":
+        raise ValueError("testnet token registry schema mismatch")
+    expected = _testnet_token_registry_hash_v0(registry)
+    if registry.get("token_registry_hash") != expected:
+        raise ValueError("testnet token registry hash mismatch")
+    tokens = registry.get("tokens")
+    if not isinstance(tokens, list):
+        raise ValueError("testnet token registry tokens must be a list")
+    return registry
+
+
+def _write_testnet_token_registry_v0(data_dir: Path, registry: Mapping[str, Any]) -> dict[str, Any]:
+    body = {key: value for key, value in dict(registry).items() if key != "token_registry_hash"}
+    out = {**body, "token_registry_hash": _testnet_token_registry_hash_v0(body)}
+    _write_json(_testnet_token_registry_path(data_dir), out)
+    return out
+
+
+def _require_token_symbol_v0(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("symbol must be a string")
+    raw = value.strip()
+    symbol = "t" + raw[1:].upper() if raw[:1].lower() == "t" else raw.upper()
+    if len(symbol) > MAX_TESTNET_TOKEN_SYMBOL_LEN or not _TESTNET_TOKEN_SYMBOL_RE.fullmatch(symbol):
+        raise ValueError("symbol must match t[A-Z0-9][A-Z0-9_]{0,14}")
+    return symbol
+
+
+def _require_token_name_v0(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("name must be a string")
+    name = " ".join(value.strip().split())
+    if not name or len(name) > MAX_TESTNET_TOKEN_NAME_LEN:
+        raise ValueError("name must be non-empty and at most 80 characters")
+    return name
+
+
+def _require_token_decimals_v0(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 18:
+        raise ValueError("decimals must be an int in [0, 18]")
+    return int(value)
+
+
+def _derive_testnet_asset_id_v0(*, symbol: str, name: str, decimals: int, creator_pubkey: str, salt: str) -> str:
+    return hash_v0(
+        "testnet_asset_id_v0",
+        {
+            "symbol": symbol,
+            "name": name,
+            "decimals": decimals,
+            "creator_pubkey": creator_pubkey,
+            "salt": salt,
+        },
+    )
+
+
+def _token_create_tx_v0(
+    *,
+    tx_id: str,
+    asset: str,
+    symbol: str,
+    name: str,
+    decimals: int,
+    creator_pubkey: str,
+) -> dict[str, Any]:
+    return {
+        "tx_id": tx_id,
+        "kind": TESTNET_TOKEN_CREATE_KIND,
+        "asset": asset,
+        "symbol": symbol,
+        "name": name,
+        "decimals": decimals,
+        "creator_pubkey": creator_pubkey,
+    }
+
+
 def _is_faucet_body_v0(body: Mapping[str, Any]) -> bool:
     txs = body.get("transactions")
     if not isinstance(txs, list) or len(txs) != 1 or not isinstance(txs[0], Mapping):
         return False
     return txs[0].get("kind") == TESTNET_FAUCET_KIND
+
+
+def _is_token_create_body_v0(body: Mapping[str, Any]) -> bool:
+    txs = body.get("transactions")
+    if not isinstance(txs, list) or len(txs) != 1 or not isinstance(txs[0], Mapping):
+        return False
+    return txs[0].get("kind") == TESTNET_TOKEN_CREATE_KIND
 
 
 def _latest_live_state_path(data_dir: Path) -> Path:
@@ -816,6 +926,142 @@ def _build_faucet_block_from_body_v0(
     }
 
 
+def _token_registry_entry_from_tx_v0(*, tx: Mapping[str, Any], height: int) -> dict[str, Any]:
+    asset = _require_asset_v0(tx.get("asset"), name="token.asset")
+    symbol = _require_token_symbol_v0(tx.get("symbol"))
+    name = _require_token_name_v0(tx.get("name"))
+    decimals = _require_token_decimals_v0(tx.get("decimals"))
+    creator_pubkey = _require_pubkey_v0(tx.get("creator_pubkey"), name="token.creator_pubkey")
+    tx_id = str(tx.get("tx_id", ""))
+    if not tx_id:
+        raise ValueError("token.tx_id is required")
+    return {
+        "asset": asset,
+        "symbol": symbol,
+        "name": name,
+        "decimals": decimals,
+        "creator_pubkey": creator_pubkey,
+        "created_height": height,
+        "tx_id": tx_id,
+        "tx_hash": tx_hash_v0(dict(tx)),
+    }
+
+
+def _apply_token_create_to_registry_v0(*, data_dir: Path, body: Mapping[str, Any]) -> dict[str, Any]:
+    if not _is_token_create_body_v0(body):
+        raise ValueError("body is not a testnet token-create body")
+    tx = body["transactions"][0]
+    if not isinstance(tx, Mapping):
+        raise ValueError("token-create transaction must be an object")
+    entry = _token_registry_entry_from_tx_v0(tx=tx, height=int(body["height"]))
+    registry = _load_testnet_token_registry_v0(data_dir)
+    tokens = list(registry.get("tokens", []))
+    for existing in tokens:
+        if not isinstance(existing, Mapping):
+            raise ValueError("testnet token registry entry must be an object")
+        if existing.get("asset") == entry["asset"] or existing.get("symbol") == entry["symbol"]:
+            if dict(existing) == entry:
+                return registry
+            raise ValueError("testnet token asset or symbol already registered")
+    tokens.append(entry)
+    tokens.sort(key=lambda item: (str(item["symbol"]), str(item["asset"])))
+    return _write_testnet_token_registry_v0(data_dir, {**registry, "tokens": tokens})
+
+
+def _build_token_create_block_from_body_v0(
+    *,
+    data_dir: Path,
+    body: Mapping[str, Any],
+    time_ms: int,
+    prev_header_path: Path,
+    pre_snapshot_path: Path,
+    sequencer_set_hash: str,
+    config_digest: str,
+    module_versions_digest: str,
+) -> dict[str, Any]:
+    body_obj = dict(body)
+    validate_body_v0(body_obj)
+    if not _is_token_create_body_v0(body_obj):
+        raise ValueError("body is not a testnet token-create body")
+    tx = dict(body_obj["transactions"][0])
+    _token_registry_entry_from_tx_v0(tx=tx, height=int(body_obj["height"]))
+    pre_snapshot = _load_json_object(pre_snapshot_path)
+    pre_state = state_from_snapshot(pre_snapshot)
+    pre_state_root = dex_state_root_v0(pre_state)
+    post_state_root = pre_state_root
+    height = int(body_obj["height"])
+    chain_id = str(body_obj["chain_id"])
+    prev_header = dict(_load_json_object(prev_header_path))
+    prev_header_hash = canonical_header_hash_v0(prev_header)
+    evidence_root = compute_evidence_root_v0(body_obj["evidence"])  # type: ignore[arg-type]
+    app_hash = compute_app_hash_v0(
+        {
+            "chain_id": chain_id,
+            "height": height,
+            "post_state_root": post_state_root,
+            "evidence_root": evidence_root,
+            "config_digest": config_digest,
+            "module_versions_digest": module_versions_digest,
+        }
+    )
+    header = build_header_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        prev_header_hash=prev_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        ingress_root=compute_ingress_root_v0(body_obj["ingress"]),  # type: ignore[arg-type]
+        tx_root=compute_tx_root_v0(body_obj["transactions"]),  # type: ignore[arg-type]
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+        app_hash=app_hash,
+        evidence_root=evidence_root,
+        body_root=canonical_body_root_v0(body_obj),
+        data_availability_root=ZERO_ROOT,
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=config_digest,
+        module_versions_digest=module_versions_digest,
+        signature_set_root=ZERO_ROOT,
+    )
+    checkpoint = build_checkpoint_v0(header)
+    header_hash = canonical_header_hash_v0(header)
+    tx_hash = tx_hash_v0(tx)
+    receipt = build_tx_receipt_v0(
+        tx_hash=tx_hash,
+        height=height,
+        index=0,
+        accepted=True,
+        error_code=None,
+        state_changed=False,
+    )
+    live_ledger_dir = data_dir / "live_ledger"
+    header_path = live_ledger_dir / "headers" / f"{height}.json"
+    body_path = live_ledger_dir / "bodies" / f"{height}.json"
+    checkpoint_path = live_ledger_dir / "checkpoints" / f"{height}.json"
+    receipts_path = live_ledger_dir / "receipts" / f"{height}.json"
+    snapshot_path = live_ledger_dir / "snapshots" / f"{height}.json"
+    _write_json(header_path, header)
+    _write_json(body_path, body_obj)
+    _write_json(checkpoint_path, checkpoint)
+    _write_json(receipts_path, [receipt])
+    _write_json(snapshot_path, pre_snapshot)
+    registry = _apply_token_create_to_registry_v0(data_dir=data_dir, body=body_obj)
+    return {
+        "height": height,
+        "tx_hash": tx_hash,
+        "header_hash": header_hash,
+        "app_hash": app_hash,
+        "body_path": str(body_path),
+        "header_path": str(header_path),
+        "checkpoint_path": str(checkpoint_path),
+        "receipts_path": str(receipts_path),
+        "post_snapshot_path": str(snapshot_path),
+        "receipt": receipt,
+        "testnet_token_registry_hash": registry["token_registry_hash"],
+        "testnet_token": _token_registry_entry_from_tx_v0(tx=tx, height=height),
+    }
+
+
 def append_testnet_faucet_v0(
     *,
     data_dir: Path,
@@ -871,6 +1117,88 @@ def append_testnet_faucet_v0(
         "status": "accepted",
         "node_id": node_status["node_id"],
         "append_kind": "testnet_faucet",
+        **block_report,
+    }
+    append_report_path = data_dir / "append_reports" / f"{height}.json"
+    _write_json(append_report_path, report)
+    return {**report, "append_report_path": str(append_report_path)}
+
+
+def append_testnet_token_create_v0(
+    *,
+    data_dir: Path,
+    symbol: str,
+    name: str,
+    decimals: int,
+    creator_pubkey: str,
+    time_ms: int,
+    tx_id: str = "node-testnet-token-create-v0",
+    asset: str | None = None,
+    salt: str = "default",
+) -> dict[str, Any]:
+    """Append a testnet-only token metadata registration to the live ledger."""
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    latest_height = int(base["latest_height"])
+    height = latest_height + 1
+    checked_symbol = _require_token_symbol_v0(symbol)
+    checked_name = _require_token_name_v0(name)
+    checked_decimals = _require_token_decimals_v0(decimals)
+    checked_creator = _require_pubkey_v0(creator_pubkey, name="creator_pubkey")
+    checked_asset = (
+        _require_asset_v0(asset, name="asset")
+        if asset is not None
+        else _derive_testnet_asset_id_v0(
+            symbol=checked_symbol,
+            name=checked_name,
+            decimals=checked_decimals,
+            creator_pubkey=checked_creator,
+            salt=salt,
+        )
+    )
+    tx = _token_create_tx_v0(
+        tx_id=tx_id,
+        asset=checked_asset,
+        symbol=checked_symbol,
+        name=checked_name,
+        decimals=checked_decimals,
+        creator_pubkey=checked_creator,
+    )
+    body = _body_for_tx_v0(
+        chain_id=str(public_manifest["chain_id"]),
+        height=height,
+        time_ms=time_ms,
+        sequencer_id=str(public_manifest["sequencer_id"]),
+        tx=tx,
+    )
+    block_report = _build_token_create_block_from_body_v0(
+        data_dir=data_dir,
+        body=body,
+        time_ms=time_ms,
+        prev_header_path=Path(str(base["prev_header_path"])),
+        pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+        sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+        config_digest=str(bootstrap_manifest["config_digest"]),
+        module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+    )
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(block_report["header_path"]),
+        snapshot_path=str(block_report["post_snapshot_path"]),
+        header_hash=str(block_report["header_hash"]),
+        app_hash=str(block_report["app_hash"]),
+    )
+    report = {
+        "schema": NODE_APPEND_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "node_id": node_status["node_id"],
+        "append_kind": "testnet_token_create",
         **block_report,
     }
     append_report_path = data_dir / "append_reports" / f"{height}.json"
@@ -936,6 +1264,17 @@ def pull_live_from_peer_v0(
         peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
         if _is_faucet_body_v0(peer_body):
             block_report = _build_faucet_block_from_body_v0(
+                data_dir=data_dir,
+                body=peer_body,
+                time_ms=int(peer_header["time_ms"]),
+                prev_header_path=current_prev_header,
+                pre_snapshot_path=current_pre_snapshot,
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        elif _is_token_create_body_v0(peer_body):
+            block_report = _build_token_create_block_from_body_v0(
                 data_dir=data_dir,
                 body=peer_body,
                 time_ms=int(peer_header["time_ms"]),
@@ -1237,12 +1576,16 @@ def make_node_http_server_v0(
                     )
                     return
                 if self.path == "/tokens":
+                    registry = _load_testnet_token_registry_v0(root)
                     self._send_json(
                         {
                             "token_symbol": status["token_symbol"],
                             "token_posture": status["token_posture"],
                             "test_token_catalog": status["test_token_catalog"],
                             "testnet_faucet_posture": status["testnet_faucet_posture"],
+                            "created_test_tokens": registry["tokens"],
+                            "created_test_token_count": len(registry["tokens"]),
+                            "testnet_token_registry_hash": registry["token_registry_hash"],
                         }
                     )
                     return
@@ -1346,6 +1689,39 @@ def make_node_http_server_v0(
                             asset=str(payload.get("asset", "")),
                             amount=payload.get("amount"),
                             tx_id=str(payload.get("tx_id", "node-testnet-faucet-v0")),
+                            time_ms=int(time_ms),
+                        )
+                    self._send_json(report)
+                    return
+                if self.path == "/tokens":
+                    if not enable_testnet_faucet:
+                        self._send_json({"ok": False, "error": "testnet_token_create_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    if submit_peer_url:
+                        report, peer_status = _post_json_url(
+                            urljoin(submit_peer_url.rstrip("/") + "/", "tokens"),
+                            payload,
+                        )
+                        self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
+                        return
+                    time_ms = payload.get("time_ms")
+                    if time_ms is None:
+                        time_ms = int(time.time() * 1000)
+                    if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
+                        self._send_json({"ok": False, "error": "time_ms_must_be_nonnegative_int"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    asset = payload.get("asset")
+                    with append_lock:
+                        report = append_testnet_token_create_v0(
+                            data_dir=root,
+                            symbol=str(payload.get("symbol", "")),
+                            name=str(payload.get("name", "")),
+                            decimals=payload.get("decimals"),
+                            creator_pubkey=str(payload.get("creator_pubkey", "")),
+                            asset=str(asset) if asset is not None else None,
+                            salt=str(payload.get("salt", "default")),
+                            tx_id=str(payload.get("tx_id", "node-testnet-token-create-v0")),
                             time_ms=int(time_ms),
                         )
                     self._send_json(report)
@@ -1810,6 +2186,25 @@ def _cmd_faucet(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_create_token(args: argparse.Namespace) -> int:
+    try:
+        report = append_testnet_token_create_v0(
+            data_dir=args.data_dir,
+            symbol=args.symbol,
+            name=args.name,
+            decimals=args.decimals,
+            creator_pubkey=args.creator_pubkey,
+            asset=args.asset,
+            salt=args.salt,
+            tx_id=args.tx_id,
+            time_ms=args.time_ms,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     load_node_status_v0(args.data_dir)
     serve_node_v0(
@@ -1911,6 +2306,18 @@ def main(argv: list[str] | None = None) -> int:
     faucet.add_argument("--tx-id", default="node-testnet-faucet-v0")
     faucet.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
     faucet.set_defaults(func=_cmd_faucet)
+
+    create_token = sub.add_parser("create-token", help="register a testnet-only token in the live ledger")
+    create_token.add_argument("--data-dir", required=True, type=Path)
+    create_token.add_argument("--symbol", required=True)
+    create_token.add_argument("--name", required=True)
+    create_token.add_argument("--decimals", required=True, type=int)
+    create_token.add_argument("--creator-pubkey", required=True)
+    create_token.add_argument("--asset")
+    create_token.add_argument("--salt", default="default")
+    create_token.add_argument("--tx-id", default="node-testnet-token-create-v0")
+    create_token.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
+    create_token.set_defaults(func=_cmd_create_token)
 
     serve = sub.add_parser("serve", help="serve an existing node data directory")
     serve.add_argument("--data-dir", required=True, type=Path)
