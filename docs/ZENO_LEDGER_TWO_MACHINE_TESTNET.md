@@ -10,12 +10,12 @@ bundle, serve status, forward submissions, and replay live blocks from peers.
 ZenoLedger v0 gives ZenoDEX a Tau Net independent rehearsal layer:
 
 - Machine A builds and serves the public-testnet bundle.
-- Machine A runs the writer node with testnet intake and faucet enabled.
+- Machine A runs the writer node with public testnet intake and faucet disabled by default.
 - Machine B joins from the public HTTP mirror, verifies all bundle hashes, and
   runs as a follower/watcher.
-- Machine B can expose `POST /tx`, `POST /faucet`, and `POST /tokens`, forward
-  those submissions to Machine A, and then replay Machine A's resulting live
-  blocks.
+- Machine B can expose `POST /tokens` and replay Machine A's live blocks;
+  unsigned `POST /tx` and `POST /faucet` forwarding should be enabled only for
+  loopback-only local rehearsals.
 - Both machines can check that they share the same network ID, chain ID,
   feature-suite hash, and common header hash.
 
@@ -64,9 +64,11 @@ python3 tools/zeno_ledger_machine_a_host.py \
 ```
 
 The command builds the public-testnet bundle, replays it as `operator-a`, serves
-the static mirror, starts the writer API with testnet intake and faucet enabled,
-writes `public_network_config.json`, and prints the exact Machine B acceptance
-command. Keep the process running while Machine B joins.
+the static mirror, starts a read-only writer API by default, writes
+`public_network_config.json`, and prints the exact Machine B acceptance command.
+Unsigned testnet intake and faucet endpoints are disabled on public bindings; use
+`--bind-host 127.0.0.1 --enable-local-testnet-writes` only for local
+development. Keep the process running while Machine B joins.
 
 Manual steps are below for operators who want to inspect each stage.
 
