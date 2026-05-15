@@ -200,6 +200,23 @@ if req.get("state_hash") != req.get("proof", {{}}).get("state_hash"):
 if "tau_state" not in req or "context" not in req:
     print(json.dumps({{"ok": False, "error": "missing context"}}))
     raise SystemExit(0)
+block = req.get("block")
+if not isinstance(block, dict):
+    print(json.dumps({{"ok": False, "error": "missing block"}}))
+    raise SystemExit(0)
+if not isinstance(block.get("transactions"), list) or len(block["transactions"]) == 0:
+    print(json.dumps({{"ok": False, "error": "missing transactions"}}))
+    raise SystemExit(0)
+timestamp = block.get("header", {{}}).get("timestamp")
+if not isinstance(timestamp, int) or timestamp < 0:
+    print(json.dumps({{"ok": False, "error": "missing block timestamp"}}))
+    raise SystemExit(0)
+if req["context"].get("block_timestamp") != timestamp:
+    print(json.dumps({{"ok": False, "error": "block timestamp mismatch"}}))
+    raise SystemExit(0)
+if req["tau_state"].get("app_hash") != req["proof"].get("meta", {{}}).get("post_app_hash"):
+    print(json.dumps({{"ok": False, "error": "post app hash mismatch"}}))
+    raise SystemExit(0)
 print(json.dumps({{"ok": {str(ok)}}}))
 """
     path.write_text(body, encoding="utf-8")
@@ -410,6 +427,35 @@ def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
     report = json.loads(proc.stdout)
     assert report["risc0_verified"] is True
     assert metadata_path.is_file()
+
+
+def test_risc0_adapter_requires_body_for_external_verifier(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    verifier_path = _verifier_script(tmp_path / "accept_verifier.py", ok=True)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--require-risc0-verifier",
+        "--risc0-verify-cmd",
+        str(verifier_path),
+    )
+    assert proc.returncode == 1
+    assert "--risc0-verify-cmd requires --body for ledger transaction binding" in proc.stdout
 
 
 def test_risc0_adapter_rejects_when_required_verifier_rejects(tmp_path: Path) -> None:
