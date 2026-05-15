@@ -8,6 +8,7 @@ from src.integration.zeno_ledger_conflict_graph_v0 import (
 )
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.pools import compute_pool_id
+from tools.zeno_ledger_conflict_graph import build_conflict_graph_report_v0
 
 
 SENDER_A = "0x" + "aa" * 48
@@ -96,3 +97,18 @@ def test_graph_hash_is_mutation_sensitive() -> None:
     mutated = build_conflict_graph_v0([right, left])
     assert base["conflict_graph_hash"] != mutated["conflict_graph_hash"]
 
+
+def test_conflict_graph_report_reads_transaction_list(tmp_path) -> None:
+    pool_id = compute_pool_id(ASSET_A, ASSET_B, 30)
+    txs = [
+        _swap_tx(sender=SENDER_A, pool_id=pool_id, asset_in=ASSET_A, asset_out=ASSET_B, nonce=1),
+        _swap_tx(sender=SENDER_B, pool_id=pool_id, asset_in=ASSET_B, asset_out=ASSET_A, nonce=2),
+    ]
+    txs_path = tmp_path / "txs.json"
+    import json
+
+    txs_path.write_text(json.dumps(txs, sort_keys=True), encoding="utf-8")
+    report = build_conflict_graph_report_v0(txs_path=txs_path)
+    assert report["ok"] is True
+    assert report["transaction_count"] == 2
+    assert report["edge_count"] == 1
