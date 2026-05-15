@@ -765,8 +765,20 @@ def append_dex_transaction_v0(
     data_dir: Path,
     tx: Mapping[str, Any],
     time_ms: int,
+    require_intent_signatures: bool = True,
+    allow_unsigned_intents_if_tx_sender_matches: bool = False,
 ) -> dict[str, Any]:
-    """Append one testnet DEX transaction to a node-local live ledger."""
+    """Append one testnet DEX transaction to a node-local live ledger.
+
+    Preconditions:
+    - `tx` may come from an untrusted network boundary.
+    - unsigned intent bypass is only safe when an outer transport has already
+      authenticated `tx_sender_pubkey`. Public node intake does not provide that
+      binding, so the secure default requires per-intent signatures.
+
+    Postcondition:
+    - rejected DEX transactions do not advance the node's live tip.
+    """
 
     node_status = load_node_status_v0(data_dir)
     bundle_root = Path(str(node_status["bundle_root"]))
@@ -801,11 +813,26 @@ def append_dex_transaction_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         signature_set_root=ZERO_ROOT,
         allow_missing_settlement=True,
-        require_intent_signatures=False,
+        require_intent_signatures=require_intent_signatures,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
     )
     receipts_path = Path(str(block_report["receipts_path"]))
     receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
     accepted = bool(receipts and isinstance(receipts[0], Mapping) and receipts[0].get("accepted") is True)
+    receipt = dict(receipts[0]) if receipts and isinstance(receipts[0], Mapping) else None
+    if not accepted:
+        return {
+            "schema": NODE_APPEND_REPORT_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "node_id": node_status["node_id"],
+            "tx_accepted": False,
+            "height": height,
+            "tx_hash": tx_hash_v0(dict(tx)),
+            "receipt": receipt,
+            "body_path": block_report["body_path"],
+            "receipts_path": block_report["receipts_path"],
+        }
     _write_live_state(
         data_dir=data_dir,
         height=height,
@@ -1310,7 +1337,8 @@ def pull_live_from_peer_v0(
                 module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
                 signature_set_root=ZERO_ROOT,
                 allow_missing_settlement=True,
-                require_intent_signatures=False,
+                require_intent_signatures=True,
+                allow_unsigned_intents_if_tx_sender_matches=False,
             )
         local_header = _load_json_object(Path(str(block_report["header_path"])))
         if dict(local_header) != dict(peer_header):
