@@ -333,8 +333,11 @@ python3 tools/zeno_ledger_machine_a_host.py \
 ```
 
 The Machine A host runner builds the public-testnet bundle, starts the static
-mirror, starts the writer API, writes `public_network_config.json`, and prints
-the exact Machine B acceptance command with the config hash.
+mirror, starts a read-only writer API by default, writes
+`public_network_config.json`, and prints the exact Machine B acceptance command
+with the config hash. Unsigned `POST /tx` and `POST /faucet` are disabled on
+public bindings; use `--bind-host 127.0.0.1 --enable-local-testnet-writes` only
+for local development.
 
 ```bash
 python3 tools/zeno_ledger_node.py bootstrap \

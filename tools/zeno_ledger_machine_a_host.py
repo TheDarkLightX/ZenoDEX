@@ -31,6 +31,32 @@ from tools.zeno_ledger_node import (
 
 
 MACHINE_A_HOST_SCHEMA = "zenodex.zeno_ledger.machine_a_host.v0"
+LOCAL_TESTNET_WRITE_BINDINGS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def validate_testnet_write_binding_v0(*, bind_host: str, enable_testnet_writes: bool) -> bool:
+    """Return the validated writer-intake posture for the Machine A runner.
+
+    Preconditions:
+    - bind_host is the interface used by the unauthenticated writer server.
+    - enable_testnet_writes means POST /tx and POST /faucet would mutate live testnet state.
+
+    Invariant:
+    - unauthenticated write endpoints are never enabled on wildcard/public bindings.
+
+    Postcondition:
+    - True is returned only for loopback-only bindings explicitly opted into writes.
+    """
+
+    normalized_bind_host = bind_host.strip().lower()
+    if not enable_testnet_writes:
+        return False
+    if normalized_bind_host in LOCAL_TESTNET_WRITE_BINDINGS:
+        return True
+    raise ValueError(
+        "Machine A testnet writes are unsigned and may only be enabled on a loopback bind host; "
+        "use --bind-host 127.0.0.1 for local testing or keep writes disabled for public hosting"
+    )
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -89,6 +115,7 @@ def build_machine_a_ready_report_v0(
     node_report: dict[str, Any],
     network_config: dict[str, Any],
     machine_b_token_symbol: str,
+    enable_testnet_writes: bool = False,
 ) -> dict[str, Any]:
     mirror_base_url = f"http://{public_host}:{mirror_port}/"
     writer_url = f"http://{public_host}:{writer_port}"
@@ -119,7 +146,10 @@ def build_machine_a_ready_report_v0(
             network_config_hash=network_config_hash,
             token_symbol=machine_b_token_symbol,
         ),
-        "machine_b_acceptance_note": "Run the command from a second machine using Python 3.10 or newer.",
+        "machine_b_acceptance_note": (
+            "Run the command from a second machine using Python 3.10 or newer."
+        ),
+        "testnet_writes_enabled": enable_testnet_writes,
         "endpoints": {
             "health": f"{writer_url}/health",
             "status": f"{writer_url}/status",
@@ -127,6 +157,11 @@ def build_machine_a_ready_report_v0(
             "tokens": f"{writer_url}/tokens",
             "live": f"{writer_url}/live",
             "follow": f"{writer_url}/follow",
+            **(
+                {"tx": f"{writer_url}/tx", "faucet": f"{writer_url}/faucet"}
+                if enable_testnet_writes
+                else {}
+            ),
         },
     }
 
@@ -147,7 +182,12 @@ def run_machine_a_host_v0(
     machine_b_token_symbol: str,
     poll_seconds: int,
     recommended_node_port: int,
+    enable_testnet_writes: bool = False,
 ) -> dict[str, Any]:
+    validated_testnet_writes = validate_testnet_write_binding_v0(
+        bind_host=bind_host,
+        enable_testnet_writes=enable_testnet_writes,
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -173,8 +213,8 @@ def run_machine_a_host_v0(
         data_dir=data_dir,
         host=bind_host,
         port=writer_port,
-        enable_testnet_intake=True,
-        enable_testnet_faucet=True,
+        enable_testnet_intake=validated_testnet_writes,
+        enable_testnet_faucet=validated_testnet_writes,
         peer_urls=[],
         poll_seconds=0,
     )
@@ -190,6 +230,8 @@ def run_machine_a_host_v0(
         peer_urls=[],
         poll_seconds=poll_seconds,
         node_port=recommended_node_port,
+        enable_testnet_intake=validated_testnet_writes,
+        enable_testnet_faucet=validated_testnet_writes,
     )
     network_config_path = out_dir / "public_network_config.json"
     _write_json(network_config_path, network_config)
@@ -209,6 +251,7 @@ def run_machine_a_host_v0(
         node_report=node_report,
         network_config=network_config,
         machine_b_token_symbol=machine_b_token_symbol,
+        enable_testnet_writes=validated_testnet_writes,
     )
     print(json.dumps(ready_report, indent=2, sort_keys=True), flush=True)
 
@@ -245,6 +288,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--machine-b-token-symbol", default="tMANGO")
     parser.add_argument("--poll-seconds", type=int, default=5)
     parser.add_argument("--recommended-node-port", type=int, default=8788)
+    parser.add_argument(
+        "--enable-local-testnet-writes",
+        action="store_true",
+        help=(
+            "Enable unsigned POST /tx and /faucet only when --bind-host is loopback; "
+            "never use on public interfaces."
+        ),
+    )
     return parser
 
 
@@ -267,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
             machine_b_token_symbol=args.machine_b_token_symbol,
             poll_seconds=args.poll_seconds,
             recommended_node_port=args.recommended_node_port,
+            enable_testnet_writes=args.enable_local_testnet_writes,
         )
     except Exception as exc:
         print(

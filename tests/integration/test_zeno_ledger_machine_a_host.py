@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from tools.zeno_ledger_machine_a_host import (
     build_machine_a_ready_report_v0,
     build_machine_b_acceptance_command_v0,
+    validate_testnet_write_binding_v0,
 )
 
 
@@ -45,4 +48,27 @@ def test_machine_a_ready_report_contains_join_urls_and_command() -> None:
     assert report["network_config_hash"] == "0x" + "22" * 32
     assert report["build_report_ok"] is True
     assert report["node_report_ok"] is True
-    assert report["machine_b_acceptance_command"][report["machine_b_acceptance_command"].index("--token-symbol") + 1] == "tKIWI"
+    assert report["testnet_writes_enabled"] is False
+    assert "tx" not in report["endpoints"]
+    assert "faucet" not in report["endpoints"]
+    token_index = report["machine_b_acceptance_command"].index("--token-symbol")
+    assert report["machine_b_acceptance_command"][token_index + 1] == "tKIWI"
+
+
+def test_testnet_writes_disabled_by_default_on_public_binding() -> None:
+    assert (
+        validate_testnet_write_binding_v0(bind_host="0.0.0.0", enable_testnet_writes=False)
+        is False
+    )
+
+
+def test_testnet_writes_reject_public_binding_even_when_requested() -> None:
+    with pytest.raises(ValueError, match="loopback bind host"):
+        validate_testnet_write_binding_v0(bind_host="0.0.0.0", enable_testnet_writes=True)
+
+
+def test_testnet_writes_can_be_enabled_on_loopback_only() -> None:
+    assert (
+        validate_testnet_write_binding_v0(bind_host="127.0.0.1", enable_testnet_writes=True)
+        is True
+    )
