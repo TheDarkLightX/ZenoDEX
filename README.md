@@ -434,34 +434,47 @@ python3 tools/zeno_ledger_node.py create-token \
   --creator-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ```
 
-This is the first public-node layer: it bootstraps from a bundle, verifies the
-ledger, emits a watcher attestation, and serves `/health`, `/status`,
-`/features`, `/tokens`, `/network`, `/live`, `/attestation`, and
-`/testnet-status`. The
-`sync` command downloads only indexed JSON artifacts from a public HTTP mirror
-and verifies every mirror hash before the node runs. The public bundle carries
-a deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
-testnet-only faucet behavior for feature testing. The `append` command writes
-post-bootstrap testnet DEX blocks under the node data directory. The `pull-live`
-command fetches live block bodies from a peer and accepts them only after local
-deterministic replay produces the same header. A served node can also poll peer
-URLs with `--peer-url` and `--poll-seconds`. Testnet HTTP intake is disabled by
-default; `--enable-testnet-intake` opens `POST /tx`, and
-`--enable-testnet-faucet` opens `POST /faucet` for bounded fake-token minting.
-The same testnet flag also opens `POST /tokens` for live test-token registry
-entries. Operators can register named throwaway assets, mint them through the
-faucet, create live test pools, and have peers rebuild the same registry while
-pulling live blocks. The faucet still accepts canonical 32-byte test asset IDs
-for raw fixture assets without touching release token policy.
-The `join` command wraps sync, replay, watcher attestation, optional peer check,
-and optional serving into one JSON-configured operator flow. The `check-peers`
-command compares network ID, chain ID, feature-suite hash, peer height, and the
-common header hash before an operator trusts a peer. A follower can expose
-`POST /tx`, `POST /faucet`, and `POST /tokens` while forwarding submissions to
-a designated writer with `--submit-peer-url`, then it follows the resulting
-live blocks by deterministic replay. The `write-network-config` and `join-network` commands
-let any operator join from one published URL. Live P2P block gossip and
-validator scheduling remain future network work.
+This is the first public-node layer for ZenoLedger. The node bootstraps from a
+bundle, verifies the ledger, emits a watcher attestation, and serves
+`/health`, `/status`, `/features`, `/tokens`, `/network`, `/live`,
+`/attestation`, and `/testnet-status`.
+
+The `sync` command downloads only indexed JSON artifacts from a public HTTP
+mirror and verifies every mirror hash before the node runs.
+
+The public bundle ships a deterministic test-token catalog (`tZENO`, `tASSET0`,
+and `tASSET1`) plus testnet-only faucet behavior for feature testing. The
+`faucet` command accepts canonical 32-byte test asset IDs, so operators can
+mint throwaway assets for live test pools without touching release token
+policy.
+
+The `create-token` command registers named testnet-only assets in a
+hash-checked live token registry. A served node exposes the same behavior at
+`POST /tokens` when `--enable-testnet-faucet` is enabled. Peers rebuild the
+same registry while pulling live blocks, so named fake assets can be minted,
+pooled, traded, and replayed across operators.
+
+The `append` command writes post-bootstrap testnet DEX blocks under the node
+data directory. The `pull-live` command fetches live block bodies from a peer
+and accepts them only after local deterministic replay produces the same
+header. A served node can also poll peer URLs with `--peer-url` and
+`--poll-seconds`.
+
+Testnet HTTP intake is disabled by default. `--enable-testnet-intake` opens
+`POST /tx`, and `--enable-testnet-faucet` opens `POST /faucet` and
+`POST /tokens` for bounded testnet asset operations. A follower can expose
+these endpoints while forwarding submissions to a designated writer with
+`--submit-peer-url`, then follow the resulting live blocks by deterministic
+replay.
+
+The `join` command wraps sync, replay, watcher attestation, optional peer
+check, and optional serving into one JSON-configured operator flow. The
+`check-peers` command compares network ID, chain ID, feature-suite hash, peer
+height, and the common header hash before an operator trusts a peer. The
+`write-network-config` and `join-network` commands let any operator join from
+one published URL.
+
+Live P2P block gossip and validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer. The two-machine operator runbook is
