@@ -1415,6 +1415,7 @@ def build_local_block_v0(
             allow_missing_settlement=allow_missing_settlement,
             require_intent_signatures=require_intent_signatures,
             allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
+            chain_id=chain_id,
         )
         post_state, body, receipts = apply_body_transactions_v0(
             state=pre_state,
