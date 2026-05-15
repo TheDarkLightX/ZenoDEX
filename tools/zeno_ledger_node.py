@@ -12,6 +12,8 @@ import argparse
 import hashlib
 import json
 import sys
+import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -809,7 +811,43 @@ def make_node_http_server_v0(*, data_dir: Path, host: str, port: int) -> Threadi
     return ThreadingHTTPServer((host, port), Handler)
 
 
-def serve_node_v0(*, data_dir: Path, host: str, port: int) -> None:
+def _start_peer_follow_loop(
+    *,
+    data_dir: Path,
+    peer_urls: list[str],
+    poll_seconds: int,
+) -> None:
+    if not peer_urls or poll_seconds <= 0:
+        return
+
+    def _loop() -> None:
+        while True:
+            for peer_url in peer_urls:
+                try:
+                    pull_live_from_peer_v0(data_dir=data_dir, peer_url=peer_url)
+                except Exception:
+                    # Peer polling is best-effort. Manual `pull-live` returns
+                    # exact errors for operator diagnosis.
+                    pass
+            time.sleep(poll_seconds)
+
+    thread = threading.Thread(target=_loop, daemon=True)
+    thread.start()
+
+
+def serve_node_v0(
+    *,
+    data_dir: Path,
+    host: str,
+    port: int,
+    peer_urls: list[str] | None = None,
+    poll_seconds: int = 0,
+) -> None:
+    _start_peer_follow_loop(
+        data_dir=data_dir,
+        peer_urls=list(peer_urls or []),
+        poll_seconds=poll_seconds,
+    )
     server = make_node_http_server_v0(data_dir=data_dir, host=host, port=port)
     address, actual_port = server.server_address
     print(
@@ -819,6 +857,8 @@ def serve_node_v0(*, data_dir: Path, host: str, port: int) -> None:
                 "ok": True,
                 "host": address,
                 "port": actual_port,
+                "peer_count": len(peer_urls or []),
+                "poll_seconds": poll_seconds,
                 "status_url": f"http://{address}:{actual_port}/status",
             },
             indent=2,
@@ -872,7 +912,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if report.get("ok") is not True:
         return 1
     if args.serve:
-        serve_node_v0(data_dir=args.data_dir, host=args.host, port=args.port)
+        serve_node_v0(
+            data_dir=args.data_dir,
+            host=args.host,
+            port=args.port,
+            peer_urls=list(args.peer_url),
+            poll_seconds=args.poll_seconds,
+        )
     return 0
 
 
@@ -904,7 +950,13 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
 
 def _cmd_serve(args: argparse.Namespace) -> int:
     load_node_status_v0(args.data_dir)
-    serve_node_v0(data_dir=args.data_dir, host=args.host, port=args.port)
+    serve_node_v0(
+        data_dir=args.data_dir,
+        host=args.host,
+        port=args.port,
+        peer_urls=list(args.peer_url),
+        poll_seconds=args.poll_seconds,
+    )
     return 0
 
 
@@ -935,6 +987,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--serve", action="store_true")
     run.add_argument("--host", default="127.0.0.1")
     run.add_argument("--port", type=int, default=8787)
+    run.add_argument("--peer-url", action="append", default=[])
+    run.add_argument("--poll-seconds", type=int, default=0)
     run.set_defaults(func=_cmd_run)
 
     append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
@@ -952,6 +1006,8 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--data-dir", required=True, type=Path)
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8787)
+    serve.add_argument("--peer-url", action="append", default=[])
+    serve.add_argument("--poll-seconds", type=int, default=0)
     serve.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)
