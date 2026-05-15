@@ -329,10 +329,23 @@ python3 tools/zeno_ledger_node.py bootstrap \
 python3 tools/zeno_ledger_node.py sync \
   --base-url https://example.test/zeno-ledger-public-testnet/ \
   --out-dir /tmp/zeno-ledger-public-testnet-synced
+
+python3 tools/zeno_ledger_node.py write-network-config \
+  --bundle-root /tmp/zeno-ledger-public-testnet \
+  --mirror-base-url https://example.test/zeno-ledger-public-testnet/ \
+  --writer-url https://example.test:8787 \
+  --out /tmp/zeno-ledger-public-testnet/public_network_config.json
+
+python3 tools/zeno_ledger_node.py join-network \
+  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
+  --node-id operator-b \
+  --bundle-root /tmp/zeno-ledger-public-testnet-synced \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --serve
 ```
 
 For a remote operator, use a join config to combine sync, replay, peer checking,
-and serving:
+and serving when a public network config has not been published:
 
 ```bash
 cat > /tmp/zeno-ledger-node-b.json <<'JSON'
@@ -428,8 +441,9 @@ command compares network ID, chain ID, feature-suite hash, peer height, and the
 common header hash before an operator trusts a peer. A follower can expose
 `POST /tx` and `POST /faucet` while forwarding submissions to a designated
 writer with `--submit-peer-url`, then it follows the resulting live blocks by
-deterministic replay. Live P2P block gossip and validator scheduling remain
-future network work.
+deterministic replay. The `write-network-config` and `join-network` commands
+let any operator join from one published URL. Live P2P block gossip and
+validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer. The two-machine operator runbook is

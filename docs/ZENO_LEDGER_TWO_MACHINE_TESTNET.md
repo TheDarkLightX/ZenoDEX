@@ -58,6 +58,17 @@ python3 tools/zeno_ledger_node.py run \
   --enable-testnet-faucet
 ```
 
+Publish a network config into the mirrored bundle directory. Replace
+`<MACHINE_A_IP>` with the address Machine B can reach.
+
+```bash
+python3 tools/zeno_ledger_node.py write-network-config \
+  --bundle-root /tmp/zeno-ledger-public-testnet \
+  --mirror-base-url http://<MACHINE_A_IP>:8000/ \
+  --writer-url http://<MACHINE_A_IP>:8787 \
+  --out /tmp/zeno-ledger-public-testnet/public_network_config.json
+```
+
 Machine A exposes:
 
 - `GET /health`
@@ -71,35 +82,20 @@ Machine A exposes:
 
 ## Machine B: Join And Follow
 
-Create a join config on Machine B. Replace `<MACHINE_A_IP>` with Machine A's
-reachable LAN or public IP.
+Join from the public network config:
 
 ```bash
-cat > /tmp/zeno-ledger-node-b.json <<'JSON'
-{
-  "schema": "zenodex.zeno_ledger.node_join_config.v0",
-  "base_url": "http://<MACHINE_A_IP>:8000/",
-  "bundle_root": "/tmp/zeno-ledger-public-testnet-synced",
-  "node_id": "operator-b",
-  "data_dir": "/tmp/zeno-ledger-node-b",
-  "peer_urls": ["http://<MACHINE_A_IP>:8787"],
-  "serve": true,
-  "host": "0.0.0.0",
-  "port": 8788,
-  "poll_seconds": 5,
-  "enable_testnet_intake": true,
-  "enable_testnet_faucet": true,
-  "submit_peer_url": "http://<MACHINE_A_IP>:8787"
-}
-JSON
-
-python3 tools/zeno_ledger_node.py join \
-  --config /tmp/zeno-ledger-node-b.json
+python3 tools/zeno_ledger_node.py join-network \
+  --config-url http://<MACHINE_A_IP>:8000/public_network_config.json \
+  --node-id operator-b \
+  --bundle-root /tmp/zeno-ledger-public-testnet-synced \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --serve
 ```
 
-The join command downloads the mirror, verifies the mirror indexes, replays the
-bundle, emits a watcher attestation, checks the configured peer, and starts the
-node server.
+The join command downloads the network config, verifies its hash when present,
+downloads the mirror, verifies the mirror indexes, replays the bundle, emits a
+watcher attestation, checks the configured peer, and starts the node server.
 
 ## Verify Both Nodes
 

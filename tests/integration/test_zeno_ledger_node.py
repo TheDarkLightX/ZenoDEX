@@ -13,7 +13,9 @@ from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bu
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
     NODE_JOIN_CONFIG_SCHEMA,
+    build_public_network_config_v0,
     check_peer_status_v0,
+    join_public_node_from_network_config_url_v0,
     join_public_node_from_config_v0,
     load_node_status_v0,
     make_node_http_server_v0,
@@ -233,6 +235,38 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert create_new_pool_report["height"] == 9
         assert create_new_pool_report["receipt"]["accepted"] is True
 
+        mirror_handler = partial(_QuietStaticHandler, directory=str(source_bundle_root))
+        mirror_server = ThreadingHTTPServer(("127.0.0.1", 0), mirror_handler)
+        mirror_thread = threading.Thread(target=mirror_server.serve_forever, daemon=True)
+        mirror_thread.start()
+        try:
+            mirror_host, mirror_port = mirror_server.server_address
+            public_network_config = build_public_network_config_v0(
+                bundle_root=source_bundle_root,
+                mirror_base_url=f"http://{mirror_host}:{mirror_port}",
+                writer_urls=[f"http://{host}:{port}"],
+                peer_urls=[],
+                poll_seconds=5,
+                node_port=8790,
+            )
+            (source_bundle_root / "public_network_config.json").write_text(
+                json.dumps(public_network_config, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            join_network_report = join_public_node_from_network_config_url_v0(
+                config_url=f"http://{mirror_host}:{mirror_port}/public_network_config.json",
+                node_id="node-network-join",
+                bundle_root=tmp_path / "network-join-bundle",
+                data_dir=tmp_path / "node-network-join",
+                host="127.0.0.1",
+                port=None,
+                poll_seconds=None,
+                serve=False,
+            )
+        finally:
+            mirror_server.shutdown()
+            mirror_server.server_close()
+
         health = _read_url_json(f"http://{host}:{port}/health")
         served_status = _read_url_json(f"http://{host}:{port}/status")
         features = _read_url_json(f"http://{host}:{port}/features")
@@ -292,6 +326,9 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert served_status["node_status_hash"] == status["node_status_hash"]
         assert features["covered_feature_count"] == 10
         assert len(tokens["test_token_catalog"]) == 3
+        assert join_network_report["ok"] is True
+        assert join_network_report["peer_check"]["ok"] is True
+        assert join_network_report["run_report"]["covered_feature_count"] == 10
         assert network["local_tip"]["height"] == 9
         assert network["capabilities"]["submission_forwarding_enabled"] is False
         assert live["live"] is True

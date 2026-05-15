@@ -65,6 +65,7 @@ NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
+NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
@@ -205,6 +206,16 @@ def _as_path_list(value: object, *, name: str) -> list[Path]:
     return [Path(item) for item in _as_string_list(value, name=name)]
 
 
+def _unique_strings(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
 def _read_public_manifest(bundle_root: Path) -> dict[str, Any]:
     manifest_path = bundle_root / "public_testnet_manifest.json"
     obj = dict(_load_json_object(manifest_path))
@@ -333,6 +344,11 @@ def sync_public_bundle_from_url_v0(*, base_url: str, out_dir: Path) -> dict[str,
 def _node_status_hash(status: Mapping[str, Any]) -> str:
     body = {key: value for key, value in status.items() if key != "node_status_hash"}
     return hash_v0("node_status_v0", body)
+
+
+def _public_network_config_hash_v0(config: Mapping[str, Any]) -> str:
+    body = {key: value for key, value in config.items() if key != "network_config_hash"}
+    return hash_v0("public_network_config_v0", body)
 
 
 def build_node_status_v0(
@@ -1488,6 +1504,129 @@ def join_public_node_from_config_v0(*, config_path: Path) -> dict[str, Any]:
     return report
 
 
+def build_public_network_config_v0(
+    *,
+    bundle_root: Path,
+    mirror_base_url: str,
+    writer_urls: list[str],
+    peer_urls: list[str],
+    poll_seconds: int,
+    node_port: int,
+) -> dict[str, Any]:
+    """Build a public operator config for joining a ZenoLedger testnet."""
+
+    if not writer_urls:
+        raise ValueError("at least one writer URL is required")
+    if poll_seconds < 0:
+        raise ValueError("poll_seconds must be nonnegative")
+    if node_port <= 0 or node_port > 65535:
+        raise ValueError("node_port must be a valid TCP port")
+    public_manifest = _read_public_manifest(bundle_root)
+    feature_suite = _read_feature_suite(bundle_root, public_manifest)
+    config = {
+        "schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "network_id": public_manifest["network_id"],
+        "chain_id": public_manifest["chain_id"],
+        "token_symbol": public_manifest.get("token_symbol"),
+        "mirror_base_url": mirror_base_url.rstrip("/") + "/",
+        "writer_urls": _unique_strings(writer_urls),
+        "peer_urls": _unique_strings([*writer_urls, *peer_urls]),
+        "feature_suite_hash": feature_suite["feature_suite_hash"],
+        "feature_count": feature_suite["feature_count"],
+        "test_token_catalog": list(public_manifest.get("test_token_catalog", [])),
+        "testnet_faucet_posture": dict(public_manifest.get("testnet_faucet_posture", {})),
+        "recommended_node": {
+            "host": "0.0.0.0",
+            "port": node_port,
+            "poll_seconds": poll_seconds,
+            "enable_testnet_intake": True,
+            "enable_testnet_faucet": True,
+            "submit_peer_url": writer_urls[0],
+        },
+    }
+    return {**config, "network_config_hash": _public_network_config_hash_v0(config)}
+
+
+def _public_network_config_to_join_config_v0(
+    *,
+    network_config: Mapping[str, Any],
+    node_id: str,
+    bundle_root: Path,
+    data_dir: Path,
+    host: str,
+    port: int | None,
+    poll_seconds: int | None,
+    serve: bool,
+) -> dict[str, Any]:
+    if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+        raise ValueError("public network config schema mismatch")
+    expected_hash = network_config.get("network_config_hash")
+    if expected_hash is not None and expected_hash != _public_network_config_hash_v0(network_config):
+        raise ValueError("public network config hash mismatch")
+    writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
+    peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
+    if not writer_urls:
+        raise ValueError("public network config must contain at least one writer URL")
+    recommended = network_config.get("recommended_node")
+    if not isinstance(recommended, Mapping):
+        recommended = {}
+    effective_port = port if port is not None else int(recommended.get("port", 8788))
+    effective_poll = poll_seconds if poll_seconds is not None else int(recommended.get("poll_seconds", 5))
+    return {
+        "schema": NODE_JOIN_CONFIG_SCHEMA,
+        "base_url": str(network_config["mirror_base_url"]),
+        "bundle_root": str(bundle_root),
+        "node_id": node_id,
+        "data_dir": str(data_dir),
+        "peer_urls": _unique_strings([*writer_urls, *peer_urls]),
+        "serve": serve,
+        "host": host or str(recommended.get("host", "0.0.0.0")),
+        "port": effective_port,
+        "poll_seconds": effective_poll,
+        "enable_testnet_intake": bool(recommended.get("enable_testnet_intake", True)),
+        "enable_testnet_faucet": bool(recommended.get("enable_testnet_faucet", True)),
+        "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
+    }
+
+
+def join_public_node_from_network_config_url_v0(
+    *,
+    config_url: str,
+    node_id: str,
+    bundle_root: Path,
+    data_dir: Path,
+    host: str,
+    port: int | None,
+    poll_seconds: int | None,
+    serve: bool,
+) -> dict[str, Any]:
+    """Join a public ZenoLedger testnet from one published network config URL."""
+
+    network_config = _fetch_json_url(config_url)
+    join_config = _public_network_config_to_join_config_v0(
+        network_config=network_config,
+        node_id=node_id,
+        bundle_root=bundle_root,
+        data_dir=data_dir,
+        host=host,
+        port=port,
+        poll_seconds=poll_seconds,
+        serve=serve,
+    )
+    data_dir.mkdir(parents=True, exist_ok=True)
+    network_config_path = data_dir / "public_network_config.json"
+    join_config_path = data_dir / "node_join_config.json"
+    _write_json(network_config_path, network_config)
+    _write_json(join_config_path, join_config)
+    report = join_public_node_from_config_v0(config_path=join_config_path)
+    report["network_config_url"] = config_url
+    report["network_config_path"] = str(network_config_path)
+    report["network_config_hash"] = network_config.get("network_config_hash")
+    return report
+
+
 def _cmd_bootstrap(args: argparse.Namespace) -> int:
     try:
         report = build_public_testnet_bundle_v0(
@@ -1514,6 +1653,24 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         report = {"schema": NODE_SYNC_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
+
+
+def _cmd_write_network_config(args: argparse.Namespace) -> int:
+    try:
+        report = build_public_network_config_v0(
+            bundle_root=args.bundle_root,
+            mirror_base_url=args.mirror_base_url,
+            writer_urls=list(args.writer_url),
+            peer_urls=list(args.peer_url),
+            poll_seconds=args.poll_seconds,
+            node_port=args.node_port,
+        )
+        _write_json(args.out, report)
+        report = {**report, "config_path": str(args.out)}
+    except Exception as exc:
+        report = {"schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if "errors" not in report else 1
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -1605,6 +1762,38 @@ def _cmd_join(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_join_network(args: argparse.Namespace) -> int:
+    try:
+        report = join_public_node_from_network_config_url_v0(
+            config_url=args.config_url,
+            node_id=args.node_id,
+            bundle_root=args.bundle_root,
+            data_dir=args.data_dir,
+            host=args.host,
+            port=args.port,
+            poll_seconds=args.poll_seconds,
+            serve=args.serve,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    if report.get("ok") is not True:
+        return 1
+    if args.serve:
+        join_config = dict(_load_json_object(args.data_dir / "node_join_config.json"))
+        serve_node_v0(
+            data_dir=args.data_dir,
+            host=str(join_config.get("host", "0.0.0.0")),
+            port=int(join_config.get("port", 8788)),
+            peer_urls=_as_string_list(join_config.get("peer_urls"), name="peer_urls"),
+            poll_seconds=int(join_config.get("poll_seconds", 5)),
+            enable_testnet_intake=join_config.get("enable_testnet_intake") is True,
+            enable_testnet_faucet=join_config.get("enable_testnet_faucet") is True,
+            submit_peer_url=str(join_config["submit_peer_url"]) if join_config.get("submit_peer_url") else None,
+        )
+    return 0
+
+
 def _cmd_faucet(args: argparse.Namespace) -> int:
     try:
         report = append_testnet_faucet_v0(
@@ -1654,9 +1843,33 @@ def main(argv: list[str] | None = None) -> int:
     sync.add_argument("--out-dir", required=True, type=Path)
     sync.set_defaults(func=_cmd_sync)
 
+    write_network_config = sub.add_parser(
+        "write-network-config",
+        help="write a public network config that remote nodes can join from",
+    )
+    write_network_config.add_argument("--bundle-root", required=True, type=Path)
+    write_network_config.add_argument("--mirror-base-url", required=True)
+    write_network_config.add_argument("--writer-url", action="append", required=True)
+    write_network_config.add_argument("--peer-url", action="append", default=[])
+    write_network_config.add_argument("--poll-seconds", type=int, default=5)
+    write_network_config.add_argument("--node-port", type=int, default=8788)
+    write_network_config.add_argument("--out", required=True, type=Path)
+    write_network_config.set_defaults(func=_cmd_write_network_config)
+
     join = sub.add_parser("join", help="sync, replay, and optionally serve a node from a JSON config")
     join.add_argument("--config", required=True, type=Path)
     join.set_defaults(func=_cmd_join)
+
+    join_network = sub.add_parser("join-network", help="join a public testnet from one network config URL")
+    join_network.add_argument("--config-url", required=True)
+    join_network.add_argument("--node-id", required=True)
+    join_network.add_argument("--bundle-root", required=True, type=Path)
+    join_network.add_argument("--data-dir", required=True, type=Path)
+    join_network.add_argument("--serve", action="store_true")
+    join_network.add_argument("--host", default="0.0.0.0")
+    join_network.add_argument("--port", type=int)
+    join_network.add_argument("--poll-seconds", type=int)
+    join_network.set_defaults(func=_cmd_join_network)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")
     run.add_argument("--bundle-root", required=True, type=Path)
