@@ -383,6 +383,8 @@ deterministic replay produces the same header. A served node can also poll peer
 URLs with `--peer-url` and `--poll-seconds`. Testnet HTTP intake is disabled by
 default; `--enable-testnet-intake` opens `POST /tx`, and
 `--enable-testnet-faucet` opens `POST /faucet` for bounded fake-token minting.
+The faucet accepts canonical 32-byte test asset IDs, so operators can mint
+throwaway assets for live test pools without touching release token policy.
 Live P2P block gossip and validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another

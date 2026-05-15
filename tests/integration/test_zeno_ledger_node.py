@@ -163,6 +163,56 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert append_report["height"] == 7
         assert append_report["receipt"]["accepted"] is True
 
+        new_fake_asset = "0x" + "33" * 32
+        fake_asset_faucet_report = _post_url_json(
+            f"http://{host}:{port}/faucet",
+            {
+                "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "asset": new_fake_asset,
+                "amount": 50_000,
+                "time_ms": 1_778_731_124_000,
+                "tx_id": "node-http-new-fake-asset-faucet-v0",
+            },
+        )
+        assert fake_asset_faucet_report["ok"] is True
+        assert fake_asset_faucet_report["height"] == 8
+
+        asset0_for_new_pool = min(asset_a, new_fake_asset)
+        asset1_for_new_pool = max(asset_a, new_fake_asset)
+        create_new_pool_report = _post_url_json(
+            f"http://{host}:{port}/tx",
+            {
+                "time_ms": 1_778_731_125_000,
+                "tx": {
+                    "tx_id": "node-live-create-fake-token-pool-v0",
+                    "block_timestamp": 1_778_731_125,
+                    "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                    "operations": {
+                        "2": [
+                            {
+                                "module": "TauSwap",
+                                "version": "0.1",
+                                "kind": "CREATE_POOL",
+                                "intent_id": "0x" + "cc" * 32,
+                                "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                                "deadline": 1_999_999_999,
+                                "nonce": 6,
+                                "asset0": asset0_for_new_pool,
+                                "asset1": asset1_for_new_pool,
+                                "fee_bps": 30,
+                                "amount0": 100,
+                                "amount1": 100,
+                                "created_at": 1_778_731_125,
+                            }
+                        ]
+                    },
+                },
+            },
+        )
+        assert create_new_pool_report["ok"] is True
+        assert create_new_pool_report["height"] == 9
+        assert create_new_pool_report["receipt"]["accepted"] is True
+
         health = _read_url_json(f"http://{host}:{port}/health")
         served_status = _read_url_json(f"http://{host}:{port}/status")
         features = _read_url_json(f"http://{host}:{port}/features")
@@ -180,14 +230,14 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert features["covered_feature_count"] == 10
         assert len(tokens["test_token_catalog"]) == 3
         assert live["live"] is True
-        assert live["state"]["latest_height"] == 7
+        assert live["state"]["latest_height"] == 9
         assert pull_report["ok"] is True
-        assert pull_report["pulled_count"] == 2
-        assert pull_report["to_height"] == 7
-        peer_live = _read_url_json(f"http://{host}:{port}/live/header/7")
-        assert peer_live["height"] == 7
+        assert pull_report["pulled_count"] == 4
+        assert pull_report["to_height"] == 9
+        peer_live = _read_url_json(f"http://{host}:{port}/live/header/9")
+        assert peer_live["height"] == 9
         assert load_node_status_v0(peer_node_dir)["ok"] is True
-        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 7
+        assert json.loads((peer_node_dir / "live_state.json").read_text(encoding="utf-8"))["latest_height"] == 9
         assert testnet_status["watcher_count"] == 2
     finally:
         server.shutdown()
