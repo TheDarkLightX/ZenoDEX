@@ -105,6 +105,7 @@ Machine A exposes:
 - `GET /features`
 - `GET /tokens`
 - `GET /live`
+- `GET /follow`
 - `POST /tx`
 - `POST /faucet`
 - `POST /tokens`
@@ -130,6 +131,9 @@ python3 tools/zeno_ledger_node.py join-network \
 The join command downloads the network config, verifies its hash when present,
 downloads the mirror, verifies the mirror indexes, replays the bundle, emits a
 watcher attestation, checks the configured peer, and starts the node server.
+When `poll_seconds` is positive in the published network config, the served
+follower also polls peers for live blocks in the background and writes
+`peer_follow_state.json`.
 
 ## Verify Both Nodes
 
@@ -203,13 +207,25 @@ curl -sS http://127.0.0.1:8788/faucet \
 Then confirm Machine B catches up:
 
 ```bash
-python3 tools/zeno_ledger_node.py pull-live \
+python3 tools/zeno_ledger_node.py follow-once \
   --data-dir /tmp/zeno-ledger-node-b \
   --peer-url http://<MACHINE_A_IP>:8787
 ```
 
 The follower accepts a live block only when local deterministic replay produces
 the same header as the writer node.
+
+Inspect the latest follower-poll report:
+
+```bash
+curl http://127.0.0.1:8788/follow
+```
+
+Expected result:
+
+- `ok: true`
+- `peer_count` is at least `1`
+- each successful peer entry includes the nested pull report and pulled height
 
 Inspect the follower token registry:
 

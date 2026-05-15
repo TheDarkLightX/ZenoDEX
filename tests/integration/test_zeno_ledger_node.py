@@ -23,6 +23,7 @@ from tools.zeno_ledger_node import (
     join_public_node_from_config_v0,
     load_node_status_v0,
     make_node_http_server_v0,
+    poll_live_peers_once_v0,
     pull_live_from_peer_v0,
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
@@ -387,10 +388,11 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
             data_dir=peer_node_dir,
             peer_urls=[f"http://{host}:{port}"],
         )
-        pull_report = pull_live_from_peer_v0(
+        follow_report = poll_live_peers_once_v0(
             data_dir=peer_node_dir,
-            peer_url=f"http://{host}:{port}",
+            peer_urls=[f"http://{host}:{port}"],
         )
+        pull_report = follow_report["peers"][0]["pull_report"]
         post_pull_peer_check = check_peer_status_v0(
             data_dir=peer_node_dir,
             peer_urls=[f"http://{host}:{port}"],
@@ -452,6 +454,10 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert pre_pull_peer_check["ok"] is True
         assert pre_pull_peer_check["peers"][0]["height_relation"] == "peer_ahead"
         assert pre_pull_peer_check["peers"][0]["common_height"] == 5
+        assert follow_report["ok"] is True
+        assert follow_report["peer_count"] == 1
+        assert follow_report["peers"][0]["pulled_count"] == 7
+        assert (peer_node_dir / "peer_follow_state.json").is_file()
         assert pull_report["ok"] is True
         assert pull_report["pulled_count"] == 7
         assert pull_report["to_height"] == 12

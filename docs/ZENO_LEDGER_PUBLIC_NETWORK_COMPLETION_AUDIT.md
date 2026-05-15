@@ -20,6 +20,7 @@ testnet ZenoDEX tokens plus created fake test tokens for feature testing.
 | Run a node that serves status | `run --serve`, `serve`, `make_node_http_server_v0` | Integration checks `/health`, `/status`, `/features`, `/tokens`, `/network`, `/live`, `/attestation`, `/testnet-status` | Built and locally tested |
 | Append live testnet DEX transactions | `append`, `POST /tx`, `append_dex_transaction_v0` | Integration and smoke append a live swap and live fake-token pool operations | Built and locally tested |
 | Pull live blocks from a peer by deterministic replay | `pull-live`, `pull_live_from_peer_v0` | Integration and smoke show Node B moves from `peer_ahead` to `same_height` and common height `13` | Built and locally tested |
+| Continuously follow live peers when served | `poll_live_peers_once_v0`, `follow-once`, `GET /follow`, served-node polling loop | Integration writes `peer_follow_state.json` and verifies the nested deterministic pull report | Built and locally tested |
 | Forward follower submissions to writer | `--submit-peer-url` on served follower | Integration and smoke forward a faucet request through Node B to Node A | Built and locally tested |
 | Support testnet ZenoDEX token fixtures | Public bundle token catalog | `/tokens` reports `tZENO`, `tASSET0`, and `tASSET1` | Built and locally tested |
 | Mint fake test assets | `faucet`, `POST /faucet`, `append_testnet_faucet_v0` | Integration and smoke faucet existing fixture and created fake assets | Built and locally tested |
@@ -52,6 +53,9 @@ swap_height: 7
 create_fake_pool_height: 10
 add_fake_pool_liquidity_height: 11
 remove_fake_pool_liquidity_height: 12
+node_b_follow_peer_count: 1
+node_b_total_pulled_count: 8
+node_b_latest_height: 13
 final_peer_check_ok: true
 final_peer_height_relation: same_height
 final_common_height: 13

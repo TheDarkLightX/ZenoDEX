@@ -67,6 +67,7 @@ NODE_EVIDENCE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
+NODE_PEER_FOLLOW_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_follow_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
 NODE_DOCTOR_REPORT_SCHEMA = "zenodex.zeno_ledger.node_doctor_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
@@ -1353,6 +1354,55 @@ def pull_live_from_peer_v0(
     return {**report, "pull_report_path": str(pull_report_path)}
 
 
+def poll_live_peers_once_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str],
+) -> dict[str, Any]:
+    """Poll all configured peers once and persist an operator-visible report."""
+
+    status = load_node_status_v0(data_dir)
+    peer_reports: list[dict[str, Any]] = []
+    for peer_url in peer_urls:
+        try:
+            pull_report = pull_live_from_peer_v0(data_dir=data_dir, peer_url=peer_url)
+            peer_reports.append(
+                {
+                    "peer_url": peer_url,
+                    "ok": pull_report.get("ok") is True,
+                    "status": pull_report.get("status", "accepted"),
+                    "pulled_count": pull_report.get("pulled_count", 0),
+                    "local_latest_height": pull_report.get("local_latest_height"),
+                    "peer_latest_height": pull_report.get("peer_latest_height", pull_report.get("to_height")),
+                    "pull_report": pull_report,
+                }
+            )
+        except Exception as exc:
+            peer_reports.append(
+                {
+                    "peer_url": peer_url,
+                    "ok": False,
+                    "status": "rejected",
+                    "error": str(exc),
+                }
+            )
+    ok = all(report.get("ok") is True for report in peer_reports)
+    latest_tip = _local_tip_v0(data_dir=data_dir, node_status=status)
+    report = {
+        "schema": NODE_PEER_FOLLOW_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "node_id": status["node_id"],
+        "network_id": status["network_id"],
+        "chain_id": status["chain_id"],
+        "peer_count": len(peer_urls),
+        "local_tip": latest_tip,
+        "peers": peer_reports,
+    }
+    _write_json(data_dir / "peer_follow_state.json", report)
+    return report
+
+
 def load_node_status_v0(data_dir: Path) -> dict[str, Any]:
     status = dict(_load_json_object(data_dir / "node_status.json"))
     if status.get("schema") != NODE_STATUS_SCHEMA:
@@ -1563,6 +1613,7 @@ def make_node_http_server_v0(
     enable_testnet_faucet: bool = False,
     submit_peer_url: str | None = None,
     peer_urls: list[str] | None = None,
+    poll_seconds: int = 0,
 ) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
 
@@ -1647,13 +1698,33 @@ def make_node_http_server_v0(
                             "peer_urls": list(peer_urls or []),
                             "peer_count": len(peer_urls or []),
                             "submit_peer_url": submit_peer_url,
+                            "peer_follow": {
+                                "enabled": bool(peer_urls) and poll_seconds > 0,
+                                "poll_seconds": poll_seconds,
+                                "state_path": str(root / "peer_follow_state.json"),
+                            },
                             "capabilities": {
                                 "testnet_intake_enabled": enable_testnet_intake,
                                 "testnet_faucet_enabled": enable_testnet_faucet,
                                 "submission_forwarding_enabled": submit_peer_url is not None,
+                                "peer_follow_enabled": bool(peer_urls) and poll_seconds > 0,
                             },
                         }
                     )
+                    return
+                if self.path == "/follow":
+                    follow_path = root / "peer_follow_state.json"
+                    if not follow_path.is_file():
+                        self._send_json(
+                            {
+                                "ok": True,
+                                "live": False,
+                                "peer_count": len(peer_urls or []),
+                                "poll_seconds": poll_seconds,
+                            }
+                        )
+                    else:
+                        self._send_json(_load_json_object(follow_path))
                     return
                 if self.path == "/live":
                     live_path = root / "live_state.json"
@@ -1785,23 +1856,18 @@ def _start_peer_follow_loop(
     data_dir: Path,
     peer_urls: list[str],
     poll_seconds: int,
-) -> None:
+) -> threading.Thread | None:
     if not peer_urls or poll_seconds <= 0:
-        return
+        return None
 
     def _loop() -> None:
         while True:
-            for peer_url in peer_urls:
-                try:
-                    pull_live_from_peer_v0(data_dir=data_dir, peer_url=peer_url)
-                except Exception:
-                    # Peer polling is best-effort. Manual `pull-live` returns
-                    # exact errors for operator diagnosis.
-                    pass
+            poll_live_peers_once_v0(data_dir=data_dir, peer_urls=peer_urls)
             time.sleep(poll_seconds)
 
     thread = threading.Thread(target=_loop, daemon=True)
     thread.start()
+    return thread
 
 
 def serve_node_v0(
@@ -1828,6 +1894,7 @@ def serve_node_v0(
         enable_testnet_faucet=enable_testnet_faucet,
         submit_peer_url=submit_peer_url,
         peer_urls=list(peer_urls or []),
+        poll_seconds=poll_seconds,
     )
     address, actual_port = server.server_address
     print(
@@ -2239,6 +2306,18 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_follow_once(args: argparse.Namespace) -> int:
+    try:
+        report = poll_live_peers_once_v0(
+            data_dir=args.data_dir,
+            peer_urls=list(args.peer_url),
+        )
+    except Exception as exc:
+        report = {"schema": NODE_PEER_FOLLOW_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_check_peers(args: argparse.Namespace) -> int:
     try:
         report = check_peer_status_v0(
@@ -2462,6 +2541,11 @@ def main(argv: list[str] | None = None) -> int:
     pull_live.add_argument("--data-dir", required=True, type=Path)
     pull_live.add_argument("--peer-url", required=True)
     pull_live.set_defaults(func=_cmd_pull_live)
+
+    follow_once = sub.add_parser("follow-once", help="poll all configured peers once and write peer_follow_state.json")
+    follow_once.add_argument("--data-dir", required=True, type=Path)
+    follow_once.add_argument("--peer-url", action="append", required=True)
+    follow_once.set_defaults(func=_cmd_follow_once)
 
     check_peers = sub.add_parser("check-peers", help="check peer compatibility and common header prefixes")
     check_peers.add_argument("--data-dir", required=True, type=Path)

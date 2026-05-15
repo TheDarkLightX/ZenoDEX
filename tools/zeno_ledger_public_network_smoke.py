@@ -33,6 +33,7 @@ from tools.zeno_ledger_node import (
     append_testnet_token_create_v0,
     check_peer_status_v0,
     make_node_http_server_v0,
+    poll_live_peers_once_v0,
     pull_live_from_peer_v0,
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
@@ -273,7 +274,8 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             },
         )
         pre_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
-        pull = pull_live_from_peer_v0(data_dir=node_b_dir, peer_url=node_a_url)
+        follow = poll_live_peers_once_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
+        pull = follow["peers"][0]["pull_report"]
         post_pull_peer_check = check_peer_status_v0(data_dir=node_b_dir, peer_urls=[node_a_url])
         node_b_forward_server, node_b_url = _start_node_server(node_b_dir, submit_peer_url=node_a_url)
         forwarded_faucet = _post_json(
@@ -312,6 +314,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             add_fake_pool_liquidity,
             remove_fake_pool_liquidity,
             pre_pull_peer_check,
+            follow,
             pull,
             post_pull_peer_check,
             forwarded_faucet,
@@ -340,6 +343,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "create_fake_pool_height": create_fake_pool["height"],
         "add_fake_pool_liquidity_height": add_fake_pool_liquidity["height"],
         "remove_fake_pool_liquidity_height": remove_fake_pool_liquidity["height"],
+        "node_b_follow_peer_count": follow["peer_count"],
         "node_b_pulled_count": pull["pulled_count"],
         "node_b_total_pulled_count": int(pull["pulled_count"]) + int(forwarded_pull["pulled_count"]),
         "node_b_latest_height": forwarded_pull["local_latest_height"],
