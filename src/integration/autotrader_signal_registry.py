@@ -272,6 +272,20 @@ def external_signal_source_registry_from_object(data: object) -> ExternalSignalS
     return ExternalSignalSourceRegistry(entries=tuple(entries))
 
 
+def verify_external_signal_source_registry_payload(payload: object) -> tuple[bool, str | None]:
+    if not isinstance(payload, Mapping):
+        return False, "external signal source registry payload must be an object"
+    if payload.get("schema") != EXTERNAL_SIGNAL_SOURCE_REGISTRY_SCHEMA:
+        return False, "unsupported external signal source registry schema"
+    try:
+        registry = external_signal_source_registry_from_object(payload)
+    except Exception as exc:
+        return False, str(exc)
+    if dict(payload) != registry.to_dict():
+        return False, "external signal source registry payload mismatch"
+    return True, None
+
+
 __all__ = [
     "EXTERNAL_SIGNAL_SOURCE_REGISTRY_ENTRY_SCHEMA",
     "EXTERNAL_SIGNAL_SOURCE_REGISTRY_SCHEMA",
@@ -279,4 +293,5 @@ __all__ = [
     "ExternalSignalSourceRegistryEntry",
     "external_signal_source_registry_entry_from_dict",
     "external_signal_source_registry_from_object",
+    "verify_external_signal_source_registry_payload",
 ]

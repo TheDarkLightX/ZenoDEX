@@ -1,0 +1,2270 @@
+"""Live-preparation runner for the policy-constrained auto-trader."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, replace
+from typing import Any, Mapping
+
+from ..agents.intent_signer import sign_intent
+from ..agents.krr_policy_advisor import advise_autotrader_krr
+from ..agents.policy_artifacts import (
+    StrategyPolicyArtifact,
+    TauPolicyBundle,
+    build_strategy_policy_artifact,
+    build_tau_policy_bundle,
+    sign_strategy_policy_artifact,
+)
+from ..agents.strategy_ir import PolicyBackend, StrategyAction, StrategyIR
+from ..agents.tau_policy_adapter import (
+    TauPolicyReceipt,
+    build_compile_contract_tau_policy_receipt,
+    build_external_signal_source_registry_guard_tau_policy_receipt,
+    build_nonce_guard_tau_policy_receipt,
+    build_session_capability_binding_guard_tau_policy_receipt,
+    build_session_state_guard_tau_policy_receipt,
+    build_wallet_capability_guard_tau_policy_receipt,
+)
+from ..kernels.python.strategy_candidate_set_contract_v1_adapter import (
+    check_strategy_candidate_set_contract,
+)
+from ..kernels.python.strategy_compile_contract_v1_adapter import check_strategy_compile_contract
+from ..kernels.python.strategy_decision_kernel_v1_adapter import check_strategy_decision_kernel
+from ..kernels.python.strategy_emit_finalize_v1_adapter import check_strategy_emit_finalize
+from ..kernels.python.strategy_kill_switch_guard_v1_adapter import check_strategy_kill_switch_guard
+from ..kernels.python.strategy_live_admission_bundle_v1_adapter import (
+    check_strategy_live_admission_bundle,
+)
+from ..kernels.python.strategy_multi_action_candidate_set_contract_v1_adapter import (
+    check_strategy_multi_action_candidate_set_contract,
+)
+from ..kernels.python.strategy_nonce_guard_v1_adapter import check_strategy_nonce
+from ..kernels.python.strategy_policy_artifact_contract_v1_adapter import (
+    check_strategy_policy_artifact_contract,
+)
+from ..kernels.python.strategy_policy_bundle_contract_v1_adapter import (
+    check_strategy_policy_bundle_contract,
+)
+from ..kernels.python.strategy_session_capability_binding_guard_v1_adapter import (
+    check_strategy_session_capability_binding,
+)
+from ..kernels.python.strategy_session_state_guard_v1_adapter import check_strategy_session_state
+from ..kernels.python.strategy_signer_binding_guard_v1_adapter import (
+    check_strategy_signer_binding,
+)
+from ..kernels.python.strategy_submit_bundle_guard_v1_adapter import check_strategy_submit_bundle
+from ..kernels.python.strategy_system_compose_v1_adapter import check_strategy_system_compose
+from ..kernels.python.strategy_tx_envelope_guard_v1_adapter import check_strategy_tx_envelope
+from ..kernels.python.strategy_wallet_capability_guard_v1_adapter import check_wallet_capability
+from ..state.intents import Intent
+from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
+from ..state.pools import PoolState
+from .autotrader_controller import (
+    AutoTraderControllerState,
+    AutoTraderDecision,
+    AutoTraderDecisionTag,
+    AutoTraderTauConfig,
+    _reject,
+    evaluate_autotrader_quote_receipt,
+)
+from .autotrader_decision import (
+    StrategyCandidateSet,
+    StrategyDecisionCertificate,
+    build_strategy_candidate_set,
+    build_strategy_decision_certificate,
+    verify_strategy_decision_certificate,
+)
+from .autotrader_live_release_certificate import (
+    AutoTraderLiveReleaseCertificate,
+    build_autotrader_live_release_certificate,
+)
+from .autotrader_multiaction_decision import (
+    BoundedMultiActionCandidateSet,
+    BoundedMultiActionDecisionCertificate,
+    BoundedMultiActionTauArgmaxContractResult,
+    build_bounded_multi_action_candidate_set,
+    build_bounded_multi_action_decision_certificate,
+    check_bounded_multi_action_decision_tau_argmax_contract,
+    verify_bounded_multi_action_decision_certificate,
+)
+from .autotrader_signal_registry import ExternalSignalSourceRegistry
+from .autotrader_signals import (
+    AutoTraderObservationPacket,
+    AutoTraderSessionState,
+    AutoTraderWalletCapability,
+    ExternalSignalObservation,
+    SignalSourceKind,
+    SignalTrustTier,
+    build_autotrader_observation_packet,
+    build_quote_receipt_signal_packet,
+    build_session_state_from_capability,
+    build_wallet_capability_from_strategy,
+)
+from .autotrader_stage_certificate import (
+    AutoTraderStageCertificate,
+    build_autotrader_stage_certificate,
+)
+from .decision_witness import (
+    DecisionWitness,
+    build_decision_witness_from_autotrader_multiaction_decision,
+    verify_decision_witness_against_autotrader_multiaction_decision,
+)
+from .operations import (
+    SignedIntentEnvelope,
+    create_intent_operation,
+    create_signed_intent_operation,
+)
+from .tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
+from .tau_runner import run_tau_spec_steps
+from .tau_witness import (
+    AUTOTRADER_EMIT_FINALIZE_V1,
+    AUTOTRADER_EXTERNAL_SIGNAL_SOURCE_REGISTRY_GUARD_V1,
+    AUTOTRADER_LIVE_ADMISSION_BUNDLE_V1,
+    AUTOTRADER_NONCE_GUARD_V1,
+    AUTOTRADER_SUBMIT_BUNDLE_GUARD_V1,
+    AUTOTRADER_SYSTEM_COMPOSE_V1,
+    AUTOTRADER_TX_ENVELOPE_GUARD_V1,
+    build_autotrader_emit_finalize_v1_step,
+    build_autotrader_live_admission_bundle_v1_step,
+    build_autotrader_submit_bundle_guard_v1_step,
+    build_autotrader_system_compose_v1_step,
+    build_autotrader_tx_envelope_guard_v1_step,
+)
+
+_U32_MAX = 0xFFFFFFFF
+
+
+@dataclass(frozen=True)
+class AutoTraderNonceTauReceipt:
+    spec_id: str
+    gate_output: str
+    intent_id: str
+    intent_nonce: int
+    last_used_nonce: int
+    expected_nonce: int
+    steps: tuple[dict[str, int], ...]
+    expected_ok: bool = True
+
+
+@dataclass(frozen=True)
+class AutoTraderExternalSignalSourceRegistryTauReceipt:
+    spec_id: str
+    gate_output: str
+    signal_id: str
+    source_id: str
+    steps: tuple[dict[str, int], ...]
+    expected_ok: bool
+
+
+@dataclass(frozen=True)
+class AutoTraderLiveReport:
+    decision: AutoTraderDecision
+    signer_pubkey: str
+    chain_id: str
+    last_used_nonce_before: int
+    last_used_nonce_after: int
+    live_admission_ok: bool | None = None
+    live_admission_error: str | None = None
+    wallet_capability: AutoTraderWalletCapability | None = None
+    policy_artifact: StrategyPolicyArtifact | None = None
+    policy_artifact_ok: bool | None = None
+    policy_artifact_error: str | None = None
+    tau_policy_bundle: TauPolicyBundle | None = None
+    tau_policy_bundle_ok: bool | None = None
+    tau_policy_bundle_error: str | None = None
+    observation_packet: AutoTraderObservationPacket | None = None
+    observation_packet_error: str | None = None
+    signal_source_registry: ExternalSignalSourceRegistry | None = None
+    source_registry_ok: bool | None = None
+    external_signals: tuple[ExternalSignalObservation, ...] = ()
+    session_state: AutoTraderSessionState | None = None
+    session_state_tau_receipt: TauPolicyReceipt | None = None
+    session_capability_tau_receipt: TauPolicyReceipt | None = None
+    wallet_capability_tau_receipt: TauPolicyReceipt | None = None
+    external_signal_source_registry_tau_receipts: tuple[
+        AutoTraderExternalSignalSourceRegistryTauReceipt, ...
+    ] = ()
+    system_compose_ok: bool | None = None
+    system_compose_error: str | None = None
+    candidate_set: StrategyCandidateSet | None = None
+    candidate_set_ok: bool | None = None
+    candidate_set_error: str | None = None
+    decision_certificate: StrategyDecisionCertificate | None = None
+    decision_ok: bool | None = None
+    decision_error: str | None = None
+    bounded_multiaction_candidate_set: BoundedMultiActionCandidateSet | None = None
+    bounded_multiaction_candidate_set_contract: dict[str, Any] | None = None
+    bounded_multiaction_decision_certificate: BoundedMultiActionDecisionCertificate | None = None
+    bounded_multiaction_decision_witness: DecisionWitness | None = None
+    bounded_multiaction_decision_contract: dict[str, Any] | None = None
+    bounded_multiaction_decision_witness_contract: dict[str, Any] | None = None
+    bounded_multiaction_tau_argmax_contract: dict[str, Any] | None = None
+    kill_switch_ok: bool | None = None
+    kill_switch_error: str | None = None
+    krr_advice: dict[str, Any] | None = None
+    signed_intents: tuple[SignedIntentEnvelope, ...] = ()
+    operations: dict[str, Any] = field(default_factory=dict)
+    nonce_tau_receipts: tuple[AutoTraderNonceTauReceipt, ...] = ()
+    tx_envelope_tau_receipt: TauPolicyReceipt | None = None
+    live_admission_tau_receipt: TauPolicyReceipt | None = None
+    system_compose_tau_receipt: TauPolicyReceipt | None = None
+    submit_bundle_ok: bool | None = None
+    submit_bundle_error: str | None = None
+    submit_bundle_tau_receipt: TauPolicyReceipt | None = None
+    emit_finalize_ok: bool | None = None
+    emit_finalize_error: str | None = None
+    emit_finalize_tau_receipt: TauPolicyReceipt | None = None
+    tau_tx_payload: dict[str, Any] | None = None
+    stage_certificate: AutoTraderStageCertificate | None = None
+    stage_certificate_error: str | None = None
+    live_release_certificate: AutoTraderLiveReleaseCertificate | None = None
+    live_release_certificate_error: str | None = None
+
+
+def _finalize_live_report(**kwargs: Any) -> AutoTraderLiveReport:
+    report = AutoTraderLiveReport(**kwargs)
+    try:
+        stage_certificate = build_autotrader_stage_certificate(report)
+    except Exception as exc:
+        report = replace(
+            report,
+            stage_certificate_error=f"{type(exc).__name__}:{exc}",
+        )
+    else:
+        report = replace(
+            report,
+            stage_certificate=stage_certificate,
+            stage_certificate_error=None,
+        )
+    try:
+        certificate = build_autotrader_live_release_certificate(report)
+    except ValueError:
+        return report
+    except Exception as exc:
+        return replace(
+            report,
+            live_release_certificate_error=f"{type(exc).__name__}:{exc}",
+        )
+    return replace(
+        report,
+        live_release_certificate=certificate,
+        live_release_certificate_error=None,
+    )
+
+
+def _require_u32(name: str, value: object, *, minimum: int = 0) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    out = int(value)
+    if out < minimum or out > _U32_MAX:
+        raise ValueError(f"{name} out of u32 range: {out}")
+    return out
+
+
+def _build_nonce_tau_receipts(
+    *,
+    strategy: StrategyIR,
+    intents: tuple[Intent, ...],
+    last_used_nonce: int,
+) -> tuple[AutoTraderNonceTauReceipt, ...]:
+    receipts: list[AutoTraderNonceTauReceipt] = []
+    previous = int(last_used_nonce)
+    for intent in intents:
+        fields = intent.fields or {}
+        nonce_raw = fields.get("nonce")
+        nonce = _require_u32("intent.fields.nonce", nonce_raw, minimum=1)
+        expected = previous + 1
+        local_result = check_strategy_nonce(
+            intent_nonce=nonce,
+            last_used_nonce=previous,
+            expected_nonce=expected,
+        )
+        tau_receipt = build_nonce_guard_tau_policy_receipt(
+            strategy=strategy,
+            intent_nonce=nonce,
+            last_used_nonce=previous,
+            expected_nonce=expected,
+        )
+        receipts.append(
+            AutoTraderNonceTauReceipt(
+                spec_id=tau_receipt.spec_id,
+                gate_output=tau_receipt.gate_output,
+                intent_id=intent.intent_id,
+                intent_nonce=nonce,
+                last_used_nonce=previous,
+                expected_nonce=expected,
+                steps=tau_receipt.steps,
+                expected_ok=bool(local_result.ok),
+            )
+        )
+        previous = nonce
+    return tuple(receipts)
+
+
+def _verify_nonce_tau_receipt(
+    *,
+    tau_bin: str,
+    config: AutoTraderTauConfig,
+    receipt: AutoTraderNonceTauReceipt,
+) -> str | None:
+    try:
+        outputs = run_tau_spec_steps(
+            tau_bin=tau_bin,
+            spec_path=AUTOTRADER_NONCE_GUARD_V1.path,
+            steps=list(receipt.steps),
+            timeout_s=config.timeout_s,
+        )
+    except Exception as exc:
+        return f"nonce_tau_runner_error:{type(exc).__name__}:{exc}"
+    tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
+    if tau_gate_value is None:
+        return f"nonce_tau_missing_output:{receipt.gate_output}"
+    tau_ok = int(tau_gate_value) == 1
+    if tau_ok != receipt.expected_ok:
+        return (
+            "nonce_tau_mismatch:"
+            f"intent_id={receipt.intent_id},local={int(receipt.expected_ok)},tau={int(tau_ok)}"
+        )
+    return None
+
+
+def _build_tx_envelope_tau_receipt(
+    *,
+    strategy: StrategyIR,
+    tx_requested: bool,
+    sequence_number: object,
+    expiration_time: object,
+    fee_limit: object,
+    operations: Mapping[str, object],
+) -> TauPolicyReceipt:
+    keys = list(operations.keys()) if isinstance(operations, Mapping) else []
+    intents_stream = operations.get("2") if isinstance(operations, Mapping) else None
+    local_result = check_strategy_tx_envelope(
+        tx_requested=tx_requested,
+        sequence_number=sequence_number,
+        expiration_time=expiration_time,
+        fee_limit=fee_limit,
+        operations=operations,
+    )
+    step = build_autotrader_tx_envelope_guard_v1_step(
+        tx_requested=1 if tx_requested else 0,
+        sequence_present=1 if sequence_number is not None else 0,
+        expiration_present=1 if expiration_time is not None else 0,
+        sequence_valid=1
+        if isinstance(sequence_number, int) and not isinstance(sequence_number, bool) and 0 <= sequence_number <= _U32_MAX
+        else 0,
+        expiration_valid=1
+        if isinstance(expiration_time, int)
+        and not isinstance(expiration_time, bool)
+        and 1 <= expiration_time <= _U32_MAX
+        else 0,
+        fee_limit_valid=1 if local_result.tx_fee_limit_ok else 0,
+        intent_stream_present=1 if isinstance(intents_stream, list) and len(intents_stream) > 0 else 0,
+        settlement_stream_absent=1 if "3" not in operations else 0,
+        extra_custom_streams_absent=1 if set(keys) <= {"2"} else 0,
+    )
+    return TauPolicyReceipt(
+        strategy_id=strategy.strategy_id,
+        strategy_hash=strategy.strategy_hash_hex(),
+        spec_id=AUTOTRADER_TX_ENVELOPE_GUARD_V1.spec_id,
+        gate_output=AUTOTRADER_TX_ENVELOPE_GUARD_V1.gate_output,
+        steps=(step,),
+        expected_ok=bool(local_result.ok),
+    )
+
+
+def _verify_tx_envelope_tau_receipt(
+    *,
+    tau_bin: str,
+    config: AutoTraderTauConfig,
+    receipt: TauPolicyReceipt,
+) -> str | None:
+    try:
+        outputs = run_tau_spec_steps(
+            tau_bin=tau_bin,
+            spec_path=AUTOTRADER_TX_ENVELOPE_GUARD_V1.path,
+            steps=list(receipt.steps),
+            timeout_s=config.timeout_s,
+        )
+    except Exception as exc:
+        return f"tx_envelope_tau_runner_error:{type(exc).__name__}:{exc}"
+    tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
+    if tau_gate_value is None:
+        return f"tx_envelope_tau_missing_output:{receipt.gate_output}"
+    tau_ok = int(tau_gate_value) == 1
+    if tau_ok != receipt.expected_ok:
+        return f"tx_envelope_tau_mismatch:local={int(receipt.expected_ok)},tau={int(tau_ok)}"
+    return None
+
+
+def _verify_boolean_tau_receipt(
+    *,
+    tau_bin: str,
+    config: AutoTraderTauConfig,
+    receipt: TauPolicyReceipt,
+    spec_path: str,
+    error_prefix: str,
+) -> str | None:
+    try:
+        outputs = run_tau_spec_steps(
+            tau_bin=tau_bin,
+            spec_path=spec_path,
+            steps=list(receipt.steps),
+            timeout_s=config.timeout_s,
+        )
+    except Exception as exc:
+        return f"{error_prefix}_runner_error:{type(exc).__name__}:{exc}"
+    tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
+    if tau_gate_value is None:
+        return f"{error_prefix}_missing_output:{receipt.gate_output}"
+    tau_ok = int(tau_gate_value) == 1
+    if tau_ok != receipt.expected_ok:
+        return f"{error_prefix}_mismatch:local={int(receipt.expected_ok)},tau={int(tau_ok)}"
+    return None
+
+
+def _build_bounded_multiaction_live_sidecar(
+    *,
+    strategy: StrategyIR,
+    tau_policy_bundle: TauPolicyBundle,
+    policy_artifact: StrategyPolicyArtifact,
+    observation_packet: AutoTraderObservationPacket,
+    decision_tag: AutoTraderDecisionTag,
+    kill_switch_ok: bool,
+    tau_config: AutoTraderTauConfig | None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "candidate_set": None,
+        "candidate_set_contract": {
+            "ok": None,
+            "error": None,
+            "frontier_unambiguous": None,
+        },
+        "decision_certificate": None,
+        "decision_witness": None,
+        "decision_contract": {
+            "ok": None,
+            "error": None,
+            "frontier_unambiguous": None,
+        },
+        "decision_witness_contract": {
+            "ok": None,
+            "error": None,
+            "frontier_unambiguous": None,
+        },
+        "tau_argmax_contract": {
+            "ok": None,
+            "error": None,
+            "tau_enabled": bool(tau_config.enabled) if tau_config is not None else False,
+            "tau_used": False,
+            "frontier_unambiguous": None,
+        },
+    }
+    if len(strategy.allowed_actions) != 1:
+        result["candidate_set_contract"] = {
+            "ok": None,
+            "error": "multi_action_frontier_ambiguous",
+            "frontier_unambiguous": False,
+        }
+        result["decision_contract"] = {
+            "ok": None,
+            "error": "multi_action_frontier_ambiguous",
+            "frontier_unambiguous": False,
+        }
+        result["decision_witness_contract"] = {
+            "ok": None,
+            "error": "multi_action_frontier_ambiguous",
+            "frontier_unambiguous": False,
+        }
+        result["tau_argmax_contract"] = {
+            "ok": None,
+            "error": "multi_action_frontier_ambiguous",
+            "tau_enabled": bool(tau_config.enabled) if tau_config is not None else False,
+            "tau_used": False,
+            "frontier_unambiguous": False,
+        }
+        return result
+
+    candidate_set = build_bounded_multi_action_candidate_set(
+        policy_artifact=policy_artifact,
+        tau_policy_bundle=tau_policy_bundle,
+        observation_packet=observation_packet,
+        action_frontier={
+            strategy.allowed_actions[0]: (
+                decision_tag is AutoTraderDecisionTag.SUBMIT,
+                (decision_tag is AutoTraderDecisionTag.SUBMIT) and bool(kill_switch_ok),
+                1,
+            )
+        },
+    )
+    candidate_set_contract = check_strategy_multi_action_candidate_set_contract(candidate_set)
+    certificate = build_bounded_multi_action_decision_certificate(candidate_set=candidate_set)
+    cert_ok, cert_error = verify_bounded_multi_action_decision_certificate(
+        candidate_set=candidate_set,
+        certificate=certificate,
+    )
+    result["candidate_set"] = candidate_set
+    result["candidate_set_contract"] = {
+        "ok": bool(candidate_set_contract.ok),
+        "error": candidate_set_contract.error,
+        "frontier_unambiguous": True,
+    }
+    if not candidate_set_contract.ok:
+        result["decision_contract"] = {
+            "ok": False,
+            "error": f"candidate_set_rejected:{candidate_set_contract.error}",
+            "frontier_unambiguous": True,
+        }
+        result["decision_witness_contract"] = {
+            "ok": None,
+            "error": "candidate_set_rejected",
+            "frontier_unambiguous": True,
+        }
+        result["tau_argmax_contract"] = {
+            "ok": None,
+            "error": "candidate_set_rejected",
+            "tau_enabled": bool(tau_config.enabled) if tau_config is not None else False,
+            "tau_used": False,
+            "frontier_unambiguous": True,
+        }
+        return result
+    result["decision_certificate"] = certificate
+    result["decision_contract"] = {
+        "ok": cert_ok,
+        "error": cert_error,
+        "frontier_unambiguous": True,
+    }
+    try:
+        witness = build_decision_witness_from_autotrader_multiaction_decision(
+            strategy=strategy,
+            observation_packet=observation_packet,
+            candidate_set=candidate_set,
+            certificate=certificate,
+        )
+        witness_ok, witness_error = verify_decision_witness_against_autotrader_multiaction_decision(
+            strategy=strategy,
+            observation_packet=observation_packet,
+            candidate_set=candidate_set,
+            certificate=certificate,
+            witness_payload=witness.to_dict(),
+        )
+        result["decision_witness"] = witness
+        result["decision_witness_contract"] = {
+            "ok": witness_ok,
+            "error": witness_error,
+            "frontier_unambiguous": True,
+        }
+    except Exception as exc:
+        result["decision_witness_contract"] = {
+            "ok": False,
+            "error": f"{type(exc).__name__}:{exc}",
+            "frontier_unambiguous": True,
+        }
+    if tau_config is not None and tau_config.enabled:
+        tau_ok, tau_bin, tau_error = autotrader_controller._resolve_tau_bin(tau_config)
+        if tau_ok and tau_bin is not None:
+            tau_contract: BoundedMultiActionTauArgmaxContractResult = (
+                check_bounded_multi_action_decision_tau_argmax_contract(
+                    candidate_set=candidate_set,
+                    certificate=certificate,
+                    tau_bin=tau_bin,
+                    timeout_s=tau_config.timeout_s,
+                )
+            )
+            result["tau_argmax_contract"] = {
+                **tau_contract.to_dict(),
+                "frontier_unambiguous": True,
+            }
+        else:
+            result["tau_argmax_contract"] = {
+                "ok": False,
+                "error": tau_error or "tau_not_available",
+                "tau_enabled": True,
+                "tau_used": False,
+                "frontier_unambiguous": True,
+            }
+    else:
+        result["tau_argmax_contract"] = {
+            "ok": None,
+            "error": "tau_disabled",
+            "tau_enabled": False,
+            "tau_used": False,
+            "frontier_unambiguous": True,
+        }
+    return result
+
+
+def _build_submit_bundle_tau_receipt(
+    *,
+    strategy: StrategyIR,
+    emit_requested: bool,
+    signed_intents_present: bool,
+    signatures_present: bool,
+    signatures_verify: bool,
+    sender_binding_ok: bool,
+    quote_receipts_present: bool,
+    operations_roundtrip_ok: bool,
+    tx_requested: bool,
+    tx_payload_ok: bool,
+    expected_ok: bool,
+) -> TauPolicyReceipt:
+    step = build_autotrader_submit_bundle_guard_v1_step(
+        emit_requested=1 if emit_requested else 0,
+        signed_intents_present=1 if signed_intents_present else 0,
+        signatures_present=1 if signatures_present else 0,
+        signatures_verify=1 if signatures_verify else 0,
+        sender_binding_ok=1 if sender_binding_ok else 0,
+        quote_receipts_present=1 if quote_receipts_present else 0,
+        operations_roundtrip_ok=1 if operations_roundtrip_ok else 0,
+        tx_requested=1 if tx_requested else 0,
+        tx_payload_ok=1 if tx_payload_ok else 0,
+    )
+    return TauPolicyReceipt(
+        strategy_id=strategy.strategy_id,
+        strategy_hash=strategy.strategy_hash_hex(),
+        spec_id=AUTOTRADER_SUBMIT_BUNDLE_GUARD_V1.spec_id,
+        gate_output=AUTOTRADER_SUBMIT_BUNDLE_GUARD_V1.gate_output,
+        steps=(step,),
+        expected_ok=expected_ok,
+    )
+
+
+def _registry_guard_relevant(
+    signal: ExternalSignalObservation,
+    registry: ExternalSignalSourceRegistry | None,
+) -> bool:
+    if not isinstance(signal, ExternalSignalObservation):
+        raise TypeError("signal must be an ExternalSignalObservation")
+    if registry is not None and not isinstance(registry, ExternalSignalSourceRegistry):
+        raise TypeError("registry must be an ExternalSignalSourceRegistry or None")
+    return registry is not None or _trusted_external_signal_requires_registry(signal)
+
+
+def _build_external_signal_source_registry_tau_receipts(
+    *,
+    strategy: StrategyIR,
+    external_signals: tuple[ExternalSignalObservation, ...],
+    signal_source_registry: ExternalSignalSourceRegistry | None,
+) -> tuple[AutoTraderExternalSignalSourceRegistryTauReceipt, ...]:
+    receipts: list[AutoTraderExternalSignalSourceRegistryTauReceipt] = []
+    for signal in external_signals:
+        if not _registry_guard_relevant(signal, signal_source_registry):
+            continue
+        tau_receipt = build_external_signal_source_registry_guard_tau_policy_receipt(
+            strategy=strategy,
+            signal=signal,
+            registry=signal_source_registry,
+        )
+        receipts.append(
+            AutoTraderExternalSignalSourceRegistryTauReceipt(
+                spec_id=tau_receipt.spec_id,
+                gate_output=tau_receipt.gate_output,
+                signal_id=signal.signal_id,
+                source_id=signal.source_id,
+                steps=tau_receipt.steps,
+                expected_ok=bool(tau_receipt.expected_ok),
+            )
+        )
+    return tuple(receipts)
+
+
+def _verify_external_signal_source_registry_tau_receipt(
+    *,
+    tau_bin: str,
+    config: AutoTraderTauConfig,
+    receipt: AutoTraderExternalSignalSourceRegistryTauReceipt,
+) -> str | None:
+    try:
+        outputs = run_tau_spec_steps(
+            tau_bin=tau_bin,
+            spec_path=AUTOTRADER_EXTERNAL_SIGNAL_SOURCE_REGISTRY_GUARD_V1.path,
+            steps=list(receipt.steps),
+            timeout_s=config.timeout_s,
+        )
+    except Exception as exc:
+        return (
+            "external_signal_source_registry_tau_runner_error:"
+            f"signal_id={receipt.signal_id},source_id={receipt.source_id},"
+            f"{type(exc).__name__}:{exc}"
+        )
+    tau_gate_value = outputs.get(0, {}).get(receipt.gate_output)
+    if tau_gate_value is None:
+        return (
+            "external_signal_source_registry_tau_missing_output:"
+            f"signal_id={receipt.signal_id},source_id={receipt.source_id},"
+            f"{receipt.gate_output}"
+        )
+    tau_ok = int(tau_gate_value) == 1
+    if tau_ok != receipt.expected_ok:
+        return (
+            "external_signal_source_registry_tau_mismatch:"
+            f"signal_id={receipt.signal_id},source_id={receipt.source_id},"
+            f"local={int(receipt.expected_ok)},tau={int(tau_ok)}"
+        )
+    return None
+
+
+def _observation_source_registry_ok(packet: AutoTraderObservationPacket) -> bool:
+    if not isinstance(packet, AutoTraderObservationPacket):
+        raise TypeError("packet must be an AutoTraderObservationPacket")
+    return packet.signal_source_registry is not None or packet.trusted_external_count() == 0
+
+
+def _trusted_external_signal_requires_registry(signal: ExternalSignalObservation) -> bool:
+    if not isinstance(signal, ExternalSignalObservation):
+        raise TypeError("signal must be an ExternalSignalObservation")
+    return (
+        signal.source_kind is SignalSourceKind.ATTESTED_EXTERNAL
+        and signal.trust_tier in (SignalTrustTier.ATTESTED, SignalTrustTier.VERIFIED)
+        and not signal.advisory_only
+    )
+
+
+def _build_live_admission_tau_receipt(
+    *,
+    strategy: StrategyIR,
+    source_registry_ok: bool,
+    signal_provenance_ok: bool,
+    route_economic_sanity_ok: bool,
+    execution_ok: bool,
+    oracle_freshness_ok: bool,
+    budget_ok: bool,
+    tx_envelope_ok: bool,
+    session_state_ok: bool,
+    session_capability_binding_ok: bool,
+    wallet_capability_ok: bool,
+    nonce_ok: bool,
+    expected_ok: bool,
+) -> TauPolicyReceipt:
+    step = build_autotrader_live_admission_bundle_v1_step(
+        source_registry_ok=1 if source_registry_ok else 0,
+        signal_provenance_ok=1 if signal_provenance_ok else 0,
+        route_economic_sanity_ok=1 if route_economic_sanity_ok else 0,
+        execution_ok=1 if execution_ok else 0,
+        oracle_freshness_ok=1 if oracle_freshness_ok else 0,
+        budget_ok=1 if budget_ok else 0,
+        tx_envelope_ok=1 if tx_envelope_ok else 0,
+        session_state_ok=1 if session_state_ok else 0,
+        session_capability_binding_ok=1 if session_capability_binding_ok else 0,
+        wallet_capability_ok=1 if wallet_capability_ok else 0,
+        nonce_ok=1 if nonce_ok else 0,
+    )
+    return TauPolicyReceipt(
+        strategy_id=strategy.strategy_id,
+        strategy_hash=strategy.strategy_hash_hex(),
+        spec_id=AUTOTRADER_LIVE_ADMISSION_BUNDLE_V1.spec_id,
+        gate_output=AUTOTRADER_LIVE_ADMISSION_BUNDLE_V1.gate_output,
+        steps=(step,),
+        expected_ok=expected_ok,
+    )
+
+
+def _build_system_compose_tau_receipt(
+    *,
+    strategy: StrategyIR,
+    emit_requested: bool,
+    policy_artifact_ok: bool,
+    tau_policy_bundle_ok: bool,
+    signer_binding_ok: bool,
+    compile_ok: bool,
+    source_registry_ok: bool,
+    signal_provenance_ok: bool,
+    route_economic_sanity_ok: bool,
+    execution_ok: bool,
+    oracle_freshness_ok: bool,
+    budget_ok: bool,
+    candidate_set_ok: bool,
+    decision_ok: bool,
+    kill_switch_ok: bool,
+    tx_envelope_ok: bool,
+    session_state_ok: bool,
+    session_capability_binding_ok: bool,
+    wallet_capability_ok: bool,
+    nonce_ok: bool,
+    expected_ok: bool,
+) -> TauPolicyReceipt:
+    step = build_autotrader_system_compose_v1_step(
+        emit_requested=1 if emit_requested else 0,
+        policy_artifact_ok=1 if policy_artifact_ok else 0,
+        tau_policy_bundle_ok=1 if tau_policy_bundle_ok else 0,
+        signer_binding_ok=1 if signer_binding_ok else 0,
+        compile_ok=1 if compile_ok else 0,
+        source_registry_ok=1 if source_registry_ok else 0,
+        signal_provenance_ok=1 if signal_provenance_ok else 0,
+        route_economic_sanity_ok=1 if route_economic_sanity_ok else 0,
+        execution_ok=1 if execution_ok else 0,
+        oracle_freshness_ok=1 if oracle_freshness_ok else 0,
+        budget_ok=1 if budget_ok else 0,
+        candidate_set_ok=1 if candidate_set_ok else 0,
+        decision_ok=1 if decision_ok else 0,
+        kill_switch_ok=1 if kill_switch_ok else 0,
+        tx_envelope_ok=1 if tx_envelope_ok else 0,
+        session_state_ok=1 if session_state_ok else 0,
+        session_capability_binding_ok=1 if session_capability_binding_ok else 0,
+        wallet_capability_ok=1 if wallet_capability_ok else 0,
+        nonce_ok=1 if nonce_ok else 0,
+    )
+    return TauPolicyReceipt(
+        strategy_id=strategy.strategy_id,
+        strategy_hash=strategy.strategy_hash_hex(),
+        spec_id=AUTOTRADER_SYSTEM_COMPOSE_V1.spec_id,
+        gate_output=AUTOTRADER_SYSTEM_COMPOSE_V1.gate_output,
+        steps=(step,),
+        expected_ok=expected_ok,
+    )
+
+
+def _build_emit_finalize_tau_receipt(
+    *,
+    strategy: StrategyIR,
+    emit_requested: bool,
+    system_compose_ok: bool,
+    submit_bundle_ok: bool,
+    expected_ok: bool,
+) -> TauPolicyReceipt:
+    step = build_autotrader_emit_finalize_v1_step(
+        emit_requested=1 if emit_requested else 0,
+        system_compose_ok=1 if system_compose_ok else 0,
+        submit_bundle_ok=1 if submit_bundle_ok else 0,
+    )
+    return TauPolicyReceipt(
+        strategy_id=strategy.strategy_id,
+        strategy_hash=strategy.strategy_hash_hex(),
+        spec_id=AUTOTRADER_EMIT_FINALIZE_V1.spec_id,
+        gate_output=AUTOTRADER_EMIT_FINALIZE_V1.gate_output,
+        steps=(step,),
+        expected_ok=expected_ok,
+    )
+
+
+def _build_signer_mismatch_report(
+    *,
+    strategy: StrategyIR,
+    controller_state: AutoTraderControllerState,
+    chain_id: str,
+    signer_pubkey: str,
+    reason: str,
+    last_used_nonce: int,
+) -> AutoTraderLiveReport:
+    decision = _reject(
+        state=controller_state,
+        reason=reason,
+        explain=(
+            f"strategy_id={strategy.strategy_id}",
+            f"backend={strategy.policy_backend.value}",
+            f"chain_id={chain_id}",
+            f"strategy_owner_pubkey={strategy.owner_pubkey}",
+            f"signer_pubkey={signer_pubkey}",
+        ),
+    )
+    return _finalize_live_report(
+        decision=decision,
+        signer_pubkey=signer_pubkey,
+        chain_id=chain_id,
+        last_used_nonce_before=last_used_nonce,
+        last_used_nonce_after=last_used_nonce,
+        live_admission_ok=False,
+        live_admission_error=reason,
+        system_compose_ok=False,
+        system_compose_error="signer_binding_rejected",
+    )
+
+
+def prepare_autotrader_live_quote_receipt(
+    *,
+    strategy: StrategyIR,
+    controller_state: AutoTraderControllerState,
+    receipt: Mapping[str, object],
+    pools_by_id: Mapping[str, PoolState],
+    current_epoch: int,
+    intent_deadline: int,
+    signer_privkey: str | int | bytes | bytearray,
+    last_used_nonce: int,
+    chain_id: str = "tau-net-alpha",
+    wallet_capability: AutoTraderWalletCapability | None = None,
+    session_state: AutoTraderSessionState | None = None,
+    external_signals: tuple[ExternalSignalObservation, ...] = (),
+    signal_source_registry: ExternalSignalSourceRegistry | None = None,
+    policy_artifact: StrategyPolicyArtifact | None = None,
+    tau_policy_bundle: TauPolicyBundle | None = None,
+    slippage_bps: int | None = None,
+    tau_config: AutoTraderTauConfig | None = None,
+    krr_backend: str = "off",
+    krr_kb_path: str | None = None,
+    krr_kb: Mapping[str, Any] | None = None,
+    history_check_stats: Mapping[str, object] | None = None,
+    tx_sequence_number: int | None = None,
+    tx_expiration_time: int | None = None,
+    tx_fee_limit: str | int = "0",
+) -> AutoTraderLiveReport:
+    last_used_nonce = _require_u32("last_used_nonce", last_used_nonce, minimum=0)
+    tx_requested = tx_sequence_number is not None or tx_expiration_time is not None
+
+    signer_binding = check_strategy_signer_binding(
+        signer_pubkey="0x" + bls_pubkey_hex_from_privkey(signer_privkey),
+        owner_pubkey=strategy.owner_pubkey,
+    )
+    signer_pubkey = signer_binding.signer_pubkey or str("0x" + bls_pubkey_hex_from_privkey(signer_privkey))
+    strategy_owner_pubkey = signer_binding.owner_pubkey or str(strategy.owner_pubkey)
+    if not signer_binding.ok:
+        return _build_signer_mismatch_report(
+            strategy=strategy,
+            controller_state=controller_state,
+            chain_id=chain_id,
+            signer_pubkey=signer_pubkey,
+            reason=str(signer_binding.error),
+            last_used_nonce=last_used_nonce,
+        )
+
+    resolved_tau_config = tau_config or AutoTraderTauConfig()
+    fixed_order_size = _require_u32(
+        "strategy.template_params.fixed_order_size",
+        strategy.template_params.get("fixed_order_size"),
+        minimum=1,
+    )
+    asset_in = str(strategy.template_params.get("asset_in", "")).strip()
+    asset_out = str(strategy.template_params.get("asset_out", "")).strip()
+    if not asset_in or not asset_out:
+        raise ValueError("strategy template params must define asset_in and asset_out")
+    effective_wallet_capability = wallet_capability or build_wallet_capability_from_strategy(
+        strategy=strategy,
+        chain_id=chain_id,
+        lifetime_spent=controller_state.lifetime_spent,
+    )
+    effective_session_state = session_state or build_session_state_from_capability(
+        capability=effective_wallet_capability
+    )
+    compile_contract_ok = check_strategy_compile_contract(strategy).ok
+    effective_tau_policy_bundle = tau_policy_bundle
+    if effective_tau_policy_bundle is None:
+        effective_tau_policy_bundle = build_tau_policy_bundle(
+            strategy=strategy,
+            compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
+        )
+    tau_policy_bundle_result = check_strategy_policy_bundle_contract(effective_tau_policy_bundle)
+    if not tau_policy_bundle_result.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=f"tau_policy_bundle_rejected:{tau_policy_bundle_result.error}",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+            ),
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            wallet_capability=effective_wallet_capability,
+            tau_policy_bundle=effective_tau_policy_bundle,
+            tau_policy_bundle_ok=False,
+            tau_policy_bundle_error=tau_policy_bundle_result.error,
+            session_state=effective_session_state,
+        )
+    effective_policy_artifact = policy_artifact
+    if effective_policy_artifact is None:
+        effective_policy_artifact = build_strategy_policy_artifact(
+            strategy=strategy,
+            tau_policy_bundle=effective_tau_policy_bundle,
+        )
+        effective_policy_artifact = sign_strategy_policy_artifact(
+            effective_policy_artifact,
+            privkey=signer_privkey,
+        )
+    policy_artifact_result = check_strategy_policy_artifact_contract(
+        effective_policy_artifact,
+        tau_policy_bundle=effective_tau_policy_bundle,
+    )
+    if not policy_artifact_result.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=f"policy_artifact_rejected:{policy_artifact_result.error}",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+            ),
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            wallet_capability=effective_wallet_capability,
+            policy_artifact=effective_policy_artifact,
+            policy_artifact_ok=False,
+            policy_artifact_error=policy_artifact_result.error,
+            tau_policy_bundle=effective_tau_policy_bundle,
+            tau_policy_bundle_ok=True,
+            session_state=effective_session_state,
+        )
+    observation_packet = None
+    observation_packet_error: str | None = None
+    source_registry_ok = signal_source_registry is not None or not any(
+        _trusted_external_signal_requires_registry(signal) for signal in external_signals
+    )
+    try:
+        primary_signal = build_quote_receipt_signal_packet(
+            receipt=receipt,
+            pools_by_id=pools_by_id,
+            current_epoch=current_epoch,
+        )
+        observation_packet = build_autotrader_observation_packet(
+            primary_signal=primary_signal,
+            wallet_capability=effective_wallet_capability,
+            external_signals=tuple(external_signals),
+            signal_source_registry=signal_source_registry,
+            tau_enabled=resolved_tau_config.enabled,
+        )
+    except Exception as exc:
+        observation_packet = None
+        observation_packet_error = f"{type(exc).__name__}:{exc}"
+        if external_signals:
+            source_registry_ok = False
+    else:
+        source_registry_ok = _observation_source_registry_ok(observation_packet)
+    wallet_capability_result = check_wallet_capability(
+        capability=effective_wallet_capability,
+        signer_pubkey=signer_pubkey,
+        chain_id=chain_id,
+        current_epoch=current_epoch,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        order_amount=fixed_order_size,
+        action=StrategyAction.PLACE_SWAP_EXACT_IN,
+    )
+    session_capability_result = check_strategy_session_capability_binding(
+        strategy=strategy,
+        capability=effective_wallet_capability,
+        chain_id=chain_id,
+    )
+    session_state_result = check_strategy_session_state(
+        session_state=effective_session_state,
+        capability=effective_wallet_capability,
+        chain_id=chain_id,
+        current_epoch=current_epoch,
+    )
+    session_state_tau_receipt: TauPolicyReceipt | None = None
+    session_capability_tau_receipt: TauPolicyReceipt | None = None
+    wallet_capability_tau_receipt: TauPolicyReceipt | None = None
+    external_signal_source_registry_tau_receipts: tuple[
+        AutoTraderExternalSignalSourceRegistryTauReceipt, ...
+    ] = ()
+    if strategy.policy_backend is PolicyBackend.TAU and resolved_tau_config.enabled:
+        ok, tau_bin, err = autotrader_controller._resolve_tau_bin(resolved_tau_config)
+        if not ok or tau_bin is None:
+            reject = _reject(
+                state=controller_state,
+                reason=f"tau_tool_unavailable:{err}",
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+            )
+        external_signal_source_registry_tau_receipts = (
+            _build_external_signal_source_registry_tau_receipts(
+                strategy=strategy,
+                external_signals=tuple(external_signals),
+                signal_source_registry=signal_source_registry,
+            )
+        )
+        for registry_receipt in external_signal_source_registry_tau_receipts:
+            tau_error = _verify_external_signal_source_registry_tau_receipt(
+                tau_bin=tau_bin,
+                config=resolved_tau_config,
+                receipt=registry_receipt,
+            )
+            if tau_error is not None:
+                reject = _reject(
+                    state=controller_state,
+                    reason=tau_error,
+                    explain=(
+                        f"strategy_id={strategy.strategy_id}",
+                        f"backend={strategy.policy_backend.value}",
+                        f"chain_id={chain_id}",
+                    ),
+                )
+                return _finalize_live_report(
+                    decision=reject,
+                    signer_pubkey=signer_pubkey,
+                    chain_id=chain_id,
+                    last_used_nonce_before=last_used_nonce,
+                    last_used_nonce_after=last_used_nonce,
+                    live_admission_ok=False,
+                    live_admission_error=tau_error,
+                    wallet_capability=effective_wallet_capability,
+                    session_state=effective_session_state,
+                    observation_packet=observation_packet,
+                    observation_packet_error=observation_packet_error,
+                    signal_source_registry=signal_source_registry,
+                    source_registry_ok=source_registry_ok,
+                    external_signals=tuple(external_signals),
+                    external_signal_source_registry_tau_receipts=external_signal_source_registry_tau_receipts,
+                )
+        session_capability_tau_receipt = build_session_capability_binding_guard_tau_policy_receipt(
+            strategy=strategy,
+            capability=effective_wallet_capability,
+            chain_id=chain_id,
+        )
+        tau_error = autotrader_controller._verify_tau_policy_receipt(
+            tau_bin=tau_bin,
+            config=resolved_tau_config,
+            receipt=session_capability_tau_receipt,
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+                tau_policy_receipt=session_capability_tau_receipt,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_capability_tau_receipt=session_capability_tau_receipt,
+            )
+        session_state_tau_receipt = build_session_state_guard_tau_policy_receipt(
+            strategy=strategy,
+            session_state=effective_session_state,
+            capability=effective_wallet_capability,
+            chain_id=chain_id,
+            current_epoch=current_epoch,
+        )
+        tau_error = autotrader_controller._verify_tau_policy_receipt(
+            tau_bin=tau_bin,
+            config=resolved_tau_config,
+            receipt=session_state_tau_receipt,
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+                tau_policy_receipt=session_state_tau_receipt,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+            )
+        wallet_capability_tau_receipt = build_wallet_capability_guard_tau_policy_receipt(
+            strategy=strategy,
+            capability=effective_wallet_capability,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            current_epoch=current_epoch,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            order_amount=fixed_order_size,
+            action=StrategyAction.PLACE_SWAP_EXACT_IN,
+        )
+        tau_error = autotrader_controller._verify_tau_policy_receipt(
+            tau_bin=tau_bin,
+            config=resolved_tau_config,
+            receipt=wallet_capability_tau_receipt,
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+                tau_policy_receipt=wallet_capability_tau_receipt,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            )
+    if not session_state_result.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=str(session_state_result.error),
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"session_id={effective_session_state.session_id}",
+            ),
+            tau_policy_receipt=session_state_tau_receipt,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=str(session_state_result.error),
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+        )
+    if not session_capability_result.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=str(session_capability_result.error),
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"session_id={effective_wallet_capability.session_id}",
+            ),
+            tau_policy_receipt=session_capability_tau_receipt,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=str(session_capability_result.error),
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+        )
+    if not wallet_capability_result.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=str(wallet_capability_result.error),
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"asset_pair={asset_in}/{asset_out}",
+                f"order_amount={fixed_order_size}",
+            ),
+            tau_policy_receipt=wallet_capability_tau_receipt,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=str(wallet_capability_result.error),
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+        )
+    krr_advice = advise_autotrader_krr(
+        strategy=strategy,
+        phase="live",
+        current_epoch=current_epoch,
+        backend=krr_backend,
+        kb_path=krr_kb_path,
+        kb=krr_kb,
+        history_check_stats=history_check_stats,
+        spent_in_window=controller_state.budget_state.spent_in_window,
+        lifetime_spent=controller_state.lifetime_spent,
+        live_orders=controller_state.live_orders,
+        nonce_start=last_used_nonce + 1,
+        tau_enabled=resolved_tau_config.enabled,
+        observation_packet=observation_packet,
+        quote_receipt=receipt,
+        pools_by_id=pools_by_id,
+    )
+
+    decision = evaluate_autotrader_quote_receipt(
+        strategy=strategy,
+        controller_state=controller_state,
+        receipt=receipt,
+        pools_by_id=pools_by_id,
+        current_epoch=current_epoch,
+        intent_deadline=intent_deadline,
+        slippage_bps=slippage_bps,
+        nonce_start=last_used_nonce + 1,
+        tau_config=tau_config,
+    )
+    effective_observation_packet = observation_packet
+    if effective_observation_packet is None:
+        try:
+            effective_observation_packet = build_autotrader_observation_packet(
+                primary_signal=build_quote_receipt_signal_packet(
+                    receipt=receipt,
+                    pools_by_id=pools_by_id,
+                    current_epoch=current_epoch,
+                ),
+                wallet_capability=effective_wallet_capability,
+                external_signals=tuple(external_signals),
+                signal_source_registry=signal_source_registry,
+                tau_enabled=resolved_tau_config.enabled,
+            )
+        except Exception as exc:
+            packet_error = f"{type(exc).__name__}:{exc}"
+            reject = _reject(
+                state=controller_state,
+                reason=f"observation_packet_build_failed:{packet_error}",
+                explain=decision.explain + (f"observation_packet_error={packet_error}",),
+                tau_policy_receipt=decision.tau_policy_receipt,
+                guard_state=decision.guard_state,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=f"observation_packet_build_failed:{packet_error}",
+                wallet_capability=effective_wallet_capability,
+                policy_artifact=effective_policy_artifact,
+                policy_artifact_ok=True,
+                tau_policy_bundle=effective_tau_policy_bundle,
+                tau_policy_bundle_ok=True,
+                session_state=effective_session_state,
+                observation_packet=None,
+                observation_packet_error=packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=False if external_signals else source_registry_ok,
+                external_signals=tuple(external_signals),
+                external_signal_source_registry_tau_receipts=external_signal_source_registry_tau_receipts,
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                system_compose_ok=False,
+                system_compose_error="observation_packet_rejected",
+                kill_switch_ok=None,
+                kill_switch_error=packet_error,
+                krr_advice=krr_advice,
+            )
+    kill_switch = check_strategy_kill_switch_guard(
+        kill_switch_enabled=strategy.controls.kill_switch_enabled,
+        kill_switch_active=controller_state.budget_state.kill_switch_on,
+    )
+    candidate_set = build_strategy_candidate_set(
+        policy_artifact=effective_policy_artifact,
+        tau_policy_bundle=effective_tau_policy_bundle,
+        observation_packet=effective_observation_packet,
+        emit_requested=decision.tag is AutoTraderDecisionTag.SUBMIT,
+        emit_admissible=decision.tag is AutoTraderDecisionTag.SUBMIT,
+    )
+    candidate_set_result = check_strategy_candidate_set_contract(candidate_set)
+    decision_certificate = build_strategy_decision_certificate(
+        candidate_set=candidate_set,
+        kill_switch_active=controller_state.budget_state.kill_switch_on,
+    )
+    decision_runtime = check_strategy_decision_kernel(
+        emit_requested=decision.tag is AutoTraderDecisionTag.SUBMIT,
+        emit_admissible=(decision.tag is AutoTraderDecisionTag.SUBMIT) and kill_switch.ok,
+    )
+    decision_certificate_ok, decision_certificate_error = verify_strategy_decision_certificate(
+        candidate_set=candidate_set,
+        certificate=decision_certificate,
+        expected_kill_switch_active=controller_state.budget_state.kill_switch_on,
+    )
+    expected_winner_index = 1 if decision.tag is AutoTraderDecisionTag.SUBMIT else 0
+    decision_contract_ok = (
+        decision_runtime.ok
+        and decision_certificate_ok
+        and decision_certificate.winner_index == expected_winner_index
+    )
+    decision_contract_error = None
+    if not candidate_set_result.ok:
+        decision_contract_error = f"candidate_set_rejected:{candidate_set_result.error}"
+    elif not decision_certificate_ok:
+        decision_contract_error = f"decision_certificate_rejected:{decision_certificate_error}"
+    elif not decision_contract_ok:
+        decision_contract_error = (
+            "decision_prefers_noop"
+            if expected_winner_index == 1
+            else "decision_prefers_emit"
+        )
+    if decision_contract_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason=decision_contract_error,
+            explain=decision.explain + (decision_contract_error,),
+            tau_policy_receipt=decision.tau_policy_receipt,
+            guard_state=decision.guard_state,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=decision_contract_error,
+            wallet_capability=effective_wallet_capability,
+            policy_artifact=effective_policy_artifact,
+            policy_artifact_ok=True,
+            tau_policy_bundle=effective_tau_policy_bundle,
+            tau_policy_bundle_ok=True,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            external_signal_source_registry_tau_receipts=external_signal_source_registry_tau_receipts,
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=False,
+            system_compose_error=decision_contract_error,
+            candidate_set=candidate_set,
+            candidate_set_ok=candidate_set_result.ok,
+            candidate_set_error=candidate_set_result.error,
+            decision_certificate=decision_certificate,
+            decision_ok=decision_contract_ok,
+            decision_error=decision_contract_error,
+            kill_switch_ok=kill_switch.ok,
+            kill_switch_error=kill_switch.error,
+            krr_advice=krr_advice,
+        )
+    bounded_multiaction_sidecar = _build_bounded_multiaction_live_sidecar(
+        strategy=strategy,
+        tau_policy_bundle=effective_tau_policy_bundle,
+        policy_artifact=effective_policy_artifact,
+        observation_packet=effective_observation_packet,
+        decision_tag=decision.tag,
+        kill_switch_ok=kill_switch.ok,
+        tau_config=resolved_tau_config,
+    )
+    if decision.tag is not AutoTraderDecisionTag.SUBMIT:
+        system_compose = check_strategy_system_compose(
+            emit_requested=False,
+            policy_artifact_ok=True,
+            tau_policy_bundle_ok=True,
+            signer_binding_ok=signer_binding.ok,
+            compile_ok=compile_contract_ok,
+            source_registry_ok=source_registry_ok,
+            signal_provenance_ok=decision.guard_state.signal_provenance_ok,
+            route_economic_sanity_ok=decision.guard_state.route_economic_sanity_ok,
+            execution_ok=decision.guard_state.execution_ok,
+            oracle_freshness_ok=decision.guard_state.oracle_freshness_ok,
+            budget_ok=decision.guard_state.budget_ok,
+            candidate_set_ok=candidate_set_result.ok,
+            decision_ok=decision_contract_ok,
+            kill_switch_ok=kill_switch.ok,
+            tx_envelope_ok=True,
+            session_state_ok=session_state_result.ok,
+            session_capability_binding_ok=session_capability_result.ok,
+            wallet_capability_ok=wallet_capability_result.ok,
+            nonce_ok=True,
+        )
+        return _finalize_live_report(
+            decision=decision,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=decision.reason,
+            wallet_capability=effective_wallet_capability,
+            policy_artifact=effective_policy_artifact,
+            policy_artifact_ok=True,
+            tau_policy_bundle=effective_tau_policy_bundle,
+            tau_policy_bundle_ok=True,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=system_compose.ok,
+            system_compose_error=system_compose.error,
+            candidate_set=candidate_set,
+            candidate_set_ok=candidate_set_result.ok,
+            candidate_set_error=candidate_set_result.error,
+            decision_certificate=decision_certificate,
+            decision_ok=decision_contract_ok,
+            decision_error=None if decision_contract_ok else decision_contract_error,
+            bounded_multiaction_candidate_set=bounded_multiaction_sidecar["candidate_set"],
+            bounded_multiaction_candidate_set_contract=bounded_multiaction_sidecar["candidate_set_contract"],
+            bounded_multiaction_decision_certificate=bounded_multiaction_sidecar["decision_certificate"],
+            bounded_multiaction_decision_witness=bounded_multiaction_sidecar["decision_witness"],
+            bounded_multiaction_decision_contract=bounded_multiaction_sidecar["decision_contract"],
+            bounded_multiaction_decision_witness_contract=bounded_multiaction_sidecar["decision_witness_contract"],
+            bounded_multiaction_tau_argmax_contract=bounded_multiaction_sidecar["tau_argmax_contract"],
+            kill_switch_ok=kill_switch.ok,
+            kill_switch_error=kill_switch.error,
+            krr_advice=krr_advice,
+        )
+
+    intents = tuple(decision.intents)
+    nonce_table = NonceTable()
+    nonce_table.set_last(strategy_owner_pubkey, last_used_nonce)
+    nonces_ok, nonce_error, staged_nonce_table = validate_and_apply_intent_nonce_batch(
+        nonces=nonce_table,
+        intents=intents,
+        require_all_nonces=True,
+    )
+    if not nonces_ok or staged_nonce_table is None:
+        reject = _reject(
+            state=controller_state,
+            reason=f"live_nonce_validation_failed:{nonce_error}",
+            explain=decision.explain,
+            tau_policy_receipt=decision.tau_policy_receipt,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=f"live_nonce_validation_failed:{nonce_error}",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=False,
+            system_compose_error="nonce_rejected",
+            krr_advice=krr_advice,
+        )
+
+    nonce_tau_receipts = _build_nonce_tau_receipts(
+        strategy=strategy,
+        intents=intents,
+        last_used_nonce=last_used_nonce,
+    )
+    preview_operations = create_intent_operation(list(intents))
+    tx_envelope_result = check_strategy_tx_envelope(
+        tx_requested=tx_requested,
+        sequence_number=tx_sequence_number,
+        expiration_time=tx_expiration_time,
+        fee_limit=tx_fee_limit,
+        operations=preview_operations,
+    )
+    tx_envelope_tau_receipt: TauPolicyReceipt | None = None
+    live_admission_tau_receipt: TauPolicyReceipt | None = None
+    system_compose_tau_receipt: TauPolicyReceipt | None = None
+    submit_bundle_tau_receipt: TauPolicyReceipt | None = None
+    emit_finalize_tau_receipt: TauPolicyReceipt | None = None
+    live_tau_bin: str | None = None
+    if resolved_tau_config.enabled:
+        ok, tau_bin, err = autotrader_controller._resolve_tau_bin(resolved_tau_config)
+        if not ok or tau_bin is None:
+            reject = _reject(
+                state=controller_state,
+                reason=f"tau_tool_unavailable:{err}",
+                explain=decision.explain,
+                tau_policy_receipt=decision.tau_policy_receipt,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=f"tau_tool_unavailable:{err}",
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                krr_advice=krr_advice,
+                nonce_tau_receipts=nonce_tau_receipts,
+            )
+        if tx_requested:
+            tx_envelope_tau_receipt = _build_tx_envelope_tau_receipt(
+                strategy=strategy,
+                tx_requested=tx_requested,
+                sequence_number=tx_sequence_number,
+                expiration_time=tx_expiration_time,
+                fee_limit=tx_fee_limit,
+                operations=preview_operations,
+            )
+            tau_error = _verify_tx_envelope_tau_receipt(
+                tau_bin=tau_bin,
+                config=resolved_tau_config,
+                receipt=tx_envelope_tau_receipt,
+            )
+            if tau_error is not None:
+                reject = _reject(
+                    state=controller_state,
+                    reason=tau_error,
+                    explain=decision.explain,
+                    tau_policy_receipt=decision.tau_policy_receipt,
+                )
+                return _finalize_live_report(
+                    decision=reject,
+                    signer_pubkey=signer_pubkey,
+                    chain_id=chain_id,
+                    last_used_nonce_before=last_used_nonce,
+                    last_used_nonce_after=last_used_nonce,
+                    live_admission_ok=False,
+                    live_admission_error=tau_error,
+                    wallet_capability=effective_wallet_capability,
+                    session_state=effective_session_state,
+                    observation_packet=observation_packet,
+                    observation_packet_error=observation_packet_error,
+                    signal_source_registry=signal_source_registry,
+                    source_registry_ok=source_registry_ok,
+                    external_signals=tuple(external_signals),
+                    session_state_tau_receipt=session_state_tau_receipt,
+                    session_capability_tau_receipt=session_capability_tau_receipt,
+                    wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                    system_compose_ok=False,
+                    system_compose_error="tx_envelope_rejected",
+                    krr_advice=krr_advice,
+                    nonce_tau_receipts=nonce_tau_receipts,
+                    tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+                )
+        live_tau_bin = tau_bin
+        for nonce_receipt in nonce_tau_receipts:
+            tau_error = _verify_nonce_tau_receipt(
+                tau_bin=tau_bin,
+                config=resolved_tau_config,
+                receipt=nonce_receipt,
+            )
+            if tau_error is not None:
+                reject = _reject(
+                    state=controller_state,
+                    reason=tau_error,
+                    explain=decision.explain,
+                    tau_policy_receipt=decision.tau_policy_receipt,
+                )
+                return _finalize_live_report(
+                    decision=reject,
+                    signer_pubkey=signer_pubkey,
+                    chain_id=chain_id,
+                    last_used_nonce_before=last_used_nonce,
+                    last_used_nonce_after=last_used_nonce,
+                    live_admission_ok=False,
+                    live_admission_error=tau_error,
+                    wallet_capability=effective_wallet_capability,
+                    session_state=effective_session_state,
+                    observation_packet=observation_packet,
+                    observation_packet_error=observation_packet_error,
+                    signal_source_registry=signal_source_registry,
+                    source_registry_ok=source_registry_ok,
+                    external_signals=tuple(external_signals),
+                    session_state_tau_receipt=session_state_tau_receipt,
+                    session_capability_tau_receipt=session_capability_tau_receipt,
+                    wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                    system_compose_ok=False,
+                    system_compose_error="nonce_rejected",
+                    krr_advice=krr_advice,
+                    nonce_tau_receipts=nonce_tau_receipts,
+                    tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+                )
+
+    live_admission = check_strategy_live_admission_bundle(
+        source_registry_ok=source_registry_ok,
+        signal_provenance_ok=decision.guard_state.signal_provenance_ok,
+        route_economic_sanity_ok=decision.guard_state.route_economic_sanity_ok,
+        execution_ok=decision.guard_state.execution_ok,
+        oracle_freshness_ok=decision.guard_state.oracle_freshness_ok,
+        budget_ok=decision.guard_state.budget_ok,
+        tx_envelope_ok=tx_envelope_result.ok,
+        session_state_ok=session_state_result.ok,
+        session_capability_binding_ok=session_capability_result.ok,
+        wallet_capability_ok=wallet_capability_result.ok,
+        nonce_ok=True,
+    )
+    if resolved_tau_config.enabled and live_tau_bin is not None:
+        live_admission_tau_receipt = _build_live_admission_tau_receipt(
+            strategy=strategy,
+            source_registry_ok=source_registry_ok,
+            signal_provenance_ok=decision.guard_state.signal_provenance_ok,
+            route_economic_sanity_ok=decision.guard_state.route_economic_sanity_ok,
+            execution_ok=decision.guard_state.execution_ok,
+            oracle_freshness_ok=decision.guard_state.oracle_freshness_ok,
+            budget_ok=decision.guard_state.budget_ok,
+            tx_envelope_ok=tx_envelope_result.ok,
+            session_state_ok=session_state_result.ok,
+            session_capability_binding_ok=session_capability_result.ok,
+            wallet_capability_ok=wallet_capability_result.ok,
+            nonce_ok=True,
+            expected_ok=bool(live_admission.ok),
+        )
+        tau_error = _verify_boolean_tau_receipt(
+            tau_bin=live_tau_bin,
+            config=resolved_tau_config,
+            receipt=live_admission_tau_receipt,
+            spec_path=str(AUTOTRADER_LIVE_ADMISSION_BUNDLE_V1.path),
+            error_prefix="live_admission_tau",
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=decision.explain,
+                tau_policy_receipt=decision.tau_policy_receipt,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                system_compose_ok=False,
+                system_compose_error="live_admission_tau_rejected",
+                krr_advice=krr_advice,
+                nonce_tau_receipts=nonce_tau_receipts,
+                tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+                live_admission_tau_receipt=live_admission_tau_receipt,
+            )
+    if not live_admission.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=f"live_admission_bundle_rejected:{live_admission.error}",
+            explain=decision.explain + (f"live_admission_error={live_admission.error}",),
+            tau_policy_receipt=decision.tau_policy_receipt,
+            guard_state=decision.guard_state,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=live_admission.error,
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=False,
+            system_compose_error=live_admission.error,
+            krr_advice=krr_advice,
+            nonce_tau_receipts=nonce_tau_receipts,
+            tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+            live_admission_tau_receipt=live_admission_tau_receipt,
+        )
+    system_compose = check_strategy_system_compose(
+        emit_requested=True,
+        policy_artifact_ok=True,
+        tau_policy_bundle_ok=True,
+        signer_binding_ok=signer_binding.ok,
+        compile_ok=compile_contract_ok,
+        source_registry_ok=source_registry_ok,
+        signal_provenance_ok=decision.guard_state.signal_provenance_ok,
+        route_economic_sanity_ok=decision.guard_state.route_economic_sanity_ok,
+        execution_ok=decision.guard_state.execution_ok,
+        oracle_freshness_ok=decision.guard_state.oracle_freshness_ok,
+        budget_ok=decision.guard_state.budget_ok,
+        candidate_set_ok=candidate_set_result.ok,
+        decision_ok=decision_contract_ok,
+        kill_switch_ok=kill_switch.ok,
+        tx_envelope_ok=tx_envelope_result.ok,
+        session_state_ok=session_state_result.ok,
+        session_capability_binding_ok=session_capability_result.ok,
+        wallet_capability_ok=wallet_capability_result.ok,
+        nonce_ok=True,
+    )
+    if resolved_tau_config.enabled and live_tau_bin is not None:
+        system_compose_tau_receipt = _build_system_compose_tau_receipt(
+            strategy=strategy,
+            emit_requested=True,
+            policy_artifact_ok=True,
+            tau_policy_bundle_ok=True,
+            signer_binding_ok=signer_binding.ok,
+            compile_ok=compile_contract_ok,
+            source_registry_ok=source_registry_ok,
+            signal_provenance_ok=decision.guard_state.signal_provenance_ok,
+            route_economic_sanity_ok=decision.guard_state.route_economic_sanity_ok,
+            execution_ok=decision.guard_state.execution_ok,
+            oracle_freshness_ok=decision.guard_state.oracle_freshness_ok,
+            budget_ok=decision.guard_state.budget_ok,
+            candidate_set_ok=candidate_set_result.ok,
+            decision_ok=decision_contract_ok,
+            kill_switch_ok=kill_switch.ok,
+            tx_envelope_ok=tx_envelope_result.ok,
+            session_state_ok=session_state_result.ok,
+            session_capability_binding_ok=session_capability_result.ok,
+            wallet_capability_ok=wallet_capability_result.ok,
+            nonce_ok=True,
+            expected_ok=bool(system_compose.ok),
+        )
+        tau_error = _verify_boolean_tau_receipt(
+            tau_bin=live_tau_bin,
+            config=resolved_tau_config,
+            receipt=system_compose_tau_receipt,
+            spec_path=str(AUTOTRADER_SYSTEM_COMPOSE_V1.path),
+            error_prefix="system_compose_tau",
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=decision.explain,
+                tau_policy_receipt=decision.tau_policy_receipt,
+                guard_state=decision.guard_state,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                system_compose_ok=False,
+                system_compose_error="system_compose_tau_rejected",
+                krr_advice=krr_advice,
+                nonce_tau_receipts=nonce_tau_receipts,
+                tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+                live_admission_tau_receipt=live_admission_tau_receipt,
+                system_compose_tau_receipt=system_compose_tau_receipt,
+            )
+    if not system_compose.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=f"system_compose_rejected:{system_compose.error}",
+            explain=decision.explain + (f"system_compose_error={system_compose.error}",),
+            tau_policy_receipt=decision.tau_policy_receipt,
+            guard_state=decision.guard_state,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=system_compose.error,
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=False,
+            system_compose_error=system_compose.error,
+            krr_advice=krr_advice,
+            nonce_tau_receipts=nonce_tau_receipts,
+            tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+            live_admission_tau_receipt=live_admission_tau_receipt,
+            system_compose_tau_receipt=system_compose_tau_receipt,
+        )
+
+    signed_intents = tuple(
+        SignedIntentEnvelope(
+            intent=intent,
+            signature=sign_intent(intent, signer_privkey, chain_id=chain_id).signature,
+            quote_receipt=dict(receipt),
+        )
+        for intent in intents
+    )
+    operations = create_signed_intent_operation(list(signed_intents))
+    tau_tx_payload: dict[str, Any] | None = None
+    if tx_sequence_number is not None and tx_expiration_time is not None:
+        tau_tx_payload = build_signed_tau_transaction(
+            privkey=signer_privkey,
+            sequence_number=_require_u32("tx_sequence_number", tx_sequence_number, minimum=0),
+            expiration_time=_require_u32("tx_expiration_time", tx_expiration_time, minimum=1),
+            operations=operations,
+            fee_limit=tx_fee_limit,
+        )
+
+    submit_bundle = check_strategy_submit_bundle(
+        emit_requested=True,
+        signed_intents=signed_intents,
+        operations=operations,
+        chain_id=chain_id,
+        signer_pubkey=signer_pubkey,
+        tx_requested=tx_requested,
+        sequence_number=tx_sequence_number,
+        expiration_time=tx_expiration_time,
+        fee_limit=tx_fee_limit,
+        tau_tx_payload=tau_tx_payload,
+    )
+    if resolved_tau_config.enabled and live_tau_bin is not None:
+        submit_bundle_tau_receipt = _build_submit_bundle_tau_receipt(
+            strategy=strategy,
+            emit_requested=True,
+            signed_intents_present=submit_bundle.signed_intents_present,
+            signatures_present=submit_bundle.signatures_present,
+            signatures_verify=submit_bundle.signatures_verify,
+            sender_binding_ok=submit_bundle.sender_binding_ok,
+            quote_receipts_present=submit_bundle.quote_receipts_present,
+            operations_roundtrip_ok=submit_bundle.operations_roundtrip_ok,
+            tx_requested=tx_requested,
+            tx_payload_ok=submit_bundle.tx_payload_ok,
+            expected_ok=bool(submit_bundle.ok),
+        )
+        tau_error = _verify_boolean_tau_receipt(
+            tau_bin=live_tau_bin,
+            config=resolved_tau_config,
+            receipt=submit_bundle_tau_receipt,
+            spec_path=str(AUTOTRADER_SUBMIT_BUNDLE_GUARD_V1.path),
+            error_prefix="submit_bundle_tau",
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=decision.explain,
+                tau_policy_receipt=decision.tau_policy_receipt,
+                guard_state=decision.guard_state,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                system_compose_ok=system_compose.ok,
+                system_compose_error=system_compose.error,
+                krr_advice=krr_advice,
+                signed_intents=signed_intents,
+                operations=operations,
+                nonce_tau_receipts=nonce_tau_receipts,
+                tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+                live_admission_tau_receipt=live_admission_tau_receipt,
+                system_compose_tau_receipt=system_compose_tau_receipt,
+                submit_bundle_ok=False,
+                submit_bundle_error="submit_bundle_tau_rejected",
+                submit_bundle_tau_receipt=submit_bundle_tau_receipt,
+                tau_tx_payload=tau_tx_payload,
+            )
+    if not submit_bundle.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=f"submit_bundle_rejected:{submit_bundle.error}",
+            explain=decision.explain + (f"submit_bundle_error={submit_bundle.error}",),
+            tau_policy_receipt=decision.tau_policy_receipt,
+            guard_state=decision.guard_state,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=submit_bundle.error,
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=system_compose.ok,
+            system_compose_error=system_compose.error,
+            krr_advice=krr_advice,
+            signed_intents=signed_intents,
+            operations=operations,
+            nonce_tau_receipts=nonce_tau_receipts,
+            tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+            live_admission_tau_receipt=live_admission_tau_receipt,
+            system_compose_tau_receipt=system_compose_tau_receipt,
+            submit_bundle_ok=False,
+            submit_bundle_error=submit_bundle.error,
+            submit_bundle_tau_receipt=submit_bundle_tau_receipt,
+            tau_tx_payload=tau_tx_payload,
+        )
+
+    emit_finalize = check_strategy_emit_finalize(
+        emit_requested=True,
+        system_compose_ok=system_compose.ok,
+        submit_bundle_ok=submit_bundle.ok,
+    )
+    if resolved_tau_config.enabled and live_tau_bin is not None:
+        emit_finalize_tau_receipt = _build_emit_finalize_tau_receipt(
+            strategy=strategy,
+            emit_requested=True,
+            system_compose_ok=system_compose.ok,
+            submit_bundle_ok=submit_bundle.ok,
+            expected_ok=bool(emit_finalize.ok),
+        )
+        tau_error = _verify_boolean_tau_receipt(
+            tau_bin=live_tau_bin,
+            config=resolved_tau_config,
+            receipt=emit_finalize_tau_receipt,
+            spec_path=str(AUTOTRADER_EMIT_FINALIZE_V1.path),
+            error_prefix="emit_finalize_tau",
+        )
+        if tau_error is not None:
+            reject = _reject(
+                state=controller_state,
+                reason=tau_error,
+                explain=decision.explain,
+                tau_policy_receipt=decision.tau_policy_receipt,
+                guard_state=decision.guard_state,
+            )
+            return _finalize_live_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=tau_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+                observation_packet=observation_packet,
+                observation_packet_error=observation_packet_error,
+                signal_source_registry=signal_source_registry,
+                source_registry_ok=source_registry_ok,
+                external_signals=tuple(external_signals),
+                session_state_tau_receipt=session_state_tau_receipt,
+                session_capability_tau_receipt=session_capability_tau_receipt,
+                wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+                system_compose_ok=system_compose.ok,
+                system_compose_error=system_compose.error,
+                krr_advice=krr_advice,
+                signed_intents=signed_intents,
+                operations=operations,
+                nonce_tau_receipts=nonce_tau_receipts,
+                tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+                live_admission_tau_receipt=live_admission_tau_receipt,
+                system_compose_tau_receipt=system_compose_tau_receipt,
+                submit_bundle_ok=submit_bundle.ok,
+                submit_bundle_error=submit_bundle.error,
+                submit_bundle_tau_receipt=submit_bundle_tau_receipt,
+                emit_finalize_ok=False,
+                emit_finalize_error="emit_finalize_tau_rejected",
+                emit_finalize_tau_receipt=emit_finalize_tau_receipt,
+                tau_tx_payload=tau_tx_payload,
+            )
+    if not emit_finalize.ok:
+        reject = _reject(
+            state=controller_state,
+            reason=f"emit_finalize_rejected:{emit_finalize.error}",
+            explain=decision.explain + (f"emit_finalize_error={emit_finalize.error}",),
+            tau_policy_receipt=decision.tau_policy_receipt,
+            guard_state=decision.guard_state,
+        )
+        return _finalize_live_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=emit_finalize.error,
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            observation_packet=observation_packet,
+            observation_packet_error=observation_packet_error,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=source_registry_ok,
+            external_signals=tuple(external_signals),
+            session_state_tau_receipt=session_state_tau_receipt,
+            session_capability_tau_receipt=session_capability_tau_receipt,
+            wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+            system_compose_ok=system_compose.ok,
+            system_compose_error=system_compose.error,
+            krr_advice=krr_advice,
+            signed_intents=signed_intents,
+            operations=operations,
+            nonce_tau_receipts=nonce_tau_receipts,
+            tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+            live_admission_tau_receipt=live_admission_tau_receipt,
+            system_compose_tau_receipt=system_compose_tau_receipt,
+            submit_bundle_ok=submit_bundle.ok,
+            submit_bundle_error=submit_bundle.error,
+            submit_bundle_tau_receipt=submit_bundle_tau_receipt,
+            emit_finalize_ok=False,
+            emit_finalize_error=emit_finalize.error,
+            emit_finalize_tau_receipt=emit_finalize_tau_receipt,
+            tau_tx_payload=tau_tx_payload,
+        )
+
+    return _finalize_live_report(
+        decision=decision,
+        signer_pubkey=signer_pubkey,
+        chain_id=chain_id,
+        last_used_nonce_before=last_used_nonce,
+        last_used_nonce_after=staged_nonce_table.get_last(strategy_owner_pubkey),
+        live_admission_ok=True,
+        wallet_capability=effective_wallet_capability,
+        policy_artifact=effective_policy_artifact,
+        policy_artifact_ok=True,
+        tau_policy_bundle=effective_tau_policy_bundle,
+        tau_policy_bundle_ok=True,
+        session_state=effective_session_state,
+        observation_packet=observation_packet,
+        observation_packet_error=observation_packet_error,
+        signal_source_registry=signal_source_registry,
+        source_registry_ok=source_registry_ok,
+        external_signals=tuple(external_signals),
+        external_signal_source_registry_tau_receipts=external_signal_source_registry_tau_receipts,
+        session_state_tau_receipt=session_state_tau_receipt,
+        session_capability_tau_receipt=session_capability_tau_receipt,
+        wallet_capability_tau_receipt=wallet_capability_tau_receipt,
+        system_compose_ok=system_compose.ok,
+        system_compose_error=system_compose.error,
+        candidate_set=candidate_set,
+        candidate_set_ok=candidate_set_result.ok,
+        candidate_set_error=candidate_set_result.error,
+        decision_certificate=decision_certificate,
+        decision_ok=decision_contract_ok,
+        decision_error=decision_contract_error,
+        bounded_multiaction_candidate_set=bounded_multiaction_sidecar["candidate_set"],
+        bounded_multiaction_candidate_set_contract=bounded_multiaction_sidecar["candidate_set_contract"],
+        bounded_multiaction_decision_certificate=bounded_multiaction_sidecar["decision_certificate"],
+        bounded_multiaction_decision_witness=bounded_multiaction_sidecar["decision_witness"],
+        bounded_multiaction_decision_contract=bounded_multiaction_sidecar["decision_contract"],
+        bounded_multiaction_decision_witness_contract=bounded_multiaction_sidecar["decision_witness_contract"],
+        bounded_multiaction_tau_argmax_contract=bounded_multiaction_sidecar["tau_argmax_contract"],
+        kill_switch_ok=kill_switch.ok,
+        kill_switch_error=kill_switch.error,
+        krr_advice=krr_advice,
+        signed_intents=signed_intents,
+        operations=operations,
+        nonce_tau_receipts=nonce_tau_receipts,
+        tx_envelope_tau_receipt=tx_envelope_tau_receipt,
+        live_admission_tau_receipt=live_admission_tau_receipt,
+        system_compose_tau_receipt=system_compose_tau_receipt,
+        submit_bundle_ok=submit_bundle.ok,
+        submit_bundle_error=submit_bundle.error,
+        submit_bundle_tau_receipt=submit_bundle_tau_receipt,
+        emit_finalize_ok=emit_finalize.ok,
+        emit_finalize_error=emit_finalize.error,
+        emit_finalize_tau_receipt=emit_finalize_tau_receipt,
+        tau_tx_payload=tau_tx_payload,
+    )
+
+
+# Imported lazily by tests/consumers; kept at module bottom to avoid circular import noise.
+from . import autotrader_controller  # noqa: E402
