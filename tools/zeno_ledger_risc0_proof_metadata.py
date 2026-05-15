@@ -166,16 +166,51 @@ def build_risc0_proof_metadata_v0(
     )
 
 
-def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
+def _risc0_verifier_block(*, header: Mapping[str, Any], body: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the ledger block fragment bound into the RISC0 verifier request.
+
+    DbC preconditions: `header` already passed `validate_header_v0` and `body`
+    already passed `validate_header_body_roots_v0(header, body)`.
+    DbC postcondition: the returned block includes the header timestamp and exact
+    transaction sequence used by the external verifier for txs_commitment checks.
+    """
+
+    return {
+        "header": {"timestamp": int(header["time_ms"]) // 1000},
+        "transactions": body["transactions"],
+    }
+
+
+def _header_app_hash_hex(header: Mapping[str, Any]) -> str:
+    """Return header.app_hash as verifier-compatible 32-byte lowercase hex."""
+
+    app_hash = str(header["app_hash"]).lower()
+    if app_hash.startswith("0x"):
+        return app_hash[2:]
+    return app_hash
+
+
+def _run_risc0_verifier_cmd(
+    *,
+    command: Path,
+    proof: Mapping[str, Any],
+    header: Mapping[str, Any],
+    body: Mapping[str, Any],
+) -> None:
     if not command.is_file():
         raise ValueError("risc0 verifier command missing")
+    block = _risc0_verifier_block(header=header, body=body)
     request = {
         "schema": RISC0_VERIFY_REQUEST_SCHEMA,
         "schema_version": RISC0_VERIFY_REQUEST_SCHEMA_VERSION,
         "state_hash": proof["state_hash"],
         "proof": dict(proof),
-        "tau_state": {"app_hash": proof["meta"]["post_app_hash"]},
-        "context": {"app_hash_pre": proof["meta"]["pre_app_hash"]},
+        "block": block,
+        "tau_state": {"app_hash": _header_app_hash_hex(header)},
+        "context": {
+            "app_hash_pre": proof["meta"]["pre_app_hash"],
+            "block_timestamp": block["header"]["timestamp"],
+        },
     }
     proc = subprocess.run(
         [str(command)],
@@ -258,9 +293,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         proof = _load_json_object(args.proof)
         header = _load_json_object(args.header)
+        body: dict[str, Any] | None = None
         body_checked = False
         if args.body is not None:
-            validate_header_body_roots_v0(header, _load_json_object(args.body))
+            body = _load_json_object(args.body)
+            validate_header_body_roots_v0(header, body)
             body_checked = True
 
         normalized_proof = _validate_risc0_tau_state_proof(proof)
@@ -268,13 +305,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.require_risc0_verifier and args.risc0_verify_cmd is None:
             raise ValueError("--require-risc0-verifier requires --risc0-verify-cmd")
         if args.risc0_verify_cmd is not None:
-            _run_risc0_verifier_cmd(command=args.risc0_verify_cmd, proof=normalized_proof)
+            if body is None:
+                raise ValueError("--risc0-verify-cmd requires --body for ledger transaction binding")
+            _run_risc0_verifier_cmd(
+                command=args.risc0_verify_cmd,
+                proof=normalized_proof,
+                header=header,
+                body=body,
+            )
             risc0_verified = True
         if args.require_post_app_hash_header_app_hash:
             post_app_hash = normalized_proof["meta"]["post_app_hash"]
-            header_app_hash = str(header["app_hash"]).lower()
-            if header_app_hash.startswith("0x"):
-                header_app_hash = header_app_hash[2:]
+            header_app_hash = _header_app_hash_hex(header)
             if post_app_hash != header_app_hash:
                 raise ValueError("risc0 post_app_hash/header app_hash mismatch")
 
