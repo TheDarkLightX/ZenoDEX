@@ -391,6 +391,11 @@ Run the same-machine dual-operator rehearsal before copying to another
 computer:
 
 ```bash
+python3 tools/zeno_ledger_public_network_smoke.py \
+  --out-dir /tmp/zeno-ledger-public-network-smoke \
+  --network-id zeno-ledger-devnet-0 \
+  --chain-id zeno-ledger-devnet-0
+
 python3 tools/zeno_ledger_dual_operator_rehearsal.py \
   --out-dir /tmp/zeno-ledger-dual-operator \
   --network-id zeno-ledger-devnet-0 \
