@@ -415,6 +415,11 @@ python3 tools/zeno_ledger_node.py check-peers \
   --data-dir /tmp/zeno-ledger-node-b \
   --peer-url http://127.0.0.1:8787
 
+python3 tools/zeno_ledger_node.py evidence \
+  --data-dir /tmp/zeno-ledger-node-b \
+  --peer-url http://127.0.0.1:8787 \
+  --out /tmp/zeno-ledger-node-b/evidence_report.json
+
 python3 tools/zeno_ledger_node.py serve \
   --data-dir /tmp/zeno-ledger-node-b \
   --host 127.0.0.1 \
@@ -476,6 +481,8 @@ The `join` command wraps sync, replay, watcher attestation, optional peer
 check, and optional serving into one JSON-configured operator flow. The
 `check-peers` command compares network ID, chain ID, feature-suite hash, peer
 height, and the common header hash before an operator trusts a peer. The
+`evidence` command writes a compact joined-node report with the local tip,
+feature-suite hash, created test-token registry, and optional peer check. The
 `write-network-config` and `join-network` commands let any operator join from
 one published URL. Operators can pin `--expected-network-config-hash` when the
 URL is shared with a fingerprint. The `doctor` command checks the local

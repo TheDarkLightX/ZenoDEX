@@ -63,6 +63,7 @@ NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
 NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
+NODE_EVIDENCE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
@@ -1508,6 +1509,42 @@ def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, A
     }
 
 
+def build_node_evidence_report_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str] | None = None,
+) -> dict[str, Any]:
+    """Build a compact operator evidence report for a joined node."""
+
+    status = load_node_status_v0(data_dir)
+    token_registry = _load_testnet_token_registry_v0(data_dir)
+    local_tip = _local_tip_v0(data_dir=data_dir, node_status=status)
+    peer_check = check_peer_status_v0(data_dir=data_dir, peer_urls=list(peer_urls or [])) if peer_urls else None
+    ok = (
+        status.get("ok") is True
+        and status.get("covered_feature_count") == len(status.get("required_features", []))
+        and (peer_check is None or peer_check.get("ok") is True)
+    )
+    return {
+        "schema": NODE_EVIDENCE_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "node_id": status["node_id"],
+        "network_id": status["network_id"],
+        "chain_id": status["chain_id"],
+        "node_status_hash": status["node_status_hash"],
+        "feature_suite_hash": status["feature_suite_hash"],
+        "covered_feature_count": status["covered_feature_count"],
+        "required_features": status["required_features"],
+        "local_tip": local_tip,
+        "testnet_token_catalog": status["test_token_catalog"],
+        "created_test_token_count": len(token_registry["tokens"]),
+        "created_test_tokens": token_registry["tokens"],
+        "testnet_token_registry_hash": token_registry["token_registry_hash"],
+        "peer_check": peer_check,
+    }
+
+
 def _load_optional_json(path_text: object) -> object | None:
     if not isinstance(path_text, str) or path_text == "":
         return None
@@ -2214,6 +2251,21 @@ def _cmd_check_peers(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") is True else 1
 
 
+def _cmd_evidence(args: argparse.Namespace) -> int:
+    try:
+        report = build_node_evidence_report_v0(
+            data_dir=args.data_dir,
+            peer_urls=list(args.peer_url),
+        )
+        if args.out is not None:
+            _write_json(args.out, report)
+            report = {**report, "evidence_report_path": str(args.out)}
+    except Exception as exc:
+        report = {"schema": NODE_EVIDENCE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_join(args: argparse.Namespace) -> int:
     try:
         report = join_public_node_from_config_v0(config_path=args.config)
@@ -2415,6 +2467,12 @@ def main(argv: list[str] | None = None) -> int:
     check_peers.add_argument("--data-dir", required=True, type=Path)
     check_peers.add_argument("--peer-url", action="append", required=True)
     check_peers.set_defaults(func=_cmd_check_peers)
+
+    evidence = sub.add_parser("evidence", help="write a compact joined-node evidence report")
+    evidence.add_argument("--data-dir", required=True, type=Path)
+    evidence.add_argument("--peer-url", action="append", default=[])
+    evidence.add_argument("--out", type=Path)
+    evidence.set_defaults(func=_cmd_evidence)
 
     faucet = sub.add_parser("faucet", help="append a testnet-only faucet mint to the live ledger")
     faucet.add_argument("--data-dir", required=True, type=Path)
