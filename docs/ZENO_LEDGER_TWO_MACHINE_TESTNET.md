@@ -42,6 +42,12 @@ Machine A must expose two reachable ports:
 
 Machine B defaults to `8788` for its follower node server.
 
+Optional preflight:
+
+```bash
+python3 tools/zeno_ledger_node.py doctor
+```
+
 ## Machine A: Build, Mirror, And Run Writer
 
 Build the public-testnet bundle:
@@ -108,6 +114,10 @@ Machine A exposes:
 Join from the public network config:
 
 ```bash
+python3 tools/zeno_ledger_node.py doctor \
+  --config-url http://<MACHINE_A_IP>:8000/public_network_config.json \
+  --expected-network-config-hash <NETWORK_CONFIG_HASH>
+
 python3 tools/zeno_ledger_node.py join-network \
   --config-url http://<MACHINE_A_IP>:8000/public_network_config.json \
   --node-id operator-b \

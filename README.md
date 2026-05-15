@@ -351,6 +351,10 @@ python3 tools/zeno_ledger_node.py join-network \
   --data-dir /tmp/zeno-ledger-node-b \
   --expected-network-config-hash <NETWORK_CONFIG_HASH> \
   --serve
+
+python3 tools/zeno_ledger_node.py doctor \
+  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
+  --expected-network-config-hash <NETWORK_CONFIG_HASH>
 ```
 
 For a remote operator, use a join config to combine sync, replay, peer checking,
@@ -474,7 +478,8 @@ check, and optional serving into one JSON-configured operator flow. The
 height, and the common header hash before an operator trusts a peer. The
 `write-network-config` and `join-network` commands let any operator join from
 one published URL. Operators can pin `--expected-network-config-hash` when the
-URL is shared with a fingerprint.
+URL is shared with a fingerprint. The `doctor` command checks the local
+environment and optional public network config before a full sync.
 
 Live P2P block gossip and validator scheduling remain future network work.
 

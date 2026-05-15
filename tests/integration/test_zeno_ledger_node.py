@@ -17,6 +17,7 @@ from tools.zeno_ledger_node import (
     NODE_JOIN_CONFIG_SCHEMA,
     build_public_network_config_v0,
     check_peer_status_v0,
+    doctor_public_node_v0,
     join_public_node_from_network_config_url_v0,
     join_public_node_from_config_v0,
     load_node_status_v0,
@@ -336,6 +337,17 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
                 json.dumps(public_network_config, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
+            doctor_report = doctor_public_node_v0(
+                config_url=f"http://{mirror_host}:{mirror_port}/public_network_config.json",
+                expected_network_config_hash=str(public_network_config["network_config_hash"]),
+            )
+            assert doctor_report["ok"] is True
+            assert doctor_report["remote_network"]["network_config_hash"] == public_network_config["network_config_hash"]
+            bad_doctor_report = doctor_public_node_v0(
+                config_url=f"http://{mirror_host}:{mirror_port}/public_network_config.json",
+                expected_network_config_hash="0x" + "00" * 32,
+            )
+            assert bad_doctor_report["ok"] is False
             with pytest.raises(ValueError, match="network config hash"):
                 join_public_node_from_network_config_url_v0(
                     config_url=f"http://{mirror_host}:{mirror_port}/public_network_config.json",
