@@ -8,7 +8,21 @@ replayable certificates check the safety boundaries around settlement.
 This README is the front door. Detailed assurance evidence lives in the linked
 docs, proof files, kernels, and replay scripts.
 
-Current status:
+## Contents
+
+- [Current Status](#current-status)
+- [Assurance Snapshot](#assurance-snapshot)
+- [Design Principles](#design-principles)
+- [Core Features](#core-features)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [ZenoLedger Node Operations](#zenoledger-node-operations)
+- [Repository Layout](#repository-layout)
+- [Documentation](#documentation)
+- [Why The Name ZenoDEX?](#why-the-name-zenodex)
+- [License](#license)
+
+## Current Status
 
 ```text
 public-testnet candidate
@@ -17,22 +31,7 @@ Tau Net handoff adapter available
 production mainnet readiness gated by validator-network hardening and live-value deployment
 ```
 
-ZenoLedger v0 runs ZenoDEX feature suites through a replayable mirror/watcher
-workflow: independent machines rebuild the same headers, checkpoints,
-feature-suite reports, watcher attestations, and status roots. A production
-validator network, P2P availability layer, and live-value deployment are
-separate release work.
-
-Current internal feature-suite status, from the Machine A rehearsal on
-`2026-05-14`: all ten public-testnet candidate features were accepted in the
-ZenoLedger dual-operator replay (`spot_bootstrap`, `tau_app_bridge_spot`,
-`zusd_core`, `perp_core`, `oracle_core`, `oracle_reporter_core`, `upba_core`,
-`proof_mining_core`, `autotrader_core`, and `confidential_core`). The rehearsal
-produced matching independent builds, `combined_watcher_count=2`, and
-`feature_suite_hash=0x45092d02b406b5a8f91bfb72dceeca18294894a627a71ddea1bc445ff8be50c3`.
-This is internal replay evidence for the candidate feature suite, while
-production mainnet readiness still requires validator-network hardening and a
-live-value deployment process.
+## Assurance Snapshot
 
 <!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 The pinned release replay for the release tree dated `2026-04-06` was green:
@@ -81,11 +80,13 @@ More detail:
 - [docs/claims_registry.yaml](docs/claims_registry.yaml)
 <!-- END GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 
+## Design Principles
+
 **Invalid states must be unrepresentable. Correct-by-construction design
 eliminates bad states at the type level; tests confirm the behavior that
 remains.**
 
-## Core Ideas
+## Core Features
 
 ### High-Assurance Core
 
@@ -101,14 +102,15 @@ Proof-backed and evidence-backed areas include:
 - CPMM integer arithmetic and invariant checks
 - canonical ordering and candidate selection surfaces
 - settlement replay validation
-- oracle freshness and reporter lifecycle checks
+- **Zeno Oracle:** freshness checks, reporter lifecycle replay,
+  token-settlement replay, and fail-closed malformed-input handling
 - zUSD collateral and redemption math
 - perps funding and margin boundaries
-- ZenoProof evidence registry and verifier checks
+- **ZenoProof:** evidence registry and verifier checks
 - FIRE settlement receipts, verifier rules, and budget-safety claims
 - Certified Financial Math Object payoff, collateral, and fixed-point bridges
-- ZenoLedger headers, checkpoints, watcher attestations, mirror roots, and Tau
-  handoff packets
+- **ZenoLedger:** headers, checkpoints, watcher attestations, mirror roots, and
+  Tau handoff packets
 
 This is a high-assurance public-testnet candidate. It exceeds conventional
 prototype rigor. Production value deployment still requires operational
@@ -148,13 +150,13 @@ does not claim that every production actor game is solved.
 ZenoProof is the internal evidence registry and verifier layer. Its public
 role is to connect checked evidence to replayable claims and verifier gates.
 Mechanism details are intentionally kept out of the public README until the
-release surface is finalized.
+release scope is finalized.
 
 FIRE is the internal framework for turning financial mechanisms into checked
 object packages: templates, instances, certificates, verifier receipts, replay
 receipts, and settlement-authority predicates. FIRE proposals are
 non-authoritative until they compile into accepted artifacts and pass the
-FIRE verifier surface.
+FIRE verifier.
 
 Certified Financial Math Objects are the financial instruments that FIRE is
 meant to package. A live object should specify:
@@ -197,71 +199,6 @@ settlement replay.
   quote receipts, cadence, budgets, and rejected actions.
 - **ZenoLedger:** replayable public-testnet candidate with watcher attestations,
   mirror roots, status roots, and Tau handoff.
-
-## Why The Name ZenoDEX?
-
-Zeno of Elea posed paradoxes about motion and division. In the Dichotomy
-paradox, reaching a goal requires first going halfway, then halfway through
-the remaining distance, then halfway again. Modern mathematics resolves this
-with limits; a countably infinite sequence of shrinking steps sums to a finite
-total.
-
-The analogy applies directly to tokenomics and protocol accounting. A supply
-schedule can approach a floor forever without crossing it:
-
-```text
-S_{n+1} = F + r(S_n - F)
-```
-
-Where:
-
-```text
-S_n = total supply after step n
-F   = supply floor
-r   = remaining fraction per step, with 0 < r < 1
-```
-
-The closed form is:
-
-```text
-S_n = F + r^n(S_0 - F)
-```
-
-For every finite `n`, `S_n > F`, while `S_n` approaches `F` as `n` grows. The
-total burn remains bounded:
-
-```text
-S_0 - S_n = (1 - r^n)(S_0 - F) <= S_0 - F
-```
-
-Steps can be unbounded while the cumulative burn stays finite. That is the
-core Zeno analogy.
-
-Real ledgers add an integer constraint. A token may be displayed with
-decimals; committed balances are integer base units. Once an ideal real-valued
-change falls below one base unit, the protocol must define a deterministic
-dust policy.
-
-ZenoDEX therefore uses:
-
-- integer base units
-- explicit supply floors
-- deterministic rounding
-- explicit dust accounting
-- bounded arithmetic proofs
-
-For protocol tokens and LP shares, the practical target is `18` base-unit
-decimals plus explicit dust accounting. If an ideal transfer is `T*` and the
-ledger rounds down to `t` base units at decimal scale `d`, the rounding error is
-bounded by one base unit:
-
-```text
-0 <= T* - t / 10^d < 10^(-d)
-```
-
-Convergent tokenomics stay deterministic on real ledgers. The protocol
-approaches a floor without floating point arithmetic, implicit precision
-upgrades, or ambiguous rounding.
 
 ## Quick Start
 
@@ -314,6 +251,8 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
   --network-id zeno-ledger-devnet-0 \
   --chain-id zeno-ledger-devnet-0
 ```
+
+## ZenoLedger Node Operations
 
 The node entrypoint wraps the same bundle and replay logic. Use it to build a
 bootstrap bundle, run a follower/watcher node, and optionally serve node status
@@ -426,7 +365,7 @@ ledger, emits a watcher attestation, and serves `/health`, `/status`,
 `sync` command downloads only indexed JSON artifacts from a public HTTP mirror
 and verifies every mirror hash before the node runs. The public bundle carries
 a deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
-testnet-only faucet posture for feature testing. The `append` command writes
+testnet-only faucet behavior for feature testing. The `append` command writes
 post-bootstrap testnet DEX blocks under the node data directory. The `pull-live`
 command fetches live block bodies from a peer and accepts them only after local
 deterministic replay produces the same header. A served node can also poll peer
@@ -506,6 +445,71 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `docs/TAU_LANGUAGE_CONSTRAINTS.md`
 - `docs/ASSURANCE_RELEASE_SNAPSHOT.md`
 - `docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md`
+
+## Why The Name ZenoDEX?
+
+Zeno of Elea posed paradoxes about motion and division. In the Dichotomy
+paradox, reaching a goal requires first going halfway, then halfway through
+the remaining distance, then halfway again. Modern mathematics resolves this
+with limits; a countably infinite sequence of shrinking steps sums to a finite
+total.
+
+The analogy applies directly to tokenomics and protocol accounting. A supply
+schedule can approach a floor forever without crossing it:
+
+```text
+S_{n+1} = F + r(S_n - F)
+```
+
+Where:
+
+```text
+S_n = total supply after step n
+F   = supply floor
+r   = remaining fraction per step, with 0 < r < 1
+```
+
+The closed form is:
+
+```text
+S_n = F + r^n(S_0 - F)
+```
+
+For every finite `n`, `S_n > F`, while `S_n` approaches `F` as `n` grows. The
+total burn remains bounded:
+
+```text
+S_0 - S_n = (1 - r^n)(S_0 - F) <= S_0 - F
+```
+
+Steps can be unbounded while the cumulative burn stays finite. That is the
+core Zeno analogy.
+
+Real ledgers add an integer constraint. A token may be displayed with
+decimals; committed balances are integer base units. Once an ideal real-valued
+change falls below one base unit, the protocol must define a deterministic
+dust policy.
+
+ZenoDEX therefore uses:
+
+- integer base units
+- explicit supply floors
+- deterministic rounding
+- explicit dust accounting
+- bounded arithmetic proofs
+
+For protocol tokens and LP shares, the practical target is `18` base-unit
+decimals plus explicit dust accounting. If an ideal transfer is `T*` and the
+ledger rounds down to `t` base units at decimal scale `d`, the rounding error is
+bounded by one base unit:
+
+```text
+0 <= T* - t / 10^d < 10^(-d)
+```
+
+Convergent tokenomics stay deterministic on real ledgers. The protocol
+approaches a floor without floating point arithmetic, implicit precision
+upgrades, or ambiguous rounding.
 
 ## License
 
