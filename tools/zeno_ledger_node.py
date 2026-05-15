@@ -25,6 +25,13 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
+from src.integration.zeno_ledger_v0 import (
+    BATCH_CUTOFF_SCHEMA_V0,
+    BODY_SCHEMA_V0,
+    INGRESS_RECEIPT_SCHEMA_V0,
+    tx_hash_v0,
+    validate_body_v0,
+)
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_CHAIN_ID,
@@ -32,11 +39,13 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TIME_MS,
 )
 from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
+from tools.zeno_ledger_run_local import ZERO_ROOT, build_local_block_v0
 
 
 NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
 NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
 NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
+NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 
 
@@ -359,6 +368,188 @@ def run_node_once_v0(
     }
 
 
+def _empty_evidence_v0() -> dict[str, list[object]]:
+    return {
+        "upba_certificates": [],
+        "price_grid_tables": [],
+        "uniform_batch_hypergraph_roots": [],
+        "oracle_packets": [],
+        "proof_receipts": [],
+        "rejection_receipts": [],
+    }
+
+
+def _ingress_receipt_v0(
+    *,
+    chain_id: str,
+    tx_hash: str,
+    height: int,
+    time_ms: int,
+    sequencer_id: str,
+) -> dict[str, Any]:
+    body = {
+        "schema": INGRESS_RECEIPT_SCHEMA_V0,
+        "chain_id": chain_id,
+        "tx_hash": tx_hash,
+        "received_time_ms": time_ms,
+        "received_sequence": height * 1_000,
+        "sequencer_id": sequencer_id,
+        "status": "included",
+        "height": height,
+        "index": 0,
+        "reject_code": None,
+    }
+    return {**body, "receipt_hash": hash_v0("node_ingress_receipt_v0", body)}
+
+
+def _body_for_tx_v0(
+    *,
+    chain_id: str,
+    height: int,
+    time_ms: int,
+    sequencer_id: str,
+    tx: Mapping[str, Any],
+) -> dict[str, Any]:
+    tx_obj = dict(tx)
+    tx_hash = tx_hash_v0(tx_obj)
+    body = {
+        "schema": BODY_SCHEMA_V0,
+        "chain_id": chain_id,
+        "height": height,
+        "ingress": {
+            "batch_cutoff": {
+                "schema": BATCH_CUTOFF_SCHEMA_V0,
+                "chain_id": chain_id,
+                "height": height,
+                "cutoff_time_ms": time_ms,
+                "cutoff_sequence": height * 1_000,
+                "sequencer_id": sequencer_id,
+                "policy_id": "zeno_ledger_node_live_append_v0",
+                "policy_digest": hash_v0(
+                    "node_live_append_policy_v0",
+                    {"chain_id": chain_id, "policy_id": "zeno_ledger_node_live_append_v0"},
+                ),
+            },
+            "ingress_receipts": [
+                _ingress_receipt_v0(
+                    chain_id=chain_id,
+                    tx_hash=tx_hash,
+                    height=height,
+                    time_ms=time_ms,
+                    sequencer_id=sequencer_id,
+                )
+            ],
+            "forced_inclusion_requests": [],
+            "forced_inclusion_decisions": [],
+        },
+        "transactions": [tx_obj],
+        "settlement_envelopes": [],
+        "evidence": _empty_evidence_v0(),
+    }
+    validate_body_v0(body)
+    return body
+
+
+def _latest_live_state_path(data_dir: Path) -> Path:
+    return data_dir / "live_state.json"
+
+
+def _live_base_paths(*, bundle_root: Path, data_dir: Path, node_status: Mapping[str, Any]) -> dict[str, Path | int]:
+    live_state_path = _latest_live_state_path(data_dir)
+    if live_state_path.is_file():
+        live_state = _load_json_object(live_state_path)
+        latest_height = int(live_state["latest_height"])
+        return {
+            "latest_height": latest_height,
+            "prev_header_path": Path(str(live_state["latest_header_path"])),
+            "pre_snapshot_path": Path(str(live_state["latest_snapshot_path"])),
+        }
+
+    latest_height = int(node_status["latest_height"])
+    bootstrap_root = bundle_root / "bootstrap"
+    return {
+        "latest_height": latest_height,
+        "prev_header_path": bootstrap_root / "ledger" / "headers" / f"{latest_height}.json",
+        "pre_snapshot_path": bootstrap_root / "ledger" / "snapshots" / f"{latest_height}.json",
+    }
+
+
+def append_dex_transaction_v0(
+    *,
+    data_dir: Path,
+    tx: Mapping[str, Any],
+    time_ms: int,
+) -> dict[str, Any]:
+    """Append one testnet DEX transaction to a node-local live ledger."""
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    latest_height = int(base["latest_height"])
+    height = latest_height + 1
+    sequencer_id = str(public_manifest["sequencer_id"])
+    chain_id = str(public_manifest["chain_id"])
+    body = _body_for_tx_v0(
+        chain_id=chain_id,
+        height=height,
+        time_ms=time_ms,
+        sequencer_id=sequencer_id,
+        tx=tx,
+    )
+    live_body_path = data_dir / "live_bodies" / f"{height}.json"
+    _write_json(live_body_path, body)
+    live_ledger_dir = data_dir / "live_ledger"
+    block_report = build_local_block_v0(
+        body_path=live_body_path,
+        out_dir=live_ledger_dir,
+        time_ms=time_ms,
+        pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+        prev_header_path=Path(str(base["prev_header_path"])),
+        trusted_prev_header_hash=ZERO_ROOT,
+        sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+        data_availability_root=ZERO_ROOT,
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=str(bootstrap_manifest["config_digest"]),
+        module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+        signature_set_root=ZERO_ROOT,
+        allow_missing_settlement=True,
+        require_intent_signatures=False,
+    )
+    receipts_path = Path(str(block_report["receipts_path"]))
+    receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
+    accepted = bool(receipts and isinstance(receipts[0], Mapping) and receipts[0].get("accepted") is True)
+    live_state = {
+        "schema": "zenodex.zeno_ledger.node_live_state.v0",
+        "latest_height": height,
+        "latest_header_path": block_report["header_path"],
+        "latest_snapshot_path": block_report["post_snapshot_path"],
+        "latest_header_hash": block_report["header_hash"],
+        "latest_app_hash": block_report["app_hash"],
+    }
+    _write_json(_latest_live_state_path(data_dir), live_state)
+    report = {
+        "schema": NODE_APPEND_REPORT_SCHEMA,
+        "ok": accepted,
+        "status": "accepted" if accepted else "rejected",
+        "node_id": node_status["node_id"],
+        "height": height,
+        "tx_hash": tx_hash_v0(dict(tx)),
+        "header_hash": block_report["header_hash"],
+        "app_hash": block_report["app_hash"],
+        "body_path": block_report["body_path"],
+        "header_path": block_report["header_path"],
+        "checkpoint_path": block_report["checkpoint_path"],
+        "receipts_path": block_report["receipts_path"],
+        "post_snapshot_path": block_report["post_snapshot_path"],
+        "receipt": receipts[0] if receipts else None,
+    }
+    append_report_path = data_dir / "append_reports" / f"{height}.json"
+    _write_json(append_report_path, report)
+    return {**report, "append_report_path": str(append_report_path)}
+
+
 def load_node_status_v0(data_dir: Path) -> dict[str, Any]:
     status = dict(_load_json_object(data_dir / "node_status.json"))
     if status.get("schema") != NODE_STATUS_SCHEMA:
@@ -428,6 +619,13 @@ def make_node_http_server_v0(*, data_dir: Path, host: str, port: int) -> Threadi
                             "testnet_faucet_posture": status["testnet_faucet_posture"],
                         }
                     )
+                    return
+                if self.path == "/live":
+                    live_path = root / "live_state.json"
+                    if not live_path.is_file():
+                        self._send_json({"ok": True, "live": False})
+                    else:
+                        self._send_json({"ok": True, "live": True, "state": _load_json_object(live_path)})
                     return
                 if self.path == "/attestation":
                     attestation = _load_optional_json(status.get("operator_attestation_path"))
@@ -520,6 +718,20 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_append(args: argparse.Namespace) -> int:
+    try:
+        tx = _load_json_object(args.tx)
+        report = append_dex_transaction_v0(
+            data_dir=args.data_dir,
+            tx=tx,
+            time_ms=args.time_ms,
+        )
+    except Exception as exc:
+        report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     load_node_status_v0(args.data_dir)
     serve_node_v0(data_dir=args.data_dir, host=args.host, port=args.port)
@@ -554,6 +766,12 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--host", default="127.0.0.1")
     run.add_argument("--port", type=int, default=8787)
     run.set_defaults(func=_cmd_run)
+
+    append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
+    append.add_argument("--data-dir", required=True, type=Path)
+    append.add_argument("--tx", required=True, type=Path)
+    append.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS + 1_000_000)
+    append.set_defaults(func=_cmd_append)
 
     serve = sub.add_parser("serve", help="serve an existing node data directory")
     serve.add_argument("--data-dir", required=True, type=Path)

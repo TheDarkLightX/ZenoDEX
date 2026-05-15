@@ -341,14 +341,25 @@ python3 tools/zeno_ledger_node.py run \
   --port 8787
 ```
 
+After the node has verified its bootstrap bundle, a local operator can append
+testnet DEX transactions into the node-local live ledger:
+
+```bash
+python3 tools/zeno_ledger_node.py append \
+  --data-dir /tmp/zeno-ledger-node-a \
+  --tx /path/to/testnet_tx.json \
+  --time-ms 1778731000000
+```
+
 This is the first public-node layer: it bootstraps from a bundle, verifies the
 ledger, emits a watcher attestation, and serves `/health`, `/status`,
-`/features`, `/tokens`, `/attestation`, and `/testnet-status`. The `sync`
-command downloads only indexed JSON artifacts from a public HTTP mirror and
-verifies every mirror hash before the node runs. The public bundle carries a
-deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
-testnet-only faucet posture for feature testing. Live P2P block gossip and
-validator scheduling remain future network work.
+`/features`, `/tokens`, `/live`, `/attestation`, and `/testnet-status`. The
+`sync` command downloads only indexed JSON artifacts from a public HTTP mirror
+and verifies every mirror hash before the node runs. The public bundle carries
+a deterministic test-token catalog (`tZENO`, `tASSET0`, and `tASSET1`) plus
+testnet-only faucet posture for feature testing. The `append` command writes
+post-bootstrap testnet DEX blocks under the node data directory. Live P2P block
+gossip and validator scheduling remain future network work.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer:

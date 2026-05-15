@@ -7,8 +7,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import urlopen
 
+from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
+from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1, DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
+    append_dex_transaction_v0,
     load_node_status_v0,
     make_node_http_server_v0,
     run_node_once_v0,
@@ -82,6 +85,40 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     assert status["testnet_faucet_posture"]["supports_fixture_mint"] is True
     assert status["testnet_token_support"]["faucet_scope"] == "testnet-only feature lanes"
 
+    asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
+    asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
+    append_report = append_dex_transaction_v0(
+        data_dir=node_dir,
+        time_ms=1_778_731_123_000,
+        tx={
+            "tx_id": "node-live-swap-v0",
+            "block_timestamp": 1_778_731_123,
+            "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+            "operations": {
+                "2": [
+                    {
+                        "module": "TauSwap",
+                        "version": "0.1",
+                        "kind": "SWAP_EXACT_IN",
+                        "intent_id": "0x" + "bb" * 32,
+                        "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                        "deadline": 1_999_999_999,
+                        "nonce": 5,
+                        "pool_id": compute_pool_id(asset_a, asset_b, 30),
+                        "asset_in": asset_a,
+                        "asset_out": asset_b,
+                        "amount_in": 100,
+                        "min_amount_out": 1,
+                        "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                    }
+                ]
+            },
+        },
+    )
+    assert append_report["ok"] is True
+    assert append_report["height"] == 6
+    assert append_report["receipt"]["accepted"] is True
+
     server = make_node_http_server_v0(data_dir=node_dir, host="127.0.0.1", port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -91,6 +128,7 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         served_status = _read_url_json(f"http://{host}:{port}/status")
         features = _read_url_json(f"http://{host}:{port}/features")
         tokens = _read_url_json(f"http://{host}:{port}/tokens")
+        live = _read_url_json(f"http://{host}:{port}/live")
         testnet_status = _read_url_json(f"http://{host}:{port}/testnet-status")
 
         assert health["ok"] is True
@@ -98,6 +136,8 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert served_status["node_status_hash"] == status["node_status_hash"]
         assert features["covered_feature_count"] == 10
         assert len(tokens["test_token_catalog"]) == 3
+        assert live["live"] is True
+        assert live["state"]["latest_height"] == 6
         assert testnet_status["watcher_count"] == 2
     finally:
         server.shutdown()
