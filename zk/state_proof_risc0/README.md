@@ -1,3 +1,9 @@
+---
+title: README
+type: note
+permalink: autonomous-tau-dex-review/zk/state-proof-risc0/readme
+---
+
 # Tau State Proof (Risc0): Workspace
 
 This workspace builds a standalone generator/verifier binary for Tau Testnet `state_proof:<state_hash>` envelopes.
@@ -5,7 +11,7 @@ This workspace builds a standalone generator/verifier binary for Tau Testnet `st
 ## Crates
 
 - `shared/`: no-std types + deterministic hashing used by guest + host
-- `methods/guest/`: Risc0 zkVM guest (proves TauSwap app-state transition for v1 scope)
+- `methods/guest/`: Risc0 zkVM guest (proves the ZenoDEX spot app-state transition for v1 scope)
 - `methods/`: embeds the guest ELF + image ID
 - `cli/`: `tau-state-proof-risc0-cli` (reads JSON on stdin; writes JSON on stdout)
 

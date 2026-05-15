@@ -31,6 +31,7 @@ from src.integration.zeno_ledger_v0 import (
     compute_ingress_root_v0,
     compute_tx_root_v0,
     hash_v0,
+    validate_proof_metadata_header_binding_v0,
 )
 from src.integration.zeno_ledger_watcher import validate_watcher_attestation_v0
 from src.state.balances import BalanceTable
@@ -227,6 +228,7 @@ def _resolve_command_against_manifest(manifest_path: Path, command: list[str]) -
         "--prev-header",
         "--prev-snapshot",
         "--profile",
+        "--proof-metadata-dir",
         "--proof-mining-state",
         "--source-root",
         "--tau-app-state",
@@ -593,9 +595,317 @@ def test_run_local_builds_block_that_verify_accepts(tmp_path: Path) -> None:
         "1",
     )
     assert verify.returncode == 0, verify.stderr
+
     verify_payload = json.loads(verify.stdout)
     assert verify_payload["ok"] is True
     assert verify_payload["checked_heights"] == [1]
+
+
+def test_run_local_builds_structured_proof_metadata(tmp_path: Path) -> None:
+    body = _body(1)
+    body_path = tmp_path / "input_body.json"
+    out_dir = tmp_path / "ledger"
+    _write_json(body_path, body)
+
+    proc = _run_local(
+        "--body",
+        str(body_path),
+        "--out-dir",
+        str(out_dir),
+        "--time-ms",
+        "1778730000001",
+        "--pre-state-root",
+        _root("pre-state"),
+        "--post-state-root",
+        _root("post-state"),
+        "--sequencer-set-hash",
+        _root("sequencer-set"),
+        "--config-digest",
+        _root("config"),
+        "--module-versions-digest",
+        _root("modules"),
+        "--proof-kind",
+        "risc0_zkvm_v0",
+        "--proof-program-id",
+        "risc0:zenodex-spot-transition-v1",
+        "--proof-verifier-id",
+        "risc0:receipt-verifier-v1",
+        "--proof-commitment",
+        _root("proof-commitment"),
+        "--proof-public-input-hash",
+        _root("public-input"),
+        "--proof-raw-journal-hash",
+        _root("raw-journal"),
+        "--conflict-schedule-hash",
+        _root("sequential-schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["ok"] is True
+    metadata_path = Path(str(payload["proof_metadata_path"]))
+    assert metadata_path.is_file()
+
+    header = json.loads(Path(str(payload["header_path"])).read_text(encoding="utf-8"))
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert header["proof_journal_hash"] == payload["proof_journal_hash"]
+    validate_proof_metadata_header_binding_v0(metadata, header)
+
+    verify = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--checkpoints-dir",
+        str(out_dir / "checkpoints"),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert verify.returncode == 0, verify.stderr
+
+    verify_with_metadata = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--checkpoints-dir",
+        str(out_dir / "checkpoints"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert verify_with_metadata.returncode == 0, verify_with_metadata.stderr
+    verify_with_metadata_payload = json.loads(verify_with_metadata.stdout)
+    assert verify_with_metadata_payload["proof_metadata_checked_heights"] == [1]
+
+
+def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None:
+    body = _body(1)
+    body_path = tmp_path / "input_body.json"
+    out_dir = tmp_path / "ledger"
+    config = _root("config")
+    sequencer = _root("sequencer-set")
+    _write_json(body_path, body)
+
+    proc = _run_local(
+        "--body",
+        str(body_path),
+        "--out-dir",
+        str(out_dir),
+        "--time-ms",
+        "1778730000001",
+        "--pre-state-root",
+        _root("pre-state"),
+        "--post-state-root",
+        _root("post-state"),
+        "--sequencer-set-hash",
+        sequencer,
+        "--config-digest",
+        config,
+        "--module-versions-digest",
+        _root("modules"),
+        "--proof-kind",
+        "risc0_zkvm_v0",
+        "--proof-program-id",
+        "risc0:zenodex-spot-transition-v1",
+        "--proof-verifier-id",
+        "risc0:receipt-verifier-v1",
+        "--proof-commitment",
+        _root("proof-commitment"),
+        "--proof-public-input-hash",
+        _root("public-input"),
+        "--proof-raw-journal-hash",
+        _root("raw-journal"),
+        "--conflict-schedule-hash",
+        _root("sequential-schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    profile = sample_tau_exclusive_release_profile_v0(
+        chain_id="zeno-ledger-devnet-0",
+        config_digest=config,
+        sequencer_set_hash=sequencer,
+        token_symbol="ZENO",
+        token_asset_id=_root("zeno-token"),
+    )
+    profile_path = tmp_path / "profile.json"
+    _write_json(profile_path, profile)
+
+    missing_metadata = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--checkpoints-dir",
+        str(out_dir / "checkpoints"),
+        "--profile",
+        str(profile_path),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert missing_metadata.returncode == 1
+    missing_payload = json.loads(missing_metadata.stdout)
+    assert "profile_requires_proof_metadata_dir" in missing_payload["errors"]
+
+    with_metadata = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--checkpoints-dir",
+        str(out_dir / "checkpoints"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--profile",
+        str(profile_path),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert with_metadata.returncode == 0, with_metadata.stderr
+    with_payload = json.loads(with_metadata.stdout)
+    assert with_payload["proof_metadata_checked_heights"] == [1]
+
+
+def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> None:
+    body = _body(1)
+    body_path = tmp_path / "input_body.json"
+    out_dir = tmp_path / "ledger"
+    report_dir = tmp_path / "proof_verification_reports"
+    report_dir.mkdir()
+    _write_json(body_path, body)
+
+    proc = _run_local(
+        "--body",
+        str(body_path),
+        "--out-dir",
+        str(out_dir),
+        "--time-ms",
+        "1778730000001",
+        "--pre-state-root",
+        _root("pre-state"),
+        "--post-state-root",
+        _root("post-state"),
+        "--sequencer-set-hash",
+        _root("sequencer-set"),
+        "--config-digest",
+        _root("config"),
+        "--module-versions-digest",
+        _root("modules"),
+        "--proof-kind",
+        "risc0_zkvm_v0",
+        "--proof-program-id",
+        "risc0:zenodex-spot-transition-v1",
+        "--proof-verifier-id",
+        "risc0:receipt-verifier-v1",
+        "--proof-commitment",
+        _root("proof-commitment"),
+        "--proof-public-input-hash",
+        _root("public-input"),
+        "--proof-raw-journal-hash",
+        _root("raw-journal"),
+        "--conflict-schedule-hash",
+        _root("sequential-schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+    )
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    header = json.loads(Path(str(payload["header_path"])).read_text(encoding="utf-8"))
+    metadata = json.loads(Path(str(payload["proof_metadata_path"])).read_text(encoding="utf-8"))
+    _write_json(
+        report_dir / "1.json",
+        {
+            "schema": "zenodex.zeno_ledger.risc0_proof_metadata_report.v0",
+            "ok": True,
+            "metadata_path": str(payload["proof_metadata_path"]),
+            "proof_journal_hash": header["proof_journal_hash"],
+            "proof_kind": metadata["proof_kind"],
+            "program_id": metadata["program_id"],
+            "verifier_id": metadata["verifier_id"],
+            "header_bound": True,
+            "body_checked": True,
+            "post_app_hash_checked": True,
+            "risc0_verified": True,
+        },
+    )
+
+    missing_report_dir = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert missing_report_dir.returncode == 1
+    missing_payload = json.loads(missing_report_dir.stdout)
+    assert "require_proof_verification_report_requires_dir" in missing_payload["errors"]
+
+    with_report = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert with_report.returncode == 0, with_report.stderr
+    with_report_payload = json.loads(with_report.stdout)
+    assert with_report_payload["proof_metadata_checked_heights"] == [1]
+    assert with_report_payload["proof_verification_checked_heights"] == [1]
+
+    bad = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
+    bad["risc0_verified"] = False
+    _write_json(report_dir / "1.json", bad)
+    rejected = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--proof-verification-report-dir",
+        str(report_dir),
+        "--require-proof-verification-report",
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert rejected.returncode == 1
+    rejected_payload = json.loads(rejected.stdout)
+    assert "risc0 proof verification report must be verifier-backed" in rejected_payload["errors"][0]
 
 
 def test_run_local_chains_to_previous_header(tmp_path: Path) -> None:
@@ -815,7 +1125,7 @@ def test_verify_cli_rejects_tau_exclusive_profile_without_proof(tmp_path: Path) 
     )
     assert verify.returncode == 1
     payload = json.loads(verify.stdout)
-    assert "proof_journal_hash required" in payload["errors"][0]
+    assert "profile_requires_proof_metadata_dir" in payload["errors"]
 
 
 def test_run_local_with_snapshot_executes_dex_operations(tmp_path: Path) -> None:

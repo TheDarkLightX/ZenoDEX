@@ -1,3 +1,9 @@
+---
+title: tau_testnet_state_proof_patch
+type: note
+permalink: autonomous-tau-dex-review/docs/tau-testnet-state-proof-patch
+---
+
 # Tau Testnet `state_proof` Patch (local, PR-ready)
 
 This repo includes a PR-ready patch for Tau Testnet that adds an **optional per-block state proof record** published to the DHT:
@@ -61,7 +67,7 @@ The patch forwards optional `block`, `tau_state`, and `context` objects into the
 - the expected application commitment (via `tau_state.app_hash`), and
 - app-specific extra inputs (via `context`, e.g. `app_state_pre`, `chain_balances_post`).
 
-See `docs/tau_state_proof_risc0_tauswap_v1.md` for the concrete Risc0 generator requirements used by this repo.
+See `docs/zenodex_spot_state_proof_risc0_v1.md` for the concrete Risc0 generator requirements used by this repo.
 
 ## Local smoke (debug proof)
 

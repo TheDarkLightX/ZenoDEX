@@ -1,5 +1,5 @@
 """
-Tau Testnet Alpha app-bridge plugin for the TauSwap DEX (this repo).
+Tau Testnet Alpha app-bridge plugin for ZenoDEX.
 
 This module implements the generic `external/tau-testnet/app_bridge.py` plugin API:
   apply_app_tx(...)
@@ -631,8 +631,11 @@ def _apply_proof_mining_op(
             return False, state, proof_mining_state, str(exc)
         if recipient != sender:
             return False, state, proof_mining_state, "proof mining recipient_pubkey mismatch"
-    claim_body = _require_mapping(claim_artifact.get("body"), name="proof mining claim.body")
-    winner = _require_mapping(claim_body.get("winner"), name="proof mining claim.body.winner")
+    try:
+        claim_body = _require_mapping(claim_artifact.get("body"), name="proof mining claim.body")
+        winner = _require_mapping(claim_body.get("winner"), name="proof mining claim.body.winner")
+    except Exception as exc:
+        return False, state, proof_mining_state, str(exc)
     try:
         winner_pubkey = _canonical_pubkey(winner.get("miner_id"), name="proof mining claim winner.miner_id")
     except Exception as exc:

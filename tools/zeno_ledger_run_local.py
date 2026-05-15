@@ -21,6 +21,7 @@ from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.zeno_ledger_v0 import (
     apply_body_transactions_v0,
+    build_proof_metadata_v0,
     build_tx_receipt_v0,
     build_checkpoint_v0,
     build_header_v0,
@@ -32,9 +33,11 @@ from src.integration.zeno_ledger_v0 import (
     compute_tx_root_v0,
     dex_state_root_v0,
     hash_v0,
+    proof_metadata_hash_v0,
     stable_error_code_v0,
     tx_hash_v0,
     validate_body_v0,
+    validate_proof_metadata_header_binding_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
@@ -1370,6 +1373,17 @@ def build_local_block_v0(
     sequencer_set_hash: str,
     data_availability_root: str,
     proof_journal_hash: str,
+    proof_kind: str | None = None,
+    proof_program_id: str | None = None,
+    proof_verifier_id: str | None = None,
+    proof_commitment: str | None = None,
+    proof_public_input_hash: str | None = None,
+    proof_raw_journal_hash: str | None = None,
+    conflict_schedule_hash: str = ZERO_ROOT,
+    feature_suite_hash: str = ZERO_ROOT,
+    dependency_lock_hash: str = ZERO_ROOT,
+    tee_measurement_hash: str = ZERO_ROOT,
+    child_receipts_root: str = ZERO_ROOT,
     config_digest: str,
     module_versions_digest: str,
     signature_set_root: str,
@@ -1512,6 +1526,9 @@ def build_local_block_v0(
         prev_header_hash = trusted_prev_header_hash
 
     evidence_root = compute_evidence_root_v0(body["evidence"])  # type: ignore[arg-type]
+    ingress_root = compute_ingress_root_v0(body["ingress"])  # type: ignore[arg-type]
+    tx_root = compute_tx_root_v0(body["transactions"])  # type: ignore[arg-type]
+    body_root = canonical_body_root_v0(body)
     app_hash = compute_app_hash_v0(
         {
             "chain_id": chain_id,
@@ -1522,25 +1539,67 @@ def build_local_block_v0(
             "module_versions_digest": module_versions_digest,
         }
     )
+
+    proof_metadata: dict[str, Any] | None = None
+    if proof_kind is not None:
+        if proof_journal_hash != ZERO_ROOT:
+            raise ValueError("--proof-kind cannot be combined with --proof-journal-hash")
+        missing = [
+            name
+            for name, value in (
+                ("--proof-program-id", proof_program_id),
+                ("--proof-verifier-id", proof_verifier_id),
+                ("--proof-commitment", proof_commitment),
+                ("--proof-public-input-hash", proof_public_input_hash),
+                ("--proof-raw-journal-hash", proof_raw_journal_hash),
+            )
+            if value is None
+        ]
+        if missing:
+            raise ValueError(f"{', '.join(missing)} required when --proof-kind is supplied")
+        proof_metadata = build_proof_metadata_v0(
+            chain_id=chain_id,
+            height=height,
+            proof_kind=proof_kind,
+            program_id=str(proof_program_id),
+            verifier_id=str(proof_verifier_id),
+            proof_commitment=str(proof_commitment),
+            public_input_hash=str(proof_public_input_hash),
+            journal_hash=str(proof_raw_journal_hash),
+            pre_state_root=pre_state_root,
+            post_state_root=post_state_root,
+            tx_root=tx_root,
+            evidence_root=evidence_root,
+            body_root=body_root,
+            conflict_schedule_hash=conflict_schedule_hash,
+            feature_suite_hash=feature_suite_hash,
+            dependency_lock_hash=dependency_lock_hash,
+            tee_measurement_hash=tee_measurement_hash,
+            child_receipts_root=child_receipts_root,
+        )
+        proof_journal_hash = proof_metadata_hash_v0(proof_metadata)
+
     header = build_header_v0(
         chain_id=chain_id,
         height=height,
         time_ms=time_ms,
         prev_header_hash=prev_header_hash,
         sequencer_set_hash=sequencer_set_hash,
-        ingress_root=compute_ingress_root_v0(body["ingress"]),  # type: ignore[arg-type]
-        tx_root=compute_tx_root_v0(body["transactions"]),  # type: ignore[arg-type]
+        ingress_root=ingress_root,
+        tx_root=tx_root,
         pre_state_root=pre_state_root,
         post_state_root=post_state_root,
         app_hash=app_hash,
         evidence_root=evidence_root,
-        body_root=canonical_body_root_v0(body),
+        body_root=body_root,
         data_availability_root=data_availability_root,
         proof_journal_hash=proof_journal_hash,
         config_digest=config_digest,
         module_versions_digest=module_versions_digest,
         signature_set_root=signature_set_root,
     )
+    if proof_metadata is not None:
+        validate_proof_metadata_header_binding_v0(proof_metadata, header)
     checkpoint = build_checkpoint_v0(header)
     header_hash = canonical_header_hash_v0(header)
 
@@ -1548,6 +1607,7 @@ def build_local_block_v0(
     output_body_path = out_dir / "bodies" / f"{height}.json"
     checkpoint_path = out_dir / "checkpoints" / f"{height}.json"
     receipts_path = out_dir / "receipts" / f"{height}.json"
+    proof_metadata_path = out_dir / "proof_metadata" / f"{height}.json"
     post_snapshot_path = out_dir / "snapshots" / f"{height}.json"
     post_app_state_path = out_dir / "app_states" / f"{height}.json"
     post_zusd_state_path = out_dir / "zusd_states" / f"{height}.json"
@@ -1562,6 +1622,8 @@ def build_local_block_v0(
     _write_json(output_body_path, body)
     _write_json(checkpoint_path, checkpoint)
     _write_json(receipts_path, receipts)
+    if proof_metadata is not None:
+        _write_json(proof_metadata_path, proof_metadata)
     if post_snapshot is not None:
         _write_json(post_snapshot_path, post_snapshot)
     if post_app_state_json is not None:
@@ -1597,6 +1659,9 @@ def build_local_block_v0(
         "post_state_root": post_state_root,
         "app_hash": app_hash,
     }
+    if proof_metadata is not None:
+        report["proof_metadata_path"] = str(proof_metadata_path)
+        report["proof_journal_hash"] = proof_journal_hash
     if post_snapshot is not None:
         report["post_snapshot_path"] = str(post_snapshot_path)
     if post_app_state_json is not None:
@@ -1647,6 +1712,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sequencer-set-hash", required=True)
     parser.add_argument("--data-availability-root", default=ZERO_ROOT)
     parser.add_argument("--proof-journal-hash", default=ZERO_ROOT)
+    parser.add_argument("--proof-kind")
+    parser.add_argument("--proof-program-id")
+    parser.add_argument("--proof-verifier-id")
+    parser.add_argument("--proof-commitment")
+    parser.add_argument("--proof-public-input-hash")
+    parser.add_argument("--proof-raw-journal-hash")
+    parser.add_argument("--conflict-schedule-hash", default=ZERO_ROOT)
+    parser.add_argument("--feature-suite-hash", default=ZERO_ROOT)
+    parser.add_argument("--dependency-lock-hash", default=ZERO_ROOT)
+    parser.add_argument("--tee-measurement-hash", default=ZERO_ROOT)
+    parser.add_argument("--child-receipts-root", default=ZERO_ROOT)
     parser.add_argument("--config-digest", required=True)
     parser.add_argument("--module-versions-digest", required=True)
     parser.add_argument("--signature-set-root", default=ZERO_ROOT)
@@ -1679,6 +1755,17 @@ def main(argv: list[str] | None = None) -> int:
             sequencer_set_hash=args.sequencer_set_hash,
             data_availability_root=args.data_availability_root,
             proof_journal_hash=args.proof_journal_hash,
+            proof_kind=args.proof_kind,
+            proof_program_id=args.proof_program_id,
+            proof_verifier_id=args.proof_verifier_id,
+            proof_commitment=args.proof_commitment,
+            proof_public_input_hash=args.proof_public_input_hash,
+            proof_raw_journal_hash=args.proof_raw_journal_hash,
+            conflict_schedule_hash=args.conflict_schedule_hash,
+            feature_suite_hash=args.feature_suite_hash,
+            dependency_lock_hash=args.dependency_lock_hash,
+            tee_measurement_hash=args.tee_measurement_hash,
+            child_receipts_root=args.child_receipts_root,
             config_digest=args.config_digest,
             module_versions_digest=args.module_versions_digest,
             signature_set_root=args.signature_set_root,
