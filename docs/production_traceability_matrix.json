@@ -204,7 +204,8 @@
         "tests/integration/test_api_surface_profiles.py"
       ],
       "evidence_commands": [
-        "python3 -m pytest -q tests/integration/test_api_surface_profiles.py"
+        "python3 -m pytest -q tests/integration/test_api_surface_profiles.py",
+        "python3 tools/check_api_surface_profiles.py"
       ],
       "residual_limits": "This separates API exposure profiles from the monolithic stdlib handler. The handler file itself still needs future route-module decomposition."
     }
