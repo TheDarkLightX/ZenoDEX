@@ -1,16 +1,16 @@
 {
   "schema": "zenodex/assurance-release-snapshot/v1",
   "snapshot_label": "Pinned release snapshot for this tree",
-  "as_of_date": "2026-04-10",
+  "as_of_date": "2026-05-16",
   "metrics": [
     {
       "label": "acceptance TCB",
-      "value": "361 passed",
-      "branch_coverage": "99.4%"
+      "value": "373 passed",
+      "branch_coverage": "93%"
     },
     {
       "label": "critical gate",
-      "value": "735 passed, 1 skipped",
+      "value": "745 passed, 1 skipped",
       "branch_coverage": "99%"
     },
     {
