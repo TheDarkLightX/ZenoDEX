@@ -1,0 +1,191 @@
+{
+  "schema": "zenodex.production_traceability_matrix.v1",
+  "entries": [
+    {
+      "id": "dex_nonce_replay_protection",
+      "status": "supported",
+      "invariant": "Every value-moving DEX intent accepted by the production shell must carry a nonce and advance the nonce table exactly once.",
+      "runtime_guard_paths": [
+        "src/core/dex.py",
+        "src/integration/dex_engine.py",
+        "src/state/nonces.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_dex_engine_helpers.py",
+        "tests/core/test_dex_step.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_dex_engine_helpers.py tests/core/test_dex_step.py"
+      ],
+      "residual_limits": "Legacy replay fixtures may construct non-production configs. Deployment profile validation rejects nonce-free production/testnet postures."
+    },
+    {
+      "id": "dex_strong_settlement_replay",
+      "status": "supported",
+      "invariant": "Accepted settlements are replayed from supplied intents and pre-state, then compared to canonical deltas and events before application.",
+      "runtime_guard_paths": [
+        "src/core/settlement_strong_validator.py",
+        "src/integration/validation.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/core/test_settlement_strong_validator.py",
+        "tests/integration/test_settlement_strong_certificate.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_settlement_strong_validator.py tests/integration/test_settlement_strong_certificate.py tests/integration/test_dex_engine_helpers.py"
+      ],
+      "residual_limits": "The guarantee applies to paths using the strong replay validator. Direct legacy conservation-only validation remains a test/backcompat posture."
+    },
+    {
+      "id": "dex_intent_normal_form_boundary",
+      "status": "supported",
+      "invariant": "Parsed DEX intents must satisfy the normal-form field rules for their kind before settlement validation or signature-bound proof construction relies on them.",
+      "runtime_guard_paths": [
+        "src/core/intent_normal_form.py",
+        "src/integration/operations.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/core/test_intent_normal_form.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_intent_normal_form.py tests/integration/test_dex_engine_helpers.py"
+      ],
+      "residual_limits": "The parser still returns the base Intent object. The normal-form gate is the current enforcement boundary."
+    },
+    {
+      "id": "dex_deployment_profile_postures",
+      "status": "supported",
+      "invariant": "Local, public-testnet, and production-strict DEX engine profiles must fail closed on unsafe boundary switches before node/bootstrap admission.",
+      "runtime_guard_paths": [
+        "src/integration/deployment_profiles.py",
+        "src/integration/dex_engine.py",
+        "src/integration/upba_production_config.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_deployment_profiles.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_deployment_profiles.py tests/integration/test_dex_engine_helpers.py",
+        "python3 tools/check_dex_deployment_profiles.py"
+      ],
+      "residual_limits": "The profile helpers must be called by bootstrap/node code. The checker validates the named postures and is wired into the public-testnet candidate gate."
+    },
+    {
+      "id": "upba_fixed_admission_price_grid",
+      "status": "supported_scoped",
+      "invariant": "For the current UPBA bounded price-grid surface, accepted certificates must bind the admitted intent set, pool state, fills, uniform price, and complete price-grid evidence.",
+      "runtime_guard_paths": [
+        "src/core/uniform_batch_clearing.py",
+        "src/core/uniform_batch_price_grid_table.py",
+        "src/core/uniform_batch_optimality.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/core/test_uniform_batch_clearing.py",
+        "tests/core/test_uniform_batch_optimality.py",
+        "tests/core/test_uniform_batch_price_grid_table.py",
+        "tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_uniform_batch_clearing.py tests/core/test_uniform_batch_optimality.py tests/core/test_uniform_batch_price_grid_table.py tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "residual_limits": "Current optimality evidence is scoped to bounded fixed-admission surfaces. Exact-out, multi-hop, inclusion fairness, and adaptive-grid sufficiency remain open work."
+    },
+    {
+      "id": "zenoledger_public_testnet_rehearsal",
+      "status": "supported_replay",
+      "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout.",
+      "runtime_guard_paths": [
+        "tools/run_public_testnet_candidate_gate.sh",
+        "tools/zeno_ledger_make_public_testnet_bundle.py",
+        "tools/zeno_ledger_dual_operator_rehearsal.py",
+        "tools/zeno_ledger_public_network_smoke.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_v0.py",
+        "tests/integration/test_zeno_ledger_node.py",
+        "tests/integration/test_zeno_ledger_machine_a_host.py"
+      ],
+      "evidence_commands": [
+        "PYTHON=python3 ZENO_PUBLIC_TESTNET_GATE_OUT=/tmp/zenodex_public_testnet_candidate_gate tools/run_public_testnet_candidate_gate.sh"
+      ],
+      "residual_limits": "This is same-machine replay and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
+    },
+    {
+      "id": "zk_risc0_metadata_binding",
+      "status": "supported_scoped",
+      "invariant": "RISC0 proof metadata must bind nonzero conflict-schedule, feature-suite, dependency-lock, guest, image, receipt, and checkpoint roots before ledger admission.",
+      "runtime_guard_paths": [
+        "tools/zeno_ledger_risc0_proof_metadata.py",
+        "src/integration/zeno_ledger_v0.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_risc0_proof_metadata.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_risc0_proof_metadata.py"
+      ],
+      "residual_limits": "This is metadata binding. Full proof-of-execution still needs broader guest coverage, pinned program IDs, reproducible inputs, and verifier registry policy."
+    },
+    {
+      "id": "tee_metadata_binding",
+      "status": "supported_scoped",
+      "invariant": "TEE proof metadata must bind quote and policy roots before ledger admission when a TEE attestation path is used.",
+      "runtime_guard_paths": [
+        "src/integration/confidential_attestation.py",
+        "src/integration/confidential_attestation_verifier.py",
+        "src/integration/zeno_ledger_v0.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_tee_proof_metadata.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_tee_proof_metadata.py"
+      ],
+      "residual_limits": "TEE metadata checks are narrower than full quote verification and enclave supply-chain policy."
+    },
+    {
+      "id": "oracle_critical_authorization",
+      "status": "supported",
+      "invariant": "Protected swaps and critical settlements that require oracle authorization must reject missing, stale, wrong-profile, or mismatched authorization bundles.",
+      "runtime_guard_paths": [
+        "src/integration/zeno_oracle_routing_authorization.py",
+        "src/integration/zeno_oracle_settlement_authorization.py",
+        "src/integration/dex_engine.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_oracle_authorization_semantic_binding.py",
+        "tests/integration/test_dex_engine_helpers.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_oracle_authorization_semantic_binding.py tests/integration/test_dex_engine_helpers.py"
+      ],
+      "residual_limits": "Authorization checks depend on profile-specific caller configuration. Production-strict deployment profile requires the DEX-side oracle authorization flags."
+    },
+    {
+      "id": "proof_mining_claimability",
+      "status": "supported",
+      "invariant": "Proof-mining claimability must be policy-gated by manager/runtime checks before public status and claim flows accept a claim.",
+      "runtime_guard_paths": [
+        "src/core/proof_mining_claimability_gate.py",
+        "src/core/proof_mining_manager.py",
+        "src/integration/proof_mining_claimability.py",
+        "src/integration/proof_mining_runtime.py"
+      ],
+      "test_paths": [
+        "tests/core/test_proof_mining_claimability_gate.py",
+        "tests/core/test_proof_mining_manager.py",
+        "tests/integration/test_proof_mining_runtime.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_proof_mining_claimability_gate.py tests/core/test_proof_mining_manager.py tests/integration/test_proof_mining_runtime.py"
+      ],
+      "residual_limits": "Mechanism-design refinements and external economic audits remain separate from the current claimability gate."
+    }
+  ]
+}
