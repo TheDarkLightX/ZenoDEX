@@ -265,9 +265,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--header", required=True, type=Path, help="ZenoLedger v0 header JSON")
     parser.add_argument("--body", type=Path, help="Optional ZenoLedger body JSON to check against the header")
     parser.add_argument("--out", type=Path, help="Optional output path for proof metadata JSON")
-    parser.add_argument("--conflict-schedule-hash", default=ZERO_ROOT_V0)
-    parser.add_argument("--feature-suite-hash", default=ZERO_ROOT_V0)
-    parser.add_argument("--dependency-lock-hash", default=ZERO_ROOT_V0)
+    parser.add_argument("--conflict-schedule-hash", required=True)
+    parser.add_argument("--feature-suite-hash", required=True)
+    parser.add_argument("--dependency-lock-hash", required=True)
     parser.add_argument(
         "--require-bound-header",
         action="store_true",

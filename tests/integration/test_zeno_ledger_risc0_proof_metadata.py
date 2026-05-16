@@ -182,6 +182,17 @@ def _run_adapter(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _metadata_root_args() -> tuple[str, ...]:
+    return (
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+    )
+
+
 def _verifier_script(path: Path, *, ok: bool) -> Path:
     body = f"""#!/usr/bin/env python3
 import json
@@ -306,7 +317,15 @@ def test_risc0_adapter_rejects_wrong_proof_type_and_app_hash_mismatch(tmp_path: 
     )
     _write_json(wrong_app_hash_path, _proof(post_app_hash=_hex("wrong-post-app-hash")))
 
-    wrong_type = _run_adapter("--proof", str(wrong_type_path), "--header", str(header_path), "--body", str(body_path))
+    wrong_type = _run_adapter(
+        "--proof",
+        str(wrong_type_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        *_metadata_root_args(),
+    )
     assert wrong_type.returncode == 1
     assert "unsupported risc0 proof_type" in wrong_type.stdout
 
@@ -317,13 +336,14 @@ def test_risc0_adapter_rejects_wrong_proof_type_and_app_hash_mismatch(tmp_path: 
         str(header_path),
         "--body",
         str(body_path),
+        *_metadata_root_args(),
         "--require-post-app-hash-header-app-hash",
     )
     assert wrong_app_hash.returncode == 1
     assert "post_app_hash/header app_hash mismatch" in wrong_app_hash.stdout
 
 
-def test_risc0_adapter_rejects_default_placeholder_metadata_roots(tmp_path: Path) -> None:
+def test_risc0_adapter_requires_metadata_binding_roots(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
     proof = _proof(post_app_hash=str(header["app_hash"])[2:])
@@ -342,8 +362,10 @@ def test_risc0_adapter_rejects_default_placeholder_metadata_roots(tmp_path: Path
         "--body",
         str(body_path),
     )
-    assert proc.returncode == 1
-    assert "proof_metadata.conflict_schedule_hash must be non-zero" in proc.stdout
+    assert proc.returncode == 2
+    assert "--conflict-schedule-hash" in proc.stderr
+    assert "--feature-suite-hash" in proc.stderr
+    assert "--dependency-lock-hash" in proc.stderr
 
 
 def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
@@ -509,6 +531,7 @@ def test_risc0_adapter_rejects_required_verifier_without_command(tmp_path: Path)
         str(header_path),
         "--body",
         str(body_path),
+        *_metadata_root_args(),
         "--require-risc0-verifier",
     )
     assert proc.returncode == 1
