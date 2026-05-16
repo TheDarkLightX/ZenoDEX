@@ -116,6 +116,8 @@ The pinned release replay for the release tree dated `2026-04-10` was green:
 
 This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
 For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.
+The production traceability matrix is checked by the release gate and can be
+replayed directly with `python3 tools/check_production_traceability_matrix.py`.
 
 Important derivatives note:
 
@@ -319,8 +321,9 @@ tools/run_public_testnet_candidate_gate.sh
 ```
 
 This gate covers the ZenoLedger integration suite, proof-mining suite, UPBA
-suite, public bundle builder, dual-operator rehearsal, and local public-network
-smoke test with signed DEX transaction intake.
+suite, deployment-profile checks, public bundle builder, dual-operator
+rehearsal, and local public-network smoke test with signed DEX transaction
+intake.
 
 ## ZenoLedger Node Operations
 
