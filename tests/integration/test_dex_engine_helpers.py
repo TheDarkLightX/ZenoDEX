@@ -428,6 +428,13 @@ def test_validate_production_config_can_require_strict_upba_posture() -> None:
     assert "strict UPBA production requires require_uniform_batch_price_grid_evidence" in err
 
 
+def test_validate_production_config_rejects_proof_required_without_verifier() -> None:
+    ok, err = validate_production_config(DexEngineConfig(require_proof_when_present=True))
+    assert ok is False
+    assert err is not None
+    assert "require_proof_when_present requires proof_config.enabled" in err
+
+
 def test_validate_raw_operation_guards_fail_early() -> None:
     config = DexEngineConfig(max_settlement_op_bytes=32, max_settlement_fills=1, max_intents=1, max_intent_entry_bytes=32, max_total_intent_entry_bytes=32)
     assert _validate_raw_settlement_op(config, ["bad"]) == "operations['3'] must be an object"
