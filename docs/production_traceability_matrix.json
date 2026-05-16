@@ -191,6 +191,22 @@
         "python3 -m pytest -q tests/core/test_proof_mining_claimability_gate.py tests/core/test_proof_mining_manager.py tests/integration/test_proof_mining_runtime.py"
       ],
       "residual_limits": "Mechanism-design refinements and external economic audits remain separate from the current claimability gate."
+    },
+    {
+      "id": "api_surface_profiles",
+      "status": "supported",
+      "invariant": "Production-strict API bootstrap must refuse demo/value-moving route groups, and public-testnet API bootstrap must require bearer-token auth for those routes.",
+      "runtime_guard_paths": [
+        "src/integration/api_surface_profiles.py",
+        "src/integration/api_server.py"
+      ],
+      "test_paths": [
+        "tests/integration/test_api_surface_profiles.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_api_surface_profiles.py"
+      ],
+      "residual_limits": "This separates API exposure profiles from the monolithic stdlib handler. The handler file itself still needs future route-module decomposition."
     }
   ]
 }
