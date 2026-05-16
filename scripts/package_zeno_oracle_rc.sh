@@ -34,6 +34,7 @@ cp "${root}/tools/zeno_oracle_o3_receipt_flow_replay.py" "${stage}/tools/zeno_or
 cp "${root}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json" "${stage}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json"
 cp "${root}/tools/zeno_oracle_math_witness_sweep.jl" "${stage}/tools/zeno_oracle_math_witness_sweep.jl"
 cp -R "${root}/tools/macos_scout" "${stage}/tools/macos_scout"
+cp -R "${root}/tools/confidential_attestation_verifier_rust" "${stage}/tools/confidential_attestation_verifier_rust"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |
@@ -48,6 +49,8 @@ cp -R "${root}/src" "${stage}/src"
 cp -R "${root}/tests" "${stage}/tests"
 cp -R "${root}/generated" "${stage}/generated"
 cp -R "${root}/formal" "${stage}/formal"
+mkdir -p "${stage}/zk"
+cp -R "${root}/zk/state_proof_risc0" "${stage}/zk/state_proof_risc0"
 mkdir -p "${stage}/lean-mathlib"
 cp "${root}/lean-mathlib/Proofs.lean" "${stage}/lean-mathlib/Proofs.lean"
 cp -R "${root}/lean-mathlib/Proofs" "${stage}/lean-mathlib/Proofs"
@@ -57,6 +60,7 @@ mkdir -p "${stage}/docs/papers"
 cp -R "${root}/docs/papers/zeno-oracle-whitepaper" "${stage}/docs/papers/zeno-oracle-whitepaper"
 
 find "${stage}" -type d -name '__pycache__' -prune -exec rm -rf {} +
+find "${stage}/zk" -type d -name 'target' -prune -exec rm -rf {} +
 find "${stage}" -type f -name '*.pyc' -delete
 
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
@@ -75,6 +79,7 @@ chmod +x "${stage}/tools/check_zenoproof_production_governance_policy.py"
 chmod +x "${stage}/tools/zeno_oracle_disaster_class_corpus.py"
 chmod +x "${stage}/tools/zeno_oracle_o3_receipt_flow_replay.py"
 find "${stage}/tools/macos_scout" -type f \( -name '*.py' -o -name '*.sh' \) -exec chmod +x {} +
+find "${stage}/tools/confidential_attestation_verifier_rust" -type d -name 'target' -prune -exec rm -rf {} +
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
 chmod +x "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
