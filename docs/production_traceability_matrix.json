@@ -102,6 +102,8 @@
       "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout.",
       "runtime_guard_paths": [
         "tools/run_public_testnet_candidate_gate.sh",
+        "tools/check_zeno_ledger_anti_equivocation.py",
+        "src/integration/zeno_ledger_anti_equivocation_v0.py",
         "tools/zeno_ledger_make_public_testnet_bundle.py",
         "tools/zeno_ledger_dual_operator_rehearsal.py",
         "tools/zeno_ledger_public_network_smoke.py"
@@ -109,12 +111,14 @@
       "test_paths": [
         "tests/integration/test_zeno_ledger_v0.py",
         "tests/integration/test_zeno_ledger_node.py",
-        "tests/integration/test_zeno_ledger_machine_a_host.py"
+        "tests/integration/test_zeno_ledger_machine_a_host.py",
+        "tests/integration/test_zeno_ledger_anti_equivocation_v0.py"
       ],
       "evidence_commands": [
+        "python3 tools/check_zeno_ledger_anti_equivocation.py",
         "PYTHON=python3 ZENO_PUBLIC_TESTNET_GATE_OUT=/tmp/zenodex_public_testnet_candidate_gate tools/run_public_testnet_candidate_gate.sh"
       ],
-      "residual_limits": "This is same-machine replay and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
+      "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
     },
     {
       "id": "zk_risc0_metadata_binding",

@@ -97,6 +97,9 @@ echo "== release: dependency pinning status =="
 echo "== release: API surface profiles =="
 "$PY" "$ROOT_DIR/tools/check_api_surface_profiles.py"
 
+echo "== release: ZenoLedger anti-equivocation =="
+"$PY" "$ROOT_DIR/tools/check_zeno_ledger_anti_equivocation.py"
+
 require_file "system-spec lint" "$ROOT_DIR/tools/system_spec_lint.py"
 require_file "system-spec compose" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
 echo "== release: system-spec lint =="
