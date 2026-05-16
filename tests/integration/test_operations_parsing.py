@@ -5,6 +5,7 @@ import pytest
 from src.core.settlement import Settlement
 from src.integration.operations import (
     SignedIntentEnvelope,
+    ValidatedIntent,
     _parse_intent,
     create_intent_operation,
     create_signed_intent_operation,
@@ -37,6 +38,7 @@ def test_parse_signed_intents_accepts_signature_field() -> None:
     ops = {"2": [{**_min_intent_dict(), "signature": "0xsig"}]}
     envs = parse_signed_intents(ops)
     assert len(envs) == 1
+    assert isinstance(envs[0].intent, ValidatedIntent)
     assert envs[0].signature == "0xsig"
     assert "signature" not in (envs[0].intent.fields or {})
 
@@ -209,6 +211,10 @@ def test_parse_settlement_treats_none_lists_as_empty() -> None:
 def test_parse_intents_handles_missing_group_and_rejects_invalid_shapes() -> None:
     assert parse_intents({}) == []
 
+    parsed = parse_intents({"2": [_min_intent_dict()]})
+    assert len(parsed) == 1
+    assert isinstance(parsed[0], ValidatedIntent)
+
     with pytest.raises(ValueError, match="operations must be an object"):
         parse_intents([])  # type: ignore[arg-type]
 
@@ -254,6 +260,9 @@ def test_parse_signed_intents_rejects_invalid_intent_envelope_fields() -> None:
 
 
 def test_parse_signed_intents_validates_swap_exact_in_fields() -> None:
+    with pytest.raises(ValueError, match="unsupported field for SWAP_EXACT_IN: hidden_metadata"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "hidden_metadata": {"unsafe": True}}]})
+
     with pytest.raises(ValueError, match="Missing required field for SWAP_EXACT_IN: amount_in"):
         parse_signed_intents({"2": [{k: v for k, v in _min_intent_dict().items() if k != "amount_in"}]})
 
@@ -295,6 +304,9 @@ def test_parse_signed_intents_validates_create_pool_fields() -> None:
         create_pool.pop(key)
     envs = parse_signed_intents({"2": [create_pool]})
     assert envs[0].intent.kind == IntentKind.CREATE_POOL
+
+    with pytest.raises(ValueError, match="unsupported field for CREATE_POOL: pool_id"):
+        parse_signed_intents({"2": [{**create_pool, "pool_id": "stale-pool"}]})
 
     with pytest.raises(ValueError, match="intent assets must be in canonical order"):
         parse_signed_intents({"2": [{**create_pool, "asset0": "asset-b", "asset1": "asset-a"}]})
