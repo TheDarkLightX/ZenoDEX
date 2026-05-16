@@ -43,6 +43,11 @@ from src.state.canonical import canonical_hex_fixed_allow_0x
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
+PROOF_METADATA_REQUIRED_ROOT_FLAGS = (
+    ("--conflict-schedule-hash", "conflict_schedule_hash"),
+    ("--feature-suite-hash", "feature_suite_hash"),
+    ("--dependency-lock-hash", "dependency_lock_hash"),
+)
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -60,6 +65,32 @@ def _write_json(path: Path, value: object) -> None:
 def _write_text(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value, encoding="utf-8")
+
+
+def _missing_proof_metadata_root_flags_v0(
+    *,
+    proof_kind: str,
+    conflict_schedule_hash: str,
+    feature_suite_hash: str,
+    dependency_lock_hash: str,
+    tee_measurement_hash: str,
+    child_receipts_root: str,
+) -> list[str]:
+    roots_by_name = {
+        "conflict_schedule_hash": conflict_schedule_hash,
+        "feature_suite_hash": feature_suite_hash,
+        "dependency_lock_hash": dependency_lock_hash,
+    }
+    missing = [
+        flag
+        for flag, name in PROOF_METADATA_REQUIRED_ROOT_FLAGS
+        if roots_by_name.get(name) == ZERO_ROOT
+    ]
+    if proof_kind == "tee_attestation_v0" and tee_measurement_hash == ZERO_ROOT:
+        missing.append("--tee-measurement-hash")
+    if proof_kind == "recursive_epoch_v0" and child_receipts_root == ZERO_ROOT:
+        missing.append("--child-receipts-root")
+    return missing
 
 
 def _load_chain_balances(path: Path | None) -> dict[str, int]:
@@ -1560,6 +1591,18 @@ def build_local_block_v0(
         ]
         if missing:
             raise ValueError(f"{', '.join(missing)} required when --proof-kind is supplied")
+        missing_roots = _missing_proof_metadata_root_flags_v0(
+            proof_kind=proof_kind,
+            conflict_schedule_hash=conflict_schedule_hash,
+            feature_suite_hash=feature_suite_hash,
+            dependency_lock_hash=dependency_lock_hash,
+            tee_measurement_hash=tee_measurement_hash,
+            child_receipts_root=child_receipts_root,
+        )
+        if missing_roots:
+            raise ValueError(
+                f"{', '.join(missing_roots)} must be nonzero when --proof-kind is supplied"
+            )
         proof_metadata = build_proof_metadata_v0(
             chain_id=chain_id,
             height=height,
