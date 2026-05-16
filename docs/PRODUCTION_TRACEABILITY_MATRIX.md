@@ -16,7 +16,7 @@ Current entries:
 | --- | --- | --- | --- |
 | `dex_nonce_replay_protection` | `supported` | Core nonce policy, deployment profile guard, and `apply_ops` nonce admission | `tests/integration/test_dex_engine_helpers.py`, `tests/integration/test_deployment_profiles.py`, `tests/core/test_dex_step.py` |
 | `dex_strong_settlement_replay` | `supported` | Strong settlement replay validator | `tests/core/test_settlement_strong_validator.py`, `tests/integration/test_settlement_strong_certificate.py` |
-| `dex_intent_normal_form_boundary` | `supported` | Parsed-intent normal-form gate | `tests/core/test_intent_normal_form.py`, `tests/integration/test_dex_engine_helpers.py` |
+| `dex_intent_normal_form_boundary` | `supported` | Parsed-intent normal-form gate with validated marker and unknown-field rejection | `tests/core/test_intent_normal_form.py`, operations parser/fuzz suites, `tests/integration/test_dex_engine_helpers.py` |
 | `dex_deployment_profile_postures` | `supported` | Named local/public-testnet/production-strict deployment profiles | `tests/integration/test_deployment_profiles.py`, `tools/check_dex_deployment_profiles.py` |
 | `upba_fixed_admission_price_grid` | `supported_scoped` | UPBA certificate and bounded price-grid evidence verifier | UPBA core and integration test suites |
 | `zenoledger_public_testnet_rehearsal` | `supported_replay` | Public-testnet candidate gate, anti-equivocation check, bundle, dual-operator rehearsal, live-intake smoke | `tools/run_public_testnet_candidate_gate.sh`, `tools/check_zeno_ledger_anti_equivocation.py` |

@@ -26,46 +26,6 @@ ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_-"
 TEXT = st.text(ALPHABET, min_size=0, max_size=16)
 NON_EMPTY_TEXT = st.text(ALPHABET, min_size=1, max_size=16)
 HEX_32 = st.binary(min_size=32, max_size=32).map(lambda raw: "0x" + raw.hex())
-RESERVED_INTENT_KEYS = {
-    "module",
-    "version",
-    "kind",
-    "intent_id",
-    "sender_pubkey",
-    "deadline",
-    "salt",
-    "signature",
-    "quote_receipt",
-    "pool_id",
-    "asset_in",
-    "asset_out",
-    "recipient",
-    "amount_in",
-    "min_amount_out",
-    "amount_out",
-    "max_amount_in",
-    "asset0",
-    "asset1",
-    "fee_bps",
-    "amount0",
-    "amount1",
-    "created_at",
-    "curve_tag",
-    "curve_params",
-    "amount0_desired",
-    "amount1_desired",
-    "amount0_min",
-    "amount1_min",
-    "lp_amount",
-    "nonce",
-    "submission_order",
-    "quote_receipt_hash",
-    "quote_pool_fingerprint",
-    "quote_receipt_leg_index",
-    "oracle_authorization",
-}
-
-
 JSON_VALUE: st.SearchStrategy[Any] = st.recursive(
     st.none() | st.booleans() | st.integers(min_value=-10_000, max_value=10_000) | TEXT,
     lambda child: st.lists(child, max_size=3) | st.dictionaries(NON_EMPTY_TEXT, child, max_size=3),
@@ -83,16 +43,23 @@ def _quote_receipt_transport(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def _intent_fields(draw: st.DrawFn) -> dict[str, Any]:
-    keys = draw(
-        st.lists(
-            NON_EMPTY_TEXT.filter(lambda value: value not in RESERVED_INTENT_KEYS),
-            min_size=0,
-            max_size=4,
-            unique=True,
-        )
-    )
-    return {key: draw(JSON_VALUE) for key in keys}
+def _optional_common_intent_fields(draw: st.DrawFn) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    if draw(st.booleans()):
+        fields["nonce"] = draw(st.integers(min_value=1, max_value=2**31))
+    if draw(st.booleans()):
+        fields["recipient"] = draw(NON_EMPTY_TEXT)
+    if draw(st.booleans()):
+        fields["submission_order"] = draw(st.integers(min_value=0, max_value=2**31))
+    if draw(st.booleans()):
+        fields["quote_receipt_hash"] = draw(NON_EMPTY_TEXT)
+    if draw(st.booleans()):
+        fields["quote_pool_fingerprint"] = draw(NON_EMPTY_TEXT)
+    if draw(st.booleans()):
+        fields["quote_receipt_leg_index"] = draw(st.integers(min_value=0, max_value=32))
+    if draw(st.booleans()):
+        fields["oracle_authorization"] = draw(st.dictionaries(NON_EMPTY_TEXT, JSON_VALUE, max_size=3))
+    return fields
 
 
 @st.composite
@@ -163,7 +130,7 @@ def _valid_intent_dict(draw: st.DrawFn) -> dict[str, Any]:
     salt = draw(st.one_of(st.none(), NON_EMPTY_TEXT))
     if salt is not None:
         intent["salt"] = salt
-    intent.update(draw(_intent_fields()))
+    intent.update(draw(_optional_common_intent_fields()))
     return intent
 
 

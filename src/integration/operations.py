@@ -99,6 +99,18 @@ class SignedIntentEnvelope:
     quote_receipt: Optional[Dict[str, Any]] = None
 
 
+@dataclass
+class ValidatedIntent(Intent):
+    """
+    Intent admitted through the operations parser normal-form boundary.
+
+    The state-layer `Intent` type remains generic for generated fixtures and
+    internal proof/test construction. User-supplied operations cross this
+    boundary only after common fields, kind-specific fields, and unknown fields
+    have been validated.
+    """
+
+
 @dataclass(frozen=True)
 class SettlementEnvelope:
     settlement: Settlement
@@ -229,7 +241,7 @@ def _parse_events(value: Any) -> Optional[list[dict[str, Any]]]:
     return value
 
 
-def parse_intents(operations: Dict[str, Any]) -> List[Intent]:
+def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
     """
     Parse intents from transaction operations["2"].
     
@@ -252,7 +264,7 @@ def parse_intents(operations: Dict[str, Any]) -> List[Intent]:
     if not isinstance(intents_data, list):
         raise ValueError(f"operations['2'] must be a list, got {type(intents_data)}")
     
-    intents = []
+    intents: list[ValidatedIntent] = []
     for i, intent_data in enumerate(intents_data):
         try:
             intent = _parse_intent(intent_data)
@@ -347,7 +359,7 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
     return out
 
 
-def _parse_intent(intent_data: Dict[str, Any]) -> Intent:
+def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
     """
     Parse a single intent from JSON data.
     
@@ -394,7 +406,7 @@ def _parse_intent(intent_data: Dict[str, Any]) -> Intent:
         if k not in common_fields
     }
     
-    intent = Intent(
+    intent = ValidatedIntent(
         module=module,
         version=version,
         kind=kind,
@@ -407,6 +419,77 @@ def _parse_intent(intent_data: Dict[str, Any]) -> Intent:
     _validate_intent_fields(intent)
     
     return intent
+
+
+_COMMON_INTENT_FIELD_KEYS = frozenset(
+    {
+        "nonce",
+        "recipient",
+        "submission_order",
+        "quote_receipt_hash",
+        "quote_pool_fingerprint",
+        "quote_receipt_leg_index",
+        "oracle_authorization",
+    }
+)
+
+_KIND_INTENT_FIELD_KEYS = {
+    IntentKind.SWAP_EXACT_IN: frozenset(
+        {
+            "pool_id",
+            "asset_in",
+            "asset_out",
+            "amount_in",
+            "min_amount_out",
+        }
+    ),
+    IntentKind.SWAP_EXACT_OUT: frozenset(
+        {
+            "pool_id",
+            "asset_in",
+            "asset_out",
+            "amount_out",
+            "max_amount_in",
+        }
+    ),
+    IntentKind.CREATE_POOL: frozenset(
+        {
+            "asset0",
+            "asset1",
+            "fee_bps",
+            "amount0",
+            "amount1",
+            "created_at",
+            "curve_tag",
+            "curve_params",
+        }
+    ),
+    IntentKind.ADD_LIQUIDITY: frozenset(
+        {
+            "pool_id",
+            "amount0_desired",
+            "amount1_desired",
+            "amount0_min",
+            "amount1_min",
+        }
+    ),
+    IntentKind.REMOVE_LIQUIDITY: frozenset(
+        {
+            "pool_id",
+            "lp_amount",
+            "amount0_min",
+            "amount1_min",
+        }
+    ),
+}
+
+
+def _reject_unknown_intent_fields(fields: Dict[str, Any], *, intent_kind: IntentKind) -> None:
+    allowed = _COMMON_INTENT_FIELD_KEYS | _KIND_INTENT_FIELD_KEYS.get(intent_kind, frozenset())
+    unknown = sorted(set(fields) - allowed)
+    if unknown:
+        joined = ", ".join(unknown)
+        raise ValueError(f"unsupported field for {intent_kind.value}: {joined}")
 
 
 def _require_field(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind) -> Any:
@@ -602,6 +685,7 @@ def _validate_intent_fields(intent: Intent) -> None:
     domains.
     """
     fields = intent.fields or {}
+    _reject_unknown_intent_fields(fields, intent_kind=intent.kind)
     _validate_common_intent_fields(fields)
 
     if intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):

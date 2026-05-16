@@ -52,12 +52,15 @@
       ],
       "test_paths": [
         "tests/core/test_intent_normal_form.py",
+        "tests/integration/test_operations_parsing.py",
+        "tests/integration/test_operations_fuzz.py",
+        "tests/integration/test_operations_grammar_fuzz.py",
         "tests/integration/test_dex_engine_helpers.py"
       ],
       "evidence_commands": [
-        "python3 -m pytest -q tests/core/test_intent_normal_form.py tests/integration/test_dex_engine_helpers.py"
+        "python3 -m pytest -q tests/core/test_intent_normal_form.py tests/integration/test_operations_parsing.py tests/integration/test_operations_fuzz.py tests/integration/test_operations_grammar_fuzz.py tests/integration/test_dex_engine_helpers.py"
       ],
-      "residual_limits": "The parser still returns the base Intent object. The normal-form gate is the current enforcement boundary."
+      "residual_limits": "The operations parser returns a ValidatedIntent marker and rejects unknown kind-specific fields. Internally generated base Intent fixtures remain available for direct unit/proof tests and must still pass the downstream strong validator before value movement."
     },
     {
       "id": "dex_deployment_profile_postures",
