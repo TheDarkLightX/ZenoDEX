@@ -22,6 +22,7 @@ Current entries:
 | `upba_fixed_admission_price_grid` | `supported_scoped` | UPBA certificate and bounded price-grid evidence verifier | UPBA core and integration test suites |
 | `zenoledger_public_testnet_rehearsal` | `supported_replay` | Public-testnet candidate gate, anti-equivocation check, bundle, dual-operator rehearsal, live-intake smoke | `tools/run_public_testnet_candidate_gate.sh`, `tools/check_zeno_ledger_anti_equivocation.py` |
 | `zk_risc0_metadata_binding` | `supported_scoped` | RISC0 proof metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_risc0_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
+| `dependency_pinning_ratchet` | `supported_ratchet` | Release-gate ratchet for unpinned Python requirements and required lock artifacts | `tests/integration/test_dependency_pinning_status_check.py`, `tools/check_dependency_pinning_status.py` |
 | `tee_metadata_binding` | `supported_scoped` | TEE quote/policy metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_tee_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
 | `oracle_critical_authorization` | `supported` | ZenoOracle routing and settlement authorization gates | `tests/integration/test_oracle_authorization_semantic_binding.py` |
 | `proof_mining_claimability` | `supported` | Proof-mining claimability manager/runtime gates | Proof-mining core and integration suites |

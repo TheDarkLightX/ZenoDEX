@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MATRIX_PATH = ROOT / "docs" / "production_traceability_matrix.json"
 RESULT_SCHEMA = "zenodex.production_traceability_matrix_check.v1"
 MATRIX_SCHEMA = "zenodex.production_traceability_matrix.v1"
-ALLOWED_STATUSES = {"supported", "supported_scoped", "supported_replay", "open"}
+ALLOWED_STATUSES = {"supported", "supported_scoped", "supported_replay", "supported_ratchet", "open"}
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
