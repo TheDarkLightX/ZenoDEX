@@ -163,6 +163,24 @@
       "residual_limits": "This is metadata binding plus an admitted verifier registry policy. Full proof-of-execution still needs broader guest coverage, reproducible inputs, and a governed public registry release process."
     },
     {
+      "id": "dependency_pinning_ratchet",
+      "status": "supported_ratchet",
+      "invariant": "The release gate must detect newly introduced unpinned Python requirements and confirm required proof-toolchain lock artifacts are present.",
+      "runtime_guard_paths": [
+        "tools/check_dependency_pinning_status.py",
+        "tools/run_release_gate.sh",
+        "docs/dependency_pinning_status.json"
+      ],
+      "test_paths": [
+        "tests/integration/test_dependency_pinning_status_check.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_dependency_pinning_status_check.py",
+        "python3 tools/check_dependency_pinning_status.py"
+      ],
+      "residual_limits": "This is a ratchet over the current dependency posture. It blocks new unpinned Python requirements and checks required lock artifacts, while full production closure still needs generated hash-pinned Python lockfiles and require-hashes installation commands."
+    },
+    {
       "id": "tee_metadata_binding",
       "status": "supported_scoped",
       "invariant": "TEE proof metadata must bind quote and policy roots before ledger admission when a TEE attestation path is used.",
