@@ -15,7 +15,6 @@ from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
 
-
 _U32_MAX = 0xFFFFFFFF
 
 
@@ -88,7 +87,7 @@ def validate_and_apply_intent_nonce_batch(
     - When enabled, every nonce-bearing batch must use a contiguous range
       `{last+1, ..., last+k}` per sender, regardless of input order.
     - `require_all_nonces=True` rejects any batch with a missing/invalid nonce.
-    - `require_all_nonces=False` keeps backward compatibility for pure-core tests:
+    - `require_all_nonces=False` is an explicit legacy/replay mode:
       nonce-free batches are accepted as a no-op, but mixed nonce presence rejects.
     """
     if not intents:
