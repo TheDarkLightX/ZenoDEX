@@ -19,7 +19,7 @@ Current entries:
 | `dex_intent_normal_form_boundary` | `supported` | Parsed-intent normal-form gate | `tests/core/test_intent_normal_form.py`, `tests/integration/test_dex_engine_helpers.py` |
 | `dex_deployment_profile_postures` | `supported` | Named local/public-testnet/production-strict deployment profiles | `tests/integration/test_deployment_profiles.py`, `tools/check_dex_deployment_profiles.py` |
 | `upba_fixed_admission_price_grid` | `supported_scoped` | UPBA certificate and bounded price-grid evidence verifier | UPBA core and integration test suites |
-| `zenoledger_public_testnet_rehearsal` | `supported_replay` | Public-testnet candidate gate, bundle, dual-operator rehearsal, live-intake smoke | `tools/run_public_testnet_candidate_gate.sh` |
+| `zenoledger_public_testnet_rehearsal` | `supported_replay` | Public-testnet candidate gate, anti-equivocation check, bundle, dual-operator rehearsal, live-intake smoke | `tools/run_public_testnet_candidate_gate.sh`, `tools/check_zeno_ledger_anti_equivocation.py` |
 | `zk_risc0_metadata_binding` | `supported_scoped` | RISC0 proof metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_risc0_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
 | `tee_metadata_binding` | `supported_scoped` | TEE quote/policy metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_tee_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
 | `oracle_critical_authorization` | `supported` | ZenoOracle routing and settlement authorization gates | `tests/integration/test_oracle_authorization_semantic_binding.py` |

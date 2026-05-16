@@ -59,6 +59,10 @@ echo "== public-testnet: API surface profile check =="
 "$PY" tools/check_api_surface_profiles.py \
   > "$OUT_DIR/api_surface_profiles.json"
 
+echo "== public-testnet: anti-equivocation check =="
+"$PY" tools/check_zeno_ledger_anti_equivocation.py \
+  > "$OUT_DIR/anti_equivocation.json"
+
 echo "== public-testnet: public bundle =="
 "$PY" tools/zeno_ledger_make_public_testnet_bundle.py \
   --out-dir "$OUT_DIR/public_bundle"
