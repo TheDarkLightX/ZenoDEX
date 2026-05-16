@@ -1,8 +1,11 @@
 """
-Tau validation bridge for ZenoDEX operations.
+Runtime validation bridge for ZenoDEX operations.
 
-This module bridges between Python operations and Tau Language validation.
-In production, this would call the Tau Docker container to validate operations.
+This module is the integration-layer settlement admission boundary. The default
+path treats supplied settlements as untrusted certificates, replays accepted
+intents against the local pre-state, and requires exact deltas/events from the
+strong validator. Optional Tau gates add independent spec checks for deployments
+that enable them.
 """
 
 from __future__ import annotations
@@ -54,15 +57,12 @@ def validate_operations(
     uniform_batch_certificate: Optional[Dict[str, object]] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
-    Validate ZenoDEX operations using Tau Language validation.
-    
-    In production, this would:
-    1. Serialize state and operations to Tau Language format
-    2. Call Tau Docker container with validation spec
-    3. Parse validation result
-    
-    For now, this performs Python-side validation as a placeholder.
-    
+    Validate ZenoDEX operations against the configured settlement policy.
+
+    The default policy runs strong replay validation locally. Certificate and
+    UPBA modes route through their deterministic verifier predicates. Tau spec
+    validation is an optional fail-closed defense-in-depth gate.
+
     Args:
         intents: List of intents from operations["2"]
         settlement: Settlement from operations["3"] (if present)
