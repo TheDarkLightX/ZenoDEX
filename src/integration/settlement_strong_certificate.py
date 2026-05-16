@@ -338,9 +338,15 @@ def build_settlement_strong_certificate(
         binding_ok=proof_flags.binding_ok,
     )
     module_bundle_step = build_settlement_module_flag_bundle_v1_step(
-        core_module_ok=core_module_ok,
-        feature_extension_ok=feature_extension_ok,
-        proof_binding_ok=proof_binding_ok,
+        cpmm_ok=proof_flags.cpmm_ok,
+        balance_ok=proof_flags.balance_ok,
+        token_ok=proof_flags.token_ok,
+        buyback_floor_ok=proof_flags.buyback_floor_ok,
+        buyback_floor_fixedpoint_ok=proof_flags.buyback_floor_fixedpoint_ok,
+        rebate_ok=proof_flags.rebate_ok,
+        lock_weight_ok=proof_flags.lock_weight_ok,
+        proof_ok=proof_flags.proof_ok,
+        binding_ok=proof_flags.binding_ok,
     )
 
     compact_bundle_step: Optional[dict[str, int]] = None
