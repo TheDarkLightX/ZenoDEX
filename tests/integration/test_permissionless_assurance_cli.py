@@ -26,10 +26,11 @@ def test_status_json_shape() -> None:
     proc = _run("status", "--format", "json")
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
+    snapshot_source = json.loads((ROOT / "docs" / "assurance_release_snapshot.json").read_text(encoding="utf-8"))
     assert isinstance(payload["branch"], str)
     assert isinstance(payload["assurance_snapshot"], dict)
     assert payload["assurance_snapshot"]["ok"] is True
-    assert payload["assurance_snapshot"]["as_of_date"] == "2026-04-06"
+    assert payload["assurance_snapshot"]["as_of_date"] == snapshot_source["as_of_date"]
     assert isinstance(payload["tla_claim_summary"], dict)
     assert payload["tla_claim_summary"]["ok"] is True
     assert payload["tla_claim_summary"]["path"] == "docs/TLA_CLAIM_SUMMARY.md"

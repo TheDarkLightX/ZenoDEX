@@ -12,7 +12,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from ..core.batch_clearing import apply_settlement
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
-from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
+from ..core.uniform_batch_clearing import (
+    UniformBatchCertificateV1,
+    validate_uniform_batch_settlement_v1,
+)
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
