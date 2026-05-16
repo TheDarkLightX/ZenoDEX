@@ -300,6 +300,8 @@ def production_config_violations(
         reasons.append("require_intent_signatures must be true")
     if not bool(config.dex_config.require_all_nonces):
         reasons.append("dex_config.require_all_nonces must be true")
+    if bool(config.dex_config.allow_legacy_nonce_free_steps):
+        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
     if str(config.dex_config.settlement_validation) == "legacy":
         reasons.append("dex_config.settlement_validation must not be legacy")
     if bool(config.allow_external_tools):

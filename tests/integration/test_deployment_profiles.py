@@ -48,7 +48,11 @@ def test_public_testnet_profile_rejects_unsafe_boundary_switches() -> None:
         require_settlement_match=False,
         require_intent_signatures=False,
         allow_unsigned_intents_if_tx_sender_matches=True,
-        dex_config=DexConfig(require_all_nonces=False, settlement_validation="legacy"),
+        dex_config=DexConfig(
+            require_all_nonces=False,
+            allow_legacy_nonce_free_steps=True,
+            settlement_validation="legacy",
+        ),
     )
 
     reasons = deployment_profile_violations(DEPLOYMENT_PROFILE_PUBLIC_TESTNET, cfg)
@@ -56,6 +60,7 @@ def test_public_testnet_profile_rejects_unsafe_boundary_switches() -> None:
     assert "require_settlement_match must be true" in reasons
     assert "require_intent_signatures must be true" in reasons
     assert "dex_config.require_all_nonces must be true" in reasons
+    assert "dex_config.allow_legacy_nonce_free_steps must be false" in reasons
     assert "dex_config.settlement_validation must not be legacy" in reasons
     assert "allow_unsigned_intents_if_tx_sender_matches must be false" in reasons
 
@@ -125,7 +130,11 @@ def test_profile_factory_sanitizes_unsafe_base() -> None:
         require_intent_signatures=False,
         allow_external_tools=True,
         consensus_mode=False,
-        dex_config=DexConfig(require_all_nonces=False, settlement_validation="legacy"),
+        dex_config=DexConfig(
+            require_all_nonces=False,
+            allow_legacy_nonce_free_steps=True,
+            settlement_validation="legacy",
+        ),
         enable_test_fault_injection=True,
         fault_injection=DexFaultInjectionConfig(fail_at_stage="after_raw_validation"),
     )
@@ -135,3 +144,4 @@ def test_profile_factory_sanitizes_unsafe_base() -> None:
         base=unsafe,
     )
     assert validate_deployment_profile(DEPLOYMENT_PROFILE_PUBLIC_TESTNET, cfg) == (True, None)
+    assert cfg.dex_config.allow_legacy_nonce_free_steps is False

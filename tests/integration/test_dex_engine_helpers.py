@@ -397,6 +397,7 @@ def test_validate_production_config_rejects_unsafe_boundary_profile() -> None:
         consensus_mode=False,
         dex_config=DexConfig(
             require_all_nonces=False,
+            allow_legacy_nonce_free_steps=True,
             settlement_validation="legacy",
         ),
         enable_test_fault_injection=True,
@@ -408,6 +409,7 @@ def test_validate_production_config_rejects_unsafe_boundary_profile() -> None:
     assert "require_settlement_match must be true" in reasons
     assert "require_intent_signatures must be true" in reasons
     assert "dex_config.require_all_nonces must be true" in reasons
+    assert "dex_config.allow_legacy_nonce_free_steps must be false" in reasons
     assert "dex_config.settlement_validation must not be legacy" in reasons
     assert "allow_external_tools must be false" in reasons
     assert "consensus_mode must be true" in reasons
