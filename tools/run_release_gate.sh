@@ -91,6 +91,9 @@ echo "== release: coverage map refresh =="
 echo "== release: production traceability matrix =="
 "$PY" "$ROOT_DIR/tools/check_production_traceability_matrix.py"
 
+echo "== release: dependency pinning status =="
+"$PY" "$ROOT_DIR/tools/check_dependency_pinning_status.py"
+
 require_file "system-spec lint" "$ROOT_DIR/tools/system_spec_lint.py"
 require_file "system-spec compose" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
 echo "== release: system-spec lint =="
