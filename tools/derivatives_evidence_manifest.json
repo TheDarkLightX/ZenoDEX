@@ -68,7 +68,7 @@
     },
     {
       "path": "tests/core/test_il_futures.py",
-      "sha256": "fd7b6bd909eb16729e892d12602b500802a4097ba9bb6bd14100a232ef7d8316"
+      "sha256": "12c6369f9edb8def36a7910bc0c373ab98cd3c99380fc16f6fa1dbb97b66cc50"
     },
     {
       "path": "tests/core/test_curve_selection.py",

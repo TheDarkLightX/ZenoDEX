@@ -1204,12 +1204,13 @@ claims:
       re-enable, stale unblocked oracle state eventually becomes fresh or permanently blocked, and any
       requested risky action in a healthy oracle world is eventually resolved by re-enable or permanent block.
     evidence:
-      kind: python
+      kind: tla
       note: >
-        Deterministic finite-state replay over the repo-local oracle-recovery control model. This is a temporal
-        complement to the replayable oracle recovery lifecycle packet, not an external TLC model-checking claim
-        or a full theorem about arbitrary recovery policy, throughput, or chain inclusion.
+        Bounded TLC model check over the repo-local oracle-recovery control model, with a deterministic
+        finite-state replay command as a complementary oracle recovery lifecycle packet. This is not a full
+        theorem about arbitrary recovery policy, throughput, or chain inclusion.
       check:
+        - cmd: python3 tools/run_tla_models.py --json
         - cmd: python3 tools/zeno_oracle_tla_recovery_replay.py --format text
       files:
         - formal/tla/OracleRecoveryLifecycle.tla

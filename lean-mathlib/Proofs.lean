@@ -176,6 +176,8 @@ import Proofs.FIREStrictSettlementAuthority
 import Proofs.FIREStrictSpecParsing
 import Proofs.UniformBatchClearingV1
 import Proofs.UniformBatchOptimality
+import Proofs.ZenoLedgerDisjointWrites
+import Proofs.ZenoLedgerZkTeeProofComposition
 
 /-!
 Proofs library root.

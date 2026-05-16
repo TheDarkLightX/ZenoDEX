@@ -103,28 +103,19 @@ production mainnet readiness gated by validator-network hardening and live-value
 ## Assurance Snapshot
 
 <!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
-The pinned release replay for the release tree dated `2026-04-06` was green:
+The pinned release replay for the release tree dated `2026-04-10` was green:
 
-- acceptance TCB: `385 passed`, `98.8%` branch coverage
-- critical gate: `1424 passed`, `99%` branch coverage
+- acceptance TCB: `361 passed`, `99.4%` branch coverage
+- critical gate: `735 passed, 1 skipped`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `5 killed, 2 inconclusive`
-- fuzz gate: `58 passed`
-- snapshot recovery: `17 passed`
-- Tau syntax: `60/60`
+- mutation gate: `7 killed, 0 survived, 0 inconclusive`
+- fuzz gate: `11 passed`
+- snapshot recovery: `19 passed`
+- Tau syntax: `62/62`
 - Tau traces: `1/1`
 
 This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
 For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.
-
-Current Tau runtime contract:
-- `SupportedTauRuntime := SpecModeStable ∨ (REPLStarts ∧ SpecFallbackWorks)`.
-- The public Tau runtime lane replays `6` smoke contracts from `src/tau_specs/recommended/semantic_contracts.json`.
-- Supported execution lanes: `repl_with_spec_fallback`, `spec_mode_stable`.
-- Supported trace posture: `90s`.
-- Replay with `python3 tools/check_tau_supported_runtime_subset.py`.
-- Machine-readable summary: `docs/tau_supported_runtime_contract.json`.
-- This is current-checkout runtime metadata, not historical release evidence.
 
 Important derivatives note:
 

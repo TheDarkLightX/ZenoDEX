@@ -764,6 +764,14 @@ actions:
         - { op: "=", args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }] }
         - op: "<"
           args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+        - { var: "oracle_seen" }
+        - op: ">"
+          args: [{ var: "index_price_e8" }, { const: 0 }]
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+            - { var: "max_oracle_staleness_epochs" }
         # v3: can only settle in PricePublished phase
         - { op: "=", args: [{ var: "epoch_phase" }, { const: 1 }] }
         # Collateral after MTM must be non-negative
