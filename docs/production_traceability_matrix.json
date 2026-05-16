@@ -23,6 +23,23 @@
       "residual_limits": "Legacy replay fixtures require an explicit core compatibility flag. Production config and deployment profile validation reject nonce-free or legacy-compat production/testnet postures."
     },
     {
+      "id": "dex_value_moving_entrypoint_guard",
+      "status": "supported",
+      "invariant": "Runtime value-moving DEX entrypoints must use apply_ops or an explicitly allowlisted verifier/certificate helper, rather than adding new direct pure-core settlement application paths.",
+      "runtime_guard_paths": [
+        "tools/check_dex_value_moving_entrypoints.py",
+        "tools/run_release_gate.sh"
+      ],
+      "test_paths": [
+        "tests/integration/test_dex_value_moving_entrypoints_check.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_dex_value_moving_entrypoints_check.py",
+        "python3 tools/check_dex_value_moving_entrypoints.py"
+      ],
+      "residual_limits": "This is a syntactic guard over src/ and tools/ for accidental new direct calls. It complements runtime config checks and code review; it is not a semantic proof that every future adapter is production-safe."
+    },
+    {
       "id": "dex_strong_settlement_replay",
       "status": "supported",
       "invariant": "Accepted settlements are replayed from supplied intents and pre-state, then compared to canonical deltas and events before application.",

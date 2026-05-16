@@ -91,6 +91,9 @@ echo "== release: coverage map refresh =="
 echo "== release: production traceability matrix =="
 "$PY" "$ROOT_DIR/tools/check_production_traceability_matrix.py"
 
+echo "== release: DEX value-moving entrypoints =="
+"$PY" "$ROOT_DIR/tools/check_dex_value_moving_entrypoints.py"
+
 echo "== release: dependency pinning status =="
 "$PY" "$ROOT_DIR/tools/check_dependency_pinning_status.py"
 
