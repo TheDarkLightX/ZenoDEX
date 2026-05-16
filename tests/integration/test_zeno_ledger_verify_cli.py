@@ -692,6 +692,52 @@ def test_run_local_builds_structured_proof_metadata(tmp_path: Path) -> None:
     assert verify_with_metadata_payload["proof_metadata_checked_heights"] == [1]
 
 
+def test_run_local_proof_mode_requires_nonzero_metadata_roots(tmp_path: Path) -> None:
+    body = _body(1)
+    body_path = tmp_path / "input_body.json"
+    out_dir = tmp_path / "ledger"
+    _write_json(body_path, body)
+
+    proc = _run_local(
+        "--body",
+        str(body_path),
+        "--out-dir",
+        str(out_dir),
+        "--time-ms",
+        "1778730000001",
+        "--pre-state-root",
+        _root("pre-state"),
+        "--post-state-root",
+        _root("post-state"),
+        "--sequencer-set-hash",
+        _root("sequencer-set"),
+        "--config-digest",
+        _root("config"),
+        "--module-versions-digest",
+        _root("modules"),
+        "--proof-kind",
+        "risc0_zkvm_v0",
+        "--proof-program-id",
+        "risc0:zenodex-spot-transition-v1",
+        "--proof-verifier-id",
+        "risc0:receipt-verifier-v1",
+        "--proof-commitment",
+        _root("proof-commitment"),
+        "--proof-public-input-hash",
+        _root("public-input"),
+        "--proof-raw-journal-hash",
+        _root("raw-journal"),
+    )
+
+    assert proc.returncode == 1
+    payload = json.loads(proc.stdout)
+    assert payload["ok"] is False
+    assert payload["errors"] == [
+        "--conflict-schedule-hash, --feature-suite-hash, --dependency-lock-hash "
+        "must be nonzero when --proof-kind is supplied"
+    ]
+
+
 def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None:
     body = _body(1)
     body_path = tmp_path / "input_body.json"
