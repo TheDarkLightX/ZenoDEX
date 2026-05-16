@@ -32,12 +32,19 @@
     "tools/dex-ui/package-lock.json",
     "zk/state_proof_risc0/Cargo.lock"
   ],
+  "required_lock_artifact_sha256": {
+    "lean-mathlib/lake-manifest.json": "cc297517e4b27852a724a17ed1573e0142bbe1823c31c2382c34f9b790c71911",
+    "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
+    "tools/confidential_attestation_verifier_rust/Cargo.lock": "a50820080531e3f60e075e050287279f808ad7a3daba0682399e2fa9c90a23f5",
+    "tools/dex-ui/package-lock.json": "6e132a36a1e6ec9d3d82edc6b60415cef2a52844bbeb5d2da0607d8e62ba849a",
+    "zk/state_proof_risc0/Cargo.lock": "bc4afb50d8b0005c11710abeac885f7eaa26102344e0d7aeaa1708923b626725"
+  },
   "exact_python_pins_required": [
     "requirements-dev.txt:z3-solver==4.15.4.0"
   ],
   "residual_limits": [
     "Python runtime and dev requirements are not yet hash-pinned lockfiles.",
-    "This ratchet prevents new unpinned Python requirements and confirms current proof-toolchain lock artifacts exist.",
+    "This ratchet prevents new unpinned Python requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
     "Production closure still needs generated hash-pinned Python lockfiles and install commands that use require-hashes."
   ]
 }
