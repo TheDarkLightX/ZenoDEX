@@ -55,6 +55,10 @@ echo "== public-testnet: deployment profile check =="
 "$PY" tools/check_dex_deployment_profiles.py \
   > "$OUT_DIR/deployment_profiles.json"
 
+echo "== public-testnet: API surface profile check =="
+"$PY" tools/check_api_surface_profiles.py \
+  > "$OUT_DIR/api_surface_profiles.json"
+
 echo "== public-testnet: public bundle =="
 "$PY" tools/zeno_ledger_make_public_testnet_bundle.py \
   --out-dir "$OUT_DIR/public_bundle"
