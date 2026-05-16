@@ -88,6 +88,9 @@ run_if_present "derivatives evidence" "$ROOT_DIR/tools/run_derivatives_evidence.
 echo "== release: coverage map refresh =="
 "$PY" "$ROOT_DIR/tools/zenodex_core_coverage_map.py"
 
+echo "== release: production traceability matrix =="
+"$PY" "$ROOT_DIR/tools/check_production_traceability_matrix.py"
+
 require_file "system-spec lint" "$ROOT_DIR/tools/system_spec_lint.py"
 require_file "system-spec compose" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
 echo "== release: system-spec lint =="
