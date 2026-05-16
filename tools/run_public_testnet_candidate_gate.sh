@@ -51,6 +51,10 @@ echo "== public-testnet: UPBA tests =="
   tests/core/test_uniform_batch_price_grid_table.py \
   tests/integration/test_dex_engine_uniform_batch_certificate.py
 
+echo "== public-testnet: deployment profile check =="
+"$PY" tools/check_dex_deployment_profiles.py \
+  > "$OUT_DIR/deployment_profiles.json"
+
 echo "== public-testnet: public bundle =="
 "$PY" tools/zeno_ledger_make_public_testnet_bundle.py \
   --out-dir "$OUT_DIR/public_bundle"
