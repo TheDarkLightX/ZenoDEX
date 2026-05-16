@@ -20,8 +20,8 @@ Current entries:
 | `dex_deployment_profile_postures` | `supported` | Named local/public-testnet/production-strict deployment profiles | `tests/integration/test_deployment_profiles.py`, `tools/check_dex_deployment_profiles.py` |
 | `upba_fixed_admission_price_grid` | `supported_scoped` | UPBA certificate and bounded price-grid evidence verifier | UPBA core and integration test suites |
 | `zenoledger_public_testnet_rehearsal` | `supported_replay` | Public-testnet candidate gate, bundle, dual-operator rehearsal, live-intake smoke | `tools/run_public_testnet_candidate_gate.sh` |
-| `zk_risc0_metadata_binding` | `supported_scoped` | RISC0 proof metadata root checks | `tests/integration/test_zeno_ledger_risc0_proof_metadata.py` |
-| `tee_metadata_binding` | `supported_scoped` | TEE quote/policy metadata root checks | `tests/integration/test_zeno_ledger_tee_proof_metadata.py` |
+| `zk_risc0_metadata_binding` | `supported_scoped` | RISC0 proof metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_risc0_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
+| `tee_metadata_binding` | `supported_scoped` | TEE quote/policy metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_tee_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
 | `oracle_critical_authorization` | `supported` | ZenoOracle routing and settlement authorization gates | `tests/integration/test_oracle_authorization_semantic_binding.py` |
 | `proof_mining_claimability` | `supported` | Proof-mining claimability manager/runtime gates | Proof-mining core and integration suites |
 
