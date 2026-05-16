@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_dex_intent_for_engine
 from src.state.pools import compute_pool_id
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
@@ -88,6 +89,13 @@ def _post_json(url: str, value: dict[str, object]) -> dict[str, object]:
     return obj
 
 
+def _signed_intent(intent: dict[str, object], *, chain_id: str, privkey: int) -> dict[str, object]:
+    return {
+        **intent,
+        "signature": sign_dex_intent_for_engine(intent, privkey=privkey, chain_id=chain_id),
+    }
+
+
 def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str) -> dict[str, Any]:
     source_bundle = out_dir / "source_bundle"
     node_a_bundle = out_dir / "node_a_bundle"
@@ -134,9 +142,11 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
     try:
         asset_a = min(DEFAULT_ASSET0, DEFAULT_ASSET1)
         asset_b = max(DEFAULT_ASSET0, DEFAULT_ASSET1)
+        user_privkey = 7
+        user_pubkey = bls_pubkey_hex_from_privkey(user_privkey)
         faucet_existing = append_testnet_faucet_v0(
             data_dir=node_a_dir,
-            to_pubkey=DEFAULT_BOOTSTRAP_SENDER,
+            to_pubkey=user_pubkey,
             asset=asset_a,
             amount=1234,
             time_ms=DEFAULT_TIME_MS + 1_000_000,
@@ -148,24 +158,24 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             tx={
                 "tx_id": "smoke-live-swap-v0",
                 "block_timestamp": (DEFAULT_TIME_MS + 1_001_000) // 1000,
-                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "tx_sender_pubkey": user_pubkey,
                 "operations": {
                     "2": [
-                        {
+                        _signed_intent({
                             "module": "TauSwap",
                             "version": "0.1",
                             "kind": "SWAP_EXACT_IN",
                             "intent_id": "0x" + "bb" * 32,
-                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "sender_pubkey": user_pubkey,
                             "deadline": 1_999_999_999,
-                            "nonce": 5,
+                            "nonce": 1,
                             "pool_id": compute_pool_id(asset_a, asset_b, 30),
                             "asset_in": asset_a,
                             "asset_out": asset_b,
                             "amount_in": 100,
                             "min_amount_out": 1,
-                            "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                        }
+                            "recipient": user_pubkey,
+                        }, chain_id=chain_id, privkey=user_privkey)
                     ]
                 },
             },
@@ -183,7 +193,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         new_asset = token_create["testnet_token"]["asset"]
         faucet_new = append_testnet_faucet_v0(
             data_dir=node_a_dir,
-            to_pubkey=DEFAULT_BOOTSTRAP_SENDER,
+            to_pubkey=user_pubkey,
             asset=new_asset,
             amount=50_000,
             time_ms=DEFAULT_TIME_MS + 1_003_000,
@@ -197,24 +207,24 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             tx={
                 "tx_id": "smoke-create-fake-token-pool-v0",
                 "block_timestamp": (DEFAULT_TIME_MS + 1_004_000) // 1000,
-                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "tx_sender_pubkey": user_pubkey,
                 "operations": {
                     "2": [
-                        {
+                        _signed_intent({
                             "module": "TauSwap",
                             "version": "0.1",
                             "kind": "CREATE_POOL",
                             "intent_id": "0x" + "cc" * 32,
-                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "sender_pubkey": user_pubkey,
                             "deadline": 1_999_999_999,
-                            "nonce": 6,
+                            "nonce": 2,
                             "asset0": new_pool_asset0,
                             "asset1": new_pool_asset1,
                             "fee_bps": 30,
                             "amount0": 100,
                             "amount1": 100,
                             "created_at": (DEFAULT_TIME_MS + 1_004_000) // 1000,
-                        }
+                        }, chain_id=chain_id, privkey=user_privkey)
                     ]
                 },
             },
@@ -226,24 +236,24 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             tx={
                 "tx_id": "smoke-add-fake-token-liquidity-v0",
                 "block_timestamp": (DEFAULT_TIME_MS + 1_005_000) // 1000,
-                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "tx_sender_pubkey": user_pubkey,
                 "operations": {
                     "2": [
-                        {
+                        _signed_intent({
                             "module": "TauSwap",
                             "version": "0.1",
                             "kind": "ADD_LIQUIDITY",
                             "intent_id": "0x" + "cd" * 32,
-                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "sender_pubkey": user_pubkey,
                             "deadline": 1_999_999_999,
-                            "nonce": 7,
+                            "nonce": 3,
                             "pool_id": fake_pool_id,
                             "amount0_desired": 10,
                             "amount1_desired": 10,
                             "amount0_min": 0,
                             "amount1_min": 0,
-                            "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                        }
+                            "recipient": user_pubkey,
+                        }, chain_id=chain_id, privkey=user_privkey)
                     ]
                 },
             },
@@ -254,23 +264,23 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             tx={
                 "tx_id": "smoke-remove-fake-token-liquidity-v0",
                 "block_timestamp": (DEFAULT_TIME_MS + 1_006_000) // 1000,
-                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "tx_sender_pubkey": user_pubkey,
                 "operations": {
                     "2": [
-                        {
+                        _signed_intent({
                             "module": "TauSwap",
                             "version": "0.1",
                             "kind": "REMOVE_LIQUIDITY",
                             "intent_id": "0x" + "ce" * 32,
-                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "sender_pubkey": user_pubkey,
                             "deadline": 1_999_999_999,
-                            "nonce": 8,
+                            "nonce": 4,
                             "pool_id": fake_pool_id,
                             "lp_amount": 1,
                             "amount0_min": 0,
                             "amount1_min": 0,
-                            "recipient": DEFAULT_BOOTSTRAP_SENDER,
-                        }
+                            "recipient": user_pubkey,
+                        }, chain_id=chain_id, privkey=user_privkey)
                     ]
                 },
             },
