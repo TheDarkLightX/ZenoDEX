@@ -24,6 +24,7 @@ Current entries:
 | `tee_metadata_binding` | `supported_scoped` | TEE quote/policy metadata root checks and verifier registry admission | `tests/integration/test_zeno_ledger_tee_proof_metadata.py`, `tests/integration/test_zeno_ledger_verifier_registry_v0.py` |
 | `oracle_critical_authorization` | `supported` | ZenoOracle routing and settlement authorization gates | `tests/integration/test_oracle_authorization_semantic_binding.py` |
 | `proof_mining_claimability` | `supported` | Proof-mining claimability manager/runtime gates | Proof-mining core and integration suites |
+| `api_surface_profiles` | `supported` | API bootstrap profile refuses unsafe demo/value-moving exposure | `tests/integration/test_api_surface_profiles.py` |
 
 Residual limits remain part of the JSON entry for each invariant. A matrix entry
 is an evidence map, not a mainnet-readiness claim by itself.

@@ -27,6 +27,10 @@ from math import comb
 from typing import Any, Mapping, Optional, Sequence, Set
 
 from src.state.canonical import canonical_json_bytes
+from src.integration.api_surface_profiles import (
+    API_SURFACE_PROFILE_LOCAL_DEMO,
+    validate_api_surface_profile,
+)
 from src.integration.zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
@@ -6718,8 +6722,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
     demo_api_token = _env_str("DEMO_API_TOKEN", "")
+    api_surface_profile = _env_str("API_SURFACE_PROFILE", API_SURFACE_PROFILE_LOCAL_DEMO)
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+
+    try:
+        ok, err = validate_api_surface_profile(
+            profile_id=api_surface_profile,
+            demo_api_token=demo_api_token,
+            perps_enabled=perps_enabled,
+            zusd_enabled=zusd_enabled,
+            dex_enabled=dex_enabled,
+        )
+    except ValueError as exc:
+        print(f"Refusing to start: {exc}")
+        return 2
+    if not ok:
+        print(f"Refusing to start: {err}")
+        return 2
 
     if (perps_enabled or zusd_enabled or dex_enabled) and (not demo_api_token) and (not _is_loopback_host(host)):
         print(
@@ -6742,6 +6762,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
         f"perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled}, "
+        f"api_surface_profile={api_surface_profile}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, demo_api_token_set={bool(demo_api_token)})"
     )
     httpd.serve_forever(poll_interval=0.25)
