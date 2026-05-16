@@ -242,7 +242,7 @@ def build_submit_proof_packet(
     snapshot: ProofMiningManagerSnapshot,
     verification_flags: Mapping[str, Any],
 ) -> ProofMiningManagerPacket:
-    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=False)
+    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
     if _require_int(claim.get("epoch"), name="claim.epoch") != _require_int(snapshot.epoch, name="snapshot.epoch"):
         raise ValueError("claim epoch does not match snapshot")
     if _require_int(claim.get("base_reward"), name="claim.base_reward") != _require_int(snapshot.base_reward, name="snapshot.base_reward"):

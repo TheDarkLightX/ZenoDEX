@@ -8,7 +8,7 @@ import src.integration.proof_mining_runtime as runtime_module
 from src.core.dex import DexState
 from src.core.proof_mining_claims import build_proof_mining_claim
 from src.core.proof_mining_manager import ProofMiningManagerSnapshot
-from src.integration.proof_mining_context import build_proof_mining_context, proof_payload_hash
+from src.integration.proof_mining_context import ProofMiningContext, build_proof_mining_context, proof_payload_hash
 from src.integration.proof_mining_runtime import (
     ProofMiningRuntimeState,
     apply_proof_mining_claim,
@@ -17,6 +17,13 @@ from src.integration.proof_mining_runtime import (
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+
+
+def _verifier_evidence() -> list[dict[str, int]]:
+    return [
+        {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+        {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+    ]
 
 
 def _claim(*, miner_id: str, reward_pool_before: int, base_reward: int = 8, epoch: int = 1, slot: int = 0):
@@ -39,6 +46,24 @@ def _claim(*, miner_id: str, reward_pool_before: int, base_reward: int = 8, epoc
         epoch=epoch,
         proposal_slot=slot,
         prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash=f"sha256:prev-{slot}",
+        batch_hash=f"sha256:batch-{slot}",
+        dex_hash_after=f"sha256:after-{slot}",
+        verifier_evidence=_verifier_evidence(),
+    )
+
+
+def _context_from_claim(claim: dict) -> ProofMiningContext:
+    binding = claim["body"]["proposal_binding"]
+    return ProofMiningContext(
+        chain_id=str(binding["chain_id"]),
+        prev_state_hash=str(binding["prev_state_hash"]),
+        batch_hash=str(binding["batch_hash"]),
+        witness_hash=str(binding["witness_hash"]),
+        dex_hash_after=str(binding["dex_hash_after"]),
+        proposal_hash=str(claim["body"]["proposal_hash"]),
+        proof_scheme="dummy",
     )
 
 
@@ -127,6 +152,7 @@ def test_proof_mining_runtime_rejects_bad_shapes_and_handles_fail_closed_result(
         runtime_state=runtime_state,
         claim_artifact=claim,
         actual_reward_pool_balance=20,
+        proof_mining_context=_context_from_claim(claim),
     )
     assert next_state == runtime_state
     assert result.ok is False

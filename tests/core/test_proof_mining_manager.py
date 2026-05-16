@@ -10,7 +10,10 @@ from src.core.proof_mining_manager import (
     build_submit_proof_packet,
     preferred_proposal_slot,
 )
-from tools.permissionless_solver_proof_mining_claim import build_proof_mining_claim
+from tools.permissionless_solver_proof_mining_claim import (
+    build_proof_mining_claim,
+    proof_mining_claim_hash,
+)
 
 
 def _round_obj(*, miner_id: str = "alice", witness_sha256: str = "sha:a", improvement_u64: int = 7, job_digest: str = "job1") -> dict:
@@ -28,11 +31,18 @@ def _round_obj(*, miner_id: str = "alice", witness_sha256: str = "sha:a", improv
     }
 
 
-def _claim(*, round_id: str = "r1", witness_sha256: str = "sha:a", improvement_u64: int = 7, job_digest: str = "job1") -> dict:
+def _claim(
+    *,
+    round_id: str = "r1",
+    witness_sha256: str = "sha:a",
+    improvement_u64: int = 7,
+    job_digest: str = "job1",
+    reward_pool_before: int = 20,
+) -> dict:
     return build_proof_mining_claim(
         round_obj=_round_obj(witness_sha256=witness_sha256, improvement_u64=improvement_u64, job_digest=job_digest),
         round_id=round_id,
-        reward_pool_before=20,
+        reward_pool_before=reward_pool_before,
         base_reward=8,
         epoch=1,
         proposal_slot=0,
@@ -41,6 +51,10 @@ def _claim(*, round_id: str = "r1", witness_sha256: str = "sha:a", improvement_u
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
 
 
@@ -87,11 +101,106 @@ def test_build_submit_proof_packet_rejects_duplicate_proposal_hash() -> None:
         build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=_verification_flags())
 
 
+def test_copied_proof_cannot_earn_second_reward_after_first_payment() -> None:
+    claim = _claim()
+    snapshot = _snapshot()
+    packet = build_submit_proof_packet(
+        claim_artifact=claim,
+        snapshot=snapshot,
+        verification_flags=_verification_flags(),
+    )
+    first = apply_submit_proof_packet(
+        packet=packet,
+        snapshot=snapshot,
+        verification_flags=_verification_flags(),
+    )
+    assert first.ok is True
+
+    next_snapshot = _snapshot(
+        reward_pool_balance=16,
+        total_paid=4,
+        claimed_slots=dict(first.claimed_slots_after),
+    )
+    copied_packet = build_submit_proof_packet(
+        claim_artifact=_claim(round_id="r2", reward_pool_before=16),
+        snapshot=_snapshot(reward_pool_balance=16, total_paid=0),
+        verification_flags=_verification_flags(),
+    )
+
+    second = apply_submit_proof_packet(
+        packet=copied_packet,
+        snapshot=next_snapshot,
+        verification_flags=_verification_flags(),
+    )
+
+    assert second.ok is False
+    assert second.error_code == "InvalidPacket"
+    assert second.error_message == "proposal_hash already claimed"
+
+
 def test_build_submit_proof_packet_rejects_stale_snapshot_budget() -> None:
     claim = _claim()
     snapshot = _snapshot(reward_pool_balance=19, total_paid=1)
     with pytest.raises(ValueError, match="reward_pool_before does not match snapshot"):
         build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=_verification_flags())
+
+
+def test_build_submit_proof_packet_rejects_claim_controlled_verifier_thresholds() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=7),
+        round_id="r-threshold-downgrade",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+        verifier_evidence=[{"verifier_id": 0, "domain_id": 0, "accepted": 1}],
+        allow_rejected=True,
+    )
+    claim["body"]["verifier_evidence"]["min_quorum"] = 1
+    claim["body"]["verifier_evidence"]["min_domain_diversity"] = 1
+    claim["body"]["conditions"]["verifier_quorum_ok"] = True
+    claim["body"]["conditions"]["verifier_diversity_ok"] = True
+    claim["body"]["conditions"]["admissible_expected_ok"] = True
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+
+    with pytest.raises(ValueError, match="min_verifier_quorum out of range"):
+        build_submit_proof_packet(
+            claim_artifact=claim,
+            snapshot=_snapshot(),
+            verification_flags=_verification_flags(),
+        )
+
+
+def test_build_submit_proof_packet_rejects_nonadmissible_verifier_evidence() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=7),
+        round_id="r-bad-verifier",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 0, "accepted": 1},
+        ],
+        allow_rejected=True,
+    )
+    with pytest.raises(ValueError, match="inadmissible"):
+        build_submit_proof_packet(
+            claim_artifact=claim,
+            snapshot=_snapshot(),
+            verification_flags=_verification_flags(),
+        )
 
 
 def test_assign_proposal_slot_linear_probe() -> None:

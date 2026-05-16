@@ -16,9 +16,12 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from src.core.proof_mining_claims import (  # noqa: E402
+    DEFAULT_MIN_VERIFIER_DOMAIN_DIVERSITY,
+    DEFAULT_MIN_VERIFIER_QUORUM,
     MAX_EPOCH,
     MAX_PROPOSAL_SLOT,
     MAX_PROVER_ID,
+    U32_MAX,
     build_proof_mining_claim,
     explicit_proposal_hash,
     fallback_proposal_hash,
@@ -37,6 +40,18 @@ def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
 def _load_json(path: Path) -> Mapping[str, Any]:
     obj = json.loads(path.read_text(encoding="utf-8"))
     return _require_mapping(obj, name=str(path))
+
+
+def _parse_verifier_arg(value: str) -> dict[str, int]:
+    parts = str(value).split(":")
+    if len(parts) != 2:
+        raise argparse.ArgumentTypeError("--verifier must use verifier_id:domain_id")
+    try:
+        verifier_id = int(parts[0])
+        domain_id = int(parts[1])
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("--verifier ids must be integers") from exc
+    return {"verifier_id": verifier_id, "domain_id": domain_id, "accepted": 1}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -59,9 +74,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nonce-ok", type=int, default=1)
     parser.add_argument("--unclaimed-ok", type=int, default=1)
     parser.add_argument(
+        "--verifier",
+        action="append",
+        default=[],
+        type=_parse_verifier_arg,
+        help="Accepted verifier evidence as verifier_id:domain_id. Repeat for quorum.",
+    )
+    parser.add_argument(
+        "--min-verifier-quorum",
+        type=int,
+        default=DEFAULT_MIN_VERIFIER_QUORUM,
+    )
+    parser.add_argument(
+        "--min-verifier-domain-diversity",
+        type=int,
+        default=DEFAULT_MIN_VERIFIER_DOMAIN_DIVERSITY,
+    )
+    parser.add_argument(
         "--allow-gate-fail",
         action="store_true",
-        help="Allow emission even when the Tau proof-mining gate would reject the claim.",
+        help="Allow emission even when the Tau or verifier-evidence proof-mining gate would reject the claim.",
     )
     args = parser.parse_args(argv)
 
@@ -83,6 +115,9 @@ def main(argv: list[str] | None = None) -> int:
         batch_hash=str(args.batch_hash),
         dex_hash_after=str(args.dex_hash_after),
         allow_rejected=bool(args.allow_gate_fail),
+        verifier_evidence=list(args.verifier),
+        min_verifier_quorum=int(args.min_verifier_quorum),
+        min_verifier_domain_diversity=int(args.min_verifier_domain_diversity),
     )
     Path(args.output).write_text(json.dumps(claim, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0

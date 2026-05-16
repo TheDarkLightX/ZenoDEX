@@ -872,6 +872,10 @@ def build_core_feature_suite_v0(
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
     proof_mining_duplicate_claim = build_proof_mining_claim(
         round_obj={
@@ -896,6 +900,10 @@ def build_core_feature_suite_v0(
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
     proof_mining_body_paths: list[Path] = []
     proof_mining_bodies = [

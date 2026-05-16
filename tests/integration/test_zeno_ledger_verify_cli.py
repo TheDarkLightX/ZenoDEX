@@ -2563,6 +2563,10 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
     duplicate_claim = build_proof_mining_claim(
         round_obj={
@@ -2587,6 +2591,10 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
     _write_json(profile_path, profile)
     _write_json(proof_mining_state_path, proof_mining_runtime_state_to_obj(runtime_state))

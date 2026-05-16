@@ -76,6 +76,10 @@ def test_permissionless_proof_mining_manager_packet_cli_build_and_apply(tmp_path
             "sha256:batch",
             "--dex-hash-after",
             "sha256:after",
+            "--verifier",
+            "0:0",
+            "--verifier",
+            "1:1",
         ]
     )
 
@@ -160,6 +164,10 @@ def test_permissionless_proof_mining_manager_packet_cli_rejects_aliased_snapshot
             "sha256:batch",
             "--dex-hash-after",
             "sha256:after",
+            "--verifier",
+            "0:0",
+            "--verifier",
+            "1:1",
         ]
     )
 
