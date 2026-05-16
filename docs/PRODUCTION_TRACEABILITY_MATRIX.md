@@ -15,6 +15,7 @@ Current entries:
 | ID | Status | Runtime Guard | Evidence |
 | --- | --- | --- | --- |
 | `dex_nonce_replay_protection` | `supported` | Core nonce policy, deployment profile guard, and `apply_ops` nonce admission | `tests/integration/test_dex_engine_helpers.py`, `tests/integration/test_deployment_profiles.py`, `tests/core/test_dex_step.py` |
+| `dex_value_moving_entrypoint_guard` | `supported` | Static release-gate guard for direct value-moving settlement entrypoints | `tests/integration/test_dex_value_moving_entrypoints_check.py`, `tools/check_dex_value_moving_entrypoints.py` |
 | `dex_strong_settlement_replay` | `supported` | Strong settlement replay validator | `tests/core/test_settlement_strong_validator.py`, `tests/integration/test_settlement_strong_certificate.py` |
 | `dex_intent_normal_form_boundary` | `supported` | Parsed-intent normal-form gate with validated marker and unknown-field rejection | `tests/core/test_intent_normal_form.py`, operations parser/fuzz suites, `tests/integration/test_dex_engine_helpers.py` |
 | `dex_deployment_profile_postures` | `supported` | Named local/public-testnet/production-strict deployment profiles | `tests/integration/test_deployment_profiles.py`, `tools/check_dex_deployment_profiles.py` |
