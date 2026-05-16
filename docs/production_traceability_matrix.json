@@ -8,16 +8,19 @@
       "runtime_guard_paths": [
         "src/core/dex.py",
         "src/integration/dex_engine.py",
+        "src/integration/deployment_profiles.py",
         "src/state/nonces.py"
       ],
       "test_paths": [
         "tests/integration/test_dex_engine_helpers.py",
+        "tests/integration/test_deployment_profiles.py",
         "tests/core/test_dex_step.py"
       ],
       "evidence_commands": [
-        "python3 -m pytest -q tests/integration/test_dex_engine_helpers.py tests/core/test_dex_step.py"
+        "python3 -m pytest -q tests/integration/test_dex_engine_helpers.py tests/integration/test_deployment_profiles.py tests/core/test_dex_step.py",
+        "python3 tools/check_dex_deployment_profiles.py"
       ],
-      "residual_limits": "Legacy replay fixtures may construct non-production configs. Deployment profile validation rejects nonce-free production/testnet postures."
+      "residual_limits": "Legacy replay fixtures require an explicit core compatibility flag. Production config and deployment profile validation reject nonce-free or legacy-compat production/testnet postures."
     },
     {
       "id": "dex_strong_settlement_replay",

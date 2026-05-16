@@ -136,7 +136,7 @@ def _assert_python_matches_ref(ref_state: dex_ref.State, py_state: DexState) -> 
 
 
 def _dex_step_single_intent(state: DexState, intent: Intent) -> DexState:
-    res = dex_step(DexConfig(require_all_nonces=False), state, [intent])
+    res = dex_step(DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True), state, [intent])
     assert res.ok, res.error
     assert res.state is not None
     return res.state
@@ -187,7 +187,11 @@ def test_dex_step_core_v2_create_pool_bva_parity() -> None:
                     "recipient": _pk(creator),  # match kernel's lp_recipient=creator
                 },
             )
-            py_res = dex_step(DexConfig(require_all_nonces=False), py_pre, [py_intent])
+            py_res = dex_step(
+                DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
+                py_pre,
+                [py_intent],
+            )
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -262,7 +266,11 @@ def test_dex_step_core_v2_swap_exact_in_bva_parity() -> None:
                     "recipient": _pk(trader),
                 },
             )
-            py_res = dex_step(DexConfig(require_all_nonces=False), py_s, [py_intent])
+            py_res = dex_step(
+                DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
+                py_s,
+                [py_intent],
+            )
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -338,7 +346,11 @@ def test_dex_step_core_v2_swap_exact_out_reserve_boundary_parity() -> None:
                     "recipient": _pk(trader),
                 },
             )
-            py_res = dex_step(DexConfig(require_all_nonces=False), py_s, [py_intent])
+            py_res = dex_step(
+                DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
+                py_s,
+                [py_intent],
+            )
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -411,7 +423,11 @@ def test_dex_step_core_v2_swap_exact_in_bva_parity_b_for_a() -> None:
                     "recipient": _pk(trader),
                 },
             )
-            py_res = dex_step(DexConfig(require_all_nonces=False), py_s, [py_intent])
+            py_res = dex_step(
+                DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
+                py_s,
+                [py_intent],
+            )
 
             assert py_res.ok, py_res.error
             assert py_res.state is not None
@@ -507,7 +523,11 @@ def test_dex_step_core_v2_add_and_remove_liquidity_bva_parity() -> None:
                 "recipient": _pk(provider),
             },
         )
-        py_out = dex_step(DexConfig(require_all_nonces=False), py_s, [py_intent])
+        py_out = dex_step(
+            DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
+            py_s,
+            [py_intent],
+        )
 
         assert py_out.ok, py_out.error
         assert py_out.state is not None
@@ -562,7 +582,11 @@ def test_dex_step_core_v2_add_and_remove_liquidity_bva_parity() -> None:
                 "recipient": _pk(burner),
             },
         )
-        py_out = dex_step(DexConfig(require_all_nonces=False), py_s, [py_intent])
+        py_out = dex_step(
+            DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
+            py_s,
+            [py_intent],
+        )
 
         assert py_out.ok, py_out.error
         assert py_out.state is not None

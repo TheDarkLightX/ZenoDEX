@@ -223,5 +223,19 @@ def test_dex_step_legacy_config_allows_nonce_free_fixture() -> None:
         include_nonces=False,
     )
 
-    res = dex_step(DexConfig(require_all_nonces=False), state, intents)
+    res = dex_step(
+        DexConfig(
+            require_all_nonces=False,
+            allow_legacy_nonce_free_steps=True,
+        ),
+        state,
+        intents,
+    )
     assert res.ok, res.error
+
+
+def test_dex_step_rejects_nonce_free_compat_without_explicit_legacy_flag() -> None:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    res = dex_step(DexConfig(require_all_nonces=False), state, [])
+    assert res.ok is False
+    assert res.error == "require_all_nonces=False requires allow_legacy_nonce_free_steps=True"

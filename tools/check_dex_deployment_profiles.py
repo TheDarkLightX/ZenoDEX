@@ -35,6 +35,7 @@ def run_check() -> dict[str, object]:
                 "require_intent_signatures": cfg.require_intent_signatures,
                 "allow_unsigned_intents_if_tx_sender_matches": cfg.allow_unsigned_intents_if_tx_sender_matches,
                 "require_all_nonces": cfg.dex_config.require_all_nonces,
+                "allow_legacy_nonce_free_steps": cfg.dex_config.allow_legacy_nonce_free_steps,
                 "settlement_validation": cfg.dex_config.settlement_validation,
                 "require_uniform_batch_certificate": cfg.require_uniform_batch_certificate,
                 "require_uniform_batch_price_grid_evidence": cfg.require_uniform_batch_price_grid_evidence,
