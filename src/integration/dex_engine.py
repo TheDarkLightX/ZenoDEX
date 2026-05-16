@@ -306,6 +306,8 @@ def production_config_violations(
         reasons.append("allow_external_tools must be false")
     if not bool(config.consensus_mode):
         reasons.append("consensus_mode must be true")
+    if bool(config.require_proof_when_present) and not bool(config.proof_config.enabled):
+        reasons.append("require_proof_when_present requires proof_config.enabled")
     if bool(config.enable_test_fault_injection) or config.fault_injection is not None:
         reasons.append("test fault injection must be disabled")
     if bool(config.require_uniform_batch_certificate) and not bool(config.allow_uniform_batch_certificate):
