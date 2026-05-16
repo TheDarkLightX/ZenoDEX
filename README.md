@@ -312,6 +312,16 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
   --chain-id zeno-ledger-devnet-0
 ```
 
+Run the public-testnet candidate gate:
+
+```bash
+tools/run_public_testnet_candidate_gate.sh
+```
+
+This gate covers the ZenoLedger integration suite, proof-mining suite, UPBA
+suite, public bundle builder, dual-operator rehearsal, and local public-network
+smoke test with signed DEX transaction intake.
+
 ## ZenoLedger Node Operations
 
 The node entrypoint wraps the same bundle and replay logic. Use it to build a
@@ -400,18 +410,6 @@ python3 tools/zeno_ledger_node.py run \
   --host 127.0.0.1 \
   --port 8787
 ```
-
-ZenoLedger also has opt-in Risc0 proof-of-execution coverage for the current
-ZenoDEX spot v1 guest subset. The real-proof smoke builds the guest with
-`RISC0_FORCE_BUILD=1`, generates non-empty receipts, and verifies them through
-the host CLI for an empty transition, faucet mint, create-pool, and
-swap-exact-in. The receipt journal binds the state hash, transaction
-commitment, pre-app hash, post-app hash, and block timestamp.
-
-This is current local evidence for the restricted guest path. It does not yet
-prove the full Python ZenoDEX runtime, multi-intent batches, exact-out,
-multi-hop routing, production prover performance, or validator-network
-readiness.
 
 After the node has verified its bootstrap bundle, a local operator can append
 testnet DEX transactions into the node-local live ledger:
