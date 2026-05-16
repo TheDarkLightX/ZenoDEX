@@ -31,6 +31,10 @@ class DexConfig:
     """Runtime config for the core step."""
 
     fee_split_params: Optional[FeeSplitParams] = None
+    # Replay protection is required by default, including for the functional
+    # core. Set False only for legacy replay fixtures that intentionally model
+    # pre-nonce batches.
+    require_all_nonces: bool = True
     # Promote chunked invariant-preserving greedy batch ordering by default.
     swap_ordering: str = "greedy_ab_refined"
     # Settlement acceptance gate:
@@ -154,7 +158,7 @@ def step_with_candidate_settlement(
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
-            require_all_nonces=False,
+            require_all_nonces=bool(config.require_all_nonces),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
@@ -179,7 +183,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
-            require_all_nonces=False,
+            require_all_nonces=bool(config.require_all_nonces),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")

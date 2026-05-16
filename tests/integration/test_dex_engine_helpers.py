@@ -33,6 +33,8 @@ from src.integration.dex_engine import (
     _verify_intent_signature_bytes,
     _verify_proof_if_present,
     apply_ops,
+    production_config_violations,
+    validate_production_config,
 )
 from src.integration.operations import SettlementEnvelope, SignedIntentEnvelope
 from src.integration.proof_verifier import (
@@ -378,6 +380,52 @@ def test_validate_external_tool_policy_covers_consensus_and_disable_paths() -> N
         == "external tools disabled (set DexEngineConfig.allow_external_tools=True)"
     )
     assert _validate_external_tool_policy(DexEngineConfig()) is None
+
+
+def test_validate_production_config_accepts_default_engine_posture() -> None:
+    ok, err = validate_production_config(DexEngineConfig())
+    assert ok is True
+    assert err is None
+
+
+def test_validate_production_config_rejects_unsafe_boundary_profile() -> None:
+    cfg = DexEngineConfig(
+        allow_missing_settlement=True,
+        require_settlement_match=False,
+        require_intent_signatures=False,
+        allow_external_tools=True,
+        consensus_mode=False,
+        dex_config=DexConfig(
+            require_all_nonces=False,
+            settlement_validation="legacy",
+        ),
+        enable_test_fault_injection=True,
+        fault_injection=DexFaultInjectionConfig(fail_at_stage="after_raw_validation"),
+    )
+
+    reasons = production_config_violations(cfg)
+    assert "allow_missing_settlement must be false" in reasons
+    assert "require_settlement_match must be true" in reasons
+    assert "require_intent_signatures must be true" in reasons
+    assert "dex_config.require_all_nonces must be true" in reasons
+    assert "dex_config.settlement_validation must not be legacy" in reasons
+    assert "allow_external_tools must be false" in reasons
+    assert "consensus_mode must be true" in reasons
+    assert "test fault injection must be disabled" in reasons
+
+    ok, err = validate_production_config(cfg)
+    assert ok is False
+    assert err is not None
+    assert "dex_config.require_all_nonces must be true" in err
+
+
+def test_validate_production_config_can_require_strict_upba_posture() -> None:
+    ok, err = validate_production_config(DexEngineConfig(), require_strict_upba=True)
+    assert ok is False
+    assert err is not None
+    assert "strict UPBA production requires allow_uniform_batch_certificate" in err
+    assert "strict UPBA production requires require_uniform_batch_certificate" in err
+    assert "strict UPBA production requires require_uniform_batch_price_grid_evidence" in err
 
 
 def test_validate_raw_operation_guards_fail_early() -> None:

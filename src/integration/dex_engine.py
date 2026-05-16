@@ -22,13 +22,15 @@ from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
 from ..core.quote_receipts import verify_route_quote_receipt
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
-from ..core.uniform_batch_clearing import UniformBatchCertificateV1, build_uniform_batch_settlement_v1
+from ..core.uniform_batch_clearing import (
+    UniformBatchCertificateV1,
+    build_uniform_batch_settlement_v1,
+)
 from ..core.uniform_batch_optimality import verify_uniform_batch_bound_optimality_certificate_v1
 from ..core.uniform_batch_price_grid_table import verify_uniform_batch_price_grid_table_v1
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
-    canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
     domain_sep_bytes,
     sha256_hex,
@@ -38,24 +40,28 @@ from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
 from .operations import (
-    SignedIntentEnvelope,
     SettlementEnvelope,
+    SignedIntentEnvelope,
     create_settlement_operation,
     parse_settlement_envelope,
     parse_signed_intents,
 )
 from .proof_mining_context import ProofMiningContext, build_proof_mining_context
-from .proof_verifier import MisconfiguredProofVerifier, ProofVerifier, ProofVerifierConfig, make_proof_verifier
-from .zeno_oracle_routing_authorization import check_protected_swap_oracle_authorization
-from .zeno_oracle_settlement_authorization import check_critical_settlement_oracle_authorization
+from .proof_verifier import (
+    MisconfiguredProofVerifier,
+    ProofVerifier,
+    ProofVerifierConfig,
+    make_proof_verifier,
+)
+from .settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from .settlement_strong_certificate import (
     SettlementProofFlags,
     derive_verified_replay_bound_certificate_flags,
 )
-from .settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from .tau_gate import TauGateConfig
 from .validation import validate_operations
-
+from .zeno_oracle_routing_authorization import check_protected_swap_oracle_authorization
+from .zeno_oracle_settlement_authorization import check_critical_settlement_oracle_authorization
 
 G2Basic: Any | None
 
@@ -272,6 +278,63 @@ class DexTxResult:
     proof_mining_context: Optional[ProofMiningContext] = None
 
 
+def production_config_violations(
+    config: DexEngineConfig,
+    *,
+    require_strict_upba: bool = False,
+) -> tuple[str, ...]:
+    """Return fail-closed reasons a config is unsuitable for value-moving production.
+
+    This is intentionally a linter, not a dataclass constructor guard. Tests,
+    historical replay fixtures, and local research profiles may need unsafe
+    combinations to prove they are rejected. Production bootstrap code should
+    call this predicate and refuse to start when it returns any reason.
+    """
+
+    reasons: list[str] = []
+    if bool(config.allow_missing_settlement):
+        reasons.append("allow_missing_settlement must be false")
+    if not bool(config.require_settlement_match):
+        reasons.append("require_settlement_match must be true")
+    if not bool(config.require_intent_signatures):
+        reasons.append("require_intent_signatures must be true")
+    if not bool(config.dex_config.require_all_nonces):
+        reasons.append("dex_config.require_all_nonces must be true")
+    if str(config.dex_config.settlement_validation) == "legacy":
+        reasons.append("dex_config.settlement_validation must not be legacy")
+    if bool(config.allow_external_tools):
+        reasons.append("allow_external_tools must be false")
+    if not bool(config.consensus_mode):
+        reasons.append("consensus_mode must be true")
+    if bool(config.enable_test_fault_injection) or config.fault_injection is not None:
+        reasons.append("test fault injection must be disabled")
+    if bool(config.require_uniform_batch_certificate) and not bool(config.allow_uniform_batch_certificate):
+        reasons.append("require_uniform_batch_certificate requires allow_uniform_batch_certificate")
+    if bool(config.require_uniform_batch_price_grid_evidence) and not bool(config.allow_uniform_batch_certificate):
+        reasons.append("require_uniform_batch_price_grid_evidence requires allow_uniform_batch_certificate")
+    if require_strict_upba:
+        if not bool(config.allow_uniform_batch_certificate):
+            reasons.append("strict UPBA production requires allow_uniform_batch_certificate")
+        if not bool(config.require_uniform_batch_certificate):
+            reasons.append("strict UPBA production requires require_uniform_batch_certificate")
+        if not bool(config.require_uniform_batch_price_grid_evidence):
+            reasons.append("strict UPBA production requires require_uniform_batch_price_grid_evidence")
+    return tuple(reasons)
+
+
+def validate_production_config(
+    config: DexEngineConfig,
+    *,
+    require_strict_upba: bool = False,
+) -> tuple[bool, str | None]:
+    """Compact production-config predicate for CLI/bootstrap callers."""
+
+    reasons = production_config_violations(config, require_strict_upba=require_strict_upba)
+    if reasons:
+        return False, "; ".join(reasons)
+    return True, None
+
+
 class _InjectedFault(RuntimeError):
     def __init__(self, stage: str) -> None:
         super().__init__(f"fault injected: {stage}")
@@ -415,7 +478,7 @@ def _verify_all_intent_signatures(
                 return False, f"intent sender mismatch: {env.intent.intent_id}"
         return True, None
 
-    for env, signing_payload in zip(intents, signing_payloads):
+    for env, signing_payload in zip(intents, signing_payloads, strict=True):
         if env.signature is None:
             if allow_tx_sender_bypass:
                 sender_b = _pubkey_bytes48_or_none(tx_sender_pubkey, name="tx_sender_pubkey")

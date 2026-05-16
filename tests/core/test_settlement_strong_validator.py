@@ -955,6 +955,7 @@ def test_dex_step_preserves_created_pool_curve_config() -> None:
                 "amount1": 2_000_000,
                 "curve_tag": "CUBIC_SUM_V1",
                 "curve_params": {"p": 2, "q": 1},
+                "nonce": 1,
             },
         )
     ]

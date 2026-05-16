@@ -152,6 +152,7 @@ def _make_snapshot_bound_quote_setup() -> tuple[DexState, list[Intent]]:
     )
     intent.fields.pop("quote_receipt_hash", None)
     intent.fields.pop("quote_receipt_leg_index", None)
+    intent.set_field("nonce", 1)
 
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)
