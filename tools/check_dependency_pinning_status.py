@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -27,6 +28,19 @@ def _require_str_list(value: object, *, name: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
         raise TypeError(f"{name} must be a list of non-empty strings")
     return list(value)
+
+
+def _require_str_mapping(value: object, *, name: str) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be an object")
+    out: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not key:
+            raise TypeError(f"{name} keys must be non-empty strings")
+        if not isinstance(item, str) or not item:
+            raise TypeError(f"{name}[{key!r}] must be a non-empty string")
+        out[key] = item
+    return out
 
 
 def _requirement_lines(path: Path) -> list[str]:
@@ -51,6 +65,14 @@ def _actual_unpinned(files: list[str]) -> list[str]:
             if not _is_exact_pin(requirement):
                 found.append(f"{relpath}:{requirement}")
     return sorted(found)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def run_check() -> dict[str, object]:
@@ -83,15 +105,33 @@ def run_check() -> dict[str, object]:
         elif not _is_exact_pin(requirement):
             errors.append(f"not_exact_python_pin:{required}")
 
-    for relpath in _require_str_list(status.get("required_lock_artifacts"), name="required_lock_artifacts"):
-        if not (ROOT / relpath).is_file():
+    required_lock_artifacts = _require_str_list(status.get("required_lock_artifacts"), name="required_lock_artifacts")
+    required_lock_hashes = _require_str_mapping(
+        status.get("required_lock_artifact_sha256"),
+        name="required_lock_artifact_sha256",
+    )
+    if sorted(required_lock_hashes) != sorted(required_lock_artifacts):
+        missing_hashes = sorted(set(required_lock_artifacts) - set(required_lock_hashes))
+        unexpected_hashes = sorted(set(required_lock_hashes) - set(required_lock_artifacts))
+        if missing_hashes:
+            errors.append(f"missing_lock_artifact_hashes:{missing_hashes}")
+        if unexpected_hashes:
+            errors.append(f"unexpected_lock_artifact_hashes:{unexpected_hashes}")
+    for relpath in required_lock_artifacts:
+        path = ROOT / relpath
+        if not path.is_file():
             errors.append(f"missing_lock_artifact:{relpath}")
+            continue
+        expected_sha256 = required_lock_hashes.get(relpath)
+        if expected_sha256 is not None and _sha256_file(path) != expected_sha256:
+            errors.append(f"lock_artifact_sha256_mismatch:{relpath}")
 
     return {
         "schema": RESULT_SCHEMA,
         "ok": not errors,
         "python_requirement_files": files,
         "known_unpinned_count": len(expected_unpinned),
+        "lock_artifact_hash_count": len(required_lock_hashes),
         "errors": errors,
     }
 
