@@ -6,17 +6,24 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from ..state.intents import Intent, IntentKind
-from ..core.settlement import (
-    Settlement,
-    FillAction,
-    Fill,
-    BalanceDelta,
-    ReserveDelta,
-    LPDelta,
+from ..core.domain_limits import (
+    DEX_LP_AMOUNT_MAX,
+    DEX_LP_SUPPLY_MAX,
+    DEX_POOL_RESERVE_MAX,
+    DEX_SWAP_AMOUNT_MAX,
 )
+from ..core.settlement import (
+    BalanceDelta,
+    Fill,
+    FillAction,
+    LPDelta,
+    ReserveDelta,
+    Settlement,
+)
+from ..state.intents import Intent, IntentKind
+from ..state.pools import POOL_FEE_BPS_MAX, POOL_FEE_BPS_MIN, normalize_curve_config
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -35,6 +42,21 @@ def _require_int(value: Any, *, name: str, non_negative: bool = False) -> int:
     if non_negative and value < 0:
         raise ValueError(f"{name} must be non-negative")
     return int(value)
+
+
+def _require_int_range(
+    value: Any,
+    *,
+    name: str,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    value_int = _require_int(value, name=name)
+    if minimum is not None and value_int < minimum:
+        raise ValueError(f"{name} must be >= {minimum}")
+    if maximum is not None and value_int > maximum:
+        raise ValueError(f"{name} must be <= {maximum}")
+    return value_int
 
 
 def _optional_int(value: Any, *, name: str, non_negative: bool = False) -> Optional[int]:
@@ -382,8 +404,219 @@ def _parse_intent(intent_data: Dict[str, Any]) -> Intent:
         salt=salt,
         fields=fields,
     )
+    _validate_intent_fields(intent)
     
     return intent
+
+
+def _require_field(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind) -> Any:
+    if key not in fields:
+        raise ValueError(f"Missing required field for {intent_kind.value}: {key}")
+    return fields[key]
+
+
+def _require_field_str(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind, max_len: int = 256) -> str:
+    return _require_str(
+        _require_field(fields, key, intent_kind=intent_kind),
+        name=f"intent.{key}",
+        non_empty=True,
+        max_len=max_len,
+    )
+
+
+def _require_field_int_range(
+    fields: Dict[str, Any],
+    key: str,
+    *,
+    intent_kind: IntentKind,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    return _require_int_range(
+        _require_field(fields, key, intent_kind=intent_kind),
+        name=f"intent.{key}",
+        minimum=minimum,
+        maximum=maximum,
+    )
+
+
+def _validate_common_intent_fields(fields: Dict[str, Any]) -> None:
+    if "nonce" in fields:
+        _require_int_range(fields["nonce"], name="intent.nonce", minimum=1, maximum=0xFFFFFFFF)
+    if "recipient" in fields:
+        _require_str(fields["recipient"], name="intent.recipient", non_empty=True, max_len=512)
+    if "submission_order" in fields:
+        _require_int_range(fields["submission_order"], name="intent.submission_order", minimum=0)
+    if "quote_receipt_hash" in fields:
+        _require_str(fields["quote_receipt_hash"], name="intent.quote_receipt_hash", non_empty=True, max_len=512)
+    if "quote_pool_fingerprint" in fields:
+        _require_str(fields["quote_pool_fingerprint"], name="intent.quote_pool_fingerprint", non_empty=True, max_len=512)
+    if "quote_receipt_leg_index" in fields:
+        _require_int_range(fields["quote_receipt_leg_index"], name="intent.quote_receipt_leg_index", minimum=0)
+    if "oracle_authorization" in fields:
+        _require_dict_str_keys(fields["oracle_authorization"], name="intent.oracle_authorization")
+
+
+def _validate_swap_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
+    kind = intent.kind
+    asset_in = _require_field_str(fields, "asset_in", intent_kind=kind)
+    asset_out = _require_field_str(fields, "asset_out", intent_kind=kind)
+    if asset_in == asset_out:
+        raise ValueError("intent.asset_in and intent.asset_out must differ")
+    _require_field_str(fields, "pool_id", intent_kind=kind)
+
+    if kind == IntentKind.SWAP_EXACT_IN:
+        _require_field_int_range(
+            fields,
+            "amount_in",
+            intent_kind=kind,
+            minimum=1,
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+        _require_field_int_range(
+            fields,
+            "min_amount_out",
+            intent_kind=kind,
+            minimum=0,
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+        return
+
+    _require_field_int_range(
+        fields,
+        "amount_out",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_SWAP_AMOUNT_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "max_amount_in",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_SWAP_AMOUNT_MAX,
+    )
+
+
+def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
+    kind = intent.kind
+    asset0 = _require_field_str(fields, "asset0", intent_kind=kind)
+    asset1 = _require_field_str(fields, "asset1", intent_kind=kind)
+    if asset0 >= asset1:
+        raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}")
+    _require_field_int_range(
+        fields,
+        "fee_bps",
+        intent_kind=kind,
+        minimum=POOL_FEE_BPS_MIN,
+        maximum=POOL_FEE_BPS_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount0",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_LP_AMOUNT_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount1",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_LP_AMOUNT_MAX,
+    )
+    if "created_at" in fields:
+        _require_int_range(fields["created_at"], name="intent.created_at", minimum=0)
+    try:
+        normalize_curve_config(curve_tag=fields.get("curve_tag"), curve_params=fields.get("curve_params"))
+    except Exception as exc:
+        raise ValueError(f"invalid curve configuration: {exc}") from exc
+
+
+def _validate_add_liquidity_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
+    kind = intent.kind
+    _require_field_str(fields, "pool_id", intent_kind=kind)
+    _require_field_int_range(
+        fields,
+        "amount0_desired",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_LP_AMOUNT_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount1_desired",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_LP_AMOUNT_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount0_min",
+        intent_kind=kind,
+        minimum=0,
+        maximum=DEX_LP_AMOUNT_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount1_min",
+        intent_kind=kind,
+        minimum=0,
+        maximum=DEX_LP_AMOUNT_MAX,
+    )
+
+
+def _validate_remove_liquidity_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
+    kind = intent.kind
+    _require_field_str(fields, "pool_id", intent_kind=kind)
+    _require_field_int_range(
+        fields,
+        "lp_amount",
+        intent_kind=kind,
+        minimum=1,
+        maximum=DEX_LP_SUPPLY_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount0_min",
+        intent_kind=kind,
+        minimum=0,
+        maximum=DEX_POOL_RESERVE_MAX,
+    )
+    _require_field_int_range(
+        fields,
+        "amount1_min",
+        intent_kind=kind,
+        minimum=0,
+        maximum=DEX_POOL_RESERVE_MAX,
+    )
+
+
+def _validate_intent_fields(intent: Intent) -> None:
+    """
+    Validate the kind-specific normal form produced by the JSON parser.
+
+    The state-layer `Intent` object stays intentionally generic for internal
+    tests and generated fixtures. Parsed user operations must still enter the
+    engine with all value-moving fields present, typed, and inside kernel
+    domains.
+    """
+    fields = intent.fields or {}
+    _validate_common_intent_fields(fields)
+
+    if intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+        _validate_swap_intent_fields(intent, fields)
+        return
+    if intent.kind == IntentKind.CREATE_POOL:
+        _validate_create_pool_intent_fields(intent, fields)
+        return
+    if intent.kind == IntentKind.ADD_LIQUIDITY:
+        _validate_add_liquidity_intent_fields(intent, fields)
+        return
+    if intent.kind == IntentKind.REMOVE_LIQUIDITY:
+        _validate_remove_liquidity_intent_fields(intent, fields)
+        return
+    raise ValueError(f"unsupported intent kind: {intent.kind}")
 
 
 def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.settlement import Settlement
 from src.integration.operations import (
     SignedIntentEnvelope,
     _parse_intent,
@@ -13,7 +14,6 @@ from src.integration.operations import (
     parse_settlement_envelope,
     parse_signed_intents,
 )
-from src.core.settlement import Settlement
 from src.state.intents import Intent, IntentKind
 
 
@@ -26,6 +26,10 @@ def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
         "sender_pubkey": "pk",
         "deadline": 1,
         "pool_id": "0x" + "22" * 32,
+        "asset_in": "asset-a",
+        "asset_out": "asset-b",
+        "amount_in": 5,
+        "min_amount_out": 0,
     }
 
 
@@ -247,6 +251,90 @@ def test_parse_signed_intents_rejects_invalid_intent_envelope_fields() -> None:
 
     with pytest.raises(ValueError, match="intent keys must be strings"):
         parse_signed_intents({"2": [{**_min_intent_dict(), 1: "bad-key"}]})  # type: ignore[dict-item]
+
+
+def test_parse_signed_intents_validates_swap_exact_in_fields() -> None:
+    with pytest.raises(ValueError, match="Missing required field for SWAP_EXACT_IN: amount_in"):
+        parse_signed_intents({"2": [{k: v for k, v in _min_intent_dict().items() if k != "amount_in"}]})
+
+    with pytest.raises(ValueError, match="intent.amount_in must be an int"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "amount_in": True}]})
+
+    with pytest.raises(ValueError, match="intent.asset_in and intent.asset_out must differ"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "asset_out": "asset-a"}]})
+
+
+def test_parse_signed_intents_validates_swap_exact_out_fields() -> None:
+    exact_out = {
+        **_min_intent_dict(),
+        "kind": "SWAP_EXACT_OUT",
+        "amount_out": 4,
+        "max_amount_in": 9,
+    }
+    exact_out.pop("amount_in")
+    exact_out.pop("min_amount_out")
+    envs = parse_signed_intents({"2": [exact_out]})
+    assert envs[0].intent.kind == IntentKind.SWAP_EXACT_OUT
+
+    with pytest.raises(ValueError, match="intent.max_amount_in must be >= 1"):
+        parse_signed_intents({"2": [{**exact_out, "max_amount_in": 0}]})
+
+
+def test_parse_signed_intents_validates_create_pool_fields() -> None:
+    create_pool = {
+        **_min_intent_dict(),
+        "kind": "CREATE_POOL",
+        "asset0": "asset-a",
+        "asset1": "asset-b",
+        "fee_bps": 30,
+        "amount0": 10,
+        "amount1": 20,
+        "created_at": 1,
+    }
+    for key in ("pool_id", "asset_in", "asset_out", "amount_in", "min_amount_out"):
+        create_pool.pop(key)
+    envs = parse_signed_intents({"2": [create_pool]})
+    assert envs[0].intent.kind == IntentKind.CREATE_POOL
+
+    with pytest.raises(ValueError, match="intent assets must be in canonical order"):
+        parse_signed_intents({"2": [{**create_pool, "asset0": "asset-b", "asset1": "asset-a"}]})
+
+    with pytest.raises(ValueError, match="intent.fee_bps must be <= 9999"):
+        parse_signed_intents({"2": [{**create_pool, "fee_bps": 10_000}]})
+
+    with pytest.raises(ValueError, match="invalid curve configuration"):
+        parse_signed_intents({"2": [{**create_pool, "curve_tag": "CPMM", "curve_params": {"p": 1}}]})
+
+
+def test_parse_signed_intents_validates_liquidity_fields() -> None:
+    add_liquidity = {
+        **_min_intent_dict(),
+        "kind": "ADD_LIQUIDITY",
+        "amount0_desired": 10,
+        "amount1_desired": 20,
+        "amount0_min": 0,
+        "amount1_min": 0,
+    }
+    for key in ("asset_in", "asset_out", "amount_in", "min_amount_out"):
+        add_liquidity.pop(key)
+    assert parse_signed_intents({"2": [add_liquidity]})[0].intent.kind == IntentKind.ADD_LIQUIDITY
+
+    with pytest.raises(ValueError, match="Missing required field for ADD_LIQUIDITY: amount1_min"):
+        parse_signed_intents({"2": [{k: v for k, v in add_liquidity.items() if k != "amount1_min"}]})
+
+    remove_liquidity = {
+        **_min_intent_dict(),
+        "kind": "REMOVE_LIQUIDITY",
+        "lp_amount": 1,
+        "amount0_min": 0,
+        "amount1_min": 0,
+    }
+    for key in ("asset_in", "asset_out", "amount_in", "min_amount_out"):
+        remove_liquidity.pop(key)
+    assert parse_signed_intents({"2": [remove_liquidity]})[0].intent.kind == IntentKind.REMOVE_LIQUIDITY
+
+    with pytest.raises(ValueError, match="intent.lp_amount must be >= 1"):
+        parse_signed_intents({"2": [{**remove_liquidity, "lp_amount": 0}]})
 
 
 def test_parse_settlement_rejects_invalid_included_intent_action() -> None:
