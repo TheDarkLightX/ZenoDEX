@@ -1,0 +1,43 @@
+{
+  "schema": "zenodex.dependency_pinning_status.v1",
+  "python_requirement_files": [
+    "requirements-core.txt",
+    "requirements-agents.txt",
+    "requirements-dev.txt",
+    "requirements.txt"
+  ],
+  "known_unpinned_python_requirements": [
+    "requirements-agents.txt:openai-agents>=0.1.0",
+    "requirements-agents.txt:openai>=1.40.0",
+    "requirements-agents.txt:python-dotenv>=1.0.0",
+    "requirements-core.txt:canonicaljson>=1.6.0",
+    "requirements-core.txt:jsonschema>=4.22.0",
+    "requirements-core.txt:py-ecc>=6.1.0",
+    "requirements-core.txt:pyyaml>=6.0",
+    "requirements-core.txt:typing-extensions>=4.8.0",
+    "requirements-dev.txt:hypothesis>=6.135,<7",
+    "requirements-dev.txt:mypy>=1.13,<2",
+    "requirements-dev.txt:pip-audit>=2.7,<3",
+    "requirements-dev.txt:pre-commit>=4,<5",
+    "requirements-dev.txt:pytest-cov>=4.1.0",
+    "requirements-dev.txt:pytest>=7.4.0",
+    "requirements-dev.txt:ruff>=0.8,<1",
+    "requirements.txt:pytest-cov>=4.1.0",
+    "requirements.txt:pytest>=7.4.0"
+  ],
+  "required_lock_artifacts": [
+    "lean-mathlib/lean-toolchain",
+    "lean-mathlib/lake-manifest.json",
+    "tools/confidential_attestation_verifier_rust/Cargo.lock",
+    "tools/dex-ui/package-lock.json",
+    "zk/state_proof_risc0/Cargo.lock"
+  ],
+  "exact_python_pins_required": [
+    "requirements-dev.txt:z3-solver==4.15.4.0"
+  ],
+  "residual_limits": [
+    "Python runtime and dev requirements are not yet hash-pinned lockfiles.",
+    "This ratchet prevents new unpinned Python requirements and confirms current proof-toolchain lock artifacts exist.",
+    "Production closure still needs generated hash-pinned Python lockfiles and install commands that use require-hashes."
+  ]
+}
