@@ -33,6 +33,10 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     validate_proof_metadata_header_binding_v0,
 )
+from src.integration.zeno_ledger_verifier_registry_v0 import (
+    make_verifier_registry_entry_v0,
+    make_verifier_registry_v0,
+)
 from src.integration.zeno_ledger_watcher import validate_watcher_attestation_v0
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -831,6 +835,17 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     payload = json.loads(proc.stdout)
     header = json.loads(Path(str(payload["header_path"])).read_text(encoding="utf-8"))
     metadata = json.loads(Path(str(payload["proof_metadata_path"])).read_text(encoding="utf-8"))
+    registry_path = tmp_path / "verifier_registry.json"
+    registry = make_verifier_registry_v0(
+        entries=[
+            make_verifier_registry_entry_v0(
+                proof_kind=str(metadata["proof_kind"]),
+                program_id=str(metadata["program_id"]),
+                verifier_id=str(metadata["verifier_id"]),
+            )
+        ]
+    )
+    _write_json(registry_path, registry)
     _write_json(
         report_dir / "1.json",
         {
@@ -884,6 +899,53 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     with_report_payload = json.loads(with_report.stdout)
     assert with_report_payload["proof_metadata_checked_heights"] == [1]
     assert with_report_payload["proof_verification_checked_heights"] == [1]
+
+    with_registry = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--verifier-registry",
+        str(registry_path),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert with_registry.returncode == 0, with_registry.stderr
+    with_registry_payload = json.loads(with_registry.stdout)
+    assert with_registry_payload["proof_metadata_checked_heights"] == [1]
+
+    bad_registry_path = tmp_path / "bad_verifier_registry.json"
+    bad_registry = make_verifier_registry_v0(
+        entries=[
+            make_verifier_registry_entry_v0(
+                proof_kind=str(metadata["proof_kind"]),
+                program_id=str(metadata["program_id"]),
+                verifier_id="risc0:other-verifier",
+            )
+        ]
+    )
+    _write_json(bad_registry_path, bad_registry)
+    rejected_registry = _run_verify(
+        "--headers-dir",
+        str(out_dir / "headers"),
+        "--bodies-dir",
+        str(out_dir / "bodies"),
+        "--proof-metadata-dir",
+        str(out_dir / "proof_metadata"),
+        "--verifier-registry",
+        str(bad_registry_path),
+        "--from-height",
+        "1",
+        "--to-height",
+        "1",
+    )
+    assert rejected_registry.returncode == 1
+    rejected_registry_payload = json.loads(rejected_registry.stdout)
+    assert "proof metadata verifier is not admitted by registry" in rejected_registry_payload["errors"][0]
 
     bad = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
     bad["risc0_verified"] = False
