@@ -174,6 +174,10 @@ This command runs remote doctor checks, joins the network, submits the named
 test token to Machine A, follows the resulting live block, writes
 `evidence_report.json`, and writes
 `two_machine_evidence_verification.json`.
+It also embeds `latest_main_summary` in `machine_b_acceptance_report.json`.
+Archive that summary with the commit SHA, network config hash, feature-suite
+hash, Machine A/B tips, common header hash, and accepted/rejected submission
+counts.
 
 Use a different `--token-symbol` if the same Machine A writer already created
 `tMANGO` in an earlier run.

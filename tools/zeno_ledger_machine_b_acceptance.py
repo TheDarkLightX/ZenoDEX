@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -28,6 +29,7 @@ from tools.zeno_ledger_verify_two_machine_evidence import verify_two_machine_evi
 
 
 MACHINE_B_ACCEPTANCE_SCHEMA = "zenodex.zeno_ledger.machine_b_acceptance.v0"
+MACHINE_B_LATEST_MAIN_SUMMARY_SCHEMA = "zenodex.zeno_ledger.machine_b_latest_main_summary.v0"
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 
 
@@ -47,6 +49,81 @@ def _as_string_list(value: object, *, name: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"{name} must be a list of strings")
     return list(value)
+
+
+def _as_mapping(value: object) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _repo_commit_sha_v0() -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+    except Exception:  # noqa: BLE001 - best-effort operator environment metadata
+        return ""
+    return proc.stdout.strip()
+
+
+def build_machine_b_latest_main_summary_v0(
+    *,
+    config_url: str,
+    expected_network_config_hash: str,
+    commit_sha: str,
+    node_id: str,
+    token_symbol: str,
+    token_report: Mapping[str, Any],
+    doctor_report: Mapping[str, Any],
+    join_report: Mapping[str, Any],
+    follow_report: Mapping[str, Any],
+    evidence_report: Mapping[str, Any],
+    verification_report: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build the compact two-machine evidence summary operators should archive."""
+
+    same_height_peer = _as_mapping(verification_report.get("same_height_peer"))
+    local_tip = _as_mapping(verification_report.get("local_tip") or evidence_report.get("local_tip"))
+    machine_a_tip = _as_mapping(same_height_peer.get("peer_tip"))
+    remote_network = _as_mapping(doctor_report.get("remote_network"))
+    token_ok = token_report.get("ok") is True
+    ok = all(
+        item.get("ok") is True
+        for item in (
+            doctor_report,
+            join_report,
+            token_report,
+            follow_report,
+            evidence_report,
+            verification_report,
+        )
+    )
+    return {
+        "schema": MACHINE_B_LATEST_MAIN_SUMMARY_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "commit_sha": commit_sha,
+        "machine_b_python_version": sys.version.split()[0],
+        "config_url": config_url,
+        "expected_network_config_hash": expected_network_config_hash,
+        "network_config_hash": join_report.get("network_config_hash") or remote_network.get("network_config_hash"),
+        "network_id": verification_report.get("network_id") or evidence_report.get("network_id"),
+        "chain_id": verification_report.get("chain_id") or evidence_report.get("chain_id"),
+        "node_id": node_id,
+        "feature_suite_hash": evidence_report.get("feature_suite_hash") or remote_network.get("feature_suite_hash"),
+        "machine_b_tip": dict(local_tip),
+        "machine_a_tip": dict(machine_a_tip),
+        "common_header_hash": same_height_peer.get("common_header_hash"),
+        "created_token_symbol": token_symbol,
+        "accepted_submission_count": 1 if token_ok else 0,
+        "rejected_submission_count": 0 if token_ok else 1,
+        "evidence_report_ok": evidence_report.get("ok") is True,
+        "verification_report_ok": verification_report.get("ok") is True,
+    }
 
 
 def _post_json(url: str, value: Mapping[str, Any]) -> tuple[dict[str, Any], int]:
@@ -160,10 +237,24 @@ def run_machine_b_acceptance_v0(
             verification_report,
         )
     )
+    latest_main_summary = build_machine_b_latest_main_summary_v0(
+        config_url=config_url,
+        expected_network_config_hash=expected_network_config_hash,
+        commit_sha=_repo_commit_sha_v0(),
+        node_id=node_id,
+        token_symbol=token_symbol,
+        token_report=token_report,
+        doctor_report=doctor_report,
+        join_report=join_report,
+        follow_report=follow_report,
+        evidence_report=evidence_report,
+        verification_report=verification_report,
+    )
     return {
         "schema": MACHINE_B_ACCEPTANCE_SCHEMA,
         "ok": ok,
         "status": "accepted" if ok else "rejected",
+        "latest_main_summary": latest_main_summary,
         "config_url": config_url,
         "expected_network_config_hash": expected_network_config_hash,
         "node_id": node_id,
@@ -243,4 +334,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
