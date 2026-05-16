@@ -135,10 +135,12 @@
         "tests/integration/test_zeno_ledger_v0.py",
         "tests/integration/test_zeno_ledger_node.py",
         "tests/integration/test_zeno_ledger_machine_a_host.py",
+        "tests/integration/test_zeno_ledger_machine_b_acceptance.py",
         "tests/integration/test_zeno_ledger_anti_equivocation_v0.py"
       ],
       "evidence_commands": [
         "python3 tools/check_zeno_ledger_anti_equivocation.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_machine_b_acceptance.py",
         "PYTHON=python3 ZENO_PUBLIC_TESTNET_GATE_OUT=/tmp/zenodex_public_testnet_candidate_gate tools/run_public_testnet_candidate_gate.sh"
       ],
       "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."

@@ -124,3 +124,7 @@ python3 tools/zeno_ledger_machine_b_acceptance.py \
 
 Until that separate-machine artifact is committed or otherwise archived, the
 separate-machine check is operator-reported rather than repository-recorded.
+The runner embeds `latest_main_summary` in `machine_b_acceptance_report.json`
+so the durable artifact can bind the commit SHA, network config hash,
+feature-suite hash, Machine A/B tips, common header hash, created test token,
+and accepted/rejected submission counts.
