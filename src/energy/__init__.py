@@ -22,12 +22,28 @@ from .upba_v2_ranker import (
     rank_upba_v2_candidates,
     verified_checked_stop_certificate_holds,
 )
+from .upba_v2_set_features import (
+    SET_AWARE_FEATURE_DIM,
+    SET_AWARE_FEATURE_NAMES,
+    SET_FEATURE_DIM,
+    SET_FEATURE_NAMES,
+    UpbaV2SetFeatureRecord,
+    extract_upba_v2_set_aware_feature_record,
+    extract_upba_v2_set_feature_record,
+)
 
 __all__ = [
     "FEATURE_DIM",
     "FEATURE_NAMES",
+    "SET_AWARE_FEATURE_DIM",
+    "SET_AWARE_FEATURE_NAMES",
+    "SET_FEATURE_DIM",
+    "SET_FEATURE_NAMES",
     "UpbaV2FeatureRecord",
+    "UpbaV2SetFeatureRecord",
     "extract_upba_v2_feature_record",
+    "extract_upba_v2_set_aware_feature_record",
+    "extract_upba_v2_set_feature_record",
     "hard_barrier_energy_from_record",
     "hand_energy_from_record",
     "candidate_hash_multiset",

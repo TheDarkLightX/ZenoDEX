@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--model", type=Path)
     parser.add_argument("--mode", choices=("hand", "learned", "hybrid", "random"), default="hand")
+    parser.add_argument("--feature-block", choices=("aggregate", "set-aware"), default="aggregate")
     parser.add_argument("--seed", type=int, default=20260517)
     args = parser.parse_args()
 
@@ -99,12 +100,12 @@ def _scorer_for_args(args: argparse.Namespace) -> Callable[[dict[str, Any]], flo
         if args.model is None:
             raise SystemExit("--model is required for learned mode")
         model = load_linear_model(args.model)
-        return lambda row: model.energy([float(value) for value in row["features"]])
+        return lambda row: model.energy(_feature_values(row, feature_block=args.feature_block))
     if args.mode == "hybrid":
         if args.model is None:
             raise SystemExit("--model is required for hybrid mode")
         model = load_linear_model(args.model)
-        return lambda row: model.energy([float(value) for value in row["features"]])
+        return lambda row: model.energy(_feature_values(row, feature_block=args.feature_block))
     return None
 
 
@@ -143,6 +144,14 @@ def _objective_score(row: dict[str, Any]) -> tuple[int, int]:
     if not label["valid"]:
         return (0, 0)
     return (int(label["objective_volume"]), int(label["objective_surplus"]))
+
+
+def _feature_values(row: dict[str, Any], *, feature_block: str) -> list[float]:
+    if feature_block == "aggregate":
+        return [float(value) for value in row["features"]]
+    if feature_block == "set-aware":
+        return [float(value) for value in row["set_aware_features"]]
+    raise ValueError("feature_block must be 'aggregate' or 'set-aware'")
 
 
 def _hard_barrier_from_row(row: dict[str, Any]) -> float:

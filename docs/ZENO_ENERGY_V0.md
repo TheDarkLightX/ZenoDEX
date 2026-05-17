@@ -10,6 +10,8 @@ Academic PDF: [ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UP
 
 Academic state-of-the-art notes: [ZenoEnergy State Of The Art Notes](./ZENO_ENERGY_STATE_OF_THE_ART.md)
 
+Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md)
+
 ```text
 Model proposes; verifier decides.
 ```

@@ -21,6 +21,7 @@ from src.energy.upba_v2_energy_model import (
     save_linear_model,
 )
 from src.energy.upba_v2_features import FEATURE_NAMES
+from src.energy.upba_v2_set_features import SET_AWARE_FEATURE_NAMES
 
 
 def load_rows(path: Path) -> list[dict[str, Any]]:
@@ -40,6 +41,7 @@ def train_linear_ranker(
     margin: float,
     seed: int,
     init: str,
+    feature_block: str = "aggregate",
     winner_pair_weight: float = 1.0,
     objective_gap_weight: float = 0.0,
     same_volume_surplus_gap_weight: float = 0.0,
@@ -47,10 +49,10 @@ def train_linear_ranker(
 ) -> LinearEnergyModel:
     if not rows:
         raise ValueError("training dataset is empty")
-    feature_names = tuple(rows[0]["feature_names"])
-    if feature_names != FEATURE_NAMES:
-        raise ValueError("dataset feature schema does not match current UPBA energy feature schema")
+    feature_names = _feature_names_for_rows(rows, feature_block=feature_block)
     if init == "hand":
+        if feature_block != "aggregate":
+            raise ValueError("hand initialization is only defined for aggregate features")
         model = initial_hand_weight_model()
         weights = list(model.weights)
     elif init == "zero":
@@ -72,11 +74,11 @@ def train_linear_ranker(
             batch_scale = _batch_objective_scale(batch_rows)
             ranked = sorted(batch_rows, key=_label_score, reverse=True)
             for good_index, good in enumerate(ranked):
-                good_x = [float(value) for value in good["features"]]
+                good_x = _feature_values(good, feature_block=feature_block)
                 for bad in ranked[good_index + 1 :]:
                     if _label_score(good) <= _label_score(bad):
                         continue
-                    bad_x = [float(value) for value in bad["features"]]
+                    bad_x = _feature_values(bad, feature_block=feature_block)
                     energy_good = _dot(weights, good_x)
                     energy_bad = _dot(weights, bad_x)
                     if margin + energy_good - energy_bad <= 0:
@@ -104,6 +106,7 @@ def main() -> int:
     parser.add_argument("--margin", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=20260517)
     parser.add_argument("--init", choices=("zero", "hand"), default="zero")
+    parser.add_argument("--feature-block", choices=("aggregate", "set-aware"), default="aggregate")
     parser.add_argument("--winner-pair-weight", type=float, default=1.0)
     parser.add_argument("--objective-gap-weight", type=float, default=0.0)
     parser.add_argument("--same-volume-surplus-gap-weight", type=float, default=0.0)
@@ -127,6 +130,7 @@ def main() -> int:
         margin=args.margin,
         seed=args.seed,
         init=args.init,
+        feature_block=args.feature_block,
         winner_pair_weight=args.winner_pair_weight,
         objective_gap_weight=args.objective_gap_weight,
         same_volume_surplus_gap_weight=args.same_volume_surplus_gap_weight,
@@ -139,6 +143,7 @@ def main() -> int:
         "backend": "linear_pairwise_hinge",
         "rows": len(rows),
         "feature_dim": len(model.feature_names),
+        "feature_block": args.feature_block,
         "parameters": len(model.weights) + 1,
         "epochs": args.epochs,
         "learning_rate": args.learning_rate,
@@ -160,6 +165,28 @@ def _label_score(row: dict[str, Any]) -> tuple[int, int, int]:
         int(label["objective_volume"]),
         int(label["objective_surplus"]),
     )
+
+
+def _feature_names_for_rows(rows: list[dict[str, Any]], *, feature_block: str) -> tuple[str, ...]:
+    if feature_block == "aggregate":
+        feature_names = tuple(rows[0]["feature_names"])
+        if feature_names != FEATURE_NAMES:
+            raise ValueError("dataset aggregate feature schema does not match current UPBA energy feature schema")
+        return feature_names
+    if feature_block == "set-aware":
+        feature_names = tuple(rows[0].get("set_aware_feature_names", ()))
+        if feature_names != SET_AWARE_FEATURE_NAMES:
+            raise ValueError("dataset set-aware feature schema does not match current UPBA energy feature schema")
+        return feature_names
+    raise ValueError("feature_block must be 'aggregate' or 'set-aware'")
+
+
+def _feature_values(row: dict[str, Any], *, feature_block: str) -> list[float]:
+    if feature_block == "aggregate":
+        return [float(value) for value in row["features"]]
+    if feature_block == "set-aware":
+        return [float(value) for value in row["set_aware_features"]]
+    raise ValueError("feature_block must be 'aggregate' or 'set-aware'")
 
 
 def _batch_objective_scale(rows: list[dict[str, Any]]) -> dict[str, int]:

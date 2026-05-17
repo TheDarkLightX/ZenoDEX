@@ -31,6 +31,11 @@ from src.core.uniform_batch_clearing import (
 from src.energy.upba_v2_features import FEATURE_NAMES, extract_upba_v2_feature_record
 from src.energy.upba_v2_hand_energy import hand_energy_from_record
 from src.energy.upba_v2_ranker import advisory_candidate_hash
+from src.energy.upba_v2_set_features import (
+    SET_AWARE_FEATURE_NAMES,
+    SET_FEATURE_NAMES,
+    extract_upba_v2_set_feature_record,
+)
 from src.state.balances import BalanceTable
 from src.state.canonical import canonical_json_bytes
 from src.state.intents import Intent, IntentKind
@@ -193,6 +198,12 @@ def rows_for_batch(batch: SyntheticBatch) -> list[dict[str, object]]:
             candidate=item.candidate,
             include_verifier_label=True,
         )
+        set_record = extract_upba_v2_set_feature_record(
+            pool=batch.pool,
+            intents=batch.intents,
+            balances=batch.balances,
+            candidate=item.candidate,
+        )
         candidate_hash = advisory_candidate_hash(item.candidate)
         valid = bool(record.raw["verifier_ok"])
         objective_volume = int(record.raw["valid_objective_volume"])
@@ -206,6 +217,10 @@ def rows_for_batch(batch: SyntheticBatch) -> list[dict[str, object]]:
             "candidate_type": item.candidate_type,
             "feature_names": list(FEATURE_NAMES),
             "features": list(record.values),
+            "set_feature_names": list(SET_FEATURE_NAMES),
+            "set_features": list(set_record.values),
+            "set_aware_feature_names": list(SET_AWARE_FEATURE_NAMES),
+            "set_aware_features": list(record.values) + list(set_record.values),
             "label": {
                 "valid": valid,
                 "objective_volume": objective_volume,

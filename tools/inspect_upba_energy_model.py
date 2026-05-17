@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from src.energy.upba_v2_energy_model import initial_hand_weight_model, load_linear_model
 from src.energy.upba_v2_features import FEATURE_NAMES
+from src.energy.upba_v2_set_features import SET_AWARE_FEATURE_NAMES
 
 FORBIDDEN_FEATURE_SUBSTRINGS = (
     "verifier",
@@ -52,20 +53,25 @@ def main() -> int:
 def inspect_model(model_path: Path, *, top_n: int) -> dict[str, Any]:
     model = load_linear_model(model_path)
     hand = initial_hand_weight_model()
-    if model.feature_names != FEATURE_NAMES:
+    if model.feature_names == FEATURE_NAMES:
+        feature_block = "aggregate"
+    elif model.feature_names == SET_AWARE_FEATURE_NAMES:
+        feature_block = "set-aware"
+    else:
         raise ValueError("model feature schema does not match current UPBA energy schema")
+    hand_weights = dict(zip(hand.feature_names, hand.weights, strict=True))
+    hand_weights.update({f"aggregate::{name}": weight for name, weight in zip(hand.feature_names, hand.weights, strict=True)})
 
     rows = [
         {
             "feature": feature,
             "weight": float(weight),
-            "hand_init_weight": float(hand_weight),
-            "delta_from_hand_init": float(weight - hand_weight),
+            "hand_init_weight": float(hand_weights.get(feature, 0.0)),
+            "delta_from_hand_init": float(weight - hand_weights.get(feature, 0.0)),
         }
-        for feature, weight, hand_weight in zip(
+        for feature, weight in zip(
             model.feature_names,
             model.weights,
-            hand.weights,
             strict=True,
         )
     ]
@@ -74,7 +80,12 @@ def inspect_model(model_path: Path, *, top_n: int) -> dict[str, Any]:
         for feature in model.feature_names
         if any(fragment in feature for fragment in FORBIDDEN_FEATURE_SUBSTRINGS)
     ]
-    reserved = [row for row in rows if str(row["feature"]).startswith("reserved_")]
+    reserved = [
+        row
+        for row in rows
+        if str(row["feature"]).startswith("reserved_")
+        or str(row["feature"]).startswith("aggregate::reserved_")
+    ]
     reserved_nonzero = [
         row for row in reserved if abs(float(row["weight"])) > 1e-12
     ]
@@ -82,6 +93,7 @@ def inspect_model(model_path: Path, *, top_n: int) -> dict[str, Any]:
     return {
         "schema": "zenodex/energy/upba_v2_model_inspection/v1",
         "model_path": str(model_path),
+        "feature_block": feature_block,
         "parameter_count": len(model.weights) + 1,
         "feature_dim": len(model.feature_names),
         "bias": float(model.bias),
@@ -107,6 +119,7 @@ def _markdown_report(report: dict[str, Any]) -> str:
         "",
         "```text",
         f"model: {report['model_path']}",
+        f"feature_block: {report['feature_block']}",
         f"parameters: {report['parameter_count']}",
         f"feature_dim: {report['feature_dim']}",
         f"nonzero_weight_count: {report['nonzero_weight_count']}",

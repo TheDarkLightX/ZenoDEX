@@ -130,7 +130,8 @@ features as dominant penalties, train listwise or pairwise ranking, and keep the
 model tiny.
 2. **Deep Sets or Set Transformer ranker.** Replace hand-compressed intent
 summary features with permutation-invariant intent-set encoding when intent
-heterogeneity becomes important.
+heterogeneity becomes important. The first set-aware feature block is recorded
+in [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md).
 3. **Learned repair or neighborhood model.** Given a bad candidate, suggest a
 nearby price/fill adjustment. The verifier still checks every proposed repair.
 4. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over

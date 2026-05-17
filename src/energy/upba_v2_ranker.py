@@ -13,6 +13,10 @@ from src.core.uniform_batch_clearing import (
 )
 from src.energy.upba_v2_features import extract_upba_v2_feature_record
 from src.energy.upba_v2_hand_energy import hand_energy_from_record
+from src.energy.upba_v2_set_features import (
+    SET_AWARE_FEATURE_NAMES,
+    extract_upba_v2_set_aware_feature_record,
+)
 from src.state.balances import BalanceTable
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes
 from src.state.intents import Intent
@@ -248,13 +252,21 @@ def scorer_from_linear_model(
     """Wrap a model with an `energy(features)` method as a candidate scorer."""
 
     def score(candidate: UniformBatchCertificateV1) -> float:
-        record = extract_upba_v2_feature_record(
-            pool=pool,
-            intents=intents,
-            balances=balances,
-            candidate=candidate,
-            include_verifier_label=False,
-        )
+        if tuple(getattr(model, "feature_names", ())) == SET_AWARE_FEATURE_NAMES:
+            record = extract_upba_v2_set_aware_feature_record(
+                pool=pool,
+                intents=intents,
+                balances=balances,
+                candidate=candidate,
+            )
+        else:
+            record = extract_upba_v2_feature_record(
+                pool=pool,
+                intents=intents,
+                balances=balances,
+                candidate=candidate,
+                include_verifier_label=False,
+            )
         return float(model.energy(record.values))  # type: ignore[attr-defined]
 
     return score
