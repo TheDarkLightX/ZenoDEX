@@ -81,6 +81,11 @@ class SignedIntentEnvelope:
 class SettlementEnvelope:
     settlement: Settlement
     proof: Optional[Dict[str, Any]] = None
+    oracle_authorization: Optional[Dict[str, Any]] = None
+    uniform_batch_certificate: Optional[Dict[str, Any]] = None
+    uniform_batch_optimality_certificate: Optional[Dict[str, Any]] = None
+    uniform_batch_v2_bounded_grid: Optional[Dict[str, Any]] = None
+    uniform_batch_v3_exact_out_grid: Optional[Dict[str, Any]] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -436,9 +441,65 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement proof must be an object")
         proof = raw_proof
 
-    settlement_data_no_proof = {k: v for k, v in settlement_data.items() if k not in ("proof", "zk_proof")}
+    raw_oracle_authorization = settlement_data.get("oracle_authorization")
+    oracle_authorization = None
+    if raw_oracle_authorization is not None:
+        if not isinstance(raw_oracle_authorization, dict):
+            raise ValueError("settlement oracle_authorization must be an object")
+        oracle_authorization = raw_oracle_authorization
+
+    raw_uniform_batch_certificate = settlement_data.get("uniform_batch_certificate")
+    uniform_batch_certificate = None
+    if raw_uniform_batch_certificate is not None:
+        if not isinstance(raw_uniform_batch_certificate, dict):
+            raise ValueError("settlement uniform_batch_certificate must be an object")
+        uniform_batch_certificate = raw_uniform_batch_certificate
+
+    raw_uniform_batch_optimality_certificate = settlement_data.get("uniform_batch_optimality_certificate")
+    uniform_batch_optimality_certificate = None
+    if raw_uniform_batch_optimality_certificate is not None:
+        if not isinstance(raw_uniform_batch_optimality_certificate, dict):
+            raise ValueError("settlement uniform_batch_optimality_certificate must be an object")
+        uniform_batch_optimality_certificate = raw_uniform_batch_optimality_certificate
+
+    raw_uniform_batch_v2_bounded_grid = settlement_data.get("uniform_batch_v2_bounded_grid")
+    uniform_batch_v2_bounded_grid = None
+    if raw_uniform_batch_v2_bounded_grid is not None:
+        if not isinstance(raw_uniform_batch_v2_bounded_grid, dict):
+            raise ValueError("settlement uniform_batch_v2_bounded_grid must be an object")
+        uniform_batch_v2_bounded_grid = raw_uniform_batch_v2_bounded_grid
+
+    raw_uniform_batch_v3_exact_out_grid = settlement_data.get("uniform_batch_v3_exact_out_grid")
+    uniform_batch_v3_exact_out_grid = None
+    if raw_uniform_batch_v3_exact_out_grid is not None:
+        if not isinstance(raw_uniform_batch_v3_exact_out_grid, dict):
+            raise ValueError("settlement uniform_batch_v3_exact_out_grid must be an object")
+        uniform_batch_v3_exact_out_grid = raw_uniform_batch_v3_exact_out_grid
+
+    settlement_data_no_proof = {
+        k: v
+        for k, v in settlement_data.items()
+        if k
+        not in (
+            "proof",
+            "zk_proof",
+            "oracle_authorization",
+            "uniform_batch_certificate",
+            "uniform_batch_optimality_certificate",
+            "uniform_batch_v2_bounded_grid",
+            "uniform_batch_v3_exact_out_grid",
+        )
+    }
     settlement = _parse_settlement(settlement_data_no_proof)
-    return SettlementEnvelope(settlement=settlement, proof=proof)
+    return SettlementEnvelope(
+        settlement=settlement,
+        proof=proof,
+        oracle_authorization=oracle_authorization,
+        uniform_batch_certificate=uniform_batch_certificate,
+        uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
+        uniform_batch_v2_bounded_grid=uniform_batch_v2_bounded_grid,
+        uniform_batch_v3_exact_out_grid=uniform_batch_v3_exact_out_grid,
+    )
 
 
 def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
