@@ -128,10 +128,12 @@ Priority order:
 1. **Hard-barrier linear or MLP ranker.** Keep verifier-shaped invalidity
 features as dominant penalties, train listwise or pairwise ranking, and keep the
 model tiny.
-2. **Deep Sets or Set Transformer ranker.** Replace hand-compressed intent
-summary features with permutation-invariant intent-set encoding when intent
-heterogeneity becomes important. The first set-aware feature block is recorded
-in [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md).
+2. **Regularized set-aware MLP or listwise ranker.** Replace hand-compressed
+intent summaries with permutation-invariant intent-set encoding when intent
+heterogeneity becomes important. The first linear set-aware feature block is
+recorded in [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md),
+and the first comparison run is recorded in
+[ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md).
 3. **Learned repair or neighborhood model.** Given a bad candidate, suggest a
 nearby price/fill adjustment. The verifier still checks every proposed repair.
 4. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over
@@ -167,8 +169,8 @@ matches the formal candidate family.
 settlement authorization.
 4. The next math target is a deterministic certificate for early stop or
 dominance-pruned candidate families.
-5. The next model target is a set-aware ranker before moving to heavier
-generative samplers.
+5. The next model target is cross-seed testing of nonlinear or listwise
+set-aware rankers before moving to heavier generative samplers.
 
 ## Sources
 

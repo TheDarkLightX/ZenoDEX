@@ -113,16 +113,23 @@ model is trained and evaluated on the full held-out corpus.
 
 ## Next Experiment
 
-Train a set-aware model on the existing synthetic corpus after regenerating rows
-with the optional set-aware fields:
+A first aggregate-vs-set-aware comparison is now recorded in
+[ZenoEnergy Set-Aware Comparison](./ZENO_ENERGY_SET_AWARE_COMPARISON.md).
+The run used 120 synthetic training batches and 80 held-out batches:
 
 ```text
-Mode A: aggregate gap-weighted baseline
-Mode B: set-aware zero-init ranker
-Mode C: set-aware hard-barrier hybrid ordering
+aggregate learned top1:       0.9625
+aggregate learned mean calls: 1.0375
+set-aware learned top1:       0.9500
+set-aware learned mean calls: 1.0625
+invalid accepts:              0 in every mode
 ```
 
-The acceptance criteria should stay unchanged:
+The result is negative knowledge for this exact linear set-aware candidate:
+the extra moment features did not improve the aggregate ranker on this seed.
+The aggregate gap-weighted checkpoint stays the measured default.
+
+The acceptance criteria for future runs should stay unchanged:
 
 ```text
 invalid_accept_count = 0
@@ -131,6 +138,5 @@ mean verifier calls <= aggregate baseline
 fallback recovers exact winner when top-k fails
 ```
 
-If the set-aware model improves hard cases, keep it as ZenoEnergy v1. If it only
-matches the aggregate model, keep the aggregate ranker because it is smaller and
-easier to audit.
+Next research moves should test cross-seed stability, nonlinear set-aware
+scorers, and hard-case-focused objectives before promoting set-aware features.

@@ -12,6 +12,8 @@ Academic state-of-the-art notes: [ZenoEnergy State Of The Art Notes](./ZENO_ENER
 
 Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md)
 
+Research log and PopperPad refs: [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md)
+
 ```text
 Model proposes; verifier decides.
 ```
@@ -53,6 +55,7 @@ verifier labels for offline training and evaluation.
 - `tools/mine_upba_energy_hard_cases.py`: streams larger synthetic runs and records compact examples where learned ordering misses top-1/top-5/top-10.
 - `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.
 - `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
+- `tools/compare_upba_energy_set_aware.py`: compares aggregate and set-aware rankers on fresh synthetic train/holdout splits and emits a small evidence report.
 
 ## Hand Energy
 
