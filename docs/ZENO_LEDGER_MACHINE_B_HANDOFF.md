@@ -201,3 +201,63 @@ If `/tmp/zeno-ledger-node-b/public_network_config.json` is missing,
 `$MACHINE_A_CONFIG_URL` is missing, Machine A has not published or served the
 public network config yet, or Machine B cannot reach Machine A at the supplied
 address.
+
+## Loopback Machine B Fallback
+
+Use this fallback when a second physical laptop cannot reach Machine A because
+of hotspot routing, VPN policy, client isolation, or unknown Wi-Fi behavior.
+Run it on Machine A from the same checked-out branch:
+
+```bash
+python3 tools/zeno_ledger_loopback_machine_b.py
+```
+
+The harness starts Machine A on random high ports and runs Machine B inside a
+clean `python:3.12-slim` Docker container. The container installs
+`requirements-core.txt`, joins through the published
+`public_network_config.json`, checks Machine A as a peer, pulls live blocks,
+forwards a faucet write back to Machine A, pulls the forwarded block, and
+builds:
+
+```text
+<out-dir>/evidence/machine_a.json
+<out-dir>/evidence/machine_b.json
+<out-dir>/evidence/machine_a_watcher_attestation.json
+<out-dir>/evidence/machine_b_watcher_attestation.json
+<out-dir>/evidence/token_test_result.json
+<out-dir>/evidence/two_machine_evidence.json
+<out-dir>/loopback_machine_b_report.json
+```
+
+This is acceptable protocol-path evidence for a clean Machine B environment.
+It proves the join, peer-check, live-pull, write-forwarding, and evidence
+archive code paths across an HTTP boundary and a separate network namespace.
+It leaves one residual network assumption: a separate physical laptop may still
+need router, hotspot, VPN, or firewall changes to reach Machine A.
+
+If Docker cannot resolve `host.docker.internal`, retry with:
+
+```bash
+python3 tools/zeno_ledger_loopback_machine_b.py --host-alias 172.17.0.1
+```
+
+If Docker Desktop already provides `host.docker.internal` and rejects Docker's
+`host-gateway` mapping, retry with:
+
+```bash
+python3 tools/zeno_ledger_loopback_machine_b.py --no-add-host-gateway
+```
+
+## Full VM Fallback
+
+A full VM can act as Machine B if its network can reach Machine A's host ports.
+Use NAT with the VM's host-gateway address, or bridged networking if the local
+Wi-Fi driver supports it. Then set:
+
+```bash
+export MACHINE_A_CONFIG_URL="http://<VM_HOST_GATEWAY_OR_MACHINE_A_IP>:8000/public_network_config.json"
+```
+
+Run the normal Machine B join and evidence commands above. The VM path is closer
+to a physical two-machine run than Docker, but Docker is the fastest repeatable
+fallback when a hotspot blocks peer-to-peer traffic.
