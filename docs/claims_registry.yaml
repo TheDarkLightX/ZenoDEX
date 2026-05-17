@@ -494,7 +494,10 @@ claims:
       price grid. The v2 theorem extends this bridge to bounded partial-fill plans when the audit
       set enumerates every canonical bounded-grid price and every admitted bounded partial-fill
       plan. The v3 theorem extends the same conditional bridge to admitted bounded exact-out fill
-      plans. This does not claim unbounded rational-price completeness, fair inclusion, oracle
+      plans. The v3 exact-grid theorem derives winner feasibility from exact audit-set soundness
+      and winner membership. The v3 full-fill theorem specializes the bridge to the current runtime
+      surface where the admitted intent set fixes one exact-out fill plan, with singleton-plan
+      equivalence lemmas tying it back to the general exact-out model. This does not claim unbounded rational-price completeness, fair inclusion, oracle
       safety, multi-hop routing, partial exact-out fills, or economic sufficiency of a particular
       grid resolution.
     evidence:
@@ -505,6 +508,7 @@ claims:
       files:
         - lean-mathlib/Proofs/UniformBatchOptimality.lean
         - lean-mathlib/Proofs/UniformBatchClearingV1.lean
+        - lean-mathlib/proof_receipts/upba_v2_aristotle_optimality.md
         - lean-mathlib/proof_receipts/upba_price_grid_completeness.md
         - docs/UPBA_OPTIMALITY_CERTIFICATE.md
         - docs/UPBA_V1_CERTIFICATE.md
@@ -522,7 +526,13 @@ claims:
         - UniformBatchOptimality.canonical_price_grid_upper_bound_certificate_implies_global_weak_optimal
         - UniformBatchOptimality.upba_v2_partial_fill_bounded_grid_upper_bound_certificate_implies_global_weak_optimal
         - UniformBatchOptimality.upba_v3_exact_out_bounded_grid_upper_bound_certificate_implies_global_weak_optimal
+        - UniformBatchOptimality.upba_v3_exact_out_exact_grid_upper_bound_certificate_implies_global_weak_optimal
+        - UniformBatchOptimality.upba_v3_full_fill_exact_out_grid_upper_bound_certificate_implies_global_weak_optimal
+        - UniformBatchOptimality.exact_upper_bound_certificate_implies_global_weak_optimal
+        - UniformBatchOptimality.exactOutFullFillCanonicalGridCandidates_eq_singleton_plan
+        - UniformBatchOptimality.feasibleExactOutFullFill_iff_singleton_plan
         - UniformBatchOptimality.exactOutCanonicalGridCandidates_exact_audit_set
+        - UniformBatchOptimality.exactOutFullFillCanonicalGridCandidates_exact_audit_set
         - UniformBatchOptimality.exactOutCanonicalGridCandidates_complete_audit_set
         - UniformBatchOptimality.partialFillCanonicalGridCandidates_exact_audit_set
         - UniformBatchOptimality.partialFillCanonicalGridCandidates_complete_audit_set
@@ -535,6 +545,34 @@ claims:
         - UniformBatchOptimality.priceGridCandidates_exact_audit_set
         - UniformBatchOptimality.priceGridCandidates_complete_audit_set
         - UniformBatchOptimality.audited_set_optimality_does_not_exclude_omitted_better_candidate
+
+  - id: py:upba:v1_grid_economic_profiles_v1
+    status: supported
+    layer: runtime
+    statement: >
+      The UPBA v1 grid economic profile checker evaluates named price-grid
+      profiles against explicit price-band, denominator, and per-fill input
+      caps. Accepted profiles satisfy the rational-price epsilon bound
+      `1 / (2D)`, emit exact nearest-grid witnesses for representative rational
+      prices in the declared band, emit an explicit interval-cover certificate
+      for every rational price in that band under `p_min * D >= 1` and
+      `ceil(p_max * D) <= max_grid_num`, satisfy conservative upper bounds for
+      relative price error and output-unit slack, and keep their grid numerator
+      and denominator inside the runtime price-ratio domain. This is a scoped
+      deployment profile gate; it does not claim fair admission, rational-price
+      search completeness outside the declared band, market-depth sufficiency,
+      oracle safety, or universal economic optimality.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/upba_v1_grid_economic_profile.py --json
+        - cmd: pytest -q tests/tools/test_upba_v1_grid_economic_profile.py
+      files:
+        - tools/upba_v1_grid_economic_profile.py
+        - tests/tools/test_upba_v1_grid_economic_profile.py
+        - docs/UPBA_V1_GRID_ECONOMIC_PROFILES.md
+        - docs/UPBA_V1_EVIDENCE_BOUNDARY.md
+        - src/core/uniform_batch_clearing.py
 
   - id: py:upba:deterministic_admission_certificate_v1
     status: supported
@@ -567,7 +605,9 @@ claims:
       SWAP_EXACT_OUT certificates only when each fill exactly matches the
       requested output, stays within the user's max input, satisfies the
       uniform-price inequality, and uses the minimal gross input required by
-      deterministic integer fee rounding. This is a fixed-admission runtime
+      deterministic integer fee rounding. It rejects mixed exact-in/exact-out
+      admitted sets under the v3 policy, and integer overdelivery from minimal
+      input rounding remains in pool reserves. This is a fixed-admission runtime
       settlement claim; it does not claim partial exact-out fills, multi-hop
       routing, fair inclusion, or economic sufficiency of the price grid.
     evidence:
@@ -622,20 +662,127 @@ claims:
       price pairs inside configured bounds, builds v3 full-fill exact-out
       certificates, verifies each accepted candidate against the live pool and
       balances, and scores candidates by executed output volume first and user
-      input surplus second. It rejects grids exceeding the optimality candidate
-      cap. This is a bounded candidate-construction claim; it does not claim
+      input surplus second. A regression independently rebuilds every reduced
+      price candidate in a small bounded grid and checks exact equality with the
+      helper's accepted candidate set, including the fixed full-fill projection
+      `(intent_id, executed_out)`. The complete-domain verifier rebuilds the v3
+      exact-out grid set before accepting an optimality certificate and rejects
+      `candidate_set_hash` mismatches. The engine strict-UPBA path can require
+      this evidence through `uniform_batch_v3_exact_out_grid`; integration tests
+      reject missing optimality, non-v3 winners, missing or unknown grid-bound fields,
+      boolean bounds, non-object evidence, and duplicate v2/v3 bounded-grid envelopes.
+      It rejects grids exceeding the optimality
+      candidate cap. This is a bounded candidate-construction claim; it does not claim
       unbounded rational-price completeness, partial exact-out fills, multi-hop
       routing, fair inclusion, or economic sufficiency of the configured grid.
     evidence:
       kind: pytest
       check:
-        - cmd: pytest -q tests/core/test_uniform_batch_optimality.py
+        - cmd: pytest -q tests/core/test_uniform_batch_optimality.py tests/integration/test_dex_engine_uniform_batch_certificate.py
       files:
         - src/core/uniform_batch_optimality.py
         - src/core/uniform_batch_clearing.py
+        - src/integration/dex_engine.py
+        - src/integration/operations.py
         - tests/core/test_uniform_batch_optimality.py
+        - tests/integration/test_dex_engine_uniform_batch_certificate.py
         - docs/UPBA_V3_EXACT_OUT_CERTIFICATE.md
         - docs/UPBA_OPTIMALITY_CERTIFICATE.md
+
+  - id: py:production_boundary:closure_audit_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The local production-boundary audit maps the value-moving closure
+      requirements to replayable checks: value-moving paths use fail-closed safe
+      profiles, production posture rejects nonce-free value-moving admission,
+      production posture avoids legacy settlement validation, production source
+      does not disable settlement matching, and external-facing production
+      ingress does not expose direct pure-core settlement helpers. The named
+      strict UPBA profile forces certificate, optimality, v2 bounded-grid, and
+      v3 exact-out grid evidence. This is a local source/configuration audit; it
+      does not prove live deployment configuration, network operation, or a
+      two-machine latest-main run.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_production_boundary.py
+        - cmd: pytest -q tests/test_check_production_boundary.py tests/test_security_posture_files.py
+      files:
+        - tools/check_production_boundary.py
+        - tests/test_check_production_boundary.py
+        - tests/test_security_posture_files.py
+        - docs/PRODUCTION_BOUNDARY_CLOSURE_AUDIT.md
+        - docs/PRODUCTION_GATE.md
+        - src/integration/dex_engine.py
+        - src/integration/operations.py
+
+  - id: py:reproducibility:python_hash_lock_surface_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The local Python reproducibility audit verifies that root Python lockfiles
+      are flattened, hash-complete, and generated with hash support; every
+      scanned root dependency install uses `--require-hashes`; unlocked root
+      requirement manifests are rejected; and every scanned unhashed non-root
+      Python install command is explicitly reported as an allowlisted exception
+      outside the production image and release gate. The proof-toolchain lock
+      check separately binds Python lockfiles, Docker build files, Lean
+      manifests, Risc0 Cargo locks/manifests, and Rust TEE verifier
+      locks/manifests into proof metadata. This is a local source and manifest
+      audit; it does not prove live remote execution, optional external checkout
+      locks, or a latest-main two-machine run.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_python_hash_locks.py --json
+        - cmd: pytest -q tests/test_check_python_hash_locks.py tests/test_check_proof_toolchain_lock.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/integration/test_zeno_ledger_tee_proof_metadata.py
+      files:
+        - tools/check_python_hash_locks.py
+        - tests/test_check_python_hash_locks.py
+        - tools/check_proof_toolchain_lock.py
+        - tests/test_check_proof_toolchain_lock.py
+        - src/integration/proof_toolchain_lock.py
+        - tools/zeno_ledger_risc0_proof_metadata.py
+        - tools/zeno_ledger_tee_proof_metadata.py
+        - tests/integration/test_zeno_ledger_risc0_proof_metadata.py
+        - tests/integration/test_zeno_ledger_tee_proof_metadata.py
+        - docs/REPRODUCIBILITY_AUDIT.md
+        - docs/SECURITY_POSTURE.md
+        - docs/PRODUCTION_GATE.md
+
+  - id: py:public_claim_scope:hygiene_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The public claim-scope checker scans the README, the claims registry, and
+      public assurance documents for known overclaim patterns. It rejects direct
+      or title-style UPBA v2 optimality claims, Risc0 claims that imply a full
+      Python execution proof, TEE claims that imply a complete confidential
+      network or total privacy, and cover-product insurance/offering/
+      underwriting language before counsel-led review. Required scope anchors are enforced for
+      the README, UPBA v2 evidence docs, Risc0 state-proof docs, confidential
+      feature docs, and ZenoCover replay docs. This is a public-text hygiene
+      gate; it does not prove that every future marketing surface, website,
+      social post, or external distribution channel is scoped.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_public_claim_scope.py --json
+        - cmd: pytest -q tests/test_check_public_claim_scope.py
+      files:
+        - tools/check_public_claim_scope.py
+        - tests/test_check_public_claim_scope.py
+        - README.md
+        - docs/claims_registry.yaml
+        - docs/UPBA_V2_CERTIFICATE.md
+        - docs/UPBA_V2_EVIDENCE_BOUNDARY.md
+        - docs/zenodex_spot_state_proof_risc0_v1.md
+        - docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md
+        - docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md
+        - docs/CONFIDENTIAL_FEATURES_USE_CASES.md
+        - docs/ZENOCOVER_LP_LOSS_COVER_V1.md
 
   - id: lean:zeno_ledger:zk_tee_proof_composition_v1
     status: proved
@@ -674,6 +821,9 @@ claims:
         - ZenoLedgerZkTeeProofComposition.accepted_zk_program_verifier_distinct
         - ZenoLedgerZkTeeProofComposition.accepted_metadata_unique_under_digest_injective
         - ZenoLedgerZkTeeProofComposition.apply_chunks_perm_invariant
+        - ZenoLedgerZkTeeProofComposition.applyWrite_commutes_of_distinct
+        - ZenoLedgerZkTeeProofComposition.applyWrites_perm_invariant_of_pairwise_distinct
+        - ZenoLedgerZkTeeProofComposition.applyWrite_commutes_of_same_key_same_value
 
   - id: py:zeno_ledger:risc0_proof_metadata_adapter_v0
     status: supported
@@ -763,14 +913,19 @@ claims:
       through the host CLI with state-hash, transaction-commitment,
       pre-app-hash, post-app-hash, and block timestamp checks. This is a real
       local proof-of-execution smoke for the current v1 guest operation set; it
-      does not prove rejection-path receipt coverage, production prover
-      performance, dependency currency, or ZenoLedger network readiness.
+      also has a lightweight archive checker for the machine-readable smoke
+      report. It does not prove rejection-path receipt coverage, production
+      prover performance, dependency currency, or ZenoLedger network readiness.
     evidence:
       kind: rust
       check:
         - cmd: python3 tools/zeno_ledger_risc0_real_proof_smoke.py --case all --timeout 180 --out-dir /tmp/zenodex_risc0_real_proof_smoke_all
+        - cmd: python3 tools/check_zeno_ledger_risc0_real_proof_smoke_report.py /tmp/zenodex_risc0_real_proof_smoke_all/real_proof_smoke_report.json --require-proof-files
+        - cmd: python3 -m pytest -q tests/tools/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
       files:
         - tools/zeno_ledger_risc0_real_proof_smoke.py
+        - tools/check_zeno_ledger_risc0_real_proof_smoke_report.py
+        - tests/tools/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
         - zk/state_proof_risc0/shared/src/lib.rs
         - zk/state_proof_risc0/methods/build.rs
         - zk/state_proof_risc0/methods/guest/src/main.rs
@@ -788,7 +943,9 @@ claims:
       missing metadata/header binding when required, and verifier-command
       rejection when external attestation verification is required. The adapter
       checks that external verifier output matches the receipt measurement,
-      policy digest, and attestation epoch before emitting metadata. This is a
+      policy digest, and attestation epoch before emitting metadata. It can use
+      a canonical measurement registry with active epoch windows and revocation
+      flags as the approval source. This is a
       binding-adapter and verifier-command plumbing claim; it does not prove TEE
       hardware confidentiality, vendor attestation soundness, or settlement
       correctness from TEE output alone.
@@ -802,10 +959,41 @@ claims:
         - tools/zeno_ledger_tee_proof_metadata.py
         - tools/confidential_attestation_verifier_rust/src/main.rs
         - src/core/confidential_extension_receipts.py
+        - docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md
+        - docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md
         - src/integration/zeno_ledger_v0.py
         - tests/integration/test_zeno_ledger_tee_proof_metadata.py
         - tests/integration/test_zeno_ledger_risc0_proof_metadata.py
         - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
+
+  - id: py:confidential:route_quote_bundle_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The confidential route-quote bundle checker composes the confidential TEE
+      receipt gate with route quote replay. A bundle is accepted only when the
+      TEE receipt verifies against an active measurement registry or approved
+      measurement set, the receipt is fresh, host guards and accounting pass,
+      `request_id` binds the route quote receipt hash, the quote epoch is not
+      stale under the declared window, and the route quote receipt replays
+      against the supplied pool snapshot. The report exposes a `privacy_evidence`
+      map for measurement approval, registry use, extension-id binding,
+      request-id binding, host guards, and quote freshness, and tests reject
+      future quotes plus revoked registry entries. This is a deterministic
+      output-binding and quote-replay claim for a confidential quote sidecar; it
+      does not prove TEE hardware confidentiality, vendor attestation soundness,
+      private routing optimality, or a complete confidential network.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/check_confidential_route_quote_bundle.py tests/tools/test_check_confidential_route_quote_bundle.py
+        - cmd: python3 -m pytest -q tests/tools/test_check_confidential_route_quote_bundle.py
+      files:
+        - tools/check_confidential_route_quote_bundle.py
+        - tests/tools/test_check_confidential_route_quote_bundle.py
+        - src/core/confidential_extension_receipts.py
+        - src/core/quote_receipts.py
+        - docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md
 
   - id: py:zeno_ledger:proof_required_profile_metadata_replay_v0
     status: supported
@@ -828,6 +1016,105 @@ claims:
         - src/integration/zeno_ledger_v0.py
         - src/integration/zeno_ledger_profile.py
         - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
+
+  - id: py:zeno_ledger:validator_schedule_equivocation_boundary_v0
+    status: supported
+    layer: runtime
+    statement: >
+      ZenoLedger v0 now has a deterministic local validator-schedule boundary:
+      canonical validator-set hashing is order-invariant, scheduled proposer
+      selection is derived from height and voting power, body batch-cutoff
+      sequencer ids can be checked against that schedule, and conflicting
+      header hashes at the same chain height are reported as equivocations. It
+      also validates local header-chain linkage by chain id, unique consecutive
+      heights, and parent hashes matching the previous canonical header hash,
+      and selects a deterministic canonical branch from anchored local header
+      segments by maximum tip height, chain length, and lowest tip hash while
+      reporting orphan headers.
+      This is a verifier surface for hardening; it does not implement live
+      rotating validators, open P2P block gossip, or production fork-choice
+      under adversarial network conditions.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_zeno_ledger_v0.py
+      files:
+        - src/integration/zeno_ledger_v0.py
+        - tests/integration/test_zeno_ledger_v0.py
+        - docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md
+
+  - id: py:zeno_ledger:two_machine_latest_main_evidence_archive_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The ZenoLedger two-machine evidence builder assembles a machine-readable
+      archive from Machine A and Machine B host artifacts, token-test output,
+      and watcher attestations, then runs the strict evidence checker before
+      writing the archive. The checker requires the checked commit to equal the
+      latest pushed commit or caller-supplied expected commit, Machine A and
+      Machine B each to report that same commit and a parseable Python version,
+      distinct machine identities with matching network-config, feature-suite,
+      and common-header hashes, at least one accepted fake-token transaction, an
+      accepted token test result, and two unique machine watcher attestations
+      that replay their own hashes and bind to the same common header. This is
+      an archive-validation gate for externally collected evidence; it does not
+      run the two-host test, discover latest main remotely, prove watcher
+      honesty, or add open P2P/fork-choice consensus.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/build_zeno_ledger_two_machine_evidence.py tools/check_zeno_ledger_two_machine_evidence.py tests/tools/test_build_zeno_ledger_two_machine_evidence.py tests/tools/test_check_zeno_ledger_two_machine_evidence.py
+        - cmd: pytest -q tests/tools/test_build_zeno_ledger_two_machine_evidence.py tests/tools/test_check_zeno_ledger_two_machine_evidence.py
+      files:
+        - tools/build_zeno_ledger_two_machine_evidence.py
+        - tools/check_zeno_ledger_two_machine_evidence.py
+        - tests/tools/test_build_zeno_ledger_two_machine_evidence.py
+        - tests/tools/test_check_zeno_ledger_two_machine_evidence.py
+        - docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md
+
+  - id: py:zeno_ledger:peer_admission_pull_gate_v0
+    status: supported
+    layer: runtime
+    statement: >
+      ZenoLedger live pull now requires peer admission before fetching live
+      block bodies: the peer must expose a valid node-status hash, match the
+      local network id, chain id, and feature-suite hash, and share the local
+      common header prefix. The focused negative test serves a validly hashed
+      peer status on the wrong network and confirms `pull_live_from_peer_v0`
+      rejects before live body acceptance. This is a local follower safety gate;
+      it does not implement peer discovery, open P2P gossip, adversarial eclipse
+      resistance, or production fork-choice.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m pytest -q tests/integration/test_zeno_ledger_node.py::test_zeno_ledger_pull_rejects_peer_before_live_fetch_on_admission_mismatch
+        - cmd: python3 -m pytest -q tests/integration/test_zeno_ledger_node.py
+      files:
+        - tools/zeno_ledger_node.py
+        - tests/integration/test_zeno_ledger_node.py
+        - docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md
+
+  - id: py:zeno_ledger:public_operator_preflight_hardening_v0
+    status: supported
+    layer: runtime
+    statement: >
+      ZenoLedger node preflight has an opt-in public-operator mode for
+      operator-facing configs. The mode rejects inline auth tokens, requires
+      environment-backed auth for enabled testnet write endpoints and forwarded
+      writer submissions, and rejects all-interface server binds so public
+      exposure is routed through a separate authenticated proxy. This is a
+      configuration admission gate; it does not provide proxy enforcement,
+      key management, traffic filtering, DDoS protection, or production P2P
+      consensus.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_node.py
+        - cmd: python3 -m pytest -q tests/integration/test_zeno_ledger_node.py::test_zeno_ledger_node_public_operator_rejects_inline_auth_tokens tests/integration/test_zeno_ledger_node.py::test_zeno_ledger_node_public_operator_rejects_public_fixture_endpoints tests/integration/test_zeno_ledger_node.py::test_zeno_ledger_node_public_operator_accepts_local_env_auth_forwarding
+      files:
+        - tools/zeno_ledger_node.py
+        - tests/integration/test_zeno_ledger_node.py
+        - docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md
 
   - id: py:zeno_ledger:proof_verification_report_replay_v0
     status: supported
@@ -854,6 +1141,59 @@ claims:
         - tools/zeno_ledger_risc0_proof_metadata.py
         - tools/zeno_ledger_tee_proof_metadata.py
         - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
+
+  - id: py:zeno_ledger:light_client_checkpoint_quorum_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The local ZenoLedger light-client checkpoint verifier composes
+      header/body/checkpoint range replay with BLS signer-registry quorum
+      verification. It accepts a target checkpoint only when the verified range
+      reaches that checkpoint header hash, the checkpoint is exactly derived
+      from the target header, the header `signature_set_root` matches the
+      signer-registry root and threshold, and release BLS envelopes meet quorum
+      over the checkpoint hash. This is a local checkpoint-quorum replay gate;
+      it does not implement production validator rotation, open-network fork
+      choice, slashing, peer discovery, or adversarial light-client finality.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/check_zeno_ledger_light_client_checkpoint.py tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+        - cmd: pytest -q tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+      files:
+        - tools/check_zeno_ledger_light_client_checkpoint.py
+        - tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+        - tools/zeno_ledger_verify.py
+        - src/integration/zeno_ledger_signer_registry.py
+        - src/integration/zeno_ledger_signature.py
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
+
+  - id: py:zeno_ledger:proof_coverage_matrix_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The public ZenoLedger proof-coverage matrix pins the current supported
+      proof surfaces to claims-registry entries and keeps known proof gaps
+      machine-readable. The checker accepts the matrix only when all required
+      supported surfaces are present with existing `proved` or `supported`
+      claim ids, all required gap surfaces remain listed, required non-claims
+      remain listed, and gap rows do not carry claim ids. This is a
+      scope-control claim; it does not add zkVM execution support for UPBA,
+      Oracle critical actions, zUSD, perps, proof-market rewards, production
+      light-client finality, or recursive epoch aggregation.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zeno_ledger_proof_coverage_matrix.py
+        - cmd: python3 -m py_compile tools/check_zeno_ledger_proof_coverage_matrix.py tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py
+        - cmd: pytest -q tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py
+      files:
+        - tools/check_zeno_ledger_proof_coverage_matrix.py
+        - tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
+        - docs/claims_registry.yaml
 
   - id: smt:batch_auction_settler_v1:inductive_z3_cvc5
     status: supported
@@ -2173,6 +2513,116 @@ claims:
         - lean-mathlib/Proofs.lean
         - lean-mathlib/proof_receipts/zenodex_s_tier_disaster_math_v1.json
         - tests/formal/test_lean_zenodex_s_tier_disaster_math.py
+
+  - id: py:zenocover:lp_loss_cover_fire_bundle_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoCover LP loss-cover replay gate validates the checked-in FIRE
+      `lp_loss_cover_v1` bundle for the capped payoff
+      `N * min(max(HODL_T - LPV_T - D, 0), Cap)`. The checker composes the
+      FIRE registry bundle verifier, proof-tree certificate binding,
+      canonical replay input, persisted bundle binding, and runtime settlement
+      verifier. The current bundle settles with `holder_delta = 30`,
+      `writer_delta = -30`, `artifact_upper = 80`, and `writer_posted = 80`.
+      This is a local replay claim for one FIRE ZenoCover object; it does not
+      price premiums, admit live market witnesses, prove oracle truth,
+      implement a production claims workflow, or generalize to every possible
+      protection product.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenocover_lp_loss_cover.py
+        - cmd: python3 -m py_compile tools/check_zenocover_lp_loss_cover.py tests/tools/test_check_zenocover_lp_loss_cover.py
+        - cmd: pytest -q tests/tools/test_check_zenocover_lp_loss_cover.py
+      files:
+        - tools/check_zenocover_lp_loss_cover.py
+        - tests/tools/test_check_zenocover_lp_loss_cover.py
+        - docs/ZENOCOVER_LP_LOSS_COVER_V1.md
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/bundle_manifest.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/object_manifest.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/instance_manifest.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/certificate.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/proof_tree_certificate.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/replay_input.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/kernel_replay_receipt.json
+
+  - id: py:zenocover:reserve_solvency_manifest_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoCover reserve-solvency checker validates a bounded reserve
+      manifest by replaying each active LP loss-cover bundle, summing its
+      certified `writer_collateral_required` amount, and requiring existing
+      locked reserve plus active required collateral plus declared minimum
+      surplus to fit inside the reserve balance. This is a local portfolio
+      accounting gate over replayed FIRE objects; it does not price premiums,
+      prove oracle truth, model claim frequency, provide actuarial solvency, or
+      implement a production claims workflow.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile tools/check_zenocover_reserve_solvency.py tests/tools/test_check_zenocover_reserve_solvency.py
+        - cmd: pytest -q tests/tools/test_check_zenocover_reserve_solvency.py
+      files:
+        - tools/check_zenocover_reserve_solvency.py
+        - tests/tools/test_check_zenocover_reserve_solvency.py
+        - tools/check_zenocover_lp_loss_cover.py
+        - docs/ZENOCOVER_LP_LOSS_COVER_V1.md
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/bundle_manifest.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/replay_input.json
+
+  - id: lean:zenocover:payout_cap_reserve_floor_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoCover payout-cap Lean model proves that a verified payout is
+      nonnegative, bounded by requested amount, loss, coverage limit,
+      per-claim cap, and spendable reserve, and that one verified claim or any
+      ordered list of verified claims preserves the configured reserve floor
+      when each claim is verified against the current reserve. This is an
+      arithmetic guard for the internal claim-verifier model; it does not prove
+      oracle truth, claim eligibility, actuarial solvency, legal suitability, or
+      production reserve operations.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoCoverPayoutCap.lean
+        - cmd: pytest -q tests/formal/test_lean_zenocover_payout_cap.py
+      files:
+        - lean-mathlib/Proofs/ZenoCoverPayoutCap.lean
+        - lean-mathlib/Proofs.lean
+        - tests/formal/test_lean_zenocover_payout_cap.py
+        - internal/tokenomics/ZENOCOVER_CLAIM_VERIFIER_MODEL_V0.md
+
+  - id: py:zenocover:bounded_attack_query_simulation_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoCover bounded attack-query checker composes the replayed
+      reserve-solvency manifest, proof-triggered claim-verifier model, and
+      reserve-withdrawal safety model. It rejects inconsistent reserve assets or
+      balances, withdrawal active liabilities below replayed active collateral,
+      aggregate payout caps that violate the policy reserve floor, and bounded
+      sequences where an accepted withdrawal plus worst-case authorized payout
+      can breach the declared post-payout reserve floor. This is an internal
+      deterministic attack-query simulation gate; it does not model claim
+      frequency, actuarial solvency, oracle truth, legal suitability, or
+      production operations.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenocover_attack_queries.py internal/zenocover/ATTACK_QUERY_MANIFEST_V0.json
+        - cmd: python3 -m py_compile tools/check_zenocover_attack_queries.py tests/tools/test_check_zenocover_attack_queries.py
+        - cmd: pytest -q tests/tools/test_check_zenocover_attack_queries.py
+      files:
+        - tools/check_zenocover_attack_queries.py
+        - tests/tools/test_check_zenocover_attack_queries.py
+        - internal/zenocover/ATTACK_QUERY_MANIFEST_V0.json
+        - tools/check_zenocover_reserve_solvency.py
+        - tools/check_zenocover_claim_verifier_model.py
+        - tools/check_zenocover_reserve_withdrawal_safety.py
+        - docs/ZENOCOVER_LP_LOSS_COVER_V1.md
 
   - id: lean:zenodex:yield_like_funding_safety_v1
     status: supported
