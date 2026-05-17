@@ -160,6 +160,74 @@ Research consequence: use the selector as a compact benchmark harness for
 future learned repair policies. Promotion needs cross-seed replay and a stricter
 win over the hand-selected proposal subset.
 
+## Repair Selector Cross-Seed Stress
+
+Artifact:
+[ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_repair_selector_cross_seed_seed20260526_20260531.json`
+
+Command:
+
+```bash
+python3 tools/stress_upba_repair_selector.py \
+  --train-batches 80 \
+  --holdout-batches 60 \
+  --candidates-per-batch 24 \
+  --candidate-budget 6 \
+  --proposal-budget 2 \
+  --repair-seed-count 4 \
+  --max-proposals-per-seed 6 \
+  --step-denominator 4 \
+  --epochs 8 \
+  --learning-rate 0.05 \
+  --margin 1.0 \
+  --seed-pairs 20260526:20260527,20260528:20260529,20260530:20260531 \
+  --output-json data/upba_energy/upba_v2_repair_selector_cross_seed_seed20260526_20260531.json \
+  --output-markdown docs/ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md
+```
+
+Aggregate result:
+
+| metric | value |
+| --- | ---: |
+| compression_pass_count | 3 |
+| compression_fail_count | 0 |
+| strict_hand_win_count | 1 |
+| strict_hand_win_fail_count | 2 |
+| invalid_accept_count | 0 |
+| original_subset_violation_count | 0 |
+
+Mean across seed pairs:
+
+| mode | candidates | added | best dominates full winner | calls to dominance | calls to full winner | volume regret |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| limited | 6.0000 | 0.0000 | 0.2547 | 4.7381 | 4.7381 | 285.4150 |
+| full_neighborhood | 16.3211 | 10.3211 | 0.9434 | 1.9906 | 12.2533 | 5.9369 |
+| hand_selected | 8.0000 | 2.0000 | 0.9434 | 1.4814 | 6.4166 | 6.2477 |
+| learned_selected | 8.0000 | 2.0000 | 0.9434 | 1.4416 | 6.4102 | 5.9369 |
+
+Positive knowledge:
+
+```text
+The learned selector compressed full neighborhood expansion on all three
+train/holdout seed pairs while preserving full-neighborhood mean volume regret
+and weak-dominance rate.
+```
+
+Negative knowledge:
+
+```text
+The learned selector strictly beat the hand-selected two-proposal subset on only
+one of three seed pairs. Hand-selected repair remains a strong baseline.
+```
+
+Research consequence: the repair selector is useful as a proposal-budget
+compression tool. The next model objective should target a stronger hand-baseline
+win, probably by adding listwise proposal-set features or training directly on
+the chosen two-proposal subset outcome.
+
 ## PopperPad Refs
 
 Pad: `internal/popperpad/zenoenergy`
@@ -199,6 +267,18 @@ hand_beat_hypothesis_ref:   sha256:047ebf186912ebee4ec402f805469432f86d81cdba76a
 checkpoint_ref:             sha256:e19e2f458b0e559f358f74b3502e5cd6b7e2d32cb3dd5eba5b1dcd9da02adec1
 ```
 
+Repair selector cross-seed refs:
+
+```text
+context_ref:                sha256:61f2b6607f71f7c77318bc1750974004c5bb4c84f9b536fb5352f4c89c0627a7
+report_artifact_ref:        sha256:204cca386fa6b48a0aa7d63ef5191bdcf91f0965ca0c50c11e59b8d59bb1df3b
+markdown_artifact_ref:      sha256:050ac5d66e050bd5294e57cd4437f52452309c0f6dbf1d9111aafd08632b30b1
+safety_hypothesis_ref:      sha256:11f4ac5be458dcf6b85404859746637e78dae1ff88b49efc8b1a5f950b48a603
+compression_hypothesis_ref: sha256:c73f8cde1d40121a70156485602b0acd3eba6f62ba9f3c34d47f5e1e6fee549c
+hand_beat_hypothesis_ref:   sha256:bc668d679f48705fdba26de502c2e4ac2ea59e806a8dd463d1b4b035e5c7fedf
+checkpoint_ref:             sha256:f30e1571f5decf6c92f465aeee88fd5d3b89ddf257250904dd41b530239f0bb5
+```
+
 Derived PopperPad status:
 
 ```text
@@ -210,6 +290,9 @@ H_ZENOENERGY_NEIGHBORHOOD_REDUCES_VERIFIER_CALLS_20260517_V2: falsified
 H_ZENOENERGY_REPAIR_SELECTOR_SAFETY_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_COMPRESSES_FULL_NEIGHBORHOOD_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
+H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_SAFETY_20260517: supported
+H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517: supported
+H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
 doctor_ok: true
 ```
 

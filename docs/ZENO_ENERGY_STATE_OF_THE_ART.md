@@ -144,7 +144,10 @@ full neighborhood from 16.275 mean candidates to 8.000 on one held-out synthetic
 seed while matching the full-neighborhood mean volume regret. It does not
 strictly beat the hand-selected proposal subset on regret, so the immediate
 research lesson is that the current proposal recipes are simple enough for a
-hand selector to remain a strong baseline.
+hand selector to remain a strong baseline. The cross-seed stress receipt in
+[ZenoEnergy Repair Selector Cross-Seed Stress](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
+keeps the same shape over three train/holdout seed pairs: compression succeeds
+on all three, strict hand-selector improvement succeeds on one of three.
 4. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over
 large price/fill spaces, then verify and fall back deterministically.
 5. **Diffusion or score model.** Reserve this for large structured candidate

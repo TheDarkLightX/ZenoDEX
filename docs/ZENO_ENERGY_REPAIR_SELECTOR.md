@@ -64,6 +64,15 @@ The learned selector did not beat the hand-selected proposal subset on mean volu
 
 Keep the selector as a bounded research candidate and test cross-seed before promotion.
 
+Cross-seed receipt:
+[ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
+
+The three-seed stress run supported the compression claim on all three seed
+pairs. Learned-selected mean candidate count was 8.000 versus 16.321 for full
+neighborhood, with the same aggregate mean volume regret as full neighborhood.
+The learned selector strictly beat the hand-selected subset on one of three seed
+pairs and tied on the other two by mean volume regret.
+
 ## Safety Caveat
 
 The selector is trained and evaluated on synthetic bounded candidates. It is a proposal filter only. Deterministic verifier fallback remains required for exactness.

@@ -352,6 +352,9 @@ candidates.
 Receipt:
 [ZENO_ENERGY_REPAIR_SELECTOR.md](./ZENO_ENERGY_REPAIR_SELECTOR.md)
 
+Cross-seed receipt:
+[ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
+
 Held-out synthetic run, 120 train batches, 80 holdout batches, 35-parameter
 linear selector:
 
@@ -366,6 +369,21 @@ The learned selector compresses full neighborhood expansion in this run, but it
 does not beat the hand-selected two-proposal subset on mean volume regret. This
 is useful negative knowledge: the current deterministic repair recipes are
 simple enough that hand energy remains a strong proposal selector.
+
+The three-seed stress run used 80 train batches and 60 holdout batches per seed
+pair. Compression held on every seed pair:
+
+```text
+compression_pass_count: 3
+compression_fail_count: 0
+strict_hand_win_count: 1
+strict_hand_win_fail_count: 2
+invalid_accept_count: 0
+original_subset_violation_count: 0
+```
+
+Aggregate learned-selected regret matched full neighborhood mean regret
+(`5.937`) while reducing mean candidate count from `16.321` to `8.000`.
 
 ## Accuracy
 
