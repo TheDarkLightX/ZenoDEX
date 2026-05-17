@@ -31,6 +31,19 @@ call_cost_hypothesis_ref:   sha256:c46675b22a8f09f0a3caa7cfadbcb3a9320e8654b6d31
 checkpoint_ref:             sha256:997899ef79e597d9058230d79d5ee2a847c026fa11bf0013a8673dc81100e2a9
 ```
 
+### Learned Repair Selector
+
+```text
+context_ref:                sha256:423e05436ade42ffacfc2d8e6f5c80737b66389b5ba61e2441b2648dbd05f2ae
+report_artifact_ref:        sha256:a333de8eb3f573a7270ba724406a847eea3366bc347b35d5759dfdebf8f59922
+markdown_artifact_ref:      sha256:f43edf5accf668b559fb54c20d123fe57034e35660e5ebe4982a49b9777bf86e
+model_artifact_ref:         sha256:9a51f33e40af1f1df3d75e784a2c6d5241258a23f955f5cb39b689fbddea10ea
+safety_hypothesis_ref:      sha256:cc2d3f85bb83e5efb445fd0b2e20a0a01bef04e2dd6bd884e83eac40e879b352
+compression_hypothesis_ref: sha256:c2e7e42762e2248f25abd6c1d353d07a0184fa4ea8a7c6178e41116404e7d1b1
+hand_beat_hypothesis_ref:   sha256:047ebf186912ebee4ec402f805469432f86d81cdba76a2f793e828470678d3ad
+checkpoint_ref:             sha256:e19e2f458b0e559f358f74b3502e5cd6b7e2d32cb3dd5eba5b1dcd9da02adec1
+```
+
 ## Current Status
 
 ```text
@@ -39,6 +52,9 @@ H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517: falsified
 H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2: supported
 H_ZENOENERGY_NEIGHBORHOOD_REDUCES_REGRET_20260517_V2: supported
 H_ZENOENERGY_NEIGHBORHOOD_REDUCES_VERIFIER_CALLS_20260517_V2: falsified
+H_ZENOENERGY_REPAIR_SELECTOR_SAFETY_20260517: supported
+H_ZENOENERGY_REPAIR_SELECTOR_COMPRESSES_FULL_NEIGHBORHOOD_20260517: supported
+H_ZENOENERGY_REPAIR_SELECTOR_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
 doctor_ok: true
 ```
 

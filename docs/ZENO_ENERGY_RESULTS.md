@@ -342,6 +342,31 @@ Interpretation: the hard-barrier hybrid is a useful ablation and a conservative
 order-key option. The current synthetic distribution shows no measured gain over
 the gap-weighted learned score alone.
 
+## Repair Selector
+
+The deterministic neighborhood benchmark showed that local repair proposals
+improve objective quality but add verifier work. The first repair selector tests
+whether a tiny proposal scorer can keep the useful repairs while adding fewer
+candidates.
+
+Receipt:
+[ZENO_ENERGY_REPAIR_SELECTOR.md](./ZENO_ENERGY_REPAIR_SELECTOR.md)
+
+Held-out synthetic run, 120 train batches, 80 holdout batches, 35-parameter
+linear selector:
+
+| mode | candidates | added | best dominates full winner | mean calls to dominance | mean volume regret | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| limited | 6.000 | 0.000 | 0.225 | 4.875 | 271.475 | 0 |
+| full neighborhood | 16.275 | 10.275 | 0.963 | 1.675 | 3.200 | 0 |
+| hand selected | 8.000 | 2.000 | 0.963 | 1.350 | 3.200 | 0 |
+| learned selected | 8.000 | 2.000 | 0.963 | 1.312 | 3.200 | 0 |
+
+The learned selector compresses full neighborhood expansion in this run, but it
+does not beat the hand-selected two-proposal subset on mean volume regret. This
+is useful negative knowledge: the current deterministic repair recipes are
+simple enough that hand energy remains a strong proposal selector.
+
 ## Accuracy
 
 With deterministic fallback enabled, ranked search returns the same verifier

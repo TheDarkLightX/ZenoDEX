@@ -14,6 +14,8 @@ Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWAR
 
 Neighborhood repair benchmark: [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md)
 
+Learned repair-selector benchmark: [ZenoEnergy Repair Selector](./ZENO_ENERGY_REPAIR_SELECTOR.md)
+
 Research log and PopperPad refs: [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md)
 
 ```text
@@ -47,6 +49,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
 - `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
+- `src/energy/upba_v2_repair_selector.py`: tiny advisory selector features and ranking for deterministic neighborhood proposals.
 
 ## Tools
 
@@ -60,6 +63,7 @@ verifier labels for offline training and evaluation.
 - `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
 - `tools/compare_upba_energy_set_aware.py`: compares aggregate and set-aware rankers on fresh synthetic train/holdout splits and emits a small evidence report.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
+- `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 
 ## Hand Energy
 

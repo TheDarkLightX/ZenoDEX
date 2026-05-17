@@ -138,7 +138,13 @@ and the first comparison run is recorded in
 nearby price/fill adjustment. The verifier still checks every proposed repair.
 The deterministic baseline in
 [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md) is the
-control experiment before training a repair policy.
+control experiment before training a repair policy. The first tiny selector in
+[ZenoEnergy Repair Selector](./ZENO_ENERGY_REPAIR_SELECTOR.md) compresses the
+full neighborhood from 16.275 mean candidates to 8.000 on one held-out synthetic
+seed while matching the full-neighborhood mean volume regret. It does not
+strictly beat the hand-selected proposal subset on regret, so the immediate
+research lesson is that the current proposal recipes are simple enough for a
+hand selector to remain a strong baseline.
 4. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over
 large price/fill spaces, then verify and fall back deterministically.
 5. **Diffusion or score model.** Reserve this for large structured candidate
