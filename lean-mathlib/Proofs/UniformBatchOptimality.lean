@@ -382,6 +382,15 @@ def CandidateSubset
     (base augmented : List SettlementCandidate) : Prop :=
   ∀ candidate, candidate ∈ base -> candidate ∈ augmented
 
+/--
+An advisory repair selector may choose a smaller proposal set than the full
+neighborhood generator, but it must preserve the base candidate list. This
+definition names the selector-specific proof obligation used by ZenoEnergy.
+-/
+def AdvisorySelectedRepairSet
+    (base selected : List SettlementCandidate) : Prop :=
+  CandidateSubset base selected
+
 /-- Candidate-subset inclusion is reflexive. -/
 theorem candidate_subset_refl
     (candidates : List SettlementCandidate) :
@@ -399,6 +408,13 @@ theorem candidate_subset_trans
   unfold CandidateSubset at *
   intro candidate hMember
   exact hMiddleAugmented candidate (hBaseMiddle candidate hMember)
+
+/-- The selector-specific base-preservation obligation is exactly subset inclusion. -/
+theorem advisory_selected_repair_set_implies_candidate_subset
+    {base selected : List SettlementCandidate}
+    (hSelected : AdvisorySelectedRepairSet base selected) :
+    CandidateSubset base selected := by
+  exact hSelected
 
 /--
 If a verifier-backed winner is weakly optimal in an augmented neighborhood list,
@@ -437,6 +453,30 @@ theorem augmented_superset_upper_bound_certificate_implies_base_weak_optimal
       hSubset
       hAugmentedOptimal,
       hWinnerMember⟩
+
+/--
+A repair selector may reduce the added proposal set. If its selected set
+preserves the base list, any verifier upper-bound certificate over the selected
+set still proves weak optimality over the preserved base list.
+-/
+theorem advisory_selected_repair_set_upper_bound_certificate_implies_base_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {base selected : List SettlementCandidate}
+    (hSelected : AdvisorySelectedRepairSet base selected)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        selected) :
+    WeaklyOptimalIn winner base ∧ winner ∈ selected := by
+  exact
+    augmented_superset_upper_bound_certificate_implies_base_weak_optimal
+      (base := base)
+      (augmented := selected)
+      (hSubset := advisory_selected_repair_set_implies_candidate_subset hSelected)
+      hCert
 
 /-- Full fallback preserves candidate membership exactly. -/
 theorem full_fallback_equivalent_order_preserves_membership_iff

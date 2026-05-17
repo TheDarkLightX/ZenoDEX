@@ -73,6 +73,12 @@ neighborhood, with the same aggregate mean volume regret as full neighborhood.
 The learned selector strictly beat the hand-selected subset on one of three seed
 pairs and tied on the other two by mean volume regret.
 
+Formal boundary: Lean theorem
+`advisory_selected_repair_set_upper_bound_certificate_implies_base_weak_optimal`
+states the selector contract over a preserved base list. The selector can reduce
+proposal count, but the proof obligation remains a deterministic verifier
+certificate over the selected candidate set.
+
 ## Safety Caveat
 
 The selector is trained and evaluated on synthetic bounded candidates. It is a proposal filter only. Deterministic verifier fallback remains required for exactness.

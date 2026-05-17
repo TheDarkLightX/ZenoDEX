@@ -173,6 +173,13 @@ The theorem
 records the same proof surface for the hard-barrier hybrid order. Its only
 ordering obligation is still permutation of the exact candidate set.
 
+The repair-selector theorem
+`advisory_selected_repair_set_upper_bound_certificate_implies_base_weak_optimal`
+records the smaller proposal-set boundary: a selected repair set may shrink the
+neighborhood, but if it preserves the base candidate list and the deterministic
+verifier supplies an upper-bound certificate over the selected set, the winner
+is weakly optimal over the preserved base list.
+
 The theorem
 `full_fallback_equivalent_order_preserves_membership_iff` captures winner
 presence under full fallback, and

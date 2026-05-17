@@ -56,6 +56,15 @@ hand_beat_hypothesis_ref:   sha256:bc668d679f48705fdba26de502c2e4ac2ea59e806a8dd
 checkpoint_ref:             sha256:f30e1571f5decf6c92f465aeee88fd5d3b89ddf257250904dd41b530239f0bb5
 ```
 
+### Repair Selector Formal Boundary
+
+```text
+context_ref:                sha256:816d10e42113d2e25d54e8fbf831824e691aa6ce80f70d3f99db3af1eea13a45
+receipt_artifact_ref:       sha256:84328e7d90dd6c0fe3f775b46ac898a7fad73ca4aebf1ee770f742076c2b91ee
+receipt_hypothesis_ref:     sha256:3c61e2c848da522e7db1b45fbfe2f8803dfccf7cedb94d1461d7b243c576f47b
+checkpoint_ref:             sha256:9e51d623aaa3572497be49f2d28fa61654444ea2bc9317d5eb86a9e62b241c4d
+```
+
 ## Current Status
 
 ```text
@@ -70,6 +79,7 @@ H_ZENOENERGY_REPAIR_SELECTOR_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_SAFETY_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
+H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517: supported
 doctor_ok: true
 ```
 
