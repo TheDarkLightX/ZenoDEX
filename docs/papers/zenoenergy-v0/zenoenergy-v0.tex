@@ -1,0 +1,416 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{enumitem}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue,
+  pdftitle={ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search},
+  pdfauthor={Dana Edwards},
+  pdfkeywords={ZenoEnergy, UPBA, energy-based ranking, deterministic verification, AutoTrader}
+}
+
+\title{\textbf{ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search}}
+\author{Dana Edwards}
+\date{May 17, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+ZenoEnergy studies whether a small learned energy scorer can reduce candidate
+search cost for UPBA v2 partial-fill exact-in settlement search while preserving
+deterministic verification. The system follows the rule: model proposes,
+verifier decides. A 97-parameter CPU-only linear energy ranker is trained on
+synthetic, verifier-labeled bounded candidate sets. On a held-out synthetic
+corpus with 1,983 winner-bearing batches and approximately 20 candidates per
+batch, the current gap-weighted checkpoint places the exact verifier winner
+first in 98.34 percent of batches and within the top 2 in 100.0 percent of
+batches. Mean winner position falls from 19.995 under exhaustive ordering to
+1.0166 under learned ordering, while invalid accepts remain zero. The paper
+records the empirical result, the formal safety boundary, the blockers to
+production readiness, and a transfer path for applying the same advisory-energy
+pattern to AutoTrader candidate planning.
+\end{abstract}
+
+\noindent\textbf{Keywords:} energy-based ranking, deterministic verification,
+DeFi settlement, candidate search, bounded optimality, UPBA, AutoTrader,
+advisory machine learning.
+
+\section{Introduction}
+
+ZenoDEX settlement search is a finite candidate-selection problem once a pool,
+intent set, price grid, and fill-vector family have been fixed. The verifier can
+check a submitted certificate deterministically, yet exhaustive candidate
+ordering may waste verifier calls when the winning candidate appears late in the
+candidate list. ZenoEnergy v0 asks a narrow empirical question:
+
+\begin{quote}
+Can a small learned energy scorer reduce UPBA v2 candidate-search cost while
+leaving deterministic certificate verification unchanged?
+\end{quote}
+
+The answer on the current bounded synthetic benchmark is affirmative. The
+learned score is useful because it moves high-quality candidates earlier in the
+verification schedule. It does not establish settlement validity, candidate
+set completeness, bounded-grid optimality, or permission to stop early without a
+deterministic suffix certificate.
+
+\section{Problem Statement}
+
+For a settlement context $x$, let $C(x)$ be a finite candidate set, let
+$V_x(c)$ be the deterministic verifier result for candidate $c$, and let
+$J_x(c)$ be the deterministic settlement objective ordered lexicographically by
+executed volume and surplus. The exhaustive verifier winner is
+\[
+  c^\star(x) := \arg\max \{ J_x(c) \mid c \in C(x),\; V_x(c)=\mathrm{accept}\}.
+\]
+
+ZenoEnergy learns a scalar energy
+\[
+  E_\theta(x,c) \rightarrow \mathbb{R}.
+\]
+Lower energy means earlier verification priority. The optimization target is
+the expected position of $c^\star(x)$ after sorting by energy:
+\[
+  \min_\theta\; \mathbb{E}_x[\mathrm{position}_{\mathrm{sort}(E_\theta)}(c^\star(x))].
+\]
+
+The settlement rule is unchanged:
+\[
+  \mathrm{accepted}(c) := V_x(c).
+\]
+
+\section{Safety Boundary}
+
+The implementation keeps the energy module outside the consensus-critical
+trusted computing base. The dependency direction is one-way:
+\[
+  \texttt{src.energy} \rightarrow \texttt{src.core.uniform\_batch\_clearing}.
+\]
+Verifier modules do not import \texttt{src.energy}. Energy code may import
+verifier APIs for offline labeling, benchmark construction, and tests.
+
+The core safety property is:
+\[
+  \mathrm{LowEnergy}_\theta(x,c) \wedge V_x(c)=\mathrm{reject}
+  \Rightarrow \mathrm{SettlementRejected}.
+\]
+
+Thus an attractive model score can change order only. It cannot authorize a
+settlement, mutate ledger state, enter a state root, modify replay, or replace
+certificate verification.
+
+\section{Relation to Energy-Based Reasoning}
+
+ZenoEnergy follows the structured-output energy-based learning lineage
+developed by LeCun and collaborators. In that formulation, an EBM assigns a
+scalar energy to configurations of observed and predicted variables; inference
+searches for low-energy configurations, and training shapes the energy surface
+so desired configurations have lower energy than undesired configurations
+\cite{lecun2006tutorial}. LeCun and Huang also frame discriminative EBM training
+around loss functions that can compare candidate configurations without requiring
+the full probabilistic normalization cost \cite{lecunhuang2005}.
+
+Song and Kingma describe classical energy-based models as non-normalized models
+whose probability density or mass is specified up to an unknown normalizing
+constant, which makes likelihood training difficult and motivates alternatives
+such as score matching and noise-contrastive estimation \cite{song2021train}.
+ZenoEnergy adopts the discriminative, structured-output part of this lineage. It
+uses an energy as a ranking function:
+\[
+  E_\theta(\mathrm{context}, \mathrm{candidate}) \rightarrow \mathrm{scalar}.
+\]
+
+This is closer to the reasoning-energy framing in which an energy score is used
+to evaluate partial states, constraints, objectives, and progress during
+planning \cite{logical2026ebrm}. It is also compatible with LeCun's broader
+view of EBMs as scalar compatibility functions for predictive world models and
+planning under uncertainty \cite{lecun2022path}. In ZenoEnergy, the partial
+state is a candidate settlement, the constraints are verifier obligations, and
+the objective is early discovery of the deterministic winner.
+
+\section{Model and Training}
+
+The current default model is a linear ranker with 96 feature weights and one
+bias:
+\[
+  E_\theta(x,c) = w^\top \phi(x,c) + b.
+\]
+It has 97 parameters and runs without PyTorch. The optional MLP shape is
+$96 \rightarrow 64 \rightarrow 1$, with 6,273 parameters, but the measured
+artifact in this paper is the no-dependency linear checkpoint.
+
+Training uses pairwise hinge ranking over candidates from the same batch:
+\[
+  L = \max(0,\; m + E_\theta(\mathrm{good}) - E_\theta(\mathrm{bad})).
+\]
+The preferred checkpoint uses weighted pair updates:
+\[
+\begin{aligned}
+  \mathrm{pairWeight} ={}& \mathbf{1}_{\mathrm{winnerPair}}\lambda_w
+  + \lambda_v \cdot \mathrm{normalizedVolumeGap} \\
+  &+ \lambda_s \cdot \mathrm{normalizedSurplusGapWhenVolumeTies},
+\end{aligned}
+\]
+clipped to a fixed maximum. This places more training pressure on the remaining
+hard cases: valid candidates ranked ahead of slightly better valid winners.
+
+\section{Synthetic Candidate Generation}
+
+The synthetic generator creates single-pool CPMM exact-in UPBA v2 batches. It
+samples reserves, fees, users, balances, exact-in intents, candidate price
+ratios, and deterministic fill vectors. Candidate families include valid
+candidates, suboptimal valid candidates, balance failures, limit-price
+violations, negative-reserve cases, invariant failures, noncanonical fill
+vectors, all-zero candidates, random noisy candidates, attractive output
+mismatches, unreduced price ratios, and schema/policy mismatches.
+
+Every candidate is labeled by deterministic verifier execution. Each row stores
+the 96-dimensional feature vector, candidate hash, generator provenance,
+verifier validity, objective volume, objective surplus, hand energy, target
+energy, and winner label.
+
+\section{Formal Contracts}
+
+The Lean development records three layers of safety.
+
+\paragraph{Exact generation.}
+Generated data supports a mathematical optimality claim only when the candidate
+corpus is sound and complete for the bounded family:
+\[
+  \mathrm{GeneratedCorpusExact}(G,F) :=
+  \mathrm{CompleteAuditSet}(G,F) \wedge \mathrm{SoundAuditSet}(G,F).
+\]
+
+\paragraph{Advisory reordering.}
+If ranked order is a permutation of an exact candidate set, a deterministic
+verifier certificate over the reordered list proves the same bounded global
+weak optimum. The corresponding Lean theorem is recorded in
+\texttt{UniformBatchOptimality.lean} as the advisory-reordering certificate
+theorem.
+
+\paragraph{Full fallback.}
+Full fallback is exhaustive-equivalent when the checked order is a permutation
+of the original finite candidate set:
+\[
+  \mathrm{FullFallbackEquivalentOrder}(C,O) := O.\mathrm{Perm}(C).
+\]
+The theorem
+\texttt{full\_fallback\_equivalent\_order\_preserves\_weak\_optimality\_iff}
+states:
+\[
+  \mathrm{WeaklyOptimalIn}(w,O)
+  \Longleftrightarrow
+  \mathrm{WeaklyOptimalIn}(w,C).
+\]
+
+\paragraph{Early stop.}
+Stopping before full fallback requires more than a low energy score. The Lean
+definition \texttt{CheckedStopCertificate} requires the current winner to be in
+the checked set and to weakly dominate both checked candidates and the
+unchecked suffix. The exact-full checked-stop theorem lifts that certificate to
+global weak optimality when the full candidate set is exact and the checked
+prefix plus suffix is a permutation of the full list.
+
+\section{Experimental Results}
+
+The stored training corpus contains 199,860 candidate rows from 10,000 synthetic
+batches. The holdout corpus contains 39,979 candidate rows from 2,000 synthetic
+batches, with 1,983 batches containing at least one verifier-valid candidate.
+Metrics below are computed over those 1,983 winner-bearing batches.
+
+\begin{table}[h]
+\centering
+\caption{Holdout candidate-ordering performance.}
+\begin{tabular}{lrrrrrr}
+\toprule
+Mode & Top-1 & Top-5 & Top-10 & Mean calls & P99 & Invalid accepts \\
+\midrule
+Random & 0.045 & 0.245 & 0.507 & 10.467 & 20 & 0 \\
+Hand energy & 0.763 & 0.996 & 1.000 & 1.362 & 4 & 0 \\
+Learned & 0.983 & 1.000 & 1.000 & 1.017 & 2 & 0 \\
+Hybrid & 0.983 & 1.000 & 1.000 & 1.017 & 2 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Mean winner position falls from 19.995 under exhaustive order to 1.0166 under
+learned ordering, a reduction of approximately 94.9 percent. Compared with the
+hand-coded energy baseline, the learned model reduces mean winner position by
+approximately 25 percent.
+
+\begin{table}[h]
+\centering
+\caption{Top-$k$ sweep on the holdout corpus. Values are checked-stop audit rates.}
+\begin{tabular}{lrrrrrr}
+\toprule
+Mode & $k=1$ & $k=2$ & $k=3$ & $k=5$ & $k=10$ & $k=25$ \\
+\midrule
+Random & 0.045 & 0.091 & 0.144 & 0.245 & 0.507 & 1.000 \\
+Hand energy & 0.763 & 0.919 & 0.969 & 0.996 & 1.000 & 1.000 \\
+Learned & 0.983 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+Hybrid & 0.983 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The checked-stop audit is computed offline after suffix labels are known. It
+measures whether a deterministic suffix certificate would have justified
+stopping at that $k$ in the same case.
+
+\section{Model Audit}
+
+The gap-weighted checkpoint has no forbidden label-like feature names and no
+nonzero reserved-feature weights. Its largest positive weights are hard
+verifier-shaped penalties inherited from hand initialization: negative reserves,
+CPMM invariant failures, limit-price violations, balance violations, malformed
+fill vectors, schema/policy mismatches, and output mismatches. Its largest
+negative weights reward executed volume and surplus:
+\[
+\begin{array}{lr}
+\mathrm{candidate\_normalized\_executed\_volume} & -58.0118 \\
+\mathrm{candidate\_normalized\_surplus} & -28.7780 \\
+\mathrm{candidate\_volume\_log1p} & -9.7421 \\
+\mathrm{candidate\_surplus\_signed} & -7.6317.
+\end{array}
+\]
+This supports the intended interpretation: malformed candidates stay expensive,
+while higher-objective valid-looking candidates move earlier.
+
+\section{Why This Is Not Production Ready}
+
+ZenoEnergy v0 is research-useful and operationally small, yet several blockers
+prevent production readiness.
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{Synthetic bounded evidence.} The current results come from a
+synthetic generator. This is appropriate for a controlled benchmark, but it does
+not show distributional fit to real orderflow.
+\item \textbf{No privacy-approved replay corpus.} A production-adjacent claim
+needs non-private or properly redacted replay data with verifier-backed labels.
+\item \textbf{Candidate-family exactness is still a proof obligation.} The
+synthetic corpus is an experiment. Production needs exact candidate generation
+or a certificate that the bounded family under discussion is sound and complete.
+\item \textbf{UPBA v2 bounded-grid optimality evidence is incomplete.} The
+scorer helps rank v2 candidates, while production settlement claims still need
+the v2 bounded-grid optimality verifier or an equivalent certificate.
+\item \textbf{Early stopping requires a deterministic suffix certificate.} Top-k
+recall is an empirical accelerator. Live early stop requires a verifier-facing
+bound showing that the unchecked suffix cannot beat the current winner.
+\item \textbf{Scope is narrow.} The experiment covers a single pool, CPMM,
+exact-in swaps, fixed admitted intents, and partial fills. Multi-pool routing,
+exact-out, confidential orderflow, latency races, and adversarial live behavior
+remain outside the measured surface.
+\item \textbf{Operational controls are missing.} A production deployment needs
+model artifact signing, version pinning, rollback policy, drift detection,
+resource bounds, replay conformance, incident response, and governance review.
+\end{enumerate}
+
+These are engineering and assurance blockers. They do not undermine the
+research result. They define the next release gate.
+
+\section{AutoTrader Transfer}
+
+The ZenoEnergy pattern applies naturally to AutoTrader if AutoTrader decisions
+are represented as finite candidate plans. Let $A(s)$ be a candidate action or
+strategy set for trading state $s$, let $G_s(a)$ be the deterministic policy,
+risk, authorization, and budget gate, and let $U_s(a)$ be the deterministic
+utility or risk-adjusted objective used by the verifier. An advisory scorer can
+rank candidates:
+\[
+  E_\phi(s,a) \rightarrow \mathbb{R},
+\]
+while the execution rule remains
+\[
+  \mathrm{executable}(a) := G_s(a).
+\]
+
+This would let AutoTrader use learned energy for ordering candidate strategies,
+repairing low-quality plans, and reducing evaluation cost. The same safety
+rules carry over:
+
+\begin{itemize}[leftmargin=*]
+\item the model ranks strategies but cannot authorize trades;
+\item deterministic policy gates decide execution;
+\item model output does not enter balances, positions, state roots, or signed
+orders;
+\item full fallback checks a permutation of the original candidate plans;
+\item early stop requires a deterministic certificate for unexamined candidate
+plans.
+\end{itemize}
+
+The best first AutoTrader experiment is not live trading. It is a replayed,
+non-private candidate-plan benchmark with deterministic risk labels. The metric
+should mirror ZenoEnergy: does learned ordering place the gate-accepted,
+highest-utility plan in the first few verifier checks without changing any
+execution predicate?
+
+\section{Conclusion}
+
+ZenoEnergy v0 provides strong evidence that a tiny energy ranker can reduce
+candidate-search cost while preserving deterministic settlement verification.
+The current 97-parameter model moves the winner to position 1.0166 on average
+and to the top 2 in all held-out winner-bearing batches. The result is powerful
+because the model is small, interpretable, CPU-only, and isolated from
+consensus-critical paths.
+
+The release path is clear. Keep the scorer advisory, add real replay evidence,
+finish exact candidate-generation and v2 optimality certificates, and require a
+deterministic suffix certificate for live early stop. The same verifier-preserving
+ranking architecture can then be tested in AutoTrader candidate planning.
+
+\begin{thebibliography}{9}
+
+\bibitem{lecunhuang2005}
+Yann LeCun and Fu Jie Huang.
+\newblock \emph{Loss Functions for Discriminative Training of Energy-Based
+Models}.
+\newblock Proceedings of the Tenth International Workshop on Artificial
+Intelligence and Statistics, PMLR R5:206--213, 2005.
+\newblock \url{https://proceedings.mlr.press/r5/lecun05a.html}.
+
+\bibitem{lecun2006tutorial}
+Yann LeCun, Sumit Chopra, Raia Hadsell, Marc'Aurelio Ranzato, and Fu Jie
+Huang.
+\newblock \emph{A Tutorial on Energy-Based Learning}.
+\newblock In G. Bakir, T. Hofmann, B. Sch\"olkopf, A. Smola, and B. Taskar,
+editors, \emph{Predicting Structured Data}, MIT Press, 2006.
+\newblock \url{https://yann.lecun.org/exdb/publis/pdf/lecun-06.pdf}.
+
+\bibitem{lecun2022path}
+Yann LeCun.
+\newblock \emph{A Path Towards Autonomous Machine Intelligence}.
+\newblock Version 0.9.2, 2022.
+\newblock \url{https://openreview.net/pdf/315d43ba26f55357a84cec9a7ed15a6610094f79.pdf}.
+
+\bibitem{song2021train}
+Yang Song and Diederik P. Kingma.
+\newblock \emph{How to Train Your Energy-Based Models}.
+\newblock arXiv:2101.03288, 2021.
+\newblock \url{https://arxiv.org/abs/2101.03288}.
+
+\bibitem{logical2026ebrm}
+Eve Bodnia and Boris Hanin.
+\newblock \emph{Energy-Based Models for Reasoning, LLMs for the Interface:
+Scaling Reasoning with Agentic AI}.
+\newblock Logical Intelligence, January 21, 2026.
+\newblock \url{https://logicalintelligence.com/blog/energy-based-models-for-reasoning}.
+
+\bibitem{zenodex2026}
+Dana Edwards.
+\newblock \emph{ZenoEnergy v0 Results and Formal Receipts}.
+\newblock Autonomous Tau DEX repository, 2026.
+
+\end{thebibliography}
+
+\end{document}

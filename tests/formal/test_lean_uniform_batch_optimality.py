@@ -29,6 +29,19 @@ def test_lean_uniform_batch_optimality_typechecks_without_placeholders() -> None
         "theorem feasibleExactOutFullFill_iff_singleton_plan",
         "theorem exactOutCanonicalGridCandidates_exact_audit_set",
         "theorem exactOutFullFillCanonicalGridCandidates_exact_audit_set",
+        "theorem reordered_exact_upper_bound_certificate_implies_global_weak_optimal",
+        "def FullFallbackEquivalentOrder",
+        "theorem full_fallback_equivalent_order_preserves_membership_iff",
+        "theorem full_fallback_equivalent_order_preserves_weak_optimality_iff",
+        "def CheckedStopCertificate",
+        "theorem checked_stop_certificate_implies_concat_weak_optimal",
+        "theorem checked_stop_certificate_with_full_permutation_implies_full_weak_optimal",
+        "theorem checked_stop_certificate_with_exact_full_implies_global_weak_optimal",
+        "theorem generated_corpus_exact_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem dominance_cover_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
+        "theorem upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
+        "theorem upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
     ):
         assert required in source
     forbidden = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")

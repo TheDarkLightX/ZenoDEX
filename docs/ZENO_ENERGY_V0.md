@@ -1,0 +1,220 @@
+# ZenoEnergy v0
+
+ZenoEnergy v0 is an isolated research scorer for UPBA v2 partial-fill exact-in
+candidate search. It ranks candidate certificates before deterministic checking.
+The deterministic UPBA verifier remains the settlement authority.
+
+Research paper: [Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search](./papers/zenoenergy-v0/paper.md)
+
+Academic PDF: [ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search](./papers/zenoenergy-v0/zenoenergy-v0.pdf)
+
+```text
+Model proposes; verifier decides.
+```
+
+The scorer may change candidate order. It may not authorize settlement, mutate
+ledger state, enter state roots, replace certificate verification, or change
+validity predicates.
+
+## Boundary
+
+The dependency direction is one-way:
+
+```text
+src.energy -> src.core.uniform_batch_clearing
+src.core.uniform_batch_clearing -/-> src.energy
+```
+
+Energy code may import UPBA verifier APIs for labels, safety tests, and
+benchmarks. UPBA verifier modules do not import `src.energy`.
+
+Feature extraction defaults to `include_verifier_label=False`, so ranking does
+not require an exact verifier call. Dataset generation explicitly enables
+verifier labels for offline training and evaluation.
+
+## Modules
+
+- `src/energy/upba_v2_features.py`: fixed 96-dimensional normalized feature schema plus raw advisory diagnostics.
+- `src/energy/upba_v2_hand_energy.py`: deterministic hand-coded energy baseline.
+- `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
+- `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
+
+## Tools
+
+- `tools/generate_upba_energy_dataset.py`: synthetic batch generator with verifier-backed labels.
+- `tools/train_upba_energy.py`: pairwise hinge training for the no-dependency linear ranker.
+- `tools/evaluate_upba_energy.py`: dataset-level top-k and verifier-call evaluation.
+- `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy.
+- `tools/stress_upba_energy_cross_seed.py`: streams cross-seed, multi-candidate-count stress benchmarks without storing every generated row.
+- `tools/mine_upba_energy_hard_cases.py`: streams larger synthetic runs and records compact examples where learned ordering misses top-1/top-5/top-10.
+- `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.
+- `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
+
+## Hand Energy
+
+```text
+E(candidate) =
+  + 1_000_000 * invalid_balance_count
+  + 1_000_000 * limit_price_violation_count
+  + 1_000_000 * negative_reserve_flag
+  + 1_000_000 * aggregate_cpmm_invariant_violation_flag
+  + 100_000   * noncanonical_fill_vector_flag
+  + 100_000   * schema_policy_mismatch_flag
+  + 100_000   * price_objective_violation_flag
+  + 100_000   * output_mismatch_count
+  + 100_000   * fill_coverage_violation_flag
+  + 100_000   * duplicate_fill_id_flag
+  + 100_000   * unknown_fill_id_count
+  + 100_000   * executed_input_over_amount_count
+  + 100_000   * output_without_input_count
+  + 50_000    * price_ratio_unreduced_flag
+  + 10_000    * zero_net_input_count
+  + 100       * dust_penalty
+  + 10        * imbalance_penalty
+  - 10        * normalized_executed_volume
+  - 1         * normalized_surplus
+```
+
+Lower energy means the candidate should be checked earlier. The formula is
+advisory and has no settlement authority.
+
+The hand scorer also exposes a named energy breakdown and a primary failure
+term. This follows the reasoning-energy principle that a useful energy should
+help locate which constraint is broken while assigning a scalar priority.
+
+## Model
+
+The repository can build the requested MLP shape when PyTorch is installed:
+
+```text
+96 -> 64 -> 1
+```
+
+The correct parameter count is:
+
+```text
+96*64 + 64 + 64*1 + 1 = 6_273
+```
+
+The no-dependency default path trains a 96-weight linear energy model with one
+bias parameter. This keeps the default experiment CPU-only and dependency-light.
+The trainer also supports gap-weighted pairwise updates, which give extra weight
+to batch winners and to larger valid-vs-valid objective gaps.
+
+Evaluation and benchmark tools also support a hard-barrier hybrid order:
+
+```text
+hard verifier-shaped barrier -> learned energy -> candidate hash
+```
+
+The hybrid barrier excludes soft hand-energy objective terms, so it preserves a
+deterministic malformed-candidate barrier while letting the learned model order
+valid-looking candidates.
+
+The current research artifacts include three linear checkpoints:
+
+- `data/upba_energy/upba_v2_energy_linear_seed20260517.json`: first hard-negative run.
+- `data/upba_energy/upba_v2_energy_linear_objective_tuned_seed20260517.json`: longer training run with better held-out mean winner position and top-5 recall.
+- `data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json`: current preferred research checkpoint, with winner-pair and objective-gap weighting.
+
+Model audit receipt:
+[ZENO_ENERGY_MODEL_AUDIT.md](./ZENO_ENERGY_MODEL_AUDIT.md)
+
+## Safety Contract
+
+```text
+LowEnergy(candidate) ∧ ¬VerifierAccepts(candidate) -> SettlementRejected
+```
+
+A low model energy never creates an accepted settlement. The implementation
+tests adversarial low-energy invalid candidates, missing-model fallback,
+state-root independence, dependency direction, and order-only behavior.
+
+## Candidate Generation
+
+Synthetic candidate generation is valid for research when it is treated as a
+finite candidate-domain generator, then every generated candidate is labeled by
+the deterministic verifier. It becomes a mathematical optimality claim only when
+the generated candidate list is exact for the family under discussion:
+
+```text
+GeneratedCorpusExact(generated, Feasible) :=
+  CompleteAuditSet(generated, Feasible) ∧ SoundAuditSet(generated, Feasible)
+```
+
+The Lean theorem
+`generated_corpus_exact_upper_bound_certificate_implies_global_weak_optimal`
+formalizes that contract. The theorem
+`upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal`
+formalizes the advisory-order rule: an energy scorer may permute an exact UPBA
+v2 bounded-grid partial-fill candidate set, and the deterministic verifier
+certificate still proves the same bounded optimum.
+
+The theorem
+`upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal`
+records the same proof surface for the hard-barrier hybrid order. Its only
+ordering obligation is still permutation of the exact candidate set.
+
+The theorem
+`full_fallback_equivalent_order_preserves_membership_iff` captures winner
+presence under full fallback, and
+`full_fallback_equivalent_order_preserves_weak_optimality_iff` captures audited
+weak optimality under the same fallback rule used in the benchmark harness:
+
+```text
+FullFallbackEquivalentOrder(candidates, ordered) := ordered.Perm candidates
+```
+
+If fallback checks a permutation of the original finite candidate list, audited
+weak optimality is identical in the ranked order and the original exhaustive
+order. The runtime helper `candidate_orders_are_hash_permutation` checks the
+hash-multiset version of this obligation.
+
+Early stopping has a stronger proof obligation. The Lean definition
+`CheckedStopCertificate` requires:
+
+```text
+winner in checked
+WeaklyOptimalIn(winner, checked)
+WeaklyOptimalIn(winner, unchecked_suffix)
+```
+
+The theorem
+`checked_stop_certificate_with_exact_full_implies_global_weak_optimal` then
+lifts this checked-stop certificate to global weak optimality when the full
+candidate list is an exact audit set and `checked ++ unchecked_suffix` is a
+permutation of that full list. This is the math boundary for stopping before
+full fallback. The runtime helper
+`verified_checked_stop_certificate_holds` audits the same dominance condition
+over already verified results for offline receipts. Benchmark receipts expose
+this as `checked_stop_top_k_rate` and `checked_stop_at_winner_rate`.
+
+## Dominance Pruning
+
+The next math-first reduction is dominance pruning. A pruned list may replace the
+full bounded candidate list when every full-domain candidate has a retained
+representative that is weakly at least as good by volume first and surplus
+second:
+
+```text
+DominanceCover(pruned, full) :=
+  forall candidate in full,
+    exists representative in pruned,
+      WeaklyDominates(representative, candidate)
+```
+
+The theorem
+`upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal`
+formalizes the UPBA v2 contract:
+
+```text
+full bounded-grid coverage
+∧ pruned candidates are feasible
+∧ pruned dominates full
+∧ verifier upper-bound certificate over pruned
+-> bounded global weak optimum over the original UPBA v2 candidate family
+```
+
+This gives a proof path for reducing verifier work before applying any learned
+ranking. A learned scorer should operate after exact generation and certified
+dominance pruning when those certificates are available.

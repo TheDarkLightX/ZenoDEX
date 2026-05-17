@@ -1,0 +1,415 @@
+# ZenoEnergy v0 Results
+
+Measured on May 17, 2026, using the in-repo synthetic generator and CPU-only
+linear ranker. PyTorch was not installed in this environment, so the optional
+MLP builder was not trained.
+
+This refresh adds harder adversarial candidates inspired by energy-based
+reasoning work: attractive output mismatches, unreduced price ratios, and
+schema/policy mismatches. The hand energy now exposes named components so the
+largest failure term can be inspected instead of treating the score as opaque.
+The current preferred research checkpoint is the gap-weighted linear ranker,
+which uses the same 97-parameter architecture and puts more training pressure on
+winner pairs plus valid-vs-valid objective gaps.
+
+## Dataset
+
+```text
+train:
+  batches: 10,000
+  requested candidates per batch: 20
+  rows: 199,860
+  feature_dim: 96
+  seed: 20260517
+  sha256: 0x0643670a460dc05efc688af9f8dad4e8fafd44d5dba1928ffdd69d0aa689f46f
+  path: data/upba_energy/upba_v2_energy_synthetic_seed20260517.jsonl
+
+holdout:
+  batches: 2,000
+  requested candidates per batch: 20
+  rows: 39,979
+  feature_dim: 96
+  seed: 20260518
+  sha256: 0xbcf06a210d591f5ab02e05a105db4af6c26d02782f91080e517cb3fb4d634cb7
+  path: data/upba_energy/upba_v2_energy_holdout_seed20260518.jsonl
+```
+
+The holdout set contains 1,983 batches with at least one verifier-valid
+candidate and 17 all-negative sampled batches. Recall and verifier-call metrics
+are computed on the 1,983 batches where a winner exists.
+
+Hard candidate coverage:
+
+```text
+train:
+  hard_attractive_output_mismatch: 10,000
+  hard_unreduced_price: 10,000
+  hard_schema_policy_mismatch: 10,000
+
+holdout:
+  hard_attractive_output_mismatch: 2,000
+  hard_unreduced_price: 2,000
+  hard_schema_policy_mismatch: 2,000
+```
+
+Training command:
+
+```bash
+python3 tools/train_upba_energy.py \
+  --dataset data/upba_energy/upba_v2_energy_synthetic_seed20260517.jsonl \
+  --output-model data/upba_energy/upba_v2_energy_linear_seed20260517.json \
+  --epochs 3 \
+  --learning-rate 0.01 \
+  --seed 20260517 \
+  --init hand
+```
+
+Model:
+
+```text
+backend: linear_pairwise_hinge
+feature_dim: 96
+parameters: 97
+```
+
+## Benchmark
+
+Command:
+
+```bash
+python3 tools/benchmark_upba_energy_search.py \
+  --batches 2000 \
+  --candidates-per-batch 20 \
+  --seed 20260518 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --top-k 10
+```
+
+| mode | batches | candidate_count_mean | top_1 | top_5 | top_10 | top_25 | mean_calls | p95 | p99 | invalid_accept |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 1,983 | 19.99 | 0.000 | 0.000 | 0.000 | 1.000 | 19.99 | 20 | 20 | 0 |
+| random | 1,983 | 19.99 | 0.048 | 0.258 | 0.527 | 1.000 | 10.21 | 19 | 20 | 0 |
+| hand energy | 1,983 | 19.99 | 0.763 | 0.996 | 1.000 | 1.000 | 1.36 | 3 | 4 | 0 |
+| gap-weighted learned | 1,983 | 19.99 | 0.983 | 1.000 | 1.000 | 1.000 | 1.017 | 1 | 2 | 0 |
+
+The gap-weighted ranker reduced mean verifier-winner position by 94.9% versus
+exhaustive order and by 25.3% versus hand energy in this harder bounded
+synthetic benchmark.
+
+## Cross-Seed Stress
+
+Receipt: [ZENO_ENERGY_CROSS_SEED_STRESS.md](./ZENO_ENERGY_CROSS_SEED_STRESS.md)
+
+Command:
+
+```bash
+python3 tools/stress_upba_energy_cross_seed.py \
+  --batches 250 \
+  --seeds 20260518,20260519,20260520 \
+  --candidate-counts 20,32,50 \
+  --model data/upba_energy/upba_v2_energy_linear_seed20260517.json \
+  --top-k 10 \
+  --output-json data/upba_energy/upba_v2_energy_cross_seed_stress_250x3x3.json \
+  --output-markdown docs/ZENO_ENERGY_CROSS_SEED_STRESS.md
+```
+
+This streaming stress run requested 2,250 synthetic batches and 76,500 candidate
+slots without storing the generated rows.
+
+| mode | configs | top1_mean | top1_min | top5_mean | top10_mean | top10_min | mean_calls | max_mean_calls | p99_max | invalid_accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| hand energy | 9 | 0.782 | 0.752 | 0.996 | 1.000 | 1.000 | 1.326 | 1.373 | 5 | 0 |
+| learned linear | 9 | 0.982 | 0.964 | 0.999 | 1.000 | 1.000 | 1.026 | 1.065 | 2 | 0 |
+| random | 9 | 0.032 | 0.012 | 0.164 | 0.340 | 0.213 | 17.401 | 25.480 | 50 | 0 |
+
+## Hard-Case Mining
+
+Receipt: [ZENO_ENERGY_HARD_CASES.md](./ZENO_ENERGY_HARD_CASES.md)
+
+Command:
+
+```bash
+python3 tools/mine_upba_energy_hard_cases.py \
+  --batches 1000 \
+  --seeds 20260521,20260522,20260523 \
+  --candidate-counts 50,75,100 \
+  --model data/upba_energy/upba_v2_energy_linear_seed20260517.json \
+  --max-examples 50 \
+  --output-json data/upba_energy/upba_v2_energy_hard_case_mining_1000x3x3.json \
+  --output-markdown docs/ZENO_ENERGY_HARD_CASES.md
+```
+
+This streaming mine requested 9,000 synthetic batches and 675,000 candidate
+slots, then saved only compact miss summaries and examples.
+
+```text
+batches_with_winner: 8,920
+top_1_recall: 98.3%
+top_5_recall: 99.9%
+top_10_recall: 100.0%
+mean_winner_position_mean: 1.028
+max_mean_winner_position: 1.045
+max_p99_winner_position: 2
+top1_miss_count: 150
+top5_miss_count: 12
+top10_miss_count: 0
+```
+
+Top-1 misses were valid-vs-valid ordering cases. The top ranked candidate was
+verifier-valid in all 150 misses, and the exact winner was also valid in all
+150. The next useful modeling improvement is objective ordering among valid
+partial-fill candidates, especially around imbalance and dust terms.
+`candidate_type` in the hard-case receipt records generator provenance; verifier
+validity remains the authoritative label.
+
+## Objective-Tuned Variant
+
+The objective-tuned linear model keeps the same 97-parameter architecture and
+feature schema, but trains longer on the same generated corpus:
+
+```bash
+python3 tools/train_upba_energy.py \
+  --dataset data/upba_energy/upba_v2_energy_synthetic_seed20260517.jsonl \
+  --output-model data/upba_energy/upba_v2_energy_linear_objective_tuned_seed20260517.json \
+  --epochs 8 \
+  --learning-rate 0.02 \
+  --seed 20260517 \
+  --init hand
+```
+
+Held-out dataset comparison:
+
+| model | top_1 | top_5 | top_10 | mean_calls | p95 | p99 | invalid_accept |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| learned linear | 0.979 | 0.999 | 1.000 | 1.031 | 1 | 2 | 0 |
+| objective-tuned linear | 0.983 | 1.000 | 1.000 | 1.019 | 1 | 2 | 0 |
+
+Cross-seed stress receipt:
+[ZENO_ENERGY_OBJECTIVE_TUNED_STRESS.md](./ZENO_ENERGY_OBJECTIVE_TUNED_STRESS.md)
+
+| model | configs | top1_mean | top1_min | top5_mean | top10_min | mean_calls | max_mean_calls | p99_max | invalid_accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| learned linear | 9 | 0.982 | 0.964 | 0.999 | 1.000 | 1.026 | 1.065 | 2 | 0 |
+| objective-tuned linear | 9 | 0.982 | 0.968 | 1.000 | 1.000 | 1.019 | 1.040 | 2 | 0 |
+
+Objective-tuned hard-case receipt:
+[ZENO_ENERGY_OBJECTIVE_TUNED_HARD_CASES.md](./ZENO_ENERGY_OBJECTIVE_TUNED_HARD_CASES.md)
+
+The tuned model's medium hard-case mine requested 4,500 batches and 337,500
+candidate slots. It had top-10 recall 100.0%, top-5 recall 99.98%, mean winner
+position 1.021, p99 winner position at most 2, and 0 invalid accepts. This
+made the objective-tuned model a useful baseline for valid-vs-valid ordering
+experiments.
+
+## Gap-Weighted Variant
+
+The gap-weighted model keeps the same 96-feature schema and 97-parameter linear
+architecture. It changes the training update weight for each violated pair:
+
+```text
+pair_weight =
+  winner_pair_weight when good candidate is the batch winner, otherwise 1
++ objective_gap_weight * normalized_volume_gap for valid-vs-valid pairs
++ same_volume_surplus_gap_weight * normalized_surplus_gap when volume ties
+```
+
+The weight is clipped to `max_pair_weight`. This targets the hard-case pattern
+seen after the first runs: most remaining misses were valid candidates ranked
+ahead of slightly better valid winners.
+
+Training command:
+
+```bash
+python3 tools/train_upba_energy.py \
+  --dataset data/upba_energy/upba_v2_energy_synthetic_seed20260517.jsonl \
+  --output-model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --epochs 8 \
+  --learning-rate 0.02 \
+  --seed 20260517 \
+  --init hand \
+  --winner-pair-weight 2.0 \
+  --objective-gap-weight 4.0 \
+  --same-volume-surplus-gap-weight 1.0 \
+  --max-pair-weight 8.0
+```
+
+Held-out dataset comparison:
+
+| model | top_1 | top_5 | top_10 | mean_calls | p95 | p99 | invalid_accept |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| learned linear | 0.979 | 0.999 | 1.000 | 1.031 | 1 | 2 | 0 |
+| objective-tuned linear | 0.983 | 1.000 | 1.000 | 1.019 | 1 | 2 | 0 |
+| gap-weighted linear | 0.983 | 1.000 | 1.000 | 1.017 | 1 | 2 | 0 |
+
+Gap-weighted cross-seed stress receipt:
+[ZENO_ENERGY_GAP_WEIGHTED_STRESS.md](./ZENO_ENERGY_GAP_WEIGHTED_STRESS.md)
+
+| model | configs | top1_mean | top1_min | top5_mean | top10_min | mean_calls | max_mean_calls | p99_max | invalid_accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| learned linear | 9 | 0.982 | 0.964 | 0.999 | 1.000 | 1.026 | 1.065 | 2 | 0 |
+| objective-tuned linear | 9 | 0.982 | 0.968 | 1.000 | 1.000 | 1.019 | 1.040 | 2 | 0 |
+| gap-weighted linear | 9 | 0.982 | 0.968 | 1.000 | 1.000 | 1.018 | 1.032 | 2 | 0 |
+
+Gap-weighted hard-case receipt:
+[ZENO_ENERGY_GAP_WEIGHTED_HARD_CASES.md](./ZENO_ENERGY_GAP_WEIGHTED_HARD_CASES.md)
+
+The gap-weighted medium hard-case mine requested 4,500 batches and 337,500
+candidate slots. It had 4,466 winner-bearing batches, top-1 recall 98.54%,
+top-5 recall 100.0%, top-10 recall 100.0%, mean winner position 1.017, p99
+winner position at most 2, and 0 invalid accepts. The top-5 miss count fell to
+0 in this run, so the gap-weighted model is the current preferred research
+checkpoint.
+
+## Model Audit
+
+Receipt: [ZENO_ENERGY_MODEL_AUDIT.md](./ZENO_ENERGY_MODEL_AUDIT.md)
+
+The gap-weighted checkpoint audit reports:
+
+```text
+parameters: 97
+feature_dim: 96
+nonzero_weight_count: 38
+reserved_nonzero_count: 0
+forbidden_feature_names: none
+```
+
+The largest positive weights are the hard verifier-shaped penalties inherited
+from the hand initialization: negative reserves, CPMM invariant failures,
+limit-price violations, balance violations, malformed fills, schema/policy
+mismatches, and output mismatches. These raise energy and push candidates later.
+
+The largest negative weights reward candidate quality signals:
+
+```text
+candidate_normalized_executed_volume: -58.0118
+candidate_normalized_surplus: -28.7780
+candidate_volume_log1p: -9.7421
+candidate_surplus_signed: -7.6317
+```
+
+Negative weights lower energy and move candidates earlier. This audit supports
+the intended interpretation: the trained model keeps hard invalidity barriers
+large, then learns to prefer higher-volume and higher-surplus candidates among
+valid-looking alternatives.
+
+## Hard-Barrier Hybrid Ablation
+
+The benchmark tooling now supports a hard-barrier hybrid order:
+
+```text
+sort_key(candidate) := (
+  deterministic_hard_barrier_energy(candidate),
+  learned_energy(candidate),
+  candidate_hash(candidate)
+)
+```
+
+The hard barrier includes verifier-shaped violations such as balance failures,
+limit-price failures, negative reserves, CPMM invariant failures, malformed fill
+vectors, schema/policy mismatches, output mismatches, and zero-net-input
+candidates. It excludes soft hand-energy terms such as dust, imbalance,
+executed-volume reward, and surplus reward.
+
+Held-out JSONL comparison against the current gap-weighted model:
+
+| mode | top_1 | top_5 | top_10 | mean_calls | p95 | p99 | invalid_accept |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| learned | 0.983 | 1.000 | 1.000 | 1.017 | 1 | 2 | 0 |
+| hard-barrier hybrid | 0.983 | 1.000 | 1.000 | 1.017 | 1 | 2 | 0 |
+
+A 200-batch live-generator sanity benchmark also tied learned ordering:
+top-1 95.96%, top-5 100.0%, top-10 100.0%, mean winner position 1.040, p99 2,
+and 0 invalid accepts for both modes.
+
+Receipt:
+[ZENO_ENERGY_FALLBACK_PERMUTATION_AUDIT.md](./ZENO_ENERGY_FALLBACK_PERMUTATION_AUDIT.md)
+
+The updated 200-batch receipt also reports checked-stop audit rates. Learned and
+hybrid ordering both had `stop_top_k = 1.000` at `top_k = 10`; random ordering
+had `stop_top_k = 0.480`. This is an offline audit after suffix verification,
+so it measures whether a deterministic suffix certificate would have justified
+top-k stopping in those cases.
+
+Top-k sweep receipt:
+[ZENO_ENERGY_TOPK_SWEEP.md](./ZENO_ENERGY_TOPK_SWEEP.md)
+
+On the 39,979-row holdout dataset, learned and hybrid ordering reached
+`checked_stop_top_k = 1.000` by `k = 2`. Hand energy reached `0.996` at `k = 5`
+and `1.000` at `k = 10`. Random ordering reached only `0.507` at `k = 10`.
+
+Interpretation: the hard-barrier hybrid is a useful ablation and a conservative
+order-key option. The current synthetic distribution shows no measured gain over
+the gap-weighted learned score alone.
+
+## Accuracy
+
+With deterministic fallback enabled, ranked search returns the same verifier
+winner as exhaustive search. The model only changes candidate order.
+
+```text
+accepted(candidate) := deterministic_verifier(candidate)
+```
+
+The Lean theorems
+`full_fallback_equivalent_order_preserves_membership_iff` and
+`full_fallback_equivalent_order_preserves_weak_optimality_iff` formalize the
+order-only claim for full fallback:
+
+```text
+ordered.Perm(candidates)
+-> (winner in ordered <-> winner in candidates)
+-> (WeaklyOptimalIn(winner, ordered) <-> WeaklyOptimalIn(winner, candidates))
+```
+
+If the fallback path checks every original candidate exactly as a permutation,
+the ranked order and exhaustive order have the same audited weak-optimality
+surface.
+
+The benchmark report now includes `permutation_violation_count` for each order
+mode so this Lean premise is checked during empirical runs. The shared runtime
+helper is `candidate_orders_are_hash_permutation`.
+
+A low energy score never authorizes a settlement. If the top-k ranked prefix
+misses the winner, the harness continues into deterministic fallback and checks
+the remaining candidates.
+
+Safe early stop has a separate proof boundary. The Lean definition
+`CheckedStopCertificate` requires the current winner to dominate both the
+checked candidates and a certified unchecked suffix bound. The theorem
+`checked_stop_certificate_with_exact_full_implies_global_weak_optimal` proves
+that such a certificate is enough to stop before full fallback when the full
+candidate list remains exact. The helper
+`verified_checked_stop_certificate_holds` audits this condition over already
+verified results, which is useful for receipts and regression tests.
+
+Top-k without fallback is an empirical accelerator. On this holdout set,
+top-10 recall was 100%. That is benchmark evidence, and it does not prove
+top-k completeness.
+
+The benchmark's `mean_verifier_calls` metric is the position of the known
+verifier winner in the proposed order. Online early stopping needs either an
+optimality certificate for the checked candidate or a deterministic fallback that
+checks the remaining candidates.
+
+## Acceptance Check
+
+```text
+gap_weighted_top_10_recall >= 95%: pass (100%)
+gap_weighted_mean_verifier_calls <= 50% of exhaustive: pass (1.017 <= 10.00 on heldout)
+gap_weighted beats hand-coded energy by >= 10%: pass (about 25% on heldout mean calls)
+invalid_accept_count = 0: pass
+fallback recovers exact winner when top_k fails: pass in benchmark harness
+```
+
+## Caveats
+
+The result is synthetic and bounded. It supports keeping ZenoEnergy v0 as a
+research-only search accelerator. It does not establish production optimality
+for UPBA v2, and it does not add a consensus claim.
+
+Recommendation: keep the isolated scorer and benchmark harness, with the
+gap-weighted checkpoint as the current research default. Next work should train
+the optional tiny MLP when PyTorch is available, compare against a finalized v2
+bounded-grid optimality verifier, and add a real or replayed non-private corpus
+once the production data policy is defined.

@@ -115,11 +115,49 @@ def WeaklyDominates (winner other : SettlementCandidate) : Prop :=
   other.volume <= winner.volume ∧
     (other.volume = winner.volume -> other.surplus <= winner.surplus)
 
+/-- Weak lexicographic dominance is reflexive. -/
+theorem weaklyDominates_refl
+    (candidate : SettlementCandidate) :
+    WeaklyDominates candidate candidate := by
+  unfold WeaklyDominates
+  exact ⟨Nat.le_refl candidate.volume, by intro _; exact Nat.le_refl candidate.surplus⟩
+
+/-- Weak lexicographic dominance composes transitively. -/
+theorem weaklyDominates_trans
+    {candidateA candidateB candidateC : SettlementCandidate}
+    (hAB : WeaklyDominates candidateA candidateB)
+    (hBC : WeaklyDominates candidateB candidateC) :
+    WeaklyDominates candidateA candidateC := by
+  unfold WeaklyDominates at *
+  rcases hAB with ⟨hVolumeAB, hSurplusAB⟩
+  rcases hBC with ⟨hVolumeBC, hSurplusBC⟩
+  constructor
+  · exact Nat.le_trans hVolumeBC hVolumeAB
+  · intro hVolumeCA
+    have hVolumeA_le_B : candidateA.volume <= candidateB.volume := by
+      simpa [hVolumeCA] using hVolumeBC
+    have hVolumeBA : candidateB.volume = candidateA.volume :=
+      Nat.le_antisymm hVolumeAB hVolumeA_le_B
+    have hVolumeB_le_C : candidateB.volume <= candidateC.volume := by
+      simpa [← hVolumeCA] using hVolumeAB
+    have hVolumeCB : candidateC.volume = candidateB.volume :=
+      Nat.le_antisymm hVolumeBC hVolumeB_le_C
+    exact Nat.le_trans (hSurplusBC hVolumeCB) (hSurplusAB hVolumeBA)
+
 /-- Winner is weakly optimal inside a finite audited candidate list. -/
 def WeaklyOptimalIn
     (winner : SettlementCandidate)
     (candidates : List SettlementCandidate) : Prop :=
   ∀ candidate, candidate ∈ candidates -> WeaklyDominates winner candidate
+
+/--
+A pruned candidate list dominates a full candidate list when every full-domain
+candidate has a retained representative that is weakly at least as good.
+-/
+def DominanceCover
+    (pruned full : List SettlementCandidate) : Prop :=
+  ∀ candidate, candidate ∈ full ->
+    ∃ representative, representative ∈ pruned ∧ WeaklyDominates representative candidate
 
 /-- The audited list covers every candidate that the external feasibility predicate admits. -/
 def CompleteAuditSet
@@ -292,6 +330,253 @@ theorem exact_upper_bound_certificate_implies_global_weak_optimal
       hWinnerFeasible
       hComplete
       ⟨hUpper, hWinnerMember⟩
+
+/-- Reordering a complete audit set preserves completeness. -/
+theorem complete_audit_set_of_perm
+    {candidates ordered : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hComplete : CompleteAuditSet candidates Feasible)
+    (hPerm : ordered.Perm candidates) :
+    CompleteAuditSet ordered Feasible := by
+  unfold CompleteAuditSet at *
+  intro candidate hFeasible
+  exact (hPerm.mem_iff).2 (hComplete candidate hFeasible)
+
+/-- Reordering a sound audit set preserves soundness. -/
+theorem sound_audit_set_of_perm
+    {candidates ordered : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hSound : SoundAuditSet candidates Feasible)
+    (hPerm : ordered.Perm candidates) :
+    SoundAuditSet ordered Feasible := by
+  unfold SoundAuditSet at *
+  intro candidate hMember
+  exact hSound candidate ((hPerm.mem_iff).1 hMember)
+
+/-- Reordering an exact audit set preserves exactness. -/
+theorem exact_audit_set_of_perm
+    {candidates ordered : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hExact : ExactAuditSet candidates Feasible)
+    (hPerm : ordered.Perm candidates) :
+    ExactAuditSet ordered Feasible := by
+  rcases hExact with ⟨hComplete, hSound⟩
+  exact
+    ⟨complete_audit_set_of_perm hComplete hPerm,
+      sound_audit_set_of_perm hSound hPerm⟩
+
+/--
+Full deterministic fallback is exhaustive-equivalent when the checked order is a
+permutation of the original finite candidate set.
+-/
+def FullFallbackEquivalentOrder
+    (candidates ordered : List SettlementCandidate) : Prop :=
+  ordered.Perm candidates
+
+/-- Full fallback preserves candidate membership exactly. -/
+theorem full_fallback_equivalent_order_preserves_membership_iff
+    {candidate : SettlementCandidate}
+    {candidates ordered : List SettlementCandidate}
+    (hEquivalent : FullFallbackEquivalentOrder candidates ordered) :
+    candidate ∈ ordered ↔ candidate ∈ candidates := by
+  unfold FullFallbackEquivalentOrder at hEquivalent
+  exact hEquivalent.mem_iff
+
+/--
+Full fallback preserves audited weak optimality exactly. The candidate order may
+change, but the finite set checked by the verifier is the same.
+-/
+theorem full_fallback_equivalent_order_preserves_weak_optimality_iff
+    {winner : SettlementCandidate}
+    {candidates ordered : List SettlementCandidate}
+    (hEquivalent : FullFallbackEquivalentOrder candidates ordered) :
+    WeaklyOptimalIn winner ordered ↔ WeaklyOptimalIn winner candidates := by
+  unfold FullFallbackEquivalentOrder at hEquivalent
+  constructor
+  · intro hOptimal candidate hMember
+    exact hOptimal candidate ((hEquivalent.mem_iff).2 hMember)
+  · intro hOptimal candidate hMember
+    exact hOptimal candidate ((hEquivalent.mem_iff).1 hMember)
+
+/--
+A deterministic early-stop certificate over a ranked prefix must cover both the
+checked candidates and the unchecked suffix. The model can choose the schedule,
+but the stopping reason is the verifier-facing dominance claim.
+-/
+def CheckedStopCertificate
+    (winner : SettlementCandidate)
+    (checked suffix : List SettlementCandidate) : Prop :=
+  winner ∈ checked ∧
+    WeaklyOptimalIn winner checked ∧
+    WeaklyOptimalIn winner suffix
+
+/--
+If a checked-stop certificate covers the checked candidates and unchecked
+suffix, the winner is weakly optimal over their concatenation.
+-/
+theorem checked_stop_certificate_implies_concat_weak_optimal
+    {winner : SettlementCandidate}
+    {checked suffix : List SettlementCandidate}
+    (hStop : CheckedStopCertificate winner checked suffix) :
+    WeaklyOptimalIn winner (checked ++ suffix) ∧
+      winner ∈ checked ++ suffix := by
+  unfold CheckedStopCertificate at hStop
+  rcases hStop with ⟨hWinnerChecked, hCheckedOptimal, hSuffixOptimal⟩
+  constructor
+  · unfold WeaklyOptimalIn at *
+    intro candidate hMember
+    rcases (List.mem_append.mp hMember) with hCheckedMember | hSuffixMember
+    · exact hCheckedOptimal candidate hCheckedMember
+    · exact hSuffixOptimal candidate hSuffixMember
+  · exact List.mem_append.mpr (Or.inl hWinnerChecked)
+
+/--
+If the checked candidates plus unchecked suffix are a permutation of the full
+finite candidate list, a deterministic checked-stop certificate proves audited
+weak optimality over the full list.
+-/
+theorem checked_stop_certificate_with_full_permutation_implies_full_weak_optimal
+    {winner : SettlementCandidate}
+    {checked suffix full : List SettlementCandidate}
+    (hStop : CheckedStopCertificate winner checked suffix)
+    (hPerm : (checked ++ suffix).Perm full) :
+    WeaklyOptimalIn winner full ∧ winner ∈ full := by
+  rcases checked_stop_certificate_implies_concat_weak_optimal hStop with
+    ⟨hConcatOptimal, hWinnerConcat⟩
+  constructor
+  · unfold WeaklyOptimalIn at *
+    intro candidate hMemberFull
+    exact hConcatOptimal candidate ((hPerm.mem_iff).2 hMemberFull)
+  · exact (hPerm.mem_iff).1 hWinnerConcat
+
+/--
+Checked stopping lifts to global weak optimality only when the full finite
+candidate list is an exact audit set for the feasibility predicate.
+-/
+theorem checked_stop_certificate_with_exact_full_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {checked suffix full : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hExact : ExactAuditSet full Feasible)
+    (hStop : CheckedStopCertificate winner checked suffix)
+    (hPerm : (checked ++ suffix).Perm full) :
+    GloballyWeaklyOptimal winner Feasible ∧ winner ∈ full := by
+  rcases hExact with ⟨hComplete, hSound⟩
+  rcases checked_stop_certificate_with_full_permutation_implies_full_weak_optimal
+      hStop
+      hPerm with
+    ⟨hFullOptimal, hWinnerFull⟩
+  have hWinnerFeasible : Feasible winner :=
+    hSound winner hWinnerFull
+  exact
+    ⟨complete_audit_set_lifts_weak_optimal_to_global
+      hWinnerFeasible
+      hComplete
+      hFullOptimal,
+      hWinnerFull⟩
+
+/--
+A verifier certificate over any advisory ordering of an exact audit set still
+proves global weak optimality over the same feasibility predicate.
+
+The advisory model can choose the order. The proof obligation stays attached to
+the deterministic verifier certificate over an exact candidate set.
+-/
+theorem reordered_exact_upper_bound_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {candidates ordered : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hExact : ExactAuditSet candidates Feasible)
+    (hPerm : ordered.Perm candidates)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        ordered) :
+    GloballyWeaklyOptimal winner Feasible ∧ winner ∈ ordered := by
+  exact
+    exact_upper_bound_certificate_implies_global_weak_optimal
+      (candidates := ordered)
+      (Feasible := Feasible)
+      (exact_audit_set_of_perm hExact hPerm)
+      hCert
+
+/--
+Generated candidate data has the same mathematical standing as any other audit
+set exactly when it is sound and complete for the feasibility predicate it
+claims to represent.
+-/
+def GeneratedCorpusExact
+    (generated : List SettlementCandidate)
+    (Feasible : SettlementCandidate -> Prop) : Prop :=
+  ExactAuditSet generated Feasible
+
+/--
+If a generated corpus is exact for a candidate family, verifier upper-bound
+checks over that corpus lift to global weak optimality for that family.
+-/
+theorem generated_corpus_exact_upper_bound_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {generated : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hGeneratedExact : GeneratedCorpusExact generated Feasible)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        generated) :
+    GloballyWeaklyOptimal winner Feasible ∧ winner ∈ generated := by
+  exact
+    exact_upper_bound_certificate_implies_global_weak_optimal
+      (candidates := generated)
+      (Feasible := Feasible)
+      hGeneratedExact
+      hCert
+
+/--
+Dominance pruning can replace full audit-set enumeration.
+
+If the full list covers every feasible candidate, the pruned list contains only
+feasible candidates, and every full-list candidate is weakly dominated by some
+pruned representative, then a verifier certificate over the pruned list proves
+global weak optimality over the original feasibility predicate.
+-/
+theorem dominance_cover_upper_bound_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {full pruned : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hFullComplete : CompleteAuditSet full Feasible)
+    (hPrunedSound : SoundAuditSet pruned Feasible)
+    (hCover : DominanceCover pruned full)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        pruned) :
+    GloballyWeaklyOptimal winner Feasible ∧ winner ∈ pruned := by
+  rcases hCert with ⟨hUpper, hWinnerMember⟩
+  have hWinnerFeasible : Feasible winner :=
+    hPrunedSound winner hWinnerMember
+  have hPrunedOptimal : WeaklyOptimalIn winner pruned :=
+    upper_bound_certificate_implies_weak_optimal hUpper
+  constructor
+  · unfold GloballyWeaklyOptimal
+    constructor
+    · exact hWinnerFeasible
+    · intro candidate hFeasible
+      rcases hCover candidate (hFullComplete candidate hFeasible) with
+        ⟨representative, hRepresentativeMember, hRepresentativeDominates⟩
+      exact
+        weaklyDominates_trans
+          (hPrunedOptimal representative hRepresentativeMember)
+          hRepresentativeDominates
+  · exact hWinnerMember
 
 /-- Integer uniform price ratio used by the bounded price-grid model. -/
 structure Price where
@@ -830,6 +1115,114 @@ theorem upba_v2_partial_fill_bounded_grid_upper_bound_certificate_implies_global
       hWinnerMember⟩
 
 /--
+UPBA v2 advisory-order bridge.
+
+If an energy scorer only reorders the exact bounded-grid partial-fill candidate
+set, then a verifier upper-bound certificate over that reordered list proves the
+same bounded global weak optimality claim.
+-/
+theorem upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume maxNum maxDen : Nat}
+    {plans : List PartialFillPlan}
+    {scoreAt : Price -> PartialFillPlan -> SettlementCandidate}
+    {ordered : List SettlementCandidate}
+    (hPerm :
+      ordered.Perm
+        (partialFillCanonicalGridCandidates maxNum maxDen plans scoreAt))
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        ordered) :
+    GloballyWeaklyOptimal
+      winner
+      (FeasiblePartialFillCanonicalGridCandidate maxNum maxDen plans scoreAt) ∧
+      winner ∈ ordered := by
+  exact
+    reordered_exact_upper_bound_certificate_implies_global_weak_optimal
+      (candidates := partialFillCanonicalGridCandidates maxNum maxDen plans scoreAt)
+      (ordered := ordered)
+      (Feasible := FeasiblePartialFillCanonicalGridCandidate maxNum maxDen plans scoreAt)
+      partialFillCanonicalGridCandidates_exact_audit_set
+      hPerm
+      hCert
+
+/--
+UPBA v2 hard-barrier hybrid-order bridge.
+
+A hard-barrier hybrid scorer is still advisory when it only permutes the exact
+bounded-grid partial-fill candidate set. The deterministic verifier certificate
+therefore proves the same bounded global weak optimality claim.
+-/
+theorem upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume maxNum maxDen : Nat}
+    {plans : List PartialFillPlan}
+    {scoreAt : Price -> PartialFillPlan -> SettlementCandidate}
+    {ordered : List SettlementCandidate}
+    (hPerm :
+      ordered.Perm
+        (partialFillCanonicalGridCandidates maxNum maxDen plans scoreAt))
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        ordered) :
+    GloballyWeaklyOptimal
+      winner
+      (FeasiblePartialFillCanonicalGridCandidate maxNum maxDen plans scoreAt) ∧
+      winner ∈ ordered := by
+  exact
+    upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
+      (ordered := ordered)
+      hPerm
+      hCert
+
+/--
+UPBA v2 dominance-pruned bridge.
+
+The pruned list may be smaller than the complete bounded-grid partial-fill
+candidate set. The extra proof obligation is a dominance cover showing that each
+full-domain candidate is weakly dominated by some retained feasible candidate.
+-/
+theorem upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume maxNum maxDen : Nat}
+    {plans : List PartialFillPlan}
+    {scoreAt : Price -> PartialFillPlan -> SettlementCandidate}
+    {pruned : List SettlementCandidate}
+    (hPrunedSound :
+      SoundAuditSet
+        pruned
+        (FeasiblePartialFillCanonicalGridCandidate maxNum maxDen plans scoreAt))
+    (hCover :
+      DominanceCover
+        pruned
+        (partialFillCanonicalGridCandidates maxNum maxDen plans scoreAt))
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        pruned) :
+    GloballyWeaklyOptimal
+      winner
+      (FeasiblePartialFillCanonicalGridCandidate maxNum maxDen plans scoreAt) ∧
+      winner ∈ pruned := by
+  exact
+    dominance_cover_upper_bound_certificate_implies_global_weak_optimal
+      (full := partialFillCanonicalGridCandidates maxNum maxDen plans scoreAt)
+      (pruned := pruned)
+      (Feasible := FeasiblePartialFillCanonicalGridCandidate maxNum maxDen plans scoreAt)
+      partialFillCanonicalGridCandidates_complete_audit_set
+      hPrunedSound
+      hCover
+      hCert
+
+/--
 A bounded exact-out fill plan is the non-price part of a UPBA v3 candidate.
 
 The runtime certificate fixes full exact-out fills. This model only needs a
@@ -1168,14 +1561,19 @@ theorem audited_set_optimality_does_not_exclude_omitted_better_candidate :
         ¬ WeaklyDominates winner omitted := by
   let winner : SettlementCandidate := { volume := 1, surplus := 0 }
   let omitted : SettlementCandidate := { volume := 2, surplus := 0 }
-  refine ⟨winner, omitted, [winner], ?_, ?_, ?_⟩
-  · intro candidate hMember
-    simp only [List.mem_singleton] at hMember
-    subst candidate
-    unfold WeaklyDominates
-    exact ⟨Nat.le_refl 1, by intro _; exact Nat.le_refl 0⟩
-  · decide
-  · intro hDominates
-    exact Nat.not_succ_le_self 1 hDominates.1
+  exact
+    ⟨winner,
+      omitted,
+      [winner],
+      by
+        intro candidate hMember
+        simp only [List.mem_singleton] at hMember
+        subst candidate
+        unfold WeaklyDominates
+        exact ⟨Nat.le_refl 1, by intro _; exact Nat.le_refl 0⟩,
+      by decide,
+      by
+        intro hDominates
+        exact Nat.not_succ_le_self 1 hDominates.1⟩
 
 end UniformBatchOptimality

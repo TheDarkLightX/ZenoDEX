@@ -1,0 +1,180 @@
+{
+  "batches_total": 2000,
+  "dataset": "data/upba_energy/upba_v2_energy_holdout_seed20260518.jsonl",
+  "modes": {
+    "hand": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "checked_stop_at_winner_rate": 1.0,
+      "mean_winner_position": 1.361573373676248,
+      "p95_winner_position": 3,
+      "p99_winner_position": 4,
+      "permutation_violation_count": 0,
+      "top_k": {
+        "1": {
+          "checked_stop_top_k_rate": 0.7634896621280888,
+          "false_exclusion_rate": 0.23701462430660614,
+          "top_k_recall": 0.7629853756933939
+        },
+        "10": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "2": {
+          "checked_stop_top_k_rate": 0.91880988401412,
+          "false_exclusion_rate": 0.08119011598588,
+          "top_k_recall": 0.91880988401412
+        },
+        "25": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "3": {
+          "checked_stop_top_k_rate": 0.9692385274836107,
+          "false_exclusion_rate": 0.030761472516389277,
+          "top_k_recall": 0.9692385274836107
+        },
+        "5": {
+          "checked_stop_top_k_rate": 0.9964699949571356,
+          "false_exclusion_rate": 0.0035300050428643814,
+          "top_k_recall": 0.9964699949571356
+        }
+      }
+    },
+    "hybrid": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "checked_stop_at_winner_rate": 1.0,
+      "mean_winner_position": 1.0166414523449319,
+      "p95_winner_position": 1,
+      "p99_winner_position": 2,
+      "permutation_violation_count": 0,
+      "top_k": {
+        "1": {
+          "checked_stop_top_k_rate": 0.983358547655068,
+          "false_exclusion_rate": 0.016641452344931973,
+          "top_k_recall": 0.983358547655068
+        },
+        "10": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "2": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "25": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "3": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "5": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        }
+      }
+    },
+    "learned": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "checked_stop_at_winner_rate": 1.0,
+      "mean_winner_position": 1.0166414523449319,
+      "p95_winner_position": 1,
+      "p99_winner_position": 2,
+      "permutation_violation_count": 0,
+      "top_k": {
+        "1": {
+          "checked_stop_top_k_rate": 0.983358547655068,
+          "false_exclusion_rate": 0.016641452344931973,
+          "top_k_recall": 0.983358547655068
+        },
+        "10": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "2": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "25": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "3": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "5": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        }
+      }
+    },
+    "random": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "checked_stop_at_winner_rate": 1.0,
+      "mean_winner_position": 10.467473524962179,
+      "p95_winner_position": 19,
+      "p99_winner_position": 20,
+      "permutation_violation_count": 0,
+      "top_k": {
+        "1": {
+          "checked_stop_top_k_rate": 0.0448814926878467,
+          "false_exclusion_rate": 0.9551185073121533,
+          "top_k_recall": 0.0448814926878467
+        },
+        "10": {
+          "checked_stop_top_k_rate": 0.5068078668683812,
+          "false_exclusion_rate": 0.4931921331316188,
+          "top_k_recall": 0.5068078668683812
+        },
+        "2": {
+          "checked_stop_top_k_rate": 0.09127584467977812,
+          "false_exclusion_rate": 0.9087241553202219,
+          "top_k_recall": 0.09127584467977812
+        },
+        "25": {
+          "checked_stop_top_k_rate": 1.0,
+          "false_exclusion_rate": 0.0,
+          "top_k_recall": 1.0
+        },
+        "3": {
+          "checked_stop_top_k_rate": 0.1442259203227433,
+          "false_exclusion_rate": 0.8557740796772567,
+          "top_k_recall": 0.1442259203227433
+        },
+        "5": {
+          "checked_stop_top_k_rate": 0.24508320726172467,
+          "false_exclusion_rate": 0.7549167927382754,
+          "top_k_recall": 0.24508320726172467
+        }
+      }
+    }
+  },
+  "rows": 39979,
+  "schema": "zenodex/energy/upba_v2_topk_sweep/v1",
+  "top_ks": [
+    1,
+    2,
+    3,
+    5,
+    10,
+    25
+  ]
+}
