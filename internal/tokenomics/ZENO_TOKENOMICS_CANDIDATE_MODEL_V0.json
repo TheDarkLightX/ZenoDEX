@@ -1,0 +1,220 @@
+{
+  "allocations": [
+    {
+      "amount": 150000000,
+      "category": "founder",
+      "id": "founder_original_rd",
+      "vesting": {
+        "cliff_months": 12,
+        "duration_months": 50,
+        "initial_unlock_bps": 0
+      }
+    },
+    {
+      "amount": 100000000,
+      "category": "team",
+      "id": "core_team_future_contributors",
+      "vesting": {
+        "cliff_months": 12,
+        "duration_months": 50,
+        "initial_unlock_bps": 0
+      }
+    },
+    {
+      "amount": 250000000,
+      "category": "treasury",
+      "id": "dao_protocol_treasury",
+      "vesting": {
+        "cliff_months": 0,
+        "duration_months": 45,
+        "initial_unlock_bps": 1000
+      }
+    },
+    {
+      "amount": 250000000,
+      "category": "ecosystem",
+      "id": "ecosystem_lp_solver_operator_proof_incentives",
+      "vesting": {
+        "cliff_months": 0,
+        "duration_months": 45,
+        "initial_unlock_bps": 1000
+      }
+    },
+    {
+      "amount": 100000000,
+      "category": "community",
+      "id": "community_retroactive_airdrop_testnet_users",
+      "vesting": {
+        "cliff_months": 0,
+        "duration_months": 45,
+        "initial_unlock_bps": 1000
+      }
+    },
+    {
+      "amount": 50000000,
+      "category": "security",
+      "id": "security_audits_bounties_insurance_reserve",
+      "vesting": {
+        "cliff_months": 0,
+        "duration_months": 45,
+        "initial_unlock_bps": 1000
+      }
+    },
+    {
+      "amount": 50000000,
+      "category": "liquidity",
+      "id": "liquidity_bootstrap_market_making",
+      "vesting": {
+        "cliff_months": 0,
+        "duration_months": 45,
+        "initial_unlock_bps": 1000
+      }
+    },
+    {
+      "amount": 50000000,
+      "category": "investor",
+      "id": "strategic_partners_investors_chain_partners",
+      "vesting": {
+        "cliff_months": 12,
+        "duration_months": 50,
+        "initial_unlock_bps": 0
+      }
+    }
+  ],
+  "launch": {
+    "counsel_review_required": true,
+    "counsel_review_status": "required_not_complete",
+    "preconditions": [
+      {
+        "evidence": "tools/check_production_boundary.py",
+        "id": "production_boundary_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_public_claim_scope.py",
+        "id": "claims_scope_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "id": "proof_coverage_matrix_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_covered_user_interface_boundary.py",
+        "id": "covered_user_interface_boundary_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_tokenomics_reward_safety_envelope.py",
+        "id": "reward_safety_envelope_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_zeno_economic_games_boundary.py",
+        "id": "economic_games_boundary_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_zeno_treasury_custody_boundary.py",
+        "id": "treasury_custody_boundary_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "tools/check_burn_indexed_unlock_accelerator.py",
+        "id": "burn_indexed_unlock_accelerator_gate",
+        "status": "passed"
+      },
+      {
+        "evidence": "internal/tokenomics/us_tokenomics_posture_2026-03-18.md",
+        "id": "tokenomics_counsel_review",
+        "status": "required_not_complete"
+      }
+    ],
+    "public_launch_allowed": false
+  },
+  "gamification_policy": {
+    "controls": [
+      "objective_rules",
+      "eligible_activity_receipts",
+      "non_wash_receipts",
+      "sybil_abuse_gate",
+      "covered_user_interface_boundary",
+      "terms_disclosure",
+      "no_specific_transaction_inducement",
+      "no_passive_yield_marketing"
+    ],
+    "economic_benefits_require_counsel_review": true,
+    "economic_benefits_require_separate_budget": true,
+    "token_distribution_uses_separate_program": true,
+    "xp_cash_value": false,
+    "xp_entitlement_to_discount_or_feature_waiver": false,
+    "xp_redeemable_for_tokens": false,
+    "xp_secondary_market_allowed": false,
+    "xp_transferable": false
+  },
+  "promotion_boundary": {
+    "claim_registry_entry_allowed": false,
+    "non_claims": [
+      "economic_security_complete",
+      "legal_clearance",
+      "public_launch_readiness",
+      "secondary_market_value"
+    ],
+    "public_claim_allowed": false
+  },
+  "roles": [
+    {
+      "bond_amount_quote": 100000,
+      "future_value_lost_quote": 0,
+      "id": "oracle_reporter",
+      "max_defect_gain_quote": 50000,
+      "max_reward_per_epoch_quote": 25000,
+      "slash_amount_quote": 50000,
+      "value_moving": true,
+      "withdrawal_delay_epochs": 2
+    },
+    {
+      "bond_amount_quote": 200000,
+      "future_value_lost_quote": 0,
+      "id": "proof_miner",
+      "max_defect_gain_quote": 75000,
+      "max_reward_per_epoch_quote": 50000,
+      "slash_amount_quote": 100000,
+      "value_moving": true,
+      "withdrawal_delay_epochs": 2
+    },
+    {
+      "bond_amount_quote": 300000,
+      "future_value_lost_quote": 50000,
+      "id": "operator",
+      "max_defect_gain_quote": 150000,
+      "max_reward_per_epoch_quote": 75000,
+      "slash_amount_quote": 150000,
+      "value_moving": true,
+      "withdrawal_delay_epochs": 4
+    }
+  ],
+  "schema": "zenodex.tokenomics.candidate_model.v0",
+  "total_supply": 1000000000,
+  "value_capture": {
+    "fee_split_bps": {
+      "buyback": 2000,
+      "cover_reserve": 1000,
+      "lp_rebates": 500,
+      "proof_rewards": 1000,
+      "treasury": 3000
+    },
+    "funded_epoch_budget_quote": 1000000,
+    "max_buyback_spend_quote": 250000,
+    "max_cover_spend_quote": 100000,
+    "max_rebate_spend_quote": 100000,
+    "max_reward_spend_quote": 300000
+  },
+  "vesting_policy": {
+    "max_initial_unlock_bps": 1000,
+    "max_launch_circulation_bps": 800,
+    "min_insider_cliff_months": 12,
+    "min_insider_duration_months": 48
+  }
+}

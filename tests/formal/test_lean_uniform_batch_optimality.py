@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+def test_lean_uniform_batch_optimality_typechecks_without_placeholders() -> None:
+    lake = shutil.which("lake")
+    if not lake:
+        return
+
+    root = Path(__file__).resolve().parents[2]
+    lean_dir = root / "lean-mathlib"
+    target = "Proofs/UniformBatchOptimality.lean"
+    if not (root / "external" / "mathlib4").exists():
+        pytest.skip("mathlib4 checkout missing")
+
+    source = (lean_dir / target).read_text(encoding="utf-8")
+    for required in (
+        "theorem exact_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem upba_v3_exact_out_exact_grid_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem upba_v3_full_fill_exact_out_grid_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem upba_v3_exact_out_bounded_grid_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem exactOutFullFillCanonicalGridCandidates_eq_singleton_plan",
+        "theorem feasibleExactOutFullFill_iff_singleton_plan",
+        "theorem exactOutCanonicalGridCandidates_exact_audit_set",
+        "theorem exactOutFullFillCanonicalGridCandidates_exact_audit_set",
+    ):
+        assert required in source
+    forbidden = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
+    assert forbidden.search(source) is None
+
+    try:
+        proc = subprocess.run(
+            [lake, "env", "lean", target],
+            cwd=lean_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr

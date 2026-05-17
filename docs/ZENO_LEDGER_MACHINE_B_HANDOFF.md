@@ -11,54 +11,68 @@ Machine A and Machine B must run the same latest pushed commit on:
 codex/zeno-ledger-public-testnet-20260514
 ```
 
-The coordinator will provide the exact commit SHA after this note lands. Verify
-the checkout before starting:
+Fetch the branch and detach at the remote branch tip after the coordinator has
+finished pushing this handoff update:
 
 ```bash
 git fetch origin codex/zeno-ledger-public-testnet-20260514
-git checkout --detach <latest-pushed-commit-sha>
+git checkout --detach origin/codex/zeno-ledger-public-testnet-20260514
 git rev-parse HEAD
 ```
 
-The printed SHA must exactly match the coordinator-supplied
-`<latest-pushed-commit-sha>`.
+Set the exact evidence commit from the checked-out commit:
+
+```bash
+COMMIT_SHA="$(git rev-parse HEAD)"
+printf '%s\n' "$COMMIT_SHA"
+```
+
+Machine A and Machine B must print the same `COMMIT_SHA`. Use that value for
+every `--commit-sha`, `--latest-pushed-commit-sha`, and `--expected-commit`
+argument in this run.
 
 Do not edit, commit, or push during the evidence run.
 
-## Current Blocker
+## Clean-Checkout Blocker
 
-Do not start the evidence run from commit
-`cb39d0a9031f2529cefe69762e0ae5843693a75c` until the coordinator supplies a
-new runnable commit or explicitly restores the missing tracked file below.
+Do not run evidence from either of these older commits:
 
-At that commit, a clean checkout fails before `zeno_ledger_node.py` can run:
+```text
+cb39d0a9031f2529cefe69762e0ae5843693a75c
+857507e2...
+```
+
+Those commits were missing tracked files needed by a clean checkout. The visible
+symptom was:
 
 ```text
 ModuleNotFoundError: No module named 'src.core.uniform_batch_clearing'
 ```
 
-The exact missing path is:
-
-```text
-src/core/uniform_batch_clearing.py
-```
-
-The failing import is reached through `src/integration/validation.py`:
-
-```python
-from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
-```
-
-Observed local repro command:
+The fixed branch tip must contain these tracked paths:
 
 ```bash
-python3.11 tools/zeno_ledger_node.py doctor
+git ls-files src/core/uniform_batch_clearing.py
+git ls-files tools/check_zeno_ledger_two_machine_evidence.py
+git ls-files tools/build_zeno_ledger_two_machine_evidence.py
+git ls-files tests/tools/test_check_zeno_ledger_two_machine_evidence.py
+git ls-files tests/tools/test_build_zeno_ledger_two_machine_evidence.py
 ```
 
-Do not create evidence by adding an untracked local shim for this module. That
-would make the evidence commit hash misleading. The valid next step is to run
-only after the branch contains the missing file as a tracked commit, or after
-the coordinator retargets both machines to a different exact commit.
+Run this import smoke before starting:
+
+```bash
+python3 - <<'PY'
+import src.integration.validation
+import src.integration.dex_engine
+import tools.build_zeno_ledger_two_machine_evidence
+import tools.check_zeno_ledger_two_machine_evidence
+print("imports ok")
+PY
+```
+
+Do not create evidence by adding local untracked shims or test helpers. Evidence
+must be produced from tracked files at the shared `COMMIT_SHA`.
 
 ## Join Machine A
 
@@ -106,7 +120,7 @@ python3 tools/build_zeno_ledger_node_evidence_input.py \
   --network-config /tmp/zeno-ledger-node-b/public_network_config.json \
   --machine-out /tmp/zeno-ledger-evidence/machine_b.json \
   --attestation-out /tmp/zeno-ledger-evidence/machine_b_watcher_attestation.json \
-  --commit-sha <latest-pushed-commit-sha> \
+  --commit-sha "$COMMIT_SHA" \
   --pretty
 ```
 
@@ -131,3 +145,21 @@ curl http://127.0.0.1:8788/network
 
 Do not send auth tokens. The coordinator only needs evidence JSON, hashes,
 counts, and checker output.
+
+## Missing-File Checks
+
+If a file is missing, report the exact path and run:
+
+```bash
+pwd
+git rev-parse HEAD
+git status --short
+find /tmp -name public_network_config.json -print
+ls -l /tmp/zeno-ledger-node-b || true
+ls -l /tmp/zeno-ledger-evidence || true
+```
+
+If `/tmp/zeno-ledger-node-b/public_network_config.json` is missing,
+`join-network` did not complete or used a different `--data-dir`. If
+`http://<MACHINE_A_IP>:8000/public_network_config.json` is missing, Machine A
+has not published or served the public network config yet.
