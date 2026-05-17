@@ -8,6 +8,8 @@ Research paper: [Verifier-Preserving Learned Candidate Ordering for UPBA v2 Sett
 
 Academic PDF: [ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search](./papers/zenoenergy-v0/zenoenergy-v0.pdf)
 
+Academic state-of-the-art notes: [ZenoEnergy State Of The Art Notes](./ZENO_ENERGY_STATE_OF_THE_ART.md)
+
 ```text
 Model proposes; verifier decides.
 ```
