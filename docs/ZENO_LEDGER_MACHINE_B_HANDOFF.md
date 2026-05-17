@@ -25,6 +25,41 @@ The printed SHA must exactly match the coordinator-supplied
 
 Do not edit, commit, or push during the evidence run.
 
+## Current Blocker
+
+Do not start the evidence run from commit
+`cb39d0a9031f2529cefe69762e0ae5843693a75c` until the coordinator supplies a
+new runnable commit or explicitly restores the missing tracked file below.
+
+At that commit, a clean checkout fails before `zeno_ledger_node.py` can run:
+
+```text
+ModuleNotFoundError: No module named 'src.core.uniform_batch_clearing'
+```
+
+The exact missing path is:
+
+```text
+src/core/uniform_batch_clearing.py
+```
+
+The failing import is reached through `src/integration/validation.py`:
+
+```python
+from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
+```
+
+Observed local repro command:
+
+```bash
+python3.11 tools/zeno_ledger_node.py doctor
+```
+
+Do not create evidence by adding an untracked local shim for this module. That
+would make the evidence commit hash misleading. The valid next step is to run
+only after the branch contains the missing file as a tracked commit, or after
+the coordinator retargets both machines to a different exact commit.
+
 ## Join Machine A
 
 Replace `<MACHINE_A_IP>` with the address Machine B can reach:
