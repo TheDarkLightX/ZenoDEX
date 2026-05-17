@@ -16,6 +16,12 @@ from .upba_v2_hand_energy import (
     hand_energy_from_record,
     score_upba_v2_hand_energy,
 )
+from .upba_v2_neighborhood import (
+    UpbaV2NeighborhoodAugmentation,
+    UpbaV2NeighborhoodProposal,
+    augment_candidates_with_neighborhood,
+    propose_upba_v2_neighborhood,
+)
 from .upba_v2_ranker import (
     candidate_hash_multiset,
     candidate_orders_are_hash_permutation,
@@ -40,7 +46,10 @@ __all__ = [
     "SET_FEATURE_DIM",
     "SET_FEATURE_NAMES",
     "UpbaV2FeatureRecord",
+    "UpbaV2NeighborhoodAugmentation",
+    "UpbaV2NeighborhoodProposal",
     "UpbaV2SetFeatureRecord",
+    "augment_candidates_with_neighborhood",
     "extract_upba_v2_feature_record",
     "extract_upba_v2_set_aware_feature_record",
     "extract_upba_v2_set_feature_record",
@@ -48,6 +57,7 @@ __all__ = [
     "hand_energy_from_record",
     "candidate_hash_multiset",
     "candidate_orders_are_hash_permutation",
+    "propose_upba_v2_neighborhood",
     "score_upba_v2_hand_energy",
     "verified_checked_stop_certificate_holds",
     "rank_upba_v2_candidates",

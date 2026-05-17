@@ -136,6 +136,9 @@ and the first comparison run is recorded in
 [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md).
 3. **Learned repair or neighborhood model.** Given a bad candidate, suggest a
 nearby price/fill adjustment. The verifier still checks every proposed repair.
+The deterministic baseline in
+[ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md) is the
+control experiment before training a repair policy.
 4. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over
 large price/fill spaces, then verify and fall back deterministically.
 5. **Diffusion or score model.** Reserve this for large structured candidate
@@ -167,10 +170,11 @@ matches the formal candidate family.
 2. Real replay data is required to estimate production distribution shift.
 3. The strongest SOTA analogy is learned solver guidance with deterministic
 settlement authorization.
-4. The next math target is a deterministic certificate for early stop or
-dominance-pruned candidate families.
-5. The next model target is cross-seed testing of nonlinear or listwise
-set-aware rankers before moving to heavier generative samplers.
+4. The next math target is a deterministic dominance-cover certificate for
+neighborhood-augmented candidate families.
+5. The next model targets are cross-seed testing of nonlinear or listwise
+set-aware rankers and learned repair-policy selection before moving to heavier
+generative samplers.
 
 ## Sources
 

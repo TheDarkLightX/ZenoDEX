@@ -373,6 +373,71 @@ def FullFallbackEquivalentOrder
     (candidates ordered : List SettlementCandidate) : Prop :=
   ordered.Perm candidates
 
+/--
+An advisory repair or neighborhood generator may expand a base candidate list.
+This relation records the proof obligation that every base candidate remains in
+the augmented list.
+-/
+def CandidateSubset
+    (base augmented : List SettlementCandidate) : Prop :=
+  ∀ candidate, candidate ∈ base -> candidate ∈ augmented
+
+/-- Candidate-subset inclusion is reflexive. -/
+theorem candidate_subset_refl
+    (candidates : List SettlementCandidate) :
+    CandidateSubset candidates candidates := by
+  unfold CandidateSubset
+  intro candidate hMember
+  exact hMember
+
+/-- Candidate-subset inclusion composes. -/
+theorem candidate_subset_trans
+    {base middle augmented : List SettlementCandidate}
+    (hBaseMiddle : CandidateSubset base middle)
+    (hMiddleAugmented : CandidateSubset middle augmented) :
+    CandidateSubset base augmented := by
+  unfold CandidateSubset at *
+  intro candidate hMember
+  exact hMiddleAugmented candidate (hBaseMiddle candidate hMember)
+
+/--
+If a verifier-backed winner is weakly optimal in an augmented neighborhood list,
+then it is weakly optimal over any preserved base list.
+-/
+theorem augmented_superset_weak_optimal_implies_base_weak_optimal
+    {winner : SettlementCandidate}
+    {base augmented : List SettlementCandidate}
+    (hSubset : CandidateSubset base augmented)
+    (hAugmentedOptimal : WeaklyOptimalIn winner augmented) :
+    WeaklyOptimalIn winner base := by
+  unfold CandidateSubset WeaklyOptimalIn at *
+  intro candidate hBaseMember
+  exact hAugmentedOptimal candidate (hSubset candidate hBaseMember)
+
+/--
+An upper-bound certificate over a neighborhood-augmented list proves dominance
+over the original base list when the base list is preserved as a subset.
+-/
+theorem augmented_superset_upper_bound_certificate_implies_base_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {base augmented : List SettlementCandidate}
+    (hSubset : CandidateSubset base augmented)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        augmented) :
+    WeaklyOptimalIn winner base ∧ winner ∈ augmented := by
+  rcases upper_bound_certificate_with_winner_implies_present_and_weak_optimal hCert with
+    ⟨hAugmentedOptimal, hWinnerMember⟩
+  exact
+    ⟨augmented_superset_weak_optimal_implies_base_weak_optimal
+      hSubset
+      hAugmentedOptimal,
+      hWinnerMember⟩
+
 /-- Full fallback preserves candidate membership exactly. -/
 theorem full_fallback_equivalent_order_preserves_membership_iff
     {candidate : SettlementCandidate}

@@ -12,6 +12,8 @@ Academic state-of-the-art notes: [ZenoEnergy State Of The Art Notes](./ZENO_ENER
 
 Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md)
 
+Neighborhood repair benchmark: [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md)
+
 Research log and PopperPad refs: [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md)
 
 ```text
@@ -44,6 +46,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_hand_energy.py`: deterministic hand-coded energy baseline.
 - `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
+- `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
 
 ## Tools
 
@@ -56,6 +59,7 @@ verifier labels for offline training and evaluation.
 - `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.
 - `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
 - `tools/compare_upba_energy_set_aware.py`: compares aggregate and set-aware rankers on fresh synthetic train/holdout splits and emits a small evidence report.
+- `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
 
 ## Hand Energy
 
@@ -225,3 +229,20 @@ full bounded-grid coverage
 This gives a proof path for reducing verifier work before applying any learned
 ranking. A learned scorer should operate after exact generation and certified
 dominance pruning when those certificates are available.
+
+## Neighborhood Repair
+
+Deterministic repair proposals can expand a limited search budget by
+canonicalizing, clamping, snapping, and locally stepping fill vectors around
+seed candidates:
+
+```text
+limited candidates subset-of neighborhood-augmented candidates
+```
+
+The Lean definition `CandidateSubset` records this proof surface, and
+`augmented_superset_upper_bound_certificate_implies_base_weak_optimal` proves
+that a verifier upper-bound certificate over the augmented list also dominates
+the preserved base list. This is a base-list dominance guarantee. It becomes a
+bounded-grid optimality guarantee only when the augmented list is exact for the
+full feasibility family or carries a dominance-cover certificate.

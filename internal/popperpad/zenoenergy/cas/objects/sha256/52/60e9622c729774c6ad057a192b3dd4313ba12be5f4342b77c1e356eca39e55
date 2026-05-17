@@ -1,0 +1,59 @@
+{
+  "batches": 80,
+  "candidate_budget": 6,
+  "candidates_per_batch": 24,
+  "deltas": {
+    "best_matches_full_winner_rate_delta": -0.175,
+    "best_weakly_dominates_full_winner_rate_delta": 0.7374999999999999,
+    "full_winner_present_rate_delta": 0.06250000000000003,
+    "mean_calls_until_full_winner_or_exhausted_delta": 7.6625000000000005,
+    "mean_volume_regret_delta": -273.6375
+  },
+  "evaluated_batches": 80,
+  "learned_model_present": false,
+  "max_proposals_per_seed": 6,
+  "modes": {
+    "limited": {
+      "batches": 80,
+      "best_matches_full_winner_rate": 0.2125,
+      "best_weakly_dominates_full_winner_rate": 0.2125,
+      "candidate_count_mean": 6,
+      "full_winner_present_rate": 0.2125,
+      "invalid_accept_count": 0,
+      "mean_added_count": 0,
+      "mean_calls_until_full_winner_or_exhausted": 4.95,
+      "mean_surplus_regret": 88.35,
+      "mean_volume_regret": 278.3375,
+      "original_subset_violation_count": 0,
+      "p95_calls_until_full_winner_or_exhausted": 6,
+      "p99_calls_until_full_winner_or_exhausted": 6
+    },
+    "neighborhood": {
+      "batches": 80,
+      "best_matches_full_winner_rate": 0.0375,
+      "best_weakly_dominates_full_winner_rate": 0.95,
+      "candidate_count_mean": 15.9,
+      "full_winner_present_rate": 0.275,
+      "invalid_accept_count": 0,
+      "mean_added_count": 9.9,
+      "mean_calls_until_full_winner_or_exhausted": 12.6125,
+      "mean_surplus_regret": 0,
+      "mean_volume_regret": 4.7,
+      "original_subset_violation_count": 0,
+      "p95_calls_until_full_winner_or_exhausted": 18,
+      "p99_calls_until_full_winner_or_exhausted": 18
+    }
+  },
+  "order_mode": "hand",
+  "repair_seed_count": 4,
+  "safety": {
+    "exactness_caveat": "Neighborhood proposals expand a limited candidate set. They are not a bounded-grid optimality certificate unless paired with full fallback over an exact candidate family or a dominance-cover proof.",
+    "invalid_accept_count": 0,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/upba_v2_neighborhood_benchmark/v1",
+  "seed": 20260525,
+  "skipped_without_winner": 0,
+  "step_denominator": 4,
+  "wall_clock_ms": 4713.314956985414
+}
