@@ -3,6 +3,22 @@
 This note is for the agent operating Machine B in the two-machine ZenoLedger
 latest-pushed-commit evidence run.
 
+## Human Input Contract
+
+The human should not need to paste these instructions into Machine B. The
+Machine B agent should fetch the repo branch, open this note, and follow it.
+
+The only value Machine B may need from the human is Machine A's reachable
+address:
+
+```text
+MACHINE_A_CONFIG_URL=http://<MACHINE_A_IP>:8000/public_network_config.json
+```
+
+If the human can only paste a private server URL or host/IP, use it only for
+that connection value. Do not ask the human to relay command blocks between
+machines.
+
 ## Target
 
 Machine A and Machine B must run the same latest pushed commit on:
@@ -76,11 +92,32 @@ must be produced from tracked files at the shared `COMMIT_SHA`.
 
 ## Join Machine A
 
-Replace `<MACHINE_A_IP>` with the address Machine B can reach:
+Set Machine A's connection details. If the human gives only an IP or hostname,
+use the first form. If the human gives the full config URL, use the second form.
+
+```bash
+export MACHINE_A_HOST="<MACHINE_A_IP_OR_HOSTNAME>"
+export MACHINE_A_CONFIG_URL="http://${MACHINE_A_HOST}:8000/public_network_config.json"
+export MACHINE_A_PEER_URL="http://${MACHINE_A_HOST}:8787"
+```
+
+```bash
+export MACHINE_A_CONFIG_URL="<FULL_MACHINE_A_CONFIG_URL>"
+export MACHINE_A_HOST="$(python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+url = os.environ["MACHINE_A_CONFIG_URL"]
+print(urlparse(url).hostname or "")
+PY
+)"
+export MACHINE_A_PEER_URL="http://${MACHINE_A_HOST}:8787"
+```
+
+Join Machine A:
 
 ```bash
 python3 tools/zeno_ledger_node.py join-network \
-  --config-url http://<MACHINE_A_IP>:8000/public_network_config.json \
+  --config-url "$MACHINE_A_CONFIG_URL" \
   --node-id operator-b \
   --bundle-root /tmp/zeno-ledger-public-testnet-synced \
   --data-dir /tmp/zeno-ledger-node-b \
@@ -92,7 +129,7 @@ Confirm Machine B can see Machine A:
 ```bash
 python3 tools/zeno_ledger_node.py check-peers \
   --data-dir /tmp/zeno-ledger-node-b \
-  --peer-url http://<MACHINE_A_IP>:8787
+  --peer-url "$MACHINE_A_PEER_URL"
 ```
 
 Expected result: `ok: true`, matching `network_id`, matching `chain_id`,
@@ -138,7 +175,7 @@ python3 --version
 
 python3 tools/zeno_ledger_node.py check-peers \
   --data-dir /tmp/zeno-ledger-node-b \
-  --peer-url http://<MACHINE_A_IP>:8787
+  --peer-url "$MACHINE_A_PEER_URL"
 
 curl http://127.0.0.1:8788/network
 ```
@@ -161,5 +198,6 @@ ls -l /tmp/zeno-ledger-evidence || true
 
 If `/tmp/zeno-ledger-node-b/public_network_config.json` is missing,
 `join-network` did not complete or used a different `--data-dir`. If
-`http://<MACHINE_A_IP>:8000/public_network_config.json` is missing, Machine A
-has not published or served the public network config yet.
+`$MACHINE_A_CONFIG_URL` is missing, Machine A has not published or served the
+public network config yet, or Machine B cannot reach Machine A at the supplied
+address.
