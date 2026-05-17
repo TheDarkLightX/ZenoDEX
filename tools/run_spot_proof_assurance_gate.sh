@@ -25,7 +25,7 @@ require_py_module() {
   local package_hint="$2"
   if ! "$PY" -c "import importlib.util as u; raise SystemExit(0 if u.find_spec('$module') else 1)"; then
     echo "error: missing python module '$module'" >&2
-    echo "hint: install dev tooling with '$PY -m pip install -r requirements-dev.txt'" >&2
+    echo "hint: install dev tooling with '$PY -m pip install --require-hashes -r requirements-dev.lock.txt'" >&2
     echo "hint: expected package: $package_hint" >&2
     exit 2
   fi
@@ -179,6 +179,46 @@ PY
 
 echo "== spot-proof: settlement witness inductiveness =="
 "$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml" \
+  "${VERIFY_MULTI_COMMON[@]}" \
+  --output "$VERIFY_ROOT/settlement_create_pool_apply_witness_v1" \
+  --write-report
+
+check_verify_multi_report \
+  "$VERIFY_ROOT/settlement_create_pool_apply_witness_v1/verification_report.json" \
+  "settlement_create_pool_apply_witness_v1"
+
+"$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_ratio_witness_v1.yaml" \
+  "${VERIFY_MULTI_COMMON[@]}" \
+  --output "$VERIFY_ROOT/settlement_add_liquidity_ratio_witness_v1" \
+  --write-report
+
+check_verify_multi_report \
+  "$VERIFY_ROOT/settlement_add_liquidity_ratio_witness_v1/verification_report.json" \
+  "settlement_add_liquidity_ratio_witness_v1"
+
+"$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_apply_witness_v1.yaml" \
+  "${VERIFY_MULTI_COMMON[@]}" \
+  --output "$VERIFY_ROOT/settlement_add_liquidity_apply_witness_v1" \
+  --write-report
+
+check_verify_multi_report \
+  "$VERIFY_ROOT/settlement_add_liquidity_apply_witness_v1/verification_report.json" \
+  "settlement_add_liquidity_apply_witness_v1"
+
+"$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/settlement_remove_liquidity_apply_witness_v1.yaml" \
+  "${VERIFY_MULTI_COMMON[@]}" \
+  --output "$VERIFY_ROOT/settlement_remove_liquidity_apply_witness_v1" \
+  --write-report
+
+check_verify_multi_report \
+  "$VERIFY_ROOT/settlement_remove_liquidity_apply_witness_v1/verification_report.json" \
+  "settlement_remove_liquidity_apply_witness_v1"
+
+"$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/settlement_swap_apply_witness_v1.yaml" \
   "${VERIFY_MULTI_COMMON[@]}" \
   --output "$VERIFY_ROOT/settlement_swap_apply_witness_v1" \
@@ -200,6 +240,26 @@ check_verify_multi_report \
 
 echo "== spot-proof: settlement witness shell verification =="
 "$PY" -m ESSO shell-lint \
+  "$ROOT_DIR/src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_create_pool_apply_witness_v1_native_adapter:make_adapter \
+  | tee "$VERIFY_ROOT/settlement_create_pool_apply_witness_v1/shell_lint.json"
+
+"$PY" -m ESSO shell-lint \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_ratio_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_add_liquidity_ratio_witness_v1_native_adapter:make_adapter \
+  | tee "$VERIFY_ROOT/settlement_add_liquidity_ratio_witness_v1/shell_lint.json"
+
+"$PY" -m ESSO shell-lint \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_apply_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_add_liquidity_apply_witness_v1_native_adapter:make_adapter \
+  | tee "$VERIFY_ROOT/settlement_add_liquidity_apply_witness_v1/shell_lint.json"
+
+"$PY" -m ESSO shell-lint \
+  "$ROOT_DIR/src/kernels/dex/settlement_remove_liquidity_apply_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_remove_liquidity_apply_witness_v1_native_adapter:make_adapter \
+  | tee "$VERIFY_ROOT/settlement_remove_liquidity_apply_witness_v1/shell_lint.json"
+
+"$PY" -m ESSO shell-lint \
   "$ROOT_DIR/src/kernels/dex/settlement_swap_apply_witness_v1.yaml" \
   --adapter src.kernels.python.settlement_swap_apply_witness_v1_native_adapter:make_adapter \
   | tee "$VERIFY_ROOT/settlement_swap_apply_witness_v1/shell_lint.json"
@@ -208,6 +268,50 @@ echo "== spot-proof: settlement witness shell verification =="
   "$ROOT_DIR/src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml" \
   --adapter src.kernels.python.settlement_swap_exact_out_apply_witness_v1_native_adapter:make_adapter \
   | tee "$VERIFY_ROOT/settlement_swap_exact_out_apply_witness_v1/shell_lint.json"
+
+"$PY" -m ESSO verify-shell \
+  "$ROOT_DIR/src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_create_pool_apply_witness_v1_native_adapter:make_adapter \
+  --output "$VERIFY_ROOT/settlement_create_pool_apply_witness_v1/verify_shell.json" \
+  >/dev/null
+
+check_verify_shell_report \
+  "$VERIFY_ROOT/settlement_create_pool_apply_witness_v1/verify_shell.json" \
+  "$ROOT_DIR/src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml" \
+  "src.kernels.python.settlement_create_pool_apply_witness_v1_native_adapter:make_adapter"
+
+"$PY" -m ESSO verify-shell \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_ratio_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_add_liquidity_ratio_witness_v1_native_adapter:make_adapter \
+  --output "$VERIFY_ROOT/settlement_add_liquidity_ratio_witness_v1/verify_shell.json" \
+  >/dev/null
+
+check_verify_shell_report \
+  "$VERIFY_ROOT/settlement_add_liquidity_ratio_witness_v1/verify_shell.json" \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_ratio_witness_v1.yaml" \
+  "src.kernels.python.settlement_add_liquidity_ratio_witness_v1_native_adapter:make_adapter"
+
+"$PY" -m ESSO verify-shell \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_apply_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_add_liquidity_apply_witness_v1_native_adapter:make_adapter \
+  --output "$VERIFY_ROOT/settlement_add_liquidity_apply_witness_v1/verify_shell.json" \
+  >/dev/null
+
+check_verify_shell_report \
+  "$VERIFY_ROOT/settlement_add_liquidity_apply_witness_v1/verify_shell.json" \
+  "$ROOT_DIR/src/kernels/dex/settlement_add_liquidity_apply_witness_v1.yaml" \
+  "src.kernels.python.settlement_add_liquidity_apply_witness_v1_native_adapter:make_adapter"
+
+"$PY" -m ESSO verify-shell \
+  "$ROOT_DIR/src/kernels/dex/settlement_remove_liquidity_apply_witness_v1.yaml" \
+  --adapter src.kernels.python.settlement_remove_liquidity_apply_witness_v1_native_adapter:make_adapter \
+  --output "$VERIFY_ROOT/settlement_remove_liquidity_apply_witness_v1/verify_shell.json" \
+  >/dev/null
+
+check_verify_shell_report \
+  "$VERIFY_ROOT/settlement_remove_liquidity_apply_witness_v1/verify_shell.json" \
+  "$ROOT_DIR/src/kernels/dex/settlement_remove_liquidity_apply_witness_v1.yaml" \
+  "src.kernels.python.settlement_remove_liquidity_apply_witness_v1_native_adapter:make_adapter"
 
 "$PY" -m ESSO verify-shell \
   "$ROOT_DIR/src/kernels/dex/settlement_swap_apply_witness_v1.yaml" \
@@ -233,6 +337,10 @@ check_verify_shell_report \
 
 echo "== spot-proof: adapter regression net =="
 "$PY" -m pytest -q \
+  tests/kernels/test_settlement_create_pool_apply_witness_v1_native_adapter.py \
+  tests/kernels/test_settlement_add_liquidity_ratio_witness_v1_native_adapter.py \
+  tests/kernels/test_settlement_add_liquidity_apply_witness_v1_native_adapter.py \
+  tests/kernels/test_settlement_remove_liquidity_apply_witness_v1_native_adapter.py \
   tests/kernels/test_settlement_witness_native_adapter_edges.py \
   tests/kernels/test_settlement_swap_apply_witness_v1_ml_bva_cases.py \
   tests/kernels/test_settlement_swap_exact_out_apply_witness_v1_ml_bva_cases.py

@@ -9,8 +9,11 @@ emit a watcher attestation, and serve the resulting node status over HTTP.
 from __future__ import annotations
 
 import argparse
+import hmac
 import hashlib
 import json
+import os
+import socket
 import sys
 import threading
 import time
@@ -19,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +67,7 @@ NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
+NODE_PREFLIGHT_REPORT_SCHEMA = "zenodex.zeno_ledger.node_preflight_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
@@ -86,10 +90,18 @@ def _write_json(path: Path, value: object) -> None:
 
 def _is_safe_relative(path_text: str) -> bool:
     path = Path(path_text)
-    return path_text != "" and not path.is_absolute() and ".." not in path.parts
+    return (
+        path_text != ""
+        and not path.is_absolute()
+        and ".." not in path.parts
+        and "://" not in path_text
+        and "\\" not in path_text
+    )
 
 
 def _remote_url(base_url: str, rel_path: str) -> str:
+    if not _is_http_url(base_url):
+        raise ValueError("base_url must be an http(s) URL without embedded credentials")
     if not _is_safe_relative(rel_path):
         raise ValueError(f"unsafe remote path: {rel_path}")
     base = base_url.rstrip("/") + "/"
@@ -128,6 +140,8 @@ def _download_json(*, base_url: str, rel_path: str, out_root: Path) -> dict[str,
 
 
 def _fetch_json_url(url: str) -> dict[str, Any]:
+    if not _is_http_url(url):
+        raise ValueError("url must be an http(s) URL without embedded credentials")
     data = _fetch_remote_bytes(url)
     obj = json.loads(data.decode("utf-8"))
     if not isinstance(obj, dict):
@@ -135,12 +149,43 @@ def _fetch_json_url(url: str) -> dict[str, Any]:
     return obj
 
 
-def _post_json_url(url: str, value: Mapping[str, Any]) -> tuple[dict[str, Any], HTTPStatus]:
+def _auth_bearer_header(token: str | None) -> dict[str, str]:
+    if token is None:
+        return {}
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _auth_token_from_env_name(env_name: object, *, name: str) -> str | None:
+    if env_name is None:
+        return None
+    if not isinstance(env_name, str) or env_name == "":
+        raise ValueError(f"{name} must be a non-empty environment variable name")
+    token = os.environ.get(env_name)
+    if not token:
+        raise ValueError(f"{name} points to an unset or empty environment variable")
+    return token
+
+
+def _auth_token_from_config(config: Mapping[str, Any], *, token_key: str, env_key: str) -> str | None:
+    inline_token = config.get(token_key)
+    env_name = config.get(env_key)
+    if inline_token is not None and env_name is not None:
+        raise ValueError(f"{token_key} and {env_key} must not both be set")
+    if inline_token is not None:
+        if not isinstance(inline_token, str) or inline_token == "":
+            raise ValueError(f"{token_key} must be a non-empty string")
+        return inline_token
+    return _auth_token_from_env_name(env_name, name=env_key)
+
+
+def _post_json_url(url: str, value: Mapping[str, Any], *, bearer_token: str | None = None) -> tuple[dict[str, Any], HTTPStatus]:
+    if not _is_http_url(url):
+        raise ValueError("url must be an http(s) URL without embedded credentials")
     payload = json.dumps(dict(value), sort_keys=True).encode("utf-8")
     request = Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_auth_bearer_header(bearer_token)},
         method="POST",
     )
     try:
@@ -204,6 +249,21 @@ def _as_string_list(value: object, *, name: str) -> list[str]:
 
 def _as_path_list(value: object, *, name: str) -> list[Path]:
     return [Path(item) for item in _as_string_list(value, name=name)]
+
+
+def _is_http_url(value: str) -> bool:
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc) and not parsed.username and not parsed.password
+
+
+def _tcp_port_available(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
 
 
 def _unique_strings(items: list[str]) -> list[str]:
@@ -897,6 +957,10 @@ def pull_live_from_peer_v0(
 ) -> dict[str, Any]:
     """Pull live blocks from a peer and accept only deterministic replays."""
 
+    peer_admission = check_peer_status_v0(data_dir=data_dir, peer_urls=[peer_url])
+    if peer_admission.get("ok") is not True:
+        raise ValueError("peer admission rejected")
+
     node_status = load_node_status_v0(data_dir)
     bundle_root = Path(str(node_status["bundle_root"]))
     public_manifest = _read_public_manifest(bundle_root)
@@ -912,6 +976,7 @@ def pull_live_from_peer_v0(
             "pulled_count": 0,
             "local_latest_height": local_latest,
             "peer_live": False,
+            "peer_admission": peer_admission,
         }
     peer_state = peer_live.get("state")
     if not isinstance(peer_state, Mapping):
@@ -925,6 +990,7 @@ def pull_live_from_peer_v0(
             "pulled_count": 0,
             "local_latest_height": local_latest,
             "peer_latest_height": peer_latest,
+            "peer_admission": peer_admission,
         }
 
     pulled: list[dict[str, Any]] = []
@@ -1000,6 +1066,7 @@ def pull_live_from_peer_v0(
         "pulled_count": len(pulled),
         "pulled": pulled,
         "local_latest_height": peer_latest,
+        "peer_admission": peer_admission,
     }
     pull_report_path = data_dir / "pull_reports" / f"{peer_latest}.json"
     _write_json(pull_report_path, report)
@@ -1179,6 +1246,8 @@ def make_node_http_server_v0(
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
     submit_peer_url: str | None = None,
+    write_auth_token: str | None = None,
+    submit_peer_auth_token: str | None = None,
     peer_urls: list[str] | None = None,
 ) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
@@ -1196,6 +1265,16 @@ def make_node_http_server_v0(
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
+
+        def _require_write_auth(self) -> bool:
+            if write_auth_token is None:
+                return True
+            expected = f"Bearer {write_auth_token}"
+            got = self.headers.get("Authorization", "")
+            if hmac.compare_digest(got, expected):
+                return True
+            self._send_json({"ok": False, "error": "unauthorized"}, status=HTTPStatus.UNAUTHORIZED)
+            return False
 
         def do_GET(self) -> None:  # noqa: N802
             try:
@@ -1263,7 +1342,9 @@ def make_node_http_server_v0(
                             "capabilities": {
                                 "testnet_intake_enabled": enable_testnet_intake,
                                 "testnet_faucet_enabled": enable_testnet_faucet,
+                                "write_auth_required": write_auth_token is not None,
                                 "submission_forwarding_enabled": submit_peer_url is not None,
+                                "submit_peer_auth_configured": submit_peer_auth_token is not None,
                             },
                         }
                     )
@@ -1296,6 +1377,8 @@ def make_node_http_server_v0(
         def do_POST(self) -> None:  # noqa: N802
             try:
                 if self.path == "/tx":
+                    if not self._require_write_auth():
+                        return
                     if not enable_testnet_intake:
                         self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
                         return
@@ -1304,6 +1387,7 @@ def make_node_http_server_v0(
                         report, peer_status = _post_json_url(
                             urljoin(submit_peer_url.rstrip("/") + "/", "tx"),
                             payload,
+                            bearer_token=submit_peer_auth_token,
                         )
                         self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
                         return
@@ -1322,6 +1406,8 @@ def make_node_http_server_v0(
                     self._send_json(report, status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST)
                     return
                 if self.path == "/faucet":
+                    if not self._require_write_auth():
+                        return
                     if not enable_testnet_faucet:
                         self._send_json({"ok": False, "error": "testnet_faucet_disabled"}, status=HTTPStatus.FORBIDDEN)
                         return
@@ -1330,6 +1416,7 @@ def make_node_http_server_v0(
                         report, peer_status = _post_json_url(
                             urljoin(submit_peer_url.rstrip("/") + "/", "faucet"),
                             payload,
+                            bearer_token=submit_peer_auth_token,
                         )
                         self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
                         return
@@ -1394,6 +1481,8 @@ def serve_node_v0(
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
     submit_peer_url: str | None = None,
+    write_auth_token: str | None = None,
+    submit_peer_auth_token: str | None = None,
 ) -> None:
     _start_peer_follow_loop(
         data_dir=data_dir,
@@ -1407,6 +1496,8 @@ def serve_node_v0(
         enable_testnet_intake=enable_testnet_intake,
         enable_testnet_faucet=enable_testnet_faucet,
         submit_peer_url=submit_peer_url,
+        write_auth_token=write_auth_token,
+        submit_peer_auth_token=submit_peer_auth_token,
         peer_urls=list(peer_urls or []),
     )
     address, actual_port = server.server_address
@@ -1421,7 +1512,9 @@ def serve_node_v0(
                 "poll_seconds": poll_seconds,
                 "testnet_intake_enabled": enable_testnet_intake,
                 "testnet_faucet_enabled": enable_testnet_faucet,
+                "write_auth_required": write_auth_token is not None,
                 "submit_peer_url": submit_peer_url,
+                "submit_peer_auth_configured": submit_peer_auth_token is not None,
                 "status_url": f"http://{address}:{actual_port}/status",
             },
             indent=2,
@@ -1430,6 +1523,230 @@ def serve_node_v0(
         flush=True,
     )
     server.serve_forever()
+
+
+def preflight_node_join_config_v0(
+    *,
+    config_path: Path,
+    check_port: bool = True,
+    strict_exposure: bool = False,
+    public_operator: bool = False,
+) -> dict[str, Any]:
+    """Validate an operator join config before sync/replay/serve side effects."""
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    checks: dict[str, bool] = {}
+    try:
+        config = dict(_load_json_object(config_path))
+    except Exception as exc:
+        return {
+            "schema": NODE_PREFLIGHT_REPORT_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "config_path": str(config_path),
+            "errors": [str(exc)],
+            "warnings": [],
+            "checks": {},
+        }
+
+    if config.get("schema") not in {None, NODE_JOIN_CONFIG_SCHEMA}:
+        errors.append("node join config schema mismatch")
+    checks["schema"] = not errors
+
+    node_id = str(config.get("node_id", "")).strip()
+    if node_id == "":
+        errors.append("node_id is required")
+    checks["node_id"] = node_id != ""
+
+    data_dir_ok = False
+    data_dir_parent_ok = False
+    try:
+        data_dir = _as_path(config.get("data_dir"), name="data_dir")
+        data_dir_ok = True
+        data_dir_parent_ok = data_dir.parent.exists()
+        if data_dir.exists() and not data_dir.is_dir():
+            errors.append("data_dir exists but is not a directory")
+        if not data_dir_parent_ok:
+            warnings.append(f"data_dir parent does not exist yet: {data_dir.parent}")
+    except Exception as exc:
+        errors.append(str(exc))
+        data_dir = None
+    checks["data_dir"] = data_dir_ok
+    checks["data_dir_parent"] = data_dir_parent_ok
+
+    bundle_root_ok = False
+    base_url = config.get("base_url")
+    if base_url is not None:
+        if not isinstance(base_url, str) or not _is_http_url(base_url):
+            errors.append("base_url must be an http(s) URL without embedded credentials")
+        else:
+            bundle_root_ok = True
+    try:
+        bundle_root = _as_path(config.get("bundle_root"), name="bundle_root")
+        if base_url is None:
+            _read_public_manifest(bundle_root)
+            bundle_root_ok = True
+        elif bundle_root.is_file():
+            errors.append("bundle_root must not be a file")
+    except Exception as exc:
+        errors.append(str(exc))
+    checks["bundle_source"] = bundle_root_ok
+
+    peer_urls_ok = True
+    try:
+        peer_urls = _as_string_list(config.get("peer_urls"), name="peer_urls")
+    except Exception as exc:
+        errors.append(str(exc))
+        peer_urls = []
+        peer_urls_ok = False
+    for peer_url in peer_urls:
+        if not _is_http_url(peer_url):
+            errors.append(f"peer_url must be an http(s) URL without embedded credentials: {peer_url}")
+            peer_urls_ok = False
+    checks["peer_urls"] = peer_urls_ok
+
+    submit_peer_url = config.get("submit_peer_url")
+    if submit_peer_url is not None and (not isinstance(submit_peer_url, str) or not _is_http_url(submit_peer_url)):
+        errors.append("submit_peer_url must be an http(s) URL without embedded credentials")
+        checks["submit_peer_url"] = False
+    else:
+        checks["submit_peer_url"] = True
+
+    write_auth_inline = config.get("write_auth_token") is not None
+    submit_peer_auth_inline = config.get("submit_peer_auth_token") is not None
+    write_auth_env_configured = (
+        isinstance(config.get("write_auth_token_env"), str)
+        and config.get("write_auth_token_env") != ""
+    )
+    submit_peer_auth_env_configured = (
+        isinstance(config.get("submit_peer_auth_token_env"), str)
+        and config.get("submit_peer_auth_token_env") != ""
+    )
+    try:
+        write_auth_token = _auth_token_from_config(
+            config,
+            token_key="write_auth_token",
+            env_key="write_auth_token_env",
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        write_auth_token = None
+    try:
+        submit_peer_auth_token = _auth_token_from_config(
+            config,
+            token_key="submit_peer_auth_token",
+            env_key="submit_peer_auth_token_env",
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        submit_peer_auth_token = None
+    checks["write_auth"] = write_auth_token is not None
+    checks["submit_peer_auth"] = submit_peer_url is None or submit_peer_auth_token is not None
+    checks["inline_auth_tokens_absent"] = not (write_auth_inline or submit_peer_auth_inline)
+    if write_auth_inline or submit_peer_auth_inline:
+        warnings.append("inline auth tokens are present in the config; prefer *_auth_token_env for operator configs")
+
+    serve = config.get("serve") is True
+    checks["serve_flag"] = isinstance(config.get("serve"), bool) or config.get("serve") is None
+    if not checks["serve_flag"]:
+        errors.append("serve must be a boolean when present")
+
+    host = str(config.get("host", "127.0.0.1"))
+    raw_port = config.get("port", 8787)
+    raw_poll_seconds = config.get("poll_seconds", 0)
+    port = int(raw_port) if isinstance(raw_port, int) and not isinstance(raw_port, bool) else -1
+    poll_seconds = (
+        int(raw_poll_seconds)
+        if isinstance(raw_poll_seconds, int) and not isinstance(raw_poll_seconds, bool)
+        else -1
+    )
+    checks["port_range"] = 0 < port <= 65535
+    checks["poll_seconds"] = poll_seconds >= 0
+    if not checks["port_range"]:
+        errors.append("port must be an integer in 1..65535")
+    if not checks["poll_seconds"]:
+        errors.append("poll_seconds must be a nonnegative integer")
+    if serve and check_port and checks["port_range"]:
+        port_available = _tcp_port_available(host, port)
+        checks["port_available"] = port_available
+        if not port_available:
+            errors.append(f"port is not available for bind: {host}:{port}")
+    elif serve:
+        checks["port_available"] = True
+
+    testnet_mutation_enabled = (
+        serve
+        and (config.get("enable_testnet_faucet") is True or config.get("enable_testnet_intake") is True)
+    )
+    public_bind = serve and host in {"0.0.0.0", "::"}
+    if public_bind:
+        message = "serve host exposes the node on all interfaces; place it behind firewall/auth controls"
+        warnings.append(message)
+        if strict_exposure:
+            errors.append(f"strict_exposure: {message}")
+    if config.get("enable_testnet_faucet") is True:
+        message = "testnet faucet is enabled; never expose this on a real-value network"
+        warnings.append(message)
+        if strict_exposure and public_bind:
+            errors.append(f"strict_exposure: {message}")
+    if config.get("enable_testnet_intake") is True and serve:
+        message = "testnet transaction intake is enabled; this endpoint accepts unsigned fixture traffic"
+        warnings.append(message)
+        if strict_exposure and public_bind:
+            errors.append(f"strict_exposure: {message}")
+    if testnet_mutation_enabled and write_auth_token is None:
+        message = "write auth is not configured for enabled testnet mutation endpoints"
+        warnings.append(message)
+        if strict_exposure and public_bind:
+            errors.append(f"strict_exposure: {message}")
+    if submit_peer_url is not None and submit_peer_auth_token is None:
+        warnings.append("submit_peer_auth_token_env is not configured; forwarded writes will be unauthenticated")
+    if config.get("enable_testnet_faucet") is True and config.get("enable_testnet_intake") is not True:
+        warnings.append("faucet is enabled while testnet intake is disabled; faucet requests will not be useful")
+
+    checks["public_operator_bind"] = not public_operator or not public_bind
+    checks["public_operator_inline_auth"] = not public_operator or not (write_auth_inline or submit_peer_auth_inline)
+    checks["public_operator_write_auth_env"] = (
+        not public_operator
+        or not testnet_mutation_enabled
+        or write_auth_env_configured
+    )
+    checks["public_operator_submit_peer_auth_env"] = (
+        not public_operator
+        or submit_peer_url is None
+        or submit_peer_auth_env_configured
+    )
+    if public_operator:
+        if public_bind:
+            errors.append("public_operator: serve host must bind locally behind an authenticated reverse proxy")
+            if testnet_mutation_enabled:
+                errors.append("public_operator: public binds must not expose testnet faucet or intake endpoints")
+        if write_auth_inline or submit_peer_auth_inline:
+            errors.append("public_operator: inline auth tokens are forbidden; use *_auth_token_env")
+        if testnet_mutation_enabled and not write_auth_env_configured:
+            errors.append("public_operator: enabled mutation endpoints require write_auth_token_env")
+        if submit_peer_url is not None and not submit_peer_auth_env_configured:
+            errors.append("public_operator: submit_peer_url requires submit_peer_auth_token_env")
+
+    ok = not errors
+    return {
+        "schema": NODE_PREFLIGHT_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "config_path": str(config_path),
+        "node_id": node_id,
+        "serve": serve,
+        "host": host,
+        "port": port,
+        "peer_count": len(peer_urls),
+        "check_port": check_port,
+        "strict_exposure": strict_exposure,
+        "public_operator": public_operator,
+        "errors": errors,
+        "warnings": warnings,
+        "checks": checks,
+    }
 
 
 def join_public_node_from_config_v0(*, config_path: Path) -> dict[str, Any]:
@@ -1601,6 +1918,8 @@ def join_public_node_from_network_config_url_v0(
     port: int | None,
     poll_seconds: int | None,
     serve: bool,
+    write_auth_token_env: str | None = None,
+    submit_peer_auth_token_env: str | None = None,
 ) -> dict[str, Any]:
     """Join a public ZenoLedger testnet from one published network config URL."""
 
@@ -1615,6 +1934,10 @@ def join_public_node_from_network_config_url_v0(
         poll_seconds=poll_seconds,
         serve=serve,
     )
+    if write_auth_token_env:
+        join_config["write_auth_token_env"] = write_auth_token_env
+    if submit_peer_auth_token_env:
+        join_config["submit_peer_auth_token_env"] = submit_peer_auth_token_env
     data_dir.mkdir(parents=True, exist_ok=True)
     network_config_path = data_dir / "public_network_config.json"
     join_config_path = data_dir / "node_join_config.json"
@@ -1651,6 +1974,17 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_SYNC_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("ok") is True else 1
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    report = preflight_node_join_config_v0(
+        config_path=args.config,
+        check_port=not args.skip_port_check,
+        strict_exposure=args.strict_exposure,
+        public_operator=args.public_operator,
+    )
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -1697,6 +2031,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             enable_testnet_intake=args.enable_testnet_intake,
             enable_testnet_faucet=args.enable_testnet_faucet,
             submit_peer_url=args.submit_peer_url,
+            write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
+            submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
         )
     return 0
 
@@ -1758,6 +2094,16 @@ def _cmd_join(args: argparse.Namespace) -> int:
             enable_testnet_intake=config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=config.get("enable_testnet_faucet") is True,
             submit_peer_url=str(config["submit_peer_url"]) if config.get("submit_peer_url") else None,
+            write_auth_token=_auth_token_from_config(
+                config,
+                token_key="write_auth_token",
+                env_key="write_auth_token_env",
+            ),
+            submit_peer_auth_token=_auth_token_from_config(
+                config,
+                token_key="submit_peer_auth_token",
+                env_key="submit_peer_auth_token_env",
+            ),
         )
     return 0
 
@@ -1773,6 +2119,8 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             port=args.port,
             poll_seconds=args.poll_seconds,
             serve=args.serve,
+            write_auth_token_env=args.write_auth_token_env,
+            submit_peer_auth_token_env=args.submit_peer_auth_token_env,
         )
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -1790,6 +2138,16 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             enable_testnet_intake=join_config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=join_config.get("enable_testnet_faucet") is True,
             submit_peer_url=str(join_config["submit_peer_url"]) if join_config.get("submit_peer_url") else None,
+            write_auth_token=_auth_token_from_config(
+                join_config,
+                token_key="write_auth_token",
+                env_key="write_auth_token_env",
+            ),
+            submit_peer_auth_token=_auth_token_from_config(
+                join_config,
+                token_key="submit_peer_auth_token",
+                env_key="submit_peer_auth_token_env",
+            ),
         )
     return 0
 
@@ -1821,6 +2179,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         enable_testnet_intake=args.enable_testnet_intake,
         enable_testnet_faucet=args.enable_testnet_faucet,
         submit_peer_url=args.submit_peer_url,
+        write_auth_token=_auth_token_from_env_name(args.write_auth_token_env, name="write_auth_token_env"),
+        submit_peer_auth_token=_auth_token_from_env_name(args.submit_peer_auth_token_env, name="submit_peer_auth_token_env"),
     )
     return 0
 
@@ -1842,6 +2202,21 @@ def main(argv: list[str] | None = None) -> int:
     sync.add_argument("--base-url", required=True)
     sync.add_argument("--out-dir", required=True, type=Path)
     sync.set_defaults(func=_cmd_sync)
+
+    preflight = sub.add_parser("preflight", help="validate a node join config before sync/replay/serve")
+    preflight.add_argument("--config", required=True, type=Path)
+    preflight.add_argument("--skip-port-check", action="store_true")
+    preflight.add_argument(
+        "--strict-exposure",
+        action="store_true",
+        help="reject public binds with testnet faucet or unsigned testnet intake exposure",
+    )
+    preflight.add_argument(
+        "--public-operator",
+        action="store_true",
+        help="reject inline secrets and public all-interface binds for operator-facing configs",
+    )
+    preflight.set_defaults(func=_cmd_preflight)
 
     write_network_config = sub.add_parser(
         "write-network-config",
@@ -1869,6 +2244,8 @@ def main(argv: list[str] | None = None) -> int:
     join_network.add_argument("--host", default="0.0.0.0")
     join_network.add_argument("--port", type=int)
     join_network.add_argument("--poll-seconds", type=int)
+    join_network.add_argument("--write-auth-token-env")
+    join_network.add_argument("--submit-peer-auth-token-env")
     join_network.set_defaults(func=_cmd_join_network)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")
@@ -1885,6 +2262,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--enable-testnet-intake", action="store_true")
     run.add_argument("--enable-testnet-faucet", action="store_true")
     run.add_argument("--submit-peer-url")
+    run.add_argument("--write-auth-token-env")
+    run.add_argument("--submit-peer-auth-token-env")
     run.set_defaults(func=_cmd_run)
 
     append = sub.add_parser("append", help="append one testnet DEX transaction to a node-local live ledger")
@@ -1921,6 +2300,8 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--enable-testnet-intake", action="store_true")
     serve.add_argument("--enable-testnet-faucet", action="store_true")
     serve.add_argument("--submit-peer-url")
+    serve.add_argument("--write-auth-token-env")
+    serve.add_argument("--submit-peer-auth-token-env")
     serve.set_defaults(func=_cmd_serve)
 
     args = parser.parse_args(argv)

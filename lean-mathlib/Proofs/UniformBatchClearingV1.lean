@@ -1,0 +1,335 @@
+/-!
+# Uniform Batch Clearing V1/V2
+
+This file formalizes the small algebraic shape used by the UPBA v1 runtime
+certificate verifier and the v2 partial-fill extension:
+
+* fills are reduced to aggregate reserve deltas;
+* execution applies the aggregate deltas once;
+* any permutation of the fill list yields the same final state.
+* the canonical price objective depends only on executed aggregate net flow, so
+  it is invariant under order-list permutation for a fixed admission set.
+
+The theorem is intentionally scoped. It does not prove price optimality,
+admission fairness, oracle safety, or multi-hop clearing.
+-/
+
+namespace UniformBatchClearingV1
+
+/-- Abstract reserve state for a single two-asset pool. -/
+structure PoolState where
+  reserve0 : Int
+  reserve1 : Int
+deriving DecidableEq, Repr
+
+/-- Abstract per-fill reserve delta. -/
+structure FillDelta where
+  delta0 : Int
+  delta1 : Int
+deriving DecidableEq, Repr
+
+/-- Aggregate the first asset reserve deltas. -/
+def sumDelta0 : List FillDelta → Int
+  | [] => 0
+  | fill :: fills => fill.delta0 + sumDelta0 fills
+
+/-- Aggregate the second asset reserve deltas. -/
+def sumDelta1 : List FillDelta → Int
+  | [] => 0
+  | fill :: fills => fill.delta1 + sumDelta1 fills
+
+/-- Uniform execution applies aggregate deltas once. -/
+def executeUniform (state : PoolState) (fills : List FillDelta) : PoolState :=
+  {
+    reserve0 := state.reserve0 + sumDelta0 fills
+    reserve1 := state.reserve1 + sumDelta1 fills
+  }
+
+theorem sumDelta0_perm {fillsA fillsB : List FillDelta}
+    (h : fillsA.Perm fillsB) :
+    sumDelta0 fillsA = sumDelta0 fillsB := by
+  induction h with
+  | nil => rfl
+  | cons _ _ ih => simp [sumDelta0, ih]
+  | swap _ _ _ => simp [sumDelta0, Int.add_left_comm]
+  | trans _ _ ihAB ihBC => exact Eq.trans ihAB ihBC
+
+theorem sumDelta1_perm {fillsA fillsB : List FillDelta}
+    (h : fillsA.Perm fillsB) :
+    sumDelta1 fillsA = sumDelta1 fillsB := by
+  induction h with
+  | nil => rfl
+  | cons _ _ ih => simp [sumDelta1, ih]
+  | swap _ _ _ => simp [sumDelta1, Int.add_left_comm]
+  | trans _ _ ihAB ihBC => exact Eq.trans ihAB ihBC
+
+theorem sumDelta0_append (fillsA fillsB : List FillDelta) :
+    sumDelta0 (fillsA ++ fillsB) = sumDelta0 fillsA + sumDelta0 fillsB := by
+  induction fillsA with
+  | nil => simp [sumDelta0]
+  | cons _ fillsA ih => simp [sumDelta0, ih, Int.add_assoc]
+
+theorem sumDelta1_append (fillsA fillsB : List FillDelta) :
+    sumDelta1 (fillsA ++ fillsB) = sumDelta1 fillsA + sumDelta1 fillsB := by
+  induction fillsA with
+  | nil => simp [sumDelta1]
+  | cons _ fillsA ih => simp [sumDelta1, ih, Int.add_assoc]
+
+/--
+UPBA v1 permutation invariance.
+
+If two certificate fill lists are permutations of each other, uniform execution
+returns the same aggregate state transition.
+-/
+theorem uniform_execution_permutation_invariant
+    (state : PoolState)
+    {fillsA fillsB : List FillDelta}
+    (h : fillsA.Perm fillsB) :
+    executeUniform state fillsA = executeUniform state fillsB := by
+  cases state
+  simp [executeUniform, sumDelta0_perm h, sumDelta1_perm h]
+
+/--
+Uniform execution is exactly linear aggregation followed by one state update.
+
+This theorem pins the runtime design choice: the batch is not interpreted as a
+sequential fold over intermediate pool states.
+-/
+theorem uniform_execution_is_linear_aggregation
+    (state : PoolState)
+    (fills : List FillDelta) :
+    executeUniform state fills =
+      {
+        reserve0 := state.reserve0 + sumDelta0 fills
+        reserve1 := state.reserve1 + sumDelta1 fills
+      } := by
+  rfl
+
+/--
+Uniform execution over concatenated fill lists is equivalent to applying the
+first aggregate delta and then the second aggregate delta.
+-/
+theorem uniform_execution_append_decomposes
+    (state : PoolState)
+    (fillsA fillsB : List FillDelta) :
+    executeUniform state (fillsA ++ fillsB) =
+      executeUniform (executeUniform state fillsA) fillsB := by
+  cases state
+  simp [executeUniform, sumDelta0_append, sumDelta1_append, Int.add_assoc]
+
+/-! ## Canonical price-objective model -/
+
+/--
+Abstract admitted exact-in order, reduced to the executed net input it
+contributes on each side of the single pool.
+
+The Python runtime computes these values after the deterministic fee rule and
+before checking the submitted certificate price. For UPBA v2, a zero-fill member
+contributes zero to both fields and a partial fill contributes only its executed
+net input.
+-/
+structure NetOrder where
+  baseToQuoteNet : Nat
+  quoteToBaseNet : Nat
+deriving DecidableEq, Repr
+
+/-- Aggregate net base input from base-to-quote orders. -/
+def sumBaseToQuoteNet : List NetOrder → Nat
+  | [] => 0
+  | order :: orders => order.baseToQuoteNet + sumBaseToQuoteNet orders
+
+/-- Aggregate net quote input from quote-to-base orders. -/
+def sumQuoteToBaseNet : List NetOrder → Nat
+  | [] => 0
+  | order :: orders => order.quoteToBaseNet + sumQuoteToBaseNet orders
+
+/-- A rational price ratio represented by numerator and denominator. -/
+structure PriceRatio where
+  numerator : Nat
+  denominator : Nat
+deriving DecidableEq, Repr
+
+/-- A price ratio whose denominator is usable in integer price arithmetic. -/
+def PositivePriceRatio (ratio : PriceRatio) : Prop :=
+  0 < ratio.numerator ∧ 0 < ratio.denominator
+
+/-- Reduce a positive rational ratio to a canonical representative. -/
+def reducePriceRatio (ratio : PriceRatio) : PriceRatio :=
+  let divisor := Nat.gcd ratio.numerator ratio.denominator
+  {
+    numerator := ratio.numerator / divisor
+    denominator := ratio.denominator / divisor
+  }
+
+theorem reduce_price_ratio_positive
+    {ratio : PriceRatio}
+    (h : PositivePriceRatio ratio) :
+    PositivePriceRatio (reducePriceRatio ratio) := by
+  unfold reducePriceRatio PositivePriceRatio
+  constructor
+  · exact Nat.div_pos
+      (Nat.gcd_le_left ratio.denominator h.1)
+      (Nat.gcd_pos_of_pos_left ratio.denominator h.1)
+  · exact Nat.div_pos
+      (Nat.gcd_le_right ratio.numerator h.2)
+      (Nat.gcd_pos_of_pos_right ratio.numerator h.2)
+
+/--
+Raw v1 price objective before ratio reduction.
+
+When both directions are present, the objective is the aggregate quote flow over
+aggregate base flow. When the batch is one-sided, the objective falls back to
+the pre-pool spot ratio `reserveQuote / reserveBase`.
+-/
+def canonicalPriceObjectiveRaw
+    (reserveQuote reserveBase : Nat)
+    (orders : List NetOrder) : PriceRatio :=
+  if 0 < sumBaseToQuoteNet orders ∧ 0 < sumQuoteToBaseNet orders then
+    {
+      numerator := sumQuoteToBaseNet orders
+      denominator := sumBaseToQuoteNet orders
+    }
+  else
+    {
+      numerator := reserveQuote
+      denominator := reserveBase
+    }
+
+/-- Canonical v1 price objective after ratio reduction. -/
+def canonicalPriceObjective
+    (reserveQuote reserveBase : Nat)
+    (orders : List NetOrder) : PriceRatio :=
+  reducePriceRatio (canonicalPriceObjectiveRaw reserveQuote reserveBase orders)
+
+/--
+The raw price objective stays in the positive-ratio domain when pool reserves
+are positive.
+
+For mixed-direction batches, positivity comes from the executed net-flow branch.
+For one-sided or zero-executed-flow batches, positivity comes from the fallback
+pre-pool reserve ratio. The runtime uses this same boundary before reducing the
+ratio and before integer price arithmetic.
+-/
+theorem canonical_price_objective_raw_positive
+    (reserveQuote reserveBase : Nat)
+    (orders : List NetOrder)
+    (hReserveQuote : 0 < reserveQuote)
+    (hReserveBase : 0 < reserveBase) :
+    PositivePriceRatio (canonicalPriceObjectiveRaw reserveQuote reserveBase orders) := by
+  by_cases hMixed : 0 < sumBaseToQuoteNet orders ∧ 0 < sumQuoteToBaseNet orders
+  · simp [canonicalPriceObjectiveRaw, PositivePriceRatio, hMixed]
+  · simp [canonicalPriceObjectiveRaw, PositivePriceRatio, hMixed, hReserveQuote, hReserveBase]
+
+/--
+The reduced price objective also stays in the positive-ratio domain. This is the
+model-side counterpart of the runtime `_reduce_ratio` guard.
+-/
+theorem canonical_price_objective_positive
+    (reserveQuote reserveBase : Nat)
+    (orders : List NetOrder)
+    (hReserveQuote : 0 < reserveQuote)
+    (hReserveBase : 0 < reserveBase) :
+    PositivePriceRatio (canonicalPriceObjective reserveQuote reserveBase orders) := by
+  exact reduce_price_ratio_positive
+    (canonical_price_objective_raw_positive reserveQuote reserveBase orders hReserveQuote hReserveBase)
+
+theorem sumBaseToQuoteNet_perm {ordersA ordersB : List NetOrder}
+    (h : ordersA.Perm ordersB) :
+    sumBaseToQuoteNet ordersA = sumBaseToQuoteNet ordersB := by
+  induction h with
+  | nil => rfl
+  | cons _ _ ih => simp [sumBaseToQuoteNet, ih]
+  | swap _ _ _ => simp [sumBaseToQuoteNet, Nat.add_left_comm]
+  | trans _ _ ihAB ihBC => exact Eq.trans ihAB ihBC
+
+theorem sumQuoteToBaseNet_perm {ordersA ordersB : List NetOrder}
+    (h : ordersA.Perm ordersB) :
+    sumQuoteToBaseNet ordersA = sumQuoteToBaseNet ordersB := by
+  induction h with
+  | nil => rfl
+  | cons _ _ ih => simp [sumQuoteToBaseNet, ih]
+  | swap _ _ _ => simp [sumQuoteToBaseNet, Nat.add_left_comm]
+  | trans _ _ ihAB ihBC => exact Eq.trans ihAB ihBC
+
+/--
+The raw v1 price objective depends only on aggregate net base and quote flow.
+This is stronger than permutation invariance and is the theorem shape closest to
+the runtime verifier.
+-/
+theorem canonical_price_objective_raw_eq_of_equal_net_sums
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (hBase : sumBaseToQuoteNet ordersA = sumBaseToQuoteNet ordersB)
+    (hQuote : sumQuoteToBaseNet ordersA = sumQuoteToBaseNet ordersB) :
+    canonicalPriceObjectiveRaw reserveQuote reserveBase ordersA =
+      canonicalPriceObjectiveRaw reserveQuote reserveBase ordersB := by
+  simp [canonicalPriceObjectiveRaw, hBase, hQuote]
+
+/--
+The reduced v1 price objective depends only on aggregate net base and quote
+flow. This is the checker-level version after ratio canonicalization.
+-/
+theorem canonical_price_objective_eq_of_equal_net_sums
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (hBase : sumBaseToQuoteNet ordersA = sumBaseToQuoteNet ordersB)
+    (hQuote : sumQuoteToBaseNet ordersA = sumQuoteToBaseNet ordersB) :
+    canonicalPriceObjective reserveQuote reserveBase ordersA =
+      canonicalPriceObjective reserveQuote reserveBase ordersB := by
+  simp [
+    canonicalPriceObjective,
+    canonical_price_objective_raw_eq_of_equal_net_sums reserveQuote reserveBase hBase hQuote,
+  ]
+
+/--
+The raw v1 price objective is invariant under permutation of the admitted order
+list.
+
+This matches the runtime certificate check before `_reduce_ratio`.
+-/
+theorem canonical_price_objective_raw_permutation_invariant
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (h : ordersA.Perm ordersB) :
+    canonicalPriceObjectiveRaw reserveQuote reserveBase ordersA =
+      canonicalPriceObjectiveRaw reserveQuote reserveBase ordersB := by
+  simp [
+    canonicalPriceObjectiveRaw,
+    sumBaseToQuoteNet_perm h,
+    sumQuoteToBaseNet_perm h,
+  ]
+
+/--
+The reduced v1 price objective is invariant under permutation of the admitted
+order list.
+
+This is the abstract model of the Python verifier's
+`price_objective_id = zenodex/upba_v1/net_flow_ratio_or_pool_spot_price`
+certificate obligation.
+-/
+theorem canonical_price_objective_permutation_invariant
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (h : ordersA.Perm ordersB) :
+    canonicalPriceObjective reserveQuote reserveBase ordersA =
+      canonicalPriceObjective reserveQuote reserveBase ordersB := by
+  exact canonical_price_objective_eq_of_equal_net_sums
+    reserveQuote
+    reserveBase
+    (sumBaseToQuoteNet_perm h)
+    (sumQuoteToBaseNet_perm h)
+
+/--
+Net-flow equality recovers permutation invariance as a corollary. This theorem
+is named separately so proof consumers can depend on the stronger aggregate-sum
+boundary directly.
+-/
+theorem canonical_price_objective_permutation_invariant_via_net_sums
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (h : ordersA.Perm ordersB) :
+    canonicalPriceObjective reserveQuote reserveBase ordersA =
+      canonicalPriceObjective reserveQuote reserveBase ordersB := by
+  exact canonical_price_objective_permutation_invariant reserveQuote reserveBase h
+
+end UniformBatchClearingV1

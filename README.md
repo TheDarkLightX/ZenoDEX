@@ -274,7 +274,13 @@ settlement replay.
 Install Python dependencies:
 
 ```bash
-pip install -r requirements.txt
+python3 -m pip install --require-hashes -r requirements-dev.lock.txt
+```
+
+Production/container runtime installs use the smaller runtime lock:
+
+```bash
+python3 -m pip install --require-hashes -r requirements-core.lock.txt
 ```
 
 Clone optional Tau dependencies under `external/`:
@@ -322,6 +328,26 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
 ```
 
 ## ZenoLedger Node Operations
+
+Before starting a node, run the lightweight local preflight. These commands do
+not need external network access and catch the common setup mistakes before an
+operator opens ports or mirrors a bundle:
+
+```bash
+python3 tools/zeno_ledger_node.py --help
+python3 tools/permissionless_assurance.py status
+python3 tools/check_tau_supported_runtime_subset.py
+pytest -q tests/tau/test_tau_spec_assurance.py
+```
+
+For a same-machine network rehearsal, run:
+
+```bash
+python3 tools/zeno_ledger_public_network_smoke.py \
+  --out-dir /tmp/zeno-ledger-public-network-smoke \
+  --network-id zeno-ledger-devnet-0 \
+  --chain-id zeno-ledger-devnet-0
+```
 
 The node entrypoint wraps the same bundle and replay logic. Use it to build a
 bootstrap bundle, run a follower/watcher node, and optionally serve node status
