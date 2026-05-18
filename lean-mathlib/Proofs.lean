@@ -13,6 +13,7 @@ import Proofs.PerpGameTheory
 import Proofs.PerpProtocolSafety
 import Proofs.CubicSumRatio
 import Proofs.CpmmSwapV8ExactOutMinimality
+import Proofs.UniformBatchExactOutMinimality
 import Proofs.ImpossibilityTheorem
 import Proofs.QuarticBlendK
 import Proofs.QuarticBlendSwapSpec
