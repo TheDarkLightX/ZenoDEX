@@ -52,3 +52,13 @@ def test_entrypoint_preserves_internal_api_and_validates_remote_tau_rpc() -> Non
     assert '[[ ! "$TAU_NET_RPC" =~ ^https?:// ]]' in text
     assert "python -m src.integration.api_server &" in text
     assert 'echo "API: http://localhost:8000 (internal)"' in text
+
+
+def test_release_gate_runs_risc0_real_proof_archive_checker() -> None:
+    release_gate = (ROOT / "tools/run_release_gate.sh").read_text(encoding="utf-8")
+
+    assert "tools/zeno_ledger_risc0_proof_metadata.py" in release_gate
+    assert "tools/zeno_ledger_risc0_real_proof_smoke.py" in release_gate
+    assert "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_risc0_proof_metadata.py" in release_gate
+    assert "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate

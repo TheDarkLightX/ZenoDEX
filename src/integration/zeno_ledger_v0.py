@@ -319,6 +319,7 @@ def build_proof_metadata_v0(
     conflict_schedule_hash: str,
     feature_suite_hash: str,
     dependency_lock_hash: str,
+    toolchain_lock_hash: str,
     tee_measurement_hash: str = ZERO_ROOT_V0,
     child_receipts_root: str = ZERO_ROOT_V0,
 ) -> dict[str, Any]:
@@ -346,6 +347,7 @@ def build_proof_metadata_v0(
         "conflict_schedule_hash": conflict_schedule_hash,
         "feature_suite_hash": feature_suite_hash,
         "dependency_lock_hash": dependency_lock_hash,
+        "toolchain_lock_hash": toolchain_lock_hash,
         "tee_measurement_hash": tee_measurement_hash,
         "child_receipts_root": child_receipts_root,
     }
@@ -373,6 +375,7 @@ def validate_proof_metadata_v0(metadata: dict[str, Any]) -> None:
         "conflict_schedule_hash",
         "feature_suite_hash",
         "dependency_lock_hash",
+        "toolchain_lock_hash",
         "tee_measurement_hash",
         "child_receipts_root",
     }
@@ -400,6 +403,7 @@ def validate_proof_metadata_v0(metadata: dict[str, Any]) -> None:
         "conflict_schedule_hash",
         "feature_suite_hash",
         "dependency_lock_hash",
+        "toolchain_lock_hash",
     ):
         _require_nonzero_root(obj.get(key), name=f"proof_metadata.{key}")
     for key in (
