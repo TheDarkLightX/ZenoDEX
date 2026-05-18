@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from src.energy.upba_v2_energy_model import initial_hand_weight_model, load_linear_model
 from src.energy.upba_v2_features import FEATURE_NAMES
+from src.energy.upba_v2_listwise_set_ranker import LISTWISE_SET_FEATURE_NAMES
 from src.energy.upba_v2_set_features import SET_AWARE_FEATURE_NAMES
 
 FORBIDDEN_FEATURE_SUBSTRINGS = (
@@ -57,6 +58,8 @@ def inspect_model(model_path: Path, *, top_n: int) -> dict[str, Any]:
         feature_block = "aggregate"
     elif model.feature_names == SET_AWARE_FEATURE_NAMES:
         feature_block = "set-aware"
+    elif model.feature_names == LISTWISE_SET_FEATURE_NAMES:
+        feature_block = "listwise-set"
     else:
         raise ValueError("model feature schema does not match current UPBA energy schema")
     hand_weights = dict(zip(hand.feature_names, hand.weights, strict=True))

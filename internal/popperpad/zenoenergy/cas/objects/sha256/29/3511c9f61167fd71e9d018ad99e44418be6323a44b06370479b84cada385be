@@ -1,0 +1,161 @@
+{
+  "candidates_per_batch": 24,
+  "deltas": {
+    "listwise_vs_aggregate_pairwise": {
+      "mean_verifier_calls_delta": 0.03947368421052633,
+      "p99_verifier_calls_delta": 1.0,
+      "top_10_recall_delta": 0.0,
+      "top_1_recall_delta": -0.03947368421052633,
+      "top_5_recall_delta": 0.0
+    },
+    "listwise_vs_set_aware_pairwise": {
+      "mean_verifier_calls_delta": 0.03947368421052633,
+      "p99_verifier_calls_delta": 1.0,
+      "top_10_recall_delta": 0.0,
+      "top_1_recall_delta": -0.03947368421052633,
+      "top_5_recall_delta": 0.0
+    }
+  },
+  "holdout": {
+    "batches": 80,
+    "candidate_count_mean": 23.95,
+    "rows": 1916,
+    "seed": 20260533,
+    "sha256": "0xdcd6211a3330ee30de24352c8d8e718bfafde302a33556ffe1c47af20335755a"
+  },
+  "interpretation": {
+    "all_modes_invalid_accept_count": 0,
+    "best_pairwise_baseline": "aggregate_pairwise",
+    "listwise_improved_over_best_pairwise": false,
+    "negative_knowledge": "The first listwise set-context ranker did not improve mean verifier calls against the strongest pairwise baseline on this bounded synthetic split.",
+    "permutation_violation_count": 0,
+    "recommendation": "Keep the aggregate gap-weighted baseline as the measured default and treat the current listwise context as unpromoted."
+  },
+  "model_paths": {
+    "aggregate": "data/upba_energy/upba_v2_energy_listwise_aggregate_baseline.json",
+    "listwise_set": "data/upba_energy/upba_v2_energy_listwise_set_ranker.json",
+    "set_aware_pairwise": "data/upba_energy/upba_v2_energy_listwise_set_aware_pairwise.json"
+  },
+  "models": {
+    "aggregate_pairwise": {
+      "feature_dim": 96,
+      "parameter_count": 97
+    },
+    "listwise_set": {
+      "feature_dim": 237,
+      "parameter_count": 238
+    },
+    "set_aware_pairwise": {
+      "feature_dim": 147,
+      "parameter_count": 148
+    }
+  },
+  "modes": {
+    "aggregate_pairwise": {
+      "batches": 76,
+      "candidate_count_mean": 23.986842105263158,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.0263157894736843,
+      "mode": "learned",
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 1,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.9868421052631579,
+      "top_25_recall": 1.0,
+      "top_5_recall": 1.0
+    },
+    "hand": {
+      "batches": 76,
+      "candidate_count_mean": 23.986842105263158,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.3421052631578947,
+      "mode": "hand",
+      "p95_verifier_calls": 3,
+      "p99_verifier_calls": 6,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.8552631578947368,
+      "top_25_recall": 1.0,
+      "top_5_recall": 0.9736842105263158
+    },
+    "listwise_set": {
+      "batches": 76,
+      "candidate_count_mean": 23.986842105263158,
+      "checked_stop_at_winner_rate": 1.0,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.0657894736842106,
+      "mode": "listwise_set",
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "permutation_violation_count": 0,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.9473684210526315,
+      "top_25_recall": 1.0,
+      "top_5_recall": 1.0,
+      "top_k_checked_stop_rates": {
+        "1": 0.9473684210526315,
+        "10": 1.0,
+        "2": 0.9868421052631579,
+        "25": 1.0,
+        "5": 1.0
+      }
+    },
+    "random": {
+      "batches": 76,
+      "candidate_count_mean": 23.986842105263158,
+      "false_exclusion_rate_top_10": 0.5526315789473684,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 172.73684210526315,
+      "mean_verifier_calls": 12.631578947368421,
+      "mode": "random",
+      "p95_verifier_calls": 23,
+      "p99_verifier_calls": 24,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_recall": 0.4473684210526316,
+      "top_1_recall": 0.02631578947368421,
+      "top_25_recall": 1.0,
+      "top_5_recall": 0.19736842105263158
+    },
+    "set_aware_pairwise": {
+      "batches": 76,
+      "candidate_count_mean": 23.986842105263158,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.0263157894736843,
+      "mode": "learned",
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 1,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.9868421052631579,
+      "top_25_recall": 1.0,
+      "top_5_recall": 1.0
+    }
+  },
+  "schema": "zenodex/energy/upba_v2_listwise_set_ranker_comparison/v1",
+  "train": {
+    "batches": 120,
+    "candidate_count_mean": 23.958333333333332,
+    "rows": 2875,
+    "seed": 20260532,
+    "sha256": "0xd005b895fb28704d77f0c9898193e38c8783f3dca39a42797d9978d397c2a399"
+  },
+  "training": {
+    "listwise_epochs": 10,
+    "listwise_l2": 0.0001,
+    "listwise_learning_rate": 0.08,
+    "loss": "top_one_listwise_softmax",
+    "pairwise_epochs": 6,
+    "pairwise_learning_rate": 0.03
+  },
+  "wall_clock_ms": 12896.756097208709
+}

@@ -123,6 +123,27 @@ support_edge_ref:           sha256:a2eef8393a30ad21bec02ec01f1ffc2ef6cdf7d5f5e98
 checkpoint_ref:             sha256:42ab7699c464cfe590c0a397280d60dce9d604ac9ba044f3ff060662d9df4df9
 ```
 
+### Listwise Set Ranker
+
+```text
+report_blob_ref:            sha256:293511c9f61167fd71e9d018ad99e44418be6323a44b06370479b84cada385be
+markdown_blob_ref:          sha256:5af20b303f8d86f218b7a8bfd764d86c105b11bb5ec6c49751f311f1ef53c004
+model_blob_ref:             sha256:0aff9e96b55a10529dc348ae077af546383c72febc96275c4f1d1ba591cb8604
+context_ref:                sha256:29d53bcb1b09c51cab843f9bb85511d36a495ae8386c1dda3e3fe00b3e57c97c
+report_artifact_ref:        sha256:6205e8974f1f03522b60ce5f69e715a9f1533812b9234db4f3e3f49b29115da2
+markdown_artifact_ref:      sha256:86b66adddba8011fc2796f92f3ed186d9be5c7cca996f7e76de89a31a40e041c
+model_artifact_ref:         sha256:8d0ae0435a2cff57f284ce3299d7e04ce41420662b613032a1397c094fa7131d
+safety_recipe_ref:          sha256:1a6a52e07ed029d7265ea818f00aa6a870f6fc58c62ecca5242184d065b09c8b
+improvement_refuter_ref:    sha256:26aee8dbf38cca45bfc2b1b90596d31ec47a23448f6c9d68fa44842982e33e9c
+safety_hypothesis_ref:      sha256:0e188ae7b2a0df908cb892856c84cfd83240ccf8fa9f37fc17480db758e518c8
+improvement_hypothesis_ref: sha256:e0387de43381ebdef9964a3633a70c228be2cb8cd3a48eddfae2e47face604fe
+safety_evidence_ref:        sha256:4a548a1878a1e2ced40014a7b3861734f245186717e2e3862b8ad15767b8f6ed
+safety_support_edge_ref:    sha256:af7410f063ccae34f5de79ff7d1e3eac3b5681afbaa9a9d6618f19d06831aa60
+improvement_evidence_ref:   sha256:d2d4295f21dc11e5bacb3a7dab725b84166c45a94390d62a27e38d1a08b79f7a
+improvement_refute_edge_ref: sha256:733220eb675e45d3097c3f2a4195b3be180d0b9f3cdf6745c40842236315f025
+checkpoint_ref:             sha256:c08368fc23424e3da6ceab3d2fe4521f8394cab785356263c3b22efdc12162fb
+```
+
 ### Research Evidence Replay Gate V3
 
 ```text
@@ -136,6 +157,21 @@ hypothesis_ref:             sha256:dabd7314ae604ff9bd3a47480cfa75dc2d5230ac4b380
 evidence_ref:               sha256:3021a12d485552d89dcc222696920b1e12a2beb940df538f398f93a2c134b4e4
 support_edge_ref:           sha256:9d50089ff73d13b26a29bb9af97292bad7ff0f098ccaa5a265ee4b43cf7d3079
 checkpoint_ref:             sha256:26c16f6e1063a395e12d5dc5827c9f3d7e5389bdbe5e232efcc55be7281e423d
+```
+
+### Research Evidence Replay Gate V4
+
+```text
+json_blob_ref:              sha256:f17dff68647cb4bf30d251e4955fc2700fd875abb4e302341f260aaece452613
+markdown_blob_ref:          sha256:4814bb6531e3f5aea90f3cf09f7e4a2959d8bf8dcd9f1b5e2dd38d08198b2c50
+context_ref:                sha256:46274df7ab3ac57f1b559d3fe26c4f0b85dc5d6b5ae106ab51d1b9c80fece133
+json_artifact_ref:          sha256:08cd5ce2866b00368fb5c5929a63a7a3f19bdbcec01a0e0e8aab925f7f339469
+markdown_artifact_ref:      sha256:3733bd21a61387db61d256c0140a67fce3a415ddd845b20629ded2a3e3b656db
+recipe_ref:                 sha256:b8f74ff910d3ed9c7165c8671103ed64c91603bb1a540bb038ff7baf237be427
+hypothesis_ref:             sha256:f4ec01de32118120b4cda7cae7903b3a525c226448e83f83f2532672477d0918
+evidence_ref:               sha256:e9f7efadac2901b060795c2ac782fd8ae6dd9fa37ff7003e73fc3ef7134e7cb1
+support_edge_ref:           sha256:ee3e6a8640308b9fe7ae76a5afa7534f22a88ef62458d1181b1c6e8edc08b07f
+checkpoint_ref:             sha256:457347c6b0933fe1f6b0e7488384bb62c66d1636aa1824e3ba075d0737a79c79
 ```
 
 ## Current Status
@@ -158,6 +194,9 @@ H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517_V2: supported
 H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V3: supported
+H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518: supported
+H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 doctor_ok: true
 ```
 

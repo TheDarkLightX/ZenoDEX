@@ -15,9 +15,12 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 55
+    assert report["passed_count"] == report["check_count"] == 61
     assert {
         "set_aware.negative_knowledge_recorded",
+        "listwise_set.safety",
+        "listwise_set.top10_and_checked_stop",
+        "listwise_set.negative_knowledge",
         "neighborhood.call_cost_negative",
         "repair_selector_cross_seed.compression_all_pairs",
         "repair_selector_cross_seed.hand_negative",
@@ -35,4 +38,6 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
+        "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518",
+        "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518",
     }.issubset(check_ids)

@@ -16,6 +16,13 @@ from .upba_v2_hand_energy import (
     hand_energy_from_record,
     score_upba_v2_hand_energy,
 )
+from .upba_v2_listwise_set_ranker import (
+    LISTWISE_SET_FEATURE_DIM,
+    LISTWISE_SET_FEATURE_NAMES,
+    order_rows_by_listwise_set_model,
+    score_listwise_batch,
+    train_listwise_set_ranker,
+)
 from .upba_v2_neighborhood import (
     UpbaV2NeighborhoodAugmentation,
     UpbaV2NeighborhoodProposal,
@@ -54,6 +61,8 @@ __all__ = [
     "SET_FEATURE_NAMES",
     "REPAIR_SELECTOR_FEATURE_DIM",
     "REPAIR_SELECTOR_FEATURE_NAMES",
+    "LISTWISE_SET_FEATURE_DIM",
+    "LISTWISE_SET_FEATURE_NAMES",
     "UpbaV2FeatureRecord",
     "UpbaV2NeighborhoodAugmentation",
     "UpbaV2NeighborhoodProposal",
@@ -70,7 +79,10 @@ __all__ = [
     "candidate_orders_are_hash_permutation",
     "propose_upba_v2_neighborhood",
     "rank_repair_proposals",
+    "order_rows_by_listwise_set_model",
     "score_upba_v2_hand_energy",
+    "score_listwise_batch",
+    "train_listwise_set_ranker",
     "verified_checked_stop_certificate_holds",
     "rank_upba_v2_candidates",
 ]

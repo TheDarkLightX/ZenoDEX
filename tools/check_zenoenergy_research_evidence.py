@@ -68,6 +68,12 @@ def replay_zenoenergy_evidence(
     payloads["set_aware"] = set_aware
     checks.extend(_check_set_aware(set_aware))
 
+    listwise_set = _load_json(
+        root / "data/upba_energy/upba_v2_energy_listwise_set_ranker_seed20260532_20260533.json"
+    )
+    payloads["listwise_set"] = listwise_set
+    checks.extend(_check_listwise_set(listwise_set))
+
     neighborhood = _load_json(
         root / "data/upba_energy/upba_v2_energy_neighborhood_benchmark_seed20260525.json"
     )
@@ -175,6 +181,41 @@ def _check_set_aware(report: dict[str, Any]) -> list[EvidenceCheck]:
         )
     )
     return checks
+
+
+def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
+    modes = report["modes"]
+    listwise = modes["listwise_set"]
+    aggregate = modes["aggregate_pairwise"]
+    return [
+        _expect_equal(
+            "listwise_set.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_listwise_set_ranker_comparison/v1",
+        ),
+        _expect_true(
+            "listwise_set.safety",
+            _all_modes_zero(modes)
+            and int(listwise["permutation_violation_count"]) == 0
+            and bool(report["interpretation"]["permutation_violation_count"] == 0),
+            "zero invalid accepts and zero listwise permutation violations",
+        ),
+        _expect_true(
+            "listwise_set.top10_and_checked_stop",
+            float(listwise["top_10_recall"]) == 1.0
+            and float(listwise["false_exclusion_rate_top_10"]) == 0.0
+            and float(listwise["checked_stop_at_winner_rate"]) == 1.0,
+            "listwise top-10 recall and checked-stop-at-winner audit remain complete",
+        ),
+        _expect_true(
+            "listwise_set.negative_knowledge",
+            bool(report["interpretation"]["listwise_improved_over_best_pairwise"]) is False
+            and float(listwise["mean_verifier_calls"]) > float(aggregate["mean_verifier_calls"])
+            and "did not improve mean verifier calls"
+            in str(report["interpretation"]["negative_knowledge"]),
+            "listwise ranker did not beat the strongest pairwise baseline on mean calls",
+        ),
+    ]
 
 
 def _check_neighborhood(report: dict[str, Any]) -> list[EvidenceCheck]:
@@ -542,6 +583,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517": "supported",
         "H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517": "supported",
         "H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518": "supported",
+        "H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518": "supported",
+        "H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -593,6 +636,7 @@ def _run_popperpad_doctor(root: Path) -> EvidenceCheck:
 
 def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     repair_cross = payloads["repair_selector_cross_seed"]
+    listwise_set = payloads["listwise_set"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -600,6 +644,24 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
         ],
+        "listwise_set": {
+            "listwise_improved_over_best_pairwise": listwise_set["interpretation"][
+                "listwise_improved_over_best_pairwise"
+            ],
+            "negative_knowledge": listwise_set["interpretation"]["negative_knowledge"],
+            "listwise_mean_verifier_calls": listwise_set["modes"]["listwise_set"][
+                "mean_verifier_calls"
+            ],
+            "aggregate_pairwise_mean_verifier_calls": listwise_set["modes"][
+                "aggregate_pairwise"
+            ]["mean_verifier_calls"],
+            "listwise_top_10_recall": listwise_set["modes"]["listwise_set"][
+                "top_10_recall"
+            ],
+            "listwise_permutation_violation_count": listwise_set["modes"][
+                "listwise_set"
+            ]["permutation_violation_count"],
+        },
         "neighborhood_regret_delta": payloads["neighborhood"]["deltas"][
             "mean_volume_regret_delta"
         ],

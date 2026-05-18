@@ -14,6 +14,8 @@ SOTA decision map: [ZenoEnergy SOTA Decision Map](./ZENO_ENERGY_SOTA_DECISION_MA
 
 Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md)
 
+Listwise set-ranker experiment: [ZenoEnergy Listwise Set Ranker](./ZENO_ENERGY_LISTWISE_SET_RANKER.md)
+
 Neighborhood repair benchmark: [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md)
 
 Learned repair-selector benchmark: [ZenoEnergy Repair Selector](./ZENO_ENERGY_REPAIR_SELECTOR.md)
@@ -55,6 +57,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_features.py`: fixed 96-dimensional normalized feature schema plus raw advisory diagnostics.
 - `src/energy/upba_v2_hand_energy.py`: deterministic hand-coded energy baseline.
 - `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
+- `src/energy/upba_v2_listwise_set_ranker.py`: deterministic candidate-list context features and top-one listwise softmax training helper.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
 - `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
 - `src/energy/upba_v2_repair_selector.py`: tiny advisory selector features and ranking for deterministic neighborhood proposals.
@@ -70,6 +73,7 @@ verifier labels for offline training and evaluation.
 - `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.
 - `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
 - `tools/compare_upba_energy_set_aware.py`: compares aggregate and set-aware rankers on fresh synthetic train/holdout splits and emits a small evidence report.
+- `tools/compare_upba_energy_listwise_set_ranker.py`: compares a listwise set-context ranker against pairwise linear baselines.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.

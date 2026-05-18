@@ -260,6 +260,45 @@ winner position at most 2, and 0 invalid accepts. The top-5 miss count fell to
 0 in this run, so the gap-weighted model is the current preferred research
 checkpoint.
 
+## Listwise Set Ranker
+
+Receipt: [ZENO_ENERGY_LISTWISE_SET_RANKER.md](./ZENO_ENERGY_LISTWISE_SET_RANKER.md)
+
+The first listwise set-context experiment adds deterministic candidate-list
+rank and interaction features, then trains a 237-feature linear energy model
+with top-one listwise softmax loss.
+
+Command:
+
+```bash
+python3 tools/compare_upba_energy_listwise_set_ranker.py \
+  --train-batches 120 \
+  --holdout-batches 80 \
+  --candidates-per-batch 24 \
+  --train-seed 20260532 \
+  --holdout-seed 20260533 \
+  --pairwise-epochs 6 \
+  --listwise-epochs 10 \
+  --pairwise-learning-rate 0.03 \
+  --listwise-learning-rate 0.08 \
+  --l2 0.0001 \
+  --output-json data/upba_energy/upba_v2_energy_listwise_set_ranker_seed20260532_20260533.json \
+  --output-markdown docs/ZENO_ENERGY_LISTWISE_SET_RANKER.md \
+  --output-model-dir data/upba_energy
+```
+
+| mode | top1 | top5 | top10 | mean calls | p95 | p99 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| aggregate pairwise | 0.987 | 1.000 | 1.000 | 1.026 | 1 | 1 | 0 |
+| set-aware pairwise | 0.987 | 1.000 | 1.000 | 1.026 | 1 | 1 | 0 |
+| listwise set | 0.947 | 1.000 | 1.000 | 1.066 | 1 | 2 | 0 |
+
+The listwise ranker preserved top-10 recall, had zero invalid accepts, zero
+permutation violations, and `checked_stop_at_winner_rate = 1.0`. It did not
+improve mean verifier calls against the strongest pairwise baseline on this
+bounded synthetic split. Keep it as negative knowledge until a nonlinear or
+outcome-weighted variant shows a measured win.
+
 ## Model Audit
 
 Receipt: [ZENO_ENERGY_MODEL_AUDIT.md](./ZENO_ENERGY_MODEL_AUDIT.md)
@@ -408,11 +447,11 @@ deterministic suffix-bound certificate or full fallback.
 
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
-checks the set-aware comparison, neighborhood benchmark, repair selector,
-cross-seed stress, formal-boundary receipts, fallback/top-k receipts, and
-PopperPad status ledger. It also checks the SOTA decision-map receipt:
+checks the set-aware comparison, listwise set-ranker comparison, neighborhood
+benchmark, repair selector, cross-seed stress, formal-boundary receipts,
+fallback/top-k receipts, and PopperPad status ledger. It also checks the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 56 passing checks and 0 failed checks.
+The current receipt reports 62 passing checks and 0 failed checks.
 
 ## Accuracy
 
