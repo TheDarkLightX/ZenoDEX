@@ -36,8 +36,19 @@ def zeno_oracle_fail_closed_dex_config(**overrides: Any) -> DexEngineConfig:
     """Build a DEX config with critical Oracle authorization gates forced on."""
 
     cfg = DexEngineConfig(**overrides)
+    dex_config = replace(
+        cfg.dex_config,
+        settlement_validation="strong_proof_carrying",
+        allow_snapshot_bound_quote_bindings=False,
+    )
     return replace(
         cfg,
+        allow_missing_settlement=False,
+        require_settlement_match=True,
+        require_intent_signatures=True,
+        allow_external_tools=False,
+        consensus_mode=True,
+        dex_config=dex_config,
         require_oracle_authorization_for_protected_swaps=True,
         require_oracle_authorization_for_critical_settlements=True,
         min_lp_position_age_seconds=max(
