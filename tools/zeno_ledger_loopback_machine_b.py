@@ -198,7 +198,7 @@ def _container_script(
         fi
         PYTHON="$VENV/bin/python"
 
-        "$PYTHON" -m pip install --no-cache-dir -r requirements-core.txt \\
+        "$PYTHON" -m pip install --no-cache-dir --require-hashes -r requirements-core.lock.txt \\
           > /out/logs/machine_b_pip_install.log
 
         "$PYTHON" tools/zeno_ledger_node.py join-network \\

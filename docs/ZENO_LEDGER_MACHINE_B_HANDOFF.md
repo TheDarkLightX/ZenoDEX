@@ -213,8 +213,8 @@ python3 tools/zeno_ledger_loopback_machine_b.py
 ```
 
 The harness starts Machine A on random high ports and runs Machine B inside a
-clean `python:3.12-slim` Docker container. The container installs
-`requirements-core.txt`, joins through the published
+clean `python:3.12-slim` Docker container. The container installs the
+hash-locked `requirements-core.lock.txt`, joins through the published
 `public_network_config.json`, checks Machine A as a peer, pulls live blocks,
 forwards a faucet write back to Machine A, pulls the forwarded block, and
 builds:
