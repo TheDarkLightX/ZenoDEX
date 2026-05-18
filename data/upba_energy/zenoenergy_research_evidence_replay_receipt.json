@@ -1,5 +1,5 @@
 {
-  "check_count": 95,
+  "check_count": 98,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -227,6 +227,11 @@
       "passed": true
     },
     {
+      "check_id": "fallback_permutation_audit.objective_equivalence_metrics",
+      "detail": "fallback audit reports objective-equivalent recall and call position",
+      "passed": true
+    },
+    {
       "check_id": "topk_sweep.schema",
       "detail": "expected 'zenodex/energy/upba_v2_topk_sweep/v1', observed 'zenodex/energy/upba_v2_topk_sweep/v1'",
       "passed": true
@@ -244,6 +249,11 @@
     {
       "check_id": "topk_sweep.checked_stop_at_winner",
       "detail": "checked-stop certificate holds at the exact winner for every mode",
+      "passed": true
+    },
+    {
+      "check_id": "topk_sweep.objective_equivalence_metrics",
+      "detail": "top-k sweep reports objective-equivalent recall and call position",
       "passed": true
     },
     {
@@ -437,6 +447,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518",
+      "detail": "H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
       "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
       "passed": true
@@ -479,7 +494,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 95,
+  "passed_count": 98,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -513,10 +528,12 @@
     },
     "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
     "fallback_permutation_audit": {
-      "batches": 198,
+      "batches": 200,
       "invalid_accept_count": 0,
       "learned_checked_stop_top_k_rate": 1.0,
+      "learned_mean_calls_to_objective_winner": 1.01,
       "learned_permutation_violation_count": 0,
+      "learned_top_10_objective_recall": 1.0,
       "learned_top_10_recall": 1.0
     },
     "formal_boundary_claim": "The repair selector has a Lean-checked base-preservation boundary: selected repair sets preserve weak optimality over the base list when the deterministic verifier supplies an upper-bound certificate over the selected set.",
@@ -569,6 +586,9 @@
       "batches": 1983,
       "learned_k2_checked_stop_rate": 1.0,
       "learned_k2_false_exclusion_rate": 0.0,
+      "learned_k2_objective_false_exclusion_rate": 0.0,
+      "learned_mean_objective_winner_position": 1.0166414523449319,
+      "objective_tie_batch_count": 1,
       "random_k10_false_exclusion_rate": 0.4931921331316188
     }
   }

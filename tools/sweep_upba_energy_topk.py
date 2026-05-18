@@ -114,10 +114,14 @@ def _sweep_mode(
     batches_with_winner = 0
     candidate_counts: list[int] = []
     winner_positions: list[int] = []
+    objective_winner_positions: list[int] = []
+    objective_argmax_class_sizes: list[int] = []
     permutation_violations = 0
     topk_hits = {k: 0 for k in top_ks}
+    objective_topk_hits = {k: 0 for k in top_ks}
     checked_stop_hits = {k: 0 for k in top_ks}
     checked_stop_at_winner_hits = 0
+    checked_stop_at_objective_winner_hits = 0
 
     for batch_rows in batches.values():
         winner_rows = [row for row in batch_rows if row["label"]["is_winner"]]
@@ -137,16 +141,36 @@ def _sweep_mode(
             for index, row in enumerate(ordered, start=1)
             if row["candidate_hash"] == winner["candidate_hash"]
         )
+        objective_winner_index = next(
+            index
+            for index, row in enumerate(ordered, start=1)
+            if _objective_equivalent_rows(row, winner)
+        )
         winner_positions.append(winner_index)
+        objective_winner_positions.append(objective_winner_index)
+        objective_argmax_class_sizes.append(
+            sum(1 for row in batch_rows if _objective_equivalent_rows(row, winner))
+        )
         checked_to_winner = ordered[:winner_index]
         suffix_after_winner = ordered[winner_index:]
         if _checked_stop_holds(winner, checked_to_winner, suffix_after_winner):
             checked_stop_at_winner_hits += 1
+        checked_to_objective_winner = ordered[:objective_winner_index]
+        suffix_after_objective_winner = ordered[objective_winner_index:]
+        objective_winner = checked_to_objective_winner[-1]
+        if _checked_stop_holds(
+            objective_winner,
+            checked_to_objective_winner,
+            suffix_after_objective_winner,
+        ):
+            checked_stop_at_objective_winner_hits += 1
 
         for k in top_ks:
             clamped = min(k, len(ordered))
             if winner_index <= clamped:
                 topk_hits[k] += 1
+            if objective_winner_index <= clamped:
+                objective_topk_hits[k] += 1
             checked = ordered[:clamped]
             suffix = ordered[clamped:]
             best_checked = _best_valid_row(checked)
@@ -157,15 +181,40 @@ def _sweep_mode(
         "batches": batches_with_winner,
         "candidate_count_mean": mean(candidate_counts) if candidate_counts else 0,
         "mean_winner_position": mean(winner_positions) if winner_positions else 0,
+        "mean_objective_winner_position": mean(objective_winner_positions)
+        if objective_winner_positions
+        else 0,
         "p95_winner_position": _percentile(winner_positions, 0.95),
         "p99_winner_position": _percentile(winner_positions, 0.99),
+        "p95_objective_winner_position": _percentile(objective_winner_positions, 0.95),
+        "p99_objective_winner_position": _percentile(objective_winner_positions, 0.99),
+        "objective_tie_batch_count": sum(
+            1 for value in objective_argmax_class_sizes if value > 1
+        ),
+        "objective_tie_batch_rate": _ratio(
+            sum(1 for value in objective_argmax_class_sizes if value > 1),
+            batches_with_winner,
+        ),
+        "objective_argmax_class_size_mean": mean(objective_argmax_class_sizes)
+        if objective_argmax_class_sizes
+        else 0,
         "permutation_violation_count": permutation_violations,
         "checked_stop_at_winner_rate": _ratio(checked_stop_at_winner_hits, batches_with_winner),
+        "checked_stop_at_objective_winner_rate": _ratio(
+            checked_stop_at_objective_winner_hits,
+            batches_with_winner,
+        ),
         "top_k": {
             str(k): {
                 "top_k_recall": _ratio(topk_hits[k], batches_with_winner),
+                "objective_top_k_recall": _ratio(
+                    objective_topk_hits[k],
+                    batches_with_winner,
+                ),
                 "checked_stop_top_k_rate": _ratio(checked_stop_hits[k], batches_with_winner),
                 "false_exclusion_rate": 1.0 - _ratio(topk_hits[k], batches_with_winner),
+                "objective_false_exclusion_rate": 1.0
+                - _ratio(objective_topk_hits[k], batches_with_winner),
             }
             for k in top_ks
         },
@@ -240,6 +289,12 @@ def _objective_score(row: dict[str, Any]) -> tuple[int, int]:
     )
 
 
+def _objective_equivalent_rows(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return bool(left["label"]["valid"]) and bool(right["label"]["valid"]) and (
+        _objective_score(left) == _objective_score(right)
+    )
+
+
 def _model_energy(model: LinearEnergyModel, row: dict[str, Any]) -> float:
     return model.energy([float(value) for value in row["features"]])
 
@@ -305,8 +360,8 @@ def _markdown_report(report: dict[str, Any]) -> str:
         f"top_ks: {', '.join(str(k) for k in report['top_ks'])}",
         "```",
         "",
-        "| mode | k | top_k_recall | checked_stop_top_k | false_exclusion | mean_winner_pos | p99_winner_pos | perm_violations |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| mode | k | top_k_recall | obj_top_k_recall | checked_stop_top_k | false_exclusion | obj_false_exclusion | mean_winner_pos | mean_obj_pos | p99_winner_pos | perm_violations |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for mode, mode_report in report["modes"].items():
         for k in report["top_ks"]:
@@ -318,9 +373,12 @@ def _markdown_report(report: dict[str, Any]) -> str:
                         mode,
                         str(k),
                         _fmt(metrics["top_k_recall"]),
+                        _fmt(metrics["objective_top_k_recall"]),
                         _fmt(metrics["checked_stop_top_k_rate"]),
                         _fmt(metrics["false_exclusion_rate"]),
+                        _fmt(metrics["objective_false_exclusion_rate"]),
                         _fmt(mode_report["mean_winner_position"]),
+                        _fmt(mode_report["mean_objective_winner_position"]),
                         str(mode_report["p99_winner_position"]),
                         str(mode_report["permutation_violation_count"]),
                     )
@@ -329,6 +387,7 @@ def _markdown_report(report: dict[str, Any]) -> str:
             )
     lines.append("")
     lines.append("`checked_stop_top_k` is an offline audit over verified suffix labels.")
+    lines.append("`obj_*` metrics treat tied valid volume/surplus maxima as one objective class.")
     return "\n".join(lines) + "\n"
 
 

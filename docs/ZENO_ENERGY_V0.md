@@ -73,12 +73,12 @@ verifier labels for offline training and evaluation.
 
 - `tools/generate_upba_energy_dataset.py`: synthetic batch generator with verifier-backed labels.
 - `tools/train_upba_energy.py`: pairwise hinge training for the no-dependency linear ranker.
-- `tools/evaluate_upba_energy.py`: dataset-level top-k and verifier-call evaluation.
-- `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy.
+- `tools/evaluate_upba_energy.py`: dataset-level top-k, objective-equivalent top-k, and verifier-call evaluation.
+- `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy with exact and objective-equivalent winner metrics.
 - `tools/stress_upba_energy_cross_seed.py`: streams cross-seed, multi-candidate-count stress benchmarks without storing every generated row.
 - `tools/mine_upba_energy_hard_cases.py`: streams larger synthetic runs and records compact examples where learned ordering misses top-1/top-5/top-10.
 - `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.
-- `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
+- `tools/sweep_upba_energy_topk.py`: sweeps top-k recall, objective-equivalent top-k recall, and offline checked-stop audit rates over stored dataset rows.
 - `tools/compare_upba_energy_set_aware.py`: compares aggregate and set-aware rankers on fresh synthetic train/holdout splits and emits a small evidence report.
 - `tools/compare_upba_energy_listwise_set_ranker.py`: compares a listwise set-context ranker against pairwise linear baselines.
 - `tools/stress_upba_energy_listwise_set_ranker.py`: retrains and evaluates the listwise set-context ranker across train/holdout seed pairs.

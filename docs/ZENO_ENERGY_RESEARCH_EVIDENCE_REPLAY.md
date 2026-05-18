@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 95
-passed_count: 95
+check_count: 98
+passed_count: 98
 failed_count: 0
 ```
 
@@ -54,10 +54,12 @@ failed_count: 0
 | fallback_permutation_audit.permutation_premise | pass | all audit modes preserve the full-fallback permutation premise |
 | fallback_permutation_audit.learned_recovery | pass | learned and hybrid orderings recover every exact winner by top-k or fallback |
 | fallback_permutation_audit.checked_stop_offline | pass | checked-stop audit succeeds for learned top-k and remains nontrivial versus random |
+| fallback_permutation_audit.objective_equivalence_metrics | pass | fallback audit reports objective-equivalent recall and call position |
 | topk_sweep.schema | pass | expected 'zenodex/energy/upba_v2_topk_sweep/v1', observed 'zenodex/energy/upba_v2_topk_sweep/v1' |
 | topk_sweep.permutation_premise | pass | all top-k sweep modes preserve hash-permutation ordering |
 | topk_sweep.learned_checked_stop_k2 | pass | learned and hybrid checked-stop audits reach 100% by k=2 on holdout |
 | topk_sweep.checked_stop_at_winner | pass | checked-stop certificate holds at the exact winner for every mode |
+| topk_sweep.objective_equivalence_metrics | pass | top-k sweep reports objective-equivalent recall and call position |
 | topk_sweep.random_top10_negative | pass | random top-10 misses many winners, so the sweep is not vacuous |
 | sota_decision_map.schema | pass | expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1' |
 | sota_decision_map.sources_and_boundary | pass | decision map records all required sources and verifier/fallback boundary |
@@ -96,6 +98,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
@@ -140,10 +143,12 @@ failed_count: 0
   },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
   "fallback_permutation_audit": {
-    "batches": 198,
+    "batches": 200,
     "invalid_accept_count": 0,
     "learned_checked_stop_top_k_rate": 1.0,
+    "learned_mean_calls_to_objective_winner": 1.01,
     "learned_permutation_violation_count": 0,
+    "learned_top_10_objective_recall": 1.0,
     "learned_top_10_recall": 1.0
   },
   "formal_boundary_claim": "The repair selector has a Lean-checked base-preservation boundary: selected repair sets preserve weak optimality over the base list when the deterministic verifier supplies an upper-bound certificate over the selected set.",
@@ -196,6 +201,9 @@ failed_count: 0
     "batches": 1983,
     "learned_k2_checked_stop_rate": 1.0,
     "learned_k2_false_exclusion_rate": 0.0,
+    "learned_k2_objective_false_exclusion_rate": 0.0,
+    "learned_mean_objective_winner_position": 1.0166414523449319,
+    "objective_tie_batch_count": 1,
     "random_k10_false_exclusion_rate": 0.4931921331316188
   }
 }

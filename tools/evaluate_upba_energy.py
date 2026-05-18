@@ -48,7 +48,10 @@ def evaluate_rows(
 
     top_ks = (1, 5, 10, 25)
     hits = {k: 0 for k in top_ks}
+    objective_hits = {k: 0 for k in top_ks}
     calls: list[int] = []
+    objective_calls: list[int] = []
+    objective_argmax_class_sizes: list[int] = []
     candidate_counts: list[int] = []
     regrets_top_10: list[int] = []
     batches_with_winner = 0
@@ -65,10 +68,21 @@ def evaluate_rows(
         winner_index = next(
             index for index, row in enumerate(ordered, start=1) if row["candidate_hash"] == winner["candidate_hash"]
         )
+        objective_winner_index = next(
+            index
+            for index, row in enumerate(ordered, start=1)
+            if _objective_equivalent_rows(row, winner)
+        )
         calls.append(winner_index)
+        objective_calls.append(objective_winner_index)
+        objective_argmax_class_sizes.append(
+            sum(1 for row in batch_rows if _objective_equivalent_rows(row, winner))
+        )
         for k in top_ks:
             if winner_index <= min(k, len(ordered)):
                 hits[k] += 1
+            if objective_winner_index <= min(k, len(ordered)):
+                objective_hits[k] += 1
         top_10 = ordered[:10]
         best_top_10 = max((_objective_score(row) for row in top_10), default=(0, 0))
         winner_score = _objective_score(winner)
@@ -84,11 +98,30 @@ def evaluate_rows(
         "top_5_recall": _ratio(hits[5], batches_with_winner),
         "top_10_recall": _ratio(hits[10], batches_with_winner),
         "top_25_recall": _ratio(hits[25], batches_with_winner),
+        "top_1_objective_recall": _ratio(objective_hits[1], batches_with_winner),
+        "top_5_objective_recall": _ratio(objective_hits[5], batches_with_winner),
+        "top_10_objective_recall": _ratio(objective_hits[10], batches_with_winner),
+        "top_25_objective_recall": _ratio(objective_hits[25], batches_with_winner),
         "mean_verifier_calls": mean(calls) if calls else 0,
         "p95_verifier_calls": _percentile(calls, 0.95),
         "p99_verifier_calls": _percentile(calls, 0.99),
+        "mean_verifier_calls_to_objective_winner": mean(objective_calls) if objective_calls else 0,
+        "p95_verifier_calls_to_objective_winner": _percentile(objective_calls, 0.95),
+        "p99_verifier_calls_to_objective_winner": _percentile(objective_calls, 0.99),
+        "objective_tie_batch_count": sum(
+            1 for value in objective_argmax_class_sizes if value > 1
+        ),
+        "objective_tie_batch_rate": _ratio(
+            sum(1 for value in objective_argmax_class_sizes if value > 1),
+            batches_with_winner,
+        ),
+        "objective_argmax_class_size_mean": mean(objective_argmax_class_sizes)
+        if objective_argmax_class_sizes
+        else 0,
         "mean_regret_before_top_10_fallback": mean(regrets_top_10) if regrets_top_10 else 0,
         "false_exclusion_rate_top_10": 1.0 - _ratio(hits[10], batches_with_winner),
+        "false_exclusion_rate_objective_top_10": 1.0
+        - _ratio(objective_hits[10], batches_with_winner),
         "invalid_accept_count": invalid_accept_count,
     }
 
@@ -144,6 +177,12 @@ def _objective_score(row: dict[str, Any]) -> tuple[int, int]:
     if not label["valid"]:
         return (0, 0)
     return (int(label["objective_volume"]), int(label["objective_surplus"]))
+
+
+def _objective_equivalent_rows(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return bool(left["label"]["valid"]) and bool(right["label"]["valid"]) and (
+        _objective_score(left) == _objective_score(right)
+    )
 
 
 def _feature_values(row: dict[str, Any], *, feature_block: str) -> list[float]:

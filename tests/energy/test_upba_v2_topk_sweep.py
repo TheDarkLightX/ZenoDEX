@@ -22,8 +22,16 @@ def test_topk_sweep_reports_checked_stop_and_permutation_metrics() -> None:
         assert mode_report["batches"] > 0
         assert mode_report["permutation_violation_count"] == 0
         assert mode_report["checked_stop_at_winner_rate"] == 1.0
+        assert mode_report["checked_stop_at_objective_winner_rate"] == 1.0
+        assert mode_report["mean_objective_winner_position"] <= mode_report["mean_winner_position"]
+        assert mode_report["objective_argmax_class_size_mean"] >= 1
         for k in ("1", "5", "10"):
             metrics = mode_report["top_k"][k]
             assert 0.0 <= metrics["top_k_recall"] <= 1.0
+            assert metrics["objective_top_k_recall"] >= metrics["top_k_recall"]
             assert 0.0 <= metrics["checked_stop_top_k_rate"] <= 1.0
             assert metrics["false_exclusion_rate"] == 1.0 - metrics["top_k_recall"]
+            assert (
+                metrics["objective_false_exclusion_rate"]
+                == 1.0 - metrics["objective_top_k_recall"]
+            )

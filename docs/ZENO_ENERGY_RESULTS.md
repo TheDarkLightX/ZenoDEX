@@ -536,14 +536,22 @@ permutation violations in the fallback audit and top-k sweep.
 
 ```text
 fallback audit learned top_10_recall: 1.0
+fallback audit learned top_10_objective_recall: 1.0
+fallback audit learned mean_calls_to_objective_winner: 1.01
 fallback audit learned checked_stop_top_k_rate: 1.0
 fallback audit learned permutation_violation_count: 0
 top-k sweep learned k=2 checked_stop_top_k_rate: 1.0
 top-k sweep learned k=2 false_exclusion_rate: 0.0
+top-k sweep learned k=2 objective_false_exclusion_rate: 0.0
+top-k sweep learned mean_objective_winner_position: 1.0166414523449319
+top-k sweep objective_tie_batch_count: 1
 ```
 
 These are finite-candidate-family results. Online early stop still requires a
 deterministic suffix-bound certificate or full fallback.
+The objective-equivalent metrics apply the formal tied-maxima boundary to the
+runtime receipts without changing the exact verifier winner or validity
+predicate.
 
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
@@ -554,7 +562,7 @@ shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
 and PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 95 passing checks and 0 failed checks.
+The current receipt reports 98 passing checks and 0 failed checks.
 
 ## Accuracy
 

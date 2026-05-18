@@ -5,6 +5,7 @@ from random import Random
 from src.energy.upba_v2_energy_model import initial_hand_weight_model
 from src.energy.upba_v2_ranker import advisory_candidate_hash, search_best_with_deterministic_fallback
 from tools.benchmark_upba_energy_search import benchmark_modes
+from tools.evaluate_upba_energy import evaluate_rows
 from tools.generate_upba_energy_dataset import generate_dataset_rows, generate_synthetic_batch
 
 
@@ -25,6 +26,9 @@ def test_learned_mode_falls_back_when_model_missing() -> None:
     assert report["modes"]["hybrid"]["permutation_violation_count"] == 0  # type: ignore[index]
     assert report["modes"]["learned"]["checked_stop_at_winner_count"] == 2  # type: ignore[index]
     assert report["modes"]["hybrid"]["checked_stop_at_winner_count"] == 2  # type: ignore[index]
+    learned = report["modes"]["learned"]  # type: ignore[index]
+    assert learned["top_1_objective_recall"] >= learned["top_1_recall"]
+    assert report["modes"]["hybrid"]["objective_argmax_class_size_mean"] >= 1  # type: ignore[index]
 
 
 def test_hybrid_mode_is_order_only_and_reports_no_invalid_accepts() -> None:
@@ -41,6 +45,9 @@ def test_hybrid_mode_is_order_only_and_reports_no_invalid_accepts() -> None:
     assert report["modes"]["hybrid"]["fallback_recovered_count"] == 2  # type: ignore[index]
     assert report["modes"]["hybrid"]["permutation_violation_count"] == 0  # type: ignore[index]
     assert report["modes"]["hybrid"]["checked_stop_at_winner_count"] == 2  # type: ignore[index]
+    hybrid = report["modes"]["hybrid"]  # type: ignore[index]
+    assert hybrid["top_10_objective_recall"] == 1.0
+    assert hybrid["mean_verifier_calls_to_objective_winner"] <= hybrid["mean_verifier_calls"]
 
 
 def test_candidate_order_only_changes_order_not_best_result() -> None:
@@ -71,3 +78,16 @@ def test_training_rows_are_marked_synthetic_only() -> None:
 
     assert rows
     assert {row["source"] for row in rows} == {"synthetic"}
+
+
+def test_dataset_evaluation_reports_objective_equivalence_metrics() -> None:
+    rows = list(generate_dataset_rows(batches=2, candidates_per_batch=8, seed=405))
+    report = evaluate_rows(rows, scorer=None, mode="hand", seed=405)
+
+    assert report["top_1_objective_recall"] >= report["top_1_recall"]
+    assert report["top_10_objective_recall"] >= report["top_10_recall"]
+    assert report["objective_argmax_class_size_mean"] >= 1
+    assert (
+        report["mean_verifier_calls_to_objective_winner"]
+        <= report["mean_verifier_calls"]
+    )

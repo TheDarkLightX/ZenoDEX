@@ -122,6 +122,45 @@ def deterministic_best_verified_candidate(
     return max(accepted, key=lambda result: (result.volume, result.surplus, result.certificate_hash))
 
 
+def objective_equivalent_verified_results(
+    left: VerifiedCandidateResult,
+    right: VerifiedCandidateResult,
+) -> bool:
+    """Return whether two verified candidates occupy the same objective class."""
+
+    return (
+        left.ok
+        and right.ok
+        and left.volume == right.volume
+        and left.surplus == right.surplus
+    )
+
+
+def calls_until_objective_equivalent_winner(
+    *,
+    ordered_results: Sequence[VerifiedCandidateResult],
+    winner: VerifiedCandidateResult,
+) -> int:
+    """Count verifier calls until the first candidate equivalent to a benchmark winner."""
+
+    for index, result in enumerate(ordered_results, start=1):
+        if objective_equivalent_verified_results(result, winner):
+            return index
+    return len(ordered_results)
+
+
+def objective_argmax_class_size(
+    *,
+    verified_results: Sequence[VerifiedCandidateResult],
+    winner: VerifiedCandidateResult,
+) -> int:
+    """Count accepted candidates with the same objective as the benchmark winner."""
+
+    return sum(
+        1 for result in verified_results if objective_equivalent_verified_results(result, winner)
+    )
+
+
 def verified_result_cannot_beat(
     winner: VerifiedCandidateResult,
     other: VerifiedCandidateResult,

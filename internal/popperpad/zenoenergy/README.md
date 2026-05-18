@@ -321,6 +321,21 @@ support_edge_ref:           sha256:d0da6b541adedb89d2092126c0ba58f83dbffebfb628e
 checkpoint_ref:             sha256:0ada626d19497a34a5a5b0cfef7c841e7edd32d8838b51d37d7f47ae9e500437
 ```
 
+### Objective-Equivalence Runtime Telemetry
+
+```text
+fallback_blob_ref:          sha256:4939163c0ebbde6360fab8637244e25bd590f3e1477195347543185c42a809be
+topk_blob_ref:              sha256:161df439cfb361aebc323f43e1e59ba7a92a9eae20be6158c275fb9cdbbbd100
+fallback_doc_blob_ref:      sha256:43dc0ffa53418a6ef84c516c39eddbfd66009a31adec572308524bfedb9b96e5
+topk_doc_blob_ref:          sha256:ca1f2278730d80f5e7bb105e1fdcb9163c65397324bece319e7ef795668b6b8d
+context_ref:                sha256:a48d57c7ebb713b0f9f38562bc6178f42fe69547e52769a22263f974032fbf4e
+recipe_ref:                 sha256:0e50e152f6cf4d88a7e82ede4f9868bfeb0a2fba8161f1309531b49abe323493
+hypothesis_ref:             sha256:91d3daa46dbd8514eb63598b52f48fc946a83b929678c476a0f7224535d226f1
+evidence_ref:               sha256:c64701bae39dadcd709606fd94f3f239af44a4ed8f347d9bf16d1af2dd408b46
+support_edge_ref:           sha256:7e7cf817639439ec72d778e140d4a33c1d94cf415fabfa9c4b2dfe35f5febe39
+checkpoint_ref:             sha256:4243f2b7f7fb16890710a6867f4f241978682dd860ac03fd70b6ae06b92b4370
+```
+
 ## Current Status
 
 ```text
@@ -348,6 +363,7 @@ H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518:
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518: supported
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518: supported
+H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported

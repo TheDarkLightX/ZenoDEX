@@ -593,6 +593,15 @@ def _check_fallback_permutation_audit(report: dict[str, Any]) -> list[EvidenceCh
             and float(modes["random"]["checked_stop_top_k_rate"]) < 1.0,
             "checked-stop audit succeeds for learned top-k and remains nontrivial versus random",
         ),
+        _expect_true(
+            "fallback_permutation_audit.objective_equivalence_metrics",
+            float(learned["top_10_objective_recall"]) == 1.0
+            and float(hybrid["top_10_objective_recall"]) == 1.0
+            and float(learned["mean_verifier_calls_to_objective_winner"])
+            <= float(learned["mean_verifier_calls"])
+            and float(learned["objective_argmax_class_size_mean"]) >= 1.0,
+            "fallback audit reports objective-equivalent recall and call position",
+        ),
     ]
 
 
@@ -622,6 +631,16 @@ def _check_topk_sweep(report: dict[str, Any]) -> list[EvidenceCheck]:
             "topk_sweep.checked_stop_at_winner",
             all(float(mode["checked_stop_at_winner_rate"]) == 1.0 for mode in modes.values()),
             "checked-stop certificate holds at the exact winner for every mode",
+        ),
+        _expect_true(
+            "topk_sweep.objective_equivalence_metrics",
+            float(learned["top_k"]["2"]["objective_top_k_recall"]) == 1.0
+            and float(learned["top_k"]["2"]["objective_false_exclusion_rate"]) == 0.0
+            and float(learned["checked_stop_at_objective_winner_rate"]) == 1.0
+            and float(learned["mean_objective_winner_position"])
+            <= float(learned["mean_winner_position"])
+            and float(learned["objective_argmax_class_size_mean"]) >= 1.0,
+            "top-k sweep reports objective-equivalent recall and call position",
         ),
         _expect_true(
             "topk_sweep.random_top10_negative",
@@ -859,6 +878,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518": "supported",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518": "supported",
+        "H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",
@@ -1016,6 +1036,12 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "learned_permutation_violation_count": fallback_audit["modes"]["learned"][
                 "permutation_violation_count"
             ],
+            "learned_top_10_objective_recall": fallback_audit["modes"]["learned"][
+                "top_10_objective_recall"
+            ],
+            "learned_mean_calls_to_objective_winner": fallback_audit["modes"]["learned"][
+                "mean_verifier_calls_to_objective_winner"
+            ],
             "invalid_accept_count": fallback_audit["invalid_accept_count"],
         },
         "topk_sweep": {
@@ -1025,6 +1051,15 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             ],
             "learned_k2_false_exclusion_rate": topk_sweep["modes"]["learned"]["top_k"]["2"][
                 "false_exclusion_rate"
+            ],
+            "learned_k2_objective_false_exclusion_rate": topk_sweep["modes"]["learned"][
+                "top_k"
+            ]["2"]["objective_false_exclusion_rate"],
+            "learned_mean_objective_winner_position": topk_sweep["modes"]["learned"][
+                "mean_objective_winner_position"
+            ],
+            "objective_tie_batch_count": topk_sweep["modes"]["learned"][
+                "objective_tie_batch_count"
             ],
             "random_k10_false_exclusion_rate": topk_sweep["modes"]["random"]["top_k"]["10"][
                 "false_exclusion_rate"

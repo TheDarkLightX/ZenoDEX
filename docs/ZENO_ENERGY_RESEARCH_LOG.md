@@ -573,6 +573,48 @@ unless those proof obligations are supplied. A tied candidate can be treated as
 the same optimum only when deterministic verification accepts it and it has the
 same volume and surplus as the certified representative.
 
+## Objective-Equivalence Runtime Telemetry
+
+Artifacts:
+[ZENO_ENERGY_FALLBACK_PERMUTATION_AUDIT.md](./ZENO_ENERGY_FALLBACK_PERMUTATION_AUDIT.md),
+[ZENO_ENERGY_TOPK_SWEEP.md](./ZENO_ENERGY_TOPK_SWEEP.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_fallback_permutation_audit_200_seed20260518.json`,
+`data/upba_energy/upba_v2_energy_topk_sweep_holdout_seed20260518.json`
+
+The fallback audit and top-k sweep now report exact hash-selected winner
+metrics and objective-equivalent winner metrics. Objective equivalence groups
+verifier-accepted candidates by equal `(volume, surplus)`.
+
+Observed result:
+
+| receipt | metric | value |
+| --- | --- | ---: |
+| fallback audit | learned top-10 objective recall | 1.0 |
+| fallback audit | learned mean calls to objective winner | 1.01 |
+| top-k sweep | learned k=2 objective false exclusion | 0.0 |
+| top-k sweep | learned mean objective winner position | 1.0166414523449319 |
+| top-k sweep | objective tie batch count | 1 |
+
+PopperPad refs:
+
+```text
+fallback_blob_ref:          sha256:4939163c0ebbde6360fab8637244e25bd590f3e1477195347543185c42a809be
+topk_blob_ref:              sha256:161df439cfb361aebc323f43e1e59ba7a92a9eae20be6158c275fb9cdbbbd100
+context_ref:                sha256:a48d57c7ebb713b0f9f38562bc6178f42fe69547e52769a22263f974032fbf4e
+recipe_ref:                 sha256:0e50e152f6cf4d88a7e82ede4f9868bfeb0a2fba8161f1309531b49abe323493
+hypothesis_ref:             sha256:91d3daa46dbd8514eb63598b52f48fc946a83b929678c476a0f7224535d226f1
+evidence_ref:               sha256:c64701bae39dadcd709606fd94f3f239af44a4ed8f347d9bf16d1af2dd408b46
+support_edge_ref:           sha256:7e7cf817639439ec72d778e140d4a33c1d94cf415fabfa9c4b2dfe35f5febe39
+checkpoint_ref:             sha256:4243f2b7f7fb16890710a6867f4f241978682dd860ac03fd70b6ae06b92b4370
+```
+
+Research consequence: the UPBA receipts now match the Lean quotient boundary
+and the AutoTrader shadow bridge metrics. The scorer still ranks candidates
+only; deterministic verification supplies acceptance, and exact hash-selected
+winner metrics remain visible for replay.
+
 ## SOTA Decision Map
 
 Artifact:
@@ -942,6 +984,7 @@ H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518:
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518: supported
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518: supported
+H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported

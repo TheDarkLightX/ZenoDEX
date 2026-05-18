@@ -21,11 +21,14 @@ from src.energy.upba_v2_energy_model import load_linear_model
 from src.energy.upba_v2_features import extract_upba_v2_feature_record
 from src.energy.upba_v2_hand_energy import hard_barrier_energy_from_record, hand_energy_from_record
 from src.energy.upba_v2_ranker import (
+    VerifiedCandidateResult,
     advisory_candidate_hash,
+    calls_until_objective_equivalent_winner,
     calls_until_winner,
     candidate_hash_multiset,
     candidate_orders_are_hash_permutation,
     deterministic_best_verified_candidate,
+    objective_argmax_class_size,
     scorer_from_linear_model,
     verified_checked_stop_certificate_holds,
     verify_candidates_in_order,
@@ -171,7 +174,7 @@ def benchmark_modes(
                 ordered_candidates=ordered_candidates,
                 original_candidates=candidates,
                 original_hash_multiset=original_hash_multiset,
-                winner_hash=winner.certificate_hash,
+                winner=winner,
                 exhaustive_count=len(candidates),
                 top_k=top_k,
                 force_exhaustive_calls=mode == "exhaustive",
@@ -199,7 +202,7 @@ def _record_mode(
     ordered_candidates: list[UniformBatchCertificateV1],
     original_candidates: list[UniformBatchCertificateV1],
     original_hash_multiset: tuple[str, ...],
-    winner_hash: str,
+    winner: VerifiedCandidateResult,
     exhaustive_count: int,
     top_k: int,
     force_exhaustive_calls: bool,
@@ -210,7 +213,12 @@ def _record_mode(
         balances=balances,  # type: ignore[arg-type]
         candidates=ordered_candidates,
     )
+    winner_hash = winner.certificate_hash
     winner_position = calls_until_winner(ordered_results=results, winner_hash=winner_hash)
+    objective_position = calls_until_objective_equivalent_winner(
+        ordered_results=results,
+        winner=winner,
+    )
     calls = exhaustive_count if force_exhaustive_calls else winner_position
     top_k_clamped = max(0, min(top_k, len(results)))
     top_k_checked = results[:top_k_clamped]
@@ -225,6 +233,17 @@ def _record_mode(
     stats["top_5"].append(1 if calls <= 5 else 0)
     stats["top_10"].append(1 if calls <= 10 else 0)
     stats["top_25"].append(1 if calls <= 25 else 0)
+    stats["objective_calls"].append(objective_position)
+    stats["objective_top_1"].append(1 if objective_position <= 1 else 0)
+    stats["objective_top_5"].append(1 if objective_position <= 5 else 0)
+    stats["objective_top_10"].append(1 if objective_position <= 10 else 0)
+    stats["objective_top_25"].append(1 if objective_position <= 25 else 0)
+    stats["objective_argmax_class_size"].append(
+        objective_argmax_class_size(
+            verified_results=results,
+            winner=winner,
+        )
+    )
     stats["fallback_recovered"].append(1 if calls <= top_k or calls <= exhaustive_count else 0)
     stats["saved"].append(max(0, exhaustive_count - calls))
     stats["checked_stop_top_k"].append(
@@ -264,6 +283,12 @@ def _empty_stats() -> dict[str, list[int]]:
         "top_5": [],
         "top_10": [],
         "top_25": [],
+        "objective_calls": [],
+        "objective_top_1": [],
+        "objective_top_5": [],
+        "objective_top_10": [],
+        "objective_top_25": [],
+        "objective_argmax_class_size": [],
         "fallback_recovered": [],
         "saved": [],
         "checked_stop_top_k": [],
@@ -282,9 +307,27 @@ def _finalize_stats(stats: dict[str, list[int]]) -> dict[str, float | int]:
         "top_5_recall": _mean01(stats["top_5"]),
         "top_10_recall": _mean01(stats["top_10"]),
         "top_25_recall": _mean01(stats["top_25"]),
+        "top_1_objective_recall": _mean01(stats["objective_top_1"]),
+        "top_5_objective_recall": _mean01(stats["objective_top_5"]),
+        "top_10_objective_recall": _mean01(stats["objective_top_10"]),
+        "top_25_objective_recall": _mean01(stats["objective_top_25"]),
         "mean_verifier_calls": mean(calls) if calls else 0,
         "p95_verifier_calls": _percentile(calls, 0.95),
         "p99_verifier_calls": _percentile(calls, 0.99),
+        "mean_verifier_calls_to_objective_winner": mean(stats["objective_calls"])
+        if stats["objective_calls"]
+        else 0,
+        "p95_verifier_calls_to_objective_winner": _percentile(stats["objective_calls"], 0.95),
+        "p99_verifier_calls_to_objective_winner": _percentile(stats["objective_calls"], 0.99),
+        "objective_tie_batch_count": sum(
+            1 for value in stats["objective_argmax_class_size"] if value > 1
+        ),
+        "objective_tie_batch_rate": _mean01(
+            [1 if value > 1 else 0 for value in stats["objective_argmax_class_size"]]
+        ),
+        "objective_argmax_class_size_mean": mean(stats["objective_argmax_class_size"])
+        if stats["objective_argmax_class_size"]
+        else 0,
         "mean_verifier_calls_saved": mean(stats["saved"]) if stats["saved"] else 0,
         "invalid_accept_count": 0,
         "fallback_recovered_count": sum(stats["fallback_recovered"]),
@@ -329,7 +372,7 @@ def _markdown_report(report: dict[str, object]) -> str:
         f"wall_clock_ms: {_fmt(report['wall_clock_ms'])}",
         "```",
         "",
-        "| mode | batches | top1 | top5 | top10 | stop_top_k | stop_at_winner | mean_calls | p95 | p99 | invalid_accepts | perm_violations |",
+        "| mode | batches | top1 | obj_top1 | top10 | stop_top_k | stop_at_winner | mean_calls | obj_calls | p99 | invalid_accepts | perm_violations |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for mode, stats in modes.items():
@@ -341,12 +384,12 @@ def _markdown_report(report: dict[str, object]) -> str:
                     str(mode),
                     str(stats["batches"]),
                     _fmt(stats["top_1_recall"]),
-                    _fmt(stats["top_5_recall"]),
+                    _fmt(stats["top_1_objective_recall"]),
                     _fmt(stats["top_10_recall"]),
                     _fmt(stats["checked_stop_top_k_rate"]),
                     _fmt(stats["checked_stop_at_winner_rate"]),
                     _fmt(stats["mean_verifier_calls"]),
-                    str(stats["p95_verifier_calls"]),
+                    _fmt(stats["mean_verifier_calls_to_objective_winner"]),
                     str(stats["p99_verifier_calls"]),
                     str(stats["invalid_accept_count"]),
                     str(stats["permutation_violation_count"]),
@@ -357,6 +400,7 @@ def _markdown_report(report: dict[str, object]) -> str:
     lines.append("")
     lines.append("`perm_violations = 0` is the runtime evidence for the full-fallback permutation premise.")
     lines.append("`stop_top_k` is an offline checked-stop audit after the suffix has also been verified.")
+    lines.append("`obj_top1` and `obj_calls` treat tied valid volume/surplus maxima as one objective class.")
     return "\n".join(lines) + "\n"
 
 
