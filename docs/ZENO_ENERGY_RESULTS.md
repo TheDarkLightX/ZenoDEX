@@ -201,6 +201,21 @@ position 1.021, p99 winner position at most 2, and 0 invalid accepts. This
 made the objective-tuned model a useful baseline for valid-vs-valid ordering
 experiments.
 
+Replay-gated interpretation:
+
+```text
+supported:
+  objective-tuned safety and hand-baseline improvement
+
+falsified:
+  objective-tuned strictly beats gap-weighted default
+```
+
+The objective-tuned checkpoint improves over hand energy, but the gap-weighted
+checkpoint remains the measured default. Gap-weighted has lower cross-seed mean
+verifier calls (`1.0175` vs `1.0193`) and one fewer medium hard-case top-5 miss
+(`0` vs `1`) in the committed receipts.
+
 ## Gap-Weighted Variant
 
 The gap-weighted model keeps the same 96-feature schema and 97-parameter linear
@@ -483,11 +498,11 @@ The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
-synthetic candidate coverage, cross-seed stress, formal-boundary receipts,
-fallback/top-k receipts, and PopperPad status ledger. It also checks the SOTA
-decision-map receipt:
+objective-tuned, synthetic candidate coverage, cross-seed stress,
+formal-boundary receipts, fallback/top-k receipts, and PopperPad status ledger.
+It also checks the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 82 passing checks and 0 failed checks.
+The current receipt reports 89 passing checks and 0 failed checks.
 
 ## Accuracy
 

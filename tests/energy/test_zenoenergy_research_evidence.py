@@ -19,7 +19,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 81
+    assert report["passed_count"] == report["check_count"] == 88
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -32,6 +32,10 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "gap_weighted_default.cross_seed_beats_hand",
         "gap_weighted_default.hard_case_recall",
         "gap_weighted_default.model_audit_boundary",
+        "objective_tuned.cross_seed_safety",
+        "objective_tuned.beats_hand",
+        "objective_tuned.hard_case_top10",
+        "objective_tuned.negative_vs_gap_weighted",
         "synthetic_candidate_coverage.synthetic_only",
         "synthetic_candidate_coverage.candidate_types",
         "synthetic_candidate_coverage.bounded_rows",
@@ -60,6 +64,8 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518",
         "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518",
         "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518",
+        "popperpad.status.H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518",
+        "popperpad.status.H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518",
         "popperpad.status.H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518",
     }.issubset(check_ids)
 

@@ -95,6 +95,50 @@ for future ranker and repair-selector experiments. Record a stronger model only
 if it beats this baseline under the same replay gate and preserves zero invalid
 accepts.
 
+## Objective-Tuned Linear Checkpoint
+
+Artifacts:
+[ZENO_ENERGY_OBJECTIVE_TUNED_STRESS.md](./ZENO_ENERGY_OBJECTIVE_TUNED_STRESS.md),
+[ZENO_ENERGY_OBJECTIVE_TUNED_HARD_CASES.md](./ZENO_ENERGY_OBJECTIVE_TUNED_HARD_CASES.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_objective_tuned_cross_seed_stress_250x3x3.json`,
+`data/upba_energy/upba_v2_energy_objective_tuned_hard_cases_500x3x3.json`
+
+Observed cross-seed aggregate:
+
+| model | configs | top1 mean | top10 min | mean verifier calls | p99 max | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hand energy | 9 | 0.7819 | 1.0000 | 1.3261 | 5 | 0 |
+| objective-tuned learned | 9 | 0.9820 | 1.0000 | 1.0193 | 2 | 0 |
+| gap-weighted learned | 9 | 0.9825 | 1.0000 | 1.0175 | 2 | 0 |
+
+Observed hard-case aggregate:
+
+| model | top1 | top5 | top10 | top5 misses | top10 misses | max p99 winner position |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| objective-tuned learned | 0.9843 | 0.9998 | 1.0000 | 1 | 0 | 2 |
+| gap-weighted learned | 0.9854 | 1.0000 | 1.0000 | 0 | 0 | 2 |
+
+Positive knowledge:
+
+```text
+The objective-tuned scorer is safe in the replayed bounded artifacts and beats
+hand energy on cross-seed mean verifier calls and top-1 recall.
+```
+
+Negative knowledge:
+
+```text
+Objective-tuned does not strictly beat the gap-weighted default. Gap-weighted
+has lower mean verifier calls and one fewer hard-case top-5 miss in the
+committed receipts.
+```
+
+Research consequence: keep objective-tuned as a useful ablation and training
+baseline, with gap-weighted remaining the measured default for follow-on
+experiments.
+
 ## Synthetic Candidate Coverage
 
 Artifact:
@@ -544,22 +588,24 @@ python3 tools/check_zenoenergy_research_evidence.py \
   --output-markdown docs/ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md
 ```
 
-Observed result after adding direct synthetic candidate coverage checks:
+Observed result after adding direct objective-tuned checks:
 
 | checks | passed | failed |
 | ---: | ---: | ---: |
-| 82 | 82 | 0 |
+| 89 | 89 | 0 |
 
 The gate checks that the committed set-aware, neighborhood, repair-selector,
 listwise set-ranker, listwise cross-seed, gap-weighted default, synthetic
-candidate coverage, cross-seed, formal-boundary, fallback/top-k, SOTA
+candidate coverage, objective-tuned, cross-seed, formal-boundary, fallback/top-k, SOTA
 decision-map, and PopperPad doctor evidence still support the current research
 story. It also preserves negative knowledge: set-aware linear features have no
 measured win over the aggregate ranker, the listwise set-context ranker has no
 measured mean-call win, the listwise cross-seed run does not strictly improve
 over the best pairwise baseline, deterministic neighborhood expansion reduces
 regret while increasing verifier work, and the learned repair selector has not
-consistently beaten the hand-selected two-proposal subset.
+consistently beaten the hand-selected two-proposal subset. It now also records
+that objective-tuned improves over hand energy while failing to strictly beat
+the gap-weighted default.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the

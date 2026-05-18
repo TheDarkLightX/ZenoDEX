@@ -91,18 +91,35 @@ def replay_zenoenergy_evidence(
     gap_weighted_model_audit = _load_json(
         root / "data/upba_energy/upba_v2_energy_gap_weighted_model_audit.json"
     )
+    objective_tuned_stress = _load_json(
+        root
+        / "data/upba_energy/upba_v2_energy_objective_tuned_cross_seed_stress_250x3x3.json"
+    )
+    objective_tuned_hard_cases = _load_json(
+        root / "data/upba_energy/upba_v2_energy_objective_tuned_hard_cases_500x3x3.json"
+    )
     synthetic_coverage = _load_json(
         root / "data/upba_energy/upba_v2_energy_synthetic_candidate_coverage_seed20260540.json"
     )
     payloads["gap_weighted_stress"] = gap_weighted_stress
     payloads["gap_weighted_hard_cases"] = gap_weighted_hard_cases
     payloads["gap_weighted_model_audit"] = gap_weighted_model_audit
+    payloads["objective_tuned_stress"] = objective_tuned_stress
+    payloads["objective_tuned_hard_cases"] = objective_tuned_hard_cases
     payloads["synthetic_candidate_coverage"] = synthetic_coverage
     checks.extend(
         _check_gap_weighted_default(
             gap_weighted_stress,
             gap_weighted_hard_cases,
             gap_weighted_model_audit,
+        )
+    )
+    checks.extend(
+        _check_objective_tuned_evidence(
+            objective_tuned_stress,
+            objective_tuned_hard_cases,
+            gap_weighted_stress,
+            gap_weighted_hard_cases,
         )
     )
     checks.extend(_check_synthetic_candidate_coverage(synthetic_coverage))
@@ -337,6 +354,63 @@ def _check_gap_weighted_default(
             and int(model_audit["reserved_nonzero_count"]) == 0
             and float(model_audit["reserved_weight_abs_sum"]) == 0.0,
             "model audit keeps the tiny linear scorer away from forbidden and reserved features",
+        ),
+    ]
+
+
+def _check_objective_tuned_evidence(
+    stress: dict[str, Any],
+    hard_cases: dict[str, Any],
+    gap_weighted_stress: dict[str, Any],
+    gap_weighted_hard_cases: dict[str, Any],
+) -> list[EvidenceCheck]:
+    learned = stress["summary"]["learned"]
+    hand = stress["summary"]["hand"]
+    hard_summary = hard_cases["summary"]
+    gap_learned = gap_weighted_stress["summary"]["learned"]
+    gap_hard_summary = gap_weighted_hard_cases["summary"]
+    return [
+        _expect_true(
+            "objective_tuned.schemas",
+            stress.get("schema") == "zenodex/energy/upba_v2_cross_seed_stress/v1"
+            and hard_cases.get("schema") == "zenodex/energy/upba_v2_hard_case_mining/v1"
+            and stress.get("model")
+            == "data/upba_energy/upba_v2_energy_linear_objective_tuned_seed20260517.json"
+            and hard_cases.get("model")
+            == "data/upba_energy/upba_v2_energy_linear_objective_tuned_seed20260517.json",
+            "objective-tuned stress and hard-case schemas identify the expected checkpoint",
+        ),
+        _expect_true(
+            "objective_tuned.cross_seed_safety",
+            int(learned["invalid_accept_count_total"]) == 0
+            and float(learned["top_10_recall_min"]) == 1.0
+            and float(learned["top_5_recall_min"]) == 1.0
+            and float(learned["p99_verifier_calls_max"]) <= 2.0
+            and float(learned["mean_verifier_calls_max"]) <= 1.05,
+            "objective-tuned scorer has zero invalid accepts, complete top-10 recall, and low p99 calls",
+        ),
+        _expect_true(
+            "objective_tuned.beats_hand",
+            float(learned["mean_verifier_calls_mean"]) < float(hand["mean_verifier_calls_mean"])
+            and float(learned["top_1_recall_mean"]) > float(hand["top_1_recall_mean"])
+            and float(learned["top_5_recall_min"]) >= float(hand["top_5_recall_min"]),
+            "objective-tuned scorer improves mean calls and top-1 recall over hand energy",
+        ),
+        _expect_true(
+            "objective_tuned.hard_case_top10",
+            int(hard_summary["top10_miss_count"]) == 0
+            and float(hard_summary["top_10_recall"]) == 1.0
+            and float(hard_summary["max_p99_winner_position"]) <= 2.0
+            and float(hard_summary["top_5_recall"]) >= 0.999,
+            "objective-tuned hard-case mining keeps all winners in top 10 with p99 at most 2",
+        ),
+        _expect_true(
+            "objective_tuned.negative_vs_gap_weighted",
+            float(learned["mean_verifier_calls_mean"])
+            >= float(gap_learned["mean_verifier_calls_mean"])
+            and int(hard_summary["top5_miss_count"])
+            > int(gap_hard_summary["top5_miss_count"]),
+            "objective-tuned does not strictly beat the gap-weighted default",
         ),
     ]
 
@@ -779,6 +853,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518": "supported",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518": "supported",
+        "H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518": "supported",
+        "H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518": "falsified",
         "H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518": "supported",
     }
     checks = []
@@ -850,6 +926,8 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     gap_weighted_stress = payloads["gap_weighted_stress"]
     gap_weighted_hard_cases = payloads["gap_weighted_hard_cases"]
     gap_weighted_audit = payloads["gap_weighted_model_audit"]
+    objective_tuned_stress = payloads["objective_tuned_stress"]
+    objective_tuned_hard_cases = payloads["objective_tuned_hard_cases"]
     synthetic_coverage = payloads["synthetic_candidate_coverage"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
@@ -918,6 +996,30 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             ],
             "model_parameter_count": gap_weighted_audit["parameter_count"],
             "model_reserved_nonzero_count": gap_weighted_audit["reserved_nonzero_count"],
+        },
+        "objective_tuned": {
+            "cross_seed_configs": objective_tuned_stress["summary"]["learned"][
+                "configs"
+            ],
+            "learned_mean_verifier_calls": objective_tuned_stress["summary"][
+                "learned"
+            ]["mean_verifier_calls_mean"],
+            "hand_mean_verifier_calls": objective_tuned_stress["summary"]["hand"][
+                "mean_verifier_calls_mean"
+            ],
+            "learned_top_10_recall_min": objective_tuned_stress["summary"][
+                "learned"
+            ]["top_10_recall_min"],
+            "learned_invalid_accept_count_total": objective_tuned_stress["summary"][
+                "learned"
+            ]["invalid_accept_count_total"],
+            "hard_case_top_10_recall": objective_tuned_hard_cases["summary"][
+                "top_10_recall"
+            ],
+            "hard_case_top5_miss_count": objective_tuned_hard_cases["summary"][
+                "top5_miss_count"
+            ],
+            "negative_knowledge": "Objective-tuned improves over hand energy but does not strictly beat the gap-weighted default.",
         },
         "synthetic_candidate_coverage": {
             "batches": synthetic_coverage["batches"],

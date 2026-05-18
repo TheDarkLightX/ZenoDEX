@@ -185,6 +185,31 @@ beats_hand_support_edge_ref: sha256:70bd65bfe8aff7cd2f532c05a5e3005525e5ac00917b
 checkpoint_ref:             sha256:6aed84ddf6214db69fd7e61c12614ee96379004dbd7074e9ba78de6d14cb6e27
 ```
 
+### Objective-Tuned Linear Checkpoint
+
+```text
+stress_blob_ref:            sha256:13769bdbee6069201d8637ebf2dcde712b815dc215bba3edf9e374c3e3b862b7
+hard_cases_blob_ref:        sha256:f44f33473da5494afc4f7db515852c8653ac1be7b1271e179ce016d79ca41a16
+model_blob_ref:             sha256:c562b28fda6864adf22a5f7be8f089fd06fb953c58a9d7322f296928eec262ad
+stress_markdown_blob_ref:   sha256:4421181c64a19421f076a1b43ef91df1a7283fd730917141bd4a602c5d32d794
+hard_markdown_blob_ref:     sha256:dc75100da445821fba7ee6e5d3a24b43b02735310646262b0bf477158721b4dd
+context_ref:                sha256:57c2420931ddb686fad71afaf5a7a0ba7b5ed9ea598e4304cba6e05b945b4f4e
+stress_artifact_ref:        sha256:9b70d26eb6785962b01e7ba4dd636f555d4797369a1282186648c65b19d2e1e5
+hard_cases_artifact_ref:    sha256:0cbc7c9bd8a53cfea362978906bd3d47fa9d002847db97b6218ee081d995c168
+model_artifact_ref:         sha256:8e340a78055a1c7826fddce99dce1bab8c26e75265889c56c42ab631a6976d10
+stress_markdown_artifact_ref: sha256:1075dd833b53fe36f92391c503e9a31e5ae762341ca440da5751519da9eaa3f8
+hard_markdown_artifact_ref: sha256:eb7fe4732f3828f1a4c5569a297d4c32fa65b890024ff42e2e1ec32b2150c4b9
+safety_recipe_ref:          sha256:260238267fa202f05c6c44af0e5795d6da3df5d53846cfec4b615e37a7f89928
+strict_improvement_refuter_ref: sha256:750c4ba3644603e68bb160d42e7590a2bc7c064ddb77e523c3466a72b0bdec42
+safety_hypothesis_ref:      sha256:eff54f4f04bc7dccfa7a4f217a67fb7f68bc8e852bd89ea8846b1efd62908b22
+strict_improvement_hypothesis_ref: sha256:32b493903787fe8cf54b60fe514625ecb29ac09c2bf77a7bac06c42efaf135b3
+safety_evidence_ref:        sha256:f277a93069d6137923d53224c90f3b9031411eed791acf53213496c6abf2c409
+safety_support_edge_ref:    sha256:0c770289bb5ff0081415220c8e975e77d64c6c61a4143a7e038e2667e54be840
+strict_improvement_evidence_ref: sha256:ba0c404bffe77ca7fe90734b0ccff4d9540343f4fb6e58dde31ab3bbb15668b6
+strict_improvement_refute_edge_ref: sha256:df8399713e6345337ca9b67529403a48190fc5e05fd99a8959e4efce55a40c04
+checkpoint_ref:             sha256:093b2d9e44123ca2811d940bad5ac30055d05f9bfd242a9e5bbc21d6165110db
+```
+
 ### Synthetic Candidate Coverage
 
 ```text
@@ -277,6 +302,21 @@ support_edge_ref:           sha256:dd1e640f39e8a734a3dcebd872e6ac7b24c7ba6666e7b
 checkpoint_ref:             sha256:fc4f959626c99f3e0ca7d5c0f811112fbc934e421d1b8361531e1490525e810f
 ```
 
+### Research Evidence Replay Gate V8
+
+```text
+json_blob_ref:              sha256:1833b87c8179eaf93bf8dea5aa9a8081e69575ce2626c67ef54dc103eaeb91b0
+markdown_blob_ref:          sha256:52efbff26c23b3959bfad833b88c292baa94a60122dd3b2cb4fb21a91fd888f6
+context_ref:                sha256:39865abd30f648319cb40744ee56c06eaabd04a04dabcd8afc9a01161e154d45
+json_artifact_ref:          sha256:399435531814928e173b5b59ba28f1ea9969cdf3fed6cac294d4d5288928ae51
+markdown_artifact_ref:      sha256:e136a1f6fabf7f7e66ee91e832236c987537ba4f43299c241c461b850a532e3f
+recipe_ref:                 sha256:ec07fa98a16368371185584bfa2a5afadb138ca94f3e79251bb6b60863d6ecef
+hypothesis_ref:             sha256:ed64a04c538d4de0d0f819d9dd13c04b4f67a0613e19a8082b01c36aba5f598c
+evidence_ref:               sha256:ad697aa468c80a10e145908a46e6bb15bc8ce2613ad09ff5547e116d0cdb586b
+support_edge_ref:           sha256:85c69df3ac0d060f2f2fb650a829e8bb4f304a66e2a485e05b1ef49eadba7ea8
+checkpoint_ref:             sha256:8539d3be9a3a15bb557f63aa868ddf2b96632e7d7701c6982e00cd25ce15671b
+```
+
 ## Current Status
 
 ```text
@@ -303,11 +343,14 @@ H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518: supported
 H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518: supported
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518: supported
+H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518: supported
+H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518: falsified
 H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V7: supported
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V8: supported
 doctor_ok: true
 ```
 

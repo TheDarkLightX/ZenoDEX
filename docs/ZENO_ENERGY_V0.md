@@ -149,7 +149,7 @@ valid-looking candidates.
 The current research artifacts include three linear checkpoints:
 
 - `data/upba_energy/upba_v2_energy_linear_seed20260517.json`: first hard-negative run.
-- `data/upba_energy/upba_v2_energy_linear_objective_tuned_seed20260517.json`: longer training run with better held-out mean winner position and top-5 recall.
+- `data/upba_energy/upba_v2_energy_linear_objective_tuned_seed20260517.json`: longer training run with replay-gated safety and hand-baseline improvement, but no strict win over gap-weighted.
 - `data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json`: current preferred research checkpoint, with winner-pair and objective-gap weighting.
 
 Model audit receipt:
