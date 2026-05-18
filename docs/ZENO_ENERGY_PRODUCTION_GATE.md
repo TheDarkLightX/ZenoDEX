@@ -53,3 +53,15 @@ mean verifier calls than hand energy.
 historical-replay or production-shadow coverage, zero invalid accepts,
 authoritative policy guards, no state-root model output, top-25 recall
 above threshold, and lower mean guard calls than hand energy.
+
+## Report Builder
+
+Use `tools/build_zenoenergy_real_replay_report.py` to construct these
+report schemas from replay outputs. The builder validates source
+schemas, records canonical source report hashes, rejects obvious
+fixture or synthetic source descriptors, and requires deterministic
+replay plus no-live-secrets attestations.
+
+The builder is an evidence normalizer. It does not replace replay
+provenance, data-custody checks, secret-scrubbing proof, or the
+production promotion gate.

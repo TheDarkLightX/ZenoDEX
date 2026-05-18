@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 110
-passed_count: 110
+check_count: 115
+passed_count: 115
 failed_count: 0
 ```
 
@@ -71,6 +71,10 @@ failed_count: 0
 | production_promotion_gate.research_replay_clean | pass | clean research replay is necessary but insufficient for promotion |
 | production_promotion_gate.safety_contract | pass | gate preserves verifier/policy authority and fallback boundary |
 | production_promotion_gate.doc_and_source | pass | doc and source record real replay thresholds and ranking-only scope |
+| real_replay_report_builder.schema | pass | expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1' |
+| real_replay_report_builder.targets_and_artifacts | pass | receipt and doc record both production-gate report schemas |
+| real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes plus replay/secret attestations |
+| real_replay_report_builder.safety_boundary | pass | builder preserves verifier/policy authority and records provenance limits |
 | sota_decision_map.schema | pass | expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1' |
 | sota_decision_map.sources_and_boundary | pass | decision map records all required sources and verifier/fallback boundary |
 | sota_decision_map.decisions | pass | all required model-direction decisions are recorded in receipt and doc |
@@ -111,6 +115,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 | pass | H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 | pass | H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
@@ -213,6 +218,18 @@ failed_count: 0
     "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
     "promotion_allowed": false,
     "scope": "advisory_ranking_only"
+  },
+  "real_replay_report_builder": {
+    "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",
+    "negative_knowledge": [
+      "Synthetic and built-in fixture reports remain research evidence.",
+      "A real-report JSON without replay provenance and secret-scrubbing custody is insufficient for production promotion."
+    ],
+    "supported_status": "supported",
+    "target_schemas": [
+      "zenodex/energy/upba_real_replay_report/v1",
+      "zenodex/energy/autotrader_real_shadow_report/v1"
+    ]
   },
   "repair_selector_cross_seed": {
     "compression_pass_count": 3,

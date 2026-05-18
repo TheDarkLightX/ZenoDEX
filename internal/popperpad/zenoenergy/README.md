@@ -366,6 +366,25 @@ support_edge_ref:           sha256:da1517f03024309203259f6d244d42e717fc788034afb
 checkpoint_ref:             sha256:334f430d97ad9fba416e62c0bf65f95433117b3d691cb94fc97320f8d2516164
 ```
 
+### Real Replay Report Builder
+
+```text
+receipt_blob_ref:           sha256:41616f0ae0cfbc8f32e2aa522decd22cdd503fb6b5a39cfc43e6c76c0f29cc2f
+doc_blob_ref:               sha256:3e934acd4433f1ee972d5edd8cdbd3885fdcf9fb34bf51f7aa66bf1704adc2c1
+source_blob_ref:            sha256:87c072b00613bf8bcf8009dc9f0b4fbb81c50e393080f141bec86031a62ddaf5
+test_blob_ref:              sha256:07d8ba5595f3e3fd7a787f727ab94ab09b4f2ff01f0b63b76c72a5bb6c809992
+context_ref:                sha256:9c52178181458407c569f67769aa16e868ac8f346dc274b0280cc8296c96aa94
+receipt_artifact_ref:       sha256:51b2200cc50a92144a8ddf79e1b8dfe92caaba796c9becd9b0159b36eb6920e2
+doc_artifact_ref:           sha256:577d2e416cbf8d32022f964928dc27504ded1ce592c7b02de177a08b05ce9178
+source_artifact_ref:        sha256:11f0ec946d03be5c09be2376be1c3d74bc1b61e29a705bbcffdd7e6a20c97116
+test_artifact_ref:          sha256:5261865ac5b1ecbb5ecfc132efbf54528888c9b7f98a476152b2bbdb145e8e96
+recipe_ref:                 sha256:6d5f8b5b87abaecc2199f0110fe7ce93fd456e86e1cf053c87760b9066985d1b
+hypothesis_ref:             sha256:730f2a4b92fb9a59c0254594ebfc6cdb1ba3a5d23c9f2153d00c45eac2e89a76
+evidence_ref:               sha256:09ab964753dd5ba17b4f883146255dafd14ed59686e035253d0d1577258569b4
+support_edge_ref:           sha256:d99c30ab8a45083dab4de424aaab01a599b57ebbd60c8217ab960f52f3275497
+checkpoint_ref:             sha256:743246583be0e4b954754446087a49b45cc624bf5ea69d29dcb7a02de4168445
+```
+
 ## Current Status
 
 ```text
@@ -396,6 +415,7 @@ H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518: supported
 H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518: supported
+H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported

@@ -1,5 +1,5 @@
 {
-  "check_count": 110,
+  "check_count": 115,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -312,6 +312,26 @@
       "passed": true
     },
     {
+      "check_id": "real_replay_report_builder.schema",
+      "detail": "expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "real_replay_report_builder.targets_and_artifacts",
+      "detail": "receipt and doc record both production-gate report schemas",
+      "passed": true
+    },
+    {
+      "check_id": "real_replay_report_builder.source_hygiene_hooks",
+      "detail": "builder rejects fixture markers and records source hashes plus replay/secret attestations",
+      "passed": true
+    },
+    {
+      "check_id": "real_replay_report_builder.safety_boundary",
+      "detail": "builder preserves verifier/policy authority and records provenance limits",
+      "passed": true
+    },
+    {
       "check_id": "sota_decision_map.schema",
       "detail": "expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1'",
       "passed": true
@@ -512,6 +532,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518",
+      "detail": "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
       "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
       "passed": true
@@ -554,7 +579,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 110,
+  "passed_count": 115,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -646,6 +671,18 @@
       "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
       "promotion_allowed": false,
       "scope": "advisory_ranking_only"
+    },
+    "real_replay_report_builder": {
+      "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",
+      "negative_knowledge": [
+        "Synthetic and built-in fixture reports remain research evidence.",
+        "A real-report JSON without replay provenance and secret-scrubbing custody is insufficient for production promotion."
+      ],
+      "supported_status": "supported",
+      "target_schemas": [
+        "zenodex/energy/upba_real_replay_report/v1",
+        "zenodex/energy/autotrader_real_shadow_report/v1"
+      ]
     },
     "repair_selector_cross_seed": {
       "compression_pass_count": 3,

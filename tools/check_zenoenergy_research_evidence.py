@@ -184,6 +184,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    real_replay_builder = _load_json(
+        root / "data/upba_energy/zenoenergy_real_replay_report_builder_receipt.json"
+    )
+    real_replay_builder_doc = (
+        root / "docs/ZENO_ENERGY_REAL_REPLAY_REPORTS.md"
+    ).read_text(encoding="utf-8")
+    real_replay_builder_source = (
+        root / "tools/build_zenoenergy_real_replay_report.py"
+    ).read_text(encoding="utf-8")
+    real_replay_builder_tests = (
+        root / "tests/energy/test_zenoenergy_real_replay_report.py"
+    ).read_text(encoding="utf-8")
+    payloads["real_replay_report_builder"] = real_replay_builder
+    checks.extend(
+        _check_real_replay_report_builder(
+            real_replay_builder,
+            real_replay_builder_doc,
+            real_replay_builder_source,
+            real_replay_builder_tests,
+        )
+    )
+
     sota_decision_map = _load_json(
         root / "data/upba_energy/upba_v2_sota_decision_map_receipt.json"
     )
@@ -798,6 +820,68 @@ def _check_production_promotion_gate(
     ]
 
 
+def _check_real_replay_report_builder(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    targets = set(str(item) for item in report.get("target_schemas", []))
+    artifacts = set(str(item) for item in report.get("artifacts", []))
+    doc_lower = doc_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_equal(
+            "real_replay_report_builder.schema",
+            report.get("schema"),
+            "zenodex/energy/real_replay_report_builder_receipt/v1",
+        ),
+        _expect_true(
+            "real_replay_report_builder.targets_and_artifacts",
+            {
+                "zenodex/energy/upba_real_replay_report/v1",
+                "zenodex/energy/autotrader_real_shadow_report/v1",
+            }.issubset(targets)
+            and {
+                "tools/build_zenoenergy_real_replay_report.py",
+                "tests/energy/test_zenoenergy_real_replay_report.py",
+                "docs/ZENO_ENERGY_REAL_REPLAY_REPORTS.md",
+            }.issubset(artifacts)
+            and "zenodex/energy/upba_real_replay_report/v1" in doc_text
+            and "zenodex/energy/autotrader_real_shadow_report/v1" in doc_text,
+            "receipt and doc record both production-gate report schemas",
+        ),
+        _expect_true(
+            "real_replay_report_builder.source_hygiene_hooks",
+            "FORBIDDEN_SOURCE_MARKERS" in source_text
+            and "--deterministic-replay-ok" in source_text
+            and "--no-live-secrets" in source_text
+            and "source_reports" in source_text
+            and "_canonical_sha256" in source_text
+            and "rejects obvious fixture or synthetic source descriptors" in doc_lower
+            and "test_builder_rejects_autotrader_builtin_fixture_source" in test_text,
+            "builder rejects fixture markers and records source hashes plus replay/secret attestations",
+        ),
+        _expect_true(
+            "real_replay_report_builder.safety_boundary",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and bool(report["safety"]["performance_thresholds_delegated_to_production_gate"])
+            is True
+            and "cannot independently prove" in limits_lower
+            and "synthetic and built-in fixture reports remain research evidence"
+            in negative_lower,
+            "builder preserves verifier/policy authority and records provenance limits",
+        ),
+    ]
+
+
 def _check_sota_decision_map(
     report: dict[str, Any],
     doc_text: str,
@@ -1029,6 +1113,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518": "supported",
         "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518": "supported",
+        "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",
@@ -1096,6 +1181,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     topk_sweep = payloads["topk_sweep"]
     training_hygiene = payloads["objective_equiv_training_hygiene"]
     production_gate = payloads["production_promotion_gate"]
+    real_replay_builder = payloads["real_replay_report_builder"]
     sota_decision_map = payloads["sota_decision_map"]
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
     autotrader_aggregate = autotrader["aggregate"]
@@ -1231,6 +1317,12 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "blocked_reasons": production_gate["blocked_reasons"],
             "scope": production_gate["scope"],
             "negative_knowledge": production_gate["negative_knowledge"],
+        },
+        "real_replay_report_builder": {
+            "target_schemas": real_replay_builder["target_schemas"],
+            "supported_status": real_replay_builder["supported_status"],
+            "negative_knowledge": real_replay_builder["negative_knowledge"],
+            "claim": real_replay_builder["claim"],
         },
         "sota_decision_map": {
             "source_count": sota_decision_map["source_count"],

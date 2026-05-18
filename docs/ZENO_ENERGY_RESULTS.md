@@ -592,6 +592,12 @@ Artifact:
 Static JSON:
 `data/upba_energy/zenoenergy_production_promotion_gate_receipt.json`
 
+Real-report builder:
+[ZENO_ENERGY_REAL_REPLAY_REPORTS.md](./ZENO_ENERGY_REAL_REPLAY_REPORTS.md)
+
+Builder receipt:
+`data/upba_energy/zenoenergy_real_replay_report_builder_receipt.json`
+
 The production gate currently reports:
 
 ```text
@@ -609,17 +615,23 @@ scorer to production ranking. Promotion requires broad real replay/shadow
 reports with zero invalid accepts, deterministic replay, no live secrets, top-25
 recall above threshold, and lower mean calls than hand energy.
 
+The real-report builder converts replay outputs into the exact schemas consumed
+by the gate, records source report hashes, and rejects obvious fixture or
+synthetic source descriptors. It does not prove source custody by itself, so
+replay provenance and secret-scrubbing evidence remain required.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
 cross-seed stress, AutoTraderEnergy hard cross-seed transfer, AutoTraderEnergy
 shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
-objective-equivalent training hygiene, the production promotion gate, and
-PopperPad status ledger. It also checks
+objective-equivalent training hygiene, the production promotion gate, the real
+replay report builder, and PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 110 passing checks and 0 failed checks.
+The current receipt reports 115 passing checks and 0 failed checks, including
+the PopperPad doctor check.
 
 ## Accuracy
 
