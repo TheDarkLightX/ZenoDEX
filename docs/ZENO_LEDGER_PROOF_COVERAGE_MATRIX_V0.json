@@ -10,19 +10,19 @@
     {
       "id": "risc0_spot_transition_metadata_adapter",
       "claim_id": "py:zeno_ledger:risc0_proof_metadata_adapter_v0",
-      "coverage": "Risc0 spot-transition proof envelope to ZenoLedger proof metadata, including header binding and optional verifier-command acceptance.",
+      "coverage": "Risc0 spot-transition proof envelope to ZenoLedger proof metadata, including header binding, optional verifier-command acceptance, optional proof app-hash to header state-root checks, and metadata binding for ingress, nonce, and accepted-receipt roots.",
       "proof_kind": "risc0_zkvm_v0"
     },
     {
       "id": "risc0_spot_fixture_equivalence",
       "claim_id": "rust_py:zeno_ledger:risc0_zenodex_spot_v1_fixture_equivalence_v0",
-      "coverage": "Rust shared transition and Python spot fixtures agree for CPMM pool-id hashing, create-pool, faucet mint, and swap-exact-in fixture semantics.",
+      "coverage": "Rust shared transition and Python spot fixtures agree for CPMM pool-id hashing, create-pool, faucet mint, swap-exact-in, add-liquidity, and remove-liquidity fixture semantics.",
       "proof_kind": "risc0_zkvm_v0"
     },
     {
       "id": "risc0_supported_transition_real_proof_smoke",
       "claim_id": "rust:zeno_ledger:risc0_supported_transition_real_proof_smoke_v0",
-      "coverage": "Opt-in real Risc0 proof smoke for empty transition plus faucet mint, create-pool, and swap-exact-in supported spot v1 operation families.",
+      "coverage": "Opt-in real Risc0 proof smoke for empty transition plus faucet mint, create-pool, swap-exact-in, add-liquidity, remove-liquidity, and one multi-transaction spot liquidity-cycle block over the supported spot v1 operation families, with guest nonce sequencing, accepted-receipt roots, and emitted ZenoLedger body/header/proof-metadata bindings checked by the archive checker.",
       "proof_kind": "risc0_zkvm_v0"
     },
     {

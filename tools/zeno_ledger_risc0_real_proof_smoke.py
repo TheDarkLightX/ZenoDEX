@@ -19,6 +19,31 @@ import sys
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0  # noqa: E402
+from src.integration.zeno_ledger_v0 import (  # noqa: E402
+    BATCH_CUTOFF_SCHEMA_V0,
+    BODY_SCHEMA_V0,
+    EVIDENCE_KEYS_V0,
+    INGRESS_RECEIPT_SCHEMA_V0,
+    ZERO_ROOT_V0,
+    build_header_v0,
+    canonical_body_root_v0,
+    compute_app_hash_v0,
+    compute_evidence_root_v0,
+    compute_ingress_root_v0,
+    compute_tx_root_v0,
+    hash_v0,
+    proof_metadata_hash_v0,
+    tx_hash_v0,
+    validate_header_body_roots_v0,
+    validate_proof_metadata_header_binding_v0,
+)
+from tools.zeno_ledger_risc0_proof_metadata import build_risc0_proof_metadata_v0  # noqa: E402
+
 
 EMPTY_SNAPSHOT_V1: dict[str, Any] = {
     "version": 1,
@@ -45,7 +70,23 @@ def _snapshot_hash(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical_json_bytes(snapshot)).hexdigest()
 
 
-def _pool_entry(*, reserve0: int, reserve1: int) -> dict[str, Any]:
+def _json_clone(value: Any) -> Any:
+    return json.loads(json.dumps(value, sort_keys=True, separators=(",", ":")))
+
+
+def _root(label: str, value: Any) -> str:
+    return hash_v0("risc0_real_proof_smoke_binding_v0", {"label": label, "value": value})
+
+
+def _with_0x(hex_value: str) -> str:
+    return hex_value if hex_value.startswith("0x") else f"0x{hex_value}"
+
+
+def _strip_0x(hex_value: str) -> str:
+    return hex_value[2:] if hex_value.startswith("0x") else hex_value
+
+
+def _pool_entry(*, reserve0: int, reserve1: int, lp_supply: int = 10_000) -> dict[str, Any]:
     return {
         "pool_id": POOL_ID,
         "asset0": ASSET0,
@@ -53,14 +94,200 @@ def _pool_entry(*, reserve0: int, reserve1: int) -> dict[str, Any]:
         "reserve0": reserve0,
         "reserve1": reserve1,
         "fee_bps": 30,
-        "lp_supply": 10_000,
+        "lp_supply": lp_supply,
         "status": "ACTIVE",
         "created_at": 0,
     }
 
 
 def _empty_snapshot_copy() -> dict[str, Any]:
-    return json.loads(json.dumps(EMPTY_SNAPSHOT_V1))
+    return _json_clone(EMPTY_SNAPSHOT_V1)
+
+
+def _ledger_evidence() -> dict[str, list[Any]]:
+    return {key: [] for key in EVIDENCE_KEYS_V0}
+
+
+def _ingress_receipt(*, chain_id: str, height: int, index: int, tx_hash: str) -> dict[str, Any]:
+    body = {
+        "schema": INGRESS_RECEIPT_SCHEMA_V0,
+        "chain_id": chain_id,
+        "tx_hash": tx_hash,
+        "received_time_ms": 1_778_730_000_000 + height * 100 + index,
+        "received_sequence": height * 10_000 + index,
+        "sequencer_id": "risc0-smoke-sequencer-0",
+        "status": "included",
+        "height": height,
+        "index": index,
+        "reject_code": None,
+    }
+    return {
+        **body,
+        "receipt_hash": hash_v0("risc0_real_proof_smoke_ingress_receipt_v0", body),
+    }
+
+
+def _ledger_body_for_case(*, name: str, case: dict[str, Any], height: int) -> dict[str, Any]:
+    chain_id = "zenodex-risc0-spot-smoke-v0"
+    transactions = _json_clone(case["transactions"])
+    body = {
+        "schema": BODY_SCHEMA_V0,
+        "chain_id": chain_id,
+        "height": height,
+        "ingress": {
+            "batch_cutoff": {
+                "schema": BATCH_CUTOFF_SCHEMA_V0,
+                "chain_id": chain_id,
+                "height": height,
+                "cutoff_time_ms": 1_778_730_000_000 + height * 100,
+                "cutoff_sequence": height * 10_000 + len(transactions),
+                "sequencer_id": "risc0-smoke-sequencer-0",
+                "policy_id": "risc0_spot_smoke_v0",
+                "policy_digest": _root("ingress-policy", name),
+            },
+            "ingress_receipts": [
+                _ingress_receipt(
+                    chain_id=chain_id,
+                    height=height,
+                    index=index,
+                    tx_hash=tx_hash_v0(tx),
+                )
+                for index, tx in enumerate(transactions)
+            ],
+            "forced_inclusion_requests": [],
+            "forced_inclusion_decisions": [],
+        },
+        "transactions": transactions,
+        "settlement_envelopes": [],
+        "evidence": _ledger_evidence(),
+    }
+    return body
+
+
+def _ledger_header_for_case(
+    *,
+    name: str,
+    body: dict[str, Any],
+    proof: dict[str, Any],
+    proof_journal_hash: str,
+) -> dict[str, Any]:
+    meta = proof.get("meta")
+    if not isinstance(meta, dict):
+        raise ValueError("proof meta must be an object")
+    pre_hash = meta.get("pre_app_hash")
+    post_hash = meta.get("post_app_hash")
+    if not isinstance(pre_hash, str) or not isinstance(post_hash, str):
+        raise ValueError("proof app hashes must be strings")
+
+    pre_state_root = _root("pre-state-absent", name) if pre_hash == "" else _with_0x(pre_hash)
+    post_state_root = _with_0x(post_hash)
+    evidence_root = compute_evidence_root_v0(body["evidence"])
+    config_digest = _root("config", name)
+    module_versions_digest = _root("modules", name)
+    app_hash = compute_app_hash_v0(
+        {
+            "chain_id": body["chain_id"],
+            "height": body["height"],
+            "post_state_root": post_state_root,
+            "evidence_root": evidence_root,
+            "config_digest": config_digest,
+            "module_versions_digest": module_versions_digest,
+        }
+    )
+    return build_header_v0(
+        chain_id=str(body["chain_id"]),
+        height=int(body["height"]),
+        time_ms=1_778_730_000_000 + int(body["height"]) * 100,
+        prev_header_hash=ZERO_ROOT_V0,
+        sequencer_set_hash=_root("sequencer-set", name),
+        ingress_root=compute_ingress_root_v0(body["ingress"]),
+        tx_root=compute_tx_root_v0(body["transactions"]),
+        pre_state_root=pre_state_root,
+        post_state_root=post_state_root,
+        app_hash=app_hash,
+        evidence_root=evidence_root,
+        body_root=canonical_body_root_v0(body),
+        data_availability_root=_root("data-availability", name),
+        proof_journal_hash=proof_journal_hash,
+        config_digest=config_digest,
+        module_versions_digest=module_versions_digest,
+        signature_set_root=ZERO_ROOT_V0,
+    )
+
+
+def _ledger_binding_for_case(
+    *,
+    name: str,
+    case: dict[str, Any],
+    proof: dict[str, Any],
+    repo: Path,
+    out_dir: Path,
+    height: int,
+) -> dict[str, Any]:
+    body = _ledger_body_for_case(name=name, case=case, height=height)
+    header_unbound = _ledger_header_for_case(
+        name=name,
+        body=body,
+        proof=proof,
+        proof_journal_hash=ZERO_ROOT_V0,
+    )
+    metadata = build_risc0_proof_metadata_v0(
+        proof_envelope=proof,
+        header=header_unbound,
+        conflict_schedule_hash=_root("conflict-schedule", name),
+        feature_suite_hash=_root("feature-suite", name),
+        dependency_lock_hash=_root("dependency-lock", name),
+        toolchain_lock_hash=proof_toolchain_lock_hash_v0(repo),
+    )
+    proof_journal_hash = proof_metadata_hash_v0(metadata)
+    header = _ledger_header_for_case(
+        name=name,
+        body=body,
+        proof=proof,
+        proof_journal_hash=proof_journal_hash,
+    )
+    validate_header_body_roots_v0(header, body)
+    validate_proof_metadata_header_binding_v0(metadata, header)
+
+    meta = proof["meta"]
+    assert isinstance(meta, dict)
+    post_state_root_checked = _strip_0x(str(header["post_state_root"])) == meta["post_app_hash"]
+    pre_state_root_checked = (
+        meta["pre_app_hash"] == ""
+        or _strip_0x(str(header["pre_state_root"])) == meta["pre_app_hash"]
+    )
+    if not post_state_root_checked:
+        raise ValueError(f"{name}: proof post_app_hash/header post_state_root mismatch")
+    if not pre_state_root_checked:
+        raise ValueError(f"{name}: proof pre_app_hash/header pre_state_root mismatch")
+
+    body_path = out_dir / f"{name}_zeno_ledger_body.json"
+    header_path = out_dir / f"{name}_zeno_ledger_header.json"
+    metadata_path = out_dir / f"{name}_risc0_proof_metadata.json"
+    body_path.write_text(json.dumps(body, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    header_path.write_text(json.dumps(header, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    metadata_path.write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+    return {
+        "schema": "zenodex.risc0_real_proof_smoke.ledger_binding.v0",
+        "ok": True,
+        "header_bound": True,
+        "body_checked": True,
+        "post_state_root_checked": post_state_root_checked,
+        "pre_state_root_checked": pre_state_root_checked,
+        "body_tx_count": len(body["transactions"]),
+        "body_path": str(body_path),
+        "header_path": str(header_path),
+        "metadata_path": str(metadata_path),
+        "proof_journal_hash": proof_journal_hash,
+        "pre_state_root": str(header["pre_state_root"]),
+        "post_state_root": str(header["post_state_root"]),
+        "tx_root": str(header["tx_root"]),
+        "body_root": str(header["body_root"]),
+        "evidence_root": str(header["evidence_root"]),
+        "ledger_app_hash": str(header["app_hash"]),
+    }
+
 
 
 def _smoke_cases() -> dict[str, dict[str, Any]]:
@@ -73,6 +300,7 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
     ]
     faucet_tx = {
         "sender_pubkey": SENDER,
+        "nonce": 0,
         "operations": {
             "4": {
                 "mint": [
@@ -98,6 +326,7 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
     ]
     create_tx = {
         "sender_pubkey": SENDER,
+        "nonce": 0,
         "operations": {
             "2": [
                 {
@@ -129,6 +358,7 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
     swap_post["pools"] = [_pool_entry(reserve0=11_000, reserve1=9_094)]
     swap_tx = {
         "sender_pubkey": SENDER,
+        "nonce": 0,
         "operations": {
             "2": [
                 {
@@ -148,6 +378,104 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
             ]
         },
     }
+
+    add_pre = _empty_snapshot_copy()
+    add_pre["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET0, "amount": 1_000},
+        {"pubkey": SENDER, "asset": ASSET1, "amount": 2_000},
+    ]
+    add_pre["pools"] = [_pool_entry(reserve0=10_000, reserve1=10_000)]
+    add_post = _empty_snapshot_copy()
+    add_post["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET1, "amount": 1_000},
+    ]
+    add_post["pools"] = [_pool_entry(reserve0=11_000, reserve1=11_000, lp_supply=11_000)]
+    add_post["lp_balances"] = [
+        {"pubkey": SENDER, "pool_id": POOL_ID, "amount": 1_000},
+    ]
+    add_tx = {
+        "sender_pubkey": SENDER,
+        "nonce": 0,
+        "operations": {
+            "2": [
+                {
+                    "module": "TauSwap",
+                    "version": "v1",
+                    "kind": "ADD_LIQUIDITY",
+                    "intent_id": "add-1",
+                    "sender_pubkey": SENDER,
+                    "deadline": 100,
+                    "pool_id": POOL_ID,
+                    "amount0_desired": 1_000,
+                    "amount1_desired": 2_000,
+                    "amount0_min": 0,
+                    "amount1_min": 0,
+                    "recipient": SENDER,
+                }
+            ]
+        },
+    }
+
+    remove_pre = _empty_snapshot_copy()
+    remove_pre["pools"] = [_pool_entry(reserve0=10_000, reserve1=10_000)]
+    remove_pre["lp_balances"] = [
+        {"pubkey": SENDER, "pool_id": POOL_ID, "amount": 1_000},
+    ]
+    remove_post = _empty_snapshot_copy()
+    remove_post["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET0, "amount": 1_000},
+        {"pubkey": SENDER, "asset": ASSET1, "amount": 1_000},
+    ]
+    remove_post["pools"] = [_pool_entry(reserve0=9_000, reserve1=9_000, lp_supply=9_000)]
+    remove_tx = {
+        "sender_pubkey": SENDER,
+        "nonce": 0,
+        "operations": {
+            "2": [
+                {
+                    "module": "TauSwap",
+                    "version": "v1",
+                    "kind": "REMOVE_LIQUIDITY",
+                    "intent_id": "remove-1",
+                    "sender_pubkey": SENDER,
+                    "deadline": 100,
+                    "pool_id": POOL_ID,
+                    "lp_amount": 1_000,
+                    "amount0_min": 0,
+                    "amount1_min": 0,
+                    "recipient": SENDER,
+                }
+            ]
+        },
+    }
+
+    combo_pre = _empty_snapshot_copy()
+    combo_pre["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET0, "amount": 20_000},
+        {"pubkey": SENDER, "asset": ASSET1, "amount": 20_000},
+    ]
+    combo_create_tx = json.loads(json.dumps(create_tx))
+    combo_add_tx = json.loads(json.dumps(add_tx))
+    combo_add_tx["nonce"] = 1
+    combo_add_tx["operations"]["2"][0]["intent_id"] = "combo-add-1"
+    combo_swap_tx = json.loads(json.dumps(swap_tx))
+    combo_swap_tx["nonce"] = 2
+    combo_swap_tx["operations"]["2"][0]["intent_id"] = "combo-swap-1"
+    combo_remove_tx = json.loads(json.dumps(remove_tx))
+    combo_remove_tx["nonce"] = 3
+    combo_remove_tx["operations"]["2"][0]["intent_id"] = "combo-remove-1"
+    combo_remove_tx["operations"]["2"][0]["lp_amount"] = 500
+    combo_post = _empty_snapshot_copy()
+    combo_post["balances"] = [
+        {"pubkey": SENDER, "asset": ASSET0, "amount": 8_545},
+        {"pubkey": SENDER, "asset": ASSET1, "amount": 9_458},
+        {"pubkey": RECIPIENT, "asset": ASSET1, "amount": 914},
+    ]
+    combo_post["pools"] = [_pool_entry(reserve0=11_455, reserve1=9_628, lp_supply=10_500)]
+    combo_post["lp_balances"] = [
+        {"pubkey": "0x" + "00" * 48, "pool_id": POOL_ID, "amount": 1_000},
+        {"pubkey": SENDER, "pool_id": POOL_ID, "amount": 9_500},
+    ]
 
     return {
         "empty": {
@@ -173,6 +501,24 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
             "pre_hash": _snapshot_hash(swap_pre),
             "transactions": [swap_tx],
             "post_hash": _snapshot_hash(swap_post),
+        },
+        "add_liquidity": {
+            "pre_snapshot": add_pre,
+            "pre_hash": _snapshot_hash(add_pre),
+            "transactions": [add_tx],
+            "post_hash": _snapshot_hash(add_post),
+        },
+        "remove_liquidity": {
+            "pre_snapshot": remove_pre,
+            "pre_hash": _snapshot_hash(remove_pre),
+            "transactions": [remove_tx],
+            "post_hash": _snapshot_hash(remove_post),
+        },
+        "spot_block_liquidity_cycle": {
+            "pre_snapshot": combo_pre,
+            "pre_hash": _snapshot_hash(combo_pre),
+            "transactions": [combo_create_tx, combo_add_tx, combo_swap_tx, combo_remove_tx],
+            "post_hash": _snapshot_hash(combo_post),
         },
     }
 
@@ -221,6 +567,7 @@ def _run_case(
     out_dir: Path,
     target_dir: Path,
     timeout: int,
+    height: int,
 ) -> dict[str, Any]:
     state_hash = "11" * 32
     app_state_pre = ""
@@ -260,6 +607,14 @@ def _run_case(
         raise RuntimeError(f"receipt verification rejected: {verify}")
 
     meta = proof.get("meta") if isinstance(proof.get("meta"), dict) else {}
+    ledger_binding = _ledger_binding_for_case(
+        name=name,
+        case=case,
+        proof=proof,
+        repo=repo,
+        out_dir=out_dir,
+        height=height,
+    )
     return {
         "case": name,
         "ok": True,
@@ -271,6 +626,7 @@ def _run_case(
         "risc0_image_id": meta.get("risc0_image_id"),
         "proof_base64_len": len(proof.get("proof", "")) if isinstance(proof.get("proof"), str) else 0,
         "proof_path": str(proof_path),
+        "ledger_binding": ledger_binding,
     }
 
 
@@ -290,8 +646,9 @@ def run_smoke(*, repo: Path, out_dir: Path, target_dir: Path, timeout: int, case
             out_dir=out_dir,
             target_dir=target_dir,
             timeout=timeout,
+            height=index,
         )
-        for name in selected
+        for index, name in enumerate(selected, start=1)
     ]
 
     report = {
@@ -313,7 +670,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument(
         "--case",
-        choices=("empty", "faucet_mint", "create_pool", "swap_exact_in", "all"),
+        choices=(
+            "empty",
+            "faucet_mint",
+            "create_pool",
+            "swap_exact_in",
+            "add_liquidity",
+            "remove_liquidity",
+            "spot_block_liquidity_cycle",
+            "all",
+        ),
         default="empty",
     )
     args = parser.parse_args(argv)

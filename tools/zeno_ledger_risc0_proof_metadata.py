@@ -70,6 +70,10 @@ def _normalize_hex32(value: str, *, name: str, allow_empty: bool = False) -> str
     return raw
 
 
+def _header_root_hex(header: Mapping[str, Any], field: str) -> str:
+    return _normalize_hex32(_require_str(header, field), name=f"header.{field}")
+
+
 def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, Any]:
     expected = {"schema", "schema_version", "state_hash", "proof_type", "proof", "meta"}
     if set(envelope.keys()) != expected:
@@ -92,12 +96,31 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
     meta = envelope.get("meta")
     if not isinstance(meta, Mapping):
         raise TypeError("meta must be a JSON object")
-    expected_meta = {"risc0_image_id", "txs_commitment", "pre_app_hash", "post_app_hash"}
+    expected_meta = {
+        "risc0_image_id",
+        "txs_commitment",
+        "ingress_commitment",
+        "pre_nonce_root",
+        "post_nonce_root",
+        "accepted_receipts_root",
+        "pre_app_hash",
+        "post_app_hash",
+    }
     if set(meta.keys()) != expected_meta:
         raise ValueError("risc0 meta keys mismatch")
 
     image_id = _normalize_hex32(_require_str(meta, "risc0_image_id"), name="meta.risc0_image_id")
     txs_commitment = _normalize_hex32(_require_str(meta, "txs_commitment"), name="meta.txs_commitment")
+    ingress_commitment = _normalize_hex32(
+        _require_str(meta, "ingress_commitment"),
+        name="meta.ingress_commitment",
+    )
+    pre_nonce_root = _normalize_hex32(_require_str(meta, "pre_nonce_root"), name="meta.pre_nonce_root")
+    post_nonce_root = _normalize_hex32(_require_str(meta, "post_nonce_root"), name="meta.post_nonce_root")
+    accepted_receipts_root = _normalize_hex32(
+        _require_str(meta, "accepted_receipts_root"),
+        name="meta.accepted_receipts_root",
+    )
     pre_app_hash = _normalize_hex32(
         _require_str(meta, "pre_app_hash", allow_empty=True),
         name="meta.pre_app_hash",
@@ -113,6 +136,10 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
         "meta": {
             "risc0_image_id": image_id,
             "txs_commitment": txs_commitment,
+            "ingress_commitment": ingress_commitment,
+            "pre_nonce_root": pre_nonce_root,
+            "post_nonce_root": post_nonce_root,
+            "accepted_receipts_root": accepted_receipts_root,
             "pre_app_hash": pre_app_hash,
             "post_app_hash": post_app_hash,
         },
@@ -139,6 +166,10 @@ def build_risc0_proof_metadata_v0(
         "proof_type": proof["proof_type"],
         "state_hash": proof["state_hash"],
         "txs_commitment": meta["txs_commitment"],
+        "ingress_commitment": meta["ingress_commitment"],
+        "pre_nonce_root": meta["pre_nonce_root"],
+        "post_nonce_root": meta["post_nonce_root"],
+        "accepted_receipts_root": meta["accepted_receipts_root"],
         "pre_app_hash_present": meta["pre_app_hash"] != "",
         "pre_app_hash": meta["pre_app_hash"],
         "post_app_hash": meta["post_app_hash"],
@@ -210,6 +241,8 @@ def _report(
     header_bound: bool,
     body_checked: bool,
     post_app_hash_checked: bool,
+    post_state_root_checked: bool,
+    pre_state_root_checked: bool,
     risc0_verified: bool,
 ) -> dict[str, Any]:
     return {
@@ -224,6 +257,8 @@ def _report(
         "header_bound": header_bound,
         "body_checked": body_checked,
         "post_app_hash_checked": post_app_hash_checked,
+        "post_state_root_checked": post_state_root_checked,
+        "pre_state_root_checked": pre_state_root_checked,
         "risc0_verified": risc0_verified,
     }
 
@@ -250,6 +285,16 @@ def main(argv: list[str] | None = None) -> int:
         "--require-post-app-hash-header-app-hash",
         action="store_true",
         help="Require the Risc0 post_app_hash journal field to equal header.app_hash",
+    )
+    parser.add_argument(
+        "--require-post-app-hash-header-post-state-root",
+        action="store_true",
+        help="Require the Risc0 post_app_hash journal field to equal header.post_state_root",
+    )
+    parser.add_argument(
+        "--require-pre-app-hash-header-pre-state-root",
+        action="store_true",
+        help="Require the Risc0 pre_app_hash journal field to equal header.pre_state_root when pre_app_hash is present",
     )
     parser.add_argument(
         "--risc0-verify-cmd",
@@ -285,6 +330,15 @@ def main(argv: list[str] | None = None) -> int:
                 header_app_hash = header_app_hash[2:]
             if post_app_hash != header_app_hash:
                 raise ValueError("risc0 post_app_hash/header app_hash mismatch")
+        if args.require_post_app_hash_header_post_state_root:
+            post_app_hash = normalized_proof["meta"]["post_app_hash"]
+            if post_app_hash != _header_root_hex(header, "post_state_root"):
+                raise ValueError("risc0 post_app_hash/header post_state_root mismatch")
+        if args.require_pre_app_hash_header_pre_state_root:
+            pre_app_hash = normalized_proof["meta"]["pre_app_hash"]
+            header_pre_state_root = _header_root_hex(header, "pre_state_root")
+            if pre_app_hash != "" and pre_app_hash != header_pre_state_root:
+                raise ValueError("risc0 pre_app_hash/header pre_state_root mismatch")
 
         metadata = build_risc0_proof_metadata_v0(
             proof_envelope=normalized_proof,
@@ -311,6 +365,8 @@ def main(argv: list[str] | None = None) -> int:
                     header_bound=header_bound,
                     body_checked=body_checked,
                     post_app_hash_checked=args.require_post_app_hash_header_app_hash,
+                    post_state_root_checked=args.require_post_app_hash_header_post_state_root,
+                    pre_state_root_checked=args.require_pre_app_hash_header_pre_state_root,
                     risc0_verified=risc0_verified,
                 ),
                 indent=2,

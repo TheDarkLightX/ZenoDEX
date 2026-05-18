@@ -144,8 +144,13 @@ echo "== release: UPBA bounded-grid optimality =="
 echo "== release: Risc0 proof metadata adapter =="
 "$PY" -m py_compile \
   "$ROOT_DIR/tools/zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py"
-"$PY" -m pytest -q "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py"
+  "$ROOT_DIR/tools/zeno_ledger_risc0_real_proof_smoke.py" \
+  "$ROOT_DIR/tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
 
 echo "== release: TEE proof metadata adapter =="
 cargo test --manifest-path "$ROOT_DIR/tools/confidential_attestation_verifier_rust/Cargo.toml"

@@ -28,3 +28,13 @@ def test_dependency_manifests_split_runtime_from_agent_packages() -> None:
     assert "requirements-agents" not in dockerfile
     assert "-r requirements-core.txt" in requirements
     assert "-r requirements-agents.txt" in requirements
+
+
+def test_release_gate_runs_risc0_real_proof_archive_checker() -> None:
+    release_gate = (ROOT / "tools/run_release_gate.sh").read_text(encoding="utf-8")
+
+    assert "tools/zeno_ledger_risc0_proof_metadata.py" in release_gate
+    assert "tools/zeno_ledger_risc0_real_proof_smoke.py" in release_gate
+    assert "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_risc0_proof_metadata.py" in release_gate
+    assert "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
