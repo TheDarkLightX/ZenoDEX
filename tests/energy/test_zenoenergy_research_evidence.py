@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from tools.check_zenoenergy_research_evidence import replay_zenoenergy_evidence
+from tools.check_zenoenergy_research_evidence import (
+    _popperpad_env,
+    replay_zenoenergy_evidence,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,7 +19,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 74
+    assert report["passed_count"] == report["check_count"] == 81
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -28,6 +32,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "gap_weighted_default.cross_seed_beats_hand",
         "gap_weighted_default.hard_case_recall",
         "gap_weighted_default.model_audit_boundary",
+        "synthetic_candidate_coverage.synthetic_only",
+        "synthetic_candidate_coverage.candidate_types",
+        "synthetic_candidate_coverage.bounded_rows",
+        "synthetic_candidate_coverage.winner_and_hard_negative_balance",
+        "synthetic_candidate_coverage.feature_schema_dims",
         "neighborhood.call_cost_negative",
         "repair_selector_cross_seed.compression_all_pairs",
         "repair_selector_cross_seed.hand_negative",
@@ -51,4 +60,19 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518",
         "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518",
         "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518",
+        "popperpad.status.H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518",
     }.issubset(check_ids)
+
+
+def test_popperpad_doctor_env_preserves_caller_pythonpath(
+    monkeypatch, tmp_path: Path
+) -> None:
+    repo_popperpad = tmp_path / "external/PopperPad/src"
+    repo_popperpad.mkdir(parents=True)
+    caller_path = "/tmp/local-popperpad-src"
+    monkeypatch.setenv("PYTHONPATH", caller_path)
+
+    env = _popperpad_env(tmp_path)
+    entries = env["PYTHONPATH"].split(os.pathsep)
+
+    assert entries == [str(repo_popperpad), caller_path]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -90,9 +91,13 @@ def replay_zenoenergy_evidence(
     gap_weighted_model_audit = _load_json(
         root / "data/upba_energy/upba_v2_energy_gap_weighted_model_audit.json"
     )
+    synthetic_coverage = _load_json(
+        root / "data/upba_energy/upba_v2_energy_synthetic_candidate_coverage_seed20260540.json"
+    )
     payloads["gap_weighted_stress"] = gap_weighted_stress
     payloads["gap_weighted_hard_cases"] = gap_weighted_hard_cases
     payloads["gap_weighted_model_audit"] = gap_weighted_model_audit
+    payloads["synthetic_candidate_coverage"] = synthetic_coverage
     checks.extend(
         _check_gap_weighted_default(
             gap_weighted_stress,
@@ -100,6 +105,7 @@ def replay_zenoenergy_evidence(
             gap_weighted_model_audit,
         )
     )
+    checks.extend(_check_synthetic_candidate_coverage(synthetic_coverage))
 
     neighborhood = _load_json(
         root / "data/upba_energy/upba_v2_energy_neighborhood_benchmark_seed20260525.json"
@@ -331,6 +337,73 @@ def _check_gap_weighted_default(
             and int(model_audit["reserved_nonzero_count"]) == 0
             and float(model_audit["reserved_weight_abs_sum"]) == 0.0,
             "model audit keeps the tiny linear scorer away from forbidden and reserved features",
+        ),
+    ]
+
+
+def _check_synthetic_candidate_coverage(report: dict[str, Any]) -> list[EvidenceCheck]:
+    required_types = {
+        "invalid_limit_price",
+        "invalid_negative_reserve",
+        "invalid_noncanonical_fill_vector",
+        "invalid_all_zero",
+        "invalid_balance",
+        "near_miss_adversarial",
+        "hard_attractive_output_mismatch",
+        "hard_unreduced_price",
+        "hard_schema_policy_mismatch",
+        "random_noisy",
+    }
+    hard_types = {
+        "near_miss_adversarial",
+        "hard_attractive_output_mismatch",
+        "hard_unreduced_price",
+        "hard_schema_policy_mismatch",
+    }
+    observed = set(str(item) for item in report["observed_candidate_types"])
+    total = int(report["candidate_count_total"])
+    return [
+        _expect_equal(
+            "synthetic_candidate_coverage.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_synthetic_candidate_coverage/v1",
+        ),
+        _expect_true(
+            "synthetic_candidate_coverage.synthetic_only",
+            bool(report["synthetic_only"]) is True
+            and dict(report["source_counts"]) == {"synthetic": total}
+            and dict(report["live_secret_key_hits"]) == {},
+            "coverage rows are synthetic-only and contain no live-secret key hits",
+        ),
+        _expect_true(
+            "synthetic_candidate_coverage.candidate_types",
+            required_types.issubset(observed)
+            and hard_types.issubset(observed)
+            and list(report["missing_required_candidate_types"]) == []
+            and list(report["hard_negative_missing_types"]) == [],
+            "all required mutation and hard-negative candidate types are present",
+        ),
+        _expect_true(
+            "synthetic_candidate_coverage.bounded_rows",
+            int(report["candidate_count_total"]) <= int(report["synthetic_candidates_requested"])
+            and int(report["candidate_count_min"]) >= int(report["candidates_per_batch"]) - 2
+            and int(report["duplicate_hash_batches"]) == 0
+            and int(report["dedup_loss_count"]) <= int(report["batches"]),
+            "bounded synthetic generation stays within request limits with no duplicate-hash batches",
+        ),
+        _expect_true(
+            "synthetic_candidate_coverage.winner_and_hard_negative_balance",
+            float(report["winner_batch_rate"]) >= 0.95
+            and float(report["hard_negative_rate"]) >= 0.10
+            and int(report["invalid_candidate_count"]) > int(report["valid_candidate_count"]),
+            "audit has frequent verifier winners, hard negatives, and more invalid than valid candidates",
+        ),
+        _expect_true(
+            "synthetic_candidate_coverage.feature_schema_dims",
+            dict(report["feature_dim_counts"]) == {"96": total}
+            and dict(report["set_feature_dim_counts"]) == {"51": total}
+            and dict(report["set_aware_feature_dim_counts"]) == {"147": total},
+            "all audited rows use the expected aggregate, set, and set-aware feature dimensions",
         ),
     ]
 
@@ -706,6 +779,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518": "supported",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518": "supported",
+        "H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -730,7 +804,7 @@ def _run_popperpad_doctor(root: Path) -> EvidenceCheck:
             "doctor",
         ],
         cwd=root,
-        env={**_clean_env(), "PYTHONPATH": "external/PopperPad/src"},
+        env=_popperpad_env(root),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -755,6 +829,20 @@ def _run_popperpad_doctor(root: Path) -> EvidenceCheck:
     )
 
 
+def _popperpad_env(root: Path) -> dict[str, str]:
+    env = _clean_env()
+    pythonpath_entries = []
+    repo_popperpad = root / "external/PopperPad/src"
+    if repo_popperpad.exists():
+        pythonpath_entries.append(str(repo_popperpad))
+    existing = os.environ.get("PYTHONPATH")
+    if existing:
+        pythonpath_entries.append(existing)
+    if pythonpath_entries:
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+    return env
+
+
 def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     repair_cross = payloads["repair_selector_cross_seed"]
     listwise_set = payloads["listwise_set"]
@@ -762,6 +850,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     gap_weighted_stress = payloads["gap_weighted_stress"]
     gap_weighted_hard_cases = payloads["gap_weighted_hard_cases"]
     gap_weighted_audit = payloads["gap_weighted_model_audit"]
+    synthetic_coverage = payloads["synthetic_candidate_coverage"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -829,6 +918,16 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             ],
             "model_parameter_count": gap_weighted_audit["parameter_count"],
             "model_reserved_nonzero_count": gap_weighted_audit["reserved_nonzero_count"],
+        },
+        "synthetic_candidate_coverage": {
+            "batches": synthetic_coverage["batches"],
+            "candidate_count_total": synthetic_coverage["candidate_count_total"],
+            "winner_batch_rate": synthetic_coverage["winner_batch_rate"],
+            "hard_negative_rate": synthetic_coverage["hard_negative_rate"],
+            "invalid_candidate_count": synthetic_coverage["invalid_candidate_count"],
+            "valid_candidate_count": synthetic_coverage["valid_candidate_count"],
+            "synthetic_only": synthetic_coverage["synthetic_only"],
+            "coverage_ok": synthetic_coverage["coverage_ok"],
         },
         "neighborhood_regret_delta": payloads["neighborhood"]["deltas"][
             "mean_volume_regret_delta"
@@ -943,8 +1042,6 @@ def _expect_true(check_id: str, condition: bool, detail: str) -> EvidenceCheck:
 
 
 def _clean_env() -> dict[str, str]:
-    import os
-
     return {key: value for key, value in os.environ.items() if key != "PYTHONPATH"}
 
 

@@ -1,0 +1,1 @@
+{"context_key":"zenoenergy:synthetic-candidate-coverage:20260518","domain_ref":"sha256:491ffd61981b5fa5b0ca2e54afc3fea3b80bb75ac5d923176dae8063ddd9d82b","harness":{"digest":"sha256:d0cf7ef1f20c209fc59d3d6edff9edae32aa0e39314e8fc43640e4d663bf9425","id":"tools/audit_upba_energy_synthetic_coverage.py"},"schema":"popperpad/context/v1","toolchain":{}}

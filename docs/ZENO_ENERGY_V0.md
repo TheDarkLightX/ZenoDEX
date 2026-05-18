@@ -18,6 +18,8 @@ Listwise set-ranker experiment: [ZenoEnergy Listwise Set Ranker](./ZENO_ENERGY_L
 
 Listwise cross-seed stress: [ZenoEnergy Listwise Set Ranker Cross-Seed Stress](./ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md)
 
+Synthetic candidate coverage audit: [ZenoEnergy Synthetic Candidate Coverage](./ZENO_ENERGY_SYNTHETIC_CANDIDATE_COVERAGE.md)
+
 Neighborhood repair benchmark: [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md)
 
 Learned repair-selector benchmark: [ZenoEnergy Repair Selector](./ZENO_ENERGY_REPAIR_SELECTOR.md)
@@ -67,6 +69,7 @@ verifier labels for offline training and evaluation.
 ## Tools
 
 - `tools/generate_upba_energy_dataset.py`: synthetic batch generator with verifier-backed labels.
+- `tools/audit_upba_energy_synthetic_coverage.py`: deterministic coverage audit for synthetic candidate classes, hard negatives, feature dimensions, and synthetic-only provenance.
 - `tools/train_upba_energy.py`: pairwise hinge training for the no-dependency linear ranker.
 - `tools/evaluate_upba_energy.py`: dataset-level top-k and verifier-call evaluation.
 - `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy.
