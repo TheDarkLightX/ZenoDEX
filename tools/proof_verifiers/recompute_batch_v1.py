@@ -234,7 +234,10 @@ def main(argv: Sequence[str]) -> None:
     except Exception as exc:
         _fail(str(exc))
 
-    ok, err = _verify(payload)
+    try:
+        ok, err = _verify(payload)
+    except Exception as exc:
+        _fail(str(exc))
     if not ok:
         _fail(err or "invalid")
     _ok()

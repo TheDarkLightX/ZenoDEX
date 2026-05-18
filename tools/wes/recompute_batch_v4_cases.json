@@ -1,0 +1,178 @@
+{
+  "schema": "zenodex.wes.recompute_batch_v4_cases.v1",
+  "base_cases": [
+    "add_liquidity",
+    "create_pool",
+    "swap_exact_in"
+  ],
+  "cases": [
+    {
+      "mutation_operator": "valid_baseline",
+      "expected_result": "checked_safe",
+      "expected_engine_ok": true,
+      "expected_error_contains": null
+    },
+    {
+      "mutation_operator": "proof_pre_state_commitment_zero",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "pre_state_commitment mismatch"
+    },
+    {
+      "mutation_operator": "proof_batch_commitment_zero",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "batch_commitment mismatch"
+    },
+    {
+      "mutation_operator": "proof_scheme_unknown",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "pre_state_commitment mismatch"
+    },
+    {
+      "mutation_operator": "proof_missing_pre_state_commitment",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "proof missing pre_state_commitment"
+    },
+    {
+      "mutation_operator": "proof_missing_batch_commitment",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "proof missing batch_commitment"
+    },
+    {
+      "mutation_operator": "proof_snapshot_corrupt_base64",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "invalid base64"
+    },
+    {
+      "mutation_operator": "proof_operations_corrupt_zlib",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "operations invalid zlib"
+    },
+    {
+      "mutation_operator": "proof_missing_snapshot_witness",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "proof.pre_state_snapshot must be an object"
+    },
+    {
+      "mutation_operator": "proof_missing_operations_witness",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "proof.operations must be an object"
+    },
+    {
+      "mutation_operator": "proof_snapshot_invalid_json",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "pre_state_snapshot invalid JSON"
+    },
+    {
+      "mutation_operator": "proof_operations_invalid_json",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "operations invalid JSON"
+    },
+    {
+      "mutation_operator": "proof_snapshot_json_list",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "proof.pre_state_snapshot must be an object"
+    },
+    {
+      "mutation_operator": "proof_operations_json_list",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "proof.operations must be an object"
+    },
+    {
+      "mutation_operator": "proof_snapshot_balance_amount_mutation",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "pre_state_commitment does not match snapshot"
+    },
+    {
+      "mutation_operator": "proof_operations_intents_not_list",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "operations['2'] must be a list"
+    },
+    {
+      "mutation_operator": "proof_operations_settlement_not_dict",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "operations['3'] must be a dict"
+    },
+    {
+      "mutation_operator": "proof_operations_settlement_amount_mutation",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "batch_commitment does not match embedded witness"
+    },
+    {
+      "mutation_operator": "proof_operations_intent_nonce_mutation",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "batch_commitment does not match embedded witness"
+    },
+    {
+      "mutation_operator": "proof_operations_missing_settlement",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "missing settlement"
+    },
+    {
+      "mutation_operator": "proof_operations_extra_group_valid",
+      "expected_result": "checked_safe",
+      "expected_engine_ok": true,
+      "expected_error_contains": null
+    },
+    {
+      "mutation_operator": "proof_operations_fill_reason_mutation_valid",
+      "expected_result": "checked_safe",
+      "expected_engine_ok": true,
+      "expected_error_contains": null
+    },
+    {
+      "mutation_operator": "settlement_payload_amount_mutation",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "settlement mismatch"
+    },
+    {
+      "mutation_operator": "settlement_events_mutation_valid",
+      "expected_result": "checked_safe",
+      "expected_engine_ok": true,
+      "expected_error_contains": null
+    },
+    {
+      "mutation_operator": "settlement_missing_required_proof",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "missing required proof"
+    },
+    {
+      "mutation_operator": "settlement_duplicate_proof_fields",
+      "expected_result": "near_miss",
+      "expected_engine_ok": false,
+      "expected_error_contains": "settlement proof provided twice"
+    },
+    {
+      "mutation_operator": "settlement_legacy_zk_proof_valid",
+      "expected_result": "checked_safe",
+      "expected_engine_ok": true,
+      "expected_error_contains": null
+    },
+    {
+      "mutation_operator": "proof_as_string",
+      "expected_result": "malformed",
+      "expected_engine_ok": false,
+      "expected_error_contains": "settlement proof must be an object"
+    }
+  ]
+}

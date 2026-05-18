@@ -92,13 +92,19 @@ def _zlib_decompress_limited(data: bytes, *, name: str, max_out: int) -> bytes:
             remaining = max_out - len(out)
             if remaining <= 0:
                 raise ValueError(f"{name} decompressed too large")
-            out += d.decompress(buf, remaining)
+            try:
+                out += d.decompress(buf, remaining)
+            except zlib.error as exc:
+                raise ValueError(f"{name} invalid zlib: {exc}") from exc
             buf = d.unconsumed_tail
 
     remaining = max_out - len(out)
     if remaining <= 0:
         raise ValueError(f"{name} decompressed too large")
-    out += d.flush(remaining)
+    try:
+        out += d.flush(remaining)
+    except zlib.error as exc:
+        raise ValueError(f"{name} invalid zlib: {exc}") from exc
     if len(out) > max_out:
         raise ValueError(f"{name} decompressed too large")
     if not d.eof:
@@ -265,7 +271,10 @@ def main(argv: Sequence[str]) -> None:
     if not isinstance(payload, dict):
         _fail("payload must be an object")
 
-    ok, err = _verify(payload)
+    try:
+        ok, err = _verify(payload)
+    except Exception as exc:
+        _fail(str(exc))
     if not ok:
         _fail(err or "invalid")
     _ok()
