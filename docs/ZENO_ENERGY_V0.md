@@ -16,6 +16,8 @@ Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWAR
 
 Listwise set-ranker experiment: [ZenoEnergy Listwise Set Ranker](./ZENO_ENERGY_LISTWISE_SET_RANKER.md)
 
+Listwise cross-seed stress: [ZenoEnergy Listwise Set Ranker Cross-Seed Stress](./ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md)
+
 Neighborhood repair benchmark: [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md)
 
 Learned repair-selector benchmark: [ZenoEnergy Repair Selector](./ZENO_ENERGY_REPAIR_SELECTOR.md)
@@ -74,6 +76,7 @@ verifier labels for offline training and evaluation.
 - `tools/sweep_upba_energy_topk.py`: sweeps top-k recall and offline checked-stop audit rates over stored dataset rows.
 - `tools/compare_upba_energy_set_aware.py`: compares aggregate and set-aware rankers on fresh synthetic train/holdout splits and emits a small evidence report.
 - `tools/compare_upba_energy_listwise_set_ranker.py`: compares a listwise set-context ranker against pairwise linear baselines.
+- `tools/stress_upba_energy_listwise_set_ranker.py`: retrains and evaluates the listwise set-context ranker across train/holdout seed pairs.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.

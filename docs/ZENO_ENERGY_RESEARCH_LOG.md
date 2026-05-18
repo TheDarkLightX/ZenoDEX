@@ -105,6 +105,58 @@ but the current linear context feature set is unpromoted. The next listwise
 attempt needs either nonlinear scoring, outcome-weighted list labels, or a
 hard-case-focused train split.
 
+## Listwise Cross-Seed Stress
+
+Artifact:
+[ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md](./ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_listwise_set_ranker_cross_seed_seed20260532_20260537.json`
+
+Command:
+
+```bash
+python3 tools/stress_upba_energy_listwise_set_ranker.py \
+  --train-batches 80 \
+  --holdout-batches 60 \
+  --candidates-per-batch 24 \
+  --pairwise-epochs 6 \
+  --listwise-epochs 10 \
+  --pairwise-learning-rate 0.03 \
+  --listwise-learning-rate 0.08 \
+  --l2 0.0001 \
+  --seed-pairs 20260532:20260533,20260534:20260535,20260536:20260537 \
+  --output-json data/upba_energy/upba_v2_energy_listwise_set_ranker_cross_seed_seed20260532_20260537.json \
+  --output-markdown docs/ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md
+```
+
+Observed aggregate:
+
+| model | top1 mean | top10 mean | mean verifier calls | p99 mean |
+| --- | ---: | ---: | ---: | ---: |
+| aggregate pairwise | 0.9828 | 1.0000 | 1.0172 | 1.0000 |
+| set-aware pairwise | 0.9259 | 1.0000 | 1.0741 | 2.0000 |
+| listwise set | 0.9319 | 1.0000 | 1.0681 | 2.0000 |
+
+Positive knowledge:
+
+```text
+The listwise set ranker preserved top-10 recall and checked-stop-at-winner
+audits on every seed pair with zero invalid accepts and zero permutation
+violations.
+```
+
+Negative knowledge:
+
+```text
+The listwise set ranker did not strictly improve over the best pairwise baseline
+on every seed pair.
+```
+
+Research consequence: this strengthens the unpromoted status of the current
+linear listwise formulation. The next listwise attempt should change the model
+class or the training signal rather than only adding more identical seed pairs.
+
 ## Neighborhood Repair Baseline
 
 Artifact:
@@ -400,21 +452,22 @@ python3 tools/check_zenoenergy_research_evidence.py \
   --output-markdown docs/ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md
 ```
 
-Observed result after adding the listwise set-ranker and SOTA decision-map
-receipts:
+Observed result after adding the listwise cross-seed receipt:
 
 | checks | passed | failed |
 | ---: | ---: | ---: |
-| 62 | 62 | 0 |
+| 68 | 68 | 0 |
 
 The gate checks that the committed set-aware, neighborhood, repair-selector,
-listwise set-ranker, cross-seed, formal-boundary, fallback/top-k, SOTA
-decision-map, and PopperPad doctor evidence still support the current research
-story. It also preserves negative knowledge: set-aware linear features have no
-measured win over the aggregate ranker, the listwise set-context ranker has no
-measured mean-call win, deterministic neighborhood expansion reduces regret
-while increasing verifier work, and the learned repair selector has not
-consistently beaten the hand-selected two-proposal subset.
+listwise set-ranker, listwise cross-seed, cross-seed, formal-boundary,
+fallback/top-k, SOTA decision-map, and PopperPad doctor evidence still support
+the current research story. It also preserves negative knowledge: set-aware
+linear features have no measured win over the aggregate ranker, the listwise
+set-context ranker has no measured mean-call win, the listwise cross-seed run
+does not strictly improve over the best pairwise baseline, deterministic
+neighborhood expansion reduces regret while increasing verifier work, and the
+learned repair selector has not consistently beaten the hand-selected
+two-proposal subset.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the
@@ -560,6 +613,25 @@ improvement_refute_edge_ref: sha256:733220eb675e45d3097c3f2a4195b3be180d0b9f3cdf
 checkpoint_ref:             sha256:c08368fc23424e3da6ceab3d2fe4521f8394cab785356263c3b22efdc12162fb
 ```
 
+Listwise cross-seed refs:
+
+```text
+report_blob_ref:            sha256:4645a8def80a2fd53c5088cf3c9a6e3b40a75042fa76807228d5fb5432cc165c
+markdown_blob_ref:          sha256:955a4bcdca90926652b969d23ff70224aa46b1b5895df9fc5cce3539d3f5cad1
+context_ref:                sha256:b1f28230e0f80ea49326ae3b7351e214e99d73a0670159af22e09a1f2bdefb26
+report_artifact_ref:        sha256:dbb151b06e784d3d03d45942559a92148e78f7060081680af92a72f198b3dbbc
+markdown_artifact_ref:      sha256:74cb4fe8faec1e1df2b7d5a85d13464ac11ad132efb69ceb50e6e9890dbdee2b
+safety_recipe_ref:          sha256:6c4b6664a102e479a53821b43827e2a6f6c1f0ff5e74246dacc4d18390458496
+improvement_refuter_ref:    sha256:b4a7b39877743e5b5971370922024b6b94f70f517c74264a93566fa9d5838eda
+safety_hypothesis_ref:      sha256:446fca953f8907bfdd4fd92831cef7ee05658bdd8a9a4d267c9c635bde81c480
+improvement_hypothesis_ref: sha256:5d6ba8b60a0174e8b1319ff5b40a6c3b789ecaf72f16043847343d22f3237e35
+safety_evidence_ref:        sha256:e7d0436c5cda8897d1959c7df4ebcea5341c9cb829f3798be695b57ca913ae09
+safety_support_edge_ref:    sha256:7a7903cac075b551a93f09e435194e75e88efacaeabf7b387552792f401d9a0f
+improvement_evidence_ref:   sha256:ec6fcdb9fb8620edcc8a7a3c0ecd4129b8cba9ce87660ddb3bd0c6448a375e67
+improvement_refute_edge_ref: sha256:469deb9aeff847ee23e1dc38f1444007f1d683f505cedf3960b529d9def50112
+checkpoint_ref:             sha256:bf781978378530bccdc8aeb41e41c8dcffa1b40361306789841f754a04d52dbc
+```
+
 Research evidence replay v3 refs:
 
 ```text
@@ -590,6 +662,21 @@ support_edge_ref:           sha256:ee3e6a8640308b9fe7ae76a5afa7534f22a88ef62458d
 checkpoint_ref:             sha256:457347c6b0933fe1f6b0e7488384bb62c66d1636aa1824e3ba075d0737a79c79
 ```
 
+Research evidence replay v5 refs:
+
+```text
+json_blob_ref:              sha256:7e0185772251353e3720e12b211a677b497397d01486bd193b22f48ea6676e8c
+markdown_blob_ref:          sha256:20a449774a968bf744d4d011fd045c2bd961bbde0e6c83cd5d00a3e6734885cd
+context_ref:                sha256:5fb9db1fd9ac44ba0ef7a1d40abc167f558a15a089431ee8009641742be0b1a0
+json_artifact_ref:          sha256:02fedeb78ae4c433a7ce04327cbb644842fe5c139429adef5da02daceb3a2e65
+markdown_artifact_ref:      sha256:b0319024ef8b890f003adaef7308683c88b2cb82a6553b322b76a05e4138b878
+recipe_ref:                 sha256:efdcd111786eec5527bd176f26b1bfee6c55aae595599b14d49c610a54666bf1
+hypothesis_ref:             sha256:507cdadd9c4c00815224de2b57bd3a3386d82929663cccb174ac7f3c4e7cf60b
+evidence_ref:               sha256:095b9834f1e1d1c98328e3b61f1a6521cd2ecb4faae87acad1aa57a6416c394f
+support_edge_ref:           sha256:c66484dfa8357510764e6e6c12cdf7648f74f9195bb9310436e62d7f3620638f
+checkpoint_ref:             sha256:5f3da5e6ee234d6b958d67c4c98b84d29bc2456981eafe237752a76e2854dd1f
+```
+
 Derived PopperPad status:
 
 ```text
@@ -612,7 +699,10 @@ H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V3: supported
 H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518: supported
 H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
+H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518: supported
+H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 doctor_ok: true
 ```
 

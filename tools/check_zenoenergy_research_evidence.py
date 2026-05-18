@@ -74,6 +74,13 @@ def replay_zenoenergy_evidence(
     payloads["listwise_set"] = listwise_set
     checks.extend(_check_listwise_set(listwise_set))
 
+    listwise_cross_seed = _load_json(
+        root
+        / "data/upba_energy/upba_v2_energy_listwise_set_ranker_cross_seed_seed20260532_20260537.json"
+    )
+    payloads["listwise_cross_seed"] = listwise_cross_seed
+    checks.extend(_check_listwise_cross_seed(listwise_cross_seed))
+
     neighborhood = _load_json(
         root / "data/upba_energy/upba_v2_energy_neighborhood_benchmark_seed20260525.json"
     )
@@ -214,6 +221,43 @@ def _check_listwise_set(report: dict[str, Any]) -> list[EvidenceCheck]:
             and "did not improve mean verifier calls"
             in str(report["interpretation"]["negative_knowledge"]),
             "listwise ranker did not beat the strongest pairwise baseline on mean calls",
+        ),
+    ]
+
+
+def _check_listwise_cross_seed(report: dict[str, Any]) -> list[EvidenceCheck]:
+    aggregate = report["aggregate"]
+    listwise = aggregate["modes"]["listwise_set"]
+    pairwise = aggregate["modes"]["aggregate_pairwise"]
+    return [
+        _expect_equal(
+            "listwise_cross_seed.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_listwise_set_ranker_cross_seed/v1",
+        ),
+        _expect_true(
+            "listwise_cross_seed.safety",
+            bool(aggregate["all_safety_passed"]) is True
+            and int(report["safety"]["invalid_accept_count"]) == 0
+            and int(report["safety"]["permutation_violation_count"]) == 0,
+            "all cross-seed listwise runs have zero invalid accepts and zero permutation violations",
+        ),
+        _expect_true(
+            "listwise_cross_seed.top10_and_checked_stop",
+            int(aggregate["listwise_top10_pass_count"]) == int(report["run_count"])
+            and int(aggregate["listwise_top10_fail_count"]) == 0
+            and int(aggregate["checked_stop_at_winner_pass_count"]) == int(report["run_count"])
+            and int(aggregate["checked_stop_at_winner_fail_count"]) == 0,
+            "listwise top-10 recall and checked-stop-at-winner audits pass on every seed pair",
+        ),
+        _expect_true(
+            "listwise_cross_seed.negative_knowledge",
+            int(aggregate["strict_improvement_count"]) == 0
+            and float(listwise["mean_verifier_calls"]["mean"])
+            > float(pairwise["mean_verifier_calls"]["mean"])
+            and "did not strictly improve"
+            in str(report["interpretation"]["negative_knowledge"]),
+            "listwise ranker does not strictly improve over pairwise on cross-seed stress",
         ),
     ]
 
@@ -585,6 +629,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518": "supported",
         "H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518": "supported",
         "H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
+        "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518": "supported",
+        "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -637,6 +683,7 @@ def _run_popperpad_doctor(root: Path) -> EvidenceCheck:
 def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     repair_cross = payloads["repair_selector_cross_seed"]
     listwise_set = payloads["listwise_set"]
+    listwise_cross = payloads["listwise_cross_seed"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -661,6 +708,23 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "listwise_permutation_violation_count": listwise_set["modes"][
                 "listwise_set"
             ]["permutation_violation_count"],
+        },
+        "listwise_cross_seed": {
+            "run_count": listwise_cross["run_count"],
+            "listwise_top10_pass_count": listwise_cross["aggregate"][
+                "listwise_top10_pass_count"
+            ],
+            "checked_stop_at_winner_pass_count": listwise_cross["aggregate"][
+                "checked_stop_at_winner_pass_count"
+            ],
+            "strict_improvement_count": listwise_cross["aggregate"][
+                "strict_improvement_count"
+            ],
+            "invalid_accept_count": listwise_cross["safety"]["invalid_accept_count"],
+            "permutation_violation_count": listwise_cross["safety"][
+                "permutation_violation_count"
+            ],
+            "negative_knowledge": listwise_cross["interpretation"]["negative_knowledge"],
         },
         "neighborhood_regret_delta": payloads["neighborhood"]["deltas"][
             "mean_volume_regret_delta"

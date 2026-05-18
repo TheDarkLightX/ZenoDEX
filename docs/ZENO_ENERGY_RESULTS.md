@@ -299,6 +299,40 @@ improve mean verifier calls against the strongest pairwise baseline on this
 bounded synthetic split. Keep it as negative knowledge until a nonlinear or
 outcome-weighted variant shows a measured win.
 
+### Listwise Cross-Seed Stress
+
+Receipt:
+[ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md](./ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md)
+
+Command:
+
+```bash
+python3 tools/stress_upba_energy_listwise_set_ranker.py \
+  --train-batches 80 \
+  --holdout-batches 60 \
+  --candidates-per-batch 24 \
+  --pairwise-epochs 6 \
+  --listwise-epochs 10 \
+  --pairwise-learning-rate 0.03 \
+  --listwise-learning-rate 0.08 \
+  --l2 0.0001 \
+  --seed-pairs 20260532:20260533,20260534:20260535,20260536:20260537 \
+  --output-json data/upba_energy/upba_v2_energy_listwise_set_ranker_cross_seed_seed20260532_20260537.json \
+  --output-markdown docs/ZENO_ENERGY_LISTWISE_SET_RANKER_CROSS_SEED.md
+```
+
+| mode | top1 mean | top10 mean | mean calls | p99 mean |
+| --- | ---: | ---: | ---: | ---: |
+| aggregate pairwise | 0.9828 | 1.0000 | 1.0172 | 1.0000 |
+| set-aware pairwise | 0.9259 | 1.0000 | 1.0741 | 2.0000 |
+| listwise set | 0.9319 | 1.0000 | 1.0681 | 2.0000 |
+
+The cross-seed stress preserved top-10 recall and checked-stop-at-winner audits
+on all 3 seed pairs with 0 invalid accepts and 0 permutation violations. It also
+reinforces the negative result: strict improvement over the strongest pairwise
+baseline occurred on 0 of 3 seed pairs, and mean verifier calls were worse than
+the aggregate pairwise baseline.
+
 ## Model Audit
 
 Receipt: [ZENO_ENERGY_MODEL_AUDIT.md](./ZENO_ENERGY_MODEL_AUDIT.md)
@@ -448,10 +482,11 @@ deterministic suffix-bound certificate or full fallback.
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
-benchmark, repair selector, cross-seed stress, formal-boundary receipts,
-fallback/top-k receipts, and PopperPad status ledger. It also checks the SOTA decision-map receipt:
+benchmark, repair selector, listwise cross-seed stress, cross-seed stress,
+formal-boundary receipts, fallback/top-k receipts, and PopperPad status ledger.
+It also checks the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 62 passing checks and 0 failed checks.
+The current receipt reports 68 passing checks and 0 failed checks.
 
 ## Accuracy
 
