@@ -26,12 +26,9 @@ FROM python:3.11-slim-bookworm AS python-base
 WORKDIR /app
 
 # Copy Python runtime requirements
-COPY requirements-core.txt ./
-# Install app deps, then force-upgrade a small set of packages with known fixes
-# that can appear in base images/tooling stacks (defense-in-depth).
-RUN python -m pip install --no-cache-dir --upgrade "pip>=25.3" setuptools wheel \
-    && python -m pip install --no-cache-dir -r requirements-core.txt \
-    && python -m pip install --no-cache-dir "jaraco.context>=6.1.0"
+COPY requirements-core.lock.txt ./
+# Install app deps only from the hash-locked runtime lockfile.
+RUN python -m pip install --no-cache-dir --require-hashes -r requirements-core.lock.txt
 
 # Copy source code
 COPY src/ ./src/

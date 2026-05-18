@@ -17,7 +17,7 @@ require_module() {
   local package_hint="$2"
   if ! "$PY" -c "import importlib.util as u, sys; sys.exit(0 if u.find_spec('$module') else 1)"; then
     echo "error: missing python module '$module'" >&2
-    echo "hint: install dev tooling with '$PY -m pip install -r requirements-dev.txt'" >&2
+    echo "hint: install dev tooling with '$PY -m pip install --require-hashes -r requirements-dev.lock.txt'" >&2
     echo "hint: expected package: $package_hint" >&2
     exit 2
   fi

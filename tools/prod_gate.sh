@@ -21,6 +21,9 @@ set -euo pipefail
 #   1  fail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME_LOCK="$ROOT/requirements-core.lock.txt"
+AGENTS_LOCK="$ROOT/requirements-agents.lock.txt"
+DEV_LOCK="$ROOT/requirements-dev.lock.txt"
 
 SKIP_DOCKER=0
 SKIP_UI=0
@@ -52,15 +55,27 @@ cd "$ROOT"
 echo "[gate] repo: $ROOT"
 echo "[gate] image: $IMAGE_TAG"
 
+if [[ ! -f "$RUNTIME_LOCK" ]]; then
+  echo "[gate] missing runtime lock file: $RUNTIME_LOCK" >&2
+  exit 2
+fi
+if [[ ! -f "$AGENTS_LOCK" ]]; then
+  echo "[gate] missing agents lock file: $AGENTS_LOCK" >&2
+  exit 2
+fi
+if [[ ! -f "$DEV_LOCK" ]]; then
+  echo "[gate] missing dev lock file: $DEV_LOCK" >&2
+  exit 2
+fi
+
 if [[ ! -d .venv ]]; then
   echo "[gate] creating venv .venv"
   python3 -m venv .venv
 fi
 
-echo "[gate] installing python requirements"
+echo "[gate] installing locked dev requirements"
 . .venv/bin/activate
-python -m pip install --upgrade --quiet pip
-pip install --quiet -r requirements.txt
+python -m pip install --quiet --require-hashes -r "$DEV_LOCK"
 
 echo "[gate] checking container hardening artifacts"
 python tools/check_container_hardening.py
