@@ -483,6 +483,45 @@ The learned ordering beat hand energy on every evaluated seed pair and kept
 pattern. Production-shadow observations are still required before treating the
 AutoTrader utility estimate as release evidence.
 
+### AutoTrader Shadow Bridge
+
+Receipt:
+[AUTOTRADER_ENERGY_SHADOW_BRIDGE.md](./AUTOTRADER_ENERGY_SHADOW_BRIDGE.md)
+
+The shadow bridge converts recorded ZenoGraph AutoTrader shadow observations
+into the same advisory energy row schema used by the synthetic AutoTraderEnergy
+benchmark. The deterministic controller tag remains the validity label. The
+ZenoGraph advisory and model score affect ordering and objectives only.
+
+Command:
+
+```bash
+python3 tools/evaluate_autotrader_energy_shadow_bridge.py \
+  --synthetic-train-contexts 1500 \
+  --candidates-per-context 16 \
+  --train-seed 20260528 \
+  --epochs 5 \
+  --learning-rate 0.001 \
+  --margin 1.0 \
+  --output-json data/upba_energy/autotrader_energy_shadow_bridge_baseline_seed20260528.json \
+  --output-markdown docs/AUTOTRADER_ENERGY_SHADOW_BRIDGE.md
+```
+
+The built-in deterministic fixture produced 4 contexts, 20 rows, 12 valid
+controller-submit candidates, and 8 deterministic rejections or skips.
+
+| mode | mean guard calls | top-1 recall | top-5 recall | invalid accepts |
+| --- | ---: | ---: | ---: | ---: |
+| random | 3.250 | 0.250 | 1.000 | 0 |
+| hand energy | 2.000 | 0.000 | 1.000 | 0 |
+| learned energy | 2.000 | 0.000 | 1.000 | 0 |
+
+The bridge is nonvacuous as a schema and boundary replay: it includes both
+valid and invalid controller outcomes, and `invalid_accept_count_total = 0`.
+It also records useful negative knowledge. The learned scorer ties hand energy
+on mean guard calls and does not place the exact shadow winner first. The
+built-in fixture is not live production distribution evidence.
+
 ## Fallback And Checked Stop
 
 Receipt:
@@ -508,11 +547,12 @@ The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
-cross-seed stress, AutoTraderEnergy hard cross-seed transfer, formal-boundary
-receipts, fallback/top-k receipts, and PopperPad status ledger. It also checks
+cross-seed stress, AutoTraderEnergy hard cross-seed transfer, AutoTraderEnergy
+shadow bridge, formal-boundary receipts, fallback/top-k receipts, and PopperPad
+status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 83 passing checks and 0 failed checks.
+The current receipt reports 91 passing checks and 0 failed checks.
 
 ## Accuracy
 

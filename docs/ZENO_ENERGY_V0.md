@@ -26,6 +26,8 @@ Repair-selector cross-seed stress: [ZenoEnergy Repair Selector Cross-Seed Stress
 
 AutoTrader transfer receipt: [AutoTraderEnergy Hard Cross-Seed Receipt](./AUTOTRADER_ENERGY_HARD_CROSS_SEED.md)
 
+AutoTrader shadow bridge receipt: [AutoTraderEnergy Shadow Bridge Receipt](./AUTOTRADER_ENERGY_SHADOW_BRIDGE.md)
+
 Fallback and checked-stop formal boundary: [ZenoEnergy Fallback And Checked-Stop Formal Boundary](./ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md)
 
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
@@ -84,6 +86,7 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
 - `tools/benchmark_autotrader_energy_cross_seed.py`: trains and evaluates a tiny AutoTraderEnergy scorer across synthetic train/holdout seed pairs.
+- `tools/evaluate_autotrader_energy_shadow_bridge.py`: converts ZenoGraph AutoTrader shadow observations into advisory energy rows and evaluates hand/learned ordering while deterministic policy guards remain authoritative.
 - `tools/check_zenoenergy_research_evidence.py`: replays committed ZenoEnergy research receipts and PopperPad status checks, failing closed on missing evidence or drift.
 
 ## Hand Energy

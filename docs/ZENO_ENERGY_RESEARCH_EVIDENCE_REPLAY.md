@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 83
-passed_count: 83
+check_count: 91
+passed_count: 91
 failed_count: 0
 ```
 
@@ -68,6 +68,11 @@ failed_count: 0
 | autotrader_energy_hard_cross_seed.learned_beats_hand_all | pass | learned AutoTraderEnergy ordering reduces mean guard calls versus hand and random on every seed pair |
 | autotrader_energy_hard_cross_seed.profile_nonvacuous | pass | hard profile exercises nontrivial guard ordering |
 | autotrader_energy_hard_cross_seed.doc_and_recall | pass | receipt records high top-5 recall plus the synthetic-to-shadow evidence boundary |
+| autotrader_energy_shadow_bridge.schema | pass | expected 'zenodex/energy/autotrader_shadow_bridge_report/v1', observed 'zenodex/energy/autotrader_shadow_bridge_report/v1' |
+| autotrader_energy_shadow_bridge.safety | pass | zero invalid accepts and deterministic AutoTrader policy guards remain authoritative |
+| autotrader_energy_shadow_bridge.nonvacuous_fixture | pass | shadow fixture has multiple candidates per context plus valid and invalid outcomes |
+| autotrader_energy_shadow_bridge.learned_ties_hand_negative | pass | learned ordering ties hand energy, beats random mean calls, and records top-1 miss knowledge |
+| autotrader_energy_shadow_bridge.doc_boundary | pass | shadow bridge doc records fixture scope and distribution-transfer gap |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -91,6 +96,9 @@ failed_count: 0
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -107,6 +115,20 @@ failed_count: 0
     "random_mean_guard_calls": 8.393333333333333,
     "run_count": 3,
     "safety_pass_count": 3
+  },
+  "autotrader_energy_shadow_bridge": {
+    "context_count": 4,
+    "hand_mean_guard_calls": 2,
+    "invalid_accept_count_total": 0,
+    "invalid_count": 8,
+    "learned_mean_guard_calls": 2,
+    "learned_top_1_recall": 0.0,
+    "learned_top_5_recall": 1.0,
+    "negative_knowledge": "The built-in shadow bridge is a deterministic fixture derived from accepted ZenoGraph store exports. It is useful for schema and boundary replay, but it is not live production distribution evidence.",
+    "random_mean_guard_calls": 3.25,
+    "row_count": 20,
+    "source": "built-in-zenograph-baseline",
+    "valid_count": 12
   },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
   "fallback_permutation_audit": {

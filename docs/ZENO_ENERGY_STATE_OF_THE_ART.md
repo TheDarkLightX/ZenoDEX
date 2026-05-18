@@ -178,6 +178,12 @@ transfer pattern: a 21-parameter linear scorer reduced mean guard calls from
 accepts. Treat this as synthetic transfer evidence until production-shadow
 observations cover live-like strategy and market distributions.
 
+The first AutoTraderEnergy shadow bridge now maps deterministic ZenoGraph
+shadow observations into the same advisory row schema. It is useful boundary
+replay, with zero invalid accepts and both valid and invalid controller
+outcomes, but the built-in fixture is too small to establish live-distribution
+ranking quality.
+
 ## Research Implications
 
 1. Synthetic data is legitimate for bounded search research when the generator

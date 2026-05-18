@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from random import Random
 from statistics import mean
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 AUTOTRADER_FEATURE_NAMES: tuple[str, ...] = (
     "insufficient_balance_flag",
@@ -153,6 +153,41 @@ def generate_rows(
     return rows
 
 
+def shadow_rows_from_observations(
+    observations: Sequence[Mapping[str, Any]],
+    *,
+    source_id: str = "shadow",
+) -> list[dict[str, Any]]:
+    """Convert AutoTrader shadow observations into advisory energy rows.
+
+    The deterministic controller tag is the validity label. ZenoGraph advisory
+    disagreement only affects the objective used for ranking valid candidates.
+    """
+
+    rows: list[dict[str, Any]] = []
+    family_offsets: dict[str, int] = {}
+    for index, observation in enumerate(observations):
+        effective_observation: Mapping[str, Any] = observation
+        family = observation.get("family")
+        if isinstance(family, str) and family:
+            offset = family_offsets.get(family, 0)
+            family_offsets[family] = offset + 1
+            copied = dict(observation)
+            copied.setdefault(
+                "shadow_batch_id",
+                f"{observation.get('strategy_id', 'strategy')}:{offset}",
+            )
+            effective_observation = copied
+        row = _shadow_candidate_row(
+            observation=effective_observation,
+            source_id=source_id,
+            index=index,
+        )
+        rows.append(row)
+    _mark_winners(rows)
+    return rows
+
+
 def train_autotrader_linear_ranker(
     rows: list[dict[str, Any]],
     *,
@@ -271,6 +306,14 @@ def evaluate_autotrader_rows(
     }
 
 
+def group_counts(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        batch_id = str(row["batch_id"])
+        counts[batch_id] = counts.get(batch_id, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def save_autotrader_model(model: AutoTraderLinearEnergyModel, path: str) -> None:
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(model.to_dict(), handle, indent=2, sort_keys=True)
@@ -329,6 +372,163 @@ def _make_candidate(
     }
     _refresh_label(row)
     return row
+
+
+def _shadow_candidate_row(
+    *,
+    observation: Mapping[str, Any],
+    source_id: str,
+    index: int,
+) -> dict[str, Any]:
+    case_id = str(observation.get("case_id", f"shadow-{index}"))
+    batch_id = _shadow_batch_id(observation, source_id=source_id)
+    features = _shadow_features(observation)
+    row = {
+        "schema": "zenodex/energy/autotrader_candidate_row/v1",
+        "batch_id": batch_id,
+        "candidate_id": f"{batch_id}:{case_id}",
+        "candidate_hash": _candidate_hash(batch_id, index, features),
+        "feature_names": list(AUTOTRADER_FEATURE_NAMES),
+        "features": features,
+        "label": {
+            "valid": str(observation.get("controller_tag", "")).lower() == "submit",
+            "objective": _shadow_objective(observation, features),
+            "is_winner": False,
+        },
+        "shadow": {
+            "source_id": source_id,
+            "case_id": case_id,
+            "controller_tag": str(observation.get("controller_tag", "")),
+            "controller_reason": str(observation.get("controller_reason", "")),
+            "family": observation.get("family"),
+        },
+    }
+    row["label"]["hand_energy"] = hand_energy_from_autotrader_row(row)
+    return row
+
+
+def _shadow_batch_id(observation: Mapping[str, Any], *, source_id: str) -> str:
+    explicit = observation.get("shadow_batch_id")
+    if isinstance(explicit, str) and explicit.strip():
+        return f"{source_id}:{explicit.strip()}"
+    case_id = str(observation.get("case_id", ""))
+    if "-" in case_id:
+        suffix = case_id.rsplit("-", 1)[1]
+        if suffix.isdigit():
+            return f"{source_id}:{observation.get('strategy_id', 'strategy')}:{suffix}"
+    return f"{source_id}:{observation.get('strategy_id', 'strategy')}:all"
+
+
+def _shadow_features(observation: Mapping[str, Any]) -> list[float]:
+    explain = tuple(str(item) for item in observation.get("controller_explain", ()) or ())
+    explain_map = _explain_map(explain)
+    reason = str(observation.get("controller_reason", "")).lower()
+    tag = str(observation.get("controller_tag", "")).lower()
+    advisory = _mapping(observation.get("zenograph_advisory"))
+    tactic = _mapping(advisory.get("tactic_evaluation"))
+    observation_packet = _mapping(advisory.get("observation_packet"))
+    primary_signal = _mapping(observation_packet.get("primary_signal"))
+    wallet = _mapping(observation_packet.get("wallet_capability"))
+    disagreement = _mapping(observation.get("disagreement"))
+    blocked_reasons = tuple(str(item).lower() for item in tactic.get("blocked_reasons", ()) or ())
+
+    amount_in = _float(primary_signal.get("amount_in"), default=_float(explain_map.get("receipt_amount_in"), default=1.0))
+    amount_out = _float(primary_signal.get("amount_out"), default=0.0)
+    max_age = max(1.0, _float(explain_map.get("max_oracle_staleness_epochs"), default=3.0))
+    quote_age = _float(explain_map.get("quote_age_epochs"), default=max(0.0, _float(primary_signal.get("current_epoch")) - _float(primary_signal.get("quote_epoch"))))
+    route_output_bps = _float(explain_map.get("route_max_output_vs_reserve_bps"), default=0.0)
+    price_impact_bps = _float(explain_map.get("route_max_price_impact_bps"), default=0.0)
+    slippage_bps = _float(observation.get("baseline_controller_slippage_bps"), default=_float(explain_map.get("slippage_bps"), default=0.0))
+    budget_spent_after = _float(explain_map.get("budget_spent_after"), default=0.0)
+    lifetime_spent_after = _float(explain_map.get("lifetime_spent_after"), default=0.0)
+    live_orders_after = _float(explain_map.get("live_orders_after"), default=0.0)
+
+    text = " ".join((reason, " ".join(explain), " ".join(blocked_reasons))).lower()
+    quote_ok = (
+        bool(primary_signal.get("quote_receipt_present", False))
+        and bool(primary_signal.get("quote_receipt_verified", False))
+        and bool(primary_signal.get("source_available", False))
+        and bool(primary_signal.get("auth_ok", False))
+        and bool(primary_signal.get("binding_ok", False))
+    )
+    wallet_ok = bool(wallet) and bool(wallet.get("enabled", False)) and _float(wallet.get("notional_remaining"), default=0.0) > 0.0
+    advisory_ok = bool(tactic.get("admissible", False))
+    selected_template_id = advisory.get("selected_template_id")
+    current_template = disagreement.get("current_template") or advisory.get("strategy_template")
+
+    flags = [
+        _flag("balance" in text or "insufficient" in text),
+        _flag("stale" in text or quote_age > max_age),
+        _flag(("budget" in text and tag != "submit") or "kill_switch" in text),
+        _flag("cooldown" in text or "spacing" in text or "cadence" in text and tag != "submit"),
+        _flag("slippage" in text and tag != "submit"),
+        _flag(not quote_ok),
+        _flag(not wallet_ok),
+        _flag("nonce" in text),
+    ]
+    normalized = [
+        _clip01((amount_out / max(1.0, amount_in)) / 2.0),
+        _clip01(
+            (
+                float(quote_ok)
+                + float(advisory_ok)
+                + float(observation_packet.get("trusted_primary", False))
+                + float(not bool(disagreement.get("disagreement", False)))
+            )
+            / 4.0
+        ),
+        _clip01(1.0 - route_output_bps / 10_000.0) if route_output_bps else 0.5,
+        _clip01(1.0 - (len(blocked_reasons) / 4.0)),
+        _clip01(1.0 - quote_age / max_age),
+        _clip01(
+            float(any("governance" in item or "drawdown" in item or "risk" in item for item in blocked_reasons))
+        ),
+        _clip01(slippage_bps / 100.0),
+        _clip01(_float(explain_map.get("fee_bps"), default=0.0) / 1_000.0),
+        _clip01(budget_spent_after / max(1.0, max(lifetime_spent_after, 1_000.0))),
+        _clip01(price_impact_bps / 10_000.0),
+        _clip01(live_orders_after / 4.0 + float(selected_template_id not in (None, current_template)) * 0.5),
+        _clip01(quote_age / max_age),
+    ]
+    return flags + normalized
+
+
+def _shadow_objective(observation: Mapping[str, Any], features: Sequence[float]) -> float:
+    if str(observation.get("controller_tag", "")).lower() != "submit":
+        return 0.0
+    features_by_name = {
+        name: float(value)
+        for name, value in zip(AUTOTRADER_FEATURE_NAMES, features, strict=True)
+    }
+    disagreement = _mapping(observation.get("disagreement"))
+    advisory = _mapping(observation.get("zenograph_advisory"))
+    tactic = _mapping(advisory.get("tactic_evaluation"))
+    blocked_count = len(tactic.get("blocked_reasons", ()) or ())
+    return (
+        100.0 * features_by_name["expected_edge_norm"]
+        + 20.0 * features_by_name["signal_strength_norm"]
+        + 10.0 * features_by_name["liquidity_score_norm"]
+        - 40.0 * float(bool(disagreement.get("controller_submit_vs_zenograph_block", False)))
+        - 20.0 * float(bool(disagreement.get("selected_template_mismatch", False)))
+        - 10.0 * blocked_count
+        - 5.0 * features_by_name["price_deviation_norm"]
+    )
+
+
+def _mark_winners(rows: list[dict[str, Any]]) -> None:
+    by_batch: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_batch.setdefault(str(row["batch_id"]), []).append(row)
+    for batch_rows in by_batch.values():
+        valid_rows = [row for row in batch_rows if bool(row["label"]["valid"])]
+        if not valid_rows:
+            continue
+        winner = max(
+            valid_rows,
+            key=lambda row: (float(row["label"]["objective"]), str(row["candidate_hash"])),
+        )
+        for row in batch_rows:
+            row["label"]["is_winner"] = row["candidate_hash"] == winner["candidate_hash"]
 
 
 def _refresh_label(row: dict[str, Any]) -> None:
@@ -436,6 +636,37 @@ def _feature_map(row: dict[str, Any]) -> dict[str, float]:
         str(name): float(value)
         for name, value in zip(row["feature_names"], row["features"], strict=True)
     }
+
+
+def _mapping(value: object) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _explain_map(items: Sequence[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        out[key.strip()] = value.strip()
+    return out
+
+
+def _float(value: object, *, default: float = 0.0) -> float:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _flag(value: bool) -> float:
+    return 1.0 if value else 0.0
 
 
 def _candidate_hash(batch_id: str, candidate_index: int, features: Sequence[float]) -> str:

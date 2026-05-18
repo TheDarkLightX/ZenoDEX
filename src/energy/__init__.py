@@ -16,8 +16,10 @@ from .autotrader_energy import (
     AutoTraderLinearEnergyModel,
     evaluate_autotrader_rows,
     generate_rows,
+    group_counts,
     hand_energy_from_autotrader_row,
     initial_autotrader_hand_model,
+    shadow_rows_from_observations,
     train_autotrader_linear_ranker,
 )
 from .upba_v2_hand_energy import (
@@ -86,10 +88,12 @@ __all__ = [
     "extract_upba_v2_set_feature_record",
     "evaluate_autotrader_rows",
     "generate_rows",
+    "group_counts",
     "hard_barrier_energy_from_record",
     "hand_energy_from_autotrader_row",
     "hand_energy_from_record",
     "initial_autotrader_hand_model",
+    "shadow_rows_from_observations",
     "candidate_hash_multiset",
     "candidate_orders_are_hash_permutation",
     "propose_upba_v2_neighborhood",

@@ -169,6 +169,20 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    autotrader_shadow_bridge = _load_json(
+        root / "data/upba_energy/autotrader_energy_shadow_bridge_baseline_seed20260528.json"
+    )
+    autotrader_shadow_doc = (
+        root / "docs/AUTOTRADER_ENERGY_SHADOW_BRIDGE.md"
+    ).read_text(encoding="utf-8")
+    payloads["autotrader_energy_shadow_bridge"] = autotrader_shadow_bridge
+    checks.extend(
+        _check_autotrader_energy_shadow_bridge(
+            autotrader_shadow_bridge,
+            autotrader_shadow_doc,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -747,6 +761,60 @@ def _check_autotrader_energy_hard_cross_seed(
     ]
 
 
+def _check_autotrader_energy_shadow_bridge(
+    report: dict[str, Any],
+    doc_text: str,
+) -> list[EvidenceCheck]:
+    shadow = report["shadow"]
+    modes = report["modes"]
+    learned = modes["hybrid"]
+    hand = modes["hand"]
+    random = modes["random"]
+    doc_lower = doc_text.lower()
+    return [
+        _expect_equal(
+            "autotrader_energy_shadow_bridge.schema",
+            report.get("schema"),
+            "zenodex/energy/autotrader_shadow_bridge_report/v1",
+        ),
+        _expect_true(
+            "autotrader_energy_shadow_bridge.safety",
+            int(report["safety"]["invalid_accept_count_total"]) == 0
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_trade"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and _all_modes_zero(modes),
+            "zero invalid accepts and deterministic AutoTrader policy guards remain authoritative",
+        ),
+        _expect_true(
+            "autotrader_energy_shadow_bridge.nonvacuous_fixture",
+            int(shadow["context_count"]) >= 4
+            and int(shadow["row_count"]) >= 20
+            and int(shadow["valid_count"]) > 0
+            and int(shadow["invalid_count"]) > 0
+            and int(shadow["winner_count"]) == int(shadow["context_count"])
+            and all(int(count) >= 2 for count in shadow["group_counts"].values()),
+            "shadow fixture has multiple candidates per context plus valid and invalid outcomes",
+        ),
+        _expect_true(
+            "autotrader_energy_shadow_bridge.learned_ties_hand_negative",
+            bool(report["interpretation"]["learned_beats_hand_on_mean_guard_calls"]) is False
+            and float(learned["mean_guard_calls"]) == float(hand["mean_guard_calls"])
+            and float(learned["mean_guard_calls"]) < float(random["mean_guard_calls"])
+            and float(learned["top_5_recall"]) == 1.0
+            and float(learned["top_1_recall"]) == 0.0,
+            "learned ordering ties hand energy, beats random mean calls, and records top-1 miss knowledge",
+        ),
+        _expect_true(
+            "autotrader_energy_shadow_bridge.doc_boundary",
+            "not live production distribution evidence" in doc_lower
+            and "schema and boundary replay" in doc_lower
+            and "distribution-transfer gap" in doc_lower,
+            "shadow bridge doc records fixture scope and distribution-transfer gap",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -772,6 +840,9 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -833,6 +904,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     sota_decision_map = payloads["sota_decision_map"]
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
     autotrader_aggregate = autotrader["aggregate"]
+    autotrader_shadow = payloads["autotrader_energy_shadow_bridge"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -962,6 +1034,34 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "invalid_accept_count_total"
             ],
             "positive_knowledge": autotrader["positive_knowledge"],
+        },
+        "autotrader_energy_shadow_bridge": {
+            "source": autotrader_shadow["source"],
+            "context_count": autotrader_shadow["shadow"]["context_count"],
+            "row_count": autotrader_shadow["shadow"]["row_count"],
+            "valid_count": autotrader_shadow["shadow"]["valid_count"],
+            "invalid_count": autotrader_shadow["shadow"]["invalid_count"],
+            "learned_mean_guard_calls": autotrader_shadow["modes"]["hybrid"][
+                "mean_guard_calls"
+            ],
+            "hand_mean_guard_calls": autotrader_shadow["modes"]["hand"][
+                "mean_guard_calls"
+            ],
+            "random_mean_guard_calls": autotrader_shadow["modes"]["random"][
+                "mean_guard_calls"
+            ],
+            "learned_top_1_recall": autotrader_shadow["modes"]["hybrid"][
+                "top_1_recall"
+            ],
+            "learned_top_5_recall": autotrader_shadow["modes"]["hybrid"][
+                "top_5_recall"
+            ],
+            "invalid_accept_count_total": autotrader_shadow["safety"][
+                "invalid_accept_count_total"
+            ],
+            "negative_knowledge": autotrader_shadow["interpretation"][
+                "negative_knowledge"
+            ],
         },
     }
 

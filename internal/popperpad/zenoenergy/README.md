@@ -208,6 +208,29 @@ profile_support_edge_ref:   sha256:8ccf14e263f5e6199c1c75aaae39b0a1039f48ce8652f
 checkpoint_ref:             sha256:5e5c4af70657ebf7438866dc5a33008b4fc5aaa816bc050a5e05edac7b57ceea
 ```
 
+### AutoTraderEnergy Shadow Bridge
+
+```text
+json_blob_ref:              sha256:8f923fc79e82758c8d3850f3780727f0079c2654bb51ae1dec777b3f6d4ef21d
+markdown_blob_ref:          sha256:54b745772a674dae15dde46150d5d06badfe86651d624ec636d1fa295c48f4a3
+context_ref:                sha256:54c119a41f5abd212eb5cf55d5bdd7df74be3ca38ddc756a47c3f103bf8aa1ad
+json_artifact_ref:          sha256:c0d3a3627d3ec41d9ab665d7141ee6105a581bb0fa92d625870b60a34f15f351
+markdown_artifact_ref:      sha256:7f04f2bdcfc38e329cc5f374b7ed2445f3d78359980927019ae48bcc72b56a2d
+safety_recipe_ref:          sha256:8e240ade965b1d8cf36e09f302407a1fb830abb01436fdfd8b8d39faa665659f
+nonvacuous_recipe_ref:      sha256:de17889b1f9047114130b926161fbfacee1fa40a497abda8bbf17ac52054e601
+beats_hand_recipe_ref:      sha256:29eae86c45bc1231e40f4c4f283f767048b84b3c61ad437a150e2f391f2f7324
+safety_hypothesis_ref:      sha256:d388890a7f97e65710319fdffee91abfa97dc2815ac247ac20cfefb0bd727ed1
+nonvacuous_hypothesis_ref:  sha256:0ee2b63534944f2792dfa633b8eeb4764a46c72ae56fdc42bce12f4727f9d47e
+beats_hand_hypothesis_ref:  sha256:b82af6ab2936b45d228d85dae1f5518777a6b2f271c96f26d3c8436d84f0351e
+safety_evidence_ref:        sha256:4f465a3329bf285bfb6422057a0ce67035abc11e351193291b1fb7cec10a85a9
+safety_support_edge_ref:    sha256:22c5ee613990ba7d7deefd9116a7659da920ae90a8118825ec328b1a55418a33
+nonvacuous_evidence_ref:    sha256:1c442660810f31fe5984e1d3165e1fd545c3291bc5a31991e71e23cdca8598ef
+nonvacuous_support_edge_ref: sha256:e89a9db6ab4f834d787ae19078be426f64ec136a3fcc947c82a7462313a33251
+beats_hand_evidence_ref:    sha256:4c6cb9729bfbf4c326150896710b608bf25ea26be36518efe855b100b4300704
+beats_hand_refute_edge_ref: sha256:35310b419582d1f6fcc3810fee610a8399d8a09245021f13e74dd861640fec60
+checkpoint_ref:             sha256:870df1e5ad728a9bc5124c9cd7fe3c1fc488a02ef5b23a8ec7da2ad5006f524c
+```
+
 ### Research Evidence Replay Gate V3
 
 ```text
@@ -300,6 +323,9 @@ H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported
 H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518: supported
 H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518: supported
 H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518: supported
+H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518: supported
+H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518: supported
+H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518: falsified
 doctor_ok: true
 ```
 

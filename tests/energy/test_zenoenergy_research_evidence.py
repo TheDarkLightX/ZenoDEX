@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 82
+    assert report["passed_count"] == report["check_count"] == 90
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -47,6 +47,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "autotrader_energy_hard_cross_seed.learned_beats_hand_all",
         "autotrader_energy_hard_cross_seed.profile_nonvacuous",
         "autotrader_energy_hard_cross_seed.doc_and_recall",
+        "autotrader_energy_shadow_bridge.schema",
+        "autotrader_energy_shadow_bridge.safety",
+        "autotrader_energy_shadow_bridge.nonvacuous_fixture",
+        "autotrader_energy_shadow_bridge.learned_ties_hand_negative",
+        "autotrader_energy_shadow_bridge.doc_boundary",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
@@ -59,4 +64,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518",
     }.issubset(check_ids)

@@ -148,6 +148,59 @@ an advisory ordering layer for deterministic policy guards. The next useful
 step is a shadow-data replay that compares learned order against real rejected
 and accepted AutoTrader candidate plans.
 
+## AutoTraderEnergy Shadow Bridge
+
+Artifact:
+[AUTOTRADER_ENERGY_SHADOW_BRIDGE.md](./AUTOTRADER_ENERGY_SHADOW_BRIDGE.md)
+
+Static JSON:
+`data/upba_energy/autotrader_energy_shadow_bridge_baseline_seed20260528.json`
+
+Command:
+
+```bash
+python3 tools/evaluate_autotrader_energy_shadow_bridge.py \
+  --synthetic-train-contexts 1500 \
+  --candidates-per-context 16 \
+  --train-seed 20260528 \
+  --epochs 5 \
+  --learning-rate 0.001 \
+  --margin 1.0 \
+  --output-json data/upba_energy/autotrader_energy_shadow_bridge_baseline_seed20260528.json \
+  --output-markdown docs/AUTOTRADER_ENERGY_SHADOW_BRIDGE.md
+```
+
+Observed result:
+
+| mode | mean guard calls | top1 | top5 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: |
+| random | 3.250 | 0.250 | 1.000 | 0 |
+| hand energy | 2.000 | 0.000 | 1.000 | 0 |
+| learned energy | 2.000 | 0.000 | 1.000 | 0 |
+
+Positive knowledge:
+
+```text
+The shadow bridge converts recorded ZenoGraph AutoTrader observations into the
+same advisory row schema and keeps deterministic policy guards authoritative.
+The fixture is nonvacuous, with 4 contexts, 20 rows, 12 valid candidates, 8
+invalid candidates, and zero invalid accepts.
+```
+
+Negative knowledge:
+
+```text
+The built-in shadow bridge is a deterministic fixture derived from accepted
+ZenoGraph store exports. It is useful for schema and boundary replay, but it is
+not live production distribution evidence. The learned scorer tied hand energy
+and had top1 recall 0.0 on this fixture.
+```
+
+Research consequence: the next AutoTraderEnergy improvement should train and
+evaluate on larger recorded shadow corpora with multiple candidate plans per
+decision context. The current bridge is ready for that data, but it should stay
+below the policy guard boundary.
+
 ## Listwise Set Ranker
 
 Artifact:
