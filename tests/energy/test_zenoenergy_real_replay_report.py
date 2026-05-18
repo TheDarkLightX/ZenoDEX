@@ -8,6 +8,10 @@ from tools.build_zenoenergy_real_replay_report import (
     build_upba_real_replay_report,
     main,
 )
+from tools.check_zenoenergy_replay_source_manifest import (
+    canonical_sha256,
+    validate_replay_source_manifest,
+)
 from tools.check_zenoenergy_production_promotion import build_production_gate_report
 
 
@@ -142,6 +146,7 @@ def test_builder_reports_can_satisfy_production_gate() -> None:
         market_day_count=9,
         deterministic_replay_ok=True,
         no_live_secrets=True,
+        source_manifest_check=_upba_manifest_check(),
     )
     autotrader = build_autotrader_real_shadow_report(
         shadow_bridge_report=_autotrader_bridge_report(),
@@ -150,6 +155,7 @@ def test_builder_reports_can_satisfy_production_gate() -> None:
         market_day_count=9,
         deterministic_replay_ok=True,
         no_live_secrets=True,
+        source_manifest_check=_autotrader_manifest_check(),
     )
 
     gate = build_production_gate_report(
@@ -165,8 +171,26 @@ def test_builder_reports_can_satisfy_production_gate() -> None:
 
 def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
     benchmark = tmp_path / "upba_benchmark.json"
+    manifest = tmp_path / "manifest.json"
     output = tmp_path / "upba_real.json"
-    benchmark.write_text(json.dumps(_upba_benchmark_report()), encoding="utf-8")
+    benchmark_payload = _upba_benchmark_report()
+    benchmark.write_text(json.dumps(benchmark_payload), encoding="utf-8")
+    manifest.write_text(
+        json.dumps(
+            _source_manifest(
+                source_kind="production-shadow",
+                source_descriptor="prod-shadow:2026-05-01..2026-05-09",
+                source_reports=[
+                    {
+                        "name": "upba-benchmark",
+                        "schema": benchmark_payload["schema"],
+                        "sha256": canonical_sha256(benchmark_payload),
+                    }
+                ],
+            )
+        ),
+        encoding="utf-8",
+    )
 
     rc = main(
         [
@@ -181,6 +205,8 @@ def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
             "9",
             "--deterministic-replay-ok",
             "--no-live-secrets",
+            "--source-manifest",
+            str(manifest),
             "--output-json",
             str(output),
         ]
@@ -189,6 +215,7 @@ def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert rc == 0
     assert payload["schema"] == "zenodex/energy/upba_real_replay_report/v1"
+    assert payload["source_manifest"]["ok"] is True
     assert payload["source_reports"][0]["schema"] == "zenodex/energy/upba_v2_benchmark_report/v1"
 
 
@@ -263,4 +290,73 @@ def _autotrader_bridge_report() -> dict[str, object]:
             "scorer_authorizes_trade": False,
             "model_output_in_state_root": False,
         },
+    }
+
+
+def _upba_manifest_check() -> dict[str, object]:
+    payload = _upba_benchmark_report()
+    return validate_replay_source_manifest(
+        manifest=_source_manifest(
+            source_kind="production-shadow",
+            source_descriptor="prod-shadow:2026-05-01..2026-05-09",
+            source_reports=[
+                {
+                    "name": "upba-benchmark",
+                    "schema": payload["schema"],
+                    "sha256": canonical_sha256(payload),
+                }
+            ],
+        ),
+        source_reports=[
+            {
+                "schema": payload["schema"],
+                "sha256": canonical_sha256(payload),
+            }
+        ],
+    )
+
+
+def _autotrader_manifest_check() -> dict[str, object]:
+    payload = _autotrader_bridge_report()
+    return validate_replay_source_manifest(
+        manifest=_source_manifest(
+            source_kind="production-shadow",
+            source_descriptor="prod-shadow:autotrader:2026-05-01..2026-05-09",
+            source_reports=[
+                {
+                    "name": "autotrader-shadow-bridge",
+                    "schema": payload["schema"],
+                    "sha256": canonical_sha256(payload),
+                }
+            ],
+        ),
+        source_reports=[
+            {
+                "schema": payload["schema"],
+                "sha256": canonical_sha256(payload),
+            }
+        ],
+    )
+
+
+def _source_manifest(
+    *,
+    source_kind: str,
+    source_descriptor: str,
+    source_reports: list[dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_source_manifest/v1",
+        "manifest_id": f"{source_kind}:20260501-20260509",
+        "source_kind": source_kind,
+        "source_descriptor": source_descriptor,
+        "market_day_count": 9,
+        "deterministic_replay_ok": True,
+        "no_live_secrets": True,
+        "secret_scan": {
+            "tool": "local-secret-scan-v1",
+            "ok": True,
+            "finding_count": 0,
+        },
+        "artifacts": source_reports,
     }

@@ -45,14 +45,15 @@ and policy guards remain authoritative for acceptance.
 `upba_real_replay` must use schema
 `zenodex/energy/upba_real_replay_report/v1` and include broad
 historical-replay or production-shadow coverage, zero invalid accepts,
-zero permutation violations, top-25 recall above threshold, and lower
-mean verifier calls than hand energy.
+zero permutation violations, a passing replay source manifest, top-25
+recall above threshold, and lower mean verifier calls than hand energy.
 
 `autotrader_real_shadow` must use schema
 `zenodex/energy/autotrader_real_shadow_report/v1` and include broad
 historical-replay or production-shadow coverage, zero invalid accepts,
-authoritative policy guards, no state-root model output, top-25 recall
-above threshold, and lower mean guard calls than hand energy.
+a passing replay source manifest, authoritative policy guards, no
+state-root model output, top-25 recall above threshold, and lower mean
+guard calls than hand energy.
 
 ## Report Builder
 

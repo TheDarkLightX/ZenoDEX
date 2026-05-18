@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 115
-passed_count: 115
+check_count: 121
+passed_count: 121
 failed_count: 0
 ```
 
@@ -71,9 +71,14 @@ failed_count: 0
 | production_promotion_gate.research_replay_clean | pass | clean research replay is necessary but insufficient for promotion |
 | production_promotion_gate.safety_contract | pass | gate preserves verifier/policy authority and fallback boundary |
 | production_promotion_gate.doc_and_source | pass | doc and source record real replay thresholds and ranking-only scope |
+| replay_source_manifest.schema | pass | expected 'zenodex/energy/replay_source_manifest_receipt/v1', observed 'zenodex/energy/replay_source_manifest_receipt/v1' |
+| replay_source_manifest.schemas_and_artifacts | pass | receipt and doc record source manifest schemas and artifacts |
+| replay_source_manifest.source_hygiene_hooks | pass | checker validates fixture markers, secret scan, and source report hashes |
+| replay_source_manifest.production_gate_hook | pass | production gate requires a passing source manifest check on real reports |
+| replay_source_manifest.negative_knowledge | pass | receipt preserves advisory boundary and source-custody limits |
 | real_replay_report_builder.schema | pass | expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1' |
 | real_replay_report_builder.targets_and_artifacts | pass | receipt and doc record both production-gate report schemas |
-| real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes plus replay/secret attestations |
+| real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks |
 | real_replay_report_builder.safety_boundary | pass | builder preserves verifier/policy authority and records provenance limits |
 | sota_decision_map.schema | pass | expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1' |
 | sota_decision_map.sources_and_boundary | pass | decision map records all required sources and verifier/fallback boundary |
@@ -115,6 +120,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 | pass | H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 | pass | H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
@@ -223,7 +229,7 @@ failed_count: 0
     "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",
     "negative_knowledge": [
       "Synthetic and built-in fixture reports remain research evidence.",
-      "A real-report JSON without replay provenance and secret-scrubbing custody is insufficient for production promotion."
+      "A real-report JSON without a passing replay source manifest check, replay provenance, and secret-scrubbing custody is insufficient for production promotion."
     ],
     "supported_status": "supported",
     "target_schemas": [
@@ -237,6 +243,16 @@ failed_count: 0
     "original_subset_violation_count": 0,
     "run_count": 3,
     "strict_hand_win_count": 1
+  },
+  "replay_source_manifest": {
+    "claim": "ZenoEnergy has a fail-closed replay source manifest checker that binds real replay reports to source kind, descriptor, market-day coverage, source hashes, deterministic replay, and secret-scan status.",
+    "negative_knowledge": [
+      "A real-report JSON without a passing replay source manifest check is insufficient for production promotion.",
+      "A passing manifest check is still weaker than an audited custody chain."
+    ],
+    "source_manifest_check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+    "source_manifest_schema": "zenodex/energy/replay_source_manifest/v1",
+    "supported_status": "supported"
   },
   "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
   "sota_decision_map": {

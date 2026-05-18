@@ -184,6 +184,29 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    replay_source_manifest = _load_json(
+        root / "data/upba_energy/zenoenergy_replay_source_manifest_receipt.json"
+    )
+    replay_source_manifest_doc = (
+        root / "docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md"
+    ).read_text(encoding="utf-8")
+    replay_source_manifest_source = (
+        root / "tools/check_zenoenergy_replay_source_manifest.py"
+    ).read_text(encoding="utf-8")
+    replay_source_manifest_tests = (
+        root / "tests/energy/test_zenoenergy_replay_source_manifest.py"
+    ).read_text(encoding="utf-8")
+    payloads["replay_source_manifest"] = replay_source_manifest
+    checks.extend(
+        _check_replay_source_manifest(
+            replay_source_manifest,
+            replay_source_manifest_doc,
+            replay_source_manifest_source,
+            replay_source_manifest_tests,
+            production_gate_source,
+        )
+    )
+
     real_replay_builder = _load_json(
         root / "data/upba_energy/zenoenergy_real_replay_report_builder_receipt.json"
     )
@@ -813,9 +836,76 @@ def _check_production_promotion_gate(
             and "advisory ranking" in doc_lower
             and "zenodex/energy/upba_real_replay_report/v1" in doc_text
             and "zenodex/energy/autotrader_real_shadow_report/v1" in doc_text
+            and "passing replay source manifest" in doc_lower
             and "MIN_UPBA_REAL_BATCHES" in source_text
+            and "_source_manifest_check_ok" in source_text
             and "MIN_AUTOTRADER_REAL_CONTEXTS" in source_text,
             "doc and source record real replay thresholds and ranking-only scope",
+        ),
+    ]
+
+
+def _check_replay_source_manifest(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    test_text: str,
+    production_gate_source: str,
+) -> list[EvidenceCheck]:
+    artifacts = set(str(item) for item in report.get("artifacts", []))
+    doc_lower = doc_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_equal(
+            "replay_source_manifest.schema",
+            report.get("schema"),
+            "zenodex/energy/replay_source_manifest_receipt/v1",
+        ),
+        _expect_true(
+            "replay_source_manifest.schemas_and_artifacts",
+            report.get("source_manifest_schema")
+            == "zenodex/energy/replay_source_manifest/v1"
+            and report.get("source_manifest_check_schema")
+            == "zenodex/energy/replay_source_manifest_check/v1"
+            and {
+                "tools/check_zenoenergy_replay_source_manifest.py",
+                "tests/energy/test_zenoenergy_replay_source_manifest.py",
+                "docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md",
+            }.issubset(artifacts)
+            and "zenodex/energy/replay_source_manifest/v1" in doc_text
+            and "zenodex/energy/replay_source_manifest_check/v1" in doc_text,
+            "receipt and doc record source manifest schemas and artifacts",
+        ),
+        _expect_true(
+            "replay_source_manifest.source_hygiene_hooks",
+            "FORBIDDEN_SOURCE_MARKERS" in source_text
+            and "secret_scan_clean" in source_text
+            and "source_reports_match" in source_text
+            and "canonical_sha256" in source_text
+            and "test_manifest_check_rejects_dirty_secret_scan" in test_text
+            and "test_manifest_check_rejects_source_report_hash_mismatch" in test_text,
+            "checker validates fixture markers, secret scan, and source report hashes",
+        ),
+        _expect_true(
+            "replay_source_manifest.production_gate_hook",
+            "_source_manifest_check_ok" in production_gate_source
+            and "source_manifest_ok" in production_gate_source
+            and "source-manifested" in production_gate_source
+            and "production promotion requires" in doc_lower,
+            "production gate requires a passing source manifest check on real reports",
+        ),
+        _expect_true(
+            "replay_source_manifest.negative_knowledge",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            is False
+            and "cannot prove external data custody" in limits_lower
+            and "without a passing replay source manifest check" in negative_lower,
+            "receipt preserves advisory boundary and source-custody limits",
         ),
     ]
 
@@ -845,6 +935,8 @@ def _check_real_replay_report_builder(
                 "zenodex/energy/upba_real_replay_report/v1",
                 "zenodex/energy/autotrader_real_shadow_report/v1",
             }.issubset(targets)
+            and report.get("source_manifest_check_schema")
+            == "zenodex/energy/replay_source_manifest_check/v1"
             and {
                 "tools/build_zenoenergy_real_replay_report.py",
                 "tests/energy/test_zenoenergy_real_replay_report.py",
@@ -859,11 +951,13 @@ def _check_real_replay_report_builder(
             "FORBIDDEN_SOURCE_MARKERS" in source_text
             and "--deterministic-replay-ok" in source_text
             and "--no-live-secrets" in source_text
+            and "--source-manifest" in source_text
             and "source_reports" in source_text
+            and "source_manifest_summary" in source_text
             and "_canonical_sha256" in source_text
             and "rejects obvious fixture or synthetic source descriptors" in doc_lower
             and "test_builder_rejects_autotrader_builtin_fixture_source" in test_text,
-            "builder rejects fixture markers and records source hashes plus replay/secret attestations",
+            "builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks",
         ),
         _expect_true(
             "real_replay_report_builder.safety_boundary",
@@ -1113,6 +1207,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518": "supported",
         "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518": "supported",
+        "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518": "supported",
         "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
@@ -1181,6 +1276,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     topk_sweep = payloads["topk_sweep"]
     training_hygiene = payloads["objective_equiv_training_hygiene"]
     production_gate = payloads["production_promotion_gate"]
+    replay_source_manifest = payloads["replay_source_manifest"]
     real_replay_builder = payloads["real_replay_report_builder"]
     sota_decision_map = payloads["sota_decision_map"]
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
@@ -1317,6 +1413,17 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "blocked_reasons": production_gate["blocked_reasons"],
             "scope": production_gate["scope"],
             "negative_knowledge": production_gate["negative_knowledge"],
+        },
+        "replay_source_manifest": {
+            "source_manifest_schema": replay_source_manifest[
+                "source_manifest_schema"
+            ],
+            "source_manifest_check_schema": replay_source_manifest[
+                "source_manifest_check_schema"
+            ],
+            "supported_status": replay_source_manifest["supported_status"],
+            "negative_knowledge": replay_source_manifest["negative_knowledge"],
+            "claim": replay_source_manifest["claim"],
         },
         "real_replay_report_builder": {
             "target_schemas": real_replay_builder["target_schemas"],

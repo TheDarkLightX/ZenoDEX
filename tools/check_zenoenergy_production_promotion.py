@@ -175,6 +175,7 @@ def _upba_real_replay_obligation(report: dict[str, Any] | None) -> dict[str, Any
         and str(report.get("source_kind")) in {"production-shadow", "historical-replay"}
         and bool(report.get("deterministic_replay_ok")) is True
         and bool(report.get("no_live_secrets")) is True
+        and _source_manifest_check_ok(report)
         and int(report.get("batch_count", 0)) >= MIN_UPBA_REAL_BATCHES
         and int(report.get("candidate_count", 0)) >= MIN_UPBA_REAL_CANDIDATES
         and int(report.get("market_day_count", 0)) >= MIN_REAL_MARKET_DAYS
@@ -187,7 +188,7 @@ def _upba_real_replay_obligation(report: dict[str, Any] | None) -> dict[str, Any
     return {
         "id": "upba_real_replay_coverage",
         "passed": passed,
-        "reason": "real UPBA replay must be broad, deterministic, secret-free, safe, and beat hand energy",
+        "reason": "real UPBA replay must be broad, deterministic, source-manifested, secret-free, safe, and beat hand energy",
         "observed": {
             "present": True,
             "schema": report.get("schema"),
@@ -202,6 +203,7 @@ def _upba_real_replay_obligation(report: dict[str, Any] | None) -> dict[str, Any
             "hand_mean_verifier_calls": report.get("hand_mean_verifier_calls"),
             "deterministic_replay_ok": report.get("deterministic_replay_ok"),
             "no_live_secrets": report.get("no_live_secrets"),
+            "source_manifest_ok": _source_manifest_check_ok(report),
         },
     }
 
@@ -219,6 +221,7 @@ def _autotrader_real_shadow_obligation(report: dict[str, Any] | None) -> dict[st
         and str(report.get("source_kind")) in {"production-shadow", "historical-replay"}
         and bool(report.get("deterministic_replay_ok")) is True
         and bool(report.get("no_live_secrets")) is True
+        and _source_manifest_check_ok(report)
         and bool(report.get("policy_guards_authoritative")) is True
         and bool(report.get("scorer_authorizes_trade")) is False
         and bool(report.get("model_output_in_state_root")) is False
@@ -233,7 +236,7 @@ def _autotrader_real_shadow_obligation(report: dict[str, Any] | None) -> dict[st
     return {
         "id": "autotrader_real_shadow_coverage",
         "passed": passed,
-        "reason": "real AutoTrader shadow replay must be broad, deterministic, secret-free, safe, and beat hand energy",
+        "reason": "real AutoTrader shadow replay must be broad, deterministic, source-manifested, secret-free, safe, and beat hand energy",
         "observed": {
             "present": True,
             "schema": report.get("schema"),
@@ -247,11 +250,26 @@ def _autotrader_real_shadow_obligation(report: dict[str, Any] | None) -> dict[st
             "hand_mean_guard_calls": report.get("hand_mean_guard_calls"),
             "deterministic_replay_ok": report.get("deterministic_replay_ok"),
             "no_live_secrets": report.get("no_live_secrets"),
+            "source_manifest_ok": _source_manifest_check_ok(report),
             "policy_guards_authoritative": report.get("policy_guards_authoritative"),
             "scorer_authorizes_trade": report.get("scorer_authorizes_trade"),
             "model_output_in_state_root": report.get("model_output_in_state_root"),
         },
     }
+
+
+def _source_manifest_check_ok(report: dict[str, Any]) -> bool:
+    manifest = report.get("source_manifest", {})
+    return (
+        isinstance(manifest, dict)
+        and manifest.get("schema")
+        == "zenodex/energy/replay_source_manifest_check/v1"
+        and bool(manifest.get("ok")) is True
+        and int(manifest.get("failed_count", -1)) == 0
+        and int(manifest.get("source_report_count", 0)) > 0
+        and int(manifest.get("source_report_match_count", 0))
+        == int(manifest.get("source_report_count", -1))
+    )
 
 
 def _markdown_report(report: dict[str, Any]) -> str:
@@ -311,14 +329,15 @@ def _markdown_report(report: dict[str, Any]) -> str:
             "`upba_real_replay` must use schema",
             "`zenodex/energy/upba_real_replay_report/v1` and include broad",
             "historical-replay or production-shadow coverage, zero invalid accepts,",
-            "zero permutation violations, top-25 recall above threshold, and lower",
-            "mean verifier calls than hand energy.",
+            "zero permutation violations, a passing replay source manifest, top-25",
+            "recall above threshold, and lower mean verifier calls than hand energy.",
             "",
             "`autotrader_real_shadow` must use schema",
             "`zenodex/energy/autotrader_real_shadow_report/v1` and include broad",
             "historical-replay or production-shadow coverage, zero invalid accepts,",
-            "authoritative policy guards, no state-root model output, top-25 recall",
-            "above threshold, and lower mean guard calls than hand energy.",
+            "a passing replay source manifest, authoritative policy guards, no",
+            "state-root model output, top-25 recall above threshold, and lower mean",
+            "guard calls than hand energy.",
             "",
             "## Report Builder",
             "",

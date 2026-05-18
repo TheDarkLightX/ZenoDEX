@@ -385,6 +385,27 @@ support_edge_ref:           sha256:d99c30ab8a45083dab4de424aaab01a599b57ebbd60c8
 checkpoint_ref:             sha256:743246583be0e4b954754446087a49b45cc624bf5ea69d29dcb7a02de4168445
 ```
 
+### Replay Source Manifest Checker
+
+```text
+receipt_blob_ref:           sha256:f956baa0cf7fc8baa96098df387fff98262f5d0ba389a2f482f72356331ad5e2
+doc_blob_ref:               sha256:b0bf8c3538d198376cb2243041c373105b828a63ec2c591360241f4701f2ca6a
+source_blob_ref:            sha256:4473c8f2085623eb8bf5e3810d3414379a19a3c9a4436be80ac0f1d8e3712ff8
+test_blob_ref:              sha256:f23941ff96b59dc7004121b8ddb9938ea0bfcf3884c1e710636fb93f6ce8212a
+production_gate_blob_ref:   sha256:8f1dfec7412ce04955185a945a977e7fadec6c62213a401192f88240e3ed664f
+context_ref:                sha256:1f6d884085055f2d11c4a588c38813406d90178224ac16b9293b7b528d469d0f
+receipt_artifact_ref:       sha256:4e9e07926a0183499c9081908749059a01a40c1d798bb7232690b01921019b62
+doc_artifact_ref:           sha256:c24ded1840ea0b3d74f0c377763a0feb4222b3f85ebc2743900eda868124d645
+source_artifact_ref:        sha256:fd9a03ebdd9933485a74708f05c5dfb5ba05610723e0b8e959049ab9c3e492be
+test_artifact_ref:          sha256:37b97d82172efc392d1f95bbe2c2196043799253eafa153f08df2349662ce41a
+production_gate_artifact_ref: sha256:bba5dcdf3da25900efd8927cb01c4e3a11cd6b68fb88edac23d4dd9221412c17
+recipe_ref:                 sha256:ce21ce8662a40a31451bcfab06687cf47a150cf51605c174f1074fbdca2199cb
+hypothesis_ref:             sha256:5338bef91ddb97e63fee39a52107795392cae0b908a138b45968b24cb1bf50fa
+evidence_ref:               sha256:5ccd446ad685eecaa9b019c6d8846279b4dec1980cd2d438d128b2d22f35d293
+support_edge_ref:           sha256:5132be667c3f4295a6cc9cc281210279926680d15444e7ccd8da7a79b45ab225
+checkpoint_ref:             sha256:ea70bd5827c02a9d0a3fda5308d02663abc5fb6b8770b9c8b8656521b6a84f97
+```
+
 ## Current Status
 
 ```text
@@ -415,6 +436,7 @@ H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518: supported
 H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518: supported
+H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518: supported
 H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported

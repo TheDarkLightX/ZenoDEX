@@ -1,5 +1,5 @@
 {
-  "check_count": 115,
+  "check_count": 121,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -312,6 +312,31 @@
       "passed": true
     },
     {
+      "check_id": "replay_source_manifest.schema",
+      "detail": "expected 'zenodex/energy/replay_source_manifest_receipt/v1', observed 'zenodex/energy/replay_source_manifest_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest.schemas_and_artifacts",
+      "detail": "receipt and doc record source manifest schemas and artifacts",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest.source_hygiene_hooks",
+      "detail": "checker validates fixture markers, secret scan, and source report hashes",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest.production_gate_hook",
+      "detail": "production gate requires a passing source manifest check on real reports",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest.negative_knowledge",
+      "detail": "receipt preserves advisory boundary and source-custody limits",
+      "passed": true
+    },
+    {
       "check_id": "real_replay_report_builder.schema",
       "detail": "expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1'",
       "passed": true
@@ -323,7 +348,7 @@
     },
     {
       "check_id": "real_replay_report_builder.source_hygiene_hooks",
-      "detail": "builder rejects fixture markers and records source hashes plus replay/secret attestations",
+      "detail": "builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks",
       "passed": true
     },
     {
@@ -532,6 +557,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518",
+      "detail": "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518",
       "detail": "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported",
       "passed": true
@@ -579,7 +609,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 115,
+  "passed_count": 121,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -676,7 +706,7 @@
       "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",
       "negative_knowledge": [
         "Synthetic and built-in fixture reports remain research evidence.",
-        "A real-report JSON without replay provenance and secret-scrubbing custody is insufficient for production promotion."
+        "A real-report JSON without a passing replay source manifest check, replay provenance, and secret-scrubbing custody is insufficient for production promotion."
       ],
       "supported_status": "supported",
       "target_schemas": [
@@ -690,6 +720,16 @@
       "original_subset_violation_count": 0,
       "run_count": 3,
       "strict_hand_win_count": 1
+    },
+    "replay_source_manifest": {
+      "claim": "ZenoEnergy has a fail-closed replay source manifest checker that binds real replay reports to source kind, descriptor, market-day coverage, source hashes, deterministic replay, and secret-scan status.",
+      "negative_knowledge": [
+        "A real-report JSON without a passing replay source manifest check is insufficient for production promotion.",
+        "A passing manifest check is still weaker than an audited custody chain."
+      ],
+      "source_manifest_check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+      "source_manifest_schema": "zenodex/energy/replay_source_manifest/v1",
+      "supported_status": "supported"
     },
     "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
     "sota_decision_map": {

@@ -14,6 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.check_zenoenergy_replay_source_manifest import (  # noqa: E402
+    source_manifest_summary,
+    source_report_from_path,
+    validate_replay_source_manifest,
+)
+
 
 ALLOWED_SOURCE_KINDS = {"production-shadow", "historical-replay"}
 FORBIDDEN_SOURCE_MARKERS = ("synthetic", "fixture", "built-in", "generated")
@@ -71,6 +77,7 @@ def build_upba_real_replay_report(
     deterministic_replay_ok: bool,
     no_live_secrets: bool,
     source_reports: list[dict[str, Any]] | None = None,
+    source_manifest_check: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _validate_common_real_assertions(
         source_kind=source_kind,
@@ -78,6 +85,12 @@ def build_upba_real_replay_report(
         market_day_count=market_day_count,
         deterministic_replay_ok=deterministic_replay_ok,
         no_live_secrets=no_live_secrets,
+    )
+    _validate_source_manifest_check(
+        source_manifest_check,
+        source_kind=source_kind,
+        source_descriptor=source_descriptor,
+        market_day_count=market_day_count,
     )
     if benchmark_report is not None:
         learned, hand, top_level = _extract_upba_modes_from_benchmark(benchmark_report)
@@ -99,7 +112,7 @@ def build_upba_real_replay_report(
     )
     permutation_violation_count = int(learned.get("permutation_violation_count", 0))
 
-    return {
+    report = {
         "schema": "zenodex/energy/upba_real_replay_report/v1",
         "source_kind": source_kind,
         "source_descriptor": source_descriptor,
@@ -122,6 +135,9 @@ def build_upba_real_replay_report(
             "performance_gate_delegated_to": "tools/check_zenoenergy_production_promotion.py",
         },
     }
+    if source_manifest_check is not None:
+        report["source_manifest"] = source_manifest_summary(source_manifest_check)
+    return report
 
 
 def build_autotrader_real_shadow_report(
@@ -133,6 +149,7 @@ def build_autotrader_real_shadow_report(
     deterministic_replay_ok: bool,
     no_live_secrets: bool,
     source_reports: list[dict[str, Any]] | None = None,
+    source_manifest_check: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _validate_common_real_assertions(
         source_kind=source_kind,
@@ -140,6 +157,12 @@ def build_autotrader_real_shadow_report(
         market_day_count=market_day_count,
         deterministic_replay_ok=deterministic_replay_ok,
         no_live_secrets=no_live_secrets,
+    )
+    _validate_source_manifest_check(
+        source_manifest_check,
+        source_kind=source_kind,
+        source_descriptor=source_descriptor,
+        market_day_count=market_day_count,
     )
     if shadow_bridge_report.get("schema") != "zenodex/energy/autotrader_shadow_bridge_report/v1":
         raise ValueError("AutoTrader input must use autotrader_shadow_bridge_report/v1")
@@ -153,7 +176,7 @@ def build_autotrader_real_shadow_report(
     hand = _require_mode(modes, "hand")
     safety = shadow_bridge_report.get("safety", {})
 
-    return {
+    report = {
         "schema": "zenodex/energy/autotrader_real_shadow_report/v1",
         "source_kind": source_kind,
         "source_descriptor": source_descriptor,
@@ -179,6 +202,9 @@ def build_autotrader_real_shadow_report(
             "performance_gate_delegated_to": "tools/check_zenoenergy_production_promotion.py",
         },
     }
+    if source_manifest_check is not None:
+        report["source_manifest"] = source_manifest_summary(source_manifest_check)
+    return report
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -195,6 +221,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--market-day-count", type=int, required=True)
     parser.add_argument("--deterministic-replay-ok", action="store_true")
     parser.add_argument("--no-live-secrets", action="store_true")
+    parser.add_argument("--source-manifest", type=Path)
     parser.add_argument("--output-json", type=Path)
     parser.add_argument("--output-markdown", type=Path)
 
@@ -217,6 +244,7 @@ def _build_upba_from_args(args: argparse.Namespace) -> dict[str, Any]:
         for path in (args.benchmark_report, args.learned_report, args.hand_report)
         if path is not None
     ]
+    source_manifest_check = _source_manifest_check_from_args(args, source_reports)
     return build_upba_real_replay_report(
         benchmark_report=benchmark,
         learned_report=learned,
@@ -227,6 +255,7 @@ def _build_upba_from_args(args: argparse.Namespace) -> dict[str, Any]:
         deterministic_replay_ok=bool(args.deterministic_replay_ok),
         no_live_secrets=bool(args.no_live_secrets),
         source_reports=source_reports,
+        source_manifest_check=source_manifest_check,
     )
 
 
@@ -240,6 +269,10 @@ def _build_autotrader_from_args(args: argparse.Namespace) -> dict[str, Any]:
         deterministic_replay_ok=bool(args.deterministic_replay_ok),
         no_live_secrets=bool(args.no_live_secrets),
         source_reports=[_source_report(args.shadow_bridge_report)],
+        source_manifest_check=_source_manifest_check_from_args(
+            args,
+            [source_report_from_path(args.shadow_bridge_report)],
+        ),
     )
 
 
@@ -261,6 +294,39 @@ def _validate_common_real_assertions(
         raise ValueError("--deterministic-replay-ok is required")
     if not no_live_secrets:
         raise ValueError("--no-live-secrets is required")
+
+
+def _validate_source_manifest_check(
+    check_report: dict[str, Any] | None,
+    *,
+    source_kind: str,
+    source_descriptor: str,
+    market_day_count: int,
+) -> None:
+    if check_report is None:
+        return
+    if check_report.get("schema") != "zenodex/energy/replay_source_manifest_check/v1":
+        raise ValueError("source manifest check must use replay_source_manifest_check/v1")
+    if bool(check_report.get("ok")) is not True:
+        raise ValueError("source manifest check failed")
+    if str(check_report.get("source_kind")) != source_kind:
+        raise ValueError("source manifest source_kind does not match builder arguments")
+    if str(check_report.get("source_descriptor")) != source_descriptor:
+        raise ValueError("source manifest source_descriptor does not match builder arguments")
+    if int(check_report.get("market_day_count", 0)) != int(market_day_count):
+        raise ValueError("source manifest market_day_count does not match builder arguments")
+
+
+def _source_manifest_check_from_args(
+    args: argparse.Namespace,
+    source_reports: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if args.source_manifest is None:
+        return None
+    return validate_replay_source_manifest(
+        manifest=_load_json(args.source_manifest),
+        source_reports=source_reports,
+    )
 
 
 def _extract_upba_modes_from_benchmark(

@@ -59,6 +59,28 @@ def test_production_gate_allows_ranking_only_when_real_reports_pass() -> None:
     assert report["safety_contract"]["deterministic_fallback_required"] is True
 
 
+def test_production_gate_blocks_real_report_without_source_manifest() -> None:
+    research_replay = json.loads(
+        (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    upba = _passing_upba_real_replay()
+    upba.pop("source_manifest")
+
+    report = build_production_gate_report(
+        research_replay=research_replay,
+        upba_real_replay=upba,
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    observed = _obligation(report, "upba_real_replay_coverage")["observed"]
+    assert isinstance(observed, dict)
+    assert observed["source_manifest_ok"] is False
+
+
 def test_production_gate_cli_writes_blocked_receipt(tmp_path: Path) -> None:
     output_json = tmp_path / "gate.json"
     output_markdown = tmp_path / "gate.md"
@@ -106,6 +128,7 @@ def _passing_upba_real_replay() -> dict[str, object]:
         "hand_mean_verifier_calls": 2.5,
         "deterministic_replay_ok": True,
         "no_live_secrets": True,
+        "source_manifest": _passing_source_manifest_check(),
     }
 
 
@@ -125,4 +148,19 @@ def _passing_autotrader_real_shadow() -> dict[str, object]:
         "policy_guards_authoritative": True,
         "scorer_authorizes_trade": False,
         "model_output_in_state_root": False,
+        "source_manifest": _passing_source_manifest_check(),
+    }
+
+
+def _passing_source_manifest_check() -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_source_manifest_check/v1",
+        "ok": True,
+        "manifest_id": "prod-shadow-20260501-20260509",
+        "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:2026-05-01..2026-05-09",
+        "market_day_count": 9,
+        "source_report_count": 1,
+        "source_report_match_count": 1,
+        "failed_count": 0,
     }

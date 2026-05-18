@@ -694,6 +694,35 @@ Status: supported tooling. Negative knowledge remains: the builder records
 source assertions and hashes, but replay provenance and secret-scrubbing custody
 must come from the operator replay pipeline.
 
+## 2026-05-18 Replay Source Manifest
+
+Artifact:
+[ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_replay_source_manifest_receipt.json`
+
+The replay source manifest checker validates:
+
+```text
+source_kind
+source_descriptor
+market_day_count
+source-report SHA-256 hashes
+deterministic_replay_ok
+no_live_secrets
+secret_scan.ok with zero findings
+```
+
+Production real reports now need a passing
+`zenodex/energy/replay_source_manifest_check/v1` summary. This turns the
+builder's source assertions into replayable evidence and makes fixture promotion
+fail closed.
+
+Status: supported tooling. Negative knowledge remains: a passing manifest check
+binds hashes and attestations, but it is still weaker than an externally audited
+custody chain.
+
 ## SOTA Decision Map
 
 Artifact:
@@ -736,24 +765,25 @@ python3 tools/check_zenoenergy_research_evidence.py \
   --output-markdown docs/ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md
 ```
 
-Observed result after adding the real replay report builder:
+Observed result after adding the replay source manifest checker:
 
 | checks | passed | failed |
 | ---: | ---: | ---: |
-| 115 | 115 | 0 |
+| 121 | 121 | 0 |
 
 The gate checks that the committed set-aware, neighborhood, repair-selector,
 listwise set-ranker, listwise cross-seed, gap-weighted default, cross-seed,
 AutoTraderEnergy hard cross-seed, AutoTraderEnergy shadow bridge,
 formal-boundary, fallback/top-k, SOTA decision-map, production promotion gate,
-real replay report builder, and PopperPad doctor evidence still support the
-current research story. It also preserves negative knowledge: set-aware linear
-features have no measured win over the aggregate ranker, the listwise
-set-context ranker has no measured mean-call win, the listwise cross-seed run
-does not strictly improve over the best pairwise baseline, deterministic
-neighborhood expansion reduces regret while increasing verifier work, the
-learned repair selector has not consistently beaten the hand-selected
-two-proposal subset, and fixture evidence cannot promote the scorer.
+replay source manifest checker, real replay report builder, and PopperPad doctor
+evidence still support the current research story. It also preserves negative
+knowledge: set-aware linear features have no measured win over the aggregate
+ranker, the listwise set-context ranker has no measured mean-call win, the
+listwise cross-seed run does not strictly improve over the best pairwise
+baseline, deterministic neighborhood expansion reduces regret while increasing
+verifier work, the learned repair selector has not consistently beaten the
+hand-selected two-proposal subset, and fixture evidence cannot promote the
+scorer.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the
