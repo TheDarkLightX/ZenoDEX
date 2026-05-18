@@ -23,7 +23,8 @@ def test_dependency_manifests_split_runtime_from_agent_packages() -> None:
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
 
-    assert "COPY requirements-core.txt ./" in dockerfile
-    assert "-r requirements-core.txt" in dockerfile
+    assert "COPY requirements-core.lock.txt ./" in dockerfile
+    assert "--require-hashes -r requirements-core.lock.txt" in dockerfile
+    assert "requirements-agents" not in dockerfile
     assert "-r requirements-core.txt" in requirements
     assert "-r requirements-agents.txt" in requirements
