@@ -24,6 +24,8 @@ Learned repair-selector benchmark: [ZenoEnergy Repair Selector](./ZENO_ENERGY_RE
 
 Repair-selector cross-seed stress: [ZenoEnergy Repair Selector Cross-Seed Stress](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
 
+AutoTrader transfer receipt: [AutoTraderEnergy Hard Cross-Seed Receipt](./AUTOTRADER_ENERGY_HARD_CROSS_SEED.md)
+
 Fallback and checked-stop formal boundary: [ZenoEnergy Fallback And Checked-Stop Formal Boundary](./ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md)
 
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
@@ -63,6 +65,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
 - `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
 - `src/energy/upba_v2_repair_selector.py`: tiny advisory selector features and ranking for deterministic neighborhood proposals.
+- `src/energy/autotrader_energy.py`: synthetic AutoTrader advisory energy rows, hand scorer, linear ranker, and guard-call evaluator.
 
 ## Tools
 
@@ -80,6 +83,7 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
+- `tools/benchmark_autotrader_energy_cross_seed.py`: trains and evaluates a tiny AutoTraderEnergy scorer across synthetic train/holdout seed pairs.
 - `tools/check_zenoenergy_research_evidence.py`: replays committed ZenoEnergy research receipts and PopperPad status checks, failing closed on missing evidence or drift.
 
 ## Hand Energy

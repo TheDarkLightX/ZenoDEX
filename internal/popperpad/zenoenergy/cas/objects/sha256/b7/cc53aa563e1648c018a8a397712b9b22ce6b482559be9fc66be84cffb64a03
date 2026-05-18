@@ -1,5 +1,5 @@
 {
-  "check_count": 83,
+  "check_count": 75,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -272,31 +272,6 @@
       "passed": true
     },
     {
-      "check_id": "autotrader_energy_hard_cross_seed.schema",
-      "detail": "expected 'zenodex/energy/autotrader_cross_seed_report/v1', observed 'zenodex/energy/autotrader_cross_seed_report/v1'",
-      "passed": true
-    },
-    {
-      "check_id": "autotrader_energy_hard_cross_seed.safety",
-      "detail": "zero invalid accepts and deterministic AutoTrader policy guards remain authoritative",
-      "passed": true
-    },
-    {
-      "check_id": "autotrader_energy_hard_cross_seed.learned_beats_hand_all",
-      "detail": "learned AutoTraderEnergy ordering reduces mean guard calls versus hand and random on every seed pair",
-      "passed": true
-    },
-    {
-      "check_id": "autotrader_energy_hard_cross_seed.profile_nonvacuous",
-      "detail": "hard profile exercises nontrivial guard ordering",
-      "passed": true
-    },
-    {
-      "check_id": "autotrader_energy_hard_cross_seed.doc_and_recall",
-      "detail": "receipt records high top-5 recall plus the synthetic-to-shadow evidence boundary",
-      "passed": true
-    },
-    {
       "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
       "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
       "passed": true
@@ -397,21 +372,6 @@
       "passed": true
     },
     {
-      "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
-      "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
-      "passed": true
-    },
-    {
-      "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518",
-      "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported",
-      "passed": true
-    },
-    {
-      "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518",
-      "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported",
-      "passed": true
-    },
-    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -419,20 +379,9 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 83,
+  "passed_count": 75,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
-    "autotrader_energy_hard_cross_seed": {
-      "hand_mean_guard_calls": 4.312,
-      "invalid_accept_count_total": 0,
-      "learned_beats_hand_count": 3,
-      "learned_mean_guard_calls": 1.0103333333333333,
-      "learned_top_5_recall_min": 1.0,
-      "positive_knowledge": "The hard synthetic AutoTraderEnergy scorer reduced guard calls on every evaluated seed pair while preserving deterministic guard authority.",
-      "random_mean_guard_calls": 8.393333333333333,
-      "run_count": 3,
-      "safety_pass_count": 3
-    },
     "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
     "fallback_permutation_audit": {
       "batches": 198,

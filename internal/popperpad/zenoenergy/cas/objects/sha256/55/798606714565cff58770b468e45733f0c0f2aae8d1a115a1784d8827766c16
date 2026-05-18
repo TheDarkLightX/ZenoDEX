@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 83
-passed_count: 83
+check_count: 75
+passed_count: 75
 failed_count: 0
 ```
 
@@ -63,11 +63,6 @@ failed_count: 0
 | sota_decision_map.decisions | pass | all required model-direction decisions are recorded in receipt and doc |
 | sota_decision_map.next_experiments | pass | all next experiments are recorded in receipt and doc |
 | sota_decision_map.negative_knowledge | pass | negative knowledge and guidance-only limit are preserved |
-| autotrader_energy_hard_cross_seed.schema | pass | expected 'zenodex/energy/autotrader_cross_seed_report/v1', observed 'zenodex/energy/autotrader_cross_seed_report/v1' |
-| autotrader_energy_hard_cross_seed.safety | pass | zero invalid accepts and deterministic AutoTrader policy guards remain authoritative |
-| autotrader_energy_hard_cross_seed.learned_beats_hand_all | pass | learned AutoTraderEnergy ordering reduces mean guard calls versus hand and random on every seed pair |
-| autotrader_energy_hard_cross_seed.profile_nonvacuous | pass | hard profile exercises nontrivial guard ordering |
-| autotrader_energy_hard_cross_seed.doc_and_recall | pass | receipt records high top-5 recall plus the synthetic-to-shadow evidence boundary |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -88,26 +83,12 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518 | pass | H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 is recorded as supported |
-| popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
-| popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
-| popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
 
 ```json
 {
-  "autotrader_energy_hard_cross_seed": {
-    "hand_mean_guard_calls": 4.312,
-    "invalid_accept_count_total": 0,
-    "learned_beats_hand_count": 3,
-    "learned_mean_guard_calls": 1.0103333333333333,
-    "learned_top_5_recall_min": 1.0,
-    "positive_knowledge": "The hard synthetic AutoTraderEnergy scorer reduced guard calls on every evaluated seed pair while preserving deterministic guard authority.",
-    "random_mean_guard_calls": 8.393333333333333,
-    "run_count": 3,
-    "safety_pass_count": 3
-  },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
   "fallback_permutation_audit": {
     "batches": 198,

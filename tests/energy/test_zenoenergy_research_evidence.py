@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 67
+    assert report["passed_count"] == report["check_count"] == 82
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -24,6 +24,10 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "listwise_cross_seed.safety",
         "listwise_cross_seed.top10_and_checked_stop",
         "listwise_cross_seed.negative_knowledge",
+        "gap_weighted_default.cross_seed_safety",
+        "gap_weighted_default.cross_seed_beats_hand",
+        "gap_weighted_default.hard_case_recall",
+        "gap_weighted_default.model_audit_boundary",
         "neighborhood.call_cost_negative",
         "repair_selector_cross_seed.compression_all_pairs",
         "repair_selector_cross_seed.hand_negative",
@@ -38,6 +42,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "sota_decision_map.decisions",
         "sota_decision_map.next_experiments",
         "sota_decision_map.negative_knowledge",
+        "autotrader_energy_hard_cross_seed.schema",
+        "autotrader_energy_hard_cross_seed.safety",
+        "autotrader_energy_hard_cross_seed.learned_beats_hand_all",
+        "autotrader_energy_hard_cross_seed.profile_nonvacuous",
+        "autotrader_energy_hard_cross_seed.doc_and_recall",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
@@ -45,4 +54,9 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518",
         "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518",
         "popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518",
+        "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518",
+        "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518",
     }.issubset(check_ids)

@@ -48,6 +48,106 @@ Research consequence: set-aware features need stronger cross-seed evidence,
 regularization, a nonlinear scorer, or a hard-case-focused objective before
 promotion.
 
+## Gap-Weighted Default
+
+Artifacts:
+[ZENO_ENERGY_GAP_WEIGHTED_STRESS.md](./ZENO_ENERGY_GAP_WEIGHTED_STRESS.md),
+[ZENO_ENERGY_GAP_WEIGHTED_HARD_CASES.md](./ZENO_ENERGY_GAP_WEIGHTED_HARD_CASES.md),
+[ZENO_ENERGY_MODEL_AUDIT.md](./ZENO_ENERGY_MODEL_AUDIT.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_gap_weighted_cross_seed_stress_250x3x3.json`,
+`data/upba_energy/upba_v2_energy_gap_weighted_hard_cases_500x3x3.json`,
+`data/upba_energy/upba_v2_energy_gap_weighted_model_audit.json`
+
+Observed cross-seed aggregate:
+
+| model | configs | top1 mean | top10 min | mean verifier calls | p99 max | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hand energy | 9 | 0.7819 | 1.0000 | 1.3261 | 5 | 0 |
+| gap-weighted learned | 9 | 0.9825 | 1.0000 | 1.0175 | 2 | 0 |
+
+Observed hard-case aggregate:
+
+| batches with winner | top1 | top5 | top10 | top5 misses | top10 misses | max p99 winner position |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4,466 | 0.9854 | 1.0000 | 1.0000 | 0 | 0 | 2 |
+
+Positive knowledge:
+
+```text
+The gap-weighted learned linear scorer is the current measured default. It
+keeps the verifier authoritative, has zero invalid accepts in the replayed
+bounded artifacts, preserves top-10 recall, and improves mean verifier calls
+over hand energy on the nine-config cross-seed stress run.
+```
+
+Residual limit:
+
+```text
+This is still bounded synthetic evidence. Promotion requires real or
+production-shadow candidate distributions, adversarial distribution-shift
+tests, and the deterministic fallback/certificate path remaining available.
+```
+
+Research consequence: use the gap-weighted linear checkpoint as the baseline
+for future ranker and repair-selector experiments. Record a stronger model only
+if it beats this baseline under the same replay gate and preserves zero invalid
+accepts.
+
+## AutoTraderEnergy Hard Cross-Seed
+
+Artifact:
+[AUTOTRADER_ENERGY_HARD_CROSS_SEED.md](./AUTOTRADER_ENERGY_HARD_CROSS_SEED.md)
+
+Static JSON:
+`data/upba_energy/autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json`
+
+Command:
+
+```bash
+python3 tools/benchmark_autotrader_energy_cross_seed.py \
+  --profile hard \
+  --train-contexts 2500 \
+  --holdout-contexts 1000 \
+  --candidates-per-context 16 \
+  --epochs 6 \
+  --learning-rate 0.001 \
+  --margin 1.0 \
+  --init hand \
+  --seed-pairs 20260522:20260523,20260524:20260525,20260526:20260527 \
+  --output-json data/upba_energy/autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json \
+  --output-markdown docs/AUTOTRADER_ENERGY_HARD_CROSS_SEED.md
+```
+
+Observed aggregate:
+
+| mode | mean guard calls | top1 mean | top5 min | invalid accepts |
+| --- | ---: | ---: | ---: | ---: |
+| random | 8.393 | 0.066 | 0.302 | 0 |
+| hand energy | 4.312 | 0.217 | 0.680 | 0 |
+| learned energy | 1.010 | 0.990 | 1.000 | 0 |
+
+Positive knowledge:
+
+```text
+The hard synthetic AutoTraderEnergy scorer reduced guard calls on every
+evaluated seed pair while preserving deterministic policy-guard authority.
+```
+
+Residual limit:
+
+```text
+This is synthetic pre-production evidence. Real value still depends on
+production-shadow observations with live-like strategy proposals, market
+states, policy bundles, and rejected action candidates.
+```
+
+Research consequence: the ZenoEnergy pattern transfers cleanly to AutoTrader as
+an advisory ordering layer for deterministic policy guards. The next useful
+step is a shadow-data replay that compares learned order against real rejected
+and accepted AutoTrader candidate plans.
+
 ## Listwise Set Ranker
 
 Artifact:
@@ -452,22 +552,22 @@ python3 tools/check_zenoenergy_research_evidence.py \
   --output-markdown docs/ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md
 ```
 
-Observed result after adding the listwise cross-seed receipt:
+Observed result after adding AutoTraderEnergy hard cross-seed checks:
 
 | checks | passed | failed |
 | ---: | ---: | ---: |
-| 68 | 68 | 0 |
+| 83 | 83 | 0 |
 
 The gate checks that the committed set-aware, neighborhood, repair-selector,
-listwise set-ranker, listwise cross-seed, cross-seed, formal-boundary,
-fallback/top-k, SOTA decision-map, and PopperPad doctor evidence still support
-the current research story. It also preserves negative knowledge: set-aware
-linear features have no measured win over the aggregate ranker, the listwise
-set-context ranker has no measured mean-call win, the listwise cross-seed run
-does not strictly improve over the best pairwise baseline, deterministic
-neighborhood expansion reduces regret while increasing verifier work, and the
-learned repair selector has not consistently beaten the hand-selected
-two-proposal subset.
+listwise set-ranker, listwise cross-seed, gap-weighted default, cross-seed,
+AutoTraderEnergy hard cross-seed, formal-boundary, fallback/top-k, SOTA
+decision-map, and PopperPad doctor evidence still support the current research
+story. It also preserves negative knowledge: set-aware linear features have no
+measured win over the aggregate ranker, the listwise set-context ranker has no
+measured mean-call win, the listwise cross-seed run does not strictly improve
+over the best pairwise baseline, deterministic neighborhood expansion reduces
+regret while increasing verifier work, and the learned repair selector has not
+consistently beaten the hand-selected two-proposal subset.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the
@@ -632,6 +732,51 @@ improvement_refute_edge_ref: sha256:469deb9aeff847ee23e1dc38f1444007f1d683f505ce
 checkpoint_ref:             sha256:bf781978378530bccdc8aeb41e41c8dcffa1b40361306789841f754a04d52dbc
 ```
 
+Gap-weighted default refs:
+
+```text
+stress_blob_ref:            sha256:9773617ff7c73c9d6c56b81fc82afdb303fcc2c7f00c25389c0df9a047d49ad7
+hard_cases_blob_ref:        sha256:57c5f3b928cbfd4f7916d1290989c7499cca895d731e3528e5f9a25f1ba3b15c
+model_audit_blob_ref:       sha256:f0491799090e8568725cf04d3c365ca913585acb50e1779de5bd4e9239e4aaf9
+model_blob_ref:             sha256:1a665e8fc07c1b24dd1ae0110f4509b73c0d975805f0a7ac807fc1f0de157c0a
+context_ref:                sha256:501cf904d6afdc8ec39f2b7d0aa8454864999bb89562fd2fdd95827f8365188a
+stress_artifact_ref:        sha256:9df99e4b3773f8ca4ef3732fdb32572b7f53a8b6dbc4b1f703954602b4588ab8
+hard_cases_artifact_ref:    sha256:2f2ce058239714108001ef1e79029e5dd9b13a974a3ee47c34fe4f8eb0f57be3
+model_audit_artifact_ref:   sha256:1e16a6b0f5a3927d6d803d195433bc45cbff0bc3032e034a23fce7d517c8f5cd
+safety_recipe_ref:          sha256:a842bc46a056355dfe1b570afcaa0a15fb4a55fefc3fd2f48ec02126c79448b0
+beats_hand_recipe_ref:      sha256:5de096d00be1d069bc5c90a57e7fa4c717169667d79fa0268978704d2fd96cf1
+safety_hypothesis_ref:      sha256:e62f81665f71a17778f7744192e487c5e1ab4bec2685b976c1642b70cba1a833
+beats_hand_hypothesis_ref:  sha256:daf3d2c4a0547549625e025996a90d2f0cca69fddb284f0e313f946dec96b8b8
+safety_evidence_ref:        sha256:41497b1032188340643251b87a2a54aa8123d12244def5e85929dc0d34fcbd0b
+safety_support_edge_ref:    sha256:00b1930390bcecb498f7dff1a3dcb53930c0195a4e06829e4bfd9ab35fe017e3
+beats_hand_evidence_ref:    sha256:639cbe2f55b9edf8463b4615d35adf9955fed19f9886fc8fc0494fc98ae655e4
+beats_hand_support_edge_ref: sha256:70bd65bfe8aff7cd2f532c05a5e3005525e5ac00917b14830485df1b7a891175
+checkpoint_ref:             sha256:6aed84ddf6214db69fd7e61c12614ee96379004dbd7074e9ba78de6d14cb6e27
+```
+
+AutoTraderEnergy hard cross-seed refs:
+
+```text
+json_blob_ref:              sha256:70c21350465beed0d7409d8a4ae3d6f8a03d30f63942da7a506655bf9fe52b78
+markdown_blob_ref:          sha256:ba27fef93a6013d460513d5755ed94e425496886e5057d52cc3db100236e8bc0
+context_ref:                sha256:04fd880536ef2488f9480a1efacba3c76a7c1ebafbfcb60d48edcf95345016a4
+json_artifact_ref:          sha256:a8c1767ce02ccb4b09c4558f5ce7c2c454a60cf68b144ee0b95bd50f60132500
+markdown_artifact_ref:      sha256:0e59bb1e12d1681d6ff57a29141faf361d0eeb446c3d4b997a6257540989d992
+safety_recipe_ref:          sha256:8da69586cb83520501931370f6ce8808b1c12485bcb34fa4e98bf4d300564a7f
+beats_hand_recipe_ref:      sha256:78bfca23f65ec4cb63c47482c277eca4a393cb22916d9294afc703d26e6c6368
+profile_recipe_ref:         sha256:ee60a2e1d6961bf50fa048f85ee2c8408344d37f43bbdb5e6b23b6f9954f19c0
+safety_hypothesis_ref:      sha256:53088aad688f418e6b2caa2ddaf4c4e19da88fc6ef48d1189cebb8c4ef3cae5d
+beats_hand_hypothesis_ref:  sha256:ccb70800bec0f3ea02b7a20a3d7fff6455ada25bc8c3c17764aacf363b56d5e6
+profile_hypothesis_ref:     sha256:5371e8f4a880f9cc5c8eb0910376dfebc118a95d5dea31fe62036ca21ea3d70c
+safety_evidence_ref:        sha256:defd4af25179ff95635a90587afbe1d436607802311e329fa5b9f3b06caaf018
+safety_support_edge_ref:    sha256:83cc1e455f490874a04afe2df0b651432e5e4b8474e2fbec961cf3f057f10e3d
+beats_hand_evidence_ref:    sha256:66e14cfd8ce180dace51ff357b63a15b6e0db6bc61cf7784472cff49eb9d6bb4
+beats_hand_support_edge_ref: sha256:518216423fab2484c7ed62a13e960a26655fdc530d0a89feb208787ea8cf76c8
+profile_evidence_ref:       sha256:7f25aeac3f25eaeb7ebbeb25e5911c706020993314430268412477de409b68be
+profile_support_edge_ref:   sha256:8ccf14e263f5e6199c1c75aaae39b0a1039f48ce8652fe096268354a70738140
+checkpoint_ref:             sha256:5e5c4af70657ebf7438866dc5a33008b4fc5aaa816bc050a5e05edac7b57ceea
+```
+
 Research evidence replay v3 refs:
 
 ```text
@@ -677,6 +822,21 @@ support_edge_ref:           sha256:c66484dfa8357510764e6e6c12cdf7648f74f9195bb93
 checkpoint_ref:             sha256:5f3da5e6ee234d6b958d67c4c98b84d29bc2456981eafe237752a76e2854dd1f
 ```
 
+Research evidence replay v6 refs:
+
+```text
+json_blob_ref:              sha256:b7cc53aa563e1648c018a8a397712b9b22ce6b482559be9fc66be84cffb64a03
+markdown_blob_ref:          sha256:55798606714565cff58770b468e45733f0c0f2aae8d1a115a1784d8827766c16
+context_ref:                sha256:3fa3962f11e99c61ad7f079ffea18ea6205c32750545f0fa9b07d8e904038633
+json_artifact_ref:          sha256:25b2afd7baaf0a8c059bee37fccf4f129202b9e1dba814deed55be410041d2cc
+markdown_artifact_ref:      sha256:4d008cb32c87a0342a771ee1710f53c789ffb9a1f2b09085d4a7e55233503eed
+recipe_ref:                 sha256:560d28cccff44539bca61bdaf37d164a8ec3040bbcba38dc99b7adb92b649e50
+hypothesis_ref:             sha256:c558cab9a196a46c7e9efc00eb62a8465e94b74fd53e04bf2ef8be1a343759a8
+evidence_ref:               sha256:542579c87da7db395209ed9623a74a300e251f065bf04bc6608db3b6c42a88f9
+support_edge_ref:           sha256:a8cbb42fb76f7da3700c4c0bcdb637b1f55491e8a602fa97ff618e71da370bca
+checkpoint_ref:             sha256:c9f36a31dead32d4814dd62e011b775d48a4e6e6b23470ef8393249244646c4a
+```
+
 Derived PopperPad status:
 
 ```text
@@ -701,8 +861,11 @@ H_ZENOENERGY_LISTWISE_SET_RANKER_SAFETY_20260518: supported
 H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
 H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518: supported
 H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
+H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518: supported
+H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported
 doctor_ok: true
 ```
 

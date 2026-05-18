@@ -172,6 +172,12 @@ neighborhood search. AutoTrader can rank candidate strategies, repairs, hedge
 adjustments, and route plans. Execution still requires deterministic budget,
 nonce, authorization, risk, provenance, and settlement gates.
 
+The first hard synthetic AutoTraderEnergy cross-seed receipt supports this
+transfer pattern: a 21-parameter linear scorer reduced mean guard calls from
+4.312 for hand energy to 1.010 across three seed pairs with zero invalid
+accepts. Treat this as synthetic transfer evidence until production-shadow
+observations cover live-like strategy and market distributions.
+
 ## Research Implications
 
 1. Synthetic data is legitimate for bounded search research when the generator

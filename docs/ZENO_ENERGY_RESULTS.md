@@ -458,6 +458,31 @@ original_subset_violation_count: 0
 Aggregate learned-selected regret matched full neighborhood mean regret
 (`5.937`) while reducing mean candidate count from `16.321` to `8.000`.
 
+## AutoTrader Transfer
+
+Receipt:
+[AUTOTRADER_ENERGY_HARD_CROSS_SEED.md](./AUTOTRADER_ENERGY_HARD_CROSS_SEED.md)
+
+The AutoTraderEnergy hard-profile benchmark uses synthetic candidate trading
+plans and deterministic policy-guard labels. The scorer ranks candidates only.
+Execution remains gated by budget, nonce, authorization, risk, provenance, and
+route checks.
+
+Three train/holdout seed pairs used 2,500 training contexts, 1,000 holdout
+contexts, and 16 candidates per context. The trained model is a 21-parameter
+linear energy scorer initialized from the hand-coded guard energy.
+
+| mode | mean guard calls | top-1 recall | top-5 recall | invalid accepts |
+| --- | ---: | ---: | ---: | ---: |
+| random | 8.393 | 0.066 | 0.318 | 0 |
+| hand energy | 4.312 | 0.217 | 0.694 | 0 |
+| learned energy | 1.010 | 0.990 | 1.000 | 0 |
+
+The learned ordering beat hand energy on every evaluated seed pair and kept
+`invalid_accept_count_total = 0`. This is a transfer result for the advisory
+pattern. Production-shadow observations are still required before treating the
+AutoTrader utility estimate as release evidence.
+
 ## Fallback And Checked Stop
 
 Receipt:
@@ -482,11 +507,12 @@ deterministic suffix-bound certificate or full fallback.
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
-benchmark, repair selector, listwise cross-seed stress, cross-seed stress,
-formal-boundary receipts, fallback/top-k receipts, and PopperPad status ledger.
-It also checks the SOTA decision-map receipt:
+benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
+cross-seed stress, AutoTraderEnergy hard cross-seed transfer, formal-boundary
+receipts, fallback/top-k receipts, and PopperPad status ledger. It also checks
+the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 68 passing checks and 0 failed checks.
+The current receipt reports 83 passing checks and 0 failed checks.
 
 ## Accuracy
 
