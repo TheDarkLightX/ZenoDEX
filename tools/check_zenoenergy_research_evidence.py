@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -90,6 +91,27 @@ def replay_zenoenergy_evidence(
     )
     payloads["formal_boundary"] = formal
     checks.extend(_check_formal_boundary(formal))
+
+    fallback_formal = _load_json(
+        root / "data/upba_energy/upba_v2_fallback_checked_stop_formal_receipt.json"
+    )
+    lean_source = (
+        root / "lean-mathlib/Proofs/UniformBatchOptimality.lean"
+    ).read_text(encoding="utf-8")
+    payloads["fallback_checked_stop_formal"] = fallback_formal
+    checks.extend(_check_fallback_checked_stop_formal(fallback_formal, lean_source))
+
+    fallback_audit = _load_json(
+        root / "data/upba_energy/upba_v2_energy_fallback_permutation_audit_200_seed20260518.json"
+    )
+    payloads["fallback_permutation_audit"] = fallback_audit
+    checks.extend(_check_fallback_permutation_audit(fallback_audit))
+
+    topk_sweep = _load_json(
+        root / "data/upba_energy/upba_v2_energy_topk_sweep_holdout_seed20260518.json"
+    )
+    payloads["topk_sweep"] = topk_sweep
+    checks.extend(_check_topk_sweep(topk_sweep))
 
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
@@ -276,6 +298,131 @@ def _check_formal_boundary(report: dict[str, Any]) -> list[EvidenceCheck]:
     ]
 
 
+def _check_fallback_checked_stop_formal(
+    report: dict[str, Any],
+    lean_source: str,
+) -> list[EvidenceCheck]:
+    names = set(str(name) for name in report["formal_names"])
+    required = {
+        "def FullFallbackEquivalentOrder",
+        "theorem full_fallback_equivalent_order_preserves_membership_iff",
+        "theorem full_fallback_equivalent_order_preserves_weak_optimality_iff",
+        "def CheckedStopCertificate",
+        "theorem checked_stop_certificate_implies_concat_weak_optimal",
+        "theorem checked_stop_certificate_with_full_permutation_implies_full_weak_optimal",
+        "theorem checked_stop_certificate_with_exact_full_implies_global_weak_optimal",
+        "theorem reordered_exact_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
+        "theorem upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
+        "theorem upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
+    }
+    missing_from_source = [
+        name
+        for name in sorted(required)
+        if name not in lean_source
+    ]
+    forbidden = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
+    return [
+        _expect_equal(
+            "fallback_checked_stop_formal.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_fallback_checked_stop_formal_receipt/v1",
+        ),
+        _expect_true(
+            "fallback_checked_stop_formal.commands",
+            all(int(command["exit_code"]) == 0 for command in report["commands"]),
+            "Lean target and focused formal regression are recorded as passing",
+        ),
+        _expect_true(
+            "fallback_checked_stop_formal.names",
+            required.issubset(names) and not missing_from_source,
+            "fallback and checked-stop theorem names are present in receipt and Lean source",
+        ),
+        _expect_true(
+            "fallback_checked_stop_formal.no_placeholders",
+            forbidden.search(lean_source) is None,
+            "Lean source has no sorry/admit/axiom/unsafe placeholders",
+        ),
+        _expect_true(
+            "fallback_checked_stop_formal.scope_limit",
+            "Online early stop" in " ".join(str(limit) for limit in report["limits"]),
+            "receipt states online early-stop suffix-bound limit",
+        ),
+    ]
+
+
+def _check_fallback_permutation_audit(report: dict[str, Any]) -> list[EvidenceCheck]:
+    modes = report["modes"]
+    learned = modes["learned"]
+    hybrid = modes["hybrid"]
+    return [
+        _expect_equal(
+            "fallback_permutation_audit.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_benchmark_report/v1",
+        ),
+        _expect_true(
+            "fallback_permutation_audit.zero_invalid_accepts",
+            int(report["invalid_accept_count"]) == 0 and _all_modes_zero(modes),
+            "all fallback audit modes have zero invalid accepts",
+        ),
+        _expect_true(
+            "fallback_permutation_audit.permutation_premise",
+            all(int(mode["permutation_violation_count"]) == 0 for mode in modes.values()),
+            "all audit modes preserve the full-fallback permutation premise",
+        ),
+        _expect_true(
+            "fallback_permutation_audit.learned_recovery",
+            int(learned["fallback_recovered_count"]) == int(learned["batches"])
+            and float(learned["top_10_recall"]) == 1.0
+            and float(hybrid["top_10_recall"]) == 1.0,
+            "learned and hybrid orderings recover every exact winner by top-k or fallback",
+        ),
+        _expect_true(
+            "fallback_permutation_audit.checked_stop_offline",
+            float(learned["checked_stop_top_k_rate"]) == 1.0
+            and float(learned["checked_stop_at_winner_rate"]) == 1.0
+            and float(modes["random"]["checked_stop_top_k_rate"]) < 1.0,
+            "checked-stop audit succeeds for learned top-k and remains nontrivial versus random",
+        ),
+    ]
+
+
+def _check_topk_sweep(report: dict[str, Any]) -> list[EvidenceCheck]:
+    modes = report["modes"]
+    learned = modes["learned"]
+    hybrid = modes["hybrid"]
+    return [
+        _expect_equal(
+            "topk_sweep.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_topk_sweep/v1",
+        ),
+        _expect_true(
+            "topk_sweep.permutation_premise",
+            all(int(mode["permutation_violation_count"]) == 0 for mode in modes.values()),
+            "all top-k sweep modes preserve hash-permutation ordering",
+        ),
+        _expect_true(
+            "topk_sweep.learned_checked_stop_k2",
+            float(learned["top_k"]["2"]["checked_stop_top_k_rate"]) == 1.0
+            and float(learned["top_k"]["2"]["false_exclusion_rate"]) == 0.0
+            and float(hybrid["top_k"]["2"]["checked_stop_top_k_rate"]) == 1.0,
+            "learned and hybrid checked-stop audits reach 100% by k=2 on holdout",
+        ),
+        _expect_true(
+            "topk_sweep.checked_stop_at_winner",
+            all(float(mode["checked_stop_at_winner_rate"]) == 1.0 for mode in modes.values()),
+            "checked-stop certificate holds at the exact winner for every mode",
+        ),
+        _expect_true(
+            "topk_sweep.random_top10_negative",
+            float(modes["random"]["top_k"]["10"]["false_exclusion_rate"]) > 0.0,
+            "random top-10 misses many winners, so the sweep is not vacuous",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -290,6 +437,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517": "supported",
         "H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517": "falsified",
         "H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517": "supported",
+        "H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -341,6 +489,8 @@ def _run_popperpad_doctor(root: Path) -> EvidenceCheck:
 
 def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     repair_cross = payloads["repair_selector_cross_seed"]
+    fallback_audit = payloads["fallback_permutation_audit"]
+    topk_sweep = payloads["topk_sweep"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -358,6 +508,30 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             ],
         },
         "formal_boundary_claim": payloads["formal_boundary"]["claim"],
+        "fallback_checked_stop_claim": payloads["fallback_checked_stop_formal"]["claim"],
+        "fallback_permutation_audit": {
+            "batches": fallback_audit["modes"]["learned"]["batches"],
+            "learned_top_10_recall": fallback_audit["modes"]["learned"]["top_10_recall"],
+            "learned_checked_stop_top_k_rate": fallback_audit["modes"]["learned"][
+                "checked_stop_top_k_rate"
+            ],
+            "learned_permutation_violation_count": fallback_audit["modes"]["learned"][
+                "permutation_violation_count"
+            ],
+            "invalid_accept_count": fallback_audit["invalid_accept_count"],
+        },
+        "topk_sweep": {
+            "batches": topk_sweep["modes"]["learned"]["batches"],
+            "learned_k2_checked_stop_rate": topk_sweep["modes"]["learned"]["top_k"]["2"][
+                "checked_stop_top_k_rate"
+            ],
+            "learned_k2_false_exclusion_rate": topk_sweep["modes"]["learned"]["top_k"]["2"][
+                "false_exclusion_rate"
+            ],
+            "random_k10_false_exclusion_rate": topk_sweep["modes"]["random"]["top_k"]["10"][
+                "false_exclusion_rate"
+            ],
+        },
     }
 
 

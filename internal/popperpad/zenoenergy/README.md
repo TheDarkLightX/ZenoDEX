@@ -65,6 +65,19 @@ receipt_hypothesis_ref:     sha256:3c61e2c848da522e7db1b45fbfe2f8803dfccf7cedb94
 checkpoint_ref:             sha256:9e51d623aaa3572497be49f2d28fa61654444ea2bc9317d5eb86a9e62b241c4d
 ```
 
+### Fallback And Checked-Stop Formal Boundary
+
+```text
+receipt_blob_ref:           sha256:bfa4f5828c15c1cf6ce41928ecef704d5dfef7dded9074e604503ed39b2caba0
+context_ref:                sha256:cc4c29f0e7c90f7d60a851c99254568e52f042a320b57fe7af6597a4de633662
+artifact_ref:               sha256:4c1657dcb6f992e00af2ddc74668a9c5976f2aaf19d071f0787ec944a242c33f
+recipe_ref:                 sha256:e4dc7978d7c94e226a384219133c43a957b0c89169628c73784bfe1d48d54323
+hypothesis_ref:             sha256:46b0ce2b178ff8c6ad03963a5059442f1902b41b69e2f5bc3cf000b813262925
+evidence_ref:               sha256:9bb153f2d83a3a3d2b0f7535c70e2657ae167a4a1773c91a9d24ca984cd78f4f
+support_edge_ref:           sha256:5fee29d8c677fd602446163b981a461eb68d6dd38ff71b67209f671f6f4b931c
+checkpoint_ref:             sha256:65e180a97ba7d4257338127532cde0190c17173d503a23e15dfc81db9476078b
+```
+
 ### Research Evidence Replay Gate
 
 ```text
@@ -78,6 +91,21 @@ hypothesis_ref:             sha256:ab016895b0939b9696ad6ec66932bf2a225d966943c7a
 evidence_ref:               sha256:426bfb6451ba54406294e50d887b71120e656a6f0315e15e45fb49b2ab307525
 support_edge_ref:           sha256:6ab48e8f170738b4039c5466a0c8e467dfabfbeae7fece7948ddcd61c002b833
 checkpoint_ref:             sha256:00433cf11b3856baecdb5787d85e5d9f7a75345e621cab6a163519a1ec1dabf1
+```
+
+### Research Evidence Replay Gate V2
+
+```text
+json_blob_ref:              sha256:79cee72a63feff30f024e6ef1789ce7e79c4b906e59ed15f96ad23f9aed68c9f
+markdown_blob_ref:          sha256:054432e92e605e15d59bd5586964e7ddc214b197e0e09c583d031fba5fb9d113
+context_ref:                sha256:4d05eaa79aa5a0aec8c8bd255fe8705c4231543fa5eca01b25bcd5d42370f84e
+json_artifact_ref:          sha256:97055a45995f5172424e0e3ee1e15610d96c28de96d4cef1f864bc70b2eff3a4
+markdown_artifact_ref:      sha256:6c0b554c8e132c4ec149ef5c83aa5140a682581cfe616bf9248cce36f554d7ef
+recipe_ref:                 sha256:01529bf754b3dbcdb1744e12b3c71d5224ff021d1bf692c1cdb2c6febeacda9a
+hypothesis_ref:             sha256:137383d526e160be7a028e0b2572a2bd56064d343fd01948217cfdf6da47a991
+evidence_ref:               sha256:4b68f09850aae9cd5341b1067da694d49be985e26ed443d9215d69e3d9b0f692
+support_edge_ref:           sha256:e8495444432fae5381c6b59beec1910dddd43b6a46c89a599ddb90f33db39b64
+checkpoint_ref:             sha256:3aa0418be9bbaa8e81655128a724b6be1a9b32702626cc8e5e1513671cb6d41d
 ```
 
 ## Current Status
@@ -95,7 +123,9 @@ H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_SAFETY_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
 H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517: supported
+H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517: supported
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517_V2: supported
 doctor_ok: true
 ```
 

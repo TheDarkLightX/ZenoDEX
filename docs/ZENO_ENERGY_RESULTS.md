@@ -385,11 +385,33 @@ original_subset_violation_count: 0
 Aggregate learned-selected regret matched full neighborhood mean regret
 (`5.937`) while reducing mean candidate count from `16.321` to `8.000`.
 
+## Fallback And Checked Stop
+
+Receipt:
+[ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md](./ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md)
+
+The formal boundary now records Lean-checked names for full-fallback
+permutation equivalence and checked-stop certificates. The corresponding
+runtime receipts show zero permutation violations in the fallback audit and
+top-k sweep.
+
+```text
+fallback audit learned top_10_recall: 1.0
+fallback audit learned checked_stop_top_k_rate: 1.0
+fallback audit learned permutation_violation_count: 0
+top-k sweep learned k=2 checked_stop_top_k_rate: 1.0
+top-k sweep learned k=2 false_exclusion_rate: 0.0
+```
+
+These are finite-candidate-family results. Online early stop still requires a
+deterministic suffix-bound certificate or full fallback.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, neighborhood benchmark, repair selector,
-cross-seed stress, formal-boundary receipt, and PopperPad status ledger. The
-current receipt reports 34 passing checks and 0 failed checks.
+cross-seed stress, formal-boundary receipts, fallback/top-k receipts, and
+PopperPad status ledger. The current receipt reports 50 passing checks and 0
+failed checks.
 
 ## Accuracy
 

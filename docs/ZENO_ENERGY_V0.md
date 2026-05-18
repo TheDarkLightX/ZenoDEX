@@ -18,6 +18,8 @@ Learned repair-selector benchmark: [ZenoEnergy Repair Selector](./ZENO_ENERGY_RE
 
 Repair-selector cross-seed stress: [ZenoEnergy Repair Selector Cross-Seed Stress](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
 
+Fallback and checked-stop formal boundary: [ZenoEnergy Fallback And Checked-Stop Formal Boundary](./ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Research log and PopperPad refs: [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md)

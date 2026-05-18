@@ -15,12 +15,18 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 33
+    assert report["passed_count"] == report["check_count"] == 49
     assert {
         "set_aware.negative_knowledge_recorded",
         "neighborhood.call_cost_negative",
         "repair_selector_cross_seed.compression_all_pairs",
         "repair_selector_cross_seed.hand_negative",
         "formal_boundary.names",
+        "fallback_checked_stop_formal.names",
+        "fallback_permutation_audit.permutation_premise",
+        "fallback_permutation_audit.checked_stop_offline",
+        "topk_sweep.learned_checked_stop_k2",
+        "topk_sweep.random_top10_negative",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
+        "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
     }.issubset(check_ids)
