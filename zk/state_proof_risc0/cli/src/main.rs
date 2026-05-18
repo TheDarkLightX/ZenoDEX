@@ -9,8 +9,9 @@ use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_GUEST_ID as TAU_STATE_PROOF_GUEST_ID,
 };
 use tau_state_proof_risc0_shared::{
-    txs_commitment_v1, ChainBalanceV1, DexSnapshotV1, DexStateV1, StateProofInputV1,
-    StateProofJournalV1, TauTxAppOpsV1, TauTxV1, PROOF_TYPE,
+    accepted_receipts_root_v1, ingress_commitment_v1, txs_commitment_v1, ChainBalanceV1,
+    DexSnapshotV1, DexStateV1, NonceEntryV1, NonceStateV1, StateProofInputV1, StateProofJournalV1,
+    TauTxAppOpsV1, TauTxV1, TxIngressFactV1, PROOF_TYPE,
 };
 
 fn main() {
@@ -113,6 +114,10 @@ fn handle_generate(req: &Value) {
     };
 
     let txs = parse_block_txs(block.get("transactions")).unwrap_or_else(|e| die(&e));
+    let tx_ingress =
+        parse_block_ingress_facts(block.get("transactions")).unwrap_or_else(|e| die(&e));
+    let pre_nonces = parse_pre_nonces(context.get("pre_nonces"), "context.pre_nonces")
+        .unwrap_or_else(|e| die(&e));
 
     let input = StateProofInputV1 {
         state_hash,
@@ -121,6 +126,8 @@ fn handle_generate(req: &Value) {
         pre_app_hash,
         pre_state,
         txs,
+        pre_nonces,
+        tx_ingress,
         chain_balances_post,
         expected_post_app_hash,
     };
@@ -162,6 +169,22 @@ fn handle_generate(req: &Value) {
     meta.insert(
         "txs_commitment".to_string(),
         Value::String(hex_lower(&journal.txs_commitment)),
+    );
+    meta.insert(
+        "ingress_commitment".to_string(),
+        Value::String(hex_lower(&journal.ingress_commitment)),
+    );
+    meta.insert(
+        "pre_nonce_root".to_string(),
+        Value::String(hex_lower(&journal.pre_nonce_root)),
+    );
+    meta.insert(
+        "post_nonce_root".to_string(),
+        Value::String(hex_lower(&journal.post_nonce_root)),
+    );
+    meta.insert(
+        "accepted_receipts_root".to_string(),
+        Value::String(hex_lower(&journal.accepted_receipts_root)),
     );
     meta.insert(
         "pre_app_hash".to_string(),
@@ -244,6 +267,8 @@ fn try_verify(req: &Value) -> Result<(), String> {
         return Err("journal.state_hash mismatch".into());
     }
 
+    let mut verified_ingress: Option<Vec<TxIngressFactV1>> = None;
+
     // Optional stronger checks (fail-closed when provided).
     if let Some(block) = req.get("block") {
         if !block.is_object() {
@@ -269,6 +294,18 @@ fn try_verify(req: &Value) -> Result<(), String> {
         if expected_commitment != journal.txs_commitment {
             return Err("txs_commitment mismatch".into());
         }
+        let ingress =
+            parse_block_ingress_facts(block.get("transactions")).map_err(|e| e.to_string())?;
+        let expected_ingress_commitment = ingress_commitment_v1(&ingress);
+        if expected_ingress_commitment != journal.ingress_commitment {
+            return Err("ingress_commitment mismatch".into());
+        }
+        let expected_receipts_root =
+            accepted_receipts_root_v1(&txs, &ingress).map_err(transition_error_str)?;
+        if expected_receipts_root != journal.accepted_receipts_root {
+            return Err("accepted_receipts_root mismatch".into());
+        }
+        verified_ingress = Some(ingress);
     }
 
     if let Some(tau_state) = req.get("tau_state") {
@@ -289,10 +326,15 @@ fn try_verify(req: &Value) -> Result<(), String> {
         }
     }
 
+    let mut context_pre_nonces: Vec<NonceEntryV1> = Vec::new();
+    let mut context_seen = false;
     if let Some(context) = req.get("context") {
+        context_seen = true;
         if !context.is_object() {
             return Err("context must be an object".into());
         }
+        context_pre_nonces = parse_pre_nonces(context.get("pre_nonces"), "context.pre_nonces")
+            .map_err(|e| e.to_string())?;
         if let Some(prev) = context.get("app_hash_pre").and_then(Value::as_str) {
             let prev_hex = prev.trim().to_string();
             if prev_hex.is_empty() {
@@ -309,6 +351,9 @@ fn try_verify(req: &Value) -> Result<(), String> {
                 }
             }
         }
+    }
+    if context_seen || verified_ingress.is_some() {
+        check_nonce_roots(&journal, context_pre_nonces, verified_ingress.as_deref())?;
     }
 
     Ok(())
@@ -354,6 +399,97 @@ fn parse_chain_balances(v: Option<&Value>, name: &str) -> Vec<ChainBalanceV1> {
         }
     }
     out
+}
+
+fn parse_pre_nonces(v: Option<&Value>, name: &str) -> Result<Vec<NonceEntryV1>, String> {
+    let Some(val) = v else { return Ok(vec![]) };
+    let Some(obj) = val.as_object() else {
+        return Err(format!("{name} must be an object"));
+    };
+    let mut out = Vec::with_capacity(obj.len());
+    for (pk, nonce) in obj {
+        if pk.is_empty() {
+            return Err(format!("{name}: pubkey must be non-empty"));
+        }
+        let n = nonce
+            .as_u64()
+            .or_else(|| {
+                nonce
+                    .as_i64()
+                    .and_then(|i| if i >= 0 { Some(i as u64) } else { None })
+            })
+            .ok_or_else(|| format!("{name}: invalid nonce for pubkey"))?;
+        out.push(NonceEntryV1 {
+            pubkey: pk.clone(),
+            next_nonce: n,
+        });
+    }
+    Ok(out)
+}
+
+fn parse_block_ingress_facts(v: Option<&Value>) -> Result<Vec<TxIngressFactV1>, String> {
+    let txs = v
+        .and_then(Value::as_array)
+        .ok_or_else(|| "block.transactions must be a list".to_string())?;
+    let mut out = Vec::with_capacity(txs.len());
+    for tx in txs {
+        let tx_obj = tx
+            .as_object()
+            .ok_or_else(|| "tx must be an object".to_string())?;
+        let sender = tx_obj
+            .get("sender_pubkey")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "tx.sender_pubkey missing".to_string())?
+            .to_string();
+        let nonce = tx_obj
+            .get("nonce")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| "tx.nonce missing/invalid".to_string())?;
+        out.push(TxIngressFactV1 {
+            sender_pubkey: sender,
+            nonce,
+        });
+    }
+    Ok(out)
+}
+
+fn check_nonce_roots(
+    journal: &StateProofJournalV1,
+    pre_nonces: Vec<NonceEntryV1>,
+    ingress: Option<&[TxIngressFactV1]>,
+) -> Result<(), String> {
+    let mut nonce_state = NonceStateV1::from_entries(pre_nonces).map_err(transition_error_str)?;
+    if nonce_state.root() != journal.pre_nonce_root {
+        return Err("pre_nonce_root mismatch".into());
+    }
+    if let Some(facts) = ingress {
+        for fact in facts {
+            let tx = TauTxV1 {
+                sender_pubkey: fact.sender_pubkey.clone(),
+                app_ops: TauTxAppOpsV1 {
+                    has_faucet: false,
+                    faucet_mint: Vec::new(),
+                    has_intents: false,
+                    intents: Vec::new(),
+                },
+            };
+            nonce_state
+                .apply_ingress(&tx, fact)
+                .map_err(transition_error_str)?;
+        }
+        if nonce_state.root() != journal.post_nonce_root {
+            return Err("post_nonce_root mismatch".into());
+        }
+    }
+    Ok(())
+}
+
+fn transition_error_str(err: tau_state_proof_risc0_shared::TransitionError) -> String {
+    match err {
+        tau_state_proof_risc0_shared::TransitionError::InvalidInput(msg) => msg.to_string(),
+        tau_state_proof_risc0_shared::TransitionError::Unsupported(msg) => msg.to_string(),
+        tau_state_proof_risc0_shared::TransitionError::Arithmetic(msg) => msg.to_string(),
+    }
 }
 
 fn parse_block_txs(v: Option<&Value>) -> Result<Vec<TauTxV1>, String> {
@@ -596,6 +732,85 @@ fn parse_intent_obj(
                     asset_out: asset_out.to_string(),
                     amount_in: amount_in as u128,
                     min_amount_out: min_amount_out as u128,
+                    recipient: recipient.to_string(),
+                    salt,
+                },
+            ))
+        }
+        "ADD_LIQUIDITY" => {
+            let pool_id = obj
+                .get("pool_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.pool_id missing".to_string())?;
+            let amount0_desired = obj
+                .get("amount0_desired")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount0_desired missing".to_string())?;
+            let amount1_desired = obj
+                .get("amount1_desired")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount1_desired missing".to_string())?;
+            let amount0_min = obj
+                .get("amount0_min")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount0_min missing".to_string())?;
+            let amount1_min = obj
+                .get("amount1_min")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount1_min missing".to_string())?;
+            let recipient = obj
+                .get("recipient")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.recipient missing".to_string())?;
+            Ok(tau_state_proof_risc0_shared::DexIntentV1::AddLiquidity(
+                tau_state_proof_risc0_shared::AddLiquidityIntentV1 {
+                    module: module.to_string(),
+                    version: version.to_string(),
+                    intent_id: intent_id.to_string(),
+                    sender_pubkey: sender.to_string(),
+                    deadline,
+                    pool_id: pool_id.to_string(),
+                    amount0_desired: amount0_desired as u128,
+                    amount1_desired: amount1_desired as u128,
+                    amount0_min: amount0_min as u128,
+                    amount1_min: amount1_min as u128,
+                    recipient: recipient.to_string(),
+                    salt,
+                },
+            ))
+        }
+        "REMOVE_LIQUIDITY" => {
+            let pool_id = obj
+                .get("pool_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.pool_id missing".to_string())?;
+            let lp_amount = obj
+                .get("lp_amount")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.lp_amount missing".to_string())?;
+            let amount0_min = obj
+                .get("amount0_min")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount0_min missing".to_string())?;
+            let amount1_min = obj
+                .get("amount1_min")
+                .and_then(Value::as_u64)
+                .ok_or_else(|| "intent.amount1_min missing".to_string())?;
+            let recipient = obj
+                .get("recipient")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "intent.recipient missing".to_string())?;
+            Ok(tau_state_proof_risc0_shared::DexIntentV1::RemoveLiquidity(
+                tau_state_proof_risc0_shared::RemoveLiquidityIntentV1 {
+                    module: module.to_string(),
+                    version: version.to_string(),
+                    intent_id: intent_id.to_string(),
+                    sender_pubkey: sender.to_string(),
+                    deadline,
+                    pool_id: pool_id.to_string(),
+                    lp_amount: lp_amount as u128,
+                    amount0_min: amount0_min as u128,
+                    amount1_min: amount1_min as u128,
                     recipient: recipient.to_string(),
                     salt,
                 },
