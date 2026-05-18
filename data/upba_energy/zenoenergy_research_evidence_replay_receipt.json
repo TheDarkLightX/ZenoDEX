@@ -1,5 +1,5 @@
 {
-  "check_count": 98,
+  "check_count": 104,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -262,6 +262,31 @@
       "passed": true
     },
     {
+      "check_id": "objective_equiv_training_hygiene.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_objective_equiv_training_hygiene_receipt/v1', observed 'zenodex/energy/upba_v2_objective_equiv_training_hygiene_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "objective_equiv_training_hygiene.modes",
+      "detail": "receipt records replay default and objective-equivalent research mode",
+      "passed": true
+    },
+    {
+      "check_id": "objective_equiv_training_hygiene.source_hooks",
+      "detail": "trainer and focused tests expose objective-equivalent positive-class hooks",
+      "passed": true
+    },
+    {
+      "check_id": "objective_equiv_training_hygiene.safety_boundary",
+      "detail": "receipt and doc keep the change on the advisory training boundary",
+      "passed": true
+    },
+    {
+      "check_id": "objective_equiv_training_hygiene.no_metric_claim",
+      "detail": "receipt records this as label hygiene rather than performance evidence",
+      "passed": true
+    },
+    {
       "check_id": "sota_decision_map.schema",
       "detail": "expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1'",
       "passed": true
@@ -452,6 +477,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518",
+      "detail": "H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
       "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
       "passed": true
@@ -494,7 +524,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 98,
+  "passed_count": 104,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -567,6 +597,15 @@
       "negative_knowledge": "The first listwise set-context ranker did not improve mean verifier calls against the strongest pairwise baseline on this bounded synthetic split."
     },
     "neighborhood_regret_delta": -273.6375,
+    "objective_equiv_training_hygiene": {
+      "claim": "ZenoEnergy pairwise training can weight every verifier-accepted tied maximum-objective candidate as a positive example, avoiding extra pressure toward the arbitrary hash-selected representative.",
+      "default_positive_class": "hash-winner",
+      "positive_class_modes": [
+        "hash-winner",
+        "objective-equivalent"
+      ],
+      "recommended_research_positive_class": "objective-equivalent"
+    },
     "repair_selector_cross_seed": {
       "compression_pass_count": 3,
       "invalid_accept_count": 0,

@@ -217,6 +217,13 @@ The weight is clipped to `max_pair_weight`. This targets the hard-case pattern
 seen after the first runs: most remaining misses were valid candidates ranked
 ahead of slightly better valid winners.
 
+Objective-equivalent training hygiene is now available for the same pairwise
+trainer. New research runs can pass `--positive-class objective-equivalent` so
+`winner_pair_weight` applies to every verifier-accepted candidate in the tied
+maximum `(objective_volume, objective_surplus)` class. The legacy default
+`--positive-class hash-winner` remains available to reproduce earlier
+checkpoints.
+
 Training command:
 
 ```bash
@@ -230,7 +237,8 @@ python3 tools/train_upba_energy.py \
   --winner-pair-weight 2.0 \
   --objective-gap-weight 4.0 \
   --same-volume-surplus-gap-weight 1.0 \
-  --max-pair-weight 8.0
+  --max-pair-weight 8.0 \
+  --positive-class hash-winner
 ```
 
 Held-out dataset comparison:
@@ -553,16 +561,39 @@ The objective-equivalent metrics apply the formal tied-maxima boundary to the
 runtime receipts without changing the exact verifier winner or validity
 predicate.
 
+## Objective-Equivalent Training Hygiene
+
+Artifact:
+[ZENO_ENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE.md](./ZENO_ENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_objective_equiv_training_hygiene_receipt.json`
+
+The trainer now has an explicit positive-class switch:
+
+```text
+--positive-class hash-winner
+--positive-class objective-equivalent
+```
+
+The second mode treats every verifier-accepted tied maximum-objective candidate
+as positive for winner-pair weighting. Equal-objective tied pairs are still
+skipped by the pairwise loss, so the learner avoids a spurious preference among
+objective-equivalent candidates.
+
+This is a training-target hygiene receipt. It does not claim a new benchmark
+improvement until a new model artifact is trained and evaluated with this mode.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
 cross-seed stress, AutoTraderEnergy hard cross-seed transfer, AutoTraderEnergy
 shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
-and PopperPad status ledger. It also checks
+objective-equivalent training hygiene, and PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 98 passing checks and 0 failed checks.
+The current receipt reports 104 passing checks and 0 failed checks.
 
 ## Accuracy
 

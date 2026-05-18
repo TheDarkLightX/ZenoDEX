@@ -24,6 +24,9 @@ from src.energy.upba_v2_features import FEATURE_NAMES
 from src.energy.upba_v2_set_features import SET_AWARE_FEATURE_NAMES
 
 
+POSITIVE_CLASS_MODES = ("hash-winner", "objective-equivalent")
+
+
 def load_rows(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as handle:
@@ -46,9 +49,15 @@ def train_linear_ranker(
     objective_gap_weight: float = 0.0,
     same_volume_surplus_gap_weight: float = 0.0,
     max_pair_weight: float = 8.0,
+    positive_class: str = "hash-winner",
 ) -> LinearEnergyModel:
     if not rows:
         raise ValueError("training dataset is empty")
+    if positive_class not in POSITIVE_CLASS_MODES:
+        raise ValueError(
+            "positive_class must be one of "
+            + ", ".join(repr(mode) for mode in POSITIVE_CLASS_MODES)
+        )
     feature_names = _feature_names_for_rows(rows, feature_block=feature_block)
     if init == "hand":
         if feature_block != "aggregate":
@@ -72,6 +81,7 @@ def train_linear_ranker(
             if len(batch_rows) < 2:
                 continue
             batch_scale = _batch_objective_scale(batch_rows)
+            positive_row_keys = _positive_row_keys(batch_rows, positive_class=positive_class)
             ranked = sorted(batch_rows, key=_label_score, reverse=True)
             for good_index, good in enumerate(ranked):
                 good_x = _feature_values(good, feature_block=feature_block)
@@ -86,6 +96,7 @@ def train_linear_ranker(
                     pair_weight = _pair_update_weight(
                         good=good,
                         bad=bad,
+                        good_is_positive=_row_key(good) in positive_row_keys,
                         batch_scale=batch_scale,
                         winner_pair_weight=winner_pair_weight,
                         objective_gap_weight=objective_gap_weight,
@@ -111,6 +122,16 @@ def main() -> int:
     parser.add_argument("--objective-gap-weight", type=float, default=0.0)
     parser.add_argument("--same-volume-surplus-gap-weight", type=float, default=0.0)
     parser.add_argument("--max-pair-weight", type=float, default=8.0)
+    parser.add_argument(
+        "--positive-class",
+        choices=POSITIVE_CLASS_MODES,
+        default="hash-winner",
+        help=(
+            "Which candidates receive winner-pair weighting: the hash-selected "
+            "winner only, or every verifier-accepted candidate with the best "
+            "volume/surplus objective."
+        ),
+    )
     args = parser.parse_args()
 
     if args.winner_pair_weight <= 0:
@@ -135,6 +156,7 @@ def main() -> int:
         objective_gap_weight=args.objective_gap_weight,
         same_volume_surplus_gap_weight=args.same_volume_surplus_gap_weight,
         max_pair_weight=args.max_pair_weight,
+        positive_class=args.positive_class,
     )
     args.output_model.parent.mkdir(parents=True, exist_ok=True)
     save_linear_model(model, args.output_model)
@@ -152,6 +174,7 @@ def main() -> int:
         "objective_gap_weight": args.objective_gap_weight,
         "same_volume_surplus_gap_weight": args.same_volume_surplus_gap_weight,
         "max_pair_weight": args.max_pair_weight,
+        "positive_class": args.positive_class,
         "model_path": str(args.output_model),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
@@ -165,6 +188,35 @@ def _label_score(row: dict[str, Any]) -> tuple[int, int, int]:
         int(label["objective_volume"]),
         int(label["objective_surplus"]),
     )
+
+
+def _positive_row_keys(rows: list[dict[str, Any]], *, positive_class: str) -> set[str]:
+    if positive_class == "hash-winner":
+        return {
+            _row_key(row)
+            for row in rows
+            if bool(row["label"].get("is_winner"))  # type: ignore[index]
+        }
+    if positive_class == "objective-equivalent":
+        valid_rows = [row for row in rows if bool(row["label"]["valid"])]
+        if not valid_rows:
+            return set()
+        best_label_score = max(_label_score(row) for row in valid_rows)
+        return {
+            _row_key(row)
+            for row in valid_rows
+            if _label_score(row) == best_label_score
+        }
+    raise ValueError(
+        "positive_class must be one of "
+        + ", ".join(repr(mode) for mode in POSITIVE_CLASS_MODES)
+    )
+
+
+def _row_key(row: dict[str, Any]) -> str:
+    if "candidate_hash" in row:
+        return str(row["candidate_hash"])
+    return f"row:{id(row)}"
 
 
 def _feature_names_for_rows(rows: list[dict[str, Any]], *, feature_block: str) -> tuple[str, ...]:
@@ -203,6 +255,7 @@ def _pair_update_weight(
     *,
     good: dict[str, Any],
     bad: dict[str, Any],
+    good_is_positive: bool,
     batch_scale: dict[str, int],
     winner_pair_weight: float,
     objective_gap_weight: float,
@@ -211,7 +264,7 @@ def _pair_update_weight(
 ) -> float:
     good_label = good["label"]
     bad_label = bad["label"]
-    weight = winner_pair_weight if good_label.get("is_winner") else 1.0
+    weight = winner_pair_weight if good_is_positive else 1.0
     if good_label["valid"] and bad_label["valid"]:
         volume_gap = max(
             0,

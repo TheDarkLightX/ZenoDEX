@@ -615,6 +615,29 @@ and the AutoTrader shadow bridge metrics. The scorer still ranks candidates
 only; deterministic verification supplies acceptance, and exact hash-selected
 winner metrics remain visible for replay.
 
+## 2026-05-18 Objective-Equivalent Training Hygiene
+
+Artifact:
+[ZENO_ENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE.md](./ZENO_ENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_objective_equiv_training_hygiene_receipt.json`
+
+The pairwise trainer now separates two positive-class conventions:
+
+```text
+hash-winner: only label.is_winner receives winner_pair_weight
+objective-equivalent: every valid tied maximum-objective candidate receives winner_pair_weight
+```
+
+This removes a training-target mismatch exposed by the objective-equivalence
+telemetry. If candidates share the best `(volume, surplus)` objective and pass
+deterministic verification, the learner should avoid treating the hash-selected
+representative as uniquely better.
+
+Status: supported as training hygiene. This is not recorded as a new benchmark
+improvement until a fresh model is trained and evaluated under the new mode.
+
 ## SOTA Decision Map
 
 Artifact:

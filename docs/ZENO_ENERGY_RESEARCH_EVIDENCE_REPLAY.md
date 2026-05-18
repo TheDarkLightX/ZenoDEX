@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 98
-passed_count: 98
+check_count: 104
+passed_count: 104
 failed_count: 0
 ```
 
@@ -61,6 +61,11 @@ failed_count: 0
 | topk_sweep.checked_stop_at_winner | pass | checked-stop certificate holds at the exact winner for every mode |
 | topk_sweep.objective_equivalence_metrics | pass | top-k sweep reports objective-equivalent recall and call position |
 | topk_sweep.random_top10_negative | pass | random top-10 misses many winners, so the sweep is not vacuous |
+| objective_equiv_training_hygiene.schema | pass | expected 'zenodex/energy/upba_v2_objective_equiv_training_hygiene_receipt/v1', observed 'zenodex/energy/upba_v2_objective_equiv_training_hygiene_receipt/v1' |
+| objective_equiv_training_hygiene.modes | pass | receipt records replay default and objective-equivalent research mode |
+| objective_equiv_training_hygiene.source_hooks | pass | trainer and focused tests expose objective-equivalent positive-class hooks |
+| objective_equiv_training_hygiene.safety_boundary | pass | receipt and doc keep the change on the advisory training boundary |
+| objective_equiv_training_hygiene.no_metric_claim | pass | receipt records this as label hygiene rather than performance evidence |
 | sota_decision_map.schema | pass | expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1' |
 | sota_decision_map.sources_and_boundary | pass | decision map records all required sources and verifier/fallback boundary |
 | sota_decision_map.decisions | pass | all required model-direction decisions are recorded in receipt and doc |
@@ -99,6 +104,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
@@ -182,6 +188,15 @@ failed_count: 0
     "negative_knowledge": "The first listwise set-context ranker did not improve mean verifier calls against the strongest pairwise baseline on this bounded synthetic split."
   },
   "neighborhood_regret_delta": -273.6375,
+  "objective_equiv_training_hygiene": {
+    "claim": "ZenoEnergy pairwise training can weight every verifier-accepted tied maximum-objective candidate as a positive example, avoiding extra pressure toward the arbitrary hash-selected representative.",
+    "default_positive_class": "hash-winner",
+    "positive_class_modes": [
+      "hash-winner",
+      "objective-equivalent"
+    ],
+    "recommended_research_positive_class": "objective-equivalent"
+  },
   "repair_selector_cross_seed": {
     "compression_pass_count": 3,
     "invalid_accept_count": 0,

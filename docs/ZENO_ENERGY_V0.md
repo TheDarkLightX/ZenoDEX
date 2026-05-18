@@ -138,7 +138,10 @@ The correct parameter count is:
 The no-dependency default path trains a 96-weight linear energy model with one
 bias parameter. This keeps the default experiment CPU-only and dependency-light.
 The trainer also supports gap-weighted pairwise updates, which give extra weight
-to batch winners and to larger valid-vs-valid objective gaps.
+to batch winners and to larger valid-vs-valid objective gaps. New research runs
+can select `--positive-class objective-equivalent` so all verifier-accepted
+tied maximum-objective candidates receive winner-pair pressure against lower
+candidates. The default `hash-winner` mode remains for artifact replay.
 
 Evaluation and benchmark tools also support a hard-barrier hybrid order:
 

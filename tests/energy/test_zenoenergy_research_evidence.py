@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 97
+    assert report["passed_count"] == report["check_count"] == 103
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -40,6 +40,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "topk_sweep.learned_checked_stop_k2",
         "topk_sweep.objective_equivalence_metrics",
         "topk_sweep.random_top10_negative",
+        "objective_equiv_training_hygiene.schema",
+        "objective_equiv_training_hygiene.modes",
+        "objective_equiv_training_hygiene.source_hooks",
+        "objective_equiv_training_hygiene.safety_boundary",
+        "objective_equiv_training_hygiene.no_metric_claim",
         "sota_decision_map.schema",
         "sota_decision_map.sources_and_boundary",
         "sota_decision_map.decisions",
@@ -67,6 +72,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518",
         "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518",
         "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518",
+        "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518",

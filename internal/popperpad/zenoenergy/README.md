@@ -336,6 +336,21 @@ support_edge_ref:           sha256:7e7cf817639439ec72d778e140d4a33c1d94cf415fabf
 checkpoint_ref:             sha256:4243f2b7f7fb16890710a6867f4f241978682dd860ac03fd70b6ae06b92b4370
 ```
 
+### Objective-Equivalence Training Hygiene
+
+```text
+json_blob_ref:              sha256:eb27648082625072821d73661e5626e3e7920fca0598c876e70b13ae898917c0
+markdown_blob_ref:          sha256:a5ce1f2cf693d9259f22fe570674cb94fb31060fa0dd90c74407fbf72c6f7304
+context_ref:                sha256:3671c9937433a3b78d7911959e4483e760846c1132ea7f91daa6070e2f36bcad
+json_artifact_ref:          sha256:0dbfca8ab4cff0ae3d3434b8a00b3c8c1e58c7e5ab656a5de6fc28838aabbebb
+markdown_artifact_ref:      sha256:dba13575f85ef0606c45e8b99112f09f2a8624776c404dd6579e3a0f598bfb38
+recipe_ref:                 sha256:9449f4f7d8ba4bb65c3f27bd3d914fc5eda5a41dbbdeac272231fa9a28684464
+hypothesis_ref:             sha256:8f815851006be1fbfd9adffd30297561c5da683468316120f4bbc2a8e120267b
+evidence_ref:               sha256:deacf9952c3fbabe3efa0fef9db6bf73fc91eb1de3eccdd7055943b6c81acc5f
+support_edge_ref:           sha256:c0325360642f3a2d9114e0b4fd74b405dd27e6cc39232cc0d7a0757416478c07
+checkpoint_ref:             sha256:12c3955fdf1be79a2118a7846d8c251c9158180982d639b89b40e59cbaa30feb
+```
+
 ## Current Status
 
 ```text
@@ -364,6 +379,7 @@ H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518: supported
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
+H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported

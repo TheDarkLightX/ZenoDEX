@@ -146,6 +146,26 @@ def replay_zenoenergy_evidence(
     payloads["topk_sweep"] = topk_sweep
     checks.extend(_check_topk_sweep(topk_sweep))
 
+    training_hygiene = _load_json(
+        root / "data/upba_energy/upba_v2_objective_equiv_training_hygiene_receipt.json"
+    )
+    trainer_source = (root / "tools/train_upba_energy.py").read_text(encoding="utf-8")
+    training_test_source = (
+        root / "tests/energy/test_upba_v2_training_hygiene.py"
+    ).read_text(encoding="utf-8")
+    training_hygiene_doc = (
+        root / "docs/ZENO_ENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE.md"
+    ).read_text(encoding="utf-8")
+    payloads["objective_equiv_training_hygiene"] = training_hygiene
+    checks.extend(
+        _check_objective_equiv_training_hygiene(
+            training_hygiene,
+            trainer_source,
+            training_test_source,
+            training_hygiene_doc,
+        )
+    )
+
     sota_decision_map = _load_json(
         root / "data/upba_energy/upba_v2_sota_decision_map_receipt.json"
     )
@@ -650,6 +670,57 @@ def _check_topk_sweep(report: dict[str, Any]) -> list[EvidenceCheck]:
     ]
 
 
+def _check_objective_equiv_training_hygiene(
+    report: dict[str, Any],
+    trainer_source: str,
+    test_source: str,
+    doc_text: str,
+) -> list[EvidenceCheck]:
+    modes = set(str(mode) for mode in report["positive_class_modes"])
+    doc_lower = doc_text.lower()
+    return [
+        _expect_equal(
+            "objective_equiv_training_hygiene.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_objective_equiv_training_hygiene_receipt/v1",
+        ),
+        _expect_true(
+            "objective_equiv_training_hygiene.modes",
+            modes == {"hash-winner", "objective-equivalent"}
+            and report["default_positive_class"] == "hash-winner"
+            and report["recommended_research_positive_class"] == "objective-equivalent",
+            "receipt records replay default and objective-equivalent research mode",
+        ),
+        _expect_true(
+            "objective_equiv_training_hygiene.source_hooks",
+            "POSITIVE_CLASS_MODES" in trainer_source
+            and "--positive-class" in trainer_source
+            and "_positive_row_keys" in trainer_source
+            and "good_is_positive" in trainer_source
+            and "objective-equivalent" in test_source
+            and "_positive_row_keys" in test_source,
+            "trainer and focused tests expose objective-equivalent positive-class hooks",
+        ),
+        _expect_true(
+            "objective_equiv_training_hygiene.safety_boundary",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and "training-target change" in doc_lower
+            and "deterministic verification" in doc_lower,
+            "receipt and doc keep the change on the advisory training boundary",
+        ),
+        _expect_true(
+            "objective_equiv_training_hygiene.no_metric_claim",
+            "not a new benchmark improvement" in " ".join(
+                str(limit).lower() for limit in report["limits"]
+            )
+            and "does not claim a new benchmark improvement" in doc_lower,
+            "receipt records this as label hygiene rather than performance evidence",
+        ),
+    ]
+
+
 def _check_sota_decision_map(
     report: dict[str, Any],
     doc_text: str,
@@ -879,6 +950,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518": "supported",
+        "H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",
@@ -944,6 +1016,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     gap_weighted_audit = payloads["gap_weighted_model_audit"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
+    training_hygiene = payloads["objective_equiv_training_hygiene"]
     sota_decision_map = payloads["sota_decision_map"]
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
     autotrader_aggregate = autotrader["aggregate"]
@@ -1064,6 +1137,14 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "random_k10_false_exclusion_rate": topk_sweep["modes"]["random"]["top_k"]["10"][
                 "false_exclusion_rate"
             ],
+        },
+        "objective_equiv_training_hygiene": {
+            "positive_class_modes": training_hygiene["positive_class_modes"],
+            "default_positive_class": training_hygiene["default_positive_class"],
+            "recommended_research_positive_class": training_hygiene[
+                "recommended_research_positive_class"
+            ],
+            "claim": training_hygiene["claim"],
         },
         "sota_decision_map": {
             "source_count": sota_decision_map["source_count"],
