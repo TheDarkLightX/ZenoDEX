@@ -36,14 +36,16 @@ def test_repo_python_hash_lock_audit_passes() -> None:
         for entry in report["install_surfaces"]
         if entry["allowlisted_unhashed_install_commands"]
     }
-    assert {
+    expected_allowlisted_paths = {
         "docs/tau_testnet_local_node.md",
         "tools/README.md",
         "tools/gpu_env_check.py",
         "tools/run_local_tau_node_container.sh",
         "tools/run_tau_testnet_local_smoke.sh",
-        "tools/runpod_esso.py",
-    } <= allowlisted_paths
+    }
+    if (ROOT / "tools/runpod_esso.py").is_file():
+        expected_allowlisted_paths.add("tools/runpod_esso.py")
+    assert expected_allowlisted_paths <= allowlisted_paths
 
 
 def test_lockfile_requirement_without_hash_is_rejected(tmp_path: Path) -> None:
