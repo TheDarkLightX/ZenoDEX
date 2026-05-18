@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/object-package.schema.json",
+  "title": "FIRE Object Package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_name",
+    "object_version",
+    "object_family",
+    "artifacts",
+    "bundle_hash"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "enum": [
+        "zenodex/fire-registry-bundle/v1",
+        "zenodex/fire-object-package/v1"
+      ]
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_family": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_manifest",
+        "object_instance",
+        "object_lock",
+        "certificate",
+        "object_card"
+      ],
+      "properties": {
+        "object_manifest": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "object_instance": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "object_lock": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "certificate": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "compile_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_eval_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_settlement_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_replay_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "proof_tree_certificate": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "object_card": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "replay_input": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "replay_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        }
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/contractReceipt"
+      }
+    },
+    "bundle_hash": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifactPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "contractReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "roles",
+        "use_sites"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "uniqueItems": true
+        },
+        "use_sites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

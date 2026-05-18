@@ -1,0 +1,56 @@
+FIRE Object:
+  LPLossCover v1
+
+Payoff:
+  N * min(max(HODL_T - LPV_T - D, 0), Cap)
+
+Settlement:
+  zUSD
+
+Parameters:
+  n_notional [0, 1000] unit=Scalar :: Notional amount
+  deductible [0, 1000] unit=Amount[zUSD] :: Deductible amount
+  cap_amount [0, 1000] unit=Amount[zUSD] :: Payoff cap amount
+  hodl_lower [0, 1000] unit=Amount[zUSD] :: Lower HODL value bound
+  hodl_upper [0, 1000] unit=Amount[zUSD] :: Upper HODL value bound
+  lpv_lower [0, 1000] unit=Amount[zUSD] :: Lower LP value bound
+  lpv_upper [0, 1000] unit=Amount[zUSD] :: Upper LP value bound
+
+Payoff bound:
+  [0, 80]
+
+Collateral required:
+  holder: 0
+  writer: 80
+
+Imported interfaces:
+  hodl_final <= hodl_value_v1.hodl_final [30, 80] unit=Amount[zUSD] contract=hodl_contract role=import:hodl_value_v1.hodl_final
+  lpv_final <= lp_value_v1.lpv_final [10, 60] unit=Amount[zUSD] contract=lpv_contract role=import:lp_value_v1.lpv_final
+
+Witnesses:
+  HODLValuePacket [30, 80] freshness=1 epoch contract=hodl_contract role=witness:HODLValuePacket
+  LPValuePacket [10, 60] freshness=1 epoch contract=lpv_contract role=witness:LPValuePacket
+
+Evidence:
+  unit safety: proved
+  payoff bound: proved
+  collateral sufficiency: proved
+  witness policy: contract
+  settlement replay: implemented
+  kernel semantics: proved
+
+Instance policy:
+  authorization: role_binding
+  required parties: holder, writer
+  nonce required: True
+  maturity required: False
+  settlement window required: False
+
+Manifest hash: sha256:10bfe51a55b6821ca73855e541b79f1e11a2f916cd1e75a5fbea72f8903a911b
+
+Instance gate claim evidence:
+  ParamOK: implemented
+  AuthorizationOK: implemented
+  NonceOK: implemented
+  MaturityOK: implemented
+  WindowOK: implemented

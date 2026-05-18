@@ -1,0 +1,32 @@
+{
+  "edges": [
+    {
+      "from": "I0_root",
+      "kind": "decomposes",
+      "to": "I_observations_batch_settler_public"
+    }
+  ],
+  "intent_version": "7.0.0",
+  "nodes": [
+    {
+      "formal": {},
+      "id": "I0_root",
+      "operator": "and",
+      "scope": "system",
+      "text": "Batch-auction public observation surface"
+    },
+    {
+      "formal": {
+        "observations": [
+          "batch_settler.public"
+        ]
+      },
+      "id": "I_observations_batch_settler_public",
+      "operator": "leaf",
+      "scope": "module:batch_settler",
+      "text": "Observe the public batch-settler surface"
+    }
+  ],
+  "schema": "esso-intent-lattice/v1",
+  "system_id": "dex.batch_auction_settler"
+}

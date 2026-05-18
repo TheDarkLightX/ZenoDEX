@@ -1,0 +1,86 @@
+{
+  "entries": [
+    {
+      "object_family": "capped_index_call",
+      "object_id": "burn_boost_call_v1",
+      "object_name": "BurnBoostCall",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/burn_boost_call_v1.json",
+      "spec_sha256": "sha256:2c2ae7918b75334f6f4eec98a10de0a5b7296cd1b1d645fbe61fac7878eb93c6",
+      "zpl_path": "zpl/burn_boost_call_v1.zpl",
+      "zpl_sha256": "sha256:fa955f46e7458be9a10ac396e90a0ef4ff1d6dd2d07d4eed799fcd29b44c4e5c"
+    },
+    {
+      "object_family": "index_source",
+      "object_id": "burn_index_v1",
+      "object_name": "BurnIndex",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/burn_index_v1.json",
+      "spec_sha256": "sha256:a149d210413a3253a9387707c67a12b9df2ef2137a0e26118fa505605127224d",
+      "zpl_path": "zpl/burn_index_v1.zpl",
+      "zpl_sha256": "sha256:999bd72cc95c1e21c28e3a65b4abfb8482eedc7da0ad318f35aaf268cf77a6c1"
+    },
+    {
+      "object_family": "index_source",
+      "object_id": "fee_index_v1",
+      "object_name": "FeeIndex",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/fee_index_v1.json",
+      "spec_sha256": "sha256:07b1dbee4962e97a5c6d86be05271326d9272aa576311795f4953bfd15a8f9d4",
+      "zpl_path": "zpl/fee_index_v1.zpl",
+      "zpl_sha256": "sha256:dfbec73039afce2cd98dd33232a7044118dabf4530665887158d0265d3c3873e"
+    },
+    {
+      "object_family": "capped_index_note",
+      "object_id": "fee_note_v1",
+      "object_name": "FeeNote",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/fee_note_v1.json",
+      "spec_sha256": "sha256:b41271cd089894115db463af4349046516d2b17ead9bc2446fa8c48c97e214cd",
+      "zpl_path": "zpl/fee_note_v1.zpl",
+      "zpl_sha256": "sha256:bc30db54c2fbb00e8cbf9005618b98bdd1d382ab6fbbcbe2876f461850fba21b"
+    },
+    {
+      "object_family": "value_source",
+      "object_id": "hodl_value_v1",
+      "object_name": "HODLValue",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/hodl_value_v1.json",
+      "spec_sha256": "sha256:0dd0bce562a9d6740b963b4b3a125bf1baeb25bdde9782ab8b0017ffbf348a30",
+      "zpl_path": "zpl/hodl_value_v1.zpl",
+      "zpl_sha256": "sha256:1fe321332114ced9baac896464f785aa00df21913b2eeede396af496b9af7b39"
+    },
+    {
+      "object_family": "capped_lp_loss_cover",
+      "object_id": "lp_loss_cover_v1",
+      "object_name": "LPLossCover",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/lp_loss_cover_v1.json",
+      "spec_sha256": "sha256:1c41b13406c8830943cddb26a3a20710f1f763fd578cf9b2aa205ea6f29fb697",
+      "zpl_path": "zpl/lp_loss_cover_v1.zpl",
+      "zpl_sha256": "sha256:fb39229d98ea1e6e460dc151eb433274fdcddb90f300a24a9909a2f51d91237e"
+    },
+    {
+      "object_family": "value_source",
+      "object_id": "lp_value_v1",
+      "object_name": "LPValue",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/lp_value_v1.json",
+      "spec_sha256": "sha256:b6ed2a396145d4089498f837c119c6e3cf6097befcb0769567d942c3aa0c9c78",
+      "zpl_path": "zpl/lp_value_v1.zpl",
+      "zpl_sha256": "sha256:7581a62b3420ad17e4ccbbae383237b4691ca4beb1e25d92bc00edc0d561cc9f"
+    },
+    {
+      "object_family": "index_source",
+      "object_id": "reward_index_v1",
+      "object_name": "RewardIndex",
+      "object_version": "v1",
+      "spec_path": "stdlib/objects/reward_index_v1.json",
+      "spec_sha256": "sha256:ff00aea225f2a68f739c23b04670c8cefc92606f8f81defb4ac1183d15088c88",
+      "zpl_path": "zpl/reward_index_v1.zpl",
+      "zpl_sha256": "sha256:cf2a795f3810a27ebdaece8e8309f41f5780350f560af22a1c1e0aadc5933bd6"
+    }
+  ],
+  "entry_count": 8,
+  "schema": "zenodex/fire-stdlib-manifest/v1"
+}

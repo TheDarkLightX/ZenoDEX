@@ -1,0 +1,195 @@
+actions:
+- effects: {}
+  guard:
+    args:
+    - args:
+      - var: intent_count
+      - const: 4
+      op: <
+    - args:
+      - enum: Collecting
+      - var: phase
+      op: '='
+    op: and
+  id: add_intent
+  params: []
+  updates:
+  - expr:
+      args:
+      - const: 1
+      - var: intent_count
+      op: +
+    var: intent_count
+- effects: {}
+  guard:
+    args:
+    - args:
+      - enum: Collecting
+      - var: phase
+      op: '='
+    - args:
+      - var: intent_count
+      - const: 0
+      op: '>'
+    op: and
+  id: close_collection
+  params: []
+  updates:
+  - expr:
+      enum: Solving
+    var: phase
+- effects: {}
+  guard:
+    args:
+    - args:
+      - enum: Settling
+      - var: phase
+      op: '='
+    - args:
+      - var: intent_count
+      - var: settled_count
+      op: '='
+    op: and
+  id: complete_batch
+  params: []
+  updates:
+  - expr:
+      enum: Complete
+    var: phase
+- effects: {}
+  guard:
+    args:
+    - args:
+      - var: settled_count
+      - var: intent_count
+      op: <
+    - args:
+      - enum: Settling
+      - var: phase
+      op: '='
+    op: and
+  id: execute_fill
+  params: []
+  updates:
+  - expr:
+      args:
+      - const: 1
+      - var: settled_count
+      op: +
+    var: settled_count
+- effects: {}
+  guard:
+    args:
+    - enum: Solving
+    - var: phase
+    op: '='
+  id: finalize_winner
+  params: []
+  updates:
+  - expr:
+      enum: Settling
+    var: phase
+- effects: {}
+  guard:
+    args:
+    - args:
+      - enum: Settling
+      - var: phase
+      op: '='
+    - args:
+      - enum: Solving
+      - var: phase
+      op: '='
+    op: or
+  id: revert_batch
+  params: []
+  updates:
+  - expr:
+      enum: Collecting
+    var: phase
+  - expr:
+      const: 0
+    var: intent_count
+  - expr:
+      const: 0
+    var: settled_count
+- effects: {}
+  guard:
+    args:
+    - enum: Complete
+    - var: phase
+    op: '='
+  id: start_new_batch
+  params: []
+  updates:
+  - expr:
+      enum: Collecting
+    var: phase
+  - expr:
+      const: 0
+    var: intent_count
+  - expr:
+      const: 0
+    var: settled_count
+- effects: {}
+  guard:
+    args:
+    - enum: Solving
+    - var: phase
+    op: '='
+  id: submit_solution
+  params: []
+  updates: []
+init:
+- expr:
+    const: 0
+  var: intent_count
+- expr:
+    enum: Collecting
+  var: phase
+- expr:
+    const: 0
+  var: settled_count
+invariants:
+- expr:
+    args:
+    - var: settled_count
+    - var: intent_count
+    op: <=
+  id: inv_settle_bound
+  kind: safety
+ir_version: esso-ir/v1
+meta:
+  criticality: high
+  model_id: dex.batch_auction_settler.batch_settler
+  req_id: dex.batch_auction_settler.batch_settler
+  req_version: 7.0.0
+observables:
+  effects: []
+  state_vars:
+  - intent_count
+  - phase
+  - settled_count
+state_vars:
+- id: intent_count
+  role: data
+  type:
+    kind: int
+    max: 4
+    min: 0
+- id: phase
+  role: data
+  type:
+    kind: enum
+    symbols:
+    - Collecting
+    - Solving
+    - Settling
+    - Complete
+- id: settled_count
+  role: data
+  type:
+    kind: int
+    max: 4
+    min: 0
+types: []

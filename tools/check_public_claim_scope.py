@@ -6,10 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -71,6 +74,8 @@ REQUIRED_ANCHORS: dict[str, tuple[str, ...]] = {
         "Any public or production ZenoCover offering must complete counsel-led",
     ),
 }
+
+FORBIDDEN_PUBLIC_REGISTRY_PATH_PREFIXES: tuple[str, ...] = ("internal/", "runs/")
 
 
 @dataclass(frozen=True)
@@ -279,6 +284,99 @@ def check_required_anchors(path: str, text: str) -> list[ClaimViolation]:
     return violations
 
 
+def _normalize_registry_arg(value: str) -> str:
+    normalized = value.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def _has_forbidden_public_registry_prefix(value: str) -> bool:
+    normalized = _normalize_registry_arg(value)
+    return normalized.startswith(FORBIDDEN_PUBLIC_REGISTRY_PATH_PREFIXES)
+
+
+def _cmd_path_args(cmd: str) -> list[str]:
+    try:
+        parts = shlex.split(cmd)
+    except ValueError:
+        parts = cmd.split()
+    return [
+        part
+        for part in parts
+        if _has_forbidden_public_registry_prefix(part)
+    ]
+
+
+def check_claims_registry_public_artifact_paths(path: str, text: str) -> list[ClaimViolation]:
+    if path != "docs/claims_registry.yaml":
+        return []
+
+    violations: list[ClaimViolation] = []
+    try:
+        root = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        return [
+            ClaimViolation(
+                path=path,
+                line=0,
+                rule_id="claims_registry_yaml_parse_error",
+                message=f"Could not parse claims registry for public artifact path hygiene: {exc}",
+                text="",
+            )
+        ]
+
+    claims = root.get("claims") if isinstance(root, dict) else None
+    if not isinstance(claims, list):
+        return violations
+
+    for index, claim in enumerate(claims):
+        if not isinstance(claim, dict):
+            continue
+        claim_id = str(claim.get("id", f"claims[{index}]"))
+        evidence = claim.get("evidence")
+        if not isinstance(evidence, dict):
+            continue
+        files = evidence.get("files") or []
+        if isinstance(files, list):
+            for rel_path in files:
+                if isinstance(rel_path, str) and _has_forbidden_public_registry_prefix(rel_path):
+                    violations.append(
+                        ClaimViolation(
+                            path=path,
+                            line=0,
+                            rule_id="claims_registry_internal_or_runs_evidence_path",
+                            message=(
+                                "Public claims registry evidence must reference tracked public artifacts, "
+                                "not ignored internal/ or runs/ paths."
+                            ),
+                            text=f"{claim_id}: {rel_path}",
+                        )
+                    )
+        checks = evidence.get("check") or []
+        if isinstance(checks, list):
+            for check in checks:
+                if not isinstance(check, dict):
+                    continue
+                cmd = check.get("cmd")
+                if not isinstance(cmd, str):
+                    continue
+                for rel_path in _cmd_path_args(cmd):
+                    violations.append(
+                        ClaimViolation(
+                            path=path,
+                            line=0,
+                            rule_id="claims_registry_internal_or_runs_command_path",
+                            message=(
+                                "Public claims registry commands must run against tracked public artifacts, "
+                                "not ignored internal/ or runs/ paths."
+                            ),
+                            text=f"{claim_id}: {rel_path}",
+                        )
+                    )
+    return violations
+
+
 def check_public_claim_scope(
     *,
     root: Path = REPO_ROOT,
@@ -302,6 +400,7 @@ def check_public_claim_scope(
         text = path.read_text(encoding="utf-8")
         violations.extend(check_required_anchors(rel_path, text))
         violations.extend(scan_forbidden_claims(rel_path, text))
+        violations.extend(check_claims_registry_public_artifact_paths(rel_path, text))
     for rel_path in optional_paths:
         path = root / rel_path
         if not path.is_file():
@@ -309,6 +408,7 @@ def check_public_claim_scope(
         text = path.read_text(encoding="utf-8")
         violations.extend(check_required_anchors(rel_path, text))
         violations.extend(scan_forbidden_claims(rel_path, text))
+        violations.extend(check_claims_registry_public_artifact_paths(rel_path, text))
     return violations
 
 

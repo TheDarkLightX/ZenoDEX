@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.check_public_claim_scope import (
+    check_claims_registry_public_artifact_paths,
     check_public_claim_scope,
     check_required_anchors,
     checked_public_claim_paths,
@@ -105,6 +106,32 @@ def test_rejects_zenocover_live_purchase_overclaim() -> None:
 
     assert [violation.rule_id for violation in violations] == [
         "zenocover_regulated_launch_overclaim"
+    ]
+
+
+def test_rejects_internal_registry_evidence_path() -> None:
+    violations = check_claims_registry_public_artifact_paths(
+        "docs/claims_registry.yaml",
+        """
+schema: zenodex/claims-registry/v1
+meta: {}
+claims:
+  - id: py:test
+    status: supported
+    layer: assurance
+    statement: scoped
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check.py internal/private_manifest.json
+      files:
+        - runs/local_replay.json
+""",
+    )
+
+    assert [violation.rule_id for violation in violations] == [
+        "claims_registry_internal_or_runs_evidence_path",
+        "claims_registry_internal_or_runs_command_path",
     ]
 
 
