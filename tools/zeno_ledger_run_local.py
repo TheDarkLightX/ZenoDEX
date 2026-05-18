@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 
 from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
 from src.integration.zeno_ledger_v0 import (
     apply_body_transactions_v0,
     build_proof_metadata_v0,
@@ -47,6 +48,7 @@ PROOF_METADATA_REQUIRED_ROOT_FLAGS = (
     ("--conflict-schedule-hash", "conflict_schedule_hash"),
     ("--feature-suite-hash", "feature_suite_hash"),
     ("--dependency-lock-hash", "dependency_lock_hash"),
+    ("--toolchain-lock-hash", "toolchain_lock_hash"),
 )
 
 
@@ -73,6 +75,7 @@ def _missing_proof_metadata_root_flags_v0(
     conflict_schedule_hash: str,
     feature_suite_hash: str,
     dependency_lock_hash: str,
+    toolchain_lock_hash: str,
     tee_measurement_hash: str,
     child_receipts_root: str,
 ) -> list[str]:
@@ -80,6 +83,7 @@ def _missing_proof_metadata_root_flags_v0(
         "conflict_schedule_hash": conflict_schedule_hash,
         "feature_suite_hash": feature_suite_hash,
         "dependency_lock_hash": dependency_lock_hash,
+        "toolchain_lock_hash": toolchain_lock_hash,
     }
     missing = [
         flag
@@ -1413,6 +1417,7 @@ def build_local_block_v0(
     conflict_schedule_hash: str = ZERO_ROOT,
     feature_suite_hash: str = ZERO_ROOT,
     dependency_lock_hash: str = ZERO_ROOT,
+    toolchain_lock_hash: str | None = None,
     tee_measurement_hash: str = ZERO_ROOT,
     child_receipts_root: str = ZERO_ROOT,
     config_digest: str,
@@ -1591,11 +1596,13 @@ def build_local_block_v0(
         ]
         if missing:
             raise ValueError(f"{', '.join(missing)} required when --proof-kind is supplied")
+        resolved_toolchain_lock_hash = toolchain_lock_hash or proof_toolchain_lock_hash_v0(ROOT)
         missing_roots = _missing_proof_metadata_root_flags_v0(
             proof_kind=proof_kind,
             conflict_schedule_hash=conflict_schedule_hash,
             feature_suite_hash=feature_suite_hash,
             dependency_lock_hash=dependency_lock_hash,
+            toolchain_lock_hash=resolved_toolchain_lock_hash,
             tee_measurement_hash=tee_measurement_hash,
             child_receipts_root=child_receipts_root,
         )
@@ -1620,6 +1627,7 @@ def build_local_block_v0(
             conflict_schedule_hash=conflict_schedule_hash,
             feature_suite_hash=feature_suite_hash,
             dependency_lock_hash=dependency_lock_hash,
+            toolchain_lock_hash=resolved_toolchain_lock_hash,
             tee_measurement_hash=tee_measurement_hash,
             child_receipts_root=child_receipts_root,
         )
@@ -1767,6 +1775,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--conflict-schedule-hash", default=ZERO_ROOT)
     parser.add_argument("--feature-suite-hash", default=ZERO_ROOT)
     parser.add_argument("--dependency-lock-hash", default=ZERO_ROOT)
+    parser.add_argument("--toolchain-lock-hash")
     parser.add_argument("--tee-measurement-hash", default=ZERO_ROOT)
     parser.add_argument("--child-receipts-root", default=ZERO_ROOT)
     parser.add_argument("--config-digest", required=True)
@@ -1810,6 +1819,7 @@ def main(argv: list[str] | None = None) -> int:
             conflict_schedule_hash=args.conflict_schedule_hash,
             feature_suite_hash=args.feature_suite_hash,
             dependency_lock_hash=args.dependency_lock_hash,
+            toolchain_lock_hash=args.toolchain_lock_hash,
             tee_measurement_hash=args.tee_measurement_hash,
             child_receipts_root=args.child_receipts_root,
             config_digest=args.config_digest,

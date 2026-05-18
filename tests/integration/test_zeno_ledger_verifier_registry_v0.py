@@ -35,6 +35,7 @@ def _metadata(*, proof_kind: str = "risc0_zkvm_v0", height: int = 7) -> dict[str
         conflict_schedule_hash=_root("schedule"),
         feature_suite_hash=_root("feature-suite"),
         dependency_lock_hash=_root("dependency-lock"),
+        toolchain_lock_hash=_root("toolchain-lock"),
     )
 
 

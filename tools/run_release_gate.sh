@@ -55,6 +55,17 @@ echo "== release: negative knowledge ratchet =="
 echo "== release: critical quality gate =="
 bash "$ROOT_DIR/tools/run_critical_quality_gate.sh"
 
+echo "== release: Risc0 proof metadata adapter =="
+"$PY" -m py_compile \
+  "$ROOT_DIR/tools/zeno_ledger_risc0_proof_metadata.py" \
+  "$ROOT_DIR/tools/zeno_ledger_risc0_real_proof_smoke.py" \
+  "$ROOT_DIR/tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+
 echo "== release: acceptance mutation gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
 
@@ -96,6 +107,10 @@ echo "== release: DEX value-moving entrypoints =="
 
 echo "== release: dependency pinning status =="
 "$PY" "$ROOT_DIR/tools/check_dependency_pinning_status.py"
+
+echo "== release: proof toolchain lock =="
+"$PY" "$ROOT_DIR/tools/check_proof_toolchain_lock.py"
+"$PY" -m pytest -q "$ROOT_DIR/tests/test_check_proof_toolchain_lock.py"
 
 echo "== release: API surface profiles =="
 "$PY" "$ROOT_DIR/tools/check_api_surface_profiles.py"
