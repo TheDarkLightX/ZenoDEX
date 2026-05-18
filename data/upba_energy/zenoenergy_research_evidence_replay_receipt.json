@@ -1,5 +1,5 @@
 {
-  "check_count": 126,
+  "check_count": 131,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -337,6 +337,26 @@
       "passed": true
     },
     {
+      "check_id": "replay_source_manifest_builder.schema",
+      "detail": "expected 'zenodex/energy/replay_source_manifest_builder_receipt/v1', observed 'zenodex/energy/replay_source_manifest_builder_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest_builder.artifacts_and_schemas",
+      "detail": "receipt, source, and doc record the manifest builder schema and artifacts",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest_builder.fail_closed_hooks",
+      "detail": "builder computes source hashes, requires attestations, and fails closed on dirty secret scans",
+      "passed": true
+    },
+    {
+      "check_id": "replay_source_manifest_builder.safety_and_limits",
+      "detail": "builder preserves advisory boundary and records custody limits",
+      "passed": true
+    },
+    {
       "check_id": "real_replay_report_builder.schema",
       "detail": "expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1'",
       "passed": true
@@ -582,6 +602,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518",
+      "detail": "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518",
       "detail": "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported",
       "passed": true
@@ -634,7 +659,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 126,
+  "passed_count": 131,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -765,6 +790,17 @@
       "source_manifest_check_schema": "zenodex/energy/replay_source_manifest_check/v1",
       "source_manifest_schema": "zenodex/energy/replay_source_manifest/v1",
       "supported_status": "supported"
+    },
+    "replay_source_manifest_builder": {
+      "builder_schema": "zenodex/energy/replay_source_manifest_builder/v1",
+      "check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+      "claim": "ZenoEnergy has a fail-closed replay source manifest builder that computes canonical source report hashes, records replay and secret-scan attestations, and validates the manifest before writing it.",
+      "negative_knowledge": [
+        "A generated manifest is necessary packaging for real replay, not sufficient production evidence.",
+        "A clean secret-scan attestation is weaker than a complete privacy audit.",
+        "The builder intentionally refuses synthetic, fixture-like, built-in, or generated descriptors."
+      ],
+      "output_schema": "zenodex/energy/replay_source_manifest/v1"
     },
     "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
     "sota_decision_map": {

@@ -12,6 +12,15 @@ The checker is:
 tools/check_zenoenergy_replay_source_manifest.py
 ```
 
+The deterministic builder is:
+
+```text
+tools/build_zenoenergy_replay_source_manifest.py
+```
+
+Builder details:
+[ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
+
 The manifest records the operational source boundary behind a real replay or
 shadow report:
 
@@ -67,6 +76,23 @@ python3 tools/check_zenoenergy_replay_source_manifest.py \
   --manifest data/private/upba_replay_source_manifest.json \
   --source-report data/private/upba_replay_benchmark.json \
   --output-json data/private/upba_replay_source_manifest_check.json
+```
+
+Or build and validate it in one fail-closed command:
+
+```bash
+python3 tools/build_zenoenergy_replay_source_manifest.py \
+  --manifest-id prod-shadow-upba-20260501-20260509 \
+  --source-kind production-shadow \
+  --source-descriptor prod-shadow:2026-05-01..2026-05-09 \
+  --market-day-count 9 \
+  --source-report upba-benchmark=data/private/upba_replay_benchmark.json \
+  --deterministic-replay-ok \
+  --no-live-secrets \
+  --secret-scan-tool local-secret-scan-v1 \
+  --secret-scan-ok \
+  --secret-scan-finding-count 0 \
+  --output-json data/private/upba_replay_source_manifest.json
 ```
 
 Then build the real replay report:

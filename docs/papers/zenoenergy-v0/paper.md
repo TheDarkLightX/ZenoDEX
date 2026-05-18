@@ -518,6 +518,16 @@ The bundle itself uses:
 zenodex/energy/production_evidence_bundle/v1
 ```
 
+Operators build the source manifests with:
+
+```text
+tools/build_zenoenergy_replay_source_manifest.py
+```
+
+That command computes canonical source-report hashes, attaches deterministic
+replay and no-live-secrets attestations, records the secret-scan result, runs
+the manifest checker, and writes the manifest only when the check passes.
+
 The release predicate is:
 
 ```text

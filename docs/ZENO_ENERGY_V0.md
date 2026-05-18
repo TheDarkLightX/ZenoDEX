@@ -34,6 +34,8 @@ Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENER
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
 
+Replay source manifest builder: [ZenoEnergy Replay Source Manifest Builder](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
+
 Real replay report builder: [ZenoEnergy Real Replay Reports](./ZENO_ENERGY_REAL_REPLAY_REPORTS.md)
 
 Production evidence bundle: [ZenoEnergy Production Evidence Bundle](./ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
@@ -82,6 +84,7 @@ verifier labels for offline training and evaluation.
 - `tools/evaluate_upba_energy.py`: dataset-level top-k, objective-equivalent top-k, and verifier-call evaluation.
 - `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy with exact and objective-equivalent winner metrics.
 - `tools/check_zenoenergy_replay_source_manifest.py`: validates replay source manifests, source hashes, deterministic replay attestations, and clean secret scans for real evidence.
+- `tools/build_zenoenergy_replay_source_manifest.py`: computes source report hashes and writes replay source manifests only after validation passes.
 - `tools/build_zenoenergy_real_replay_report.py`: validates real replay/shadow receipts and emits the schemas consumed by the production promotion gate.
 - `tools/build_zenoenergy_production_evidence_bundle.py`: assembles source-manifested UPBA and AutoTrader real reports, then runs the production promotion gate in one fail-closed review command.
 - `tools/stress_upba_energy_cross_seed.py`: streams cross-seed, multi-candidate-count stress benchmarks without storing every generated row.

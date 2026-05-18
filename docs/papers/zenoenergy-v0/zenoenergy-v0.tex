@@ -342,6 +342,14 @@ The bundle itself uses schema
   \texttt{zenodex/energy/production\_evidence\_bundle/v1}.
 \]
 
+Operators build source manifests with
+\[
+  \texttt{tools/build\_zenoenergy\_replay\_source\_manifest.py}.
+\]
+That command computes canonical source-report hashes, attaches deterministic
+replay and no-live-secrets attestations, records the secret-scan result, runs
+the manifest checker, and writes the manifest only when the check passes.
+
 The release predicate is:
 \[
 \begin{aligned}

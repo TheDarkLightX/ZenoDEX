@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 126
-passed_count: 126
+check_count: 131
+passed_count: 131
 failed_count: 0
 ```
 
@@ -76,6 +76,10 @@ failed_count: 0
 | replay_source_manifest.source_hygiene_hooks | pass | checker validates fixture markers, secret scan, and source report hashes |
 | replay_source_manifest.production_gate_hook | pass | production gate requires a passing source manifest check on real reports |
 | replay_source_manifest.negative_knowledge | pass | receipt preserves advisory boundary and source-custody limits |
+| replay_source_manifest_builder.schema | pass | expected 'zenodex/energy/replay_source_manifest_builder_receipt/v1', observed 'zenodex/energy/replay_source_manifest_builder_receipt/v1' |
+| replay_source_manifest_builder.artifacts_and_schemas | pass | receipt, source, and doc record the manifest builder schema and artifacts |
+| replay_source_manifest_builder.fail_closed_hooks | pass | builder computes source hashes, requires attestations, and fails closed on dirty secret scans |
+| replay_source_manifest_builder.safety_and_limits | pass | builder preserves advisory boundary and records custody limits |
 | real_replay_report_builder.schema | pass | expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1' |
 | real_replay_report_builder.targets_and_artifacts | pass | receipt and doc record both production-gate report schemas |
 | real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks |
@@ -125,6 +129,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 | pass | H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 | pass | H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 | pass | H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
@@ -268,6 +273,17 @@ failed_count: 0
     "source_manifest_check_schema": "zenodex/energy/replay_source_manifest_check/v1",
     "source_manifest_schema": "zenodex/energy/replay_source_manifest/v1",
     "supported_status": "supported"
+  },
+  "replay_source_manifest_builder": {
+    "builder_schema": "zenodex/energy/replay_source_manifest_builder/v1",
+    "check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+    "claim": "ZenoEnergy has a fail-closed replay source manifest builder that computes canonical source report hashes, records replay and secret-scan attestations, and validates the manifest before writing it.",
+    "negative_knowledge": [
+      "A generated manifest is necessary packaging for real replay, not sufficient production evidence.",
+      "A clean secret-scan attestation is weaker than a complete privacy audit.",
+      "The builder intentionally refuses synthetic, fixture-like, built-in, or generated descriptors."
+    ],
+    "output_schema": "zenodex/energy/replay_source_manifest/v1"
   },
   "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
   "sota_decision_map": {

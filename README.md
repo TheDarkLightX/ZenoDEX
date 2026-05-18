@@ -235,13 +235,16 @@ Primary entry points:
 - [docs/ZENO_ENERGY_V0.md](docs/ZENO_ENERGY_V0.md)
 - [docs/ZENO_ENERGY_RESULTS.md](docs/ZENO_ENERGY_RESULTS.md)
 - [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
+- [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
 - [docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
 - [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
 
-The production evidence bundle assembles source-manifested UPBA and AutoTrader
-real replay reports, then runs the fail-closed advisory ranking promotion gate.
-It cannot authorize settlement, change policy predicates, or turn synthetic
-fixtures into production evidence.
+The source manifest builder packages real replay reports with canonical hashes
+and secret-scan attestations. The production evidence bundle then assembles
+source-manifested UPBA and AutoTrader real replay reports and runs the
+fail-closed advisory ranking promotion gate. These tools cannot authorize
+settlement, change policy predicates, or turn synthetic fixtures into
+production evidence.
 
 ### ZenoProof, FIRE, And Certified Financial Math Objects
 

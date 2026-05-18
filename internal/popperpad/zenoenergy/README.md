@@ -406,6 +406,25 @@ support_edge_ref:           sha256:5132be667c3f4295a6cc9cc281210279926680d15444e
 checkpoint_ref:             sha256:ea70bd5827c02a9d0a3fda5308d02663abc5fb6b8770b9c8b8656521b6a84f97
 ```
 
+### Replay Source Manifest Builder
+
+```text
+receipt_blob_ref:           sha256:9bb1818c6d62ceb68a96d19ac147d6a1449c000a339b5a26cab2752111399a1e
+doc_blob_ref:               sha256:8434b0aee4684b76b8ae667e6e2cf8b6448e49147334faabd5367fbab6b51962
+source_blob_ref:            sha256:d4a55c4ae455e2bc893fd220d4d019f3b3f16081f0edbdfc358abf92407c545b
+test_blob_ref:              sha256:6e5a25c89dafe1685fae5e484ea6e7c392aea77f1da267e680f65124451dd28a
+context_ref:                sha256:4b09dd2e9065c348911ec8a149dd10e19959bdc455bae9e36b7be5e6b60d7646
+receipt_artifact_ref:       sha256:3eea65392136ec4013ee7e88d3addd05f23c04c72f0343190d318bfb20c91230
+doc_artifact_ref:           sha256:43d95c80394ea720a8f115a5a7dde7d125c6349866eea3b213ddd388e75574bc
+source_artifact_ref:        sha256:d4a01d45f936134d692622cfd76a7a32b0937f440f997b3c09a8d9a1a8d12739
+test_artifact_ref:          sha256:3f45265603c1cbc4cba4e957c45061269ebe78301c7577c8f77e7181054cdbc1
+recipe_ref:                 sha256:7bd2c3914bc469f7e94c46a216e52ff36e951c7ef8d0d500a33dea239f036958
+hypothesis_ref:             sha256:d210005b9eee2526417475bba04be4d2f38280bdad264fb45ecd2984a2e7ac2d
+evidence_ref:               sha256:a1c15530009b5785805e0653e113a1f65623a7b635ad5b4c76f70cf595911738
+support_edge_ref:           sha256:8a06643bf183e40d5c4b90906dd02c88535266589a75e1f33343fc5a0a669432
+checkpoint_ref:             sha256:48b859ba28d79ff5c86a9cdea7d36dea060266a56cd66911f4b9689d26e1e903
+```
+
 ### Production Evidence Bundle
 
 ```text
@@ -461,6 +480,7 @@ H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518: supported
 H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518: supported
 H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518: supported
 H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518: supported
+H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518: supported
 H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518: supported
 H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported

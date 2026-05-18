@@ -22,6 +22,9 @@ The emitted bundle schema is:
 zenodex/energy/production_evidence_bundle/v1
 ```
 
+Build source manifests first with:
+[ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
+
 ## Command
 
 ```bash

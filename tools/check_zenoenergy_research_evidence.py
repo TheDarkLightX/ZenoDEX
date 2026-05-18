@@ -207,6 +207,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    replay_source_manifest_builder = _load_json(
+        root / "data/upba_energy/zenoenergy_replay_source_manifest_builder_receipt.json"
+    )
+    replay_source_manifest_builder_doc = (
+        root / "docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md"
+    ).read_text(encoding="utf-8")
+    replay_source_manifest_builder_source = (
+        root / "tools/build_zenoenergy_replay_source_manifest.py"
+    ).read_text(encoding="utf-8")
+    replay_source_manifest_builder_tests = (
+        root / "tests/energy/test_zenoenergy_replay_source_manifest_builder.py"
+    ).read_text(encoding="utf-8")
+    payloads["replay_source_manifest_builder"] = replay_source_manifest_builder
+    checks.extend(
+        _check_replay_source_manifest_builder(
+            replay_source_manifest_builder,
+            replay_source_manifest_builder_doc,
+            replay_source_manifest_builder_source,
+            replay_source_manifest_builder_tests,
+        )
+    )
+
     real_replay_builder = _load_json(
         root / "data/upba_energy/zenoenergy_real_replay_report_builder_receipt.json"
     )
@@ -932,6 +954,69 @@ def _check_replay_source_manifest(
     ]
 
 
+def _check_replay_source_manifest_builder(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    artifacts = set(str(item) for item in report.get("artifacts", []))
+    fail_closed = " ".join(str(item).lower() for item in report.get("fail_closed_rules", []))
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_equal(
+            "replay_source_manifest_builder.schema",
+            report.get("schema"),
+            "zenodex/energy/replay_source_manifest_builder_receipt/v1",
+        ),
+        _expect_true(
+            "replay_source_manifest_builder.artifacts_and_schemas",
+            report.get("builder_schema")
+            == "zenodex/energy/replay_source_manifest_builder/v1"
+            and report.get("output_schema")
+            == "zenodex/energy/replay_source_manifest/v1"
+            and report.get("check_schema")
+            == "zenodex/energy/replay_source_manifest_check/v1"
+            and {
+                "tools/build_zenoenergy_replay_source_manifest.py",
+                "tests/energy/test_zenoenergy_replay_source_manifest_builder.py",
+                "docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md",
+            }.issubset(artifacts)
+            and "zenodex/energy/replay_source_manifest_builder/v1" in source_text
+            and "tools/build_zenoenergy_replay_source_manifest.py" in doc_text,
+            "receipt, source, and doc record the manifest builder schema and artifacts",
+        ),
+        _expect_true(
+            "replay_source_manifest_builder.fail_closed_hooks",
+            "source_report_from_path" in source_text
+            and "validate_replay_source_manifest" in source_text
+            and "secret_scan_ok" in source_text
+            and "--deterministic-replay-ok" in source_text
+            and "--no-live-secrets" in source_text
+            and "return 2" in source_text
+            and "test_cli_fails_closed_without_clean_secret_scan" in test_text
+            and "test_builds_manifest_with_canonical_source_report_hash" in test_text
+            and "dirty secret scans fail" in fail_closed,
+            "builder computes source hashes, requires attestations, and fails closed on dirty secret scans",
+        ),
+        _expect_true(
+            "replay_source_manifest_builder.safety_and_limits",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            is False
+            and bool(report["safety"]["manifest_builder_authorizes_production"])
+            is False
+            and "external data custody" in limits_lower
+            and "not sufficient production evidence" in negative_lower,
+            "builder preserves advisory boundary and records custody limits",
+        ),
+    ]
+
+
 def _check_real_replay_report_builder(
     report: dict[str, Any],
     doc_text: str,
@@ -1305,6 +1390,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518": "supported",
         "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518": "supported",
         "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518": "supported",
+        "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518": "supported",
         "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518": "supported",
         "H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
@@ -1375,6 +1461,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     training_hygiene = payloads["objective_equiv_training_hygiene"]
     production_gate = payloads["production_promotion_gate"]
     replay_source_manifest = payloads["replay_source_manifest"]
+    replay_source_manifest_builder = payloads["replay_source_manifest_builder"]
     real_replay_builder = payloads["real_replay_report_builder"]
     production_evidence_bundle = payloads["production_evidence_bundle"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -1523,6 +1610,13 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "supported_status": replay_source_manifest["supported_status"],
             "negative_knowledge": replay_source_manifest["negative_knowledge"],
             "claim": replay_source_manifest["claim"],
+        },
+        "replay_source_manifest_builder": {
+            "builder_schema": replay_source_manifest_builder["builder_schema"],
+            "output_schema": replay_source_manifest_builder["output_schema"],
+            "check_schema": replay_source_manifest_builder["check_schema"],
+            "negative_knowledge": replay_source_manifest_builder["negative_knowledge"],
+            "claim": replay_source_manifest_builder["claim"],
         },
         "real_replay_report_builder": {
             "target_schemas": real_replay_builder["target_schemas"],

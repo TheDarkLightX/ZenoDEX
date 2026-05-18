@@ -1156,3 +1156,46 @@ without the operator's source manifest and audit trail.
 Research consequence: the remaining production-readiness bottleneck is real
 replay data quality and breadth. The next useful work is collecting source
 manifested UPBA and AutoTrader shadow corpora that satisfy the gate thresholds.
+
+## Replay Source Manifest Builder
+
+Artifact:
+[ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_replay_source_manifest_builder_receipt.json`
+
+Command:
+
+```bash
+python3 tools/build_zenoenergy_replay_source_manifest.py \
+  --manifest-id prod-shadow-upba-20260501-20260509 \
+  --source-kind production-shadow \
+  --source-descriptor prod-shadow:2026-05-01..2026-05-09 \
+  --market-day-count 9 \
+  --source-report upba-benchmark=data/private/upba_replay_benchmark.json \
+  --deterministic-replay-ok \
+  --no-live-secrets \
+  --secret-scan-tool local-secret-scan-v1 \
+  --secret-scan-ok \
+  --secret-scan-finding-count 0 \
+  --output-json data/private/upba_replay_source_manifest.json
+```
+
+Positive knowledge:
+
+```text
+The builder computes canonical source-report hashes and refuses to write a
+manifest unless the generated manifest passes the replay source manifest
+checker.
+```
+
+Negative knowledge:
+
+```text
+A generated manifest is packaging evidence, not custody evidence. The operator
+still needs real replay provenance, privacy review, and audit trails.
+```
+
+Research consequence: real replay intake is now deterministic enough for an
+operator to package private reports without hand-editing hashes.
