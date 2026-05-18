@@ -36,6 +36,8 @@ Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY
 
 Real replay report builder: [ZenoEnergy Real Replay Reports](./ZENO_ENERGY_REAL_REPLAY_REPORTS.md)
 
+Production evidence bundle: [ZenoEnergy Production Evidence Bundle](./ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
+
 Research log and PopperPad refs: [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md)
 
 ```text
@@ -81,6 +83,7 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy with exact and objective-equivalent winner metrics.
 - `tools/check_zenoenergy_replay_source_manifest.py`: validates replay source manifests, source hashes, deterministic replay attestations, and clean secret scans for real evidence.
 - `tools/build_zenoenergy_real_replay_report.py`: validates real replay/shadow receipts and emits the schemas consumed by the production promotion gate.
+- `tools/build_zenoenergy_production_evidence_bundle.py`: assembles source-manifested UPBA and AutoTrader real reports, then runs the production promotion gate in one fail-closed review command.
 - `tools/stress_upba_energy_cross_seed.py`: streams cross-seed, multi-candidate-count stress benchmarks without storing every generated row.
 - `tools/mine_upba_energy_hard_cases.py`: streams larger synthetic runs and records compact examples where learned ordering misses top-1/top-5/top-10.
 - `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.

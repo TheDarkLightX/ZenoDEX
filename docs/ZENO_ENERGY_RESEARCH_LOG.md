@@ -1108,3 +1108,51 @@ Use:
 PYTHONPATH=external/PopperPad/src python3 -m popperpad \
   --pad internal/popperpad/zenoenergy doctor
 ```
+
+## Production Evidence Bundle
+
+Artifact:
+[ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](./ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_production_evidence_bundle_receipt.json`
+
+Command:
+
+```bash
+python3 tools/build_zenoenergy_production_evidence_bundle.py \
+  --upba-benchmark-report data/private/upba_replay_benchmark.json \
+  --upba-source-manifest data/private/upba_replay_source_manifest.json \
+  --upba-source-kind production-shadow \
+  --upba-source-descriptor prod-shadow:2026-05-01..2026-05-09 \
+  --upba-market-day-count 9 \
+  --autotrader-shadow-bridge-report data/private/autotrader_shadow_bridge.json \
+  --autotrader-source-manifest data/private/autotrader_replay_source_manifest.json \
+  --autotrader-source-kind production-shadow \
+  --autotrader-source-descriptor prod-shadow:autotrader:2026-05-01..2026-05-09 \
+  --autotrader-market-day-count 9 \
+  --deterministic-replay-ok \
+  --no-live-secrets \
+  --operator-release-enable \
+  --output-json data/private/zenoenergy_production_evidence_bundle.json
+```
+
+Positive knowledge:
+
+```text
+The bundle composes source-manifest checks, UPBA real replay report building,
+AutoTrader real shadow report building, and the production promotion gate into
+one replayable artifact. It can only promote advisory ranking.
+```
+
+Negative knowledge:
+
+```text
+The bundle cannot turn synthetic or built-in fixture evidence into production
+evidence. It also cannot prove external data custody or truthful collection
+without the operator's source manifest and audit trail.
+```
+
+Research consequence: the remaining production-readiness bottleneck is real
+replay data quality and breadth. The next useful work is collecting source
+manifested UPBA and AutoTrader shadow corpora that satisfy the gate thresholds.

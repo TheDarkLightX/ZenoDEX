@@ -21,7 +21,7 @@
 
 \title{\textbf{ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search}}
 \author{Dana Edwards}
-\date{May 17, 2026}
+\date{May 18, 2026}
 
 \begin{document}
 \maketitle
@@ -39,7 +39,10 @@ batches. Mean winner position falls from 19.995 under exhaustive ordering to
 1.0166 under learned ordering, while invalid accepts remain zero. The paper
 records the empirical result, the formal safety boundary, the blockers to
 production readiness, and a transfer path for applying the same advisory-energy
-pattern to AutoTrader candidate planning.
+pattern to AutoTrader candidate planning. The current production-adjacent path
+is an evidence bundle rather than a release claim: source-manifested real replay
+reports are assembled and passed through a fail-closed advisory ranking
+promotion gate.
 \end{abstract}
 
 \noindent\textbf{Keywords:} energy-based ranking, deterministic verification,
@@ -319,6 +322,54 @@ resource bounds, replay conformance, incident response, and governance review.
 These are engineering and assurance blockers. They do not undermine the
 research result. They define the next release gate.
 
+\section{Production Gate and Evidence Bundle}
+
+ZenoEnergy now has a production-adjacent evidence path:
+\[
+  \texttt{tools/build\_zenoenergy\_production\_evidence\_bundle.py}.
+\]
+The bundle composes four deterministic artifacts:
+\[
+\begin{array}{l}
+\texttt{zenodex/energy/upba\_real\_replay\_report/v1},\\
+\texttt{zenodex/energy/autotrader\_real\_shadow\_report/v1},\\
+\texttt{zenodex/energy/replay\_source\_manifest\_check/v1},\\
+\texttt{zenodex/energy/production\_promotion\_gate/v1}.
+\end{array}
+\]
+The bundle itself uses schema
+\[
+  \texttt{zenodex/energy/production\_evidence\_bundle/v1}.
+\]
+
+The release predicate is:
+\[
+\begin{aligned}
+\mathrm{ProductionEvidenceBundle} := {}&
+  \mathrm{UPBARealReplayReport}\\
+  &\wedge\; \mathrm{AutoTraderRealShadowReport}\\
+  &\wedge\; \mathrm{ReplaySourceManifestChecks}\\
+  &\wedge\; \mathrm{ProductionPromotionGate}.
+\end{aligned}
+\]
+
+The production gate requires at least 1,000 real UPBA replay batches, 20,000
+real UPBA candidates, 500 real AutoTrader shadow contexts, 5,000 AutoTrader
+shadow rows, seven market days, top-25 recall at least 0.99, zero invalid
+accepts, deterministic replay, no live secrets, source manifest checks, and
+learned mean verifier or guard calls below hand energy.
+
+Malformed evidence fails closed. Well-formed but insufficient evidence produces
+\texttt{decision: blocked}. A passing bundle can only support advisory ranking:
+\[
+  \mathrm{LowEnergy}(c) \wedge \mathrm{VerifierRejects}(c)
+  \Rightarrow \mathrm{SettlementRejected}.
+\]
+
+The current gate remains blocked because the repository contains synthetic and
+fixture evidence, plus the tooling needed to evaluate real evidence, while the
+required real replay reports have not yet been supplied.
+
 \section{AutoTrader Transfer}
 
 The ZenoEnergy pattern applies naturally to AutoTrader if AutoTrader decisions
@@ -365,9 +416,10 @@ because the model is small, interpretable, CPU-only, and isolated from
 consensus-critical paths.
 
 The release path is clear. Keep the scorer advisory, add real replay evidence,
-finish exact candidate-generation and v2 optimality certificates, and require a
-deterministic suffix certificate for live early stop. The same verifier-preserving
-ranking architecture can then be tested in AutoTrader candidate planning.
+finish exact candidate-generation and v2 optimality certificates, require a
+deterministic suffix certificate for live early stop, and pass the production
+evidence bundle gate. The same verifier-preserving ranking architecture can then
+be tested in AutoTrader candidate planning.
 
 \begin{thebibliography}{9}
 

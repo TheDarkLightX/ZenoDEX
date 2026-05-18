@@ -66,3 +66,8 @@ replay plus no-live-secrets attestations.
 The builder is an evidence normalizer. It does not replace replay
 provenance, data-custody checks, secret-scrubbing proof, or the
 production promotion gate.
+
+For a single operator-review artifact, use
+`tools/build_zenoenergy_production_evidence_bundle.py`. It assembles the
+source-manifested real reports and then runs this promotion gate. The same
+ranking-only safety contract applies.

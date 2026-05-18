@@ -7,7 +7,8 @@ This directory contains the ZenoEnergy v0 research paper:
 - [zenoenergy-v0.pdf](./zenoenergy-v0.pdf)
 
 The paper summarizes the verifier-preserving candidate-ordering experiment for
-UPBA v2 partial-fill exact-in settlement search.
+UPBA v2 partial-fill exact-in settlement search. Draft v0.4 also records the
+production evidence bundle and the current real-replay promotion gate.
 
 Build:
 
@@ -24,4 +25,5 @@ Primary artifacts:
 - `tools/train_upba_energy.py`
 - `tools/evaluate_upba_energy.py`
 - `tools/benchmark_upba_energy_search.py`
+- `tools/build_zenoenergy_production_evidence_bundle.py`
 - `lean-mathlib/Proofs/UniformBatchOptimality.lean`

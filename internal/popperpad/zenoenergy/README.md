@@ -406,6 +406,30 @@ support_edge_ref:           sha256:5132be667c3f4295a6cc9cc281210279926680d15444e
 checkpoint_ref:             sha256:ea70bd5827c02a9d0a3fda5308d02663abc5fb6b8770b9c8b8656521b6a84f97
 ```
 
+### Production Evidence Bundle
+
+```text
+receipt_blob_ref:           sha256:4c408a008f739cf8fdaca94f654056c491c88bd3be73e6fb0e1bb7db93dedf8c
+doc_blob_ref:               sha256:95d6376c90e76cec2b9f8a6105cfdb78c1b7755539b3d414cfdf20ff2a62b775
+source_blob_ref:            sha256:7d74c28639a52f4dbed2949428f0b75b4b03cba8172bdeed2256428453cf94a5
+test_blob_ref:              sha256:042d4de52788a123a9c2b00673e4f35791ed40cffb061a761d52e78aec396c96
+readme_blob_ref:            sha256:0cd671c81dbe751c3505eedda01835da90426100b50d81ef60d1a340cf59bbc2
+paper_blob_ref:             sha256:d581790015a871c9658824bfb80d2912ff6e07c4dedae5d063da92387037fb02
+paper_blob_ref_current:     sha256:426e9a53f9de30d367d4c5dd94caf22bdada2a5a2e5c33fdac2d46557041a70b
+context_ref:                sha256:144d552491cb44bf555fd8da9d063e58e1cd739653a59b416b77dc6c8a8a0aa8
+receipt_artifact_ref:       sha256:b2db6c308718ff862fc02659cfaba4948c51878614cde03798c649dc9e6073cc
+doc_artifact_ref:           sha256:2e2c24d9c70a8a0b421da55742309b3ee338e21f3850fbd2f80a389ec5d4607b
+source_artifact_ref:        sha256:0792649a94a6b1025a9a31ad5006a0ac7aa9687d3cb2282ff290900fdf5d561f
+test_artifact_ref:          sha256:8ea04025075cd0abf282a5b663847ab639e5ef46acbeba051f38f71713720c09
+readme_artifact_ref:        sha256:b04829fb02c8bb5b83b12fab52470bb37ddc9476183a7352cbddbd47164eb41e
+paper_artifact_ref:         sha256:e8d4417a1451c660e4680f147c65ec1874b73f096a94a15a6f2b71e5b9d97f92
+recipe_ref:                 sha256:c1898cd74493e6d0109e2e1f77027afaa5bae3ef42e70512f8c5d194f4f9cd2d
+hypothesis_ref:             sha256:84cd59c20d2396896225c0f3511786b87eea2f4ab7532726768f1d0ff7a17470
+evidence_ref:               sha256:82073e75da87e94ef47a8d1fb3517f9d06bf07d96768ae5ea9d8a8245980f01d
+support_edge_ref:           sha256:d0a1b2ab9fd9feaf114298233e478f7e70932111c23d48701469a20e195531af
+checkpoint_ref:             sha256:6f0b9f736b68106fb152439df0de11e3a0b276b02249aaffe919aad169f21522
+```
+
 ## Current Status
 
 ```text
@@ -438,6 +462,7 @@ H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518: supported
 H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518: supported
 H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518: supported
 H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518: supported
+H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported

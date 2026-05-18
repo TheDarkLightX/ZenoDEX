@@ -229,6 +229,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    production_evidence_bundle = _load_json(
+        root / "data/upba_energy/zenoenergy_production_evidence_bundle_receipt.json"
+    )
+    production_evidence_bundle_doc = (
+        root / "docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md"
+    ).read_text(encoding="utf-8")
+    production_evidence_bundle_source = (
+        root / "tools/build_zenoenergy_production_evidence_bundle.py"
+    ).read_text(encoding="utf-8")
+    production_evidence_bundle_tests = (
+        root / "tests/energy/test_zenoenergy_production_evidence_bundle.py"
+    ).read_text(encoding="utf-8")
+    payloads["production_evidence_bundle"] = production_evidence_bundle
+    checks.extend(
+        _check_production_evidence_bundle(
+            production_evidence_bundle,
+            production_evidence_bundle_doc,
+            production_evidence_bundle_source,
+            production_evidence_bundle_tests,
+        )
+    )
+
     sota_decision_map = _load_json(
         root / "data/upba_energy/upba_v2_sota_decision_map_receipt.json"
     )
@@ -976,6 +998,81 @@ def _check_real_replay_report_builder(
     ]
 
 
+def _check_production_evidence_bundle(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    artifacts = set(str(item) for item in report.get("artifacts", []))
+    output_schemas = set(str(item) for item in report.get("output_schemas", []))
+    composed_tools = set(str(item) for item in report.get("composed_tools", []))
+    doc_lower = doc_text.lower()
+    source_lower = source_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_equal(
+            "production_evidence_bundle.schema",
+            report.get("schema"),
+            "zenodex/energy/production_evidence_bundle_receipt/v1",
+        ),
+        _expect_true(
+            "production_evidence_bundle.artifacts_and_schemas",
+            report.get("bundle_schema")
+            == "zenodex/energy/production_evidence_bundle/v1"
+            and {
+                "zenodex/energy/upba_real_replay_report/v1",
+                "zenodex/energy/autotrader_real_shadow_report/v1",
+                "zenodex/energy/replay_source_manifest_check/v1",
+                "zenodex/energy/production_promotion_gate/v1",
+                "zenodex/energy/production_evidence_bundle/v1",
+            }.issubset(output_schemas)
+            and {
+                "tools/build_zenoenergy_production_evidence_bundle.py",
+                "tests/energy/test_zenoenergy_production_evidence_bundle.py",
+                "docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md",
+            }.issubset(artifacts)
+            and "zenodex/energy/production_evidence_bundle/v1" in doc_text,
+            "receipt and doc record bundle schema, output schemas, and artifacts",
+        ),
+        _expect_true(
+            "production_evidence_bundle.source_hooks",
+            {
+                "tools/build_zenoenergy_real_replay_report.py",
+                "tools/check_zenoenergy_replay_source_manifest.py",
+                "tools/check_zenoenergy_production_promotion.py",
+            }.issubset(composed_tools)
+            and "build_upba_real_replay_report" in source_text
+            and "build_autotrader_real_shadow_report" in source_text
+            and "validate_replay_source_manifest" in source_text
+            and "build_production_gate_report" in source_text
+            and "_require_passing_manifest_check" in source_text
+            and "source_manifest_checks" in source_text
+            and "test_bundle_rejects_source_manifest_hash_mismatch" in test_text
+            and "test_cli_writes_bundle_json_and_markdown" in test_text,
+            "bundle composes real report builders, source manifest checks, and production gate",
+        ),
+        _expect_true(
+            "production_evidence_bundle.safety_and_limits",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and bool(report["safety"]["deterministic_fallback_required"]) is True
+            and "advisory ranking" in doc_lower
+            and "exits with code `2`" in doc_lower
+            and "cannot prove external data custody" in limits_lower
+            and "without passing replay source manifests" in negative_lower
+            and "outside settlement validity" in source_lower,
+            "bundle preserves advisory boundary, fail-closed manifest behavior, and custody limits",
+        ),
+    ]
+
+
 def _check_sota_decision_map(
     report: dict[str, Any],
     doc_text: str,
@@ -1209,6 +1306,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518": "supported",
         "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518": "supported",
         "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518": "supported",
+        "H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",
@@ -1278,6 +1376,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     production_gate = payloads["production_promotion_gate"]
     replay_source_manifest = payloads["replay_source_manifest"]
     real_replay_builder = payloads["real_replay_report_builder"]
+    production_evidence_bundle = payloads["production_evidence_bundle"]
     sota_decision_map = payloads["sota_decision_map"]
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
     autotrader_aggregate = autotrader["aggregate"]
@@ -1430,6 +1529,12 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "supported_status": real_replay_builder["supported_status"],
             "negative_knowledge": real_replay_builder["negative_knowledge"],
             "claim": real_replay_builder["claim"],
+        },
+        "production_evidence_bundle": {
+            "bundle_schema": production_evidence_bundle["bundle_schema"],
+            "supported_status": "supported",
+            "negative_knowledge": production_evidence_bundle["negative_knowledge"],
+            "claim": production_evidence_bundle["claim"],
         },
         "sota_decision_map": {
             "source_count": sota_decision_map["source_count"],

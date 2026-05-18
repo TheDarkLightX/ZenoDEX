@@ -214,6 +214,35 @@ catches invalid submissions, honest solving strictly dominates idling or
 submitting a bad solution. The bound is conditional on those assumptions and
 does not claim that every production actor game is solved.
 
+### ZenoEnergy Advisory Ranking Research
+
+ZenoEnergy is an isolated research scorer for UPBA v2 candidate search. It uses
+a tiny energy/ranking model to order candidate settlements before deterministic
+verification. The verifier remains the settlement authority:
+
+```text
+Model proposes; verifier decides.
+```
+
+Current bounded synthetic evidence is strong: the preferred 97-parameter
+gap-weighted ranker reaches 100% top-10 recall on committed holdout and
+cross-seed synthetic receipts, reduces mean verifier-winner position versus
+hand energy, and records zero invalid accepts. Production ranking remains gated
+by real or production-shadow replay.
+
+Primary entry points:
+
+- [docs/ZENO_ENERGY_V0.md](docs/ZENO_ENERGY_V0.md)
+- [docs/ZENO_ENERGY_RESULTS.md](docs/ZENO_ENERGY_RESULTS.md)
+- [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
+- [docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
+- [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
+
+The production evidence bundle assembles source-manifested UPBA and AutoTrader
+real replay reports, then runs the fail-closed advisory ranking promotion gate.
+It cannot authorize settlement, change policy predicates, or turn synthetic
+fixtures into production evidence.
+
 ### ZenoProof, FIRE, And Certified Financial Math Objects
 
 ZenoProof is the internal evidence registry and verifier layer. Its public

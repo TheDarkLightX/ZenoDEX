@@ -2,13 +2,13 @@
 title: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search
 type: research-paper
 status: draft
-date: 2026-05-17
+date: 2026-05-18
 ---
 
 # Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search
 
-ZenoDEX Research Paper, draft v0.3
-Date: May 17, 2026
+ZenoDEX Research Paper, draft v0.4
+Date: May 18, 2026
 
 ## Abstract
 
@@ -31,6 +31,11 @@ This is optimization research: the optimized quantity is verifier search work
 over a finite candidate set. Correctness comes from deterministic verification,
 certified candidate generation, dominance-pruning contracts, and deterministic
 fallback.
+
+The current production-adjacent path is an evidence bundle rather than a release
+claim. The bundle assembles source-manifested UPBA and AutoTrader real replay
+reports, then runs a fail-closed advisory ranking promotion gate. The gate
+currently blocks promotion because real replay coverage is still missing.
 
 ## 1. Research Classification
 
@@ -490,7 +495,57 @@ private live data -> redaction/aggregation policy -> replay corpus -> verifier l
 Training should avoid secrets, raw private orderflow, and any data that would
 change deterministic replay.
 
-## 11. Reproducibility
+## 11. Production Gate and Evidence Bundle
+
+ZenoEnergy now has a production-adjacent evidence path:
+
+```text
+tools/build_zenoenergy_production_evidence_bundle.py
+```
+
+The bundle composes four deterministic artifacts:
+
+```text
+zenodex/energy/upba_real_replay_report/v1
+zenodex/energy/autotrader_real_shadow_report/v1
+zenodex/energy/replay_source_manifest_check/v1
+zenodex/energy/production_promotion_gate/v1
+```
+
+The bundle itself uses:
+
+```text
+zenodex/energy/production_evidence_bundle/v1
+```
+
+The release predicate is:
+
+```text
+ProductionEvidenceBundle :=
+  UPBARealReplayReport
+  and AutoTraderRealShadowReport
+  and ReplaySourceManifestChecks
+  and ProductionPromotionGate
+```
+
+The production gate requires at least 1,000 real UPBA replay batches, 20,000
+real UPBA candidates, 500 real AutoTrader shadow contexts, 5,000 AutoTrader
+shadow rows, seven market days, top-25 recall at least 0.99, zero invalid
+accepts, deterministic replay, no live secrets, source manifest checks, and
+learned mean verifier or guard calls below hand energy.
+
+Malformed evidence fails closed. Well-formed but insufficient evidence produces
+`decision: blocked`. A passing bundle can only support advisory ranking:
+
+```text
+LowEnergy(candidate) ∧ VerifierRejects(candidate) -> SettlementRejected
+```
+
+The current gate remains blocked because the repo contains synthetic and fixture
+evidence, plus the tooling needed to evaluate real evidence, while the required
+real replay reports have not yet been supplied.
+
+## 12. Reproducibility
 
 Dataset generation:
 
@@ -559,7 +614,32 @@ python3 ~/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py \
 pytest -q tests/formal/test_lean_uniform_batch_optimality.py
 ```
 
-## 12. Recommendation
+Production evidence bundle replay:
+
+```bash
+python3 tools/build_zenoenergy_production_evidence_bundle.py \
+  --upba-benchmark-report data/private/upba_replay_benchmark.json \
+  --upba-source-manifest data/private/upba_replay_source_manifest.json \
+  --upba-source-kind production-shadow \
+  --upba-source-descriptor prod-shadow:2026-05-01..2026-05-09 \
+  --upba-market-day-count 9 \
+  --autotrader-shadow-bridge-report data/private/autotrader_shadow_bridge.json \
+  --autotrader-source-manifest data/private/autotrader_replay_source_manifest.json \
+  --autotrader-source-kind production-shadow \
+  --autotrader-source-descriptor prod-shadow:autotrader:2026-05-01..2026-05-09 \
+  --autotrader-market-day-count 9 \
+  --deterministic-replay-ok \
+  --no-live-secrets \
+  --operator-release-enable
+```
+
+Committed research evidence replay:
+
+```bash
+PYTHONPATH=external/PopperPad/src python3 tools/check_zenoenergy_research_evidence.py
+```
+
+## 13. Recommendation
 
 Keep ZenoEnergy v0 as an isolated research accelerator. The next high-value
 work is mathematical first. Larger models are lower priority:
@@ -567,8 +647,9 @@ work is mathematical first. Larger models are lower priority:
 - finalize the v2 bounded-grid optimality verifier;
 - strengthen exact candidate generation certificates;
 - implement certified dominance-pruning witnesses;
-- add replayed non-private or privacy-approved real corpora;
+- add source-manifested non-private or privacy-approved real corpora;
 - train the optional tiny MLP and compare it against the current linear ranker.
 
 The current evidence says the search-order signal is strong enough to continue.
-The release boundary remains deterministic verification and certified fallback.
+The release boundary remains deterministic verification, certified fallback, and
+the production evidence bundle gate.

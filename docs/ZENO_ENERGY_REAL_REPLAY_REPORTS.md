@@ -101,6 +101,9 @@ python3 tools/check_zenoenergy_production_promotion.py \
   --operator-release-enable
 ```
 
+For one-command operator review, use the production evidence bundle:
+[ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](./ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
+
 The builder does not prove the source descriptor is truthful. It records the
 source assertion, input hashes, and safety attestations in a stable format so the
 gate can replay the decision. Data custody, replay job provenance, and secret

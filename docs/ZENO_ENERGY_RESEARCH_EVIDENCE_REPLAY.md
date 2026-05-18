@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 121
-passed_count: 121
+check_count: 126
+passed_count: 126
 failed_count: 0
 ```
 
@@ -80,6 +80,10 @@ failed_count: 0
 | real_replay_report_builder.targets_and_artifacts | pass | receipt and doc record both production-gate report schemas |
 | real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks |
 | real_replay_report_builder.safety_boundary | pass | builder preserves verifier/policy authority and records provenance limits |
+| production_evidence_bundle.schema | pass | expected 'zenodex/energy/production_evidence_bundle_receipt/v1', observed 'zenodex/energy/production_evidence_bundle_receipt/v1' |
+| production_evidence_bundle.artifacts_and_schemas | pass | receipt and doc record bundle schema, output schemas, and artifacts |
+| production_evidence_bundle.source_hooks | pass | bundle composes real report builders, source manifest checks, and production gate |
+| production_evidence_bundle.safety_and_limits | pass | bundle preserves advisory boundary, fail-closed manifest behavior, and custody limits |
 | sota_decision_map.schema | pass | expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1' |
 | sota_decision_map.sources_and_boundary | pass | decision map records all required sources and verifier/fallback boundary |
 | sota_decision_map.decisions | pass | all required model-direction decisions are recorded in receipt and doc |
@@ -122,6 +126,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 | pass | H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 | pass | H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 | pass | H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
@@ -213,6 +218,16 @@ failed_count: 0
       "objective-equivalent"
     ],
     "recommended_research_positive_class": "objective-equivalent"
+  },
+  "production_evidence_bundle": {
+    "bundle_schema": "zenodex/energy/production_evidence_bundle/v1",
+    "claim": "ZenoEnergy production-adjacent review now has a single fail-closed evidence bundle command that assembles source-manifested UPBA and AutoTrader real replay reports, then runs the production promotion gate.",
+    "negative_knowledge": [
+      "Synthetic and built-in fixture evidence remains research evidence even when the bundle command can parse it.",
+      "Without passing replay source manifests and real replay coverage, the production promotion gate remains blocked.",
+      "A passing bundle is not a settlement authorization path."
+    ],
+    "supported_status": "supported"
   },
   "production_promotion_gate": {
     "blocked_reasons": [

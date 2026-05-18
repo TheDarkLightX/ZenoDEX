@@ -1,5 +1,5 @@
 {
-  "check_count": 121,
+  "check_count": 126,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -357,6 +357,26 @@
       "passed": true
     },
     {
+      "check_id": "production_evidence_bundle.schema",
+      "detail": "expected 'zenodex/energy/production_evidence_bundle_receipt/v1', observed 'zenodex/energy/production_evidence_bundle_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "production_evidence_bundle.artifacts_and_schemas",
+      "detail": "receipt and doc record bundle schema, output schemas, and artifacts",
+      "passed": true
+    },
+    {
+      "check_id": "production_evidence_bundle.source_hooks",
+      "detail": "bundle composes real report builders, source manifest checks, and production gate",
+      "passed": true
+    },
+    {
+      "check_id": "production_evidence_bundle.safety_and_limits",
+      "detail": "bundle preserves advisory boundary, fail-closed manifest behavior, and custody limits",
+      "passed": true
+    },
+    {
       "check_id": "sota_decision_map.schema",
       "detail": "expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1'",
       "passed": true
@@ -567,6 +587,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518",
+      "detail": "H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
       "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
       "passed": true
@@ -609,7 +634,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 121,
+  "passed_count": 126,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -690,6 +715,16 @@
         "objective-equivalent"
       ],
       "recommended_research_positive_class": "objective-equivalent"
+    },
+    "production_evidence_bundle": {
+      "bundle_schema": "zenodex/energy/production_evidence_bundle/v1",
+      "claim": "ZenoEnergy production-adjacent review now has a single fail-closed evidence bundle command that assembles source-manifested UPBA and AutoTrader real replay reports, then runs the production promotion gate.",
+      "negative_knowledge": [
+        "Synthetic and built-in fixture evidence remains research evidence even when the bundle command can parse it.",
+        "Without passing replay source manifests and real replay coverage, the production promotion gate remains blocked.",
+        "A passing bundle is not a settlement authorization path."
+      ],
+      "supported_status": "supported"
     },
     "production_promotion_gate": {
       "blocked_reasons": [
