@@ -178,6 +178,52 @@ def replay_zenoenergy_evidence(
     payloads["sota_decision_map"] = sota_decision_map
     checks.extend(_check_sota_decision_map(sota_decision_map, sota_doc))
 
+    autotrader_eval = _load_json(
+        root / "data/upba_energy/autotrader_energy_eval_seed20260518_20260519.json"
+    )
+    autotrader_train_meta = _load_json(
+        root / "data/upba_energy/autotrader_energy_train_seed20260518.meta.json"
+    )
+    autotrader_holdout_meta = _load_json(
+        root / "data/upba_energy/autotrader_energy_holdout_seed20260519.meta.json"
+    )
+    autotrader_doc = (root / "docs/AUTOTRADER_ENERGY_V0.md").read_text(encoding="utf-8")
+    payloads["autotrader_energy"] = autotrader_eval
+    payloads["autotrader_train_meta"] = autotrader_train_meta
+    payloads["autotrader_holdout_meta"] = autotrader_holdout_meta
+    checks.extend(
+        _check_autotrader_energy(
+            autotrader_eval,
+            autotrader_train_meta,
+            autotrader_holdout_meta,
+            autotrader_doc,
+        )
+    )
+
+    autotrader_hard_eval = _load_json(
+        root / "data/upba_energy/autotrader_energy_hard_eval_seed20260522_20260523.json"
+    )
+    autotrader_hard_train_meta = _load_json(
+        root / "data/upba_energy/autotrader_energy_hard_train_seed20260522.meta.json"
+    )
+    autotrader_hard_holdout_meta = _load_json(
+        root / "data/upba_energy/autotrader_energy_hard_holdout_seed20260523.meta.json"
+    )
+    autotrader_hard_doc = (root / "docs/AUTOTRADER_ENERGY_HARD_V1.md").read_text(
+        encoding="utf-8"
+    )
+    payloads["autotrader_energy_hard"] = autotrader_hard_eval
+    payloads["autotrader_hard_train_meta"] = autotrader_hard_train_meta
+    payloads["autotrader_hard_holdout_meta"] = autotrader_hard_holdout_meta
+    checks.extend(
+        _check_autotrader_energy_hard(
+            autotrader_hard_eval,
+            autotrader_hard_train_meta,
+            autotrader_hard_holdout_meta,
+            autotrader_hard_doc,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -831,6 +877,124 @@ def _check_sota_decision_map(
     ]
 
 
+def _check_autotrader_energy(
+    report: dict[str, Any],
+    train_meta: dict[str, Any],
+    holdout_meta: dict[str, Any],
+    doc_text: str,
+) -> list[EvidenceCheck]:
+    modes = report["modes"]
+    learned = modes["learned"]
+    random = modes["random"]
+    hand = modes["hand"]
+    doc_lower = doc_text.lower()
+    return [
+        _expect_equal(
+            "autotrader_energy.schema",
+            report.get("schema"),
+            "zenodex/energy/autotrader_evaluation_report/v1",
+        ),
+        _expect_true(
+            "autotrader_energy.synthetic_metadata",
+            train_meta.get("schema") == "zenodex/energy/autotrader_dataset_metadata/v1"
+            and holdout_meta.get("schema") == "zenodex/energy/autotrader_dataset_metadata/v1"
+            and bool(train_meta.get("synthetic_only"))
+            and bool(holdout_meta.get("synthetic_only"))
+            and int(train_meta["winner_rows"]) == int(train_meta["contexts_requested"])
+            and int(holdout_meta["winner_rows"]) == int(holdout_meta["contexts_requested"]),
+            "AutoTraderEnergy train and holdout metadata are synthetic-only with one winner per context",
+        ),
+        _expect_true(
+            "autotrader_energy.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["policy_guards_authoritative"])
+            and not bool(report["safety"]["scorer_authorizes_trade"])
+            and int(learned["invalid_accept_count"]) == 0,
+            "scorer remains advisory and deterministic guards accept or reject",
+        ),
+        _expect_true(
+            "autotrader_energy.learned_beats_random",
+            float(learned["mean_guard_calls_until_winner"])
+            < float(random["mean_guard_calls_until_winner"])
+            and float(learned["top_5_recall"]) == 1.0
+            and float(random["top_5_recall"]) < 1.0,
+            "learned scorer reduces guard calls versus random ordering",
+        ),
+        _expect_true(
+            "autotrader_energy.negative_vs_hand",
+            float(learned["mean_guard_calls_until_winner"])
+            >= float(hand["mean_guard_calls_until_winner"])
+            and "zero-initialized linear scorer" in doc_lower
+            and "hand energy baseline" in doc_lower
+            and "next useful experiment" in doc_lower,
+            "learned scorer does not strictly beat hand energy on this synthetic holdout",
+        ),
+    ]
+
+
+def _check_autotrader_energy_hard(
+    report: dict[str, Any],
+    train_meta: dict[str, Any],
+    holdout_meta: dict[str, Any],
+    doc_text: str,
+) -> list[EvidenceCheck]:
+    modes = report["modes"]
+    learned = modes["learned"]
+    random = modes["random"]
+    hand = modes["hand"]
+    doc_lower = doc_text.lower()
+    return [
+        _expect_equal(
+            "autotrader_energy_hard.schema",
+            report.get("schema"),
+            "zenodex/energy/autotrader_evaluation_report/v1",
+        ),
+        _expect_true(
+            "autotrader_energy_hard.synthetic_metadata",
+            train_meta.get("schema") == "zenodex/energy/autotrader_dataset_metadata/v1"
+            and holdout_meta.get("schema")
+            == "zenodex/energy/autotrader_dataset_metadata/v1"
+            and train_meta.get("profile") == "hard"
+            and holdout_meta.get("profile") == "hard"
+            and bool(train_meta.get("synthetic_only"))
+            and bool(holdout_meta.get("synthetic_only"))
+            and int(train_meta["winner_rows"]) == int(train_meta["contexts_requested"])
+            and int(holdout_meta["winner_rows"])
+            == int(holdout_meta["contexts_requested"]),
+            "hard AutoTrader train and holdout metadata are synthetic-only with one winner per context",
+        ),
+        _expect_true(
+            "autotrader_energy_hard.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["policy_guards_authoritative"])
+            and not bool(report["safety"]["scorer_authorizes_trade"])
+            and int(learned["invalid_accept_count"]) == 0,
+            "hard scorer remains advisory and deterministic guards accept or reject",
+        ),
+        _expect_true(
+            "autotrader_energy_hard.learned_beats_hand",
+            float(learned["mean_guard_calls_until_winner"])
+            < float(hand["mean_guard_calls_until_winner"])
+            and float(learned["mean_guard_calls_until_winner"])
+            < float(random["mean_guard_calls_until_winner"])
+            and float(learned["top_1_recall"]) > float(hand["top_1_recall"])
+            and float(learned["top_5_recall"]) >= 0.99,
+            "learned scorer reduces guard calls versus hand and random on hard synthetic holdout",
+        ),
+        _expect_true(
+            "autotrader_energy_hard.profile_nonvacuous",
+            int(train_meta["valid_rows"]) > int(train_meta["contexts_requested"]) * 3
+            and int(holdout_meta["valid_rows"])
+            > int(holdout_meta["contexts_requested"]) * 3
+            and float(hand["mean_guard_calls_until_winner"]) >= 2.0
+            and "hard synthetic" in doc_lower
+            and "learned" in doc_lower
+            and "hand" in doc_lower,
+            "hard profile has multiple valid candidates per context and nontrivial hand baseline misses",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -856,6 +1020,12 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518": "falsified",
         "H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_V0_SAFETY_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_V0_BEATS_RANDOM_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_V0_STRICTLY_BEATS_HAND_ENERGY_20260518": "falsified",
+        "H_AUTOTRADER_ENERGY_HARD_V1_SAFETY_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_HARD_V1_BEATS_HAND_20260518": "supported",
+        "H_AUTOTRADER_ENERGY_HARD_V1_PROFILE_NONVACUOUS_20260518": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -932,6 +1102,8 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
     sota_decision_map = payloads["sota_decision_map"]
+    autotrader_energy = payloads["autotrader_energy"]
+    autotrader_energy_hard = payloads["autotrader_energy_hard"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -1074,6 +1246,49 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "next_experiment_count": len(sota_decision_map["next_experiments"]),
             "negative_knowledge_count": len(sota_decision_map["negative_knowledge"]),
             "claim": sota_decision_map["claim"],
+        },
+        "autotrader_energy": {
+            "contexts": autotrader_energy["contexts"],
+            "model_parameter_count": autotrader_energy["model_parameter_count"],
+            "learned_top_1_recall": autotrader_energy["modes"]["learned"][
+                "top_1_recall"
+            ],
+            "learned_mean_guard_calls": autotrader_energy["modes"]["learned"][
+                "mean_guard_calls_until_winner"
+            ],
+            "random_mean_guard_calls": autotrader_energy["modes"]["random"][
+                "mean_guard_calls_until_winner"
+            ],
+            "hand_mean_guard_calls": autotrader_energy["modes"]["hand"][
+                "mean_guard_calls_until_winner"
+            ],
+            "invalid_accept_count": autotrader_energy["safety"][
+                "invalid_accept_count"
+            ],
+            "negative_knowledge": "AutoTraderEnergy v0 matches the hand-energy baseline but does not strictly beat it on the bounded synthetic holdout.",
+        },
+        "autotrader_energy_hard": {
+            "contexts": autotrader_energy_hard["contexts"],
+            "model_parameter_count": autotrader_energy_hard["model_parameter_count"],
+            "learned_top_1_recall": autotrader_energy_hard["modes"]["learned"][
+                "top_1_recall"
+            ],
+            "learned_top_5_recall": autotrader_energy_hard["modes"]["learned"][
+                "top_5_recall"
+            ],
+            "learned_mean_guard_calls": autotrader_energy_hard["modes"]["learned"][
+                "mean_guard_calls_until_winner"
+            ],
+            "random_mean_guard_calls": autotrader_energy_hard["modes"]["random"][
+                "mean_guard_calls_until_winner"
+            ],
+            "hand_mean_guard_calls": autotrader_energy_hard["modes"]["hand"][
+                "mean_guard_calls_until_winner"
+            ],
+            "invalid_accept_count": autotrader_energy_hard["safety"][
+                "invalid_accept_count"
+            ],
+            "positive_knowledge": "AutoTraderEnergy hard v1 beats hand energy on mean guard calls while preserving advisory-only safety.",
         },
     }
 

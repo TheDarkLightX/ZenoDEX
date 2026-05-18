@@ -1,0 +1,62 @@
+{
+  "contexts": 250,
+  "dataset_rows": 2500,
+  "model_feature_dim": 35,
+  "model_parameter_count": 36,
+  "modes": {
+    "hand": {
+      "candidate_count_mean": 10,
+      "contexts": 250,
+      "invalid_accept_count": 0,
+      "invalid_top_1_rate": 0.0,
+      "mean_guard_calls_until_winner": 1.012,
+      "p95_guard_calls_until_winner": 1,
+      "p99_guard_calls_until_winner": 1,
+      "top_1_recall": 0.992,
+      "top_3_recall": 1.0,
+      "top_5_recall": 1.0
+    },
+    "hybrid": {
+      "candidate_count_mean": 10,
+      "contexts": 250,
+      "invalid_accept_count": 0,
+      "invalid_top_1_rate": 0.0,
+      "mean_guard_calls_until_winner": 1.012,
+      "p95_guard_calls_until_winner": 1,
+      "p99_guard_calls_until_winner": 1,
+      "top_1_recall": 0.992,
+      "top_3_recall": 1.0,
+      "top_5_recall": 1.0
+    },
+    "learned": {
+      "candidate_count_mean": 10,
+      "contexts": 250,
+      "invalid_accept_count": 0,
+      "invalid_top_1_rate": 0.0,
+      "mean_guard_calls_until_winner": 1.012,
+      "p95_guard_calls_until_winner": 1,
+      "p99_guard_calls_until_winner": 1,
+      "top_1_recall": 0.992,
+      "top_3_recall": 1.0,
+      "top_5_recall": 1.0
+    },
+    "random": {
+      "candidate_count_mean": 10,
+      "contexts": 250,
+      "invalid_accept_count": 0,
+      "invalid_top_1_rate": 0.864,
+      "mean_guard_calls_until_winner": 5.628,
+      "p95_guard_calls_until_winner": 10,
+      "p99_guard_calls_until_winner": 10,
+      "top_1_recall": 0.08,
+      "top_3_recall": 0.248,
+      "top_5_recall": 0.496
+    }
+  },
+  "safety": {
+    "invalid_accept_count": 0,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_trade": false
+  },
+  "schema": "zenodex/energy/autotrader_evaluation_report/v1"
+}

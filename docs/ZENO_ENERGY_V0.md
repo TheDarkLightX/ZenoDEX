@@ -277,3 +277,28 @@ that a verifier upper-bound certificate over the augmented list also dominates
 the preserved base list. This is a base-list dominance guarantee. It becomes a
 bounded-grid optimality guarantee only when the augmented list is exact for the
 full feasibility family or carries a dominance-cover certificate.
+
+## AutoTrader Transfer
+
+AutoTraderEnergy v0 applies the same advisory-ranking boundary to candidate
+actions:
+
+```text
+energy_rank(candidate_action) -> guard_check_order
+policy_guard(candidate_action) -> accept_or_reject
+```
+
+The first trained checkpoint is a 36-parameter linear scorer over synthetic
+AutoTrader contexts and candidate actions. It matches hand energy on the
+bounded holdout and sharply beats random ordering, while preserving
+`invalid_accept_count = 0`. It does not strictly beat hand energy, so the
+current value is transfer validation and a reusable benchmark harness rather
+than a stronger AutoTrader policy model.
+
+AutoTraderEnergy hard v1 refreshes the synthetic generator with multiple valid
+candidate actions, valid high-cost decoys, and invalid high-edge near misses.
+On 1,000 held-out hard contexts, the same 36-parameter linear ranker reduces
+mean guard calls from 2.160 for hand energy to 1.698, with
+`invalid_accept_count = 0`. This supports continued research on learned
+AutoTrader candidate ordering under the same deterministic policy-guard
+boundary.

@@ -1,0 +1,21 @@
+{
+  "candidate_kind_counts": {
+    "hedge": 2897,
+    "no_op": 1000,
+    "reduce": 2596,
+    "reroute": 3174,
+    "submit": 4161,
+    "wait": 2172
+  },
+  "candidates_per_context": 16,
+  "contexts_requested": 1000,
+  "invalid_rows": 10056,
+  "profile": "hard",
+  "rows": 16000,
+  "schema": "zenodex/energy/autotrader_dataset_metadata/v1",
+  "seed": 20260523,
+  "source": "synthetic",
+  "synthetic_only": true,
+  "valid_rows": 5944,
+  "winner_rows": 1000
+}

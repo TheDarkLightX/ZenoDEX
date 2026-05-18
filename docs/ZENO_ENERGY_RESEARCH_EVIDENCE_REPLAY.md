@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 89
-passed_count: 89
+check_count: 105
+passed_count: 105
 failed_count: 0
 ```
 
@@ -74,6 +74,16 @@ failed_count: 0
 | sota_decision_map.decisions | pass | all required model-direction decisions are recorded in receipt and doc |
 | sota_decision_map.next_experiments | pass | all next experiments are recorded in receipt and doc |
 | sota_decision_map.negative_knowledge | pass | negative knowledge and guidance-only limit are preserved |
+| autotrader_energy.schema | pass | expected 'zenodex/energy/autotrader_evaluation_report/v1', observed 'zenodex/energy/autotrader_evaluation_report/v1' |
+| autotrader_energy.synthetic_metadata | pass | AutoTraderEnergy train and holdout metadata are synthetic-only with one winner per context |
+| autotrader_energy.safety | pass | scorer remains advisory and deterministic guards accept or reject |
+| autotrader_energy.learned_beats_random | pass | learned scorer reduces guard calls versus random ordering |
+| autotrader_energy.negative_vs_hand | pass | learned scorer does not strictly beat hand energy on this synthetic holdout |
+| autotrader_energy_hard.schema | pass | expected 'zenodex/energy/autotrader_evaluation_report/v1', observed 'zenodex/energy/autotrader_evaluation_report/v1' |
+| autotrader_energy_hard.synthetic_metadata | pass | hard AutoTrader train and holdout metadata are synthetic-only with one winner per context |
+| autotrader_energy_hard.safety | pass | hard scorer remains advisory and deterministic guards accept or reject |
+| autotrader_energy_hard.learned_beats_hand | pass | learned scorer reduces guard calls versus hand and random on hard synthetic holdout |
+| autotrader_energy_hard.profile_nonvacuous | pass | hard profile has multiple valid candidates per context and nontrivial hand baseline misses |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -97,12 +107,39 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518 | pass | H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518 | pass | H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518 | pass | H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_V0_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_V0_SAFETY_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_V0_BEATS_RANDOM_20260518 | pass | H_AUTOTRADER_ENERGY_V0_BEATS_RANDOM_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_V0_STRICTLY_BEATS_HAND_ENERGY_20260518 | pass | H_AUTOTRADER_ENERGY_V0_STRICTLY_BEATS_HAND_ENERGY_20260518 is recorded as falsified |
+| popperpad.status.H_AUTOTRADER_ENERGY_HARD_V1_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_V1_SAFETY_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_HARD_V1_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_V1_BEATS_HAND_20260518 is recorded as supported |
+| popperpad.status.H_AUTOTRADER_ENERGY_HARD_V1_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_V1_PROFILE_NONVACUOUS_20260518 is recorded as supported |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
 
 ```json
 {
+  "autotrader_energy": {
+    "contexts": 250,
+    "hand_mean_guard_calls": 1.012,
+    "invalid_accept_count": 0,
+    "learned_mean_guard_calls": 1.012,
+    "learned_top_1_recall": 0.992,
+    "model_parameter_count": 36,
+    "negative_knowledge": "AutoTraderEnergy v0 matches the hand-energy baseline but does not strictly beat it on the bounded synthetic holdout.",
+    "random_mean_guard_calls": 5.628
+  },
+  "autotrader_energy_hard": {
+    "contexts": 1000,
+    "hand_mean_guard_calls": 2.16,
+    "invalid_accept_count": 0,
+    "learned_mean_guard_calls": 1.698,
+    "learned_top_1_recall": 0.595,
+    "learned_top_5_recall": 0.99,
+    "model_parameter_count": 36,
+    "positive_knowledge": "AutoTraderEnergy hard v1 beats hand energy on mean guard calls while preserving advisory-only safety.",
+    "random_mean_guard_calls": 8.55
+  },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
   "fallback_permutation_audit": {
     "batches": 198,

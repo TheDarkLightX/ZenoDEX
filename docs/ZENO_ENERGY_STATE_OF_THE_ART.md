@@ -172,6 +172,12 @@ neighborhood search. AutoTrader can rank candidate strategies, repairs, hedge
 adjustments, and route plans. Execution still requires deterministic budget,
 nonce, authorization, risk, provenance, and settlement gates.
 
+The hard synthetic AutoTraderEnergy v1 run is the relevant transfer result:
+the learned 36-parameter ranker beats hand energy on mean guard calls once the
+candidate generator includes multiple valid decoys and invalid high-edge near
+misses. This matches the learned-solver-guidance pattern: learning improves
+search order, while deterministic guards decide executable actions.
+
 ## Research Implications
 
 1. Synthetic data is legitimate for bounded search research when the generator

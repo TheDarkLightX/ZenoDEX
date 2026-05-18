@@ -1,0 +1,1 @@
+{"blob_ref":"sha256:e875b9012b47e5ec8e96fe6d0462753b255a4f4514083ee3a873746c2d5d4e44","kind":"dataset_metadata","media_type":"application/json","name":"train_meta_artifact","path":"data/upba_energy/autotrader_energy_train_seed20260518.meta.json","schema":"popperpad/artifact/v1"}

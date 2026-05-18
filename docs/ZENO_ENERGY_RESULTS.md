@@ -499,10 +499,53 @@ The replay gate
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
 objective-tuned, synthetic candidate coverage, cross-seed stress,
-formal-boundary receipts, fallback/top-k receipts, and PopperPad status ledger.
+AutoTraderEnergy, formal-boundary receipts, fallback/top-k receipts, and PopperPad status ledger.
 It also checks the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 89 passing checks and 0 failed checks.
+The current receipt reports 105 passing checks and 0 failed checks.
+
+## AutoTrader Transfer
+
+AutoTraderEnergy v0 trains a 36-parameter linear ranker over synthetic
+candidate actions: no-op, submit, reduce, reroute, hedge, and wait. The scorer
+only changes guard-check ordering.
+
+```text
+train: 500 synthetic contexts, 5,000 rows
+holdout: 250 synthetic contexts, 2,500 rows
+model: data/upba_energy/autotrader_energy_linear_hand_tiny_step_seed20260518.json
+```
+
+| mode | top1 | top5 | mean guard calls | p99 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| random | 0.080 | 0.496 | 5.628 | 10 | 0 |
+| hand | 0.992 | 1.000 | 1.012 | 1 | 0 |
+| learned | 0.992 | 1.000 | 1.012 | 1 | 0 |
+
+This supports the transfer pattern: learned energy can serve as an
+AutoTrader candidate-action ranker while deterministic policy guards remain
+authoritative. The negative result is also useful: the trained v0 checkpoint
+matches the hand baseline and does not strictly beat it. Harder candidate sets
+or production-shadow observations are needed before claiming AutoTrader-specific
+learning value beyond hand-coded guard energy.
+
+AutoTraderEnergy hard v1 adds those harder synthetic candidate sets. It trains
+on 2,500 hard synthetic contexts and evaluates on 1,000 held-out hard contexts
+with 16 candidates each.
+
+```text
+model: data/upba_energy/autotrader_energy_hard_linear_hand_seed20260522.json
+```
+
+| mode | top1 | top5 | mean guard calls | p99 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| random | 0.068 | 0.318 | 8.550 | 16 | 0 |
+| hand | 0.418 | 0.975 | 2.160 | 6 | 0 |
+| learned | 0.595 | 0.990 | 1.698 | 5 | 0 |
+
+This is the first AutoTraderEnergy result where the learned scorer strictly
+beats hand energy on mean guard calls. The claim remains synthetic-distribution
+evidence.
 
 ## Accuracy
 

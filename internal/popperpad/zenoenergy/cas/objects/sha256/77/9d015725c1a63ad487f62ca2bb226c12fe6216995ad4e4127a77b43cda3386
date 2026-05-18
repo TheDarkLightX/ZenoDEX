@@ -1,0 +1,1 @@
+{"context_key":"zenoenergy:autotrader-energy-v0:20260518","domain_ref":"sha256:491ffd61981b5fa5b0ca2e54afc3fea3b80bb75ac5d923176dae8063ddd9d82b","harness":{"digest":"sha256:aca6fe76cb833ac57a2e9cfa5d9a1ff6b63314c5e6d939b80f0134582d87e943","id":"tools/evaluate_autotrader_energy.py synthetic AutoTrader candidate-action holdout"},"schema":"popperpad/context/v1","toolchain":{}}

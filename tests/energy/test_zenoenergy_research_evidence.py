@@ -19,7 +19,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 88
+    assert report["passed_count"] == report["check_count"] == 104
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -55,6 +55,16 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "sota_decision_map.decisions",
         "sota_decision_map.next_experiments",
         "sota_decision_map.negative_knowledge",
+        "autotrader_energy.schema",
+        "autotrader_energy.synthetic_metadata",
+        "autotrader_energy.safety",
+        "autotrader_energy.learned_beats_random",
+        "autotrader_energy.negative_vs_hand",
+        "autotrader_energy_hard.schema",
+        "autotrader_energy_hard.synthetic_metadata",
+        "autotrader_energy_hard.safety",
+        "autotrader_energy_hard.learned_beats_hand",
+        "autotrader_energy_hard.profile_nonvacuous",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
@@ -67,6 +77,12 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_OBJECTIVE_TUNED_SAFETY_20260518",
         "popperpad.status.H_ZENOENERGY_OBJECTIVE_TUNED_STRICTLY_BEATS_GAP_WEIGHTED_20260518",
         "popperpad.status.H_ZENOENERGY_SYNTHETIC_CANDIDATE_COVERAGE_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_V0_SAFETY_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_V0_BEATS_RANDOM_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_V0_STRICTLY_BEATS_HAND_ENERGY_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_V1_SAFETY_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_V1_BEATS_HAND_20260518",
+        "popperpad.status.H_AUTOTRADER_ENERGY_HARD_V1_PROFILE_NONVACUOUS_20260518",
     }.issubset(check_ids)
 
 

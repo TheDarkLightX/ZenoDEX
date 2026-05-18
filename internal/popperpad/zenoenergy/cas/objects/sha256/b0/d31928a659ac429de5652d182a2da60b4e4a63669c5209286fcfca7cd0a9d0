@@ -1,0 +1,17 @@
+# AutoTraderEnergy v0 Receipt
+
+```text
+dataset_rows: 16000
+contexts: 1000
+model_feature_dim: 35
+model_parameter_count: 36
+```
+
+| mode | top1 | top3 | top5 | mean guard calls | p95 | p99 | invalid accepts | invalid top1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| random | 0.068 | 0.187 | 0.318 | 8.550 | 16 | 16 | 0 | 0.632 |
+| hand | 0.418 | 0.834 | 0.975 | 2.160 | 5 | 6 | 0 | 0.000 |
+| learned | 0.595 | 0.929 | 0.990 | 1.698 | 4 | 5 | 0 | 0.000 |
+| hybrid | 0.595 | 0.929 | 0.990 | 1.698 | 4 | 5 | 0 | 0.000 |
+
+The scorer is advisory. Deterministic AutoTrader policy guards remain the authority for trade acceptance.

@@ -317,6 +317,64 @@ support_edge_ref:           sha256:85c69df3ac0d060f2f2fb650a829e8bb4f304a66e2a48
 checkpoint_ref:             sha256:8539d3be9a3a15bb557f63aa868ddf2b96632e7d7701c6982e00cd25ce15671b
 ```
 
+### AutoTraderEnergy v0
+
+```text
+eval_blob_ref:              sha256:aca6fe76cb833ac57a2e9cfa5d9a1ff6b63314c5e6d939b80f0134582d87e943
+train_meta_blob_ref:        sha256:e875b9012b47e5ec8e96fe6d0462753b255a4f4514083ee3a873746c2d5d4e44
+holdout_meta_blob_ref:      sha256:a98e2ec6ee0af7c2edb3073dc085a69630b96b969bae8a1ee21393b3b914e11d
+model_blob_ref:             sha256:f0d9bf0c26bb4da3afae28175b9598863d0467a3413fc3a02a8b0bc015085de0
+doc_blob_ref:               sha256:f211a7ea9e3bf2338b64e33eb9a2f75fbd549a5f3eb8676dbacc8bb5f3709acd
+context_ref:                sha256:779d015725c1a63ad487f62ca2bb226c12fe6216995ad4e4127a77b43cda3386
+eval_artifact_ref:          sha256:4eaad3e0087872e7df05f93e122096d434a30d4d54237fa66419801c7afdeece
+train_meta_artifact_ref:    sha256:3bb62c02cbce37393381fcf979fe5825fc27a190943f44e5b0d0f8ee81472cdd
+holdout_meta_artifact_ref:  sha256:172aeceba0dc32826a232dfde99c932f50e24143b2874b617e8d7656d0e2d91a
+model_artifact_ref:         sha256:dc1b63a17629721097e8f5fd127874d266d959e844fcd8062ecdb48ba841b98c
+doc_artifact_ref:           sha256:b7045ed1ee50f2bad2d7864e7c6bb5f74ebe85d3ad6774f55019d8876e17d0ad
+safety_recipe_ref:          sha256:56d3dc7536218e5bb84cc3cf0d0ae34e24ef5487c9f5728908d47c15e993ecb1
+beats_random_recipe_ref:    sha256:7d8d65c46ee1d49781506d63c385d820b09a715e694550c38d35bbc59392f953
+strict_hand_refuter_ref:    sha256:27ad9a3b7d83ffadc188932e89bc894922a56778ee1251369123e23b34290ad4
+safety_hypothesis_ref:      sha256:d1445425a2727b9c77629687aea3392f5265ff1c63f359dda5e95c9052b8dee4
+beats_random_hypothesis_ref: sha256:06e49492fd0bd53d27dc381fa7c92844a01b1983f32a349d98ffbfa158e9d9a8
+strict_hand_hypothesis_ref: sha256:7e725882393c55c221456937c8630b2d322f8cc284379138fd7a0244b2ba7aa2
+safety_evidence_ref:        sha256:96ba7e5f6606874f29ca1215adf6f15e591d52b16cb9e1e4c94eb342fb0ca1c1
+safety_support_edge_ref:    sha256:4ea6ee620013bf55074f12e8b0410e9454669887441bd3b0f06d4e38f02593f0
+beats_random_evidence_ref:  sha256:535b0843ad1f98c675a4e53e69e79c733801b0a8778754fefa74f9b7fba851e0
+beats_random_support_edge_ref: sha256:aee7d1888f0b1271e7e7ed9b7c707616c7792bbcc8ba706781288578d45040ca
+strict_hand_evidence_ref:   sha256:e3b2738935a04fcdbf445e67ec5d470cf838c43cd05ac56ca512a6371cb7368a
+strict_hand_refute_edge_ref: sha256:4d00cfd8002699b289f663f7ad71392e284254796a6067de9edcfab120fd9d93
+checkpoint_ref:             sha256:4b986966fd2417b18d7befc028ffcf309086ec4702f272f925e1417e7c11b3ee
+```
+
+### AutoTraderEnergy Hard V1
+
+```text
+eval_blob_ref:              sha256:44353b87d7976e0eb5a45583c06a9628eb85ec017e5ca6da64013c31e12f5c15
+train_meta_blob_ref:        sha256:015011fed2c076a30c663a42263f59822690793185111c1f0e72cec57e63fce3
+holdout_meta_blob_ref:      sha256:f7d84c8e94ebc989ae63213328eecf2629856529d45686c4f7c2626b4e684c07
+model_blob_ref:             sha256:6157cfcbcd458dfeacb535efd3225f08fd6b5e101cbf4db878074b957f79e84a
+doc_blob_ref:               sha256:aa3f213405d78bca7aa4796b02e667a0a6dd8e3d413eeca4d40287e32fc206f1
+context_ref:                sha256:79aa1900d2575a3155a865ebdc3116dc4e2f4346a8b8ee9c451cd5e0a3d9a6d4
+eval_artifact_ref:          sha256:bf5ecd5f60716ba7c758ad529ab01a379f55fb5907235524b5d165f05b260ba7
+train_meta_artifact_ref:    sha256:6081074efe08100aa17d400ad11c1f66c9dac5cb47e45d232b664bb4621d8b8f
+holdout_meta_artifact_ref:  sha256:da44df9f0cea1cc23b13be6c7286f182b098653a5f046d1c03786a8c1d3644b8
+model_artifact_ref:         sha256:20a22d7989ca793ef5514d3dc43e84de7294e07bea99112b7d8a34b4cd6b8772
+doc_artifact_ref:           sha256:ab8150f7101a32edf1b80162dd7a942ee62ecc49bfb78734166e44448a0e343b
+safety_recipe_ref:          sha256:cdef5b9a469e1cd57addc23d2d47a4e005a244e8669bf7efccfb17b7a2c7832b
+beats_hand_recipe_ref:      sha256:f9b32c8624b9db9462863dcca2b83bdcc7825ca1c6ce1c9f78f829821610c589
+hard_profile_recipe_ref:    sha256:6adc45da819900488774d70ab776b1fb39ad5979fdc7fc366fbd0b51b6d14518
+safety_hypothesis_ref:      sha256:4d82bdea50c2d91c23e5ae43e1157c3ebb1c6e28c46ef0ff4a0e17c51a220ed7
+beats_hand_hypothesis_ref:  sha256:f93c7b8234f76ac6fbc6f973bc60d0d8bbc50bb3f3e626a8cf850acf3a9ed7b7
+profile_hypothesis_ref:     sha256:e5fa16d778fa04ed5027259a1051ddc4c42a5a5bc73850ecf89b6214f7d8f5de
+safety_evidence_ref:        sha256:067cc5b19f950c8bc6269340be21ce828af79cd4ab78c6596f9e938e119dbc00
+safety_support_edge_ref:    sha256:f21102520a0b1bd5c22b1d9184d2eabbe051b7ed0a61e3c3c07eb370ef5f0fc3
+beats_hand_evidence_ref:    sha256:2f6cbb4c7b59ed9a51aa26095d80d7092fd9c01f841b382287773f345f91e115
+beats_hand_support_edge_ref: sha256:55fd40d7fe4f1a8cf7937cea169cce2a5e751ff089bbeb7e1cfd8613189987d9
+profile_evidence_ref:       sha256:293713ce5baffd02f7774cab01fe265531834f388e9a2ce29aa8f587715e8626
+profile_support_edge_ref:   sha256:d199335504ff08eb9e2eefb1d33f1a1a963986998de8f4c7156e28bd4cbf5a2e
+checkpoint_ref:             sha256:fe9e48c80d3c7fb83283f73a9d3940d8887d9b375680cd5fa75a0483ff34458e
+```
+
 ## Current Status
 
 ```text
@@ -351,6 +409,12 @@ H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V7: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V8: supported
+H_AUTOTRADER_ENERGY_V0_SAFETY_20260518: supported
+H_AUTOTRADER_ENERGY_V0_BEATS_RANDOM_20260518: supported
+H_AUTOTRADER_ENERGY_V0_STRICTLY_BEATS_HAND_ENERGY_20260518: falsified
+H_AUTOTRADER_ENERGY_HARD_V1_SAFETY_20260518: supported
+H_AUTOTRADER_ENERGY_HARD_V1_BEATS_HAND_20260518: supported
+H_AUTOTRADER_ENERGY_HARD_V1_PROFILE_NONVACUOUS_20260518: supported
 doctor_ok: true
 ```
 

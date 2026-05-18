@@ -572,6 +572,155 @@ an outcome-level repair selector, refreshed hard negatives, and a
 dominance-cover certificate prototype. The map is guidance for the research
 queue. It does not change the verifier-authoritative settlement boundary.
 
+## AutoTraderEnergy v0
+
+Artifact:
+[AUTOTRADER_ENERGY_V0.md](./AUTOTRADER_ENERGY_V0.md)
+
+Static JSON:
+`data/upba_energy/autotrader_energy_eval_seed20260518_20260519.json`
+
+Model:
+`data/upba_energy/autotrader_energy_linear_hand_tiny_step_seed20260518.json`
+
+Commands:
+
+```bash
+python3 tools/generate_autotrader_energy_dataset.py \
+  --contexts 500 \
+  --candidates-per-context 10 \
+  --seed 20260518 \
+  --output /tmp/autotrader_energy_train_seed20260518.jsonl \
+  --metadata-output data/upba_energy/autotrader_energy_train_seed20260518.meta.json
+
+python3 tools/generate_autotrader_energy_dataset.py \
+  --contexts 250 \
+  --candidates-per-context 10 \
+  --seed 20260519 \
+  --output /tmp/autotrader_energy_holdout_seed20260519.jsonl \
+  --metadata-output data/upba_energy/autotrader_energy_holdout_seed20260519.meta.json
+
+python3 tools/train_autotrader_energy.py \
+  --dataset /tmp/autotrader_energy_train_seed20260518.jsonl \
+  --output-model data/upba_energy/autotrader_energy_linear_hand_tiny_step_seed20260518.json \
+  --epochs 3 \
+  --learning-rate 0.001 \
+  --margin 1.0 \
+  --seed 20260518 \
+  --init hand
+
+python3 tools/evaluate_autotrader_energy.py \
+  --dataset /tmp/autotrader_energy_holdout_seed20260519.jsonl \
+  --model data/upba_energy/autotrader_energy_linear_hand_tiny_step_seed20260518.json \
+  --seed 20260519 \
+  --output-json data/upba_energy/autotrader_energy_eval_seed20260518_20260519.json \
+  --output-markdown docs/AUTOTRADER_ENERGY_V0.md
+```
+
+Observed result:
+
+| mode | top1 | top3 | top5 | mean guard calls | p95 | p99 | invalid accepts | invalid top1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| random | 0.080 | 0.248 | 0.496 | 5.628 | 10 | 10 | 0 | 0.864 |
+| hand | 0.992 | 1.000 | 1.000 | 1.012 | 1 | 1 | 0 | 0.000 |
+| learned | 0.992 | 1.000 | 1.000 | 1.012 | 1 | 1 | 0 | 0.000 |
+| hybrid | 0.992 | 1.000 | 1.000 | 1.012 | 1 | 1 | 0 | 0.000 |
+
+Positive knowledge:
+
+```text
+The ZenoEnergy advisory-ranker pattern transfers to AutoTrader candidate-action
+ordering. A 36-parameter linear scorer matches hand energy and reduces mean
+guard calls from 5.628 under random ordering to 1.012 on the bounded synthetic
+holdout, with invalid_accept_count = 0.
+```
+
+Negative knowledge:
+
+```text
+The trained scorer does not strictly beat the deterministic hand-energy
+baseline on this synthetic holdout. Zero-initialized training beat random but
+ranked invalid candidates first in 3.2% of contexts and had worse top-1 recall
+than hand energy.
+```
+
+Research consequence: keep AutoTraderEnergy as an advisory ranking experiment.
+The next useful step is harder candidate-action generation or production-shadow
+observations, because the current synthetic guard structure is already captured
+by hand energy.
+
+## AutoTraderEnergy Hard V1
+
+Artifact:
+[AUTOTRADER_ENERGY_HARD_V1.md](./AUTOTRADER_ENERGY_HARD_V1.md)
+
+Static JSON:
+`data/upba_energy/autotrader_energy_hard_eval_seed20260522_20260523.json`
+
+Model:
+`data/upba_energy/autotrader_energy_hard_linear_hand_seed20260522.json`
+
+Commands:
+
+```bash
+python3 tools/generate_autotrader_energy_dataset.py \
+  --profile hard \
+  --contexts 2500 \
+  --candidates-per-context 16 \
+  --seed 20260522 \
+  --output /tmp/autotrader_energy_hard_train_seed20260522.jsonl \
+  --metadata-output data/upba_energy/autotrader_energy_hard_train_seed20260522.meta.json
+
+python3 tools/generate_autotrader_energy_dataset.py \
+  --profile hard \
+  --contexts 1000 \
+  --candidates-per-context 16 \
+  --seed 20260523 \
+  --output /tmp/autotrader_energy_hard_holdout_seed20260523.jsonl \
+  --metadata-output data/upba_energy/autotrader_energy_hard_holdout_seed20260523.meta.json
+
+python3 tools/train_autotrader_energy.py \
+  --dataset /tmp/autotrader_energy_hard_train_seed20260522.jsonl \
+  --output-model data/upba_energy/autotrader_energy_hard_linear_hand_seed20260522.json \
+  --epochs 6 \
+  --learning-rate 0.001 \
+  --margin 1.0 \
+  --seed 20260522 \
+  --init hand
+
+python3 tools/evaluate_autotrader_energy.py \
+  --dataset /tmp/autotrader_energy_hard_holdout_seed20260523.jsonl \
+  --model data/upba_energy/autotrader_energy_hard_linear_hand_seed20260522.json \
+  --seed 20260523 \
+  --output-json data/upba_energy/autotrader_energy_hard_eval_seed20260522_20260523.json \
+  --output-markdown docs/AUTOTRADER_ENERGY_HARD_V1.md
+```
+
+Observed result:
+
+| mode | top1 | top3 | top5 | mean guard calls | p95 | p99 | invalid accepts | invalid top1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| random | 0.068 | 0.187 | 0.318 | 8.550 | 16 | 16 | 0 | 0.632 |
+| hand | 0.418 | 0.834 | 0.975 | 2.160 | 5 | 6 | 0 | 0.000 |
+| learned | 0.595 | 0.929 | 0.990 | 1.698 | 4 | 5 | 0 | 0.000 |
+| hybrid | 0.595 | 0.929 | 0.990 | 1.698 | 4 | 5 | 0 | 0.000 |
+
+Positive knowledge:
+
+```text
+The hard synthetic profile creates a real AutoTrader ranking signal. The
+36-parameter learned scorer reduces mean guard calls by 21.4% versus hand
+energy and by 80.1% versus random ordering, with invalid_accept_count = 0.
+```
+
+Residual limit:
+
+```text
+This is still synthetic replay evidence. It improves the benchmark and supports
+continued AutoTraderEnergy research, but production-shadow observations are
+needed before making a live-distribution utility claim.
+```
+
 ## Research Evidence Replay Gate
 
 Artifact:
@@ -588,24 +737,27 @@ python3 tools/check_zenoenergy_research_evidence.py \
   --output-markdown docs/ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md
 ```
 
-Observed result after adding direct objective-tuned checks:
+Observed result after adding AutoTraderEnergy checks:
 
 | checks | passed | failed |
 | ---: | ---: | ---: |
-| 89 | 89 | 0 |
+| 105 | 105 | 0 |
 
 The gate checks that the committed set-aware, neighborhood, repair-selector,
 listwise set-ranker, listwise cross-seed, gap-weighted default, synthetic
-candidate coverage, objective-tuned, cross-seed, formal-boundary, fallback/top-k, SOTA
+candidate coverage, objective-tuned, AutoTraderEnergy, cross-seed, formal-boundary, fallback/top-k, SOTA
 decision-map, and PopperPad doctor evidence still support the current research
 story. It also preserves negative knowledge: set-aware linear features have no
 measured win over the aggregate ranker, the listwise set-context ranker has no
 measured mean-call win, the listwise cross-seed run does not strictly improve
 over the best pairwise baseline, deterministic neighborhood expansion reduces
-regret while increasing verifier work, and the learned repair selector has not
-consistently beaten the hand-selected two-proposal subset. It now also records
-that objective-tuned improves over hand energy while failing to strictly beat
-the gap-weighted default.
+regret while increasing verifier work, the learned repair selector has not
+consistently beaten the hand-selected two-proposal subset, objective-tuned
+improves over hand energy while failing to strictly beat the gap-weighted
+default, and AutoTraderEnergy v0 does not strictly beat its hand-energy
+baseline. AutoTraderEnergy hard v1 adds positive evidence that the learned
+ranker can beat hand energy once the synthetic candidate family contains
+multiple valid decoys.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the
