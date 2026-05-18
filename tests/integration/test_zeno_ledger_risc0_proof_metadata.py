@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -234,6 +235,8 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-post-app-hash-header-app-hash",
     )
     assert first.returncode == 0, first.stderr or first.stdout
@@ -241,6 +244,7 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
     assert first_report["ok"] is True
     assert first_report["header_bound"] is False
     assert first_report["body_checked"] is True
+    assert first_report["toolchain_lock_hash"] == _root("toolchain-lock")
     assert metadata_path.is_file()
 
     bound_header = _header(body, proof_journal_hash=str(first_report["proof_journal_hash"]))
@@ -263,6 +267,8 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-bound-header",
         "--require-post-app-hash-header-app-hash",
     )
@@ -271,6 +277,7 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
     assert second_report["header_bound"] is True
 
     metadata = json.loads(bound_metadata_path.read_text(encoding="utf-8"))
+    assert metadata["toolchain_lock_hash"] == _root("toolchain-lock")
     validate_proof_metadata_header_binding_v0(metadata, bound_header)
 
 
@@ -329,6 +336,44 @@ def test_risc0_adapter_rejects_default_placeholder_metadata_roots(tmp_path: Path
     assert "proof_metadata.conflict_schedule_hash must be non-zero" in proc.stdout
 
 
+def test_risc0_adapter_defaults_to_repo_toolchain_lock_hash(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    metadata_path = tmp_path / "metadata.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--out",
+        str(metadata_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--require-post-app-hash-header-app-hash",
+    )
+
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    report = json.loads(proc.stdout)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    expected = proof_toolchain_lock_hash_v0(ROOT)
+    assert report["toolchain_lock_hash"] == expected
+    assert metadata["toolchain_lock_hash"] == expected
+
+
 def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
@@ -360,6 +405,8 @@ def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-post-app-hash-header-app-hash",
     )
     no_pre = _run_adapter("--proof", str(no_pre_path), "--out", str(no_pre_metadata_path), *common_args)
@@ -401,6 +448,8 @@ def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-post-app-hash-header-app-hash",
         "--require-risc0-verifier",
         "--risc0-verify-cmd",

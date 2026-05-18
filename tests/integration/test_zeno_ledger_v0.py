@@ -188,6 +188,7 @@ def _proof_metadata(*, header: dict[str, object], proof_kind: str = "risc0_zkvm_
         conflict_schedule_hash=_root("sequential-schedule"),
         feature_suite_hash=_root("feature-suite"),
         dependency_lock_hash=_root("dependency-lock"),
+        toolchain_lock_hash=_root("toolchain-lock"),
     )
 
 
@@ -357,9 +358,19 @@ def test_proof_metadata_hash_binds_header_roots() -> None:
     header_without_proof = _header()
     metadata = _proof_metadata(header=header_without_proof)
     assert metadata["schema"] == PROOF_METADATA_SCHEMA_V0
+    assert metadata["toolchain_lock_hash"] == _root("toolchain-lock")
     header = _header(proof_journal_hash=proof_metadata_hash_v0(metadata))
 
     validate_proof_metadata_header_binding_v0(metadata, header)
+
+
+def test_proof_metadata_hash_binds_toolchain_lock_hash() -> None:
+    header = _header()
+    metadata = _proof_metadata(header=header)
+    changed = dict(metadata)
+    changed["toolchain_lock_hash"] = _root("toolchain-lock-v2")
+
+    assert proof_metadata_hash_v0(metadata) != proof_metadata_hash_v0(changed)
 
 
 def test_proof_metadata_header_binding_rejects_tampered_root() -> None:
@@ -401,6 +412,7 @@ def test_proof_metadata_rejects_placeholder_binding_roots() -> None:
         "conflict_schedule_hash",
         "feature_suite_hash",
         "dependency_lock_hash",
+        "toolchain_lock_hash",
     ):
         bad = dict(metadata)
         bad[key] = ZERO_ROOT

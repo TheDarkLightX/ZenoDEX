@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0  # noqa: E402
 from src.integration.zeno_ledger_v0 import (  # noqa: E402
     ZERO_ROOT_V0,
     build_proof_metadata_v0,
@@ -125,6 +126,7 @@ def build_risc0_proof_metadata_v0(
     conflict_schedule_hash: str,
     feature_suite_hash: str,
     dependency_lock_hash: str,
+    toolchain_lock_hash: str,
 ) -> dict[str, Any]:
     """Convert a Risc0 Tau proof envelope into ZenoLedger proof metadata."""
 
@@ -163,6 +165,7 @@ def build_risc0_proof_metadata_v0(
         conflict_schedule_hash=conflict_schedule_hash,
         feature_suite_hash=feature_suite_hash,
         dependency_lock_hash=dependency_lock_hash,
+        toolchain_lock_hash=toolchain_lock_hash,
     )
 
 
@@ -217,6 +220,7 @@ def _report(
         "proof_kind": metadata["proof_kind"],
         "program_id": metadata["program_id"],
         "verifier_id": metadata["verifier_id"],
+        "toolchain_lock_hash": metadata["toolchain_lock_hash"],
         "header_bound": header_bound,
         "body_checked": body_checked,
         "post_app_hash_checked": post_app_hash_checked,
@@ -233,6 +237,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--conflict-schedule-hash", default=ZERO_ROOT_V0)
     parser.add_argument("--feature-suite-hash", default=ZERO_ROOT_V0)
     parser.add_argument("--dependency-lock-hash", default=ZERO_ROOT_V0)
+    parser.add_argument(
+        "--toolchain-lock-hash",
+        help="Proof toolchain lock hash. Defaults to the local repo manifest hash.",
+    )
     parser.add_argument(
         "--require-bound-header",
         action="store_true",
@@ -284,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
             conflict_schedule_hash=args.conflict_schedule_hash,
             feature_suite_hash=args.feature_suite_hash,
             dependency_lock_hash=args.dependency_lock_hash,
+            toolchain_lock_hash=args.toolchain_lock_hash or proof_toolchain_lock_hash_v0(ROOT),
         )
         metadata_hash = proof_metadata_hash_v0(metadata)
         header_bound = header["proof_journal_hash"] == metadata_hash
