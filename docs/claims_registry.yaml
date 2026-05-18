@@ -837,7 +837,12 @@ claims:
       hashes, body/header root mismatch, post-app-hash mismatch when required,
       missing metadata/header binding when required, and zero placeholder
       metadata roots. The adapter binds the Risc0 pre-app-hash presence bit
-      into both the public-input hash and journal hash. When
+      into both the public-input hash and journal hash. It can require the
+      Risc0 post-app-hash to match `header.post_state_root`, and when present,
+      the Risc0 pre-app-hash to match `header.pre_state_root`. It also binds
+      Risc0 `ingress_commitment`, `pre_nonce_root`, `post_nonce_root`, and
+      `accepted_receipts_root` into the proof metadata public-input and journal
+      hashes. When
       `--require-risc0-verifier` is supplied, the adapter also requires an
       external verifier command to accept the normalized proof envelope before
       metadata is emitted. This is a binding-adapter and verifier-command
@@ -864,8 +869,10 @@ claims:
     statement: >
       The Risc0 ZenoDEX spot v1 shared transition crate and Python ZenoDEX core
       agree on deterministic fixture values for CPMM pool-id hashing, initial
-      LP lock accounting, exact-in fee/output/reserve math, and canonical
-      snapshot hashes for create-pool and swap-exact-in transitions. The
+      LP lock accounting, exact-in fee/output/reserve math, add-liquidity
+      ratio/mint math, remove-liquidity burn/output math, and canonical
+      snapshot hashes for create-pool, swap-exact-in, add-liquidity, and
+      remove-liquidity transitions. The
       fixture also checks that insufficient initial liquidity and zero-output
       exact-in swaps reject on both sides. The Rust guest rejection fixtures
       additionally check that failed create-pool and zero-output swap attempts
@@ -882,8 +889,9 @@ claims:
       constant names in both paths.
       This is a bounded runtime-equivalence fixture claim for the current Risc0
       v1 guest scope; it does not prove full Rust/Python equivalence,
-      multi-intent batches, exact-out, multi-hop routing, or cryptographic
-      Risc0 receipt soundness.
+      multi-intent batches inside one transaction, exact-out, multi-hop
+      routing, nonce/receipt execution, or cryptographic Risc0 receipt
+      soundness.
     evidence:
       kind: rust_pytest
       check:
@@ -909,23 +917,33 @@ claims:
       The opt-in Risc0 real-proof smoke builds the ZenoDEX spot v1 guest with
       `RISC0_FORCE_BUILD=1`, generates non-empty Risc0 receipts for an empty
       transition plus the current supported spot v1 operation families
-      (faucet mint, create-pool, and swap-exact-in), and verifies each receipt
-      through the host CLI with state-hash, transaction-commitment,
-      pre-app-hash, post-app-hash, and block timestamp checks. This is a real
-      local proof-of-execution smoke for the current v1 guest operation set; it
-      also has a lightweight archive checker for the machine-readable smoke
-      report. It does not prove rejection-path receipt coverage, production
-      prover performance, dependency currency, or ZenoLedger network readiness.
+      (faucet mint, create-pool, swap-exact-in, add-liquidity, and
+      remove-liquidity), plus one multi-transaction spot liquidity-cycle block,
+      and verifies each receipt through the host CLI with state-hash,
+      transaction-commitment, pre-app-hash, post-app-hash, and block timestamp
+      checks. This is a real local proof-of-execution smoke for the current v1
+      guest operation set. For every case it also emits a ZenoLedger v0 body,
+      bound header, and Risc0 proof metadata, and the archive checker requires
+      artifact-file existence, header/body root validation,
+      `proof_journal_hash` binding, proof envelope to metadata rebuild, proof
+      post-app-hash to `header.post_state_root` binding, present pre-app-hash
+      to `header.pre_state_root` binding, and report-to-artifact field equality
+      when requested. The Risc0 guest also checks per-sender nonce sequencing
+      for the accepted transaction lane from `context.pre_nonces`, emits
+      pre/post nonce roots, and emits an accepted-receipts root. It does not
+      prove rejection-path receipt coverage, production prover performance,
+      dependency currency, full production ingress execution, or ZenoLedger
+      network readiness.
     evidence:
       kind: rust
       check:
         - cmd: python3 tools/zeno_ledger_risc0_real_proof_smoke.py --case all --timeout 180 --out-dir /tmp/zenodex_risc0_real_proof_smoke_all
         - cmd: python3 tools/check_zeno_ledger_risc0_real_proof_smoke_report.py /tmp/zenodex_risc0_real_proof_smoke_all/real_proof_smoke_report.json --require-proof-files
-        - cmd: python3 -m pytest -q tests/tools/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
+        - cmd: python3 -m pytest -q tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
       files:
         - tools/zeno_ledger_risc0_real_proof_smoke.py
         - tools/check_zeno_ledger_risc0_real_proof_smoke_report.py
-        - tests/tools/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
+        - tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
         - zk/state_proof_risc0/shared/src/lib.rs
         - zk/state_proof_risc0/methods/build.rs
         - zk/state_proof_risc0/methods/guest/src/main.rs

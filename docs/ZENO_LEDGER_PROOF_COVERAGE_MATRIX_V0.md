@@ -18,10 +18,13 @@ Current supported surfaces cover:
 
 - ZK/TEE metadata composition modeling;
 - Risc0 spot-transition proof metadata adaptation;
-- Rust/Python fixture equivalence for the current spot v1 transition scope;
+- Rust/Python fixture equivalence for the current spot v1 transition scope,
+  including create-pool, swap-exact-in, add-liquidity, and remove-liquidity;
 - opt-in real Risc0 proof smoke for empty transition, faucet mint, create-pool,
-  and swap-exact-in, with an archive checker for the emitted
-  `real_proof_smoke_report.json`;
+  swap-exact-in, add-liquidity, remove-liquidity, and one multi-transaction
+  spot liquidity-cycle block, with guest nonce sequencing, accepted-receipt
+  roots, and emitted ZenoLedger body/header/proof-metadata bindings checked by
+  the archive checker for `real_proof_smoke_report.json`;
 - proof-required range replay;
 - proof-verification report replay;
 - local light-client checkpoint quorum replay that binds verified
