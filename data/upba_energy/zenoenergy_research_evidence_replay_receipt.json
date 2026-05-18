@@ -1,5 +1,5 @@
 {
-  "check_count": 93,
+  "check_count": 95,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -194,6 +194,11 @@
     {
       "check_id": "fallback_checked_stop_formal.scope_limit",
       "detail": "receipt states online early-stop suffix-bound limit",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_checked_stop_formal.objective_equivalence_limit",
+      "detail": "receipt states objective-equivalent verifier-acceptance limit",
       "passed": true
     },
     {
@@ -427,6 +432,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518",
+      "detail": "H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
       "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
       "passed": true
@@ -469,7 +479,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 93,
+  "passed_count": 95,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -501,7 +511,7 @@
       "source": "built-in-zenograph-baseline",
       "valid_count": 12
     },
-    "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
+    "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
     "fallback_permutation_audit": {
       "batches": 198,
       "invalid_accept_count": 0,

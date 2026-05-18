@@ -216,6 +216,14 @@ weak optimality is identical in the ranked order and the original exhaustive
 order. The runtime helper `candidate_orders_are_hash_permutation` checks the
 hash-multiset version of this obligation.
 
+Tied maxima have a quotient-style boundary. `ObjectiveEquivalent` means two
+candidates have the same volume and surplus. The theorem
+`objective_equivalent_reordered_exact_upper_bound_certificate_implies_global_weak_optimal`
+proves that if a deterministic certificate selects one representative of the
+tied objective class, another verifier-accepted candidate with the same
+objective is also globally weakly optimal over the exact finite candidate
+family.
+
 Early stopping has a stronger proof obligation. The Lean definition
 `CheckedStopCertificate` requires:
 

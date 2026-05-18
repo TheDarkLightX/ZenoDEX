@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 93
-passed_count: 93
+check_count: 95
+passed_count: 95
 failed_count: 0
 ```
 
@@ -48,6 +48,7 @@ failed_count: 0
 | fallback_checked_stop_formal.names | pass | fallback and checked-stop theorem names are present in receipt and Lean source |
 | fallback_checked_stop_formal.no_placeholders | pass | Lean source has no sorry/admit/axiom/unsafe placeholders |
 | fallback_checked_stop_formal.scope_limit | pass | receipt states online early-stop suffix-bound limit |
+| fallback_checked_stop_formal.objective_equivalence_limit | pass | receipt states objective-equivalent verifier-acceptance limit |
 | fallback_permutation_audit.schema | pass | expected 'zenodex/energy/upba_v2_benchmark_report/v1', observed 'zenodex/energy/upba_v2_benchmark_report/v1' |
 | fallback_permutation_audit.zero_invalid_accepts | pass | all fallback audit modes have zero invalid accepts |
 | fallback_permutation_audit.permutation_premise | pass | all audit modes preserve the full-fallback permutation premise |
@@ -94,6 +95,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518 | pass | H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 | pass | H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
@@ -136,7 +138,7 @@ failed_count: 0
     "source": "built-in-zenograph-baseline",
     "valid_count": 12
   },
-  "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
+  "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
   "fallback_permutation_audit": {
     "batches": 198,
     "invalid_accept_count": 0,

@@ -548,7 +548,8 @@ Observed result:
 | `lake env lean Proofs/UniformBatchOptimality.lean` | pass |
 | `pytest -q tests/formal/test_lean_uniform_batch_optimality.py` | pass |
 
-The formal receipt records the full-fallback and checked-stop theorem names:
+The formal receipt records the full-fallback, checked-stop, and
+objective-equivalence theorem names:
 
 ```text
 def FullFallbackEquivalentOrder
@@ -556,6 +557,9 @@ theorem full_fallback_equivalent_order_preserves_membership_iff
 theorem full_fallback_equivalent_order_preserves_weak_optimality_iff
 def CheckedStopCertificate
 theorem checked_stop_certificate_with_exact_full_implies_global_weak_optimal
+def ObjectiveEquivalent
+theorem objective_equivalent_preserves_global_weak_optimal
+theorem objective_equivalent_reordered_exact_upper_bound_certificate_implies_global_weak_optimal
 theorem upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
 theorem upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
 theorem upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
@@ -565,7 +569,9 @@ Research consequence: ranked search has a precise formal boundary. Full
 fallback needs a permutation of the exact finite candidate list. Checked early
 stop needs dominance over both the checked prefix and unchecked suffix, plus the
 exact finite candidate family premise. Top-k recall remains empirical evidence
-unless those proof obligations are supplied.
+unless those proof obligations are supplied. A tied candidate can be treated as
+the same optimum only when deterministic verification accepts it and it has the
+same volume and surplus as the certified representative.
 
 ## SOTA Decision Map
 
@@ -894,6 +900,21 @@ support_edge_ref:           sha256:a8cbb42fb76f7da3700c4c0bcdb637b1f55491e8a602f
 checkpoint_ref:             sha256:c9f36a31dead32d4814dd62e011b775d48a4e6e6b23470ef8393249244646c4a
 ```
 
+Objective-equivalence formal boundary refs:
+
+```text
+json_blob_ref:              sha256:075ecebc349bd2407a0347073afdd9a03b39561fb7933b9c656448a9335f176c
+markdown_blob_ref:          sha256:05975f644752986745f878bb4f094c327d30d3112221f1f8dd7978d96d610e2a
+context_ref:                sha256:b6405fbaaadda0e9c68804dd2c51bd66fdfce37a1b4128d0d7a09cce7289cf42
+json_artifact_ref:          sha256:395308364cbdbfc09168b14a5f431e61b755719a9e6939ffd1a27f3da6455ffa
+markdown_artifact_ref:      sha256:c0165a5b026e2c490ea1a469d100b93e0b9df4a11766350e935e2856d832bb89
+recipe_ref:                 sha256:93b3ee4728431974aec80734cb458654c19c633565915c5e86c2647d47a7d81d
+hypothesis_ref:             sha256:c291f030f10ccb8d7bd637f122b1c27866f96ff830f5783113461f56a71b024e
+evidence_ref:               sha256:ae9a6287c30aaebddf96fdee5d9fae92d675a77d114f9a7a1119bdc1e7880f9b
+support_edge_ref:           sha256:d0da6b541adedb89d2092126c0ba58f83dbffebfb628ef8bc4c253d2c1b72587
+checkpoint_ref:             sha256:0ada626d19497a34a5a5b0cfef7c841e7edd32d8838b51d37d7f47ae9e500437
+```
+
 Derived PopperPad status:
 
 ```text
@@ -920,6 +941,7 @@ H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518: supported
 H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518: falsified
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518: supported
 H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518: supported
+H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V5: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V6: supported

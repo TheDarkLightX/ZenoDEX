@@ -530,9 +530,9 @@ Receipt:
 [ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md](./ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md)
 
 The formal boundary now records Lean-checked names for full-fallback
-permutation equivalence and checked-stop certificates. The corresponding
-runtime receipts show zero permutation violations in the fallback audit and
-top-k sweep.
+permutation equivalence, checked-stop certificates, and objective-equivalent
+argmax representatives. The corresponding runtime receipts show zero
+permutation violations in the fallback audit and top-k sweep.
 
 ```text
 fallback audit learned top_10_recall: 1.0
@@ -550,11 +550,11 @@ The replay gate
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
 cross-seed stress, AutoTraderEnergy hard cross-seed transfer, AutoTraderEnergy
-shadow bridge, formal-boundary receipts, fallback/top-k receipts, and PopperPad
-status ledger. It also checks
+shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
+and PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 93 passing checks and 0 failed checks.
+The current receipt reports 95 passing checks and 0 failed checks.
 
 ## Accuracy
 

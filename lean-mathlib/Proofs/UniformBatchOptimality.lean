@@ -115,6 +115,15 @@ def WeaklyDominates (winner other : SettlementCandidate) : Prop :=
   other.volume <= winner.volume ∧
     (other.volume = winner.volume -> other.surplus <= winner.surplus)
 
+/--
+Objective equivalence for quotient-style reporting.
+
+Two candidates are interchangeable for the weak lexicographic objective exactly
+when they have the same executed volume and surplus.
+-/
+def ObjectiveEquivalent (left right : SettlementCandidate) : Prop :=
+  left.volume = right.volume ∧ left.surplus = right.surplus
+
 /-- Weak lexicographic dominance is reflexive. -/
 theorem weaklyDominates_refl
     (candidate : SettlementCandidate) :
@@ -144,11 +153,47 @@ theorem weaklyDominates_trans
       Nat.le_antisymm hVolumeBC hVolumeB_le_C
     exact Nat.le_trans (hSurplusBC hVolumeCB) (hSurplusAB hVolumeBA)
 
+/--
+An objective-equivalent candidate inherits weak dominance obligations from the
+representative that already satisfies them.
+-/
+theorem objective_equivalent_transfers_weak_dominance
+    {winner equivalent candidate : SettlementCandidate}
+    (hEquivalent : ObjectiveEquivalent equivalent winner)
+    (hDominates : WeaklyDominates winner candidate) :
+    WeaklyDominates equivalent candidate := by
+  unfold ObjectiveEquivalent WeaklyDominates at *
+  rcases hEquivalent with ⟨hVolumeEq, hSurplusEq⟩
+  rcases hDominates with ⟨hVolume, hSurplus⟩
+  constructor
+  · simpa [hVolumeEq] using hVolume
+  · intro hCandidateVolume
+    have hCandidateWinnerVolume : candidate.volume = winner.volume :=
+      hCandidateVolume.trans hVolumeEq
+    simpa [hSurplusEq] using hSurplus hCandidateWinnerVolume
+
 /-- Winner is weakly optimal inside a finite audited candidate list. -/
 def WeaklyOptimalIn
     (winner : SettlementCandidate)
     (candidates : List SettlementCandidate) : Prop :=
   ∀ candidate, candidate ∈ candidates -> WeaklyDominates winner candidate
+
+/--
+If a checked candidate is objective-equivalent to an audited winner, it is
+weakly optimal over the same finite list.
+-/
+theorem objective_equivalent_preserves_weak_optimal_in
+    {winner equivalent : SettlementCandidate}
+    {candidates : List SettlementCandidate}
+    (hEquivalent : ObjectiveEquivalent equivalent winner)
+    (hWinnerOptimal : WeaklyOptimalIn winner candidates) :
+    WeaklyOptimalIn equivalent candidates := by
+  unfold WeaklyOptimalIn at *
+  intro candidate hMember
+  exact
+    objective_equivalent_transfers_weak_dominance
+      hEquivalent
+      (hWinnerOptimal candidate hMember)
 
 /--
 A pruned candidate list dominates a full candidate list when every full-domain
@@ -278,6 +323,27 @@ theorem complete_audit_set_lifts_weak_optimal_to_global
     exact hAudit candidate (hComplete candidate hFeasible)
 
 /--
+Global weak optimality transfers to a verifier-accepted candidate in the same
+objective-equivalence class.
+-/
+theorem objective_equivalent_preserves_global_weak_optimal
+    {winner equivalent : SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hEquivalent : ObjectiveEquivalent equivalent winner)
+    (hEquivalentFeasible : Feasible equivalent)
+    (hWinnerGlobal : GloballyWeaklyOptimal winner Feasible) :
+    GloballyWeaklyOptimal equivalent Feasible := by
+  unfold GloballyWeaklyOptimal at *
+  rcases hWinnerGlobal with ⟨_, hWinnerDominates⟩
+  constructor
+  · exact hEquivalentFeasible
+  · intro candidate hFeasible
+    exact
+      objective_equivalent_transfers_weak_dominance
+        hEquivalent
+        (hWinnerDominates candidate hFeasible)
+
+/--
 A runtime-strengthened upper-bound certificate gives global weak optimality
 only when paired with winner feasibility and audit-set completeness.
 -/
@@ -330,6 +396,38 @@ theorem exact_upper_bound_certificate_implies_global_weak_optimal
       hWinnerFeasible
       hComplete
       ⟨hUpper, hWinnerMember⟩
+
+/--
+If the certificate selects one representative of a tied objective class, any
+verifier-accepted audited candidate with the same objective is globally weakly
+optimal over the same exact finite family.
+-/
+theorem objective_equivalent_exact_upper_bound_certificate_implies_global_weak_optimal
+    {winner equivalent : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {candidates : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hExact : ExactAuditSet candidates Feasible)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        candidates)
+    (hEquivalent : ObjectiveEquivalent equivalent winner)
+    (hEquivalentMember : equivalent ∈ candidates) :
+    GloballyWeaklyOptimal equivalent Feasible ∧ equivalent ∈ candidates := by
+  rcases exact_upper_bound_certificate_implies_global_weak_optimal hExact hCert with
+    ⟨hWinnerGlobal, _⟩
+  rcases hExact with ⟨_, hSound⟩
+  have hEquivalentFeasible : Feasible equivalent :=
+    hSound equivalent hEquivalentMember
+  exact
+    ⟨objective_equivalent_preserves_global_weak_optimal
+      hEquivalent
+      hEquivalentFeasible
+      hWinnerGlobal,
+      hEquivalentMember⟩
 
 /-- Reordering a complete audit set preserves completeness. -/
 theorem complete_audit_set_of_perm
@@ -607,6 +705,37 @@ theorem reordered_exact_upper_bound_certificate_implies_global_weak_optimal
       (Feasible := Feasible)
       (exact_audit_set_of_perm hExact hPerm)
       hCert
+
+/--
+Advisory ordering may expose an objective-equivalent candidate before the
+hash-selected representative. If that candidate is present in the verifier's
+ordered exact audit set, the same deterministic certificate proves it is an
+equivalent global weak optimum.
+-/
+theorem objective_equivalent_reordered_exact_upper_bound_certificate_implies_global_weak_optimal
+    {winner equivalent : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {candidates ordered : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hExact : ExactAuditSet candidates Feasible)
+    (hPerm : ordered.Perm candidates)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        ordered)
+    (hEquivalent : ObjectiveEquivalent equivalent winner)
+    (hEquivalentMember : equivalent ∈ ordered) :
+    GloballyWeaklyOptimal equivalent Feasible ∧ equivalent ∈ ordered := by
+  exact
+    objective_equivalent_exact_upper_bound_certificate_implies_global_weak_optimal
+      (candidates := ordered)
+      (Feasible := Feasible)
+      (hExact := exact_audit_set_of_perm hExact hPerm)
+      (hCert := hCert)
+      hEquivalent
+      hEquivalentMember
 
 /--
 Generated candidate data has the same mathematical standing as any other audit

@@ -510,6 +510,12 @@ def _check_fallback_checked_stop_formal(
         "theorem upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
         "theorem upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
         "theorem upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal",
+        "def ObjectiveEquivalent",
+        "theorem objective_equivalent_transfers_weak_dominance",
+        "theorem objective_equivalent_preserves_weak_optimal_in",
+        "theorem objective_equivalent_preserves_global_weak_optimal",
+        "theorem objective_equivalent_exact_upper_bound_certificate_implies_global_weak_optimal",
+        "theorem objective_equivalent_reordered_exact_upper_bound_certificate_implies_global_weak_optimal",
     }
     missing_from_source = [
         name
@@ -542,6 +548,13 @@ def _check_fallback_checked_stop_formal(
             "fallback_checked_stop_formal.scope_limit",
             "Online early stop" in " ".join(str(limit) for limit in report["limits"]),
             "receipt states online early-stop suffix-bound limit",
+        ),
+        _expect_true(
+            "fallback_checked_stop_formal.objective_equivalence_limit",
+            "Objective-equivalent winners require deterministic verifier acceptance"
+            in " ".join(str(limit) for limit in report["limits"])
+            and "same volume and surplus" in str(report["claim"]),
+            "receipt states objective-equivalent verifier-acceptance limit",
         ),
     ]
 
@@ -845,6 +858,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518": "supported",
         "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518": "supported",
+        "H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",

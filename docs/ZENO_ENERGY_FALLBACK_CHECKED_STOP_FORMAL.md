@@ -21,6 +21,11 @@ Full deterministic fallback is order-equivalent when the ranked order is a
 permutation of the exact finite candidate list. The model may change order, but
 the verifier still checks the same candidate family.
 
+Objective-equivalent winners handle tied valid maxima. If the deterministic
+certificate proves one representative optimal and another verifier-accepted
+candidate has the same volume and surplus, the second candidate is an
+equivalent global weak optimum over the same exact finite family.
+
 Checked early stop needs a verifier-facing certificate:
 
 ```text
@@ -45,6 +50,12 @@ theorem checked_stop_certificate_implies_concat_weak_optimal
 theorem checked_stop_certificate_with_full_permutation_implies_full_weak_optimal
 theorem checked_stop_certificate_with_exact_full_implies_global_weak_optimal
 theorem reordered_exact_upper_bound_certificate_implies_global_weak_optimal
+def ObjectiveEquivalent
+theorem objective_equivalent_transfers_weak_dominance
+theorem objective_equivalent_preserves_weak_optimal_in
+theorem objective_equivalent_preserves_global_weak_optimal
+theorem objective_equivalent_exact_upper_bound_certificate_implies_global_weak_optimal
+theorem objective_equivalent_reordered_exact_upper_bound_certificate_implies_global_weak_optimal
 theorem upba_v2_advisory_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
 theorem upba_v2_hard_barrier_hybrid_reordered_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
 theorem upba_v2_dominance_pruned_partial_fill_bounded_grid_certificate_implies_global_weak_optimal
@@ -75,4 +86,6 @@ These theorems are finite-candidate-family certificates. They do not prove that
 synthetic generation is globally complete unless the exact-audit-set premises
 are supplied. The checked-stop rates are offline audits over verified suffix
 labels. Online early stop still needs a deterministic suffix-bound certificate
-or full fallback.
+or full fallback. Objective-equivalent acceptance requires deterministic
+verifier acceptance and equality of the objective fields used by the
+certificate.
