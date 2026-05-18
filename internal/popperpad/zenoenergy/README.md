@@ -65,6 +65,21 @@ receipt_hypothesis_ref:     sha256:3c61e2c848da522e7db1b45fbfe2f8803dfccf7cedb94
 checkpoint_ref:             sha256:9e51d623aaa3572497be49f2d28fa61654444ea2bc9317d5eb86a9e62b241c4d
 ```
 
+### Research Evidence Replay Gate
+
+```text
+json_blob_ref:              sha256:4c89e2cbdd7016e2ee5b5f6035736fd96422f29013cbfebf0760d8cbaa3ede92
+markdown_blob_ref:          sha256:94277a813cd076685a78704563c9dc7dc3938f30e40dd0070af1d58de50cfaa1
+context_ref:                sha256:bb984b70f6f3f8e5ad2e96f9321d9d925e7bf337de5b21c68ff7d81bf05b6d21
+json_artifact_ref:          sha256:2312c5275ff16f85e3bddf78f6ea27865460e5eb7cb5380051c474248cb4e0e1
+markdown_artifact_ref:      sha256:5bd505286881a36b63f5d4a62714a599038de331286837b8a12da4fba3221c41
+recipe_ref:                 sha256:2d4a6a5e335d8ee9a37d2e1bfdd2aee8cbb7815aefddf3eb50687ef58509eb6f
+hypothesis_ref:             sha256:ab016895b0939b9696ad6ec66932bf2a225d966943c7ad882baf146b9f70fc09
+evidence_ref:               sha256:426bfb6451ba54406294e50d887b71120e656a6f0315e15e45fb49b2ab307525
+support_edge_ref:           sha256:6ab48e8f170738b4039c5466a0c8e467dfabfbeae7fece7948ddcd61c002b833
+checkpoint_ref:             sha256:00433cf11b3856baecdb5787d85e5d9f7a75345e621cab6a163519a1ec1dabf1
+```
+
 ## Current Status
 
 ```text
@@ -80,6 +95,7 @@ H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_SAFETY_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517: supported
 H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517: falsified
 H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517: supported
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517: supported
 doctor_ok: true
 ```
 

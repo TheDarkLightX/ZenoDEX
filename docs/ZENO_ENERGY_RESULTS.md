@@ -385,6 +385,12 @@ original_subset_violation_count: 0
 Aggregate learned-selected regret matched full neighborhood mean regret
 (`5.937`) while reducing mean candidate count from `16.321` to `8.000`.
 
+The replay gate
+[ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
+checks the set-aware comparison, neighborhood benchmark, repair selector,
+cross-seed stress, formal-boundary receipt, and PopperPad status ledger. The
+current receipt reports 34 passing checks and 0 failed checks.
+
 ## Accuracy
 
 With deterministic fallback enabled, ranked search returns the same verifier
