@@ -564,6 +564,41 @@ claims:
         - UniformBatchOptimality.priceGridCandidates_complete_audit_set
         - UniformBatchOptimality.price_grid_upper_bound_certificate_implies_global_weak_optimal
 
+  - id: py_lean:upba:grid_economic_sufficiency_policy_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The UPBA bounded-grid economic sufficiency checker validates a
+      production-candidate v1 single-pool full-fill exact-in grid policy using
+      exact integer arithmetic. It checks that the raw bounded grid contains the
+      declared fixed-denominator economic ladder, that the raw grid remains
+      inside the verifier row cap, that maximum admitted trade size is bounded
+      by a declared reserve fraction, and that the conservative tick-loss bound
+      fits both absolute and relative loss budgets. The Lean packet
+      `Proofs.UPBAGridEpsilon` proves the budget-composition step: when the
+      model-side grid approximation loss is bounded by the checker-computed
+      ceiling term, the accepted ceiling-plus-rounding budget also bounds the
+      actual loss plus rounding. This claim does not prove unbounded rational
+      optimality, UPBA v2 partial-fill economic sufficiency, exact-out,
+      multi-hop routing, oracle truth, fair inclusion, or every possible market
+      condition.
+    evidence:
+      kind: python+lean
+      check:
+        - cmd: python3 tools/check_upba_grid_policy.py
+        - cmd: pytest -q tests/tools/test_check_upba_grid_policy.py
+        - cmd: bash -lc "cd lean-mathlib && lake env lean Proofs/UPBAGridEpsilon.lean"
+        - cmd: pytest -q tests/formal/test_lean_upba_grid_epsilon.py
+      files:
+        - tools/check_upba_grid_policy.py
+        - tests/tools/test_check_upba_grid_policy.py
+        - docs/UPBA_ECONOMIC_SUFFICIENCY_V1.md
+        - lean-mathlib/Proofs/UPBAGridEpsilon.lean
+        - tests/formal/test_lean_upba_grid_epsilon.py
+      theorems:
+        - Proofs.UPBAGridEpsilon.actual_loss_plus_rounding_le_budget
+        - Proofs.UPBAGridEpsilon.relative_loss_cross_mul_budget
+
   - id: lean:zeno_ledger:zk_tee_proof_composition_v1
     status: proved
     layer: math

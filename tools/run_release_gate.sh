@@ -66,6 +66,13 @@ echo "== release: Risc0 proof metadata adapter =="
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
   "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
 
+echo "== release: UPBA grid economic sufficiency =="
+"$PY" -m py_compile \
+  "$ROOT_DIR/tools/check_upba_grid_policy.py" \
+  "$ROOT_DIR/tests/tools/test_check_upba_grid_policy.py"
+"$PY" "$ROOT_DIR/tools/check_upba_grid_policy.py"
+"$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_upba_grid_policy.py"
+
 echo "== release: acceptance mutation gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
 
