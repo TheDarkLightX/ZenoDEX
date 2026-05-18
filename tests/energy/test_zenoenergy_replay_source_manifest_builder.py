@@ -9,6 +9,7 @@ from tools.build_zenoenergy_replay_source_manifest import (
     validate_manifest_against_named_reports,
 )
 from tools.check_zenoenergy_replay_source_manifest import canonical_sha256
+from tools.check_zenoenergy_replay_secret_scan import scan_replay_reports
 
 
 def test_builds_manifest_with_canonical_source_report_hash(tmp_path: Path) -> None:
@@ -105,6 +106,117 @@ def test_cli_writes_manifest_and_check(tmp_path: Path) -> None:
     assert "ZenoEnergy Replay Source Manifest" in markdown_path.read_text(
         encoding="utf-8"
     )
+
+
+def test_cli_accepts_clean_secret_scan_report(tmp_path: Path) -> None:
+    source_path = tmp_path / "upba_benchmark.json"
+    scan_path = tmp_path / "secret_scan.json"
+    manifest_path = tmp_path / "manifest.json"
+    source_path.write_text(json.dumps(_source_payload()), encoding="utf-8")
+    scan_path.write_text(
+        json.dumps(scan_replay_reports([source_path])),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        [
+            "--manifest-id",
+            "prod-shadow-upba-20260501-20260509",
+            "--source-kind",
+            "production-shadow",
+            "--source-descriptor",
+            "prod-shadow:2026-05-01..2026-05-09",
+            "--market-day-count",
+            "9",
+            "--source-report",
+            f"upba-benchmark={source_path}",
+            "--deterministic-replay-ok",
+            "--no-live-secrets",
+            "--secret-scan-report",
+            str(scan_path),
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert rc == 0
+    assert manifest["secret_scan"]["schema"] == "zenodex/energy/replay_secret_scan/v1"
+    assert manifest["secret_scan"]["source_report_count"] == 1
+
+
+def test_cli_rejects_dirty_secret_scan_report(tmp_path: Path) -> None:
+    source_path = tmp_path / "upba_benchmark.json"
+    scan_path = tmp_path / "secret_scan.json"
+    manifest_path = tmp_path / "manifest.json"
+    payload = _source_payload()
+    payload["api_key"] = "sk-" + "a" * 28
+    source_path.write_text(json.dumps(payload), encoding="utf-8")
+    scan_path.write_text(
+        json.dumps(scan_replay_reports([source_path])),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        [
+            "--manifest-id",
+            "prod-shadow-upba-20260501-20260509",
+            "--source-kind",
+            "production-shadow",
+            "--source-descriptor",
+            "prod-shadow:2026-05-01..2026-05-09",
+            "--market-day-count",
+            "9",
+            "--source-report",
+            f"upba-benchmark={source_path}",
+            "--deterministic-replay-ok",
+            "--no-live-secrets",
+            "--secret-scan-report",
+            str(scan_path),
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+
+    assert rc == 2
+    assert not manifest_path.exists()
+
+
+def test_cli_rejects_secret_scan_source_count_mismatch(tmp_path: Path) -> None:
+    source_path = tmp_path / "upba_benchmark.json"
+    extra_source_path = tmp_path / "autotrader_shadow.json"
+    scan_path = tmp_path / "secret_scan.json"
+    manifest_path = tmp_path / "manifest.json"
+    source_path.write_text(json.dumps(_source_payload()), encoding="utf-8")
+    extra_source_path.write_text(json.dumps(_source_payload()), encoding="utf-8")
+    scan_path.write_text(
+        json.dumps(scan_replay_reports([source_path, extra_source_path])),
+        encoding="utf-8",
+    )
+
+    rc = main(
+        [
+            "--manifest-id",
+            "prod-shadow-upba-20260501-20260509",
+            "--source-kind",
+            "production-shadow",
+            "--source-descriptor",
+            "prod-shadow:2026-05-01..2026-05-09",
+            "--market-day-count",
+            "9",
+            "--source-report",
+            f"upba-benchmark={source_path}",
+            "--deterministic-replay-ok",
+            "--no-live-secrets",
+            "--secret-scan-report",
+            str(scan_path),
+            "--output-json",
+            str(manifest_path),
+        ]
+    )
+
+    assert rc == 2
+    assert not manifest_path.exists()
 
 
 def test_cli_fails_closed_without_clean_secret_scan(tmp_path: Path) -> None:

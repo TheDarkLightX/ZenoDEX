@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 130
+    assert report["passed_count"] == report["check_count"] == 135
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -59,6 +59,10 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "replay_source_manifest_builder.artifacts_and_schemas",
         "replay_source_manifest_builder.fail_closed_hooks",
         "replay_source_manifest_builder.safety_and_limits",
+        "replay_secret_scan.schema",
+        "replay_secret_scan.schemas_rules_and_artifacts",
+        "replay_secret_scan.source_hooks",
+        "replay_secret_scan.safety_and_limits",
         "real_replay_report_builder.schema",
         "real_replay_report_builder.targets_and_artifacts",
         "real_replay_report_builder.source_hygiene_hooks",
@@ -98,6 +102,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518",
         "popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518",
         "popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518",
+        "popperpad.status.H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518",
         "popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518",
         "popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",

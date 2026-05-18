@@ -25,6 +25,7 @@ Primary artifacts:
 - `tools/train_upba_energy.py`
 - `tools/evaluate_upba_energy.py`
 - `tools/benchmark_upba_energy_search.py`
+- `tools/check_zenoenergy_replay_secret_scan.py`
 - `tools/build_zenoenergy_replay_source_manifest.py`
 - `tools/build_zenoenergy_production_evidence_bundle.py`
 - `lean-mathlib/Proofs/UniformBatchOptimality.lean`

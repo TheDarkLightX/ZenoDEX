@@ -21,6 +21,9 @@ tools/build_zenoenergy_replay_source_manifest.py
 Builder details:
 [ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
 
+Secret-scan details:
+[ZENO_ENERGY_REPLAY_SECRET_SCAN.md](./ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
+
 The manifest records the operational source boundary behind a real replay or
 shadow report:
 
@@ -81,6 +84,10 @@ python3 tools/check_zenoenergy_replay_source_manifest.py \
 Or build and validate it in one fail-closed command:
 
 ```bash
+python3 tools/check_zenoenergy_replay_secret_scan.py \
+  --source-report data/private/upba_replay_benchmark.json \
+  --output-json data/private/upba_replay_secret_scan.json
+
 python3 tools/build_zenoenergy_replay_source_manifest.py \
   --manifest-id prod-shadow-upba-20260501-20260509 \
   --source-kind production-shadow \
@@ -89,9 +96,7 @@ python3 tools/build_zenoenergy_replay_source_manifest.py \
   --source-report upba-benchmark=data/private/upba_replay_benchmark.json \
   --deterministic-replay-ok \
   --no-live-secrets \
-  --secret-scan-tool local-secret-scan-v1 \
-  --secret-scan-ok \
-  --secret-scan-finding-count 0 \
+  --secret-scan-report data/private/upba_replay_secret_scan.json \
   --output-json data/private/upba_replay_source_manifest.json
 ```
 

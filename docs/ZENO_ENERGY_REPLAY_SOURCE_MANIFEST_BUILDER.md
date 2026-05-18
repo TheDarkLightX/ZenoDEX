@@ -12,6 +12,9 @@ kind and market-day coverage, attaches deterministic replay and clean
 secret-scan attestations, and immediately runs the replay source manifest
 checker. The command writes the manifest only when the local check passes.
 
+For deterministic local secret scanning, use:
+[ZENO_ENERGY_REPLAY_SECRET_SCAN.md](./ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
+
 ## Example
 
 ```bash
@@ -28,6 +31,25 @@ python3 tools/build_zenoenergy_replay_source_manifest.py \
   --secret-scan-finding-count 0 \
   --output-json data/private/upba_replay_source_manifest.json \
   --output-check-json data/private/upba_replay_source_manifest_check.json
+```
+
+With a scanner report:
+
+```bash
+python3 tools/check_zenoenergy_replay_secret_scan.py \
+  --source-report data/private/upba_replay_benchmark.json \
+  --output-json data/private/upba_replay_secret_scan.json
+
+python3 tools/build_zenoenergy_replay_source_manifest.py \
+  --manifest-id prod-shadow-upba-20260501-20260509 \
+  --source-kind production-shadow \
+  --source-descriptor prod-shadow:2026-05-01..2026-05-09 \
+  --market-day-count 9 \
+  --source-report upba-benchmark=data/private/upba_replay_benchmark.json \
+  --deterministic-replay-ok \
+  --no-live-secrets \
+  --secret-scan-report data/private/upba_replay_secret_scan.json \
+  --output-json data/private/upba_replay_source_manifest.json
 ```
 
 For AutoTrader:
@@ -57,6 +79,7 @@ The builder exits with code `2` and does not write the manifest when:
 - deterministic replay is not attested;
 - no-live-secrets is not attested;
 - the secret scan is missing, dirty, or reports findings;
+- the supplied secret scan report is dirty or covers a different number of source reports;
 - the generated artifact hashes fail the manifest checker.
 
 The builder is an operator intake helper. It does not prove external custody,

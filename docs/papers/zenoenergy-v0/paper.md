@@ -527,6 +527,17 @@ tools/build_zenoenergy_replay_source_manifest.py
 That command computes canonical source-report hashes, attaches deterministic
 replay and no-live-secrets attestations, records the secret-scan result, runs
 the manifest checker, and writes the manifest only when the check passes.
+Operators can generate the secret-scan report with:
+
+```text
+tools/check_zenoenergy_replay_secret_scan.py
+```
+
+The scanner writes `zenodex/energy/replay_secret_scan/v1`, catches obvious key
+material and sensitive JSON keys, and can be supplied to the manifest builder
+with `--secret-scan-report`. Dirty scans and source-count mismatches fail
+closed. A clean scan is a packaging guardrail; production promotion still
+requires the production gate and source-manifested real replay reports.
 
 The release predicate is:
 

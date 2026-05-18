@@ -425,6 +425,27 @@ support_edge_ref:           sha256:8a06643bf183e40d5c4b90906dd02c88535266589a75e
 checkpoint_ref:             sha256:48b859ba28d79ff5c86a9cdea7d36dea060266a56cd66911f4b9689d26e1e903
 ```
 
+### Replay Secret Scan
+
+```text
+receipt_blob_ref:           sha256:f21d85963f5d0a4b055ca3ef299ad34a1b910eaea13e473d84d9c20c14945f7b
+doc_blob_ref:               sha256:154b8420161b21df4a0e0c4c8f95a6c9e2690fb100e5ee7abd5abbb9e7bbf6ec
+source_blob_ref:            sha256:d3622992ef18047e9690e1581ee697cd24275753fcfee78f8a6f4e89f8991e1f
+test_blob_ref:              sha256:67619bf9adfab2ba06f8fa21173011683a78c5a01b8a936112534234beb8ecd6
+builder_blob_ref:           sha256:2dd300212e20ca59dfad32f39e1219b2449ab2f678053210194bc99db0defae1
+context_ref:                sha256:ec864e742bc8e2cf481d58635d832cf58f24f5c86e80b57a5ff5d2ba0c532a9d
+receipt_artifact_ref:       sha256:4c683e989b3697ca7c19d8333e2a875e38618e2cbeff354ca0e99551d93ac374
+doc_artifact_ref:           sha256:8053b4bfc716e60ae3b70683c3624d4f16a699b9cdcd6509ec5708166bbfc051
+source_artifact_ref:        sha256:68348054d6e90af04582b2e89625b6fdc378f0a637dfbbc676f8abe3f7795062
+test_artifact_ref:          sha256:31a275f8fd4411af86449bbc9275030d907a63f7ccb2c96fc8d17ea295a5ee8d
+builder_artifact_ref:       sha256:ff4aaa72aa1fbdc8f8d42f85256eaac655a3fe0dec44ce58c4a76f9ded156020
+recipe_ref:                 sha256:03fb8202f145d00032f7cd6c899756368fa4423e3be60562838038b4a05628b6
+hypothesis_ref:             sha256:e00cd76da4f2b393b56c7f46ebc27fba9863973c056e986e9e46019cfa2bd62f
+evidence_ref:               sha256:ec6c3618e7f31c36aa1a4d1c8fc1d2439e9455d9adfc9bb4a8eb34e428afb5ab
+support_edge_ref:           sha256:55bb6c39786e360ce3b5797b48981e6f0f0084ca82e3844d6a0e07ff03c8510b
+checkpoint_ref:             sha256:2bda22706e5b3d56de2cfc16b96d415b9a91df9310e34d83059394fbec223465
+```
+
 ### Production Evidence Bundle
 
 ```text
@@ -481,6 +502,7 @@ H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518: supported
 H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518: supported
 H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518: supported
 H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518: supported
+H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518: supported
 H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518: supported
 H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported

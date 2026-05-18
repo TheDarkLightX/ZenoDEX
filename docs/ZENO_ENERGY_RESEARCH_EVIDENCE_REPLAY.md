@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 131
-passed_count: 131
+check_count: 136
+passed_count: 136
 failed_count: 0
 ```
 
@@ -80,6 +80,10 @@ failed_count: 0
 | replay_source_manifest_builder.artifacts_and_schemas | pass | receipt, source, and doc record the manifest builder schema and artifacts |
 | replay_source_manifest_builder.fail_closed_hooks | pass | builder computes source hashes, requires attestations, and fails closed on dirty secret scans |
 | replay_source_manifest_builder.safety_and_limits | pass | builder preserves advisory boundary and records custody limits |
+| replay_secret_scan.schema | pass | expected 'zenodex/energy/replay_secret_scan_receipt/v1', observed 'zenodex/energy/replay_secret_scan_receipt/v1' |
+| replay_secret_scan.schemas_rules_and_artifacts | pass | receipt and doc record scanner schema, artifacts, and detector rules |
+| replay_secret_scan.source_hooks | pass | scanner source, tests, and manifest builder integration are present |
+| replay_secret_scan.safety_and_limits | pass | receipt preserves advisory boundary and scanner limits |
 | real_replay_report_builder.schema | pass | expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1' |
 | real_replay_report_builder.targets_and_artifacts | pass | receipt and doc record both production-gate report schemas |
 | real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks |
@@ -130,6 +134,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 | pass | H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518 | pass | H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 | pass | H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 | pass | H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
@@ -263,6 +268,22 @@ failed_count: 0
     "original_subset_violation_count": 0,
     "run_count": 3,
     "strict_hand_win_count": 1
+  },
+  "replay_secret_scan": {
+    "claim": "ZenoEnergy has a deterministic replay secret-scan tool that catches obvious key material and sensitive JSON keys before real replay reports are packaged into source manifests.",
+    "negative_knowledge": [
+      "A clean scanner report is weaker than a full privacy audit.",
+      "The scanner is a deterministic guardrail for replay packaging, not a production promotion decision.",
+      "Source manifests still require operator no-live-secrets attestation and production gate review."
+    ],
+    "scanner_rules": [
+      "private_key_pem",
+      "aws_access_key_id",
+      "openai_api_key",
+      "github_token",
+      "sensitive_json_key"
+    ],
+    "secret_scan_schema": "zenodex/energy/replay_secret_scan/v1"
   },
   "replay_source_manifest": {
     "claim": "ZenoEnergy has a fail-closed replay source manifest checker that binds real replay reports to source kind, descriptor, market-day coverage, source hashes, deterministic replay, and secret-scan status.",

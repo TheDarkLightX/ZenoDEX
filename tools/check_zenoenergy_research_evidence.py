@@ -229,6 +229,29 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    replay_secret_scan = _load_json(
+        root / "data/upba_energy/zenoenergy_replay_secret_scan_receipt.json"
+    )
+    replay_secret_scan_doc = (
+        root / "docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md"
+    ).read_text(encoding="utf-8")
+    replay_secret_scan_source = (
+        root / "tools/check_zenoenergy_replay_secret_scan.py"
+    ).read_text(encoding="utf-8")
+    replay_secret_scan_tests = (
+        root / "tests/energy/test_zenoenergy_replay_secret_scan.py"
+    ).read_text(encoding="utf-8")
+    payloads["replay_secret_scan"] = replay_secret_scan
+    checks.extend(
+        _check_replay_secret_scan(
+            replay_secret_scan,
+            replay_secret_scan_doc,
+            replay_secret_scan_source,
+            replay_secret_scan_tests,
+            replay_source_manifest_builder_source,
+        )
+    )
+
     real_replay_builder = _load_json(
         root / "data/upba_energy/zenoenergy_real_replay_report_builder_receipt.json"
     )
@@ -998,6 +1021,7 @@ def _check_replay_source_manifest_builder(
             and "--no-live-secrets" in source_text
             and "return 2" in source_text
             and "test_cli_fails_closed_without_clean_secret_scan" in test_text
+            and "test_cli_rejects_secret_scan_source_count_mismatch" in test_text
             and "test_builds_manifest_with_canonical_source_report_hash" in test_text
             and "dirty secret scans fail" in fail_closed,
             "builder computes source hashes, requires attestations, and fails closed on dirty secret scans",
@@ -1013,6 +1037,73 @@ def _check_replay_source_manifest_builder(
             and "external data custody" in limits_lower
             and "not sufficient production evidence" in negative_lower,
             "builder preserves advisory boundary and records custody limits",
+        ),
+    ]
+
+
+def _check_replay_secret_scan(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    test_text: str,
+    manifest_builder_source: str,
+) -> list[EvidenceCheck]:
+    artifacts = set(str(item) for item in report.get("artifacts", []))
+    rules = set(str(item) for item in report.get("scanner_rules", []))
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_equal(
+            "replay_secret_scan.schema",
+            report.get("schema"),
+            "zenodex/energy/replay_secret_scan_receipt/v1",
+        ),
+        _expect_true(
+            "replay_secret_scan.schemas_rules_and_artifacts",
+            report.get("secret_scan_schema")
+            == "zenodex/energy/replay_secret_scan/v1"
+            and {
+                "tools/check_zenoenergy_replay_secret_scan.py",
+                "tests/energy/test_zenoenergy_replay_secret_scan.py",
+                "docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md",
+            }.issubset(artifacts)
+            and {
+                "private_key_pem",
+                "aws_access_key_id",
+                "openai_api_key",
+                "github_token",
+                "sensitive_json_key",
+            }.issubset(rules)
+            and "zenodex/energy/replay_secret_scan/v1" in doc_text
+            and "tools/check_zenoenergy_replay_secret_scan.py" in doc_text,
+            "receipt and doc record scanner schema, artifacts, and detector rules",
+        ),
+        _expect_true(
+            "replay_secret_scan.source_hooks",
+            "SECRET_SCAN_SCHEMA" in source_text
+            and "TEXT_RULES" in source_text
+            and "SENSITIVE_KEYS" in source_text
+            and "secret_scan_manifest_fragment" in source_text
+            and "test_secret_scan_rejects_sensitive_json_key" in test_text
+            and "test_secret_scan_cli_returns_one_on_findings" in test_text
+            and "--secret-scan-report" in manifest_builder_source
+            and "secret_scan_manifest_fragment" in manifest_builder_source,
+            "scanner source, tests, and manifest builder integration are present",
+        ),
+        _expect_true(
+            "replay_secret_scan.safety_and_limits",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            is False
+            and bool(report["safety"]["secret_scanner_authorizes_production"])
+            is False
+            and "privacy compliance" in limits_lower
+            and "full privacy audit" in negative_lower
+            and "production promotion decision" in negative_lower,
+            "receipt preserves advisory boundary and scanner limits",
         ),
     ]
 
@@ -1391,6 +1482,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518": "supported",
         "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518": "supported",
         "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518": "supported",
+        "H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518": "supported",
         "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518": "supported",
         "H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
@@ -1462,6 +1554,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     production_gate = payloads["production_promotion_gate"]
     replay_source_manifest = payloads["replay_source_manifest"]
     replay_source_manifest_builder = payloads["replay_source_manifest_builder"]
+    replay_secret_scan = payloads["replay_secret_scan"]
     real_replay_builder = payloads["real_replay_report_builder"]
     production_evidence_bundle = payloads["production_evidence_bundle"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -1617,6 +1710,12 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "check_schema": replay_source_manifest_builder["check_schema"],
             "negative_knowledge": replay_source_manifest_builder["negative_knowledge"],
             "claim": replay_source_manifest_builder["claim"],
+        },
+        "replay_secret_scan": {
+            "secret_scan_schema": replay_secret_scan["secret_scan_schema"],
+            "scanner_rules": replay_secret_scan["scanner_rules"],
+            "negative_knowledge": replay_secret_scan["negative_knowledge"],
+            "claim": replay_secret_scan["claim"],
         },
         "real_replay_report_builder": {
             "target_schemas": real_replay_builder["target_schemas"],

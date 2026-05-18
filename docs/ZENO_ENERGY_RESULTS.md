@@ -601,6 +601,9 @@ Replay source manifest:
 Replay source manifest builder:
 [ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
 
+Replay secret scan:
+[ZENO_ENERGY_REPLAY_SECRET_SCAN.md](./ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
+
 Production evidence bundle:
 [ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](./ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
 
@@ -612,6 +615,9 @@ Manifest receipt:
 
 Manifest builder receipt:
 `data/upba_energy/zenoenergy_replay_source_manifest_builder_receipt.json`
+
+Secret-scan receipt:
+`data/upba_energy/zenoenergy_replay_secret_scan_receipt.json`
 
 Bundle receipt:
 `data/upba_energy/zenoenergy_production_evidence_bundle_receipt.json`
@@ -648,6 +654,11 @@ intake. It computes canonical source-report hashes, attaches replay and
 secret-scan attestations, runs the checker, and writes the manifest only when
 the check passes.
 
+The replay secret scanner gives the no-live-secrets path a deterministic local
+check for obvious key material and sensitive JSON keys. A clean scan is still
+weaker than a full privacy audit, but it is now a replayed input to manifest
+construction.
+
 The production evidence bundle command composes the real-report builder, source
 manifest checker, and promotion gate. It emits a single
 `zenodex/energy/production_evidence_bundle/v1` artifact for operator review.
@@ -662,11 +673,11 @@ cross-seed stress, AutoTraderEnergy hard cross-seed transfer, AutoTraderEnergy
 shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
 objective-equivalent training hygiene, the production promotion gate, the replay
 source manifest checker, the replay source manifest builder, the real replay
-report builder, the production evidence bundle, and PopperPad status ledger. It
-also checks
+secret scanner, the real replay report builder, the production evidence bundle,
+and PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 131 passing checks and 0 failed checks, including
+The current receipt reports 136 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy
