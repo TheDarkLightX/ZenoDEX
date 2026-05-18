@@ -961,7 +961,16 @@ def build_core_feature_suite_v0(
     )
     proof_mining_manifest_path = Path(str(proof_mining_lane_report["manifest_path"]))
 
-    from src.agents.policy_compiler import compile_policy_candidate
+    from src.agents.strategy_ir import (
+        NotionalCaps,
+        PolicyBackend,
+        RiskLimits,
+        StrategyAction,
+        StrategyControls,
+        StrategyIR,
+        StrategyTemplate,
+        StrategyWindow,
+    )
     from src.core.quote_receipts import make_route_quote_receipt
     from src.core.routing import best_route_exact_in_2hop
     from src.integration.autotrader_controller import AutoTraderControllerState
@@ -971,42 +980,39 @@ def build_core_feature_suite_v0(
     autotrader_state_path = autotrader_dir / "source" / "autotrader_state.json"
     autotrader_state_path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(autotrader_state_path, _autotrader_controller_state_to_obj(AutoTraderControllerState()))
-    autotrader_strategy = compile_policy_candidate(
-        {
-            "strategy_id": "core.autotrader.dca.1",
-            "owner_pubkey": "owner.pubkey.1",
-            "policy_backend": "local",
-            "template": "dca",
-            "asset_universe": ["A", "B"],
-            "notional_caps": {
-                "per_order_max": 100,
-                "per_window_max": 500,
-                "lifetime_max": 1_000,
-            },
-            "risk_limits": {
-                "max_slippage_bps": 50,
-                "max_oracle_staleness_epochs": 3,
-            },
-            "strategy_window": {
-                "valid_from_epoch": 1,
-                "valid_until_epoch": 100,
-                "min_order_spacing_epochs": 0,
-                "budget_window_epochs": 0,
-            },
-            "controls": {
-                "kill_switch_enabled": True,
-                "max_live_orders": 3,
-                "max_intents_per_order": 16,
-            },
-            "template_params": {
-                "fixed_order_size": 100,
-                "cadence_epochs": 4,
-                "asset_in": "A",
-                "asset_out": "B",
-            },
-            "tau_policy_specs": [],
-        }
-    ).strategy
+    autotrader_strategy = StrategyIR(
+        strategy_id="core.autotrader.dca.1",
+        owner_pubkey="owner.pubkey.1",
+        policy_backend=PolicyBackend.LOCAL,
+        template=StrategyTemplate.DCA,
+        asset_universe=("A", "B"),
+        allowed_actions=(StrategyAction.PLACE_SWAP_EXACT_IN,),
+        notional_caps=NotionalCaps(
+            per_order_max=100,
+            per_window_max=500,
+            lifetime_max=1_000,
+        ),
+        risk_limits=RiskLimits(
+            max_slippage_bps=50,
+            max_oracle_staleness_epochs=3,
+        ),
+        strategy_window=StrategyWindow(
+            valid_from_epoch=1,
+            valid_until_epoch=100,
+            min_order_spacing_epochs=0,
+        ),
+        controls=StrategyControls(
+            kill_switch_enabled=True,
+            max_live_orders=3,
+        ),
+        template_params={
+            "fixed_order_size": 100,
+            "cadence_epochs": 4,
+            "asset_in": "A",
+            "asset_out": "B",
+        },
+        tau_policy_specs=(),
+    )
     autotrader_pools = {
         "p_ab": PoolState(
             pool_id="p_ab",
