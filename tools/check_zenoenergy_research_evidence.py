@@ -166,6 +166,24 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    production_gate = _load_json(
+        root / "data/upba_energy/zenoenergy_production_promotion_gate_receipt.json"
+    )
+    production_gate_doc = (
+        root / "docs/ZENO_ENERGY_PRODUCTION_GATE.md"
+    ).read_text(encoding="utf-8")
+    production_gate_source = (
+        root / "tools/check_zenoenergy_production_promotion.py"
+    ).read_text(encoding="utf-8")
+    payloads["production_promotion_gate"] = production_gate
+    checks.extend(
+        _check_production_promotion_gate(
+            production_gate,
+            production_gate_doc,
+            production_gate_source,
+        )
+    )
+
     sota_decision_map = _load_json(
         root / "data/upba_energy/upba_v2_sota_decision_map_receipt.json"
     )
@@ -721,6 +739,65 @@ def _check_objective_equiv_training_hygiene(
     ]
 
 
+def _check_production_promotion_gate(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+) -> list[EvidenceCheck]:
+    obligations = {
+        str(item["id"]): item for item in report.get("obligations", [])
+    }
+    blocked_reasons = set(str(reason) for reason in report.get("blocked_reasons", []))
+    doc_lower = doc_text.lower()
+    return [
+        _expect_equal(
+            "production_promotion_gate.schema",
+            report.get("schema"),
+            "zenodex/energy/production_promotion_gate/v1",
+        ),
+        _expect_true(
+            "production_promotion_gate.blocks_current_research",
+            report.get("decision") == "blocked"
+            and bool(report.get("promotion_allowed")) is False
+            and "missing real UPBA replay report" in blocked_reasons
+            and "missing real AutoTrader shadow report" in blocked_reasons
+            and "operator must explicitly enable advisory ranking-only promotion"
+            in blocked_reasons,
+            "gate blocks current synthetic/fixture-only evidence",
+        ),
+        _expect_true(
+            "production_promotion_gate.research_replay_clean",
+            bool(obligations["research_replay_clean"]["passed"]) is True
+            and bool(obligations["upba_real_replay_coverage"]["passed"]) is False
+            and bool(obligations["autotrader_real_shadow_coverage"]["passed"]) is False,
+            "clean research replay is necessary but insufficient for promotion",
+        ),
+        _expect_true(
+            "production_promotion_gate.safety_contract",
+            bool(report["safety_contract"]["verifier_authoritative"]) is True
+            and bool(report["safety_contract"]["policy_guards_authoritative"]) is True
+            and bool(
+                report["safety_contract"]["scorer_authorizes_settlement_or_trade"]
+            )
+            is False
+            and bool(report["safety_contract"]["model_output_in_state_root"]) is False
+            and bool(report["safety_contract"]["deterministic_fallback_required"])
+            is True,
+            "gate preserves verifier/policy authority and fallback boundary",
+        ),
+        _expect_true(
+            "production_promotion_gate.doc_and_source",
+            "ProductionEligible" in doc_text
+            and "advisory ranking" in doc_lower
+            and "zenodex/energy/upba_real_replay_report/v1" in doc_text
+            and "zenodex/energy/autotrader_real_shadow_report/v1" in doc_text
+            and "MIN_UPBA_REAL_BATCHES" in source_text
+            and "MIN_AUTOTRADER_REAL_CONTEXTS" in source_text,
+            "doc and source record real replay thresholds and ranking-only scope",
+        ),
+    ]
+
+
 def _check_sota_decision_map(
     report: dict[str, Any],
     doc_text: str,
@@ -951,6 +1028,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518": "supported",
         "H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518": "supported",
+        "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518": "supported",
@@ -1017,6 +1095,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
     training_hygiene = payloads["objective_equiv_training_hygiene"]
+    production_gate = payloads["production_promotion_gate"]
     sota_decision_map = payloads["sota_decision_map"]
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
     autotrader_aggregate = autotrader["aggregate"]
@@ -1145,6 +1224,13 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "recommended_research_positive_class"
             ],
             "claim": training_hygiene["claim"],
+        },
+        "production_promotion_gate": {
+            "decision": production_gate["decision"],
+            "promotion_allowed": production_gate["promotion_allowed"],
+            "blocked_reasons": production_gate["blocked_reasons"],
+            "scope": production_gate["scope"],
+            "negative_knowledge": production_gate["negative_knowledge"],
         },
         "sota_decision_map": {
             "source_count": sota_decision_map["source_count"],

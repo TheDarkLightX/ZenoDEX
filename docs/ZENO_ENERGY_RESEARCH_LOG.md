@@ -638,6 +638,37 @@ representative as uniquely better.
 Status: supported as training hygiene. This is not recorded as a new benchmark
 improvement until a fresh model is trained and evaluated under the new mode.
 
+## 2026-05-18 Production Promotion Gate
+
+Artifact:
+[ZENO_ENERGY_PRODUCTION_GATE.md](./ZENO_ENERGY_PRODUCTION_GATE.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_production_promotion_gate_receipt.json`
+
+The production promotion gate records the release boundary:
+
+```text
+ProductionEligible :=
+  ResearchReplayClean
+  and RealUPBAReplayOK
+  and RealAutoTraderShadowOK
+  and OperatorRankingOnlyEnable
+```
+
+Observed result:
+
+| obligation | status |
+| --- | --- |
+| research replay clean | pass |
+| operator ranking-only enable | block |
+| real UPBA replay coverage | block |
+| real AutoTrader shadow coverage | block |
+
+Status: supported negative knowledge. The current scorer is strong research
+infrastructure and remains blocked from production ranking promotion until real
+replay/shadow reports satisfy the gate.
+
 ## SOTA Decision Map
 
 Artifact:

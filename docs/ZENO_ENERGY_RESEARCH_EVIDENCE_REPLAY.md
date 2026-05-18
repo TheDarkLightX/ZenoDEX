@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 104
-passed_count: 104
+check_count: 110
+passed_count: 110
 failed_count: 0
 ```
 
@@ -66,6 +66,11 @@ failed_count: 0
 | objective_equiv_training_hygiene.source_hooks | pass | trainer and focused tests expose objective-equivalent positive-class hooks |
 | objective_equiv_training_hygiene.safety_boundary | pass | receipt and doc keep the change on the advisory training boundary |
 | objective_equiv_training_hygiene.no_metric_claim | pass | receipt records this as label hygiene rather than performance evidence |
+| production_promotion_gate.schema | pass | expected 'zenodex/energy/production_promotion_gate/v1', observed 'zenodex/energy/production_promotion_gate/v1' |
+| production_promotion_gate.blocks_current_research | pass | gate blocks current synthetic/fixture-only evidence |
+| production_promotion_gate.research_replay_clean | pass | clean research replay is necessary but insufficient for promotion |
+| production_promotion_gate.safety_contract | pass | gate preserves verifier/policy authority and fallback boundary |
+| production_promotion_gate.doc_and_source | pass | doc and source record real replay thresholds and ranking-only scope |
 | sota_decision_map.schema | pass | expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1' |
 | sota_decision_map.sources_and_boundary | pass | decision map records all required sources and verifier/fallback boundary |
 | sota_decision_map.decisions | pass | all required model-direction decisions are recorded in receipt and doc |
@@ -105,6 +110,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_FORMAL_BOUNDARY_RECEIPT_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_RUNTIME_TELEMETRY_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 | pass | H_ZENOENERGY_OBJECTIVE_EQUIV_TRAINING_HYGIENE_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 | pass | H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_BEATS_HAND_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518 is recorded as supported |
@@ -196,6 +202,17 @@ failed_count: 0
       "objective-equivalent"
     ],
     "recommended_research_positive_class": "objective-equivalent"
+  },
+  "production_promotion_gate": {
+    "blocked_reasons": [
+      "operator must explicitly enable advisory ranking-only promotion",
+      "missing real UPBA replay report",
+      "missing real AutoTrader shadow report"
+    ],
+    "decision": "blocked",
+    "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
+    "promotion_allowed": false,
+    "scope": "advisory_ranking_only"
   },
   "repair_selector_cross_seed": {
     "compression_pass_count": 3,

@@ -1,5 +1,5 @@
 {
-  "check_count": 104,
+  "check_count": 110,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -287,6 +287,31 @@
       "passed": true
     },
     {
+      "check_id": "production_promotion_gate.schema",
+      "detail": "expected 'zenodex/energy/production_promotion_gate/v1', observed 'zenodex/energy/production_promotion_gate/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "production_promotion_gate.blocks_current_research",
+      "detail": "gate blocks current synthetic/fixture-only evidence",
+      "passed": true
+    },
+    {
+      "check_id": "production_promotion_gate.research_replay_clean",
+      "detail": "clean research replay is necessary but insufficient for promotion",
+      "passed": true
+    },
+    {
+      "check_id": "production_promotion_gate.safety_contract",
+      "detail": "gate preserves verifier/policy authority and fallback boundary",
+      "passed": true
+    },
+    {
+      "check_id": "production_promotion_gate.doc_and_source",
+      "detail": "doc and source record real replay thresholds and ranking-only scope",
+      "passed": true
+    },
+    {
       "check_id": "sota_decision_map.schema",
       "detail": "expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1'",
       "passed": true
@@ -482,6 +507,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518",
+      "detail": "H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518",
       "detail": "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported",
       "passed": true
@@ -524,7 +554,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 104,
+  "passed_count": 110,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -605,6 +635,17 @@
         "objective-equivalent"
       ],
       "recommended_research_positive_class": "objective-equivalent"
+    },
+    "production_promotion_gate": {
+      "blocked_reasons": [
+        "operator must explicitly enable advisory ranking-only promotion",
+        "missing real UPBA replay report",
+        "missing real AutoTrader shadow report"
+      ],
+      "decision": "blocked",
+      "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
+      "promotion_allowed": false,
+      "scope": "advisory_ranking_only"
     },
     "repair_selector_cross_seed": {
       "compression_pass_count": 3,

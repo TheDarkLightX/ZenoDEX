@@ -88,6 +88,7 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_autotrader_energy_cross_seed.py`: trains and evaluates a tiny AutoTraderEnergy scorer across synthetic train/holdout seed pairs.
 - `tools/evaluate_autotrader_energy_shadow_bridge.py`: converts ZenoGraph AutoTrader shadow observations into advisory energy rows and evaluates hand/learned ordering while deterministic policy guards remain authoritative.
 - `tools/check_zenoenergy_research_evidence.py`: replays committed ZenoEnergy research receipts and PopperPad status checks, failing closed on missing evidence or drift.
+- `tools/check_zenoenergy_production_promotion.py`: fail-closed advisory ranking promotion gate requiring clean research replay, real UPBA replay, real AutoTrader shadow coverage, and explicit operator enablement.
 
 ## Hand Energy
 

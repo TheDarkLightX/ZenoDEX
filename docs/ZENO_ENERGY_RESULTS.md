@@ -584,16 +584,42 @@ objective-equivalent candidates.
 This is a training-target hygiene receipt. It does not claim a new benchmark
 improvement until a new model artifact is trained and evaluated with this mode.
 
+## Production Promotion Gate
+
+Artifact:
+[ZENO_ENERGY_PRODUCTION_GATE.md](./ZENO_ENERGY_PRODUCTION_GATE.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_production_promotion_gate_receipt.json`
+
+The production gate currently reports:
+
+```text
+decision: blocked
+promotion_allowed: false
+blocked: missing real UPBA replay report
+blocked: missing real AutoTrader shadow report
+blocked: operator must explicitly enable advisory ranking-only promotion
+```
+
+The positive result is that the research replay obligation passes: current
+fallback, invalid-accept, and PopperPad evidence is clean. The negative result
+is now explicit and replayed: synthetic and fixture evidence cannot promote the
+scorer to production ranking. Promotion requires broad real replay/shadow
+reports with zero invalid accepts, deterministic replay, no live secrets, top-25
+recall above threshold, and lower mean calls than hand energy.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
 benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
 cross-seed stress, AutoTraderEnergy hard cross-seed transfer, AutoTraderEnergy
 shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
-objective-equivalent training hygiene, and PopperPad status ledger. It also checks
+objective-equivalent training hygiene, the production promotion gate, and
+PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 104 passing checks and 0 failed checks.
+The current receipt reports 110 passing checks and 0 failed checks.
 
 ## Accuracy
 
