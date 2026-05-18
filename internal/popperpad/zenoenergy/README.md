@@ -446,6 +446,29 @@ support_edge_ref:           sha256:55bb6c39786e360ce3b5797b48981e6f0f0084ca82e38
 checkpoint_ref:             sha256:2bda22706e5b3d56de2cfc16b96d415b9a91df9310e34d83059394fbec223465
 ```
 
+### Replay Coverage Profile
+
+```text
+receipt_blob_ref:           sha256:778ad01b479b4143e769e4d879b7f8f872780a79e8d8630ef0aea6e933f6d04e
+doc_blob_ref:               sha256:4541d084c637a3cfd5a37b55ff2a6ad74df57cfb197ec8404cbd02003b4b51fc
+source_blob_ref:            sha256:4dfc56fd8dddfdc2f407022b08367862fa84d22952a834f3543986c97ade12c5
+test_blob_ref:              sha256:9e22f90654ce330c7f695acb37464349b87615f4482c42517ebed7b4be9067cc
+gate_blob_ref:              sha256:e5722d03b5f533c9052f61cdaa97c2ba943d01db01e967e12ebabc6a25c0fd1f
+builder_blob_ref:           sha256:9f24bb5c742dbec70157e5ec0a837543471f32b360f6ee0de01a063a82eb38ef
+bundle_blob_ref:            sha256:8a260b88ed85a93af0d92c67de14bab6a21fe7829f854064fbb4d8db3cc9821c
+context_ref:                sha256:a1a3c913cf36a8a25e88e20b18b9b01ef651ad55ff04909d2d08e96e38852a12
+receipt_artifact_ref:       sha256:2590895cb320221e9a9005229448c2cc0ae3354a89ec211219863982e2486ba3
+doc_artifact_ref:           sha256:1965bea0bef92f867b678b188317cb982e56dab719ad19aa5749fa8a97074352
+source_artifact_ref:        sha256:6333bb73cab97f59f56a8f181900a48e2eaea6007bee1f9b59e0b5ceaceee041
+test_artifact_ref:          sha256:5ae13b2422d68134b3d1ece256a75289491ac80297e0caa928bff1d5a61b9857
+recipe_ref:                 sha256:802dd444c30ff24602105d91c71fb5f6acbd940c6499a5bcb8a2e4ba94da80cd
+hypothesis_ref:             sha256:d0989c281c8a319af8793bde7b13b02a31649339ec12fce5e00a688f72816b7c
+evidence_ref:               sha256:b5fcf7d2ac708a37c828ce1ec589b1f3bdd13890b0fae6dac1d4d3f09e0ef1db
+support_edge_ref:           sha256:aaa1859720629a9e08619d0b4e8e8a22899cca1e26adeae5334fe4ffe624d7f0
+supersedes_edge_ref:        sha256:a0bd48e7c7cbc7a40b5488e58deaccd11face8623f6653918f1a9d6c8ba5db88
+checkpoint_ref:             sha256:8c4c015ab538f9362b0b73d50ac71f9f6106b2845b5299056f947b8ad3392adf
+```
+
 ### Production Evidence Bundle
 
 ```text
@@ -503,6 +526,7 @@ H_ZENOENERGY_PRODUCTION_GATE_BLOCKS_WITHOUT_REAL_REPLAY_20260518: supported
 H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518: supported
 H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518: supported
 H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518: supported
+H_ZENOENERGY_REPLAY_COVERAGE_PROFILE_20260518: supported
 H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518: supported
 H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V4: supported

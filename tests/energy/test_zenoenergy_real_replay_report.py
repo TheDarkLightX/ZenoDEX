@@ -146,7 +146,9 @@ def test_builder_reports_can_satisfy_production_gate() -> None:
         market_day_count=9,
         deterministic_replay_ok=True,
         no_live_secrets=True,
+        source_reports=_upba_source_reports(),
         source_manifest_check=_upba_manifest_check(),
+        coverage_profile=_upba_coverage_profile(),
     )
     autotrader = build_autotrader_real_shadow_report(
         shadow_bridge_report=_autotrader_bridge_report(),
@@ -155,7 +157,9 @@ def test_builder_reports_can_satisfy_production_gate() -> None:
         market_day_count=9,
         deterministic_replay_ok=True,
         no_live_secrets=True,
+        source_reports=_autotrader_source_reports(),
         source_manifest_check=_autotrader_manifest_check(),
+        coverage_profile=_autotrader_coverage_profile(),
     )
 
     gate = build_production_gate_report(
@@ -169,9 +173,33 @@ def test_builder_reports_can_satisfy_production_gate() -> None:
     assert gate["promotion_allowed"] is True
 
 
+def test_builder_rejects_narrow_coverage_profile() -> None:
+    profile = _upba_coverage_profile()
+    profile["candidate_family_count"] = 1
+
+    try:
+        build_upba_real_replay_report(
+            benchmark_report=_upba_benchmark_report(),
+            source_kind="production-shadow",
+            source_descriptor="prod-shadow:2026-05-01..2026-05-09",
+            market_day_count=9,
+            deterministic_replay_ok=True,
+            no_live_secrets=True,
+            source_reports=_upba_source_reports(),
+            source_manifest_check=_upba_manifest_check(),
+            coverage_profile=profile,
+        )
+    except ValueError as exc:
+        assert "coverage profile check failed" in str(exc)
+        assert "upba_candidate_family_count" in str(exc)
+    else:
+        raise AssertionError("narrow coverage profile should be rejected")
+
+
 def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
     benchmark = tmp_path / "upba_benchmark.json"
     manifest = tmp_path / "manifest.json"
+    coverage = tmp_path / "coverage.json"
     output = tmp_path / "upba_real.json"
     benchmark_payload = _upba_benchmark_report()
     benchmark.write_text(json.dumps(benchmark_payload), encoding="utf-8")
@@ -191,6 +219,7 @@ def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    coverage.write_text(json.dumps(_upba_coverage_profile()), encoding="utf-8")
 
     rc = main(
         [
@@ -207,6 +236,8 @@ def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
             "--no-live-secrets",
             "--source-manifest",
             str(manifest),
+            "--coverage-profile",
+            str(coverage),
             "--output-json",
             str(output),
         ]
@@ -216,6 +247,7 @@ def test_cli_writes_upba_real_replay_report(tmp_path: Path) -> None:
     assert rc == 0
     assert payload["schema"] == "zenodex/energy/upba_real_replay_report/v1"
     assert payload["source_manifest"]["ok"] is True
+    assert payload["coverage_profile"]["ok"] is True
     assert payload["source_reports"][0]["schema"] == "zenodex/energy/upba_v2_benchmark_report/v1"
 
 
@@ -337,6 +369,59 @@ def _autotrader_manifest_check() -> dict[str, object]:
             }
         ],
     )
+
+
+def _upba_source_reports() -> list[dict[str, object]]:
+    payload = _upba_benchmark_report()
+    return [
+        {
+            "schema": payload["schema"],
+            "sha256": canonical_sha256(payload),
+        }
+    ]
+
+
+def _autotrader_source_reports() -> list[dict[str, object]]:
+    payload = _autotrader_bridge_report()
+    return [
+        {
+            "schema": payload["schema"],
+            "sha256": canonical_sha256(payload),
+        }
+    ]
+
+
+def _upba_coverage_profile() -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_coverage_profile/v1",
+        "profile_type": "upba",
+        "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:2026-05-01..2026-05-09",
+        "market_day_count": 9,
+        "source_report_count": 1,
+        "batch_count": 1_250,
+        "pool_count": 4,
+        "intent_size_bucket_count": 3,
+        "candidate_family_count": 5,
+        "hard_negative_family_count": 4,
+        "min_batches_per_market_day": 75,
+    }
+
+
+def _autotrader_coverage_profile() -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_coverage_profile/v1",
+        "profile_type": "autotrader",
+        "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:autotrader:2026-05-01..2026-05-09",
+        "market_day_count": 9,
+        "source_report_count": 1,
+        "context_count": 700,
+        "strategy_family_count": 3,
+        "guard_family_count": 4,
+        "decision_family_count": 3,
+        "min_contexts_per_market_day": 50,
+    }
 
 
 def _source_manifest(

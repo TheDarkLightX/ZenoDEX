@@ -13,6 +13,7 @@ It assembles:
 zenodex/energy/upba_real_replay_report/v1
 zenodex/energy/autotrader_real_shadow_report/v1
 zenodex/energy/replay_source_manifest_check/v1
+zenodex/energy/replay_coverage_profile_check/v1
 zenodex/energy/production_promotion_gate/v1
 ```
 
@@ -25,17 +26,22 @@ zenodex/energy/production_evidence_bundle/v1
 Build source manifests first with:
 [ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
 
+Build or export coverage profiles for the same replay windows:
+[ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md](./ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md)
+
 ## Command
 
 ```bash
 python3 tools/build_zenoenergy_production_evidence_bundle.py \
   --upba-benchmark-report data/private/upba_replay_benchmark.json \
   --upba-source-manifest data/private/upba_replay_source_manifest.json \
+  --upba-coverage-profile data/private/upba_replay_coverage_profile.json \
   --upba-source-kind production-shadow \
   --upba-source-descriptor prod-shadow:2026-05-01..2026-05-09 \
   --upba-market-day-count 9 \
   --autotrader-shadow-bridge-report data/private/autotrader_shadow_bridge.json \
   --autotrader-source-manifest data/private/autotrader_replay_source_manifest.json \
+  --autotrader-coverage-profile data/private/autotrader_replay_coverage_profile.json \
   --autotrader-source-kind production-shadow \
   --autotrader-source-descriptor prod-shadow:autotrader:2026-05-01..2026-05-09 \
   --autotrader-market-day-count 9 \
@@ -62,6 +68,7 @@ ProductionEvidenceBundle :=
   UPBARealReplayReport
   and AutoTraderRealShadowReport
   and ReplaySourceManifestChecks
+  and ReplayCoverageProfileChecks
   and ProductionPromotionGate
 ```
 
@@ -71,8 +78,8 @@ verifier and AutoTrader policy guards remain authoritative for acceptance.
 ## Fail-Closed Behavior
 
 The bundle command exits with code `2` when source manifests fail, source
-descriptors look synthetic or fixture-like, required replay/secret attestations
-are missing, or report schemas are incompatible.
+descriptors look synthetic or fixture-like, coverage profiles fail, required
+replay/secret attestations are missing, or report schemas are incompatible.
 
 If evidence is well-formed but still insufficient, the command writes a bundle
 with `decision: blocked`. Missing operator enable, inadequate real coverage, or
@@ -96,6 +103,12 @@ Production readiness still depends on real or production-shadow replay:
 | AutoTrader real shadow rows | 5000 |
 | market days | 7 |
 | top-25 recall | 0.99 |
+| UPBA pools | 3 |
+| UPBA candidate families | 4 |
+| UPBA hard-negative families | 4 |
+| AutoTrader strategy families | 3 |
+| AutoTrader guard families | 4 |
+| AutoTrader decision families | 3 |
 
 The scorer stays outside consensus, state roots, settlement validity, and policy
 validity.

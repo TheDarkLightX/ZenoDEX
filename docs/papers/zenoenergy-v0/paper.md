@@ -33,9 +33,10 @@ certified candidate generation, dominance-pruning contracts, and deterministic
 fallback.
 
 The current production-adjacent path is an evidence bundle rather than a release
-claim. The bundle assembles source-manifested UPBA and AutoTrader real replay
-reports, then runs a fail-closed advisory ranking promotion gate. The gate
-currently blocks promotion because real replay coverage is still missing.
+claim. The bundle assembles source-manifested and coverage-profiled UPBA and
+AutoTrader real replay reports, then runs a fail-closed advisory ranking
+promotion gate. The gate currently blocks promotion because real replay coverage
+is still missing.
 
 ## 1. Research Classification
 
@@ -503,12 +504,13 @@ ZenoEnergy now has a production-adjacent evidence path:
 tools/build_zenoenergy_production_evidence_bundle.py
 ```
 
-The bundle composes four deterministic artifacts:
+The bundle composes five deterministic artifacts:
 
 ```text
 zenodex/energy/upba_real_replay_report/v1
 zenodex/energy/autotrader_real_shadow_report/v1
 zenodex/energy/replay_source_manifest_check/v1
+zenodex/energy/replay_coverage_profile_check/v1
 zenodex/energy/production_promotion_gate/v1
 ```
 
@@ -539,6 +541,14 @@ with `--secret-scan-report`. Dirty scans and source-count mismatches fail
 closed. A clean scan is a packaging guardrail; production promotion still
 requires the production gate and source-manifested real replay reports.
 
+The coverage-profile checker writes
+`zenodex/energy/replay_coverage_profile_check/v1`. It requires UPBA replay
+breadth across pools, intent-size buckets, candidate families, hard-negative
+families, and market days. It requires AutoTrader shadow replay breadth across
+strategy, guard, and decision families. The profile is a breadth guard against
+aggregate-count-only promotion; it does not prove representativeness of future
+traffic.
+
 The release predicate is:
 
 ```text
@@ -546,6 +556,7 @@ ProductionEvidenceBundle :=
   UPBARealReplayReport
   and AutoTraderRealShadowReport
   and ReplaySourceManifestChecks
+  and ReplayCoverageProfileChecks
   and ProductionPromotionGate
 ```
 
@@ -553,7 +564,8 @@ The production gate requires at least 1,000 real UPBA replay batches, 20,000
 real UPBA candidates, 500 real AutoTrader shadow contexts, 5,000 AutoTrader
 shadow rows, seven market days, top-25 recall at least 0.99, zero invalid
 accepts, deterministic replay, no live secrets, source manifest checks, and
-learned mean verifier or guard calls below hand energy.
+coverage profile checks. It also requires learned mean verifier or guard calls
+below hand energy.
 
 Malformed evidence fails closed. Well-formed but insufficient evidence produces
 `decision: blocked`. A passing bundle can only support advisory ranking:
@@ -641,11 +653,13 @@ Production evidence bundle replay:
 python3 tools/build_zenoenergy_production_evidence_bundle.py \
   --upba-benchmark-report data/private/upba_replay_benchmark.json \
   --upba-source-manifest data/private/upba_replay_source_manifest.json \
+  --upba-coverage-profile data/private/upba_replay_coverage_profile.json \
   --upba-source-kind production-shadow \
   --upba-source-descriptor prod-shadow:2026-05-01..2026-05-09 \
   --upba-market-day-count 9 \
   --autotrader-shadow-bridge-report data/private/autotrader_shadow_bridge.json \
   --autotrader-source-manifest data/private/autotrader_replay_source_manifest.json \
+  --autotrader-coverage-profile data/private/autotrader_replay_coverage_profile.json \
   --autotrader-source-kind production-shadow \
   --autotrader-source-descriptor prod-shadow:autotrader:2026-05-01..2026-05-09 \
   --autotrader-market-day-count 9 \

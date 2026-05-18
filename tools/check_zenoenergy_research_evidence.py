@@ -252,6 +252,29 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    replay_coverage_profile = _load_json(
+        root / "data/upba_energy/zenoenergy_replay_coverage_profile_receipt.json"
+    )
+    replay_coverage_profile_doc = (
+        root / "docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md"
+    ).read_text(encoding="utf-8")
+    replay_coverage_profile_source = (
+        root / "tools/check_zenoenergy_replay_coverage_profile.py"
+    ).read_text(encoding="utf-8")
+    replay_coverage_profile_tests = (
+        root / "tests/energy/test_zenoenergy_replay_coverage_profile.py"
+    ).read_text(encoding="utf-8")
+    payloads["replay_coverage_profile"] = replay_coverage_profile
+    checks.extend(
+        _check_replay_coverage_profile(
+            replay_coverage_profile,
+            replay_coverage_profile_doc,
+            replay_coverage_profile_source,
+            replay_coverage_profile_tests,
+            production_gate_source,
+        )
+    )
+
     real_replay_builder = _load_json(
         root / "data/upba_energy/zenoenergy_real_replay_report_builder_receipt.json"
     )
@@ -904,8 +927,10 @@ def _check_production_promotion_gate(
             and "zenodex/energy/upba_real_replay_report/v1" in doc_text
             and "zenodex/energy/autotrader_real_shadow_report/v1" in doc_text
             and "passing replay source manifest" in doc_lower
+            and "coverage profile" in doc_lower
             and "MIN_UPBA_REAL_BATCHES" in source_text
             and "_source_manifest_check_ok" in source_text
+            and "_coverage_profile_check_ok" in source_text
             and "MIN_AUTOTRADER_REAL_CONTEXTS" in source_text,
             "doc and source record real replay thresholds and ranking-only scope",
         ),
@@ -1108,6 +1133,85 @@ def _check_replay_secret_scan(
     ]
 
 
+def _check_replay_coverage_profile(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    test_text: str,
+    production_gate_source: str,
+) -> list[EvidenceCheck]:
+    artifacts = set(str(item) for item in report.get("artifacts", []))
+    integrations = set(str(item) for item in report.get("integrations", []))
+    thresholds = report.get("thresholds", {})
+    upba_thresholds = thresholds.get("upba", {})
+    autotrader_thresholds = thresholds.get("autotrader", {})
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_equal(
+            "replay_coverage_profile.schema",
+            report.get("schema"),
+            "zenodex/energy/replay_coverage_profile_receipt/v1",
+        ),
+        _expect_true(
+            "replay_coverage_profile.schemas_thresholds_and_artifacts",
+            report.get("profile_schema")
+            == "zenodex/energy/replay_coverage_profile/v1"
+            and report.get("profile_check_schema")
+            == "zenodex/energy/replay_coverage_profile_check/v1"
+            and int(upba_thresholds.get("min_pool_count", 0)) >= 3
+            and int(upba_thresholds.get("min_hard_negative_family_count", 0)) >= 4
+            and int(autotrader_thresholds.get("min_guard_family_count", 0)) >= 4
+            and {
+                "tools/check_zenoenergy_replay_coverage_profile.py",
+                "tests/energy/test_zenoenergy_replay_coverage_profile.py",
+                "docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md",
+            }.issubset(artifacts)
+            and "zenodex/energy/replay_coverage_profile/v1" in doc_text
+            and "zenodex/energy/replay_coverage_profile_check/v1" in doc_text,
+            "receipt and doc record coverage profile schemas, thresholds, and artifacts",
+        ),
+        _expect_true(
+            "replay_coverage_profile.source_hooks",
+            "MIN_UPBA_POOL_COUNT" in source_text
+            and "MIN_UPBA_HARD_NEGATIVE_FAMILY_COUNT" in source_text
+            and "MIN_AUTOTRADER_GUARD_FAMILY_COUNT" in source_text
+            and "source_report_count_match" in source_text
+            and "coverage_profile_summary" in source_text
+            and "test_upba_coverage_profile_rejects_thin_hard_negatives" in test_text
+            and "test_autotrader_coverage_profile_rejects_source_mismatch" in test_text,
+            "checker validates breadth thresholds, source matching, and summary export",
+        ),
+        _expect_true(
+            "replay_coverage_profile.production_hooks",
+            {
+                "tools/build_zenoenergy_real_replay_report.py",
+                "tools/check_zenoenergy_production_promotion.py",
+                "tools/build_zenoenergy_production_evidence_bundle.py",
+            }.issubset(integrations)
+            and "_coverage_profile_check_ok" in production_gate_source
+            and "coverage_profile_ok" in production_gate_source
+            and "replay coverage profile check" in production_gate_source,
+            "production gate requires a passing coverage profile on real reports",
+        ),
+        _expect_true(
+            "replay_coverage_profile.safety_and_limits",
+            bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["policy_guards_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement_or_trade"])
+            is False
+            and bool(report["safety"]["coverage_profile_authorizes_production"])
+            is False
+            and "representative" in limits_lower
+            and "aggregate batch" in negative_lower
+            and "not a production authorization path" in negative_lower,
+            "receipt preserves advisory boundary and representativeness limits",
+        ),
+    ]
+
+
 def _check_real_replay_report_builder(
     report: dict[str, Any],
     doc_text: str,
@@ -1135,8 +1239,11 @@ def _check_real_replay_report_builder(
             }.issubset(targets)
             and report.get("source_manifest_check_schema")
             == "zenodex/energy/replay_source_manifest_check/v1"
+            and report.get("coverage_profile_check_schema")
+            == "zenodex/energy/replay_coverage_profile_check/v1"
             and {
                 "tools/build_zenoenergy_real_replay_report.py",
+                "tools/check_zenoenergy_replay_coverage_profile.py",
                 "tests/energy/test_zenoenergy_real_replay_report.py",
                 "docs/ZENO_ENERGY_REAL_REPLAY_REPORTS.md",
             }.issubset(artifacts)
@@ -1150,10 +1257,13 @@ def _check_real_replay_report_builder(
             and "--deterministic-replay-ok" in source_text
             and "--no-live-secrets" in source_text
             and "--source-manifest" in source_text
+            and "--coverage-profile" in source_text
             and "source_reports" in source_text
             and "source_manifest_summary" in source_text
+            and "coverage_profile_summary" in source_text
             and "_canonical_sha256" in source_text
             and "rejects obvious fixture or synthetic source descriptors" in doc_lower
+            and "coverage profile check" in doc_lower
             and "test_builder_rejects_autotrader_builtin_fixture_source" in test_text,
             "builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks",
         ),
@@ -1203,6 +1313,7 @@ def _check_production_evidence_bundle(
                 "zenodex/energy/upba_real_replay_report/v1",
                 "zenodex/energy/autotrader_real_shadow_report/v1",
                 "zenodex/energy/replay_source_manifest_check/v1",
+                "zenodex/energy/replay_coverage_profile_check/v1",
                 "zenodex/energy/production_promotion_gate/v1",
                 "zenodex/energy/production_evidence_bundle/v1",
             }.issubset(output_schemas)
@@ -1219,14 +1330,17 @@ def _check_production_evidence_bundle(
             {
                 "tools/build_zenoenergy_real_replay_report.py",
                 "tools/check_zenoenergy_replay_source_manifest.py",
+                "tools/check_zenoenergy_replay_coverage_profile.py",
                 "tools/check_zenoenergy_production_promotion.py",
             }.issubset(composed_tools)
             and "build_upba_real_replay_report" in source_text
             and "build_autotrader_real_shadow_report" in source_text
             and "validate_replay_source_manifest" in source_text
+            and "validate_replay_coverage_profile" in source_text
             and "build_production_gate_report" in source_text
             and "_require_passing_manifest_check" in source_text
             and "source_manifest_checks" in source_text
+            and "coverage_profile_checks" in source_text
             and "test_bundle_rejects_source_manifest_hash_mismatch" in test_text
             and "test_cli_writes_bundle_json_and_markdown" in test_text,
             "bundle composes real report builders, source manifest checks, and production gate",
@@ -1241,8 +1355,10 @@ def _check_production_evidence_bundle(
             and bool(report["safety"]["deterministic_fallback_required"]) is True
             and "advisory ranking" in doc_lower
             and "exits with code `2`" in doc_lower
+            and "coverage profiles fail" in doc_lower
             and "cannot prove external data custody" in limits_lower
             and "without passing replay source manifests" in negative_lower
+            and "coverage profiles" in negative_lower
             and "outside settlement validity" in source_lower,
             "bundle preserves advisory boundary, fail-closed manifest behavior, and custody limits",
         ),
@@ -1483,6 +1599,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518": "supported",
         "H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518": "supported",
         "H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518": "supported",
+        "H_ZENOENERGY_REPLAY_COVERAGE_PROFILE_20260518": "supported",
         "H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518": "supported",
         "H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518": "supported",
         "H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518": "supported",
@@ -1555,6 +1672,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     replay_source_manifest = payloads["replay_source_manifest"]
     replay_source_manifest_builder = payloads["replay_source_manifest_builder"]
     replay_secret_scan = payloads["replay_secret_scan"]
+    replay_coverage_profile = payloads["replay_coverage_profile"]
     real_replay_builder = payloads["real_replay_report_builder"]
     production_evidence_bundle = payloads["production_evidence_bundle"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -1716,6 +1834,13 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "scanner_rules": replay_secret_scan["scanner_rules"],
             "negative_knowledge": replay_secret_scan["negative_knowledge"],
             "claim": replay_secret_scan["claim"],
+        },
+        "replay_coverage_profile": {
+            "profile_schema": replay_coverage_profile["profile_schema"],
+            "profile_check_schema": replay_coverage_profile["profile_check_schema"],
+            "thresholds": replay_coverage_profile["thresholds"],
+            "negative_knowledge": replay_coverage_profile["negative_knowledge"],
+            "claim": replay_coverage_profile["claim"],
         },
         "real_replay_report_builder": {
             "target_schemas": real_replay_builder["target_schemas"],

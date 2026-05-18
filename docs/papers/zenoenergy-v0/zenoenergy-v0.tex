@@ -40,9 +40,9 @@ batches. Mean winner position falls from 19.995 under exhaustive ordering to
 records the empirical result, the formal safety boundary, the blockers to
 production readiness, and a transfer path for applying the same advisory-energy
 pattern to AutoTrader candidate planning. The current production-adjacent path
-is an evidence bundle rather than a release claim: source-manifested real replay
-reports are assembled and passed through a fail-closed advisory ranking
-promotion gate.
+is an evidence bundle rather than a release claim: source-manifested and
+coverage-profiled real replay reports are assembled and passed through a
+fail-closed advisory ranking promotion gate.
 \end{abstract}
 
 \noindent\textbf{Keywords:} energy-based ranking, deterministic verification,
@@ -328,12 +328,13 @@ ZenoEnergy now has a production-adjacent evidence path:
 \[
   \texttt{tools/build\_zenoenergy\_production\_evidence\_bundle.py}.
 \]
-The bundle composes four deterministic artifacts:
+The bundle composes five deterministic artifacts:
 \[
 \begin{array}{l}
 \texttt{zenodex/energy/upba\_real\_replay\_report/v1},\\
 \texttt{zenodex/energy/autotrader\_real\_shadow\_report/v1},\\
 \texttt{zenodex/energy/replay\_source\_manifest\_check/v1},\\
+\texttt{zenodex/energy/replay\_coverage\_profile\_check/v1},\\
 \texttt{zenodex/energy/production\_promotion\_gate/v1}.
 \end{array}
 \]
@@ -363,6 +364,16 @@ source-count mismatches fail closed. A clean scan is a packaging guardrail;
 production promotion still requires the production gate and source-manifested
 real replay reports.
 
+The coverage-profile checker writes
+\[
+  \texttt{zenodex/energy/replay\_coverage\_profile\_check/v1}.
+\]
+It requires UPBA replay breadth across pools, intent-size buckets, candidate
+families, hard-negative families, and market days. It requires AutoTrader
+shadow replay breadth across strategy, guard, and decision families. The profile
+is a breadth guard against aggregate-count-only promotion; it does not prove
+representativeness of future traffic.
+
 The release predicate is:
 \[
 \begin{aligned}
@@ -370,6 +381,7 @@ The release predicate is:
   \mathrm{UPBARealReplayReport}\\
   &\wedge\; \mathrm{AutoTraderRealShadowReport}\\
   &\wedge\; \mathrm{ReplaySourceManifestChecks}\\
+  &\wedge\; \mathrm{ReplayCoverageProfileChecks}\\
   &\wedge\; \mathrm{ProductionPromotionGate}.
 \end{aligned}
 \]
@@ -378,7 +390,8 @@ The production gate requires at least 1,000 real UPBA replay batches, 20,000
 real UPBA candidates, 500 real AutoTrader shadow contexts, 5,000 AutoTrader
 shadow rows, seven market days, top-25 recall at least 0.99, zero invalid
 accepts, deterministic replay, no live secrets, source manifest checks, and
-learned mean verifier or guard calls below hand energy.
+coverage profile checks. It also requires learned mean verifier or guard calls
+below hand energy.
 
 Malformed evidence fails closed. Well-formed but insufficient evidence produces
 \texttt{decision: blocked}. A passing bundle can only support advisory ranking:

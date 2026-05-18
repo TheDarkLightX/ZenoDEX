@@ -39,6 +39,13 @@ and policy guards remain authoritative for acceptance.
 | min_autotrader_real_rows | 5000 |
 | min_real_market_days | 7 |
 | min_top25_recall | 0.99 |
+| min_upba_pool_count | 3 |
+| min_upba_intent_size_bucket_count | 3 |
+| min_upba_candidate_family_count | 4 |
+| min_upba_hard_negative_family_count | 4 |
+| min_autotrader_strategy_family_count | 3 |
+| min_autotrader_guard_family_count | 4 |
+| min_autotrader_decision_family_count | 3 |
 
 ## Required Real Reports
 
@@ -47,6 +54,9 @@ and policy guards remain authoritative for acceptance.
 historical-replay or production-shadow coverage, zero invalid accepts,
 zero permutation violations, a passing replay source manifest, top-25
 recall above threshold, and lower mean verifier calls than hand energy.
+It must also carry a passing replay coverage profile check so a
+single narrow source cannot satisfy production breadth on aggregate
+counts alone.
 
 `autotrader_real_shadow` must use schema
 `zenodex/energy/autotrader_real_shadow_report/v1` and include broad
@@ -54,6 +64,8 @@ historical-replay or production-shadow coverage, zero invalid accepts,
 a passing replay source manifest, authoritative policy guards, no
 state-root model output, top-25 recall above threshold, and lower mean
 guard calls than hand energy.
+It must carry a passing replay coverage profile check covering multiple
+strategy, guard, and decision families.
 
 ## Report Builder
 
@@ -66,8 +78,3 @@ replay plus no-live-secrets attestations.
 The builder is an evidence normalizer. It does not replace replay
 provenance, data-custody checks, secret-scrubbing proof, or the
 production promotion gate.
-
-For a single operator-review artifact, use
-`tools/build_zenoenergy_production_evidence_bundle.py`. It assembles the
-source-manifested real reports and then runs this promotion gate. The same
-ranking-only safety contract applies.

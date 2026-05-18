@@ -38,6 +38,8 @@ Replay source manifest builder: [ZenoEnergy Replay Source Manifest Builder](./ZE
 
 Replay secret scan: [ZenoEnergy Replay Secret Scan](./ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
 
+Replay coverage profile: [ZenoEnergy Replay Coverage Profile](./ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md)
+
 Real replay report builder: [ZenoEnergy Real Replay Reports](./ZENO_ENERGY_REAL_REPLAY_REPORTS.md)
 
 Production evidence bundle: [ZenoEnergy Production Evidence Bundle](./ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
@@ -87,9 +89,10 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_upba_energy_search.py`: compares exhaustive, deterministic hash ordering, hand energy, and learned energy with exact and objective-equivalent winner metrics.
 - `tools/check_zenoenergy_replay_source_manifest.py`: validates replay source manifests, source hashes, deterministic replay attestations, and clean secret scans for real evidence.
 - `tools/check_zenoenergy_replay_secret_scan.py`: scans replay reports for obvious key material and sensitive JSON keys before manifest packaging.
+- `tools/check_zenoenergy_replay_coverage_profile.py`: validates real replay breadth across UPBA and AutoTrader coverage families before promotion.
 - `tools/build_zenoenergy_replay_source_manifest.py`: computes source report hashes and writes replay source manifests only after validation passes.
 - `tools/build_zenoenergy_real_replay_report.py`: validates real replay/shadow receipts and emits the schemas consumed by the production promotion gate.
-- `tools/build_zenoenergy_production_evidence_bundle.py`: assembles source-manifested UPBA and AutoTrader real reports, then runs the production promotion gate in one fail-closed review command.
+- `tools/build_zenoenergy_production_evidence_bundle.py`: assembles source-manifested and coverage-profiled UPBA and AutoTrader real reports, then runs the production promotion gate in one fail-closed review command.
 - `tools/stress_upba_energy_cross_seed.py`: streams cross-seed, multi-candidate-count stress benchmarks without storing every generated row.
 - `tools/mine_upba_energy_hard_cases.py`: streams larger synthetic runs and records compact examples where learned ordering misses top-1/top-5/top-10.
 - `tools/inspect_upba_energy_model.py`: audits trained linear checkpoints for top weights, reserved-feature use, and label-like feature names.

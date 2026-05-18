@@ -12,6 +12,16 @@ The current preferred research checkpoint is the gap-weighted linear ranker,
 which uses the same 97-parameter architecture and puts more training pressure on
 winner pairs plus valid-vs-valid objective gaps.
 
+Production promotion now has an additional replay coverage profile gate. Real
+UPBA replay must show breadth across pools, intent-size buckets, candidate
+families, hard-negative families, and market days. AutoTrader shadow replay must
+show breadth across strategy, guard, and decision families. The checker is
+documented in
+[ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md](./ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md).
+This makes the current evidence more disciplined, while preserving the status
+that synthetic and fixture results are research evidence until source-manifested
+real replay passes the promotion gate.
+
 ## Dataset
 
 ```text

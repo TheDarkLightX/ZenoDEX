@@ -25,6 +25,7 @@ def test_bundle_allows_ranking_only_when_real_evidence_passes_gate() -> None:
             source_reports=[_artifact("upba-benchmark", upba)],
         ),
         upba_source_reports=[_source_report(upba)],
+        upba_coverage_profile=_upba_coverage_profile(),
         upba_source_kind="production-shadow",
         upba_source_descriptor="prod-shadow:2026-05-01..2026-05-09",
         upba_market_day_count=9,
@@ -35,6 +36,7 @@ def test_bundle_allows_ranking_only_when_real_evidence_passes_gate() -> None:
             source_reports=[_artifact("autotrader-shadow-bridge", autotrader)],
         ),
         autotrader_source_reports=[_source_report(autotrader)],
+        autotrader_coverage_profile=_autotrader_coverage_profile(),
         autotrader_source_kind="production-shadow",
         autotrader_source_descriptor="prod-shadow:autotrader:2026-05-01..2026-05-09",
         autotrader_market_day_count=9,
@@ -64,6 +66,7 @@ def test_bundle_blocks_without_operator_enable() -> None:
             source_reports=[_artifact("upba-benchmark", upba)],
         ),
         upba_source_reports=[_source_report(upba)],
+        upba_coverage_profile=_upba_coverage_profile(),
         upba_source_kind="production-shadow",
         upba_source_descriptor="prod-shadow:2026-05-01..2026-05-09",
         upba_market_day_count=9,
@@ -74,6 +77,7 @@ def test_bundle_blocks_without_operator_enable() -> None:
             source_reports=[_artifact("autotrader-shadow-bridge", autotrader)],
         ),
         autotrader_source_reports=[_source_report(autotrader)],
+        autotrader_coverage_profile=_autotrader_coverage_profile(),
         autotrader_source_kind="production-shadow",
         autotrader_source_descriptor="prod-shadow:autotrader:2026-05-01..2026-05-09",
         autotrader_market_day_count=9,
@@ -110,6 +114,7 @@ def test_bundle_rejects_source_manifest_hash_mismatch() -> None:
             upba_benchmark_report=upba,
             upba_source_manifest=bad_upba_manifest,
             upba_source_reports=[_source_report(upba)],
+            upba_coverage_profile=_upba_coverage_profile(),
             upba_source_kind="production-shadow",
             upba_source_descriptor="prod-shadow:2026-05-01..2026-05-09",
             upba_market_day_count=9,
@@ -120,6 +125,7 @@ def test_bundle_rejects_source_manifest_hash_mismatch() -> None:
                 source_reports=[_artifact("autotrader-shadow-bridge", autotrader)],
             ),
             autotrader_source_reports=[_source_report(autotrader)],
+            autotrader_coverage_profile=_autotrader_coverage_profile(),
             autotrader_source_kind="production-shadow",
             autotrader_source_descriptor="prod-shadow:autotrader:2026-05-01..2026-05-09",
             autotrader_market_day_count=9,
@@ -140,11 +146,18 @@ def test_cli_writes_bundle_json_and_markdown(tmp_path: Path) -> None:
     upba_path = tmp_path / "upba_benchmark.json"
     autotrader_path = tmp_path / "autotrader_shadow_bridge.json"
     upba_manifest_path = tmp_path / "upba_manifest.json"
+    upba_coverage_path = tmp_path / "upba_coverage.json"
     autotrader_manifest_path = tmp_path / "autotrader_manifest.json"
+    autotrader_coverage_path = tmp_path / "autotrader_coverage.json"
     output_json = tmp_path / "bundle.json"
     output_markdown = tmp_path / "bundle.md"
     upba_path.write_text(json.dumps(upba), encoding="utf-8")
     autotrader_path.write_text(json.dumps(autotrader), encoding="utf-8")
+    upba_coverage_path.write_text(json.dumps(_upba_coverage_profile()), encoding="utf-8")
+    autotrader_coverage_path.write_text(
+        json.dumps(_autotrader_coverage_profile()),
+        encoding="utf-8",
+    )
     upba_manifest_path.write_text(
         json.dumps(
             _source_manifest(
@@ -172,6 +185,8 @@ def test_cli_writes_bundle_json_and_markdown(tmp_path: Path) -> None:
             str(upba_path),
             "--upba-source-manifest",
             str(upba_manifest_path),
+            "--upba-coverage-profile",
+            str(upba_coverage_path),
             "--upba-source-kind",
             "production-shadow",
             "--upba-source-descriptor",
@@ -182,6 +197,8 @@ def test_cli_writes_bundle_json_and_markdown(tmp_path: Path) -> None:
             str(autotrader_path),
             "--autotrader-source-manifest",
             str(autotrader_manifest_path),
+            "--autotrader-coverage-profile",
+            str(autotrader_coverage_path),
             "--autotrader-source-kind",
             "production-shadow",
             "--autotrader-source-descriptor",
@@ -202,6 +219,7 @@ def test_cli_writes_bundle_json_and_markdown(tmp_path: Path) -> None:
     assert rc == 0
     assert payload["schema"] == "zenodex/energy/production_evidence_bundle/v1"
     assert payload["decision"] == "allow_ranking_only"
+    assert payload["coverage_profile_checks"]["upba"]["ok"] is True
     assert "ProductionEvidenceBundle" in output_markdown.read_text(encoding="utf-8")
 
 
@@ -286,6 +304,39 @@ def _autotrader_bridge_report() -> dict[str, object]:
             "scorer_authorizes_trade": False,
             "model_output_in_state_root": False,
         },
+    }
+
+
+def _upba_coverage_profile() -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_coverage_profile/v1",
+        "profile_type": "upba",
+        "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:2026-05-01..2026-05-09",
+        "market_day_count": 9,
+        "source_report_count": 1,
+        "batch_count": 1_250,
+        "pool_count": 4,
+        "intent_size_bucket_count": 3,
+        "candidate_family_count": 5,
+        "hard_negative_family_count": 4,
+        "min_batches_per_market_day": 75,
+    }
+
+
+def _autotrader_coverage_profile() -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_coverage_profile/v1",
+        "profile_type": "autotrader",
+        "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:autotrader:2026-05-01..2026-05-09",
+        "market_day_count": 9,
+        "source_report_count": 1,
+        "context_count": 700,
+        "strategy_family_count": 3,
+        "guard_family_count": 4,
+        "decision_family_count": 3,
+        "min_contexts_per_market_day": 50,
     }
 
 

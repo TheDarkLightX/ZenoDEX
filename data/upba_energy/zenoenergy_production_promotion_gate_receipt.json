@@ -64,10 +64,17 @@
     "upba_real_replay": null
   },
   "thresholds": {
+    "min_autotrader_decision_family_count": 3,
+    "min_autotrader_guard_family_count": 4,
     "min_autotrader_real_contexts": 500,
     "min_autotrader_real_rows": 5000,
+    "min_autotrader_strategy_family_count": 3,
     "min_real_market_days": 7,
     "min_top25_recall": 0.99,
+    "min_upba_candidate_family_count": 4,
+    "min_upba_hard_negative_family_count": 4,
+    "min_upba_intent_size_bucket_count": 3,
+    "min_upba_pool_count": 3,
     "min_upba_real_batches": 1000,
     "min_upba_real_candidates": 20000
   }

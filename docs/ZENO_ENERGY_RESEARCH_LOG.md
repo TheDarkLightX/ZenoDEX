@@ -1199,3 +1199,41 @@ still needs real replay provenance, privacy review, and audit trails.
 
 Research consequence: real replay intake is now deterministic enough for an
 operator to package private reports without hand-editing hashes.
+
+## Replay Coverage Profile
+
+Artifact:
+[ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md](./ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_replay_coverage_profile_receipt.json`
+
+Command:
+
+```bash
+python3 tools/check_zenoenergy_replay_coverage_profile.py \
+  --real-report data/private/upba_real_replay_report.json \
+  --coverage-profile data/private/upba_replay_coverage_profile.json \
+  --output-json data/private/upba_replay_coverage_profile_check.json
+```
+
+Positive knowledge:
+
+```text
+The checker forces real replay evidence to show coverage breadth before it can
+support advisory ranking promotion. UPBA profiles cover pools, intent-size
+buckets, candidate families, hard-negative families, and market-day tails.
+AutoTrader profiles cover strategy, guard, and decision families.
+```
+
+Negative knowledge:
+
+```text
+Aggregate batch, candidate, context, or row counts are insufficient when the
+evidence is concentrated in one narrow source family. A passing profile is a
+breadth guard rather than a representativeness proof.
+```
+
+Research consequence: real replay collection now needs source manifests, secret
+scans, and coverage profiles. This moves the production bottleneck from raw
+counts toward replay breadth and data-custody quality.

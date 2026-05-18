@@ -81,6 +81,28 @@ def test_production_gate_blocks_real_report_without_source_manifest() -> None:
     assert observed["source_manifest_ok"] is False
 
 
+def test_production_gate_blocks_real_report_without_coverage_profile() -> None:
+    research_replay = json.loads(
+        (ROOT / "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    upba = _passing_upba_real_replay()
+    upba.pop("coverage_profile")
+
+    report = build_production_gate_report(
+        research_replay=research_replay,
+        upba_real_replay=upba,
+        autotrader_real_shadow=_passing_autotrader_real_shadow(),
+        operator_release_enabled=True,
+    )
+
+    assert report["decision"] == "blocked"
+    observed = _obligation(report, "upba_real_replay_coverage")["observed"]
+    assert isinstance(observed, dict)
+    assert observed["coverage_profile_ok"] is False
+
+
 def test_production_gate_cli_writes_blocked_receipt(tmp_path: Path) -> None:
     output_json = tmp_path / "gate.json"
     output_markdown = tmp_path / "gate.md"
@@ -118,6 +140,7 @@ def _passing_upba_real_replay() -> dict[str, object]:
     return {
         "schema": "zenodex/energy/upba_real_replay_report/v1",
         "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:2026-05-01..2026-05-09",
         "batch_count": 1_250,
         "candidate_count": 25_000,
         "market_day_count": 9,
@@ -129,6 +152,10 @@ def _passing_upba_real_replay() -> dict[str, object]:
         "deterministic_replay_ok": True,
         "no_live_secrets": True,
         "source_manifest": _passing_source_manifest_check(),
+        "coverage_profile": _passing_coverage_profile(
+            "upba",
+            source_descriptor="prod-shadow:2026-05-01..2026-05-09",
+        ),
     }
 
 
@@ -136,6 +163,7 @@ def _passing_autotrader_real_shadow() -> dict[str, object]:
     return {
         "schema": "zenodex/energy/autotrader_real_shadow_report/v1",
         "source_kind": "production-shadow",
+        "source_descriptor": "prod-shadow:autotrader:2026-05-01..2026-05-09",
         "context_count": 700,
         "row_count": 7_500,
         "market_day_count": 9,
@@ -149,6 +177,10 @@ def _passing_autotrader_real_shadow() -> dict[str, object]:
         "scorer_authorizes_trade": False,
         "model_output_in_state_root": False,
         "source_manifest": _passing_source_manifest_check(),
+        "coverage_profile": _passing_coverage_profile(
+            "autotrader",
+            source_descriptor="prod-shadow:autotrader:2026-05-01..2026-05-09",
+        ),
     }
 
 
@@ -163,4 +195,30 @@ def _passing_source_manifest_check() -> dict[str, object]:
         "source_report_count": 1,
         "source_report_match_count": 1,
         "failed_count": 0,
+    }
+
+
+def _passing_coverage_profile(
+    profile_type: str,
+    *,
+    source_descriptor: str,
+) -> dict[str, object]:
+    return {
+        "schema": "zenodex/energy/replay_coverage_profile_check/v1",
+        "ok": True,
+        "profile_type": profile_type,
+        "source_kind": "production-shadow",
+        "source_descriptor": source_descriptor,
+        "market_day_count": 9,
+        "source_report_count": 1,
+        "failed_count": 0,
+        "coverage": {
+            "pool_count": 4,
+            "intent_size_bucket_count": 3,
+            "candidate_family_count": 5,
+            "hard_negative_family_count": 4,
+            "strategy_family_count": 3,
+            "guard_family_count": 4,
+            "decision_family_count": 3,
+        },
     }

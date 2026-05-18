@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 136
-passed_count: 136
+check_count: 142
+passed_count: 142
 failed_count: 0
 ```
 
@@ -84,6 +84,11 @@ failed_count: 0
 | replay_secret_scan.schemas_rules_and_artifacts | pass | receipt and doc record scanner schema, artifacts, and detector rules |
 | replay_secret_scan.source_hooks | pass | scanner source, tests, and manifest builder integration are present |
 | replay_secret_scan.safety_and_limits | pass | receipt preserves advisory boundary and scanner limits |
+| replay_coverage_profile.schema | pass | expected 'zenodex/energy/replay_coverage_profile_receipt/v1', observed 'zenodex/energy/replay_coverage_profile_receipt/v1' |
+| replay_coverage_profile.schemas_thresholds_and_artifacts | pass | receipt and doc record coverage profile schemas, thresholds, and artifacts |
+| replay_coverage_profile.source_hooks | pass | checker validates breadth thresholds, source matching, and summary export |
+| replay_coverage_profile.production_hooks | pass | production gate requires a passing coverage profile on real reports |
+| replay_coverage_profile.safety_and_limits | pass | receipt preserves advisory boundary and representativeness limits |
 | real_replay_report_builder.schema | pass | expected 'zenodex/energy/real_replay_report_builder_receipt/v1', observed 'zenodex/energy/real_replay_report_builder_receipt/v1' |
 | real_replay_report_builder.targets_and_artifacts | pass | receipt and doc record both production-gate report schemas |
 | real_replay_report_builder.source_hygiene_hooks | pass | builder rejects fixture markers and records source hashes, replay/secret attestations, and source manifest checks |
@@ -135,6 +140,7 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_CHECKER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 | pass | H_ZENOENERGY_REPLAY_SOURCE_MANIFEST_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518 | pass | H_ZENOENERGY_REPLAY_SECRET_SCAN_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_REPLAY_COVERAGE_PROFILE_20260518 | pass | H_ZENOENERGY_REPLAY_COVERAGE_PROFILE_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 | pass | H_ZENOENERGY_REAL_REPLAY_REPORT_BUILDER_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 | pass | H_ZENOENERGY_PRODUCTION_EVIDENCE_BUNDLE_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 | pass | H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_SAFETY_20260518 is recorded as supported |
@@ -231,10 +237,10 @@ failed_count: 0
   },
   "production_evidence_bundle": {
     "bundle_schema": "zenodex/energy/production_evidence_bundle/v1",
-    "claim": "ZenoEnergy production-adjacent review now has a single fail-closed evidence bundle command that assembles source-manifested UPBA and AutoTrader real replay reports, then runs the production promotion gate.",
+    "claim": "ZenoEnergy production-adjacent review now has a single fail-closed evidence bundle command that assembles source-manifested and coverage-profiled UPBA and AutoTrader real replay reports, then runs the production promotion gate.",
     "negative_knowledge": [
       "Synthetic and built-in fixture evidence remains research evidence even when the bundle command can parse it.",
-      "Without passing replay source manifests and real replay coverage, the production promotion gate remains blocked.",
+      "Without passing replay source manifests, coverage profiles, and real replay coverage, the production promotion gate remains blocked.",
       "A passing bundle is not a settlement authorization path."
     ],
     "supported_status": "supported"
@@ -254,7 +260,7 @@ failed_count: 0
     "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",
     "negative_knowledge": [
       "Synthetic and built-in fixture reports remain research evidence.",
-      "A real-report JSON without a passing replay source manifest check, replay provenance, and secret-scrubbing custody is insufficient for production promotion."
+      "A real-report JSON without passing replay source manifest and coverage profile checks, replay provenance, and secret-scrubbing custody is insufficient for production promotion."
     ],
     "supported_status": "supported",
     "target_schemas": [
@@ -268,6 +274,31 @@ failed_count: 0
     "original_subset_violation_count": 0,
     "run_count": 3,
     "strict_hand_win_count": 1
+  },
+  "replay_coverage_profile": {
+    "claim": "ZenoEnergy has a deterministic coverage-profile checker that rejects narrow real replay evidence before advisory ranking promotion.",
+    "negative_knowledge": [
+      "Aggregate batch, candidate, context, or row counts are insufficient when coverage is concentrated in one narrow source family.",
+      "A passing coverage profile is not a production authorization path.",
+      "Coverage breadth remains separate from deterministic verifier and policy-guard authority."
+    ],
+    "profile_check_schema": "zenodex/energy/replay_coverage_profile_check/v1",
+    "profile_schema": "zenodex/energy/replay_coverage_profile/v1",
+    "thresholds": {
+      "autotrader": {
+        "min_contexts_per_market_day": 20,
+        "min_decision_family_count": 3,
+        "min_guard_family_count": 4,
+        "min_strategy_family_count": 3
+      },
+      "upba": {
+        "min_batches_per_market_day": 50,
+        "min_candidate_family_count": 4,
+        "min_hard_negative_family_count": 4,
+        "min_intent_size_bucket_count": 3,
+        "min_pool_count": 3
+      }
+    }
   },
   "replay_secret_scan": {
     "claim": "ZenoEnergy has a deterministic replay secret-scan tool that catches obvious key material and sensitive JSON keys before real replay reports are packaged into source manifests.",
