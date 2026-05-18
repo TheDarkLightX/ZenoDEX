@@ -510,17 +510,19 @@ python3 tools/evaluate_autotrader_energy_shadow_bridge.py \
 The built-in deterministic fixture produced 4 contexts, 20 rows, 12 valid
 controller-submit candidates, and 8 deterministic rejections or skips.
 
-| mode | mean guard calls | top-1 recall | top-5 recall | invalid accepts |
-| --- | ---: | ---: | ---: | ---: |
-| random | 3.250 | 0.250 | 1.000 | 0 |
-| hand energy | 2.000 | 0.000 | 1.000 | 0 |
-| learned energy | 2.000 | 0.000 | 1.000 | 0 |
+| mode | mean guard calls | objective guard calls | exact top-1 | objective top-1 | top-5 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| random | 3.250 | 2.000 | 0.250 | 0.500 | 1.000 | 0 |
+| hand energy | 2.000 | 1.000 | 0.000 | 1.000 | 1.000 | 0 |
+| learned energy | 2.000 | 1.000 | 0.000 | 1.000 | 1.000 | 0 |
 
 The bridge is nonvacuous as a schema and boundary replay: it includes both
 valid and invalid controller outcomes, and `invalid_accept_count_total = 0`.
-It also records useful negative knowledge. The learned scorer ties hand energy
-on mean guard calls and does not place the exact shadow winner first. The
-built-in fixture is not live production distribution evidence.
+It also records useful metric knowledge. Exact top-1 recall is zero for hand
+and learned ordering because the fixture has tied valid objective maxima and
+the exact winner is selected by hash among equivalent argmax candidates.
+Objective-equivalent top-1 recall is 1.000 for both hand and learned ordering.
+The built-in fixture is not live production distribution evidence.
 
 ## Fallback And Checked Stop
 
@@ -552,7 +554,7 @@ shadow bridge, formal-boundary receipts, fallback/top-k receipts, and PopperPad
 status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 91 passing checks and 0 failed checks.
+The current receipt reports 93 passing checks and 0 failed checks.
 
 ## Accuracy
 

@@ -231,6 +231,21 @@ beats_hand_refute_edge_ref: sha256:35310b419582d1f6fcc3810fee610a8399d8a09245021
 checkpoint_ref:             sha256:870df1e5ad728a9bc5124c9cd7fe3c1fc488a02ef5b23a8ec7da2ad5006f524c
 ```
 
+### AutoTraderEnergy Shadow Bridge Argmax Equivalence
+
+```text
+json_blob_ref:              sha256:a2a5a5540c6fdad7467c02fa96e74a3d22636136c38aa427f5b83b91a6295269
+markdown_blob_ref:          sha256:3f79b2a520713ed2284bd8f9f0b615dec15323bf430c7a82e318732e2812aca3
+context_ref:                sha256:7b5eaa6865839b101fec538845ac3d57830599ff1dc9e4fcdfb86a8c42691ad9
+json_artifact_ref:          sha256:0d59613f8d7aac9ef6f91a2df0d8638e84339ccdb906ed877324d117792f166e
+markdown_artifact_ref:      sha256:81b6f6470d0209aa16fa8f3f25559047328f0c1785d8b64619c12071d755e640
+recipe_ref:                 sha256:8a86db247bbf197693e9ce4a6664270a93bfd46ac5124e023d70bec8951bb177
+hypothesis_ref:             sha256:ae5a0027209ff3a220251e28a61e2d93f68c77c8050b9f67b8c725784019113c
+evidence_ref:               sha256:e5ce6d5351d11d09950ce8af479574faf4bd3d762de65d13a853ada6aa9b527a
+support_edge_ref:           sha256:abb8fa898d8b960a83c93a5c14f968df28e479c01bb7b060c20ec745c468a6b8
+checkpoint_ref:             sha256:72f21152c12b604a6b8018354ff2f7c957de0c44462e1848b978d23fb1ef792e
+```
+
 ### Research Evidence Replay Gate V3
 
 ```text
@@ -326,6 +341,7 @@ H_AUTOTRADER_ENERGY_HARD_CROSS_SEED_PROFILE_NONVACUOUS_20260518: supported
 H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518: supported
 H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518: supported
 H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518: falsified
+H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518: supported
 doctor_ok: true
 ```
 

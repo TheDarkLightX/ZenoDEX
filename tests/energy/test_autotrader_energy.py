@@ -72,7 +72,9 @@ def test_autotrader_shadow_rows_group_observations_by_family_occurrence() -> Non
     assert sum(1 for row in rows if row["label"]["valid"]) == 6
     assert sum(1 for row in rows if row["label"]["is_winner"]) == 2
     assert report["candidate_count_mean"] == 5
+    assert report["top_1_objective_recall"] >= report["top_1_recall"]
     assert report["top_5_recall"] == 1.0
+    assert report["mean_guard_calls_to_objective_winner"] <= report["mean_guard_calls"]
     assert report["invalid_accept_count"] == 0
     assert report["policy_guards_authoritative"] is True
     assert report["scorer_authorizes_trade"] is False

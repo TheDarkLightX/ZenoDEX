@@ -806,11 +806,19 @@ def _check_autotrader_energy_shadow_bridge(
             "learned ordering ties hand energy, beats random mean calls, and records top-1 miss knowledge",
         ),
         _expect_true(
+            "autotrader_energy_shadow_bridge.objective_equiv_argmax",
+            float(learned["top_1_objective_recall"]) == 1.0
+            and float(learned["mean_guard_calls_to_objective_winner"]) == 1.0
+            and int(learned["objective_tie_batch_count"]) == int(shadow["context_count"])
+            and float(learned["objective_tie_batch_rate"]) == 1.0,
+            "objective-equivalent argmax recall separates tied maxima from hash-selected exact winner misses",
+        ),
+        _expect_true(
             "autotrader_energy_shadow_bridge.doc_boundary",
             "not live production distribution evidence" in doc_lower
             and "schema and boundary replay" in doc_lower
-            and "distribution-transfer gap" in doc_lower,
-            "shadow bridge doc records fixture scope and distribution-transfer gap",
+            and "quotient/equivalence issue" in doc_lower,
+            "shadow bridge doc records fixture scope and argmax-equivalence boundary",
         ),
     ]
 
@@ -843,6 +851,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518": "supported",
         "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518": "supported",
         "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518": "falsified",
+        "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -1044,6 +1053,9 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "learned_mean_guard_calls": autotrader_shadow["modes"]["hybrid"][
                 "mean_guard_calls"
             ],
+            "learned_mean_guard_calls_to_objective_winner": autotrader_shadow[
+                "modes"
+            ]["hybrid"]["mean_guard_calls_to_objective_winner"],
             "hand_mean_guard_calls": autotrader_shadow["modes"]["hand"][
                 "mean_guard_calls"
             ],
@@ -1053,11 +1065,20 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "learned_top_1_recall": autotrader_shadow["modes"]["hybrid"][
                 "top_1_recall"
             ],
+            "learned_top_1_objective_recall": autotrader_shadow["modes"]["hybrid"][
+                "top_1_objective_recall"
+            ],
             "learned_top_5_recall": autotrader_shadow["modes"]["hybrid"][
                 "top_5_recall"
             ],
+            "objective_tie_batch_count": autotrader_shadow["modes"]["hybrid"][
+                "objective_tie_batch_count"
+            ],
             "invalid_accept_count_total": autotrader_shadow["safety"][
                 "invalid_accept_count_total"
+            ],
+            "argmax_equivalence_note": autotrader_shadow["interpretation"][
+                "argmax_equivalence_note"
             ],
             "negative_knowledge": autotrader_shadow["interpretation"][
                 "negative_knowledge"

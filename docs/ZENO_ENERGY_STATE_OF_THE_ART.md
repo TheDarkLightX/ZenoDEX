@@ -181,8 +181,9 @@ observations cover live-like strategy and market distributions.
 The first AutoTraderEnergy shadow bridge now maps deterministic ZenoGraph
 shadow observations into the same advisory row schema. It is useful boundary
 replay, with zero invalid accepts and both valid and invalid controller
-outcomes, but the built-in fixture is too small to establish live-distribution
-ranking quality.
+outcomes, and it shows why ranker receipts should report objective-equivalent
+argmax recall when tied valid maxima exist. The built-in fixture is too small
+to establish live-distribution ranking quality.
 
 ## Research Implications
 

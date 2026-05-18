@@ -130,8 +130,17 @@ def evaluate_shadow_bridge(
                 float(learned["mean_guard_calls"]) < float(hand["mean_guard_calls"])
             ),
             "learned_top_1_recall": learned["top_1_recall"],
+            "learned_top_1_objective_recall": learned["top_1_objective_recall"],
             "learned_mean_guard_calls": learned["mean_guard_calls"],
+            "learned_mean_guard_calls_to_objective_winner": learned[
+                "mean_guard_calls_to_objective_winner"
+            ],
             "hand_mean_guard_calls": hand["mean_guard_calls"],
+            "argmax_equivalence_note": (
+                "Exact top-1 recall uses a hash-selected winner among tied valid objective "
+                "maxima. Objective-equivalent recall treats any valid candidate with the same "
+                "maximal objective as an acceptable argmax representative."
+            ),
             "negative_knowledge": (
                 "The built-in shadow bridge is a deterministic fixture derived from accepted "
                 "ZenoGraph store exports. It is useful for schema and boundary replay, but it is "
@@ -180,24 +189,27 @@ def _markdown_report(report: dict[str, Any]) -> str:
         f"policy_guards_authoritative: {str(report['safety']['policy_guards_authoritative']).lower()}",
         f"scorer_authorizes_trade: {str(report['safety']['scorer_authorizes_trade']).lower()}",
         "",
-        "| mode | mean guard calls | top-1 recall | top-5 recall | invalid accepts |",
-        "| --- | ---: | ---: | ---: | ---: |",
+        "| mode | mean guard calls | objective guard calls | exact top-1 | objective top-1 | top-5 | invalid accepts |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for mode in ("random", "hand", "hybrid"):
         row = report["modes"][mode]
         label = "learned" if mode == "hybrid" else mode
         lines.append(
             f"| {label} | {float(row['mean_guard_calls']):.3f} | "
-            f"{float(row['top_1_recall']):.3f} | {float(row['top_5_recall']):.3f} | "
+            f"{float(row['mean_guard_calls_to_objective_winner']):.3f} | "
+            f"{float(row['top_1_recall']):.3f} | "
+            f"{float(row['top_1_objective_recall']):.3f} | "
+            f"{float(row['top_5_recall']):.3f} | "
             f"{int(row['invalid_accept_count'])} |"
         )
     lines.extend(
         [
             "",
-            "Interpretation: the learned scorer ties hand energy on this fixture. Both",
-            "reduce mean guard calls versus random ordering, but neither puts the exact",
-            "shadow winner first. This records boundary replay and a concrete",
-            "distribution-transfer gap for later model work.",
+            "Interpretation: the learned scorer ties hand energy on exact hash-selected",
+            "winner position, but reaches an objective-equivalent argmax candidate first",
+            "on every context. This records a quotient/equivalence issue in the shadow",
+            "metric: exact top-1 can be zero when the benchmark has tied valid maxima.",
             "",
             str(report["interpretation"]["negative_knowledge"]),
             "",

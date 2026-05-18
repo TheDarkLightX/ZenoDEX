@@ -172,11 +172,11 @@ python3 tools/evaluate_autotrader_energy_shadow_bridge.py \
 
 Observed result:
 
-| mode | mean guard calls | top1 | top5 | invalid accepts |
-| --- | ---: | ---: | ---: | ---: |
-| random | 3.250 | 0.250 | 1.000 | 0 |
-| hand energy | 2.000 | 0.000 | 1.000 | 0 |
-| learned energy | 2.000 | 0.000 | 1.000 | 0 |
+| mode | mean guard calls | objective guard calls | exact top1 | objective top1 | top5 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| random | 3.250 | 2.000 | 0.250 | 0.500 | 1.000 | 0 |
+| hand energy | 2.000 | 1.000 | 0.000 | 1.000 | 1.000 | 0 |
+| learned energy | 2.000 | 1.000 | 0.000 | 1.000 | 1.000 | 0 |
 
 Positive knowledge:
 
@@ -184,7 +184,9 @@ Positive knowledge:
 The shadow bridge converts recorded ZenoGraph AutoTrader observations into the
 same advisory row schema and keeps deterministic policy guards authoritative.
 The fixture is nonvacuous, with 4 contexts, 20 rows, 12 valid candidates, 8
-invalid candidates, and zero invalid accepts.
+invalid candidates, and zero invalid accepts. Objective-equivalent argmax
+recall is 1.000 for hand and learned ordering because the first checked valid
+candidate is in the tied maximum-objective class.
 ```
 
 Negative knowledge:
@@ -192,14 +194,16 @@ Negative knowledge:
 ```text
 The built-in shadow bridge is a deterministic fixture derived from accepted
 ZenoGraph store exports. It is useful for schema and boundary replay, but it is
-not live production distribution evidence. The learned scorer tied hand energy
-and had top1 recall 0.0 on this fixture.
+not live production distribution evidence. Exact top1 recall is 0.0 for hand
+and learned ordering because the exact winner is a hash-selected representative
+inside a tied valid argmax class.
 ```
 
 Research consequence: the next AutoTraderEnergy improvement should train and
 evaluate on larger recorded shadow corpora with multiple candidate plans per
-decision context. The current bridge is ready for that data, but it should stay
-below the policy guard boundary.
+decision context and report both exact-winner and objective-equivalence metrics.
+The current bridge is ready for that data, but it should stay below the policy
+guard boundary.
 
 ## Listwise Set Ranker
 

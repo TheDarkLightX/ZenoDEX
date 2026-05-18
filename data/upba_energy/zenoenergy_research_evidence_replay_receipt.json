@@ -1,5 +1,5 @@
 {
-  "check_count": 91,
+  "check_count": 93,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -317,8 +317,13 @@
       "passed": true
     },
     {
+      "check_id": "autotrader_energy_shadow_bridge.objective_equiv_argmax",
+      "detail": "objective-equivalent argmax recall separates tied maxima from hash-selected exact winner misses",
+      "passed": true
+    },
+    {
       "check_id": "autotrader_energy_shadow_bridge.doc_boundary",
-      "detail": "shadow bridge doc records fixture scope and distribution-transfer gap",
+      "detail": "shadow bridge doc records fixture scope and argmax-equivalence boundary",
       "passed": true
     },
     {
@@ -452,6 +457,11 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518",
+      "detail": "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -459,7 +469,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 91,
+  "passed_count": 93,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -474,14 +484,18 @@
       "safety_pass_count": 3
     },
     "autotrader_energy_shadow_bridge": {
+      "argmax_equivalence_note": "Exact top-1 recall uses a hash-selected winner among tied valid objective maxima. Objective-equivalent recall treats any valid candidate with the same maximal objective as an acceptable argmax representative.",
       "context_count": 4,
       "hand_mean_guard_calls": 2,
       "invalid_accept_count_total": 0,
       "invalid_count": 8,
       "learned_mean_guard_calls": 2,
+      "learned_mean_guard_calls_to_objective_winner": 1,
+      "learned_top_1_objective_recall": 1.0,
       "learned_top_1_recall": 0.0,
       "learned_top_5_recall": 1.0,
       "negative_knowledge": "The built-in shadow bridge is a deterministic fixture derived from accepted ZenoGraph store exports. It is useful for schema and boundary replay, but it is not live production distribution evidence.",
+      "objective_tie_batch_count": 4,
       "random_mean_guard_calls": 3.25,
       "row_count": 20,
       "source": "built-in-zenograph-baseline",

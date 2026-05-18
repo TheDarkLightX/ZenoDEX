@@ -260,11 +260,15 @@ def evaluate_autotrader_rows(
 
     top_ks = (1, 5, 10, 25)
     hits = {k: 0 for k in top_ks}
+    objective_hits = {k: 0 for k in top_ks}
     calls: list[int] = []
+    objective_calls: list[int] = []
     invalid_top_1_count = 0
     invalid_accept_count = 0
     batches = 0
     candidate_counts: list[int] = []
+    argmax_class_sizes: list[int] = []
+    objective_tie_batch_count = 0
 
     for batch_id, batch_rows in by_batch.items():
         winners = [row for row in batch_rows if row["label"]["is_winner"]]
@@ -279,10 +283,29 @@ def evaluate_autotrader_rows(
         winner_position = next(
             index for index, row in enumerate(ordered, start=1) if str(row["candidate_hash"]) == winner_hash
         )
+        winner_objective = float(winners[0]["label"]["objective"])
+        argmax_class_size = sum(
+            1
+            for row in batch_rows
+            if bool(row["label"]["valid"])
+            and _objective_equivalent(float(row["label"]["objective"]), winner_objective)
+        )
+        argmax_class_sizes.append(argmax_class_size)
+        if argmax_class_size > 1:
+            objective_tie_batch_count += 1
+        objective_position = next(
+            index
+            for index, row in enumerate(ordered, start=1)
+            if bool(row["label"]["valid"])
+            and _objective_equivalent(float(row["label"]["objective"]), winner_objective)
+        )
         calls.append(winner_position)
+        objective_calls.append(objective_position)
         for k in top_ks:
             if winner_position <= min(k, len(ordered)):
                 hits[k] += 1
+            if objective_position <= min(k, len(ordered)):
+                objective_hits[k] += 1
         accepted = _first_guard_accepted(ordered)
         if accepted is not None and not bool(accepted["label"]["valid"]):
             invalid_accept_count += 1
@@ -296,9 +319,19 @@ def evaluate_autotrader_rows(
         "top_5_recall": _ratio(hits[5], batches),
         "top_10_recall": _ratio(hits[10], batches),
         "top_25_recall": _ratio(hits[25], batches),
+        "top_1_objective_recall": _ratio(objective_hits[1], batches),
+        "top_5_objective_recall": _ratio(objective_hits[5], batches),
+        "top_10_objective_recall": _ratio(objective_hits[10], batches),
+        "top_25_objective_recall": _ratio(objective_hits[25], batches),
         "mean_guard_calls": mean(calls) if calls else 0.0,
         "p95_guard_calls": _percentile(calls, 0.95),
         "p99_guard_calls": _percentile(calls, 0.99),
+        "mean_guard_calls_to_objective_winner": mean(objective_calls) if objective_calls else 0.0,
+        "p95_guard_calls_to_objective_winner": _percentile(objective_calls, 0.95),
+        "p99_guard_calls_to_objective_winner": _percentile(objective_calls, 0.99),
+        "objective_tie_batch_count": objective_tie_batch_count,
+        "objective_tie_batch_rate": _ratio(objective_tie_batch_count, batches),
+        "argmax_class_size_mean": mean(argmax_class_sizes) if argmax_class_sizes else 0.0,
         "invalid_top_1_rate": _ratio(invalid_top_1_count, batches),
         "invalid_accept_count": invalid_accept_count,
         "policy_guards_authoritative": True,
@@ -692,6 +725,10 @@ def _clip01(value: float) -> float:
 
 def _ratio(numerator: int, denominator: int) -> float:
     return 0.0 if denominator == 0 else numerator / denominator
+
+
+def _objective_equivalent(left: float, right: float) -> bool:
+    return abs(float(left) - float(right)) <= 1e-9
 
 
 def _percentile(values: list[int], fraction: float) -> int:
