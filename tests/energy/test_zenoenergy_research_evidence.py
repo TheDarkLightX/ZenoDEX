@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 49
+    assert report["passed_count"] == report["check_count"] == 55
     assert {
         "set_aware.negative_knowledge_recorded",
         "neighborhood.call_cost_negative",
@@ -27,6 +27,12 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "fallback_permutation_audit.checked_stop_offline",
         "topk_sweep.learned_checked_stop_k2",
         "topk_sweep.random_top10_negative",
+        "sota_decision_map.schema",
+        "sota_decision_map.sources_and_boundary",
+        "sota_decision_map.decisions",
+        "sota_decision_map.next_experiments",
+        "sota_decision_map.negative_knowledge",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
+        "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
     }.issubset(check_ids)

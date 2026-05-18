@@ -410,8 +410,9 @@ The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, neighborhood benchmark, repair selector,
 cross-seed stress, formal-boundary receipts, fallback/top-k receipts, and
-PopperPad status ledger. The current receipt reports 50 passing checks and 0
-failed checks.
+PopperPad status ledger. It also checks the SOTA decision-map receipt:
+[ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
+The current receipt reports 56 passing checks and 0 failed checks.
 
 ## Accuracy
 
@@ -481,6 +482,6 @@ for UPBA v2, and it does not add a consensus claim.
 
 Recommendation: keep the isolated scorer and benchmark harness, with the
 gap-weighted checkpoint as the current research default. Next work should train
-the optional tiny MLP when PyTorch is available, compare against a finalized v2
-bounded-grid optimality verifier, and add a real or replayed non-private corpus
-once the production data policy is defined.
+the listwise set ranker, train the repair selector on outcome-level labels,
+refresh hard negatives, prototype a dominance-cover certificate, and compare
+against a finalized v2 bounded-grid optimality verifier.

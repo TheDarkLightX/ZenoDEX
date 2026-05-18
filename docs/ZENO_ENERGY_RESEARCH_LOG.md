@@ -301,6 +301,32 @@ stop needs dominance over both the checked prefix and unchecked suffix, plus the
 exact finite candidate family premise. Top-k recall remains empirical evidence
 unless those proof obligations are supplied.
 
+## SOTA Decision Map
+
+Artifact:
+[ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_sota_decision_map_receipt.json`
+
+The decision map ties current energy-model, set-ranking, and solver-learning
+literature to concrete ZenoEnergy experiments. It records these decisions:
+
+```text
+full generative EBM: defer
+pairwise linear ranking: keep as baseline
+listwise set ranker: test next
+larger transformer: defer
+learned repair selector: continue
+top-k without fallback: reject
+online checked stop: prototype only with suffix-bound certificate
+```
+
+Research consequence: the next high-value experiments are a listwise set ranker,
+an outcome-level repair selector, refreshed hard negatives, and a
+dominance-cover certificate prototype. The map is guidance for the research
+queue. It does not change the verifier-authoritative settlement boundary.
+
 ## Research Evidence Replay Gate
 
 Artifact:
@@ -317,19 +343,19 @@ python3 tools/check_zenoenergy_research_evidence.py \
   --output-markdown docs/ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md
 ```
 
-Observed result:
+Observed result after adding the SOTA decision-map receipt:
 
 | checks | passed | failed |
 | ---: | ---: | ---: |
-| 50 | 50 | 0 |
+| 56 | 56 | 0 |
 
 The gate checks that the committed set-aware, neighborhood, repair-selector,
-cross-seed, formal-boundary, fallback/top-k, and PopperPad doctor evidence
-still support the current research story. It also preserves negative knowledge:
-set-aware linear features have no measured win over the aggregate ranker,
-deterministic neighborhood expansion reduces regret while increasing verifier
-work, and the learned repair selector has not consistently beaten the
-hand-selected two-proposal subset.
+cross-seed, formal-boundary, fallback/top-k, SOTA decision-map, and PopperPad
+doctor evidence still support the current research story. It also preserves
+negative knowledge: set-aware linear features have no measured win over the
+aggregate ranker, deterministic neighborhood expansion reduces regret while
+increasing verifier work, and the learned repair selector has not consistently
+beaten the hand-selected two-proposal subset.
 
 Research consequence: future ZenoEnergy changes should update this replay gate
 when they promote or retire a research claim. A failing gate means either the
@@ -439,6 +465,36 @@ support_edge_ref:           sha256:e8495444432fae5381c6b59beec1910dddd43b6a46c89
 checkpoint_ref:             sha256:3aa0418be9bbaa8e81655128a724b6be1a9b32702626cc8e5e1513671cb6d41d
 ```
 
+SOTA decision-map refs:
+
+```text
+receipt_blob_ref:           sha256:6fa3b68ffe639bed30ac8d10771da0fd8614a26b65d10007bee2153682c8cb67
+doc_blob_ref:               sha256:32a5e8eb9dbc47bc2e5c4068d268fa3862c2ab1b09cb523dce6d7d1125a25521
+context_ref:                sha256:568e41025a02d49fb7f63e78ebfedabaa286cd162925d42f56901b17a4d6dcf2
+receipt_artifact_ref:       sha256:f0155890c5a08a79c3e4e96dfa4c37d42e0b44d96633067a0ada537e076c3965
+doc_artifact_ref:           sha256:c30c09ef36db090b0c89e725888b86507169130d9d303bc3e0fd79ab8ea8f3d0
+recipe_ref:                 sha256:a6ef2642f0ec9d817919250eae6081113d4cdf56b7be1de7cff2eb4f80ab37e3
+hypothesis_ref:             sha256:01ed80d3b2939df31ac04a954aeef626bbae2f9f1974b501df0d6d27ec2f2440
+evidence_ref:               sha256:9b0f1e7334e0c4b610a99421426e57f06d6bfbce42d6096ecd4131bbed15ab4f
+support_edge_ref:           sha256:a2eef8393a30ad21bec02ec01f1ffc2ef6cdf7d5f5e987543a17a3c464a981ab
+checkpoint_ref:             sha256:42ab7699c464cfe590c0a397280d60dce9d604ac9ba044f3ff060662d9df4df9
+```
+
+Research evidence replay v3 refs:
+
+```text
+json_blob_ref:              sha256:eacec80f4699b916b3a469ad9292a6b15f10b1831e7beee341138bfbdfff9999
+markdown_blob_ref:          sha256:c5ba84e0f920b513f63ffe78b5b92d0d0807acfaf3a4be737bd7525b09bfa4f4
+context_ref:                sha256:0dd989904d54586081bdb157a09343a0f7f3787a813e36bb0c5cf3773e50d1c3
+json_artifact_ref:          sha256:cc2d4beb131232d19ee147456036de5b66c360b7524e8cfffaba09514220cc10
+markdown_artifact_ref:      sha256:68e3ef55518ed41a01f15faad3b924b22a16578b90f5f9d6ba5e2dc6f75566e2
+recipe_ref:                 sha256:178fa1b54800590359208bdd91b77831d623f38b82a37a22198bf7c9f7a61eb9
+hypothesis_ref:             sha256:dabd7314ae604ff9bd3a47480cfa75dc2d5230ac4b3806191c703c6dbb0f34a8
+evidence_ref:               sha256:3021a12d485552d89dcc222696920b1e12a2beb940df538f398f93a2c134b4e4
+support_edge_ref:           sha256:9d50089ff73d13b26a29bb9af97292bad7ff0f098ccaa5a265ee4b43cf7d3079
+checkpoint_ref:             sha256:26c16f6e1063a395e12d5dc5827c9f3d7e5389bdbe5e232efcc55be7281e423d
+```
+
 Derived PopperPad status:
 
 ```text
@@ -457,6 +513,8 @@ H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517: supported
 H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517: supported
 H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260517_V2: supported
+H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518: supported
+H_ZENOENERGY_RESEARCH_EVIDENCE_REPLAY_GATE_20260518_V3: supported
 doctor_ok: true
 ```
 

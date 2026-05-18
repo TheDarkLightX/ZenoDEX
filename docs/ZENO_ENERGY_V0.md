@@ -10,6 +10,8 @@ Academic PDF: [ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UP
 
 Academic state-of-the-art notes: [ZenoEnergy State Of The Art Notes](./ZENO_ENERGY_STATE_OF_THE_ART.md)
 
+SOTA decision map: [ZenoEnergy SOTA Decision Map](./ZENO_ENERGY_SOTA_DECISION_MAP.md)
+
 Set-aware ranker extension: [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md)
 
 Neighborhood repair benchmark: [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md)

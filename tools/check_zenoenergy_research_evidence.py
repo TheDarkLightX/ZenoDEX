@@ -113,6 +113,15 @@ def replay_zenoenergy_evidence(
     payloads["topk_sweep"] = topk_sweep
     checks.extend(_check_topk_sweep(topk_sweep))
 
+    sota_decision_map = _load_json(
+        root / "data/upba_energy/upba_v2_sota_decision_map_receipt.json"
+    )
+    sota_doc = (
+        root / str(sota_decision_map["artifact"])
+    ).read_text(encoding="utf-8")
+    payloads["sota_decision_map"] = sota_decision_map
+    checks.extend(_check_sota_decision_map(sota_decision_map, sota_doc))
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -423,6 +432,100 @@ def _check_topk_sweep(report: dict[str, Any]) -> list[EvidenceCheck]:
     ]
 
 
+def _check_sota_decision_map(
+    report: dict[str, Any],
+    doc_text: str,
+) -> list[EvidenceCheck]:
+    expected_decisions = {
+        "full generative EBM: defer",
+        "pairwise linear ranking: keep as baseline",
+        "listwise set ranker: test next",
+        "larger transformer: defer",
+        "learned repair selector: continue",
+        "top-k without fallback: reject",
+        "online checked stop: prototype only with suffix-bound certificate",
+    }
+    expected_experiments = {
+        "listwise set ranker",
+        "repair selector with outcome-level labels",
+        "hard-negative generator refresh",
+        "dominance-cover certificate prototype",
+    }
+    expected_negative = {
+        "set-aware linear ranker did not beat aggregate learned baseline",
+        "deterministic neighborhood repair reduced regret but increased verifier work",
+        "learned repair selector did not consistently beat hand-selected repairs",
+    }
+    required_sources = {
+        "https://cs.nyu.edu/~yann/research/ebm/",
+        "https://neurips.cc/virtual/2006/tutorial/3",
+        "https://arxiv.org/abs/2101.03288",
+        "https://logicalintelligence.com/blog/energy-based-models-for-reasoning",
+        "https://papers.nips.cc/paper/6931-deep-sets",
+        "https://proceedings.mlr.press/v97/lee19d.html",
+        "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2007-40.pdf",
+        "https://ojs.aaai.org/index.php/AAAI/article/view/10080",
+        "https://papers.neurips.cc/paper/9690-exact-combinatorial-optimization-with-graph-convolutional-neural-networks",
+        "https://arxiv.org/abs/2107.10201",
+    }
+    doc_lower = doc_text.lower()
+    decisions = set(str(item) for item in report["required_decisions"])
+    experiments = set(str(item) for item in report["next_experiments"])
+    negative = set(str(item) for item in report["negative_knowledge"])
+    doc_decision_terms = {
+        "full generative ebm",
+        "defer",
+        "pairwise linear ranking",
+        "keep as baseline",
+        "listwise set ranker",
+        "test next",
+        "larger transformer",
+        "learned repair selector",
+        "continue",
+        "top-k without fallback",
+        "reject",
+        "online checked stop",
+        "prototype only with suffix-bound certificate",
+    }
+    return [
+        _expect_equal(
+            "sota_decision_map.schema",
+            report.get("schema"),
+            "zenodex/energy/upba_v2_sota_decision_map_receipt/v1",
+        ),
+        _expect_true(
+            "sota_decision_map.sources_and_boundary",
+            int(report["source_count"]) >= len(required_sources)
+            and all(source in doc_text for source in required_sources)
+            and "model proposes" in doc_lower
+            and "verifier decides" in doc_lower
+            and "fallback or certificate preserves exactness" in doc_lower,
+            "decision map records all required sources and verifier/fallback boundary",
+        ),
+        _expect_true(
+            "sota_decision_map.decisions",
+            expected_decisions.issubset(decisions)
+            and all(term in doc_lower for term in doc_decision_terms),
+            "all required model-direction decisions are recorded in receipt and doc",
+        ),
+        _expect_true(
+            "sota_decision_map.next_experiments",
+            expected_experiments.issubset(experiments)
+            and all(experiment in doc_lower for experiment in expected_experiments),
+            "all next experiments are recorded in receipt and doc",
+        ),
+        _expect_true(
+            "sota_decision_map.negative_knowledge",
+            expected_negative.issubset(negative)
+            and "negative knowledge" in doc_lower
+            and "research guidance rather than benchmark evidence" in " ".join(
+                str(limit).lower() for limit in report["limits"]
+            ),
+            "negative knowledge and guidance-only limit are preserved",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -438,6 +541,7 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517": "falsified",
         "H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517": "supported",
         "H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517": "supported",
+        "H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -491,6 +595,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     repair_cross = payloads["repair_selector_cross_seed"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
+    sota_decision_map = payloads["sota_decision_map"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -531,6 +636,13 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "random_k10_false_exclusion_rate": topk_sweep["modes"]["random"]["top_k"]["10"][
                 "false_exclusion_rate"
             ],
+        },
+        "sota_decision_map": {
+            "source_count": sota_decision_map["source_count"],
+            "required_decision_count": len(sota_decision_map["required_decisions"]),
+            "next_experiment_count": len(sota_decision_map["next_experiments"]),
+            "negative_knowledge_count": len(sota_decision_map["negative_knowledge"]),
+            "claim": sota_decision_map["claim"],
         },
     }
 
