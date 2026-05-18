@@ -81,6 +81,26 @@ def replay_zenoenergy_evidence(
     payloads["listwise_cross_seed"] = listwise_cross_seed
     checks.extend(_check_listwise_cross_seed(listwise_cross_seed))
 
+    gap_weighted_stress = _load_json(
+        root / "data/upba_energy/upba_v2_energy_gap_weighted_cross_seed_stress_250x3x3.json"
+    )
+    gap_weighted_hard_cases = _load_json(
+        root / "data/upba_energy/upba_v2_energy_gap_weighted_hard_cases_500x3x3.json"
+    )
+    gap_weighted_model_audit = _load_json(
+        root / "data/upba_energy/upba_v2_energy_gap_weighted_model_audit.json"
+    )
+    payloads["gap_weighted_stress"] = gap_weighted_stress
+    payloads["gap_weighted_hard_cases"] = gap_weighted_hard_cases
+    payloads["gap_weighted_model_audit"] = gap_weighted_model_audit
+    checks.extend(
+        _check_gap_weighted_default(
+            gap_weighted_stress,
+            gap_weighted_hard_cases,
+            gap_weighted_model_audit,
+        )
+    )
+
     neighborhood = _load_json(
         root / "data/upba_energy/upba_v2_energy_neighborhood_benchmark_seed20260525.json"
     )
@@ -258,6 +278,59 @@ def _check_listwise_cross_seed(report: dict[str, Any]) -> list[EvidenceCheck]:
             and "did not strictly improve"
             in str(report["interpretation"]["negative_knowledge"]),
             "listwise ranker does not strictly improve over pairwise on cross-seed stress",
+        ),
+    ]
+
+
+def _check_gap_weighted_default(
+    stress: dict[str, Any],
+    hard_cases: dict[str, Any],
+    model_audit: dict[str, Any],
+) -> list[EvidenceCheck]:
+    learned = stress["summary"]["learned"]
+    hand = stress["summary"]["hand"]
+    hard_summary = hard_cases["summary"]
+    return [
+        _expect_true(
+            "gap_weighted_default.schemas",
+            stress.get("schema") == "zenodex/energy/upba_v2_cross_seed_stress/v1"
+            and hard_cases.get("schema") == "zenodex/energy/upba_v2_hard_case_mining/v1"
+            and model_audit.get("schema") == "zenodex/energy/upba_v2_model_inspection/v1",
+            "gap-weighted stress, hard-case, and model-audit schemas are stable",
+        ),
+        _expect_true(
+            "gap_weighted_default.cross_seed_safety",
+            int(learned["invalid_accept_count_total"]) == 0
+            and float(learned["top_10_recall_min"]) == 1.0
+            and float(learned["top_5_recall_min"]) == 1.0
+            and float(learned["p99_verifier_calls_max"]) <= 2.0
+            and float(learned["mean_verifier_calls_max"]) <= 1.04,
+            "learned gap-weighted scorer has zero invalid accepts, complete top-10 recall, and low p99 calls",
+        ),
+        _expect_true(
+            "gap_weighted_default.cross_seed_beats_hand",
+            float(learned["mean_verifier_calls_mean"]) < float(hand["mean_verifier_calls_mean"])
+            and float(learned["top_1_recall_mean"]) > float(hand["top_1_recall_mean"])
+            and float(learned["top_5_recall_min"]) >= float(hand["top_5_recall_min"]),
+            "learned gap-weighted scorer improves mean verifier calls and top-1 recall over hand energy",
+        ),
+        _expect_true(
+            "gap_weighted_default.hard_case_recall",
+            int(hard_summary["top5_miss_count"]) == 0
+            and int(hard_summary["top10_miss_count"]) == 0
+            and float(hard_summary["top_5_recall"]) == 1.0
+            and float(hard_summary["top_10_recall"]) == 1.0
+            and float(hard_summary["max_p99_winner_position"]) <= 2.0,
+            "hard-case mining has no top-5/top-10 misses and p99 winner position at most 2",
+        ),
+        _expect_true(
+            "gap_weighted_default.model_audit_boundary",
+            int(model_audit["feature_dim"]) == 96
+            and int(model_audit["parameter_count"]) == 97
+            and list(model_audit["forbidden_feature_names"]) == []
+            and int(model_audit["reserved_nonzero_count"]) == 0
+            and float(model_audit["reserved_weight_abs_sum"]) == 0.0,
+            "model audit keeps the tiny linear scorer away from forbidden and reserved features",
         ),
     ]
 
@@ -631,6 +704,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_LISTWISE_SET_RANKER_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
         "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_SAFETY_20260518": "supported",
         "H_ZENOENERGY_LISTWISE_SET_RANKER_CROSS_SEED_STRICTLY_IMPROVES_PAIRWISE_20260518": "falsified",
+        "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_SAFETY_20260518": "supported",
+        "H_ZENOENERGY_GAP_WEIGHTED_DEFAULT_BEATS_HAND_ENERGY_20260518": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -684,6 +759,9 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     repair_cross = payloads["repair_selector_cross_seed"]
     listwise_set = payloads["listwise_set"]
     listwise_cross = payloads["listwise_cross_seed"]
+    gap_weighted_stress = payloads["gap_weighted_stress"]
+    gap_weighted_hard_cases = payloads["gap_weighted_hard_cases"]
+    gap_weighted_audit = payloads["gap_weighted_model_audit"]
     fallback_audit = payloads["fallback_permutation_audit"]
     topk_sweep = payloads["topk_sweep"]
     sota_decision_map = payloads["sota_decision_map"]
@@ -725,6 +803,32 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "permutation_violation_count"
             ],
             "negative_knowledge": listwise_cross["interpretation"]["negative_knowledge"],
+        },
+        "gap_weighted_default": {
+            "cross_seed_configs": gap_weighted_stress["summary"]["learned"]["configs"],
+            "learned_mean_verifier_calls": gap_weighted_stress["summary"]["learned"][
+                "mean_verifier_calls_mean"
+            ],
+            "hand_mean_verifier_calls": gap_weighted_stress["summary"]["hand"][
+                "mean_verifier_calls_mean"
+            ],
+            "learned_top_10_recall_min": gap_weighted_stress["summary"]["learned"][
+                "top_10_recall_min"
+            ],
+            "learned_invalid_accept_count_total": gap_weighted_stress["summary"][
+                "learned"
+            ]["invalid_accept_count_total"],
+            "hard_case_batches_with_winner": gap_weighted_hard_cases["summary"][
+                "batches_with_winner"
+            ],
+            "hard_case_top_10_recall": gap_weighted_hard_cases["summary"][
+                "top_10_recall"
+            ],
+            "hard_case_top10_miss_count": gap_weighted_hard_cases["summary"][
+                "top10_miss_count"
+            ],
+            "model_parameter_count": gap_weighted_audit["parameter_count"],
+            "model_reserved_nonzero_count": gap_weighted_audit["reserved_nonzero_count"],
         },
         "neighborhood_regret_delta": payloads["neighborhood"]["deltas"][
             "mean_volume_regret_delta"

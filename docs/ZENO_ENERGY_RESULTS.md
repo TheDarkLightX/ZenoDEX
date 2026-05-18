@@ -482,11 +482,11 @@ deterministic suffix-bound certificate or full fallback.
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
-benchmark, repair selector, listwise cross-seed stress, cross-seed stress,
-formal-boundary receipts, fallback/top-k receipts, and PopperPad status ledger.
-It also checks the SOTA decision-map receipt:
+benchmark, repair selector, listwise cross-seed stress, gap-weighted default,
+cross-seed stress, formal-boundary receipts, fallback/top-k receipts, and
+PopperPad status ledger. It also checks the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 68 passing checks and 0 failed checks.
+The current receipt reports 75 passing checks and 0 failed checks.
 
 ## Accuracy
 
