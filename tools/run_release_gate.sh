@@ -125,6 +125,7 @@ echo "== release: DEX value-moving entrypoints =="
 
 echo "== release: dependency pinning status =="
 "$PY" "$ROOT_DIR/tools/check_dependency_pinning_status.py"
+"$PY" "$ROOT_DIR/tools/check_python_hash_locks.py"
 
 echo "== release: proof toolchain lock =="
 "$PY" "$ROOT_DIR/tools/check_proof_toolchain_lock.py"
