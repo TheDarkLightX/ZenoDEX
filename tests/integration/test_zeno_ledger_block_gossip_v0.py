@@ -133,9 +133,24 @@ def test_block_gossip_rejects_replayed_or_skipped_height(
     try:
         accept_block_gossip_envelope_v0(data_dir=target, envelope=envelope)
     except ValueError as exc:
-        assert "exactly one height" in str(exc)
+        assert "duplicate gossip envelope" in str(exc)
     else:  # pragma: no cover - defensive assertion
         raise AssertionError("replayed gossip block was accepted")
+
+
+def test_block_gossip_rejects_body_transaction_flood(
+    tmp_path: Path,
+    baseline_nodes: tuple[Path, Path, Path],
+) -> None:
+    _, source, target = _node_pair(tmp_path, baseline_nodes)
+    envelope = _faucet_gossip_envelope(source)
+
+    try:
+        accept_block_gossip_envelope_v0(data_dir=target, envelope=envelope, max_body_transactions=0)
+    except ValueError as exc:
+        assert "transaction count exceeds maximum" in str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("oversized gossip block was accepted")
 
 
 def test_block_gossip_http_route_is_opt_in(

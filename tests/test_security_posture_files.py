@@ -72,15 +72,18 @@ def test_release_gate_runs_zeno_ledger_validator_schedule_peer_check() -> None:
     assert "src/integration/zeno_ledger_live_quorum_v0.py" in release_gate
     assert "src/integration/zeno_ledger_block_gossip_v0.py" in release_gate
     assert "src/integration/zeno_ledger_bonded_slashing_v0.py" in release_gate
+    assert "src/integration/zeno_ledger_dynamic_peers_v0.py" in release_gate
     assert "src/integration/zeno_ledger_peer_discovery_v0.py" in release_gate
     assert "src/integration/zeno_ledger_validator_schedule_v0.py" in release_gate
     assert "tools/check_zeno_ledger_block_gossip.py" in release_gate
     assert "tools/check_zeno_ledger_bonded_slashing.py" in release_gate
+    assert "tools/check_zeno_ledger_dynamic_peers.py" in release_gate
     assert "tools/check_zeno_ledger_peer_discovery.py" in release_gate
     assert "tools/zeno_ledger_machine_b_acceptance.py" in release_gate
     assert "tools/zeno_ledger_node.py" in release_gate
     assert "tests/integration/test_zeno_ledger_block_gossip_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_bonded_slashing_v0.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_live_quorum_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_node_transport_auth.py" in release_gate
     assert "tests/integration/test_zeno_ledger_peer_discovery_v0.py" in release_gate
