@@ -467,6 +467,19 @@ winner weakly maximal over checked prefix
 the finite-list certificate to a scoped feasible predicate when the full list
 has exact coverage.
 
+The same Lean boundary also records the negative theorem that energy order
+alone is insufficient:
+
+```text
+energy_order_alone_does_not_imply_true_weakly_best
+energy_order_alone_does_not_imply_true_weakly_max
+```
+
+These two counterexamples cover minimization-style verifier cost and
+maximization-style verifier score. They formalize the research rule that low
+energy may set priority, while deterministic verification or a checked-stop
+certificate supplies settlement authority.
+
 The holdout top-k sweep separates exact winner recall from checked-stop audit
 success. On the 39,979-row holdout dataset, learned and hybrid ordering reached
 checked-stop audit success of 100.0% by `k = 2`. Hand energy reached 99.6% at

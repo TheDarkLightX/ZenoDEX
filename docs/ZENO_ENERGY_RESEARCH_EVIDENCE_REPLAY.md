@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 213
-passed_count: 213
+check_count: 219
+passed_count: 219
 failed_count: 0
 ```
 
@@ -49,6 +49,10 @@ failed_count: 0
 | fallback_checked_stop_formal.no_placeholders | pass | Lean source has no sorry/admit/axiom/unsafe placeholders |
 | fallback_checked_stop_formal.scope_limit | pass | receipt states online early-stop suffix-bound limit |
 | fallback_checked_stop_formal.objective_equivalence_limit | pass | receipt states objective-equivalent verifier-acceptance limit |
+| energy_order_alone_formal.schema | pass | expected 'zenodex/energy/energy_order_alone_formal_receipt/v1', observed 'zenodex/energy/energy_order_alone_formal_receipt/v1' |
+| energy_order_alone_formal.commands | pass | Lean boundary target and focused formal regression are recorded as passing |
+| energy_order_alone_formal.names | pass | energy-order-alone counterexample theorem names are present in receipt and Lean source |
+| energy_order_alone_formal.negative_boundary | pass | receipt and docs preserve the model-proposes verifier-decides boundary |
 | fallback_permutation_audit.schema | pass | expected 'zenodex/energy/upba_v2_benchmark_report/v1', observed 'zenodex/energy/upba_v2_benchmark_report/v1' |
 | fallback_permutation_audit.zero_invalid_accepts | pass | all fallback audit modes have zero invalid accepts |
 | fallback_permutation_audit.permutation_premise | pass | all audit modes preserve the full-fallback permutation premise |
@@ -221,6 +225,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 | pass | H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519 | pass | H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 | pass | H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519 | pass | H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519 | pass | H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -298,6 +304,19 @@ failed_count: 0
     "random_full_fallback_count": 5,
     "random_mean_prefix_checked_count": 12.882352941176471,
     "schema": "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1"
+  },
+  "energy_order_alone_formal": {
+    "claim": "Advisory energy ordering alone is not a verifier-facing optimality certificate. A low-energy first candidate can fail true weak optimality for both minimization and maximization unless deterministic verifier or certificate premises are supplied.",
+    "formal_names": [
+      "theorem energy_order_alone_does_not_imply_true_weakly_best",
+      "theorem energy_order_alone_does_not_imply_true_weakly_max"
+    ],
+    "formal_target": "lean-mathlib/Proofs/ZenoEnergyAdvisoryBoundary.lean",
+    "negative_knowledge": [
+      "A learned energy ranker can prioritize search but cannot prove verifier optimality from ordering alone.",
+      "Low energy for an invalid or suboptimal candidate is harmless only because deterministic verification and fallback/certificate checks remain authoritative."
+    ],
+    "schema": "zenodex/energy/energy_order_alone_formal_receipt/v1"
   },
   "epiplexity_literature": {
     "decision": "use_epiplexity_for_training_data_selection_only",

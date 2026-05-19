@@ -906,6 +906,12 @@ This is useful negative knowledge: the epiplexity proxy exposed learnable
 hard-negative structure, but the bounded curriculum ranker did not improve the
 task metric. Keep the gap-weighted default.
 
+The formal advisory boundary now also records the energy-order-alone
+counterexample in
+[ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md).
+Lean proves that low energy ordering alone does not imply true verifier
+weak-optimality for either minimization or maximization objectives.
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -925,11 +931,12 @@ dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
 receipt, the suffix-bound adversarial family stress receipt, the negative
 curriculum epiplexity receipt, the curriculum-ranker negative result, the
-epiplexity literature boundary receipt, and
+epiplexity literature boundary receipt, the energy-order-alone formal boundary,
+and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 213 passing checks and 0 failed checks, including
+The current receipt reports 219 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

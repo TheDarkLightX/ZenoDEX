@@ -1773,3 +1773,26 @@ Negative knowledge:
 Rare-disqualifier pair weighting did not beat the gap-weighted default on this
 bounded probe. The next attempt needs a stronger data-generation or loss change.
 ```
+
+## Energy-Order-Alone Formal Boundary
+
+Artifact:
+[ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)
+
+Receipt:
+`data/upba_energy/zenoenergy_energy_order_alone_formal_receipt.json`
+
+Lean target:
+`lean-mathlib/Proofs/ZenoEnergyAdvisoryBoundary.lean`
+
+Checked theorem names:
+
+```text
+energy_order_alone_does_not_imply_true_weakly_best
+energy_order_alone_does_not_imply_true_weakly_max
+```
+
+Research consequence: the repo now has a machine-checked counterexample to the
+claim that low energy ordering alone is a verifier-facing optimality proof. The
+ranker may reduce search cost only when deterministic verification, full
+fallback, or a suffix-bound checked-stop certificate supplies the authority.

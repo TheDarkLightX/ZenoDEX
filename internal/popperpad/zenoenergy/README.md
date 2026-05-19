@@ -678,6 +678,25 @@ negative_edge_ref:                   sha256:f188904381089fc7eebad40c882ac4ae61a4
 checkpoint_ref:                      sha256:833307e7cc6320bc0a716415b25652847d3005baf91da60a595411c971215092
 ```
 
+### Energy Order Alone Formal Boundary
+
+```text
+json_blob_ref:                       sha256:ad8ed800203cb08dda29613c62faacfc7e3f8f0cdab57097d519d73ba0b856b6
+markdown_blob_ref:                   sha256:151318bcf5e02eda30503568e0e152a15aaae8c81ef33ee30025db5bb50315f4
+context_ref:                         sha256:63532d289690ea878027e1c7672e8fe27548bd3b18be3ed3d5d989703c1a3c3c
+json_artifact_ref:                   sha256:a1d1837cea7737dd5cbb738129180124cfd05b638d2256e2bb31e5684c188287
+markdown_artifact_ref:               sha256:831b7c8acec7165a06845bf533e3a34c69830f4bfd4efc567cb36deb5bba82d2
+support_recipe_ref:                  sha256:4692facd12a325141862f43cca3cb3ddcd87787bfb0aebdda0296c67c927dc5b
+refute_recipe_ref:                   sha256:2e27ad435c35da529c6bf6e26257222b24a3eaeb17f6773110e83254e39f0c10
+support_hypothesis_ref:              sha256:947fa756a3a7e5b545a4aca7dc1265f8de0840fb89cef453e54f450bde4a0792
+negative_hypothesis_ref:             sha256:e6969b79bf0f14f0d4ff5f377eef4a0acf25a0e556d0952c7791a90df694f7f1
+support_evidence_ref:                sha256:351960b1b1f308b09c41989d01a263b57cbde9cdd856603a95ecc598b646c371
+negative_evidence_ref:               sha256:5e70e1bf96fb82a9dc6c78b7f3439e249df5c5cb2c0639f0f84bfc35f06ff55f
+support_edge_ref:                    sha256:b7cc5ab3c07d801b1ab8f3e77ddd6855131235f2a7100bea5d15c5d1e7c1b431
+negative_edge_ref:                   sha256:0f8ab9e597af214f084f933c53eeaaaf9c771fa4ed21b51fd483794c7abd7ffd
+checkpoint_ref:                      sha256:502d5c7aff5d700e4069d99c67ac0cd4b003e53f541a080357013b0707a8eafd
+```
+
 ## Current Status
 
 ```text
@@ -744,6 +763,8 @@ H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519: supported
 H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519: falsified
 H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519: supported
 H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519: falsified
+H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519: supported
+H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519: falsified
 doctor_ok: true
 ```
 

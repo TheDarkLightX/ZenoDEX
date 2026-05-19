@@ -249,6 +249,8 @@ The epiplexity literature note adds the task-relevance gate: the proxy can
 guide data selection only after heldout ranking metrics prove it helps. The
 first bounded rare-disqualifier curriculum ranker did not beat the
 gap-weighted default, so the default stays promoted for research.
+The energy-order-alone Lean boundary now records the formal counterexample:
+ranking by low energy alone is not an optimality certificate.
 
 Primary entry points:
 
@@ -260,6 +262,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
 - [docs/ZENO_ENERGY_CURRICULUM_RANKER.md](docs/ZENO_ENERGY_CURRICULUM_RANKER.md)
 - [docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
+- [docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)
 - [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
 - [docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
 - [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)

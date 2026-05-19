@@ -50,6 +50,8 @@ Negative-curriculum ranker probe: [ZenoEnergy Curriculum Ranker](./ZENO_ENERGY_C
 
 Epiplexity literature boundary: [ZenoEnergy Epiplexity Literature Note](./ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
 
+Energy-order-alone formal boundary: [ZenoEnergy Energy-Order-Alone Formal Boundary](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)

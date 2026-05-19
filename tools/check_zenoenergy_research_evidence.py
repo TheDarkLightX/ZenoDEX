@@ -134,6 +134,24 @@ def replay_zenoenergy_evidence(
     payloads["fallback_checked_stop_formal"] = fallback_formal
     checks.extend(_check_fallback_checked_stop_formal(fallback_formal, lean_source))
 
+    energy_order_alone_formal = _load_json(
+        root / "data/upba_energy/zenoenergy_energy_order_alone_formal_receipt.json"
+    )
+    energy_boundary_lean_source = (
+        root / "lean-mathlib/Proofs/ZenoEnergyAdvisoryBoundary.lean"
+    ).read_text(encoding="utf-8")
+    energy_order_alone_doc = (
+        root / "docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md"
+    ).read_text(encoding="utf-8")
+    payloads["energy_order_alone_formal"] = energy_order_alone_formal
+    checks.extend(
+        _check_energy_order_alone_formal(
+            energy_order_alone_formal,
+            energy_boundary_lean_source,
+            energy_order_alone_doc,
+        )
+    )
+
     fallback_audit = _load_json(
         root / "data/upba_energy/upba_v2_energy_fallback_permutation_audit_200_seed20260518.json"
     )
@@ -969,6 +987,48 @@ def _check_fallback_checked_stop_formal(
             in " ".join(str(limit) for limit in report["limits"])
             and "same volume and surplus" in str(report["claim"]),
             "receipt states objective-equivalent verifier-acceptance limit",
+        ),
+    ]
+
+
+def _check_energy_order_alone_formal(
+    report: dict[str, Any],
+    lean_source: str,
+    doc_text: str,
+) -> list[EvidenceCheck]:
+    names = set(str(name) for name in report["formal_names"])
+    required = {
+        "theorem energy_order_alone_does_not_imply_true_weakly_best",
+        "theorem energy_order_alone_does_not_imply_true_weakly_max",
+    }
+    joined_negative = " ".join(str(item) for item in report["negative_knowledge"])
+    joined_limits = " ".join(str(item) for item in report["limits"])
+    doc_lower = doc_text.lower()
+    return [
+        _expect_equal(
+            "energy_order_alone_formal.schema",
+            report.get("schema"),
+            "zenodex/energy/energy_order_alone_formal_receipt/v1",
+        ),
+        _expect_true(
+            "energy_order_alone_formal.commands",
+            all(int(command["exit_code"]) == 0 for command in report["commands"]),
+            "Lean boundary target and focused formal regression are recorded as passing",
+        ),
+        _expect_true(
+            "energy_order_alone_formal.names",
+            required.issubset(names)
+            and all(name in lean_source for name in required),
+            "energy-order-alone counterexample theorem names are present in receipt and Lean source",
+        ),
+        _expect_true(
+            "energy_order_alone_formal.negative_boundary",
+            "ordering alone" in str(report["claim"])
+            and "cannot prove verifier optimality" in joined_negative
+            and "not a quantitative model-performance claim" in joined_limits
+            and "cannot authorize" in doc_lower
+            and "suffix-bound checked-stop certificate" in doc_text,
+            "receipt and docs preserve the model-proposes verifier-decides boundary",
         ),
     ]
 
@@ -2552,6 +2612,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519": "falsified",
         "H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519": "supported",
         "H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519": "falsified",
+        "H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519": "supported",
+        "H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2633,6 +2695,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     ]
     negative_curriculum = payloads["negative_curriculum"]
     curriculum_ranker = payloads["curriculum_ranker"]
+    energy_order_alone_formal = payloads["energy_order_alone_formal"]
     epiplexity_literature = payloads["epiplexity_literature"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
@@ -2713,6 +2776,13 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
         },
         "formal_boundary_claim": payloads["formal_boundary"]["claim"],
         "fallback_checked_stop_claim": payloads["fallback_checked_stop_formal"]["claim"],
+        "energy_order_alone_formal": {
+            "schema": energy_order_alone_formal["schema"],
+            "formal_target": energy_order_alone_formal["formal_target"],
+            "formal_names": energy_order_alone_formal["formal_names"],
+            "claim": energy_order_alone_formal["claim"],
+            "negative_knowledge": energy_order_alone_formal["negative_knowledge"],
+        },
         "fallback_permutation_audit": {
             "batches": fallback_audit["modes"]["learned"]["batches"],
             "learned_top_10_recall": fallback_audit["modes"]["learned"]["top_10_recall"],

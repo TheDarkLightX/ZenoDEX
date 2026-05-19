@@ -110,6 +110,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    curriculum attempt should change the data generator or loss rather than
    merely increasing rare-disqualifier pair weights.
 
+   The formal energy-order-alone boundary is recorded in
+   [ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md).
+   Lean counterexamples now make the weakest safety claim explicit: advisory
+   ordering alone does not prove true verifier optimality.
+
 4. **Dominance-Cover Certificate Prototype**
 
    Status: first runtime prototype exists in

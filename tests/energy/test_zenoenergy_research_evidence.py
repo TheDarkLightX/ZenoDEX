@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 212
+    assert report["passed_count"] == report["check_count"] == 218
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -34,6 +34,10 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "formal_boundary.names",
         "fallback_checked_stop_formal.names",
         "fallback_checked_stop_formal.objective_equivalence_limit",
+        "energy_order_alone_formal.schema",
+        "energy_order_alone_formal.commands",
+        "energy_order_alone_formal.names",
+        "energy_order_alone_formal.negative_boundary",
         "fallback_permutation_audit.permutation_premise",
         "fallback_permutation_audit.checked_stop_offline",
         "fallback_permutation_audit.objective_equivalence_metrics",
@@ -189,4 +193,6 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519",
         "popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519",
         "popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519",
+        "popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519",
+        "popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519",
     }.issubset(check_ids)

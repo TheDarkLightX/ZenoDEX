@@ -70,6 +70,84 @@ theorem gap_separated_energy_order_preserves_true_order
   omega
 
 /--
+Energy ordering alone is not a verifier-facing minimization certificate. This
+counterexample keeps the advisory energy winner first while the true verifier
+cost favors the other candidate.
+-/
+theorem energy_order_alone_does_not_imply_true_weakly_best :
+    ¬ (∀ (energy trueCost : Candidate -> Nat)
+          (winner : Candidate)
+          (candidates : List Candidate),
+        winner ∈ candidates ->
+        (∀ candidate, candidate ∈ candidates ->
+          energy winner <= energy candidate) ->
+        TrueWeaklyBest trueCost winner candidates) := by
+  intro h
+  let winner : Candidate := ⟨0⟩
+  let challenger : Candidate := ⟨1⟩
+  let energy : Candidate -> Nat := fun candidate =>
+    if candidate = winner then 0 else 1
+  let trueCost : Candidate -> Nat := fun candidate =>
+    if candidate = winner then 1 else 0
+  have hWinnerIn : winner ∈ [winner, challenger] := by
+    simp
+  have hEnergyBest :
+      ∀ candidate, candidate ∈ [winner, challenger] ->
+        energy winner <= energy candidate := by
+    intro candidate hMember
+    simp only [List.mem_cons, List.mem_nil_iff] at hMember
+    rcases hMember with rfl | hMember
+    · simp [energy]
+    · rcases hMember with rfl | hNil
+      · simp [energy, winner, challenger]
+      · cases hNil
+  have hBest :=
+    h energy trueCost winner [winner, challenger] hWinnerIn hEnergyBest
+  have hChallengerIn : challenger ∈ [winner, challenger] := by
+    simp
+  have hContradiction := hBest challenger hChallengerIn
+  simp [trueCost, winner, challenger] at hContradiction
+
+/--
+Energy ordering alone is not a verifier-facing maximization certificate. This
+counterexample keeps the advisory energy winner first while the true verifier
+score favors the other candidate.
+-/
+theorem energy_order_alone_does_not_imply_true_weakly_max :
+    ¬ (∀ (energy score : Candidate -> Nat)
+          (winner : Candidate)
+          (candidates : List Candidate),
+        winner ∈ candidates ->
+        (∀ candidate, candidate ∈ candidates ->
+          energy winner <= energy candidate) ->
+        TrueWeaklyMax score winner candidates) := by
+  intro h
+  let winner : Candidate := ⟨0⟩
+  let challenger : Candidate := ⟨1⟩
+  let energy : Candidate -> Nat := fun candidate =>
+    if candidate = winner then 0 else 1
+  let score : Candidate -> Nat := fun candidate =>
+    if candidate = winner then 0 else 1
+  have hWinnerIn : winner ∈ [winner, challenger] := by
+    simp
+  have hEnergyBest :
+      ∀ candidate, candidate ∈ [winner, challenger] ->
+        energy winner <= energy candidate := by
+    intro candidate hMember
+    simp only [List.mem_cons, List.mem_nil_iff] at hMember
+    rcases hMember with rfl | hMember
+    · simp [energy]
+    · rcases hMember with rfl | hNil
+      · simp [energy, winner, challenger]
+      · cases hNil
+  have hBest :=
+    h energy score winner [winner, challenger] hWinnerIn hEnergyBest
+  have hChallengerIn : challenger ∈ [winner, challenger] := by
+    simp
+  have hContradiction := hBest challenger hChallengerIn
+  simp [score, winner, challenger] at hContradiction
+
+/--
 The verifier has directly checked the prefix. For the unchecked suffix, it has
 an eps-approximation certificate and a large enough advisory-energy gap. Then
 the winner is true-weakly-best over the concatenated finite list.
