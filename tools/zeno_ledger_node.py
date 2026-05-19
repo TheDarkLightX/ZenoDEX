@@ -32,6 +32,13 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_block_gossip_v0 import validate_block_gossip_envelope_v0
+from src.integration.zeno_ledger_dynamic_peers_v0 import (
+    DEFAULT_DYNAMIC_PEER_TTL_SECONDS,
+    build_dynamic_peer_admission_v0,
+    build_dynamic_peer_candidate_v0,
+    canonical_peer_urls_v0,
+    validate_dynamic_peer_candidate_v0,
+)
 from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
 from src.integration.zeno_ledger_peer_discovery_v0 import (
     build_peer_registry_admission_v0,
@@ -76,11 +83,14 @@ NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
 NODE_GOSSIP_REPORT_SCHEMA = "zenodex.zeno_ledger.node_gossip_report.v0"
+NODE_GOSSIP_SEEN_SCHEMA = "zenodex.zeno_ledger.node_gossip_seen.v0"
 NODE_EVIDENCE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PEER_FOLLOW_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_follow_report.v0"
+NODE_DYNAMIC_PEER_STATE_SCHEMA = "zenodex.zeno_ledger.dynamic_peer_state.v0"
+NODE_DYNAMIC_PEER_ANNOUNCE_REPORT_SCHEMA = "zenodex.zeno_ledger.dynamic_peer_announce_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
 NODE_PUBLIC_NETWORK_CONFIG_QUORUM_ADMISSION_SCHEMA = (
     "zenodex.zeno_ledger.public_network_config_quorum_admission.v0"
@@ -88,6 +98,9 @@ NODE_PUBLIC_NETWORK_CONFIG_QUORUM_ADMISSION_SCHEMA = (
 NODE_DOCTOR_REPORT_SCHEMA = "zenodex.zeno_ledger.node_doctor_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
+MAX_GOSSIP_BODY_TRANSACTIONS = 1_000
+MAX_GOSSIP_SEEN_ENVELOPES = 2_048
+DEFAULT_MAX_DYNAMIC_PEERS = 64
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
 TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
 TESTNET_TOKEN_CREATE_KIND = "ZENODEX_TESTNET_TOKEN_CREATE"
@@ -302,6 +315,142 @@ def _unique_strings(items: list[str]) -> list[str]:
             seen.add(item)
             out.append(item)
     return out
+
+
+def _state_hash(domain: str, state: Mapping[str, Any], *, hash_key: str) -> str:
+    body = {key: value for key, value in dict(state).items() if key != hash_key}
+    return hash_v0(domain, body)
+
+
+def _empty_dynamic_peer_state_v0(
+    *,
+    network_id: str,
+    chain_id: str,
+    configured_peer_urls: Sequence[object],
+) -> dict[str, Any]:
+    body = {
+        "schema": NODE_DYNAMIC_PEER_STATE_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "network_id": network_id,
+        "chain_id": chain_id,
+        "configured_peer_urls": canonical_peer_urls_v0(configured_peer_urls, name="configured_peer_urls"),
+        "dynamic_peer_urls": [],
+        "dynamic_peer_count": 0,
+        "admission_count": 0,
+        "admissions": [],
+    }
+    return {**body, "dynamic_peer_state_hash": _state_hash("dynamic_peer_state_v0", body, hash_key="dynamic_peer_state_hash")}
+
+
+def _dynamic_peer_state_path(data_dir: Path) -> Path:
+    return data_dir / "dynamic_peer_state.json"
+
+
+def _load_dynamic_peer_state_v0(
+    *,
+    data_dir: Path,
+    network_id: str,
+    chain_id: str,
+    configured_peer_urls: Sequence[object],
+) -> dict[str, Any]:
+    path = _dynamic_peer_state_path(data_dir)
+    if not path.is_file():
+        return _empty_dynamic_peer_state_v0(
+            network_id=network_id,
+            chain_id=chain_id,
+            configured_peer_urls=configured_peer_urls,
+        )
+    state = dict(_load_json_object(path))
+    if state.get("schema") != NODE_DYNAMIC_PEER_STATE_SCHEMA:
+        raise ValueError("dynamic peer state schema mismatch")
+    if state.get("network_id") != network_id or state.get("chain_id") != chain_id:
+        raise ValueError("dynamic peer state network mismatch")
+    expected = _state_hash("dynamic_peer_state_v0", state, hash_key="dynamic_peer_state_hash")
+    if state.get("dynamic_peer_state_hash") != expected:
+        raise ValueError("dynamic peer state hash mismatch")
+    configured = canonical_peer_urls_v0(configured_peer_urls, name="configured_peer_urls")
+    if state.get("configured_peer_urls") != configured:
+        state = {
+            **state,
+            "configured_peer_urls": configured,
+        }
+        state = {
+            **state,
+            "dynamic_peer_state_hash": _state_hash(
+                "dynamic_peer_state_v0",
+                state,
+                hash_key="dynamic_peer_state_hash",
+            ),
+        }
+    return state
+
+
+def _write_dynamic_peer_state_v0(data_dir: Path, state: Mapping[str, Any]) -> None:
+    state_obj = dict(state)
+    state_obj["dynamic_peer_state_hash"] = _state_hash(
+        "dynamic_peer_state_v0",
+        state_obj,
+        hash_key="dynamic_peer_state_hash",
+    )
+    _write_json(_dynamic_peer_state_path(data_dir), state_obj)
+
+
+def _effective_peer_urls_v0(
+    *,
+    data_dir: Path,
+    network_id: str,
+    chain_id: str,
+    configured_peer_urls: Sequence[object],
+) -> list[str]:
+    state = _load_dynamic_peer_state_v0(
+        data_dir=data_dir,
+        network_id=network_id,
+        chain_id=chain_id,
+        configured_peer_urls=configured_peer_urls,
+    )
+    return canonical_peer_urls_v0(
+        [*state["configured_peer_urls"], *state["dynamic_peer_urls"]],
+        name="effective_peer_urls",
+    )
+
+
+def _empty_gossip_seen_state_v0(*, network_id: str, chain_id: str) -> dict[str, Any]:
+    body = {
+        "schema": NODE_GOSSIP_SEEN_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "network_id": network_id,
+        "chain_id": chain_id,
+        "seen": [],
+        "seen_count": 0,
+    }
+    return {**body, "gossip_seen_hash": _state_hash("gossip_seen_state_v0", body, hash_key="gossip_seen_hash")}
+
+
+def _gossip_seen_path(data_dir: Path) -> Path:
+    return data_dir / "gossip_seen.json"
+
+
+def _load_gossip_seen_state_v0(*, data_dir: Path, network_id: str, chain_id: str) -> dict[str, Any]:
+    path = _gossip_seen_path(data_dir)
+    if not path.is_file():
+        return _empty_gossip_seen_state_v0(network_id=network_id, chain_id=chain_id)
+    state = dict(_load_json_object(path))
+    if state.get("schema") != NODE_GOSSIP_SEEN_SCHEMA:
+        raise ValueError("gossip seen state schema mismatch")
+    if state.get("network_id") != network_id or state.get("chain_id") != chain_id:
+        raise ValueError("gossip seen state network mismatch")
+    expected = _state_hash("gossip_seen_state_v0", state, hash_key="gossip_seen_hash")
+    if state.get("gossip_seen_hash") != expected:
+        raise ValueError("gossip seen state hash mismatch")
+    return state
+
+
+def _write_gossip_seen_state_v0(data_dir: Path, state: Mapping[str, Any]) -> None:
+    state_obj = dict(state)
+    state_obj["gossip_seen_hash"] = _state_hash("gossip_seen_state_v0", state_obj, hash_key="gossip_seen_hash")
+    _write_json(_gossip_seen_path(data_dir), state_obj)
 
 
 def _read_public_manifest(bundle_root: Path) -> dict[str, Any]:
@@ -766,6 +915,12 @@ def _read_http_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError("request body must be a JSON object")
     return obj
+
+
+def _require_positive_int_v0(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return value
 
 
 def _require_pubkey_v0(value: object, *, name: str) -> str:
@@ -1680,6 +1835,8 @@ def accept_block_gossip_envelope_v0(
     envelope: Mapping[str, Any],
     live_quorum_registry: Mapping[str, Any] | None = None,
     live_quorum_envelopes: Sequence[Mapping[str, Any]] | None = None,
+    max_body_transactions: int = MAX_GOSSIP_BODY_TRANSACTIONS,
+    gossip_seen_limit: int = MAX_GOSSIP_SEEN_ENVELOPES,
 ) -> dict[str, Any]:
     """Accept one pushed gossip block only after local replay and binding checks."""
 
@@ -1696,10 +1853,24 @@ def accept_block_gossip_envelope_v0(
     base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
     local_latest = int(base["latest_height"])
     height = int(envelope_obj["height"])
-    if height != local_latest + 1:
-        raise ValueError("gossiped block must extend local tip by exactly one height")
     if header["chain_id"] != node_status["chain_id"] or body["chain_id"] != node_status["chain_id"]:
         raise ValueError("gossiped block chain_id does not match local node")
+    transactions = body.get("transactions")
+    if not isinstance(transactions, list):
+        raise ValueError("gossiped block transactions must be a list")
+    if len(transactions) > max_body_transactions:
+        raise ValueError("gossiped block transaction count exceeds maximum")
+    seen_limit = _require_positive_int_v0(gossip_seen_limit, name="gossip_seen_limit")
+    seen_state = _load_gossip_seen_state_v0(
+        data_dir=data_dir,
+        network_id=str(node_status["network_id"]),
+        chain_id=str(node_status["chain_id"]),
+    )
+    envelope_hash = str(envelope_obj["envelope_hash"])
+    if any(dict(entry).get("envelope_hash") == envelope_hash for entry in seen_state["seen"]):
+        raise ValueError("duplicate gossip envelope")
+    if height != local_latest + 1:
+        raise ValueError("gossiped block must extend local tip by exactly one height")
     current_prev_header = dict(_load_json_object(Path(str(base["prev_header_path"]))))
     current_prev_hash = canonical_header_hash_v0(current_prev_header)
     if header["prev_header_hash"] != current_prev_hash:
@@ -1818,6 +1989,22 @@ def accept_block_gossip_envelope_v0(
         "receipts_path": str(destinations["receipts_path"]),
         "post_snapshot_path": str(destinations["post_snapshot_path"]),
     }
+    seen_entries = [dict(entry) for entry in seen_state["seen"]]
+    seen_entries.append(
+        {
+            "envelope_hash": envelope_hash,
+            "height": height,
+            "header_hash": header_hash,
+            "source_node_id": envelope_obj["source_node_id"],
+            "source_peer_url": envelope_obj["source_peer_url"],
+        }
+    )
+    next_seen = {
+        **seen_state,
+        "seen": seen_entries[-seen_limit:],
+        "seen_count": min(len(seen_entries), seen_limit),
+    }
+    _write_gossip_seen_state_v0(data_dir, next_seen)
     report_path = data_dir / "gossip_reports" / f"{height}.json"
     _write_json(report_path, report)
     return {**report, "gossip_report_path": str(report_path)}
@@ -2098,6 +2285,78 @@ def check_peer_status_v0(
     }
 
 
+def admit_dynamic_peer_candidate_v0(
+    *,
+    data_dir: Path,
+    candidate: Mapping[str, Any],
+    configured_peer_urls: Sequence[object],
+    peer_auth_token: str | None = None,
+    max_peer_count: int = DEFAULT_MAX_DYNAMIC_PEERS,
+) -> dict[str, Any]:
+    """Admit dynamic peers only after local peer checks and cap enforcement."""
+
+    status = load_node_status_v0(data_dir)
+    validate_dynamic_peer_candidate_v0(candidate)
+    current_peer_urls = _effective_peer_urls_v0(
+        data_dir=data_dir,
+        network_id=str(status["network_id"]),
+        chain_id=str(status["chain_id"]),
+        configured_peer_urls=configured_peer_urls,
+    )
+    candidate_urls = canonical_peer_urls_v0(
+        candidate.get("candidate_peer_urls", []),
+        name="candidate_peer_urls",
+    )
+    peer_check = check_peer_status_v0(
+        data_dir=data_dir,
+        peer_urls=candidate_urls,
+        peer_auth_token=peer_auth_token,
+    )
+    admission = build_dynamic_peer_admission_v0(
+        current_peer_urls=current_peer_urls,
+        candidate=candidate,
+        peer_check_report=peer_check,
+        max_peer_count=max_peer_count,
+    )
+    state = _load_dynamic_peer_state_v0(
+        data_dir=data_dir,
+        network_id=str(status["network_id"]),
+        chain_id=str(status["chain_id"]),
+        configured_peer_urls=configured_peer_urls,
+    )
+    dynamic_peer_urls = canonical_peer_urls_v0(
+        [*state["dynamic_peer_urls"], *admission["admitted_peer_urls"]],
+        name="dynamic_peer_urls",
+    )
+    admissions = list(state["admissions"])
+    admissions.append(admission)
+    next_state = {
+        **state,
+        "dynamic_peer_urls": dynamic_peer_urls,
+        "dynamic_peer_count": len(dynamic_peer_urls),
+        "admission_count": len(admissions),
+        "admissions": admissions[-max_peer_count:],
+    }
+    _write_dynamic_peer_state_v0(data_dir, next_state)
+    return {
+        "schema": NODE_DYNAMIC_PEER_ANNOUNCE_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "node_id": status["node_id"],
+        "network_id": status["network_id"],
+        "chain_id": status["chain_id"],
+        "candidate": dict(candidate),
+        "peer_check": peer_check,
+        "admission": admission,
+        "dynamic_peer_state": _load_dynamic_peer_state_v0(
+            data_dir=data_dir,
+            network_id=str(status["network_id"]),
+            chain_id=str(status["chain_id"]),
+            configured_peer_urls=configured_peer_urls,
+        ),
+    }
+
+
 def build_node_evidence_report_v0(
     *,
     data_dir: Path,
@@ -2156,16 +2415,34 @@ def make_node_http_server_v0(
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
     enable_block_gossip: bool = False,
+    enable_dynamic_peer_exchange: bool = False,
+    max_dynamic_peer_count: int = DEFAULT_MAX_DYNAMIC_PEERS,
     submit_peer_url: str | None = None,
     node_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
+    peer_auth_token: str | None = None,
     peer_urls: list[str] | None = None,
     poll_seconds: int = 0,
+    active_peer_urls_ref: list[str] | None = None,
 ) -> ThreadingHTTPServer:
     """Create a small read-only HTTP server for node status artifacts."""
 
     root = data_dir.resolve()
     append_lock = threading.Lock()
+    peer_lock = threading.Lock()
+    node_status = load_node_status_v0(root)
+    configured_peer_urls = canonical_peer_urls_v0(list(peer_urls or []), name="peer_urls")
+    active_peer_urls = (
+        active_peer_urls_ref
+        if active_peer_urls_ref is not None
+        else _effective_peer_urls_v0(
+            data_dir=root,
+            network_id=str(node_status["network_id"]),
+            chain_id=str(node_status["chain_id"]),
+            configured_peer_urls=configured_peer_urls,
+        )
+    )
+    dynamic_peer_cap = _require_positive_int_v0(max_dynamic_peer_count, name="max_dynamic_peer_count")
     required_auth = (
         _normalize_transport_auth_token_v0(node_auth_token, name="node_auth_token")
         if node_auth_token is not None
@@ -2176,6 +2453,15 @@ def make_node_http_server_v0(
         if submit_peer_auth_token is not None
         else None
     )
+    follow_auth = (
+        _normalize_transport_auth_token_v0(peer_auth_token, name="peer_auth_token")
+        if peer_auth_token is not None
+        else None
+    )
+
+    def _active_peers() -> list[str]:
+        with peer_lock:
+            return list(active_peer_urls)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "ZenoLedgerNode/0"
@@ -2263,6 +2549,7 @@ def make_node_http_server_v0(
                     )
                     return
                 if self.path == "/network":
+                    current_peer_urls = _active_peers()
                     self._send_json(
                         {
                             "schema": "zenodex.zeno_ledger.node_network_status.v0",
@@ -2273,11 +2560,11 @@ def make_node_http_server_v0(
                             "chain_id": status["chain_id"],
                             "bootstrap_latest_height": status["latest_height"],
                             "local_tip": _local_tip_v0(data_dir=root, node_status=status),
-                            "peer_urls": list(peer_urls or []),
-                            "peer_count": len(peer_urls or []),
+                            "peer_urls": current_peer_urls,
+                            "peer_count": len(current_peer_urls),
                             "submit_peer_url": submit_peer_url,
                             "peer_follow": {
-                                "enabled": bool(peer_urls) and poll_seconds > 0,
+                                "enabled": poll_seconds > 0,
                                 "poll_seconds": poll_seconds,
                                 "state_path": str(root / "peer_follow_state.json"),
                             },
@@ -2286,9 +2573,35 @@ def make_node_http_server_v0(
                                 "testnet_intake_enabled": enable_testnet_intake,
                                 "testnet_faucet_enabled": enable_testnet_faucet,
                                 "block_gossip_enabled": enable_block_gossip,
+                                "dynamic_peer_exchange_enabled": enable_dynamic_peer_exchange,
                                 "submission_forwarding_enabled": submit_peer_url is not None,
-                                "peer_follow_enabled": bool(peer_urls) and poll_seconds > 0,
+                                "peer_follow_enabled": poll_seconds > 0,
                             },
+                        }
+                    )
+                    return
+                if self.path == "/peers":
+                    current_peer_urls = _active_peers()
+                    state = _load_dynamic_peer_state_v0(
+                        data_dir=root,
+                        network_id=str(status["network_id"]),
+                        chain_id=str(status["chain_id"]),
+                        configured_peer_urls=configured_peer_urls,
+                    )
+                    self._send_json(
+                        {
+                            "schema": "zenodex.zeno_ledger.node_peers.v0",
+                            "ok": True,
+                            "status": "accepted",
+                            "node_id": status["node_id"],
+                            "network_id": status["network_id"],
+                            "chain_id": status["chain_id"],
+                            "dynamic_peer_exchange_enabled": enable_dynamic_peer_exchange,
+                            "max_dynamic_peer_count": dynamic_peer_cap,
+                            "configured_peer_urls": configured_peer_urls,
+                            "dynamic_peer_state": state,
+                            "peer_urls": current_peer_urls,
+                            "peer_count": len(current_peer_urls),
                         }
                     )
                     return
@@ -2439,6 +2752,51 @@ def make_node_http_server_v0(
                         report = accept_block_gossip_envelope_v0(data_dir=root, envelope=envelope)
                     self._send_json(report)
                     return
+                if self.path == "/peers/announce":
+                    if not enable_dynamic_peer_exchange:
+                        self._send_json({"ok": False, "error": "dynamic_peer_exchange_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    status = load_node_status_v0(root)
+                    candidate_raw = payload.get("candidate")
+                    if isinstance(candidate_raw, Mapping):
+                        candidate = dict(candidate_raw)
+                    else:
+                        raw_urls = payload.get("candidate_peer_urls", payload.get("peer_urls"))
+                        if raw_urls is None and "peer_url" in payload:
+                            raw_urls = [payload["peer_url"]]
+                        candidate_urls = canonical_peer_urls_v0(raw_urls or [], name="candidate_peer_urls")
+                        if not candidate_urls:
+                            raise ValueError("dynamic peer announcement requires at least one candidate URL")
+                        observed = payload.get("observed_at_height")
+                        if observed is None:
+                            observed = int(_local_tip_v0(data_dir=root, node_status=status)["height"])
+                        ttl_seconds = payload.get("ttl_seconds", DEFAULT_DYNAMIC_PEER_TTL_SECONDS)
+                        candidate = build_dynamic_peer_candidate_v0(
+                            network_id=str(status["network_id"]),
+                            chain_id=str(status["chain_id"]),
+                            source_node_id=str(payload.get("source_node_id", "http-peer-announcement")),
+                            source_peer_url=str(payload.get("source_peer_url", candidate_urls[0])),
+                            candidate_peer_urls=candidate_urls,
+                            observed_at_height=int(observed),
+                            ttl_seconds=int(ttl_seconds),
+                        )
+                    with peer_lock:
+                        report = admit_dynamic_peer_candidate_v0(
+                            data_dir=root,
+                            candidate=candidate,
+                            configured_peer_urls=configured_peer_urls,
+                            peer_auth_token=follow_auth,
+                            max_peer_count=dynamic_peer_cap,
+                        )
+                        active_peer_urls[:] = _effective_peer_urls_v0(
+                            data_dir=root,
+                            network_id=str(status["network_id"]),
+                            chain_id=str(status["chain_id"]),
+                            configured_peer_urls=configured_peer_urls,
+                        )
+                    self._send_json(report)
+                    return
                 self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -2456,16 +2814,17 @@ def _start_peer_follow_loop(
     poll_seconds: int,
     peer_auth_token: str | None = None,
 ) -> threading.Thread | None:
-    if not peer_urls or poll_seconds <= 0:
+    if poll_seconds <= 0:
         return None
 
     def _loop() -> None:
         while True:
-            poll_live_peers_once_v0(
-                data_dir=data_dir,
-                peer_urls=peer_urls,
-                peer_auth_token=peer_auth_token,
-            )
+            if peer_urls:
+                poll_live_peers_once_v0(
+                    data_dir=data_dir,
+                    peer_urls=list(peer_urls),
+                    peer_auth_token=peer_auth_token,
+                )
             time.sleep(poll_seconds)
 
     thread = threading.Thread(target=_loop, daemon=True)
@@ -2483,14 +2842,23 @@ def serve_node_v0(
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
     enable_block_gossip: bool = False,
+    enable_dynamic_peer_exchange: bool = False,
+    max_dynamic_peer_count: int = DEFAULT_MAX_DYNAMIC_PEERS,
     submit_peer_url: str | None = None,
     peer_auth_token: str | None = None,
     node_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
 ) -> None:
+    node_status = load_node_status_v0(data_dir)
+    active_peer_urls = _effective_peer_urls_v0(
+        data_dir=data_dir,
+        network_id=str(node_status["network_id"]),
+        chain_id=str(node_status["chain_id"]),
+        configured_peer_urls=list(peer_urls or []),
+    )
     _start_peer_follow_loop(
         data_dir=data_dir,
-        peer_urls=list(peer_urls or []),
+        peer_urls=active_peer_urls,
         poll_seconds=poll_seconds,
         peer_auth_token=peer_auth_token,
     )
@@ -2501,11 +2869,15 @@ def serve_node_v0(
         enable_testnet_intake=enable_testnet_intake,
         enable_testnet_faucet=enable_testnet_faucet,
         enable_block_gossip=enable_block_gossip,
+        enable_dynamic_peer_exchange=enable_dynamic_peer_exchange,
+        max_dynamic_peer_count=max_dynamic_peer_count,
         submit_peer_url=submit_peer_url,
         node_auth_token=node_auth_token,
         submit_peer_auth_token=submit_peer_auth_token,
+        peer_auth_token=peer_auth_token,
         peer_urls=list(peer_urls or []),
         poll_seconds=poll_seconds,
+        active_peer_urls_ref=active_peer_urls,
     )
     address, actual_port = server.server_address
     print(
@@ -2515,11 +2887,13 @@ def serve_node_v0(
                 "ok": True,
                 "host": address,
                 "port": actual_port,
-                "peer_count": len(peer_urls or []),
+                "peer_count": len(active_peer_urls),
                 "poll_seconds": poll_seconds,
                 "testnet_intake_enabled": enable_testnet_intake,
                 "testnet_faucet_enabled": enable_testnet_faucet,
                 "block_gossip_enabled": enable_block_gossip,
+                "dynamic_peer_exchange_enabled": enable_dynamic_peer_exchange,
+                "max_dynamic_peer_count": max_dynamic_peer_count,
                 "transport_auth_required": node_auth_token is not None,
                 "submit_peer_url": submit_peer_url,
                 "status_url": f"http://{address}:{actual_port}/status",
@@ -2628,6 +3002,8 @@ def build_public_network_config_v0(
     enable_testnet_intake: bool = True,
     enable_testnet_faucet: bool = True,
     enable_block_gossip: bool = False,
+    enable_dynamic_peer_exchange: bool = False,
+    max_dynamic_peer_count: int = DEFAULT_MAX_DYNAMIC_PEERS,
 ) -> dict[str, Any]:
     """Build a public operator config for joining a ZenoLedger testnet."""
 
@@ -2637,6 +3013,7 @@ def build_public_network_config_v0(
         raise ValueError("poll_seconds must be nonnegative")
     if node_port <= 0 or node_port > 65535:
         raise ValueError("node_port must be a valid TCP port")
+    dynamic_peer_cap = _require_positive_int_v0(max_dynamic_peer_count, name="max_dynamic_peer_count")
     public_manifest = _read_public_manifest(bundle_root)
     feature_suite = _read_feature_suite(bundle_root, public_manifest)
     checked_writer_urls = _unique_strings(writer_urls)
@@ -2677,6 +3054,8 @@ def build_public_network_config_v0(
             "enable_testnet_intake": enable_testnet_intake,
             "enable_testnet_faucet": enable_testnet_faucet,
             "enable_block_gossip": enable_block_gossip,
+            "enable_dynamic_peer_exchange": enable_dynamic_peer_exchange,
+            "max_dynamic_peer_count": dynamic_peer_cap,
             "submit_peer_url": writer_urls[0],
         },
     }
@@ -2734,6 +3113,11 @@ def _public_network_config_to_join_config_v0(
         "enable_testnet_intake": bool(recommended.get("enable_testnet_intake", True)),
         "enable_testnet_faucet": bool(recommended.get("enable_testnet_faucet", True)),
         "enable_block_gossip": bool(recommended.get("enable_block_gossip", False)),
+        "enable_dynamic_peer_exchange": bool(recommended.get("enable_dynamic_peer_exchange", False)),
+        "max_dynamic_peer_count": _require_positive_int_v0(
+            int(recommended.get("max_dynamic_peer_count", DEFAULT_MAX_DYNAMIC_PEERS)),
+            name="recommended_node.max_dynamic_peer_count",
+        ),
         "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
         "network_config_quorum_required": require_network_config_quorum,
         "network_config_quorum_admission": config_quorum_admission,
@@ -2939,6 +3323,9 @@ def _cmd_write_network_config(args: argparse.Namespace) -> int:
             peer_urls=list(args.peer_url),
             poll_seconds=args.poll_seconds,
             node_port=args.node_port,
+            enable_block_gossip=args.enable_block_gossip,
+            enable_dynamic_peer_exchange=args.enable_dynamic_peer_exchange,
+            max_dynamic_peer_count=args.max_dynamic_peer_count,
         )
         if args.config_signature_envelope and args.config_signer_registry is None:
             raise ValueError("config signer registry is required when config signature envelopes are supplied")
@@ -2985,6 +3372,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
             poll_seconds=args.poll_seconds,
             enable_testnet_intake=args.enable_testnet_intake,
             enable_testnet_faucet=args.enable_testnet_faucet,
+            enable_block_gossip=args.enable_block_gossip,
+            enable_dynamic_peer_exchange=args.enable_dynamic_peer_exchange,
+            max_dynamic_peer_count=args.max_dynamic_peer_count,
             submit_peer_url=args.submit_peer_url,
             peer_auth_token=peer_auth_token,
             node_auth_token=node_auth_token,
@@ -3099,6 +3489,8 @@ def _cmd_join(args: argparse.Namespace) -> int:
             enable_testnet_intake=config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=config.get("enable_testnet_faucet") is True,
             enable_block_gossip=config.get("enable_block_gossip") is True,
+            enable_dynamic_peer_exchange=config.get("enable_dynamic_peer_exchange") is True,
+            max_dynamic_peer_count=int(config.get("max_dynamic_peer_count", DEFAULT_MAX_DYNAMIC_PEERS)),
             submit_peer_url=str(config["submit_peer_url"]) if config.get("submit_peer_url") else None,
             peer_auth_token=peer_auth_token,
             node_auth_token=node_auth_token,
@@ -3142,6 +3534,8 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             enable_testnet_intake=join_config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=join_config.get("enable_testnet_faucet") is True,
             enable_block_gossip=join_config.get("enable_block_gossip") is True,
+            enable_dynamic_peer_exchange=join_config.get("enable_dynamic_peer_exchange") is True,
+            max_dynamic_peer_count=int(join_config.get("max_dynamic_peer_count", DEFAULT_MAX_DYNAMIC_PEERS)),
             submit_peer_url=str(join_config["submit_peer_url"]) if join_config.get("submit_peer_url") else None,
             peer_auth_token=peer_auth_token,
             node_auth_token=node_auth_token,
@@ -3210,6 +3604,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         enable_testnet_intake=args.enable_testnet_intake,
         enable_testnet_faucet=args.enable_testnet_faucet,
         enable_block_gossip=args.enable_block_gossip,
+        enable_dynamic_peer_exchange=args.enable_dynamic_peer_exchange,
+        max_dynamic_peer_count=args.max_dynamic_peer_count,
         submit_peer_url=args.submit_peer_url,
         peer_auth_token=_read_transport_auth_token_file_v0(args.peer_auth_token_file),
         node_auth_token=_read_transport_auth_token_file_v0(args.node_auth_token_file),
@@ -3246,6 +3642,9 @@ def main(argv: list[str] | None = None) -> int:
     write_network_config.add_argument("--peer-url", action="append", default=[])
     write_network_config.add_argument("--poll-seconds", type=int, default=5)
     write_network_config.add_argument("--node-port", type=int, default=8788)
+    write_network_config.add_argument("--enable-block-gossip", action="store_true")
+    write_network_config.add_argument("--enable-dynamic-peer-exchange", action="store_true")
+    write_network_config.add_argument("--max-dynamic-peer-count", type=int, default=DEFAULT_MAX_DYNAMIC_PEERS)
     write_network_config.add_argument("--config-signer-registry", type=Path)
     write_network_config.add_argument("--config-signature-envelope", action="append", default=[], type=Path)
     write_network_config.add_argument("--out", required=True, type=Path)
@@ -3295,6 +3694,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--poll-seconds", type=int, default=0)
     run.add_argument("--enable-testnet-intake", action="store_true")
     run.add_argument("--enable-testnet-faucet", action="store_true")
+    run.add_argument("--enable-block-gossip", action="store_true")
+    run.add_argument("--enable-dynamic-peer-exchange", action="store_true")
+    run.add_argument("--max-dynamic-peer-count", type=int, default=DEFAULT_MAX_DYNAMIC_PEERS)
     run.add_argument("--submit-peer-url")
     run.add_argument("--peer-auth-token-file", type=Path)
     run.add_argument("--node-auth-token-file", type=Path)
@@ -3362,6 +3764,8 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--enable-testnet-intake", action="store_true")
     serve.add_argument("--enable-testnet-faucet", action="store_true")
     serve.add_argument("--enable-block-gossip", action="store_true")
+    serve.add_argument("--enable-dynamic-peer-exchange", action="store_true")
+    serve.add_argument("--max-dynamic-peer-count", type=int, default=DEFAULT_MAX_DYNAMIC_PEERS)
     serve.add_argument("--submit-peer-url")
     serve.add_argument("--peer-auth-token-file", type=Path)
     serve.add_argument("--node-auth-token-file", type=Path)
