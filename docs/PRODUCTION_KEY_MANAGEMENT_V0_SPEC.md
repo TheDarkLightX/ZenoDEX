@@ -526,5 +526,16 @@ and operator_runbook_exists
 and no_private_key_material_in_repo
 ```
 
+The last condition is release-gated by:
+
+```bash
+python3 tools/check_production_key_material_absence.py
+pytest -q tests/test_check_production_key_material_absence.py
+```
+
+The scanner checks tracked files for secret-like literals and production signing
+material. Deterministic test fixtures and devnet-only signing helper names are
+allowed only when they do not contain production secrets.
+
 The current commit is expected to close the first proof/spec layer. Runtime
 admission and operator procedures remain separate implementation tasks.
