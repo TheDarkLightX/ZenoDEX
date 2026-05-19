@@ -894,6 +894,18 @@ The local receipt
 required sources and 7 local boundary checks. It preserves the decision
 `use_epiplexity_for_training_data_selection_only`.
 
+The first bounded rare-disqualifier curriculum experiment is recorded in
+[ZENO_ENERGY_CURRICULUM_RANKER.md](./ZENO_ENERGY_CURRICULUM_RANKER.md):
+
+| model | holdout mean calls | stress mean calls | stress p99 max | invalid accepts |
+| --- | ---: | ---: | ---: | ---: |
+| gap-weighted default | 1.017 | 1.011 | 2 | 0 |
+| curriculum ranker | 1.032 | 1.025 | 4 | 0 |
+
+This is useful negative knowledge: the epiplexity proxy exposed learnable
+hard-negative structure, but the bounded curriculum ranker did not improve the
+task metric. Keep the gap-weighted default.
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -912,11 +924,12 @@ the dominance-cover runtime prototype, the WES dominance search bridge, the
 dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
 receipt, the suffix-bound adversarial family stress receipt, the negative
-curriculum epiplexity receipt, the epiplexity literature boundary receipt, and
+curriculum epiplexity receipt, the curriculum-ranker negative result, the
+epiplexity literature boundary receipt, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 206 passing checks and 0 failed checks, including
+The current receipt reports 213 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

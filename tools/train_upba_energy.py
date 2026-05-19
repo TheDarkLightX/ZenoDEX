@@ -25,6 +25,16 @@ from src.energy.upba_v2_set_features import SET_AWARE_FEATURE_NAMES
 
 
 POSITIVE_CLASS_MODES = ("hash-winner", "objective-equivalent")
+CURRICULUM_DISQUALIFIER_FEATURES = {
+    "all_zero_fill_vector_flag": "candidate_all_zero_fill_vector_flag",
+    "fill_coverage_violation_flag": "candidate_fill_coverage_violation_flag",
+    "invariant_violation_flag": "candidate_invariant_violation_flag",
+    "limit_violation_count": "candidate_limit_violation_count_norm",
+    "negative_reserve_flag": "candidate_negative_reserve_flag",
+    "output_mismatch_count": "candidate_output_mismatch_count_norm",
+    "price_objective_violation_flag": "candidate_price_objective_violation_flag",
+    "schema_policy_mismatch_flag": "candidate_schema_policy_mismatch_flag",
+}
 
 
 def load_rows(path: Path) -> list[dict[str, Any]]:
@@ -50,6 +60,7 @@ def train_linear_ranker(
     same_volume_surplus_gap_weight: float = 0.0,
     max_pair_weight: float = 8.0,
     positive_class: str = "hash-winner",
+    negative_curriculum_weights: dict[str, float] | None = None,
 ) -> LinearEnergyModel:
     if not rows:
         raise ValueError("training dataset is empty")
@@ -102,6 +113,10 @@ def train_linear_ranker(
                         objective_gap_weight=objective_gap_weight,
                         same_volume_surplus_gap_weight=same_volume_surplus_gap_weight,
                         max_pair_weight=max_pair_weight,
+                        bad_curriculum_weight=_negative_curriculum_weight(
+                            bad,
+                            negative_curriculum_weights=negative_curriculum_weights,
+                        ),
                     )
                     for index, (g_value, b_value) in enumerate(zip(good_x, bad_x, strict=True)):
                         weights[index] -= learning_rate * pair_weight * (g_value - b_value)
@@ -123,6 +138,15 @@ def main() -> int:
     parser.add_argument("--same-volume-surplus-gap-weight", type=float, default=0.0)
     parser.add_argument("--max-pair-weight", type=float, default=8.0)
     parser.add_argument(
+        "--negative-curriculum",
+        type=Path,
+        help=(
+            "Optional zenoenergy_negative_curriculum JSON. Invalid candidates "
+            "with matching deterministic disqualifier features receive the "
+            "configured rare-label pair weight."
+        ),
+    )
+    parser.add_argument(
         "--positive-class",
         choices=POSITIVE_CLASS_MODES,
         default="hash-winner",
@@ -142,6 +166,11 @@ def main() -> int:
         raise SystemExit("--same-volume-surplus-gap-weight must be nonnegative")
     if args.max_pair_weight < 1:
         raise SystemExit("--max-pair-weight must be at least one")
+    negative_curriculum_weights = (
+        load_negative_curriculum_weights(args.negative_curriculum)
+        if args.negative_curriculum is not None
+        else None
+    )
 
     rows = load_rows(args.dataset)
     model = train_linear_ranker(
@@ -157,6 +186,7 @@ def main() -> int:
         same_volume_surplus_gap_weight=args.same_volume_surplus_gap_weight,
         max_pair_weight=args.max_pair_weight,
         positive_class=args.positive_class,
+        negative_curriculum_weights=negative_curriculum_weights,
     )
     args.output_model.parent.mkdir(parents=True, exist_ok=True)
     save_linear_model(model, args.output_model)
@@ -175,10 +205,26 @@ def main() -> int:
         "same_volume_surplus_gap_weight": args.same_volume_surplus_gap_weight,
         "max_pair_weight": args.max_pair_weight,
         "positive_class": args.positive_class,
+        "negative_curriculum": str(args.negative_curriculum) if args.negative_curriculum else None,
+        "negative_curriculum_weights": negative_curriculum_weights or {},
         "model_path": str(args.output_model),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0
+
+
+def load_negative_curriculum_weights(path: Path) -> dict[str, float]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    weights = payload.get("recommended_disqualifier_sample_weights")
+    if not isinstance(weights, dict):
+        raise ValueError("negative curriculum missing recommended_disqualifier_sample_weights")
+    out: dict[str, float] = {}
+    for disqualifier, feature_name in CURRICULUM_DISQUALIFIER_FEATURES.items():
+        value = float(weights.get(disqualifier, 1.0))
+        if value < 1.0:
+            raise ValueError(f"negative curriculum weight must be >= 1.0 for {disqualifier}")
+        out[feature_name] = value
+    return out
 
 
 def _label_score(row: dict[str, Any]) -> tuple[int, int, int]:
@@ -261,6 +307,7 @@ def _pair_update_weight(
     objective_gap_weight: float,
     same_volume_surplus_gap_weight: float,
     max_pair_weight: float,
+    bad_curriculum_weight: float = 1.0,
 ) -> float:
     good_label = good["label"]
     bad_label = bad["label"]
@@ -279,7 +326,28 @@ def _pair_update_weight(
             weight += same_volume_surplus_gap_weight * (
                 surplus_gap / max(1, batch_scale["surplus"])
             )
-    return min(max_pair_weight, max(1.0, weight))
+    return min(max_pair_weight, max(1.0, weight * max(1.0, bad_curriculum_weight)))
+
+
+def _negative_curriculum_weight(
+    row: dict[str, Any],
+    *,
+    negative_curriculum_weights: dict[str, float] | None,
+) -> float:
+    if not negative_curriculum_weights or bool(row["label"]["valid"]):
+        return 1.0
+    features = {
+        str(name): float(value)
+        for name, value in zip(row["feature_names"], row["features"], strict=True)
+    }
+    return max(
+        (
+            weight
+            for feature_name, weight in negative_curriculum_weights.items()
+            if features.get(feature_name, 0.0) > 0.0
+        ),
+        default=1.0,
+    )
 
 
 def _dot(weights: list[float], features: list[float]) -> float:

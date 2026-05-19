@@ -104,6 +104,12 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    epiplexity can guide data selection only when a task-relevance gate shows
    verifier-call, top-k, and safety metrics improve on heldout data.
 
+   The first bounded training probe is recorded in
+   [ZENO_ENERGY_CURRICULUM_RANKER.md](./ZENO_ENERGY_CURRICULUM_RANKER.md). It
+   preserved safety but did not beat the gap-weighted default, so the next
+   curriculum attempt should change the data generator or loss rather than
+   merely increasing rare-disqualifier pair weights.
+
 4. **Dominance-Cover Certificate Prototype**
 
    Status: first runtime prototype exists in
@@ -153,6 +159,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | learned repair selector | continue | strongest alignment with LNS and solver-guidance literature |
 | bounded epiplexity proxy | use for data steering | flags label diversity and policy separation before spending training budget |
 | epiplexity as promotion proof | reject | recent proxy/OOD counterexample makes task-relevance evidence mandatory |
+| rare-disqualifier pair-weight curriculum | revise | first bounded probe increased mean verifier calls versus the gap-weighted default |
 | top-k without fallback | reject | empirical recall cannot replace certificate or fallback |
 | online checked stop | prototype only with suffix-bound certificate | current checked-stop rates are offline audits |
 

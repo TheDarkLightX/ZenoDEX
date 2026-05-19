@@ -551,6 +551,30 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    curriculum_ranker = _load_json(
+        root / "data/upba_energy/upba_v2_energy_curriculum_ranker_seed20260517.json"
+    )
+    curriculum_ranker_doc = (
+        root / "docs/ZENO_ENERGY_CURRICULUM_RANKER.md"
+    ).read_text(encoding="utf-8")
+    curriculum_ranker_tool = (
+        root / "tools/benchmark_upba_energy_curriculum.py"
+    ).read_text(encoding="utf-8")
+    curriculum_ranker_tests = (
+        root / "tests/energy/test_upba_v2_curriculum_ranker.py"
+    ).read_text(encoding="utf-8")
+    trainer_source = (root / "tools/train_upba_energy.py").read_text(encoding="utf-8")
+    payloads["curriculum_ranker"] = curriculum_ranker
+    checks.extend(
+        _check_curriculum_ranker(
+            curriculum_ranker,
+            curriculum_ranker_doc,
+            curriculum_ranker_tool,
+            curriculum_ranker_tests,
+            trainer_source,
+        )
+    )
+
     epiplexity_literature = _load_json(
         root / "data/upba_energy/zenoenergy_epiplexity_literature_receipt.json"
     )
@@ -2357,6 +2381,62 @@ def _check_negative_curriculum(
     ]
 
 
+def _check_curriculum_ranker(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+    trainer_source: str,
+) -> list[EvidenceCheck]:
+    holdout_baseline = report["holdout"]["baseline"]
+    holdout_curriculum = report["holdout"]["curriculum"]
+    stress_baseline = report["stress"]["summary"]["baseline_learned"]
+    stress_curriculum = report["stress"]["summary"]["curriculum_learned"]
+    interpretation = report["interpretation"]
+    return [
+        _expect_true(
+            "curriculum_ranker.schema",
+            report.get("schema") == "zenodex/energy/upba_v2_curriculum_ranker_report/v1"
+            and int(report["max_train_batches"]) == 1000
+            and int(report["train_rows"]) < int(report["train_rows_available"])
+            and report["curriculum"].endswith("zenoenergy_negative_curriculum_seed20260545.json"),
+            "curriculum ranker receipt records bounded training scope and source curriculum",
+        ),
+        _expect_true(
+            "curriculum_ranker.safety",
+            int(stress_curriculum["invalid_accept_count_total"]) == 0
+            and int(stress_curriculum["permutation_violation_count_total"]) == 0
+            and float(stress_curriculum["top_10_recall_min"]) == 1.0
+            and bool(interpretation["safety_clean"]) is True,
+            "curriculum ranker preserves safety, permutation, and top-10 fallback evidence",
+        ),
+        _expect_true(
+            "curriculum_ranker.negative_result",
+            float(holdout_curriculum["mean_verifier_calls"])
+            > float(holdout_baseline["mean_verifier_calls"])
+            and float(stress_curriculum["mean_verifier_calls_mean"])
+            > float(stress_baseline["mean_verifier_calls_mean"])
+            and bool(interpretation["curriculum_improved_cross_seed_mean_calls"]) is False
+            and interpretation["promotion_decision"] == "keep_default",
+            "rare-disqualifier curriculum does not beat the gap-weighted default",
+        ),
+        _expect_true(
+            "curriculum_ranker.source_hooks",
+            "negative_curriculum_weights" in trainer_source
+            and "load_negative_curriculum_weights" in trainer_source
+            and "max-train-batches" in tool_text
+            and "test_curriculum_ranker_receipt_records_negative_result" in test_text,
+            "trainer, benchmark, and test expose curriculum weighting and bounded scope",
+        ),
+        _expect_true(
+            "curriculum_ranker.doc_boundary",
+            "did not beat the gap-weighted default" in doc_text
+            and "promotion_decision: keep_default" in doc_text,
+            "doc records the negative result and keeps the default ranker",
+        ),
+    ]
+
+
 def _check_epiplexity_literature(
     report: dict[str, Any],
     doc_text: str,
@@ -2470,6 +2550,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2": "falsified",
         "H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519": "supported",
         "H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519": "falsified",
+        "H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519": "supported",
+        "H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2550,6 +2632,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
         "suffix_bound_adversarial_families"
     ]
     negative_curriculum = payloads["negative_curriculum"]
+    curriculum_ranker = payloads["curriculum_ranker"]
     epiplexity_literature = payloads["epiplexity_literature"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
@@ -3016,6 +3099,30 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "bounded_epiplexity_proxy"
             ],
             "negative_knowledge": negative_curriculum["negative_knowledge"],
+        },
+        "curriculum_ranker": {
+            "schema": curriculum_ranker["schema"],
+            "max_train_batches": curriculum_ranker["max_train_batches"],
+            "train_rows": curriculum_ranker["train_rows"],
+            "train_rows_available": curriculum_ranker["train_rows_available"],
+            "baseline_holdout_mean_calls": curriculum_ranker["holdout"]["baseline"][
+                "mean_verifier_calls"
+            ],
+            "curriculum_holdout_mean_calls": curriculum_ranker["holdout"][
+                "curriculum"
+            ]["mean_verifier_calls"],
+            "baseline_stress_mean_calls": curriculum_ranker["stress"]["summary"][
+                "baseline_learned"
+            ]["mean_verifier_calls_mean"],
+            "curriculum_stress_mean_calls": curriculum_ranker["stress"]["summary"][
+                "curriculum_learned"
+            ]["mean_verifier_calls_mean"],
+            "promotion_decision": curriculum_ranker["interpretation"][
+                "promotion_decision"
+            ],
+            "negative_knowledge": curriculum_ranker["interpretation"][
+                "negative_knowledge"
+            ],
         },
         "epiplexity_literature": {
             "schema": epiplexity_literature["schema"],

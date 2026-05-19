@@ -246,7 +246,9 @@ A Julia negative-curriculum lane now converts those hard negatives into
 sampling weights and a bounded epiplexity proxy, so training can prioritize
 rare deterministic disqualifiers while preserving verifier authority.
 The epiplexity literature note adds the task-relevance gate: the proxy can
-guide data selection only after heldout ranking metrics prove it helps.
+guide data selection only after heldout ranking metrics prove it helps. The
+first bounded rare-disqualifier curriculum ranker did not beat the
+gap-weighted default, so the default stays promoted for research.
 
 Primary entry points:
 
@@ -256,6 +258,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
 - [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
 - [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
+- [docs/ZENO_ENERGY_CURRICULUM_RANKER.md](docs/ZENO_ENERGY_CURRICULUM_RANKER.md)
 - [docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
 - [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
 - [docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md)

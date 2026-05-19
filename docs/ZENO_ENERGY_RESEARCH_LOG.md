@@ -1726,3 +1726,50 @@ claiming a curriculum helped.
 Research consequence: epiplexity can steer which synthetic or replay examples
 to generate next. It cannot promote a model, certify a settlement, or replace
 real replay evidence.
+
+## Negative-Curriculum Ranker Probe
+
+Artifact:
+[ZENO_ENERGY_CURRICULUM_RANKER.md](./ZENO_ENERGY_CURRICULUM_RANKER.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_curriculum_ranker_seed20260517.json`
+
+Command:
+
+```bash
+python3 tools/benchmark_upba_energy_curriculum.py \
+  --output-model data/upba_energy/upba_v2_energy_linear_curriculum_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_energy_curriculum_ranker_seed20260517.json \
+  --output-markdown docs/ZENO_ENERGY_CURRICULUM_RANKER.md \
+  --max-train-batches 1000 \
+  --epochs 4 \
+  --stress-batches 40 \
+  --stress-seeds 20260546,20260547,20260548 \
+  --candidate-counts 20,32,50
+```
+
+Observed result:
+
+| metric | gap-weighted default | curriculum ranker |
+| --- | ---: | ---: |
+| holdout mean calls | 1.017 | 1.032 |
+| holdout top-10 recall | 1.000 | 1.000 |
+| stress mean calls | 1.011 | 1.025 |
+| stress p99 max | 2 | 4 |
+| invalid accepts | 0 | 0 |
+| permutation violations | 0 | 0 |
+
+Positive knowledge:
+
+```text
+The curriculum training hook is replayable and preserves the advisory safety
+boundary on the bounded stress grid.
+```
+
+Negative knowledge:
+
+```text
+Rare-disqualifier pair weighting did not beat the gap-weighted default on this
+bounded probe. The next attempt needs a stronger data-generation or loss change.
+```

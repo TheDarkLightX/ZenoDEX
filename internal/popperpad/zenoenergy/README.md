@@ -659,6 +659,25 @@ negative_edge_ref:                   sha256:85592a9102c0fcfe121bfbd8881a04856a53
 checkpoint_ref:                      sha256:e9ac3667c003a0c7e20b9dc9332bb1208efbd5dd69b150914e770b4a91c3dfbb
 ```
 
+### Curriculum Ranker Probe
+
+```text
+json_blob_ref:                       sha256:8ec925411380895a9f5af3407693333a1e5364d690a2d2239ac3ee8c58a492f3
+markdown_blob_ref:                   sha256:75a041350b4e9fa2b446a89468b90a97fdaa145791ee3a481c39012155be324a
+context_ref:                         sha256:f0252193f0ee61b035cbb0d94d826b3409d04529dc5067df1e18e74b01e622b1
+json_artifact_ref:                   sha256:c9aa39b9a06a21d8b602e7fecb7242658d5c05d20ff6f95eac037d07ca128c8f
+markdown_artifact_ref:               sha256:1a70796a58a356e508efb3c889384149425610c8ed4425a85bf7b4dedfb7cd6d
+support_recipe_ref:                  sha256:ad8f05b17dbd2320c1a95dabb4c7651b2ba793ca2fbe91575737d371a6f16f6b
+refute_recipe_ref:                   sha256:ba3230cacbbf0d7cff7e426dc2403983cc031125fe899a833fc58268ab4486f0
+support_hypothesis_ref:              sha256:181df561a8d8c91b81643ba657283e190a23053c6114ca7c833e8ac22c3d8cf4
+negative_hypothesis_ref:             sha256:95c9868d097538c6c2f561910c09bd93065297599ae9213cc5866716c02f15d6
+support_evidence_ref:                sha256:cc00395a90f553508e74e8cfe811d45da5a8f1c5c160b84d0044be9bda7fdab8
+negative_evidence_ref:               sha256:84ab866ded549083f85deb8bbcb3c56bfa1fa4c0bb1e9476678a11b17bc50696
+support_edge_ref:                    sha256:8115b66fefc85e1a72abfe9e5d62da965e06f10982848794448a6822251b8173
+negative_edge_ref:                   sha256:f188904381089fc7eebad40c882ac4ae61a4b37efa9d23a11b898ecbc921cf48
+checkpoint_ref:                      sha256:833307e7cc6320bc0a716415b25652847d3005baf91da60a595411c971215092
+```
+
 ## Current Status
 
 ```text
@@ -723,6 +742,8 @@ H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2: supported
 H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2: falsified
 H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519: supported
 H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519: falsified
+H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519: supported
+H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519: falsified
 doctor_ok: true
 ```
 

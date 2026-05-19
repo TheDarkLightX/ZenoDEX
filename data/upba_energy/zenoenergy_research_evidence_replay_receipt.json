@@ -1,5 +1,5 @@
 {
-  "check_count": 206,
+  "check_count": 213,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -727,6 +727,31 @@
       "passed": true
     },
     {
+      "check_id": "curriculum_ranker.schema",
+      "detail": "curriculum ranker receipt records bounded training scope and source curriculum",
+      "passed": true
+    },
+    {
+      "check_id": "curriculum_ranker.safety",
+      "detail": "curriculum ranker preserves safety, permutation, and top-10 fallback evidence",
+      "passed": true
+    },
+    {
+      "check_id": "curriculum_ranker.negative_result",
+      "detail": "rare-disqualifier curriculum does not beat the gap-weighted default",
+      "passed": true
+    },
+    {
+      "check_id": "curriculum_ranker.source_hooks",
+      "detail": "trainer, benchmark, and test expose curriculum weighting and bounded scope",
+      "passed": true
+    },
+    {
+      "check_id": "curriculum_ranker.doc_boundary",
+      "detail": "doc records the negative result and keeps the default ranker",
+      "passed": true
+    },
+    {
       "check_id": "epiplexity_literature.schema",
       "detail": "epiplexity literature receipt schema and counts are stable",
       "passed": true
@@ -1027,6 +1052,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519",
+      "detail": "H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519",
+      "detail": "H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -1034,7 +1069,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 206,
+  "passed_count": 213,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1065,6 +1100,18 @@
       "row_count": 20,
       "source": "built-in-zenograph-baseline",
       "valid_count": 12
+    },
+    "curriculum_ranker": {
+      "baseline_holdout_mean_calls": 1.0166414523449319,
+      "baseline_stress_mean_calls": 1.0112535612535611,
+      "curriculum_holdout_mean_calls": 1.0317700453857792,
+      "curriculum_stress_mean_calls": 1.0254273504273503,
+      "max_train_batches": 1000,
+      "negative_knowledge": "The rare-disqualifier curriculum did not beat the gap-weighted default on cross-seed learned mean verifier calls.",
+      "promotion_decision": "keep_default",
+      "schema": "zenodex/energy/upba_v2_curriculum_ranker_report/v1",
+      "train_rows": 19981,
+      "train_rows_available": 199860
     },
     "dominance_cover": {
       "evaluated_batches": 79,

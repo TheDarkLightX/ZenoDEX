@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 206
-passed_count: 206
+check_count: 213
+passed_count: 213
 failed_count: 0
 ```
 
@@ -154,6 +154,11 @@ failed_count: 0
 | negative_curriculum.epiplexity_proxy | pass | bounded epiplexity proxy reports measurable structure with a diagnostic-only boundary |
 | negative_curriculum.source_hooks | pass | Julia tool, test, and doc expose curriculum and academic hooks |
 | negative_curriculum.negative_knowledge | pass | negative knowledge preserves the boundary around epiplexity and synthetic hard negatives |
+| curriculum_ranker.schema | pass | curriculum ranker receipt records bounded training scope and source curriculum |
+| curriculum_ranker.safety | pass | curriculum ranker preserves safety, permutation, and top-10 fallback evidence |
+| curriculum_ranker.negative_result | pass | rare-disqualifier curriculum does not beat the gap-weighted default |
+| curriculum_ranker.source_hooks | pass | trainer, benchmark, and test expose curriculum weighting and bounded scope |
+| curriculum_ranker.doc_boundary | pass | doc records the negative result and keeps the default ranker |
 | epiplexity_literature.schema | pass | epiplexity literature receipt schema and counts are stable |
 | epiplexity_literature.sources | pass | primary epiplexity, proxy counterexample, and companion sources are recorded |
 | epiplexity_literature.task_relevance_gate | pass | literature note requires task-specific heldout ranking metrics |
@@ -214,6 +219,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 | pass | H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519 | pass | H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 | pass | H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519 | pass | H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 | pass | H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -248,6 +255,18 @@ failed_count: 0
     "row_count": 20,
     "source": "built-in-zenograph-baseline",
     "valid_count": 12
+  },
+  "curriculum_ranker": {
+    "baseline_holdout_mean_calls": 1.0166414523449319,
+    "baseline_stress_mean_calls": 1.0112535612535611,
+    "curriculum_holdout_mean_calls": 1.0317700453857792,
+    "curriculum_stress_mean_calls": 1.0254273504273503,
+    "max_train_batches": 1000,
+    "negative_knowledge": "The rare-disqualifier curriculum did not beat the gap-weighted default on cross-seed learned mean verifier calls.",
+    "promotion_decision": "keep_default",
+    "schema": "zenodex/energy/upba_v2_curriculum_ranker_report/v1",
+    "train_rows": 19981,
+    "train_rows_available": 199860
   },
   "dominance_cover": {
     "evaluated_batches": 79,
