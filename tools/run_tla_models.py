@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import time
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_DIR = ROOT / "formal" / "tla"
@@ -30,11 +30,12 @@ def _find_java(explicit: str | None) -> str:
 
 
 def _find_tla_jar(explicit: Path | None) -> Path:
-    path = explicit or DEFAULT_JAR
+    env_jar = os.environ.get("TLA_JAR")
+    path = explicit or (Path(env_jar) if env_jar else DEFAULT_JAR)
     if path.is_file():
         return path
     raise TlaModelError(
-        f"TLC jar not found at {path}. Run 'bash tools/install_tla_tools.sh' or set --tla-jar."
+        f"TLC jar not found at {path}. Run 'bash tools/install_tla_tools.sh', set TLA_JAR, or set --tla-jar."
     )
 
 

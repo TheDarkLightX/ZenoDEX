@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "formal" / "tla" / "SettlementAttestationGovernance.tla"
 CFG = ROOT / "formal" / "tla" / "SettlementAttestationGovernance.cfg"
-TLA_JAR = ROOT / "external" / "tla-tools" / "tla2tools.jar"
+TLA_JAR = Path(os.environ.get("TLA_JAR", ROOT / "external" / "tla-tools" / "tla2tools.jar"))
 
 
 @pytest.mark.skipif(not shutil.which("java"), reason="java is not available")

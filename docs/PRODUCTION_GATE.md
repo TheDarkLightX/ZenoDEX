@@ -21,6 +21,8 @@ This repo includes a single “production gate” script that runs the same chec
 From repo root:
 
 ```bash
+PYTHON=python3 tools/install_python_hash_locked_deps.sh dev
+python3 tools/check_release_external_toolchains.py
 bash tools/prod_gate.sh
 ```
 
@@ -49,6 +51,10 @@ bash tools/prod_gate.sh --skip-ui
 - The local production gate installs Python tooling through
   `tools/install_python_hash_locked_deps.sh dev`, which uses
   `pip --require-hashes` over the committed lockfile.
+- The full release gate additionally runs
+  `tools/check_release_external_toolchains.py` so missing external toolchains
+  such as ESSO, Tau, TLA/TLC, and mathlib4 are reported before expensive
+  release checks start.
 - The local production gate still treats the final container artifact as the
   launch blocker and scans it for fixable HIGH/CRITICAL vulnerabilities.
 - If the vendored ESSO repo carries intentional local patches, update the manifest with the exact `esso_tree_sha256` after a successful assurance run instead of relying on a clean git checkout alone.
