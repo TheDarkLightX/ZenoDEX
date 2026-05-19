@@ -64,3 +64,12 @@ def test_release_gate_runs_risc0_real_proof_archive_checker() -> None:
     assert "tests/integration/test_zeno_ledger_risc0_proof_metadata.py" in release_gate
     assert "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" in release_gate
     assert "tests/test_check_zeno_ledger_proof_coverage_matrix.py" in release_gate
+
+
+def test_release_gate_runs_zeno_ledger_validator_schedule_peer_check() -> None:
+    release_gate = (ROOT / "tools/run_release_gate.sh").read_text(encoding="utf-8")
+
+    assert "src/integration/zeno_ledger_validator_schedule_v0.py" in release_gate
+    assert "tools/zeno_ledger_node.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_validator_schedule_v0.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_node_fork_choice.py" in release_gate
