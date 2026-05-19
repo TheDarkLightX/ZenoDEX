@@ -29,6 +29,8 @@ SECRET_PATTERNS = {
 }
 
 INSTRUCTIONAL_ALLOWED = {
+    ("tools/check_production_key_material_absence.py", "SECRET"),
+    ("tools/check_production_key_material_absence.py", "PASSWORD"),
     ("docs/PRODUCTION_KEY_MANAGEMENT_AGENT_TASKS.md", "SECRET=|PASSWORD="),
     ("docs/PRODUCTION_KEY_MANAGEMENT_RUNBOOK.md", "mnemonic"),
     ("docs/PRODUCTION_KEY_MANAGEMENT_RUNBOOK.md", "private"),

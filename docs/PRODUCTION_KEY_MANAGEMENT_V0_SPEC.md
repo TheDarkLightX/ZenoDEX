@@ -537,5 +537,12 @@ The scanner checks tracked files for secret-like literals and production signing
 material. Deterministic test fixtures and devnet-only signing helper names are
 allowed only when they do not contain production secrets.
 
+The whole checklist is audited by:
+
+```bash
+python3 tools/check_production_key_management_completion.py
+pytest -q tests/test_check_production_key_management_completion.py
+```
+
 The current commit is expected to close the first proof/spec layer. Runtime
 admission and operator procedures remain separate implementation tasks.
