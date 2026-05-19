@@ -51,6 +51,6 @@
   "residual_limits": [
     "Python runtime and dev hash-pinned lockfiles are present and tracked by committed SHA-256 hashes.",
     "This ratchet prevents new unpinned Python source requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
-    "Production install closure still needs release scripts and deployment docs to install from the lockfiles with require-hashes."
+    "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs."
   ]
 }
