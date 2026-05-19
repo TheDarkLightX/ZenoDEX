@@ -11,7 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_ledger_anti_equivocation_v0 import (  # noqa: E402
+    build_checkpoint_equivocation_slashing_evidence_v0,
+    build_watcher_attestation_equivocation_slashing_evidence_v0,
     validate_checkpoint_non_equivocation_v0,
+    validate_slashing_evidence_v0,
     validate_watcher_attestation_non_equivocation_v0,
 )
 from src.integration.zeno_ledger_v0 import build_checkpoint_v0, build_header_v0, hash_v0  # noqa: E402
@@ -96,6 +99,15 @@ def run_check() -> dict[str, object]:
             lambda: validate_checkpoint_non_equivocation_v0([conflicting_checkpoint_a, conflicting_checkpoint_b]),
         ),
         _case(
+            "checkpoint_conflict_slashing_evidence",
+            lambda: validate_slashing_evidence_v0(
+                build_checkpoint_equivocation_slashing_evidence_v0(
+                    conflicting_checkpoint_a,
+                    conflicting_checkpoint_b,
+                )
+            ),
+        ),
+        _case(
             "watcher_duplicate_same_range",
             lambda: validate_watcher_attestation_non_equivocation_v0([attestation, dict(attestation)]),
         ),
@@ -103,12 +115,23 @@ def run_check() -> dict[str, object]:
             "watcher_conflict_rejected",
             lambda: validate_watcher_attestation_non_equivocation_v0([attestation, conflicting_attestation]),
         ),
+        _case(
+            "watcher_conflict_slashing_evidence",
+            lambda: validate_slashing_evidence_v0(
+                build_watcher_attestation_equivocation_slashing_evidence_v0(
+                    attestation,
+                    conflicting_attestation,
+                )
+            ),
+        ),
     ]
     expected = {
         "checkpoint_duplicate_same_header": True,
         "checkpoint_conflict_rejected": False,
+        "checkpoint_conflict_slashing_evidence": True,
         "watcher_duplicate_same_range": True,
         "watcher_conflict_rejected": False,
+        "watcher_conflict_slashing_evidence": True,
     }
     ok = all(case["ok"] is expected[str(case["name"])] for case in cases)
     return {"schema": RESULT_SCHEMA, "ok": ok, "cases": cases}

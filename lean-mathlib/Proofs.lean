@@ -178,6 +178,7 @@ import Proofs.UniformBatchClearingV1
 import Proofs.UniformBatchOptimality
 import Proofs.ZenoLedgerDisjointWrites
 import Proofs.ZenoLedgerPublicNetworkConfigAdmission
+import Proofs.ZenoLedgerSlashingEvidenceAdmission
 import Proofs.ZenoLedgerTransportAuthAdmission
 import Proofs.ZenoLedgerZkTeeProofComposition
 
