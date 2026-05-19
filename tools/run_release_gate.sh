@@ -138,13 +138,16 @@ echo "== release: ZenoLedger anti-equivocation =="
 "$PY" -m py_compile \
   "$ROOT_DIR/src/integration/zeno_ledger_live_quorum_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_validator_schedule_v0.py" \
+  "$ROOT_DIR/tools/zeno_ledger_machine_b_acceptance.py" \
   "$ROOT_DIR/tools/zeno_ledger_node.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_live_quorum_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_node_transport_auth.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_config_quorum.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_fork_choice.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_live_quorum_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_node_transport_auth.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_config_quorum.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_fork_choice.py"

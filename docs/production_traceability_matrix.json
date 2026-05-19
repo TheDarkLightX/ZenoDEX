@@ -122,19 +122,21 @@
     {
       "id": "zenoledger_public_testnet_rehearsal",
       "status": "supported_replay",
-      "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout. When required, public network configs must carry BLS signer-registry quorum over the hash-bound writer and peer URL list before a node treats them as joinable.",
+      "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout. When required, public network configs must carry BLS signer-registry quorum over the hash-bound writer and peer URL list before a node treats them as joinable, and node HTTP surfaces can require operator-local bearer authentication for peer reads and testnet submissions.",
       "runtime_guard_paths": [
         "tools/run_public_testnet_candidate_gate.sh",
         "tools/check_zeno_ledger_anti_equivocation.py",
         "src/integration/zeno_ledger_anti_equivocation_v0.py",
         "tools/zeno_ledger_make_public_testnet_bundle.py",
         "tools/zeno_ledger_node.py",
+        "tools/zeno_ledger_machine_b_acceptance.py",
         "tools/zeno_ledger_dual_operator_rehearsal.py",
         "tools/zeno_ledger_public_network_smoke.py"
       ],
       "test_paths": [
         "tests/integration/test_zeno_ledger_v0.py",
         "tests/integration/test_zeno_ledger_node.py",
+        "tests/integration/test_zeno_ledger_node_transport_auth.py",
         "tests/integration/test_zeno_ledger_public_network_config_quorum.py",
         "tests/integration/test_zeno_ledger_machine_a_host.py",
         "tests/integration/test_zeno_ledger_machine_b_acceptance.py",
@@ -142,11 +144,12 @@
       ],
       "evidence_commands": [
         "python3 tools/check_zeno_ledger_anti_equivocation.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_node_transport_auth.py",
         "python3 -m pytest -q tests/integration/test_zeno_ledger_public_network_config_quorum.py",
         "python3 -m pytest -q tests/integration/test_zeno_ledger_machine_b_acceptance.py",
         "PYTHON=python3 ZENO_PUBLIC_TESTNET_GATE_OUT=/tmp/zenodex_public_testnet_candidate_gate tools/run_public_testnet_candidate_gate.sh"
       ],
-      "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, optional signed public-network config admission, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
+      "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, optional signed public-network config admission, optional bearer-authenticated node transport, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
     },
     {
       "id": "zenoledger_validator_schedule_fork_choice",
@@ -166,7 +169,7 @@
       "evidence_commands": [
         "python3 -m pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py"
       ],
-      "residual_limits": "This is a deterministic policy, peer-check replay, and opt-in live checkpoint quorum surface. Open block gossip, validator peer discovery, network transport authentication, slashing, and automatic production key management remain follow-up work."
+      "residual_limits": "This is a deterministic policy, peer-check replay, and opt-in live checkpoint quorum surface. Open block gossip, validator peer discovery, slashing, and automatic production key management remain follow-up work."
     },
     {
       "id": "zk_risc0_metadata_binding",

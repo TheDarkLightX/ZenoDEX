@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
+    _read_transport_auth_token_file_v0,
     build_node_evidence_report_v0,
     doctor_public_node_v0,
     join_public_node_from_network_config_url_v0,
@@ -126,12 +127,20 @@ def build_machine_b_latest_main_summary_v0(
     }
 
 
-def _post_json(url: str, value: Mapping[str, Any]) -> tuple[dict[str, Any], int]:
+def _post_json(
+    url: str,
+    value: Mapping[str, Any],
+    *,
+    auth_token: str | None = None,
+) -> tuple[dict[str, Any], int]:
     payload = json.dumps(dict(value), sort_keys=True).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if auth_token is not None:
+        headers["Authorization"] = f"Bearer {auth_token}"
     request = Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     try:
@@ -166,6 +175,7 @@ def run_machine_b_acceptance_v0(
     token_decimals: int,
     time_ms: int | None = None,
     writer_url: str | None = None,
+    peer_auth_token: str | None = None,
 ) -> dict[str, Any]:
     """Run the physical Machine B acceptance sequence without starting a server."""
 
@@ -186,6 +196,7 @@ def run_machine_b_acceptance_v0(
         poll_seconds=poll_seconds,
         serve=False,
         expected_network_config_hash=expected_network_config_hash,
+        peer_auth_token=peer_auth_token,
     )
     network_config = _load_json_object(data_dir / "public_network_config.json")
     writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
@@ -205,14 +216,17 @@ def run_machine_b_acceptance_v0(
     token_report, token_http_status = _post_json(
         urljoin(selected_writer.rstrip("/") + "/", "tokens"),
         token_payload,
+        auth_token=peer_auth_token,
     )
     follow_report = poll_live_peers_once_v0(
         data_dir=data_dir,
         peer_urls=selected_peers,
+        peer_auth_token=peer_auth_token,
     )
     evidence_report = build_node_evidence_report_v0(
         data_dir=data_dir,
         peer_urls=[selected_writer],
+        peer_auth_token=peer_auth_token,
     )
     evidence_report_path = data_dir / "evidence_report.json"
     _write_json(evidence_report_path, evidence_report)
@@ -293,6 +307,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--token-decimals", type=int, default=8)
     parser.add_argument("--creator-pubkey", default=DEFAULT_BOOTSTRAP_SENDER)
     parser.add_argument("--time-ms", type=int)
+    parser.add_argument("--peer-auth-token-file", type=Path)
     parser.add_argument("--out", type=Path)
     return parser
 
@@ -317,6 +332,7 @@ def main(argv: list[str] | None = None) -> int:
             creator_pubkey=args.creator_pubkey,
             token_decimals=args.token_decimals,
             time_ms=args.time_ms,
+            peer_auth_token=_read_transport_auth_token_file_v0(args.peer_auth_token_file),
         )
         if args.out is not None:
             _write_json(args.out, report)
