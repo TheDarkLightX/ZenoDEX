@@ -48,6 +48,53 @@ def NoSingleKeyAuthority (a : ProductionKeyAdmission) : Prop :=
   a.thresholdAtLeastTwoForCritical = true ∧
   a.distinctCustodiansMet = true
 
+inductive ProductionRole where
+  | treasury
+  | config
+  | validator
+  | verifier
+  | oracle
+  | release
+  | emergency
+deriving DecidableEq, Repr
+
+inductive ProductionAction where
+  | protocolTreasurySpend
+  | daoTreasuryGrant
+  | publicNetworkConfigUpdate
+  | validatorSetUpdate
+  | verifierRegistryUpdate
+  | oracleReporterRegistryUpdate
+  | releaseArtifactPublish
+  | emergencyPause
+  | emergencyUnpause
+deriving DecidableEq, Repr
+
+def RequiredRole : ProductionAction → ProductionRole
+  | ProductionAction.protocolTreasurySpend => ProductionRole.treasury
+  | ProductionAction.daoTreasuryGrant => ProductionRole.treasury
+  | ProductionAction.publicNetworkConfigUpdate => ProductionRole.config
+  | ProductionAction.validatorSetUpdate => ProductionRole.validator
+  | ProductionAction.verifierRegistryUpdate => ProductionRole.verifier
+  | ProductionAction.oracleReporterRegistryUpdate => ProductionRole.oracle
+  | ProductionAction.releaseArtifactPublish => ProductionRole.release
+  | ProductionAction.emergencyPause => ProductionRole.emergency
+  | ProductionAction.emergencyUnpause => ProductionRole.config
+
+def RoleAuthorizes (role : ProductionRole) (action : ProductionAction) : Prop :=
+  role = RequiredRole action
+
+def RequiresTimelock : ProductionAction → Prop
+  | ProductionAction.protocolTreasurySpend => True
+  | ProductionAction.daoTreasuryGrant => True
+  | ProductionAction.publicNetworkConfigUpdate => True
+  | ProductionAction.validatorSetUpdate => True
+  | ProductionAction.verifierRegistryUpdate => True
+  | ProductionAction.oracleReporterRegistryUpdate => True
+  | ProductionAction.releaseArtifactPublish => False
+  | ProductionAction.emergencyPause => False
+  | ProductionAction.emergencyUnpause => True
+
 theorem admitted_safe
     (a : ProductionKeyAdmission)
     (hadmit : Admitted a) :
@@ -237,5 +284,40 @@ theorem admits_safe_production_key_action
     hprodKeys,
     hreceipt
   ⟩
+
+theorem treasury_spend_admitted_no_single_key
+    (a : ProductionKeyAdmission)
+    (_hrole : RoleAuthorizes ProductionRole.treasury ProductionAction.protocolTreasurySpend)
+    (hadmit : Admitted a) :
+    NoSingleKeyAuthority a := by
+  exact admitted_no_single_key_authority a hadmit
+
+theorem config_update_admitted_requires_timelock
+    (a : ProductionKeyAdmission)
+    (_htimelockedAction : RequiresTimelock ProductionAction.publicNetworkConfigUpdate)
+    (hadmit : Admitted a) :
+    a.timelockSatisfiedIfRequired = true := by
+  rcases admitted_safe a hadmit with
+    ⟨_, _, _, _, _, _, _, _, htimelock, _, _, _⟩
+  exact htimelock
+
+theorem emergency_pause_admitted_does_not_authorize_unpause
+    (_hpause : RoleAuthorizes ProductionRole.emergency ProductionAction.emergencyPause) :
+    ¬ RoleAuthorizes ProductionRole.emergency ProductionAction.emergencyUnpause := by
+  intro hunpause
+  unfold RoleAuthorizes RequiredRole at hunpause
+  cases hunpause
+
+theorem revoked_key_cannot_be_counted
+    (a : ProductionKeyAdmission)
+    (hrevoked : a.noRevokedSigner = false) :
+    ¬ Admitted a := by
+  exact rejects_revoked_signer a hrevoked
+
+theorem production_action_excludes_testnet_key
+    (a : ProductionKeyAdmission)
+    (htestnet : a.productionKeysOnly = false) :
+    ¬ Admitted a := by
+  exact rejects_testnet_key_for_production a htestnet
 
 end Proofs.ZenoLedgerProductionKeyManagement

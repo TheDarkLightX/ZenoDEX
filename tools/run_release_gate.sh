@@ -139,11 +139,13 @@ echo "== release: production key management =="
   "$ROOT_DIR/src/integration/zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tools/check_production_key_management_spec.py" \
   "$ROOT_DIR/tools/check_production_key_management_config.py" \
+  "$ROOT_DIR/tools/check_production_key_management_bypasses.py" \
   "$ROOT_DIR/tests/test_production_key_management_spec.py" \
   "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tests/test_check_production_key_management_config.py"
 "$PY" "$ROOT_DIR/tools/check_production_key_management_spec.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_bypasses.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/test_production_key_management_spec.py" \
   "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
