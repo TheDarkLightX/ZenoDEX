@@ -529,6 +529,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    negative_curriculum = _load_json(
+        root / "data/upba_energy/zenoenergy_negative_curriculum_seed20260545.json"
+    )
+    negative_curriculum_doc = (
+        root / "docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md"
+    ).read_text(encoding="utf-8")
+    negative_curriculum_tool = (
+        root / "tools/zenoenergy_negative_curriculum.jl"
+    ).read_text(encoding="utf-8")
+    negative_curriculum_tests = (
+        root / "tests/energy/test_zenoenergy_negative_curriculum_julia.py"
+    ).read_text(encoding="utf-8")
+    payloads["negative_curriculum"] = negative_curriculum
+    checks.extend(
+        _check_negative_curriculum(
+            negative_curriculum,
+            negative_curriculum_doc,
+            negative_curriculum_tool,
+            negative_curriculum_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -2257,6 +2279,62 @@ def _check_suffix_bound_adversarial_families(
     ]
 
 
+def _check_negative_curriculum(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    weights = report["recommended_disqualifier_sample_weights"]
+    proxy = report["bounded_epiplexity_proxy"]
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    return [
+        _expect_true(
+            "negative_curriculum.schema",
+            report.get("schema") == "zenodex/energy/negative_curriculum/v1"
+            and bool(report.get("ok")) is True
+            and report["source_schema"]
+            == "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1"
+            and int(report["evaluated_batches"]) == 118
+            and int(report["family_count"]) == 8
+            and int(report["total_cases"]) == 944,
+            "negative curriculum receipt is tied to the committed adversarial family stress",
+        ),
+        _expect_true(
+            "negative_curriculum.weights",
+            float(weights["output_mismatch_count"]) > 3.0
+            and float(weights["invariant_violation_flag"]) == 1.0
+            and int(report["disqualifier_histogram"]["output_mismatch_count"]) == 20,
+            "rare output-mismatch disqualifiers receive the strongest curriculum weight",
+        ),
+        _expect_true(
+            "negative_curriculum.epiplexity_proxy",
+            proxy["schema"] == "zenodex/energy/bounded_epiplexity_proxy/v1"
+            and proxy["classification"] == "measurable_bounded_structure"
+            and float(proxy["score"]) > 0.0
+            and float(proxy["policy_separation"]) == 0.375
+            and "diagnostic proxy only" in str(proxy["boundary"]).lower(),
+            "bounded epiplexity proxy reports measurable structure with a diagnostic-only boundary",
+        ),
+        _expect_true(
+            "negative_curriculum.source_hooks",
+            "bounded_epiplexity_proxy" in tool_text
+            and "curriculum_weights" in tool_text
+            and "julia executable is not available" in test_text
+            and "Bounded Epiplexity Proxy" in doc_text
+            and "LeCun" in doc_text,
+            "Julia tool, test, and doc expose curriculum and academic hooks",
+        ),
+        _expect_true(
+            "negative_curriculum.negative_knowledge",
+            "steering signal" in negative_text
+            and "correctness certificate" in negative_text
+            and "real replay is still required" in negative_text,
+            "negative knowledge preserves the boundary around epiplexity and synthetic hard negatives",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -2310,6 +2388,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519": "falsified",
         "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519": "supported",
         "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519": "falsified",
+        "H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2": "supported",
+        "H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2389,6 +2469,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     suffix_bound_adversarial_families = payloads[
         "suffix_bound_adversarial_families"
     ]
+    negative_curriculum = payloads["negative_curriculum"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2840,6 +2921,20 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "negative_knowledge": suffix_bound_adversarial_families[
                 "negative_knowledge"
             ],
+        },
+        "negative_curriculum": {
+            "schema": negative_curriculum["schema"],
+            "source_schema": negative_curriculum["source_schema"],
+            "evaluated_batches": negative_curriculum["evaluated_batches"],
+            "family_count": negative_curriculum["family_count"],
+            "total_cases": negative_curriculum["total_cases"],
+            "output_mismatch_weight": negative_curriculum[
+                "recommended_disqualifier_sample_weights"
+            ]["output_mismatch_count"],
+            "bounded_epiplexity_proxy": negative_curriculum[
+                "bounded_epiplexity_proxy"
+            ],
+            "negative_knowledge": negative_curriculum["negative_knowledge"],
         },
     }
 

@@ -90,6 +90,12 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    near-tie valid candidates with surplus reversal
    ```
 
+   Current status: [ZENO_ENERGY_NEGATIVE_CURRICULUM.md](./ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
+   converts the 944-case adversarial-family receipt into rare-disqualifier
+   sampling weights and a bounded epiplexity proxy. The next model experiment
+   should train with those weights and require a cross-seed improvement over
+   the gap-weighted default before promotion.
+
 4. **Dominance-Cover Certificate Prototype**
 
    Status: first runtime prototype exists in
@@ -137,6 +143,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | listwise set ranker | test next | matches ranking task and set-structured candidate family |
 | larger transformer | defer | data and evidence bottleneck comes before model capacity |
 | learned repair selector | continue | strongest alignment with LNS and solver-guidance literature |
+| bounded epiplexity proxy | use for data steering | flags label diversity and policy separation before spending training budget |
 | top-k without fallback | reject | empirical recall cannot replace certificate or fallback |
 | online checked stop | prototype only with suffix-bound certificate | current checked-stop rates are offline audits |
 

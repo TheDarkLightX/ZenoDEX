@@ -621,6 +621,25 @@ negative_edge_ref:                   sha256:26a22bb1d2439bfc30421656db31edcb1ad2
 checkpoint_ref:                      sha256:12e1b46a603052ca9d146af00a86a25507b8632fee7787df9d206d0bd5fce280
 ```
 
+### Negative Curriculum Epiplexity
+
+```text
+json_blob_ref:                       sha256:4518411e948efcbe145c38cc8a3f35bf1865656c04a121b841c7b3c2678106f9
+markdown_blob_ref:                   sha256:1085d28dbc7893af39332f2c1d43980ec870c060866ca2826f22c822e9b98b50
+context_ref:                         sha256:e7b1304a13e134217bcd8ef8437047d43961a5b5ca80296da731ba600ce1a8f3
+json_artifact_ref:                   sha256:0af068094ab889ee26b48524b0c6ce4e07868732e2a832dfbb5a823b9875a77c
+markdown_artifact_ref:               sha256:7b460feca51afaf4e460deb640e6f35f57f5a2dc29754fe7f678f2d99acf35af
+support_recipe_ref:                  sha256:d1e83ca31f8af94622c3e6ed25d5a3011f59260e2425e8dbd1a2b979cbbdd14f
+refute_recipe_ref:                   sha256:d608cafe303bfc028eacfe4fc44d82b77cb2ee3e9dd7efd28da17ed180711551
+support_hypothesis_ref:              sha256:c9b718cef747e78b61e2cc82ff20bfc4c30045b101a0801038ebb724fae10934
+negative_hypothesis_ref:             sha256:12a2627c7b264d7961d1ab7bb420dc9875b97d74d02577b330078e194f01f33a
+support_evidence_ref:                sha256:82c59437eab55168c30ffabf8972e67d854f20084bffcfd0545067be407fcb58
+negative_evidence_ref:               sha256:a23364da896cd3648132bed6a982f50d35a3c02c74abd2a925cf7d55096e7799
+support_edge_ref:                    sha256:b0bc2321d2bd4f7a358bae9d1ef9c97b49ca8470f7bddc3ebf2b8cdcb899fc3a
+negative_edge_ref:                   sha256:51c562bc7e06bee08e8b8f06187e3f577c4c5b7796554b2ed3f2c27e18708590
+checkpoint_ref:                      sha256:f184ab30127b0f7d9044fbcdc0f26b613e70b54f41520465c92bfc7600a9b67d
+```
+
 ## Current Status
 
 ```text
@@ -681,6 +700,8 @@ H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519: supported
 H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519: falsified
 H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519: supported
 H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519: falsified
+H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2: supported
+H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2: falsified
 doctor_ok: true
 ```
 

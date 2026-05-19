@@ -242,6 +242,9 @@ shows declared-output-only bounds fail on injected high-output invalid suffixes,
 while deterministic disqualifiers preserve the certificate.
 The multi-family adversarial suffix stress extends this to 944 verifier-invalid
 cases across 8 invalidity families with zero invalid accepts.
+A Julia negative-curriculum lane now converts those hard negatives into
+sampling weights and a bounded epiplexity proxy, so training can prioritize
+rare deterministic disqualifiers while preserving verifier authority.
 
 Primary entry points:
 
@@ -250,6 +253,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
 - [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
 - [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
+- [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
 - [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
 - [docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
 - [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)

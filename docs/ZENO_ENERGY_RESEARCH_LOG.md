@@ -1633,3 +1633,52 @@ Research consequence: the suffix-bound certificate now has both single-family
 and multi-family adversarial hard-negative receipts. The remaining promotion
 work is real replay, production-shadow replay, and exact candidate-family
 coverage.
+
+## Negative Curriculum Julia Lane
+
+Artifact:
+[ZENO_ENERGY_NEGATIVE_CURRICULUM.md](./ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_negative_curriculum_seed20260545.json`
+
+Command:
+
+```bash
+julia tools/zenoenergy_negative_curriculum.jl \
+  --input data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json \
+  --output-json data/upba_energy/zenoenergy_negative_curriculum_seed20260545.json \
+  --output-markdown docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md
+```
+
+Observed result:
+
+| metric | value |
+| --- | ---: |
+| evaluated batches | 118 |
+| family count | 8 |
+| total cases | 944 |
+| bounded epiplexity proxy score | 0.358265 |
+| label entropy bits | 2.866122 |
+| policy separation | 0.375000 |
+| rare-label headroom | 0.900498 |
+| output-mismatch sample weight | 3.170173 |
+
+Positive knowledge:
+
+```text
+The hard-negative corpus has measurable bounded structure: diverse
+deterministic disqualifier labels, rare-label headroom, and separation between
+with-disqualifier and without-disqualifier certificate behavior.
+```
+
+Negative knowledge:
+
+```text
+Epiplexity telemetry is a steering signal. It is not a correctness certificate,
+an optimality proof, or a replacement for real replay.
+```
+
+Research consequence: use the output-mismatch and rare-disqualifier weights for
+the next curriculum-trained advisory ranker, then compare against the current
+gap-weighted default on cross-seed mean verifier calls and top-k recall.

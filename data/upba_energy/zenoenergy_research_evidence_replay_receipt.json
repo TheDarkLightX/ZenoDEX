@@ -1,5 +1,5 @@
 {
-  "check_count": 192,
+  "check_count": 199,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -702,6 +702,31 @@
       "passed": true
     },
     {
+      "check_id": "negative_curriculum.schema",
+      "detail": "negative curriculum receipt is tied to the committed adversarial family stress",
+      "passed": true
+    },
+    {
+      "check_id": "negative_curriculum.weights",
+      "detail": "rare output-mismatch disqualifiers receive the strongest curriculum weight",
+      "passed": true
+    },
+    {
+      "check_id": "negative_curriculum.epiplexity_proxy",
+      "detail": "bounded epiplexity proxy reports measurable structure with a diagnostic-only boundary",
+      "passed": true
+    },
+    {
+      "check_id": "negative_curriculum.source_hooks",
+      "detail": "Julia tool, test, and doc expose curriculum and academic hooks",
+      "passed": true
+    },
+    {
+      "check_id": "negative_curriculum.negative_knowledge",
+      "detail": "negative knowledge preserves the boundary around epiplexity and synthetic hard negatives",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
       "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
       "passed": true
@@ -957,6 +982,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2",
+      "detail": "H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2",
+      "detail": "H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -964,7 +999,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 192,
+  "passed_count": 199,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1066,6 +1101,33 @@
       "listwise_permutation_violation_count": 0,
       "listwise_top_10_recall": 1.0,
       "negative_knowledge": "The first listwise set-context ranker did not improve mean verifier calls against the strongest pairwise baseline on this bounded synthetic split."
+    },
+    "negative_curriculum": {
+      "bounded_epiplexity_proxy": {
+        "boundary": "Diagnostic proxy only; it is not a correctness certificate and does not prove model accuracy, grid completeness, or production readiness.",
+        "classification": "measurable_bounded_structure",
+        "label_entropy_bits": 2.866122,
+        "max_label_entropy_bits": 3.0,
+        "normalized_label_entropy": 0.955374,
+        "policy_separation": 0.375,
+        "rare_label_headroom": 0.900498,
+        "schema": "zenodex/energy/bounded_epiplexity_proxy/v1",
+        "score": 0.358265,
+        "with_disqualifiers_ok_rate": 1.0,
+        "without_disqualifiers_ok_rate": 0.625
+      },
+      "evaluated_batches": 118,
+      "family_count": 8,
+      "negative_knowledge": [
+        "Epiplexity telemetry is a steering signal, not a correctness certificate.",
+        "Declared-output-only suffix bounds are insufficient for attractive invalid candidates.",
+        "Multi-family adversarial stress does not prove v2 bounded-grid completeness.",
+        "Synthetic hard negatives can improve training coverage, but real replay is still required before production-adjacent promotion."
+      ],
+      "output_mismatch_weight": 3.170173,
+      "schema": "zenodex/energy/negative_curriculum/v1",
+      "source_schema": "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1",
+      "total_cases": 944
     },
     "neighborhood_regret_delta": -273.6375,
     "objective_equiv_training_hygiene": {

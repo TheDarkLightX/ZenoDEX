@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 192
-passed_count: 192
+check_count: 199
+passed_count: 199
 failed_count: 0
 ```
 
@@ -149,6 +149,11 @@ failed_count: 0
 | suffix_bound_adversarial_families.disqualifiers_close | pass | deterministic disqualifiers close every multi-family adversarial suffix case |
 | suffix_bound_adversarial_families.declared_output_negative | pass | declared-output-only bounds still fail on high-output family cases |
 | suffix_bound_adversarial_families.boundary_and_hooks | pass | tool, test, and doc preserve multi-family bounded synthetic limits |
+| negative_curriculum.schema | pass | negative curriculum receipt is tied to the committed adversarial family stress |
+| negative_curriculum.weights | pass | rare output-mismatch disqualifiers receive the strongest curriculum weight |
+| negative_curriculum.epiplexity_proxy | pass | bounded epiplexity proxy reports measurable structure with a diagnostic-only boundary |
+| negative_curriculum.source_hooks | pass | Julia tool, test, and doc expose curriculum and academic hooks |
+| negative_curriculum.negative_knowledge | pass | negative knowledge preserves the boundary around epiplexity and synthetic hard negatives |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -200,6 +205,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519 | pass | H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2 | pass | H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 | pass | H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -305,6 +312,33 @@ failed_count: 0
     "listwise_permutation_violation_count": 0,
     "listwise_top_10_recall": 1.0,
     "negative_knowledge": "The first listwise set-context ranker did not improve mean verifier calls against the strongest pairwise baseline on this bounded synthetic split."
+  },
+  "negative_curriculum": {
+    "bounded_epiplexity_proxy": {
+      "boundary": "Diagnostic proxy only; it is not a correctness certificate and does not prove model accuracy, grid completeness, or production readiness.",
+      "classification": "measurable_bounded_structure",
+      "label_entropy_bits": 2.866122,
+      "max_label_entropy_bits": 3.0,
+      "normalized_label_entropy": 0.955374,
+      "policy_separation": 0.375,
+      "rare_label_headroom": 0.900498,
+      "schema": "zenodex/energy/bounded_epiplexity_proxy/v1",
+      "score": 0.358265,
+      "with_disqualifiers_ok_rate": 1.0,
+      "without_disqualifiers_ok_rate": 0.625
+    },
+    "evaluated_batches": 118,
+    "family_count": 8,
+    "negative_knowledge": [
+      "Epiplexity telemetry is a steering signal, not a correctness certificate.",
+      "Declared-output-only suffix bounds are insufficient for attractive invalid candidates.",
+      "Multi-family adversarial stress does not prove v2 bounded-grid completeness.",
+      "Synthetic hard negatives can improve training coverage, but real replay is still required before production-adjacent promotion."
+    ],
+    "output_mismatch_weight": 3.170173,
+    "schema": "zenodex/energy/negative_curriculum/v1",
+    "source_schema": "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1",
+    "total_cases": 944
   },
   "neighborhood_regret_delta": -273.6375,
   "objective_equiv_training_hygiene": {

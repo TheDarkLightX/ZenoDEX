@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 191
+    assert report["passed_count"] == report["check_count"] == 198
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -128,6 +128,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "suffix_bound_adversarial_families.disqualifiers_close",
         "suffix_bound_adversarial_families.declared_output_negative",
         "suffix_bound_adversarial_families.boundary_and_hooks",
+        "negative_curriculum.schema",
+        "negative_curriculum.weights",
+        "negative_curriculum.epiplexity_proxy",
+        "negative_curriculum.source_hooks",
+        "negative_curriculum.negative_knowledge",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
@@ -168,4 +173,6 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519",
         "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519",
         "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519",
+        "popperpad.status.H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2",
+        "popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2",
     }.issubset(check_ids)

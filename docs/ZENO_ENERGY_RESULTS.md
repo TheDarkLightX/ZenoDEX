@@ -853,6 +853,31 @@ python3 tools/stress_upba_v2_suffix_bound_adversarial_families.py \
 | high-declared-output forced fail | 118 |
 | observed disqualifier count | 8 |
 
+Negative curriculum command:
+
+```bash
+julia tools/zenoenergy_negative_curriculum.jl \
+  --input data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json \
+  --output-json data/upba_energy/zenoenergy_negative_curriculum_seed20260545.json \
+  --output-markdown docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md
+```
+
+The generated curriculum reports a bounded epiplexity proxy with measurable
+bounded structure:
+
+| metric | value |
+| --- | ---: |
+| epiplexity proxy score | 0.358265 |
+| label entropy bits | 2.866122 |
+| normalized label entropy | 0.955374 |
+| policy separation | 0.375000 |
+| rare-label headroom | 0.900498 |
+| output-mismatch sample weight | 3.170173 |
+
+This helps decide whether the current hard-negative corpus has learnable
+structure before training. The proxy is diagnostic only; it does not prove
+model accuracy, grid completeness, or production readiness.
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -870,11 +895,12 @@ secret scanner, the real replay report builder, the production evidence bundle,
 the dominance-cover runtime prototype, the WES dominance search bridge, the
 dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
-receipt, the suffix-bound adversarial family stress receipt, and
+receipt, the suffix-bound adversarial family stress receipt, the negative
+curriculum epiplexity receipt, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 192 passing checks and 0 failed checks, including
+The current receipt reports 199 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy
