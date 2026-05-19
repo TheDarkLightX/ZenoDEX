@@ -233,7 +233,10 @@ dominance-cover certificate prototype and a WES bridge that ranks
 dominance-cover checker work while deterministic UPBA verification remains
 authoritative. A follow-up dominance-prefix audit shows the current learned and
 hybrid rankers reaching a finite-list dominance-cover certificate after the
-first checked candidate on the committed bounded run.
+first checked candidate on the committed bounded run. The latest suffix-bound
+early-stop certificate adds a deterministic unchecked-suffix objective bound,
+with learned and hybrid orderings averaging 1.008 verifier calls on the
+bounded synthetic run.
 
 Primary entry points:
 
@@ -247,6 +250,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_DOMINANCE_COVER.md](docs/ZENO_ENERGY_DOMINANCE_COVER.md)
 - [docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
 - [docs/ZENO_ENERGY_DOMINANCE_PREFIX.md](docs/ZENO_ENERGY_DOMINANCE_PREFIX.md)
+- [docs/ZENO_ENERGY_SUFFIX_BOUND.md](docs/ZENO_ENERGY_SUFFIX_BOUND.md)
 - [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
 
 The replay secret scanner catches obvious key material before packaging. The

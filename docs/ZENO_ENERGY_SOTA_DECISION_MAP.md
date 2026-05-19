@@ -100,8 +100,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    [ZENO_ENERGY_DOMINANCE_PREFIX.md](./ZENO_ENERGY_DOMINANCE_PREFIX.md) shows
    that the learned and hybrid rankers reach the finite-list dominance-cover
    certificate at the first checked candidate on the committed bounded run. The
-   useful next step is a verifier-facing unchecked-suffix bound plus a full-list
-   completeness argument for:
+   suffix-bound early-stop certificate in
+   [ZENO_ENERGY_SUFFIX_BOUND.md](./ZENO_ENERGY_SUFFIX_BOUND.md) adds a
+   deterministic unchecked-suffix objective bound and stops after mean 1.008
+   verifier calls on the committed bounded run. The useful next step is a
+   full-list completeness argument for:
 
    ```text
    DominanceCover(pruned, full)
@@ -109,10 +112,10 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    -> GloballyWeaklyOptimal(winner, Feasible)
    ```
 
-   The Lean theorem exists, the finite-list runtime receipt exists, and the
-   ranked-prefix audit now exists. The production gap is completeness for the
-   generated full family and a live suffix-bound certificate that permits early
-   stop before full fallback.
+   The Lean theorem exists, the finite-list runtime receipt exists, the
+   ranked-prefix audit exists, and the suffix-bound runtime certificate now
+   exists. The production gap is completeness for the generated full family plus
+   real replay showing the bound remains useful on representative market data.
 
 ## Decisions
 

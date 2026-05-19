@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 162
+    assert report["passed_count"] == report["check_count"] == 169
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -107,6 +107,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "dominance_prefix.learned_and_hybrid_cover_first",
         "dominance_prefix.beats_controls",
         "dominance_prefix.boundary_and_hooks",
+        "suffix_bound.schema",
+        "suffix_bound.safety",
+        "suffix_bound.learned_and_hybrid_stop_first",
+        "suffix_bound.beats_controls",
+        "suffix_bound.boundary_and_hooks",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
@@ -139,4 +144,6 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518",
         "popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519",
         "popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519",
+        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519",
+        "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519",
     }.issubset(check_ids)

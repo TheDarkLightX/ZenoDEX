@@ -761,6 +761,40 @@ already verified finite lists. Live early stop needs an unchecked-suffix bound
 or deterministic full fallback, and bounded-grid production claims still need
 full-list completeness.
 
+## Suffix-Bound Early Stop
+
+The suffix-bound certificate is the first deterministic early-stop prototype
+that does not require the unchecked suffix to be fully verified. It verifies a
+ranked prefix, chooses the current verifier winner, and stops only when every
+unchecked candidate has a deterministic objective upper bound no better than
+that winner. Deterministic disqualifiers can prove an unchecked candidate
+invalid before it blocks the bound.
+
+Command:
+
+```bash
+python3 tools/check_upba_v2_suffix_bound.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260541 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_suffix_bound_benchmark_seed20260541.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND.md
+```
+
+| mode | count | objective-equiv accepts | suffix stops | full fallback | mean calls | p95 | p99 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 119 | 119 | 119 | 0 | 2.6218 | 5 | 7 |
+| random | 119 | 119 | 117 | 2 | 13.1849 | 23 | 24 |
+| hand | 119 | 119 | 119 | 0 | 1.4202 | 3 | 5 |
+| learned | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 |
+| hybrid | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 |
+
+This improves the production story materially: model ranking is still
+advisory, while the stop condition is deterministic. The remaining production
+gaps are candidate-family coverage for the bounded grid and real replay
+evidence across representative market conditions.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
@@ -771,10 +805,11 @@ objective-equivalent training hygiene, the production promotion gate, the replay
 source manifest checker, the replay source manifest builder, the real replay
 secret scanner, the real replay report builder, the production evidence bundle,
 the dominance-cover runtime prototype, the WES dominance search bridge, the
-dominance-prefix cover audit, and PopperPad status ledger. It also checks
+dominance-prefix cover audit, the suffix-bound early-stop certificate, and
+PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 163 passing checks and 0 failed checks, including
+The current receipt reports 170 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

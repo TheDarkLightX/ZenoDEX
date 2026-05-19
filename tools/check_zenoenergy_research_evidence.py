@@ -430,6 +430,36 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    suffix_bound = _load_json(
+        root / "data/upba_energy/upba_v2_suffix_bound_benchmark_seed20260541.json"
+    )
+    suffix_bound_doc = (
+        root / "docs/ZENO_ENERGY_SUFFIX_BOUND.md"
+    ).read_text(encoding="utf-8")
+    suffix_bound_source = (
+        root / "src/energy/upba_v2_suffix_bound.py"
+    ).read_text(encoding="utf-8")
+    suffix_bound_tool = (
+        root / "tools/check_upba_v2_suffix_bound.py"
+    ).read_text(encoding="utf-8")
+    suffix_bound_tests = (
+        root / "tests/energy/test_upba_v2_suffix_bound.py"
+    ).read_text(encoding="utf-8")
+    suffix_bound_lean = (
+        root / "lean-mathlib/Proofs/ZenoEnergyAdvisoryBoundary.lean"
+    ).read_text(encoding="utf-8")
+    payloads["suffix_bound"] = suffix_bound
+    checks.extend(
+        _check_suffix_bound(
+            suffix_bound,
+            suffix_bound_doc,
+            suffix_bound_source,
+            suffix_bound_tool,
+            suffix_bound_tests,
+            suffix_bound_lean,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -1858,6 +1888,82 @@ def _check_dominance_prefix(
     ]
 
 
+def _check_suffix_bound(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    tool_text: str,
+    test_text: str,
+    lean_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    learned = summary["learned"]
+    hybrid = summary["hybrid"]
+    hand = summary["hand"]
+    random = summary["random"]
+    doc_lower = doc_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    return [
+        _expect_true(
+            "suffix_bound.schema",
+            report.get("schema") == "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
+            and report.get("certificate_schema")
+            == "zenodex/energy/upba_v2_suffix_bound_certificate/v1"
+            and bool(report.get("learned_model_present")) is True,
+            "suffix-bound benchmark and certificate schemas are stable",
+        ),
+        _expect_true(
+            "suffix_bound.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True,
+            "suffix-bound early stop preserves verifier authority and records zero invalid accepts",
+        ),
+        _expect_true(
+            "suffix_bound.learned_and_hybrid_stop_first",
+            int(learned["count"]) > 0
+            and int(learned["certificate_ok_count"]) == int(learned["count"])
+            and int(hybrid["certificate_ok_count"]) == int(hybrid["count"])
+            and int(learned["objective_equiv_accept_count"]) == int(learned["count"])
+            and int(hybrid["objective_equiv_accept_count"]) == int(hybrid["count"])
+            and float(learned["mean_verifier_calls"]) <= 1.01
+            and float(hybrid["mean_verifier_calls"]) <= 1.01
+            and float(learned["p99_verifier_calls"]) == 1.0
+            and float(hybrid["p99_verifier_calls"]) == 1.0,
+            "learned and hybrid suffix-bound certificates stop after roughly one verifier call",
+        ),
+        _expect_true(
+            "suffix_bound.beats_controls",
+            float(learned["mean_verifier_calls"]) < float(hand["mean_verifier_calls"])
+            and float(learned["mean_verifier_calls"]) < float(random["mean_verifier_calls"])
+            and int(random["full_fallback_count"]) > 0
+            and float(learned["mean_checked_ratio"]) < 0.05
+            and float(hand["mean_checked_ratio"]) < float(random["mean_checked_ratio"]),
+            "learned suffix-bound early stop beats hand and random controls on verifier calls",
+        ),
+        _expect_true(
+            "suffix_bound.boundary_and_hooks",
+            "build_upba_v2_suffix_bound_certificate" in source_text
+            and "verify_upba_v2_suffix_bound_certificate" in source_text
+            and "candidate_objective_upper_bound" in source_text
+            and "deterministic disqualifier" in source_text
+            and "verify_upba_v2_suffix_bound_certificate" in tool_text
+            and "test_suffix_bound_certificate_rejects_attractive_unchecked_candidate"
+            in test_text
+            and "suffix_upper_bound_checked_stop_implies_true_max_concat"
+            in lean_text
+            and "suffix_upper_bound_checked_stop_with_exact_coverage_implies_global"
+            in lean_text
+            and "deterministic early-stop certificate" in doc_lower
+            and "candidate-family coverage" in doc_lower
+            and "candidate-family coverage" in limits_lower,
+            "source, tests, Lean theorem, and docs preserve deterministic suffix-bound limits",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -1903,6 +2009,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518": "falsified",
         "H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519": "supported",
         "H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519": "falsified",
+        "H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519": "supported",
+        "H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -1976,6 +2084,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     dominance_cover = payloads["dominance_cover"]
     wes_dominance_search = payloads["wes_dominance_search"]
     dominance_prefix = payloads["dominance_prefix"]
+    suffix_bound = payloads["suffix_bound"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2290,6 +2399,31 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "invalid_accept_count"
             ],
             "negative_knowledge": dominance_prefix["negative_knowledge"],
+        },
+        "suffix_bound": {
+            "schema": suffix_bound["schema"],
+            "evaluated_batches": suffix_bound["evaluated_batches"],
+            "model_path": suffix_bound["model_path"],
+            "learned_mean_verifier_calls": suffix_bound["summary"]["learned"][
+                "mean_verifier_calls"
+            ],
+            "learned_p99_verifier_calls": suffix_bound["summary"]["learned"][
+                "p99_verifier_calls"
+            ],
+            "hybrid_mean_verifier_calls": suffix_bound["summary"]["hybrid"][
+                "mean_verifier_calls"
+            ],
+            "hand_mean_verifier_calls": suffix_bound["summary"]["hand"][
+                "mean_verifier_calls"
+            ],
+            "random_mean_verifier_calls": suffix_bound["summary"]["random"][
+                "mean_verifier_calls"
+            ],
+            "random_full_fallback_count": suffix_bound["summary"]["random"][
+                "full_fallback_count"
+            ],
+            "invalid_accept_count": suffix_bound["safety"]["invalid_accept_count"],
+            "limits": suffix_bound["limits"],
         },
     }
 

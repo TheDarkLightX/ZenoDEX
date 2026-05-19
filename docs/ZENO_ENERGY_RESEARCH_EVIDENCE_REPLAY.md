@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 163
-passed_count: 163
+check_count: 170
+passed_count: 170
 failed_count: 0
 ```
 
@@ -128,6 +128,11 @@ failed_count: 0
 | dominance_prefix.learned_and_hybrid_cover_first | pass | learned and hybrid prefixes obtain dominance-cover certificates at the first checked candidate |
 | dominance_prefix.beats_controls | pass | learned prefix cover beats hand and random controls on checked-call count |
 | dominance_prefix.boundary_and_hooks | pass | source, tests, and docs preserve offline-prefix and suffix-bound limits |
+| suffix_bound.schema | pass | suffix-bound benchmark and certificate schemas are stable |
+| suffix_bound.safety | pass | suffix-bound early stop preserves verifier authority and records zero invalid accepts |
+| suffix_bound.learned_and_hybrid_stop_first | pass | learned and hybrid suffix-bound certificates stop after roughly one verifier call |
+| suffix_bound.beats_controls | pass | learned suffix-bound early stop beats hand and random controls on verifier calls |
+| suffix_bound.boundary_and_hooks | pass | source, tests, Lean theorem, and docs preserve deterministic suffix-bound limits |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -171,6 +176,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518 | pass | H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519 | pass | H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519 | pass | H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -396,6 +403,23 @@ failed_count: 0
     "next_experiment_count": 4,
     "required_decision_count": 7,
     "source_count": 10
+  },
+  "suffix_bound": {
+    "evaluated_batches": 119,
+    "hand_mean_verifier_calls": 1.4201680672268908,
+    "hybrid_mean_verifier_calls": 1.0084033613445378,
+    "invalid_accept_count": 0,
+    "learned_mean_verifier_calls": 1.0084033613445378,
+    "learned_p99_verifier_calls": 1.0,
+    "limits": [
+      "This benchmark uses bounded synthetic finite candidate lists.",
+      "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+      "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+    ],
+    "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+    "random_full_fallback_count": 2,
+    "random_mean_verifier_calls": 13.184873949579831,
+    "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
   },
   "topk_sweep": {
     "batches": 1983,

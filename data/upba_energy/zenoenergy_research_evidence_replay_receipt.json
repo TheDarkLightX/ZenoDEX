@@ -1,5 +1,5 @@
 {
-  "check_count": 163,
+  "check_count": 170,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -597,6 +597,31 @@
       "passed": true
     },
     {
+      "check_id": "suffix_bound.schema",
+      "detail": "suffix-bound benchmark and certificate schemas are stable",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound.safety",
+      "detail": "suffix-bound early stop preserves verifier authority and records zero invalid accepts",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound.learned_and_hybrid_stop_first",
+      "detail": "learned and hybrid suffix-bound certificates stop after roughly one verifier call",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound.beats_controls",
+      "detail": "learned suffix-bound early stop beats hand and random controls on verifier calls",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound.boundary_and_hooks",
+      "detail": "source, tests, Lean theorem, and docs preserve deterministic suffix-bound limits",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
       "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
       "passed": true
@@ -812,6 +837,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519",
+      "detail": "H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519",
+      "detail": "H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -819,7 +854,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 163,
+  "passed_count": 170,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1041,6 +1076,23 @@
       "next_experiment_count": 4,
       "required_decision_count": 7,
       "source_count": 10
+    },
+    "suffix_bound": {
+      "evaluated_batches": 119,
+      "hand_mean_verifier_calls": 1.4201680672268908,
+      "hybrid_mean_verifier_calls": 1.0084033613445378,
+      "invalid_accept_count": 0,
+      "learned_mean_verifier_calls": 1.0084033613445378,
+      "learned_p99_verifier_calls": 1.0,
+      "limits": [
+        "This benchmark uses bounded synthetic finite candidate lists.",
+        "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+        "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+      ],
+      "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+      "random_full_fallback_count": 2,
+      "random_mean_verifier_calls": 13.184873949579831,
+      "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
     },
     "topk_sweep": {
       "batches": 1983,

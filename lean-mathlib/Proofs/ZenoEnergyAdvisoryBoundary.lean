@@ -34,12 +34,26 @@ def TrueWeaklyBest
     (candidates : List Candidate) : Prop :=
   ∀ candidate, candidate ∈ candidates -> trueCost winner <= trueCost candidate
 
+/-- True verifier-facing weak maximality on a finite candidate list. -/
+def TrueWeaklyMax
+    (score : Candidate -> Nat)
+    (winner : Candidate)
+    (candidates : List Candidate) : Prop :=
+  ∀ candidate, candidate ∈ candidates -> score candidate <= score winner
+
 /-- Global weak optimality over a feasible predicate. -/
 def GloballyTrueWeaklyBest
     (trueCost : Candidate -> Nat)
     (winner : Candidate)
     (Feasible : Candidate -> Prop) : Prop :=
   ∀ candidate, Feasible candidate -> trueCost winner <= trueCost candidate
+
+/-- Global weak maximality over a feasible predicate. -/
+def GloballyTrueWeaklyMax
+    (score : Candidate -> Nat)
+    (winner : Candidate)
+    (Feasible : Candidate -> Prop) : Prop :=
+  ∀ candidate, Feasible candidate -> score candidate <= score winner
 
 /--
 If the winner's advisory energy is separated from another candidate's advisory
@@ -142,6 +156,91 @@ theorem energy_gap_checked_stop_with_exact_coverage_implies_global
   have hFull :=
     (energy_gap_checked_stop_with_full_permutation
       hWinnerIn hChecked hWinnerApprox hSuffixApprox hSuffixGap hPerm).1
+  intro candidate hFeasible
+  exact hFull candidate (hCoverage candidate hFeasible)
+
+/--
+A deterministic suffix upper-bound certificate is enough for maximization
+objectives such as UPBA volume/surplus encodings. The model may choose the
+order, while the stop claim follows from checked-prefix dominance plus a
+verifier-facing bound for each unchecked suffix candidate.
+-/
+theorem suffix_upper_bound_checked_stop_implies_true_max_concat
+    {score upperBound : Candidate -> Nat}
+    {winner : Candidate}
+    {checked suffix : List Candidate}
+    (hWinnerIn : winner ∈ checked)
+    (hChecked : TrueWeaklyMax score winner checked)
+    (hSuffixUpper :
+      ∀ candidate, candidate ∈ suffix ->
+        score candidate <= upperBound candidate)
+    (hSuffixDominated :
+      ∀ candidate, candidate ∈ suffix ->
+        upperBound candidate <= score winner) :
+    TrueWeaklyMax score winner (checked ++ suffix) ∧
+      winner ∈ checked ++ suffix := by
+  constructor
+  · intro candidate hMember
+    rw [List.mem_append] at hMember
+    cases hMember with
+    | inl hCheckedMember => exact hChecked candidate hCheckedMember
+    | inr hSuffixMember =>
+        exact
+          Nat.le_trans
+            (hSuffixUpper candidate hSuffixMember)
+            (hSuffixDominated candidate hSuffixMember)
+  · exact List.mem_append_left _ hWinnerIn
+
+/--
+If the checked prefix and unchecked suffix are a permutation of the exact finite
+candidate list, the deterministic suffix-bound certificate transfers to that
+full list.
+-/
+theorem suffix_upper_bound_checked_stop_with_full_permutation
+    {score upperBound : Candidate -> Nat}
+    {winner : Candidate}
+    {checked suffix full : List Candidate}
+    (hWinnerIn : winner ∈ checked)
+    (hChecked : TrueWeaklyMax score winner checked)
+    (hSuffixUpper :
+      ∀ candidate, candidate ∈ suffix ->
+        score candidate <= upperBound candidate)
+    (hSuffixDominated :
+      ∀ candidate, candidate ∈ suffix ->
+        upperBound candidate <= score winner)
+    (hPerm : (checked ++ suffix).Perm full) :
+    TrueWeaklyMax score winner full ∧ winner ∈ full := by
+  have hConcat :=
+    suffix_upper_bound_checked_stop_implies_true_max_concat
+      hWinnerIn hChecked hSuffixUpper hSuffixDominated
+  constructor
+  · intro candidate hMember
+    exact hConcat.1 candidate (hPerm.mem_iff.mpr hMember)
+  · exact hPerm.mem_iff.mp hConcat.2
+
+/--
+Exact finite-list coverage promotes the suffix-bound checked-stop certificate to
+a global weak-maximality claim over the scoped feasible predicate.
+-/
+theorem suffix_upper_bound_checked_stop_with_exact_coverage_implies_global
+    {score upperBound : Candidate -> Nat}
+    {winner : Candidate}
+    {checked suffix full : List Candidate}
+    {Feasible : Candidate -> Prop}
+    (hWinnerIn : winner ∈ checked)
+    (hChecked : TrueWeaklyMax score winner checked)
+    (hSuffixUpper :
+      ∀ candidate, candidate ∈ suffix ->
+        score candidate <= upperBound candidate)
+    (hSuffixDominated :
+      ∀ candidate, candidate ∈ suffix ->
+        upperBound candidate <= score winner)
+    (hPerm : (checked ++ suffix).Perm full)
+    (hCoverage : ∀ candidate, Feasible candidate -> candidate ∈ full) :
+    GloballyTrueWeaklyMax score winner Feasible := by
+  have hFull :=
+    (suffix_upper_bound_checked_stop_with_full_permutation
+      hWinnerIn hChecked hSuffixUpper hSuffixDominated hPerm).1
   intro candidate hFeasible
   exact hFull candidate (hCoverage candidate hFeasible)
 

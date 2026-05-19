@@ -539,6 +539,25 @@ negative_edge_ref:                   sha256:5f1b21919abfa2ac27875de39cb632cc5014
 checkpoint_ref:                      sha256:6d4d2a044da0b2d046947c258188659d63b847c036afe5d633455abbf1825a4f
 ```
 
+### Suffix-Bound Early Stop
+
+```text
+suffix_json_blob_ref:                sha256:5c9a8c12eb439d5e05665a871ea1ec1958d7ae13651156b0a26d9a37bc9846cf
+suffix_markdown_blob_ref:            sha256:5cbc826d694e26436145dcbf1df11c4fd5b780f55ea0ec02847a43834fa598f8
+context_ref:                         sha256:f309c4091aa7ae7769f964bcce274e9e03c872cca6a2f11d752ce32ba6f71321
+json_artifact_ref:                   sha256:7b4882d39db192a745d15bb8abbfbffea423413bd80395b9b65e0c02a6a3a058
+markdown_artifact_ref:               sha256:652b19021ac2f0d0147159cc60148afc96124c287da40f467beb2afd92332a3e
+support_recipe_ref:                  sha256:3ee6132bc45a7161ac106375b2088e58d293dc57f06360ba0a6deb1c1fa8a7b6
+refute_recipe_ref:                   sha256:cbacec90288ba641d69e858aba118f1fe0b76d1ece970ddf389d3a00cf147a6e
+support_hypothesis_ref:              sha256:abcf3682fb2e09ff0a30b47c2492eb6e4d7afd0a2640f2247aefde7919d22094
+negative_hypothesis_ref:             sha256:3234031a52cd3b64ec77f9506dac920b3c6fd0a78d00be1ed88c3fcd22374b8c
+support_evidence_ref:                sha256:03da7d298be4b69cf7023d424d4cd510f0830fff2177b8cdbbd4c103a9305752
+negative_evidence_ref:               sha256:23b86d6c08f2bbae7787dc56ed3a34a5901217ec2e9f940e8232bc7206e5dc60
+support_edge_ref:                    sha256:dfd44260e5de25bce732ed26ff0407b15164e784d4a7bced290e63b0235dbecc
+negative_edge_ref:                   sha256:f25bdc5a0cea109e6c42880ce6931c470cf054c4ab4e2e8cad79a80793306234
+checkpoint_ref:                      sha256:538fcdf3ba1d53bb8f32f30eb72090d421d2988e4870c6f5d5df59ad95131227
+```
+
 ## Current Status
 
 ```text
@@ -591,6 +610,8 @@ H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518: supported
 H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518: falsified
 H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519: supported
 H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519: falsified
+H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519: supported
+H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519: falsified
 doctor_ok: true
 ```
 

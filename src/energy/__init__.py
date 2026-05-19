@@ -27,6 +27,14 @@ from .upba_v2_hand_energy import (
     hand_energy_from_record,
     score_upba_v2_hand_energy,
 )
+from .upba_v2_suffix_bound import (
+    SUFFIX_BOUND_SCHEMA,
+    CandidateObjectiveUpperBound,
+    build_upba_v2_suffix_bound_certificate,
+    candidate_objective_upper_bound,
+    suffix_bound_cannot_beat,
+    verify_upba_v2_suffix_bound_certificate,
+)
 from .upba_v2_dominance_cover import (
     DOMINANCE_COVER_SCHEMA,
     PREFIX_DOMINANCE_COVER_SCHEMA,
@@ -86,7 +94,9 @@ __all__ = [
     "AUTOTRADER_FEATURE_NAMES",
     "DOMINANCE_COVER_SCHEMA",
     "PREFIX_DOMINANCE_COVER_SCHEMA",
+    "SUFFIX_BOUND_SCHEMA",
     "AutoTraderLinearEnergyModel",
+    "CandidateObjectiveUpperBound",
     "UpbaV2FeatureRecord",
     "UpbaV2NeighborhoodAugmentation",
     "UpbaV2NeighborhoodProposal",
@@ -95,6 +105,8 @@ __all__ = [
     "augment_candidates_with_neighborhood",
     "build_upba_v2_prefix_dominance_cover_audit",
     "build_upba_v2_dominance_cover_certificate",
+    "build_upba_v2_suffix_bound_certificate",
+    "candidate_objective_upper_bound",
     "extract_upba_v2_feature_record",
     "extract_upba_v2_repair_selector_features",
     "extract_upba_v2_set_aware_feature_record",
@@ -114,11 +126,13 @@ __all__ = [
     "order_rows_by_listwise_set_model",
     "score_upba_v2_hand_energy",
     "score_listwise_batch",
+    "suffix_bound_cannot_beat",
     "train_autotrader_linear_ranker",
     "train_listwise_set_ranker",
     "verified_checked_stop_certificate_holds",
     "verify_upba_v2_prefix_dominance_cover_audit",
     "verify_upba_v2_dominance_cover_certificate",
+    "verify_upba_v2_suffix_bound_certificate",
     "weakly_dominates_verified",
     "rank_upba_v2_candidates",
 ]

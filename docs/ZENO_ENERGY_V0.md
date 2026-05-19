@@ -36,6 +36,8 @@ WES dominance search bridge: [ZenoEnergy WES Dominance Search](./ZENO_ENERGY_WES
 
 Dominance-prefix audit: [ZenoEnergy Dominance-Prefix Cover](./ZENO_ENERGY_DOMINANCE_PREFIX.md)
 
+Suffix-bound early stop: [ZenoEnergy Suffix-Bound Early Stop](./ZENO_ENERGY_SUFFIX_BOUND.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
@@ -84,6 +86,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_listwise_set_ranker.py`: deterministic candidate-list context features and top-one listwise softmax training helper.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
 - `src/energy/upba_v2_dominance_cover.py`: runtime dominance-cover certificates and ranked-prefix dominance audits for verified finite candidate lists.
+- `src/energy/upba_v2_suffix_bound.py`: deterministic suffix-bound certificates for advisory early stop over finite ranked candidate lists.
 - `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
 - `src/energy/upba_v2_repair_selector.py`: tiny advisory selector features and ranking for deterministic neighborhood proposals.
 - `src/energy/autotrader_energy.py`: synthetic AutoTrader advisory energy rows, hand scorer, linear ranker, and guard-call evaluator.
@@ -110,6 +113,7 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
 - `tools/check_upba_v2_dominance_cover.py`: checks dominance-cover receipts over bounded synthetic verified full lists.
 - `tools/check_upba_v2_dominance_prefix.py`: audits how many ranked verifier calls are needed before a dominance-cover certificate exists.
+- `tools/check_upba_v2_suffix_bound.py`: benchmarks deterministic early stop with checked-prefix dominance and unchecked-suffix objective bounds.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
@@ -335,6 +339,18 @@ ordering averaged 12.882 and reached full fallback in 5 batches.
 This is still an offline audit over verified finite lists. It supports the
 ranking objective and certificate plumbing, while live early stop still needs a
 verifier-facing unchecked-suffix bound or deterministic full fallback.
+
+The suffix-bound early-stop prototype closes that specific runtime gap for a
+finite generated list. A checked verifier winner may stop before full fallback
+only when it dominates the checked prefix and every unchecked candidate has a
+deterministic objective upper bound no better than the winner. The committed
+bounded synthetic benchmark reports learned and hybrid mean verifier calls of
+1.0084, p99 of 1, zero invalid accepts, and zero full fallback cases over 119
+evaluated batches.
+
+This remains scoped to the supplied finite candidate family. Production
+bounded-grid claims still require candidate-family coverage, and real replay is
+still required before promotion.
 
 ## Neighborhood Repair
 

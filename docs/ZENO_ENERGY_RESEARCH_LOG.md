@@ -1393,3 +1393,54 @@ Research consequence: the next early-stop step is a deterministic suffix-bound
 certificate that can be checked before full fallback. Until that exists,
 dominance-prefix success remains replay evidence for ranker quality rather than
 a live stopping rule.
+
+## Suffix-Bound Early Stop
+
+Artifact:
+[ZENO_ENERGY_SUFFIX_BOUND.md](./ZENO_ENERGY_SUFFIX_BOUND.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_suffix_bound_benchmark_seed20260541.json`
+
+Command:
+
+```bash
+python3 tools/check_upba_v2_suffix_bound.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260541 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_suffix_bound_benchmark_seed20260541.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND.md
+```
+
+Observed result:
+
+| mode | count | objective-equiv accepts | suffix stops | full fallback | mean calls | p95 | p99 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 119 | 119 | 119 | 0 | 2.6218 | 5 | 7 |
+| random | 119 | 119 | 117 | 2 | 13.1849 | 23 | 24 |
+| hand | 119 | 119 | 119 | 0 | 1.4202 | 3 | 5 |
+| learned | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 |
+| hybrid | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 |
+
+Positive knowledge:
+
+```text
+The gap-weighted learned ranker and hybrid hard-barrier ranker reached a
+deterministic suffix-bound early-stop certificate with mean 1.008 verifier calls
+and p99 1 on the committed bounded synthetic benchmark.
+```
+
+Negative knowledge:
+
+```text
+Raw declared-output bounds alone were too conservative: attractive invalid
+unchecked candidates forced near-full fallback until deterministic disqualifiers
+were added. Candidate-family coverage is still required for bounded-grid
+production claims.
+```
+
+Research consequence: the early-stop mechanism now has a concrete deterministic
+certificate. The next production-strength step is broader real replay plus a
+coverage proof for the generated UPBA v2 candidate family.

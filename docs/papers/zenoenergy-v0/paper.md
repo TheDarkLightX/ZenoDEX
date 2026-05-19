@@ -453,10 +453,40 @@ already verified results for evidence receipts. Benchmark receipts report
 `checked_stop_top_k_rate` and `checked_stop_at_winner_rate` as certificate-shaped
 offline audit metrics.
 
+The suffix-bound refinement adds a maximization theorem in
+`ZenoEnergyAdvisoryBoundary.lean`:
+
+```text
+score(candidate) <= upperBound(candidate) for every suffix candidate
+upperBound(candidate) <= score(winner) for every suffix candidate
+winner weakly maximal over checked prefix
+-> winner weakly maximal over checked ++ suffix
+```
+
+`suffix_upper_bound_checked_stop_with_exact_coverage_implies_global` then lifts
+the finite-list certificate to a scoped feasible predicate when the full list
+has exact coverage.
+
 The holdout top-k sweep separates exact winner recall from checked-stop audit
 success. On the 39,979-row holdout dataset, learned and hybrid ordering reached
 checked-stop audit success of 100.0% by `k = 2`. Hand energy reached 99.6% at
 `k = 5` and 100.0% at `k = 10`. Random ordering reached 50.7% at `k = 10`.
+
+A later suffix-bound benchmark replaces the offline checked-stop audit with a
+deterministic early-stop certificate over the unchecked suffix. A checked
+verifier winner may stop only when it dominates the checked prefix and every
+unchecked candidate has a deterministic objective upper bound no better than
+the winner. On the committed bounded synthetic run
+`seed=20260541`, learned and hybrid ordering each achieved mean verifier calls
+of 1.0084, p99 verifier calls of 1, zero invalid accepts, and zero full fallback
+cases across 119 evaluated batches. Hand energy averaged 1.4202 verifier calls,
+and random ordering averaged 13.1849.
+
+This result changes the interpretation of ranking utility. The model still has
+no authority over settlement validity, but it can place the first verifier call
+where a deterministic suffix-bound certificate is likely to close the finite
+candidate list. The remaining production obligations are candidate-family
+coverage and real replay.
 
 ## 9. Interpretation
 
