@@ -5,11 +5,19 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from src.integration.zeno_ledger_v0 import build_header_v0, canonical_header_hash_v0, hash_v0
+from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
+from src.integration.zeno_ledger_signature import (
+    bls_public_key_hex_from_private_key_v0,
+    build_bls_signed_artifact_envelope_v0,
+)
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_ledger_v0 import build_checkpoint_v0, build_header_v0, canonical_header_hash_v0, hash_v0
 from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, check_peer_status_v0, pull_live_from_peer_v0
 
 
 ZERO_ROOT = "0x" + "00" * 32
+TEST_BLS_PRIVATE_KEY_A = "0x" + "01" * 32
+TEST_BLS_PRIVATE_KEY_B = "0x" + "02" * 32
 
 
 def _root(label: str) -> str:
@@ -126,6 +134,7 @@ class _PeerHandler(BaseHTTPRequestHandler):
     peer_status: dict[str, object]
     live_state: dict[str, object]
     live_headers: dict[int, dict[str, object]]
+    live_checkpoints: dict[int, dict[str, object]]
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -149,6 +158,9 @@ class _PeerHandler(BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[:2] == ["live", "header"]:
             self._send_json(self.live_headers[int(parts[2])])
             return
+        if len(parts) == 3 and parts[:2] == ["live", "checkpoint"]:
+            self._send_json(self.live_checkpoints[int(parts[2])])
+            return
         self.send_response(404)
         self.end_headers()
 
@@ -158,6 +170,7 @@ def _serve_peer(
     peer_status: dict[str, object],
     live_state: dict[str, object],
     live_headers: dict[int, dict[str, object]],
+    live_checkpoints: dict[int, dict[str, object]] | None = None,
 ) -> ThreadingHTTPServer:
     handler = type(
         "PeerHandler",
@@ -166,6 +179,7 @@ def _serve_peer(
             "peer_status": peer_status,
             "live_state": live_state,
             "live_headers": live_headers,
+            "live_checkpoints": dict(live_checkpoints or {}),
         },
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -311,3 +325,178 @@ def test_pull_live_from_peer_rejects_incompatible_same_height_tip(tmp_path: Path
     assert pull_report["pulled_count"] == 0
     assert pull_report["reject_reason"] == "peer_check_rejected"
     assert pull_report["peer_check"]["peers"][0]["fork_choice"]["decision"] == "reject_candidate"
+
+
+def _registry() -> dict[str, object]:
+    return build_signer_registry_v0(
+        registry_id="live-checkpoint-quorum-testnet-v0",
+        payload_kind="checkpoint",
+        threshold=2,
+        signers=[
+            {
+                "signer_id": "validator-a",
+                "key_id": "bls-a",
+                "public_key": bls_public_key_hex_from_private_key_v0(TEST_BLS_PRIVATE_KEY_A),
+                "weight": 1,
+                "status": "active",
+            },
+            {
+                "signer_id": "validator-b",
+                "key_id": "bls-b",
+                "public_key": bls_public_key_hex_from_private_key_v0(TEST_BLS_PRIVATE_KEY_B),
+                "weight": 1,
+                "status": "active",
+            },
+        ],
+    )
+
+
+def _envelopes(header_hash: str) -> list[dict[str, object]]:
+    return [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind="checkpoint",
+            payload_hash=header_hash,
+            signer_id="validator-a",
+            key_id="bls-a",
+            private_key_hex=TEST_BLS_PRIVATE_KEY_A,
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind="checkpoint",
+            payload_hash=header_hash,
+            signer_id="validator-b",
+            key_id="bls-b",
+            private_key_hex=TEST_BLS_PRIVATE_KEY_B,
+        ),
+    ]
+
+
+def test_pull_live_from_peer_rejects_missing_required_live_quorum(tmp_path: Path) -> None:
+    sequencer_set_hash = _root("validator-set")
+    common_header_hash = _root("bootstrap-5")
+    peer_header = _header(height=6, label="peer-extends", sequencer_set_hash=sequencer_set_hash)
+    peer_header_hash = canonical_header_hash_v0(peer_header)
+    data_dir = tmp_path / "local"
+    _write_local_node(
+        data_dir=data_dir,
+        latest_height=5,
+        latest_header_hash=common_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        live=False,
+    )
+    peer_status = _status(
+        node_id="peer-node",
+        data_dir=tmp_path / "peer",
+        bundle_root=tmp_path / "peer-bundle",
+        latest_height=5,
+        last_header_hash=common_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+    )
+    server = _serve_peer(
+        peer_status=peer_status,
+        live_state={
+            "schema": "zenodex.zeno_ledger.node_live_state.v0",
+            "latest_height": 6,
+            "latest_header_hash": peer_header_hash,
+            "latest_app_hash": _root("peer-app-6"),
+        },
+        live_headers={6: peer_header},
+    )
+    try:
+        host, port = server.server_address
+        pull_report = pull_live_from_peer_v0(
+            data_dir=data_dir,
+            peer_url=f"http://{host}:{port}",
+            live_quorum_registry=_registry(),
+            live_quorum_envelopes_by_height={},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert pull_report["ok"] is False
+    assert pull_report["status"] == "rejected"
+    assert pull_report["pulled_count"] == 0
+    assert pull_report["reject_reason"] == "live_quorum_missing_envelopes"
+
+
+def test_pull_live_from_peer_rejects_insufficient_live_quorum(tmp_path: Path) -> None:
+    sequencer_set_hash = _root("validator-set")
+    common_header_hash = _root("bootstrap-5")
+    peer_header = _header(height=6, label="peer-extends", sequencer_set_hash=sequencer_set_hash)
+    peer_header_hash = canonical_header_hash_v0(peer_header)
+    data_dir = tmp_path / "local"
+    _write_local_node(
+        data_dir=data_dir,
+        latest_height=5,
+        latest_header_hash=common_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        live=False,
+    )
+    peer_status = _status(
+        node_id="peer-node",
+        data_dir=tmp_path / "peer",
+        bundle_root=tmp_path / "peer-bundle",
+        latest_height=5,
+        last_header_hash=common_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+    )
+    server = _serve_peer(
+        peer_status=peer_status,
+        live_state={
+            "schema": "zenodex.zeno_ledger.node_live_state.v0",
+            "latest_height": 6,
+            "latest_header_hash": peer_header_hash,
+            "latest_app_hash": _root("peer-app-6"),
+        },
+        live_headers={6: peer_header},
+        live_checkpoints={6: build_checkpoint_v0(peer_header)},
+    )
+    try:
+        host, port = server.server_address
+        pull_report = pull_live_from_peer_v0(
+            data_dir=data_dir,
+            peer_url=f"http://{host}:{port}",
+            live_quorum_registry=_registry(),
+            live_quorum_envelopes_by_height={6: _envelopes(peer_header_hash)[:1]},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert pull_report["ok"] is False
+    assert pull_report["status"] == "rejected"
+    assert pull_report["pulled_count"] == 0
+    assert pull_report["reject_reason"] == "live_quorum_rejected"
+    assert "threshold not met" in pull_report["errors"][0]
+
+
+def test_live_quorum_admission_helper_matches_peer_header_checkpoint() -> None:
+    registry = _registry()
+    peer_header = _header(height=6, label="peer-extends", sequencer_set_hash=_root("validator-set"))
+    checkpoint = {
+        "schema": "zenodex/zeno_ledger/checkpoint/v0",
+        "chain_id": peer_header["chain_id"],
+        "height": peer_header["height"],
+        "header_hash": canonical_header_hash_v0(peer_header),
+        "app_hash": peer_header["app_hash"],
+        "post_state_root": peer_header["post_state_root"],
+        "ingress_root": peer_header["ingress_root"],
+        "evidence_root": peer_header["evidence_root"],
+        "body_root": peer_header["body_root"],
+        "config_digest": peer_header["config_digest"],
+        "proof_journal_hash": peer_header["proof_journal_hash"],
+        "sequencer_set_hash": peer_header["sequencer_set_hash"],
+        "signature_set_root": peer_header["signature_set_root"],
+        "signature_set": [],
+    }
+    envelopes = _envelopes(str(checkpoint["header_hash"]))
+
+    admission = build_live_checkpoint_quorum_admission_v0(
+        header=peer_header,
+        checkpoint=checkpoint,
+        registry=registry,
+        envelopes=envelopes,
+    )
+
+    assert admission["ok"] is True
+    assert admission["accepted_weight"] == 2

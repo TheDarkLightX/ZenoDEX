@@ -101,3 +101,9 @@ compatible.
 
 `pull_live_from_peer_v0` uses the same peer check as a preflight. An
 incompatible peer therefore cannot be accepted as a harmless zero-block pull.
+
+When `live_quorum_registry` is supplied to `pull_live_from_peer_v0`, every
+pulled live height must also provide checkpoint envelopes that satisfy the BLS
+signer-registry threshold for payload kind `checkpoint`. Missing or insufficient
+quorum evidence rejects the pull before the follower treats the peer block as
+admissible.
