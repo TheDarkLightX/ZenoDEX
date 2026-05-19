@@ -819,6 +819,34 @@ claims:
         - tools/check_zeno_ledger_risc0_real_proof_smoke_report.py
         - docs/zenodex_spot_state_proof_risc0_v1.md
 
+  - id: py:zeno_ledger:validator_schedule_fork_choice_v0
+    status: supported_scoped
+    layer: runtime
+    statement: >
+      ZenoLedger now has a pure validator-network policy surface for canonical
+      validator-set hashing, weighted round-robin proposer duties,
+      scheduled-header admission against `header.sequencer_set_hash`, and
+      extend-only fork choice over already verified tips. The policy rejects
+      missing active validators, duplicate validator identities, tampered
+      validator-set hashes, wrong scheduled proposers, candidate tips that
+      require a local reorg, same-height conflicts, and validator-set
+      mismatches. This is a replayable policy surface; open block gossip,
+      validator peer discovery, transport authentication, slashing, and live
+      signer-quorum wiring remain follow-up work.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py
+        - cmd: python3 tools/check_production_traceability_matrix.py
+      files:
+        - src/integration/zeno_ledger_validator_schedule_v0.py
+        - tests/integration/test_zeno_ledger_validator_schedule_v0.py
+        - docs/ZENO_LEDGER_VALIDATOR_SCHEDULE_AND_FORK_CHOICE_V0.md
+        - docs/production_traceability_matrix.json
+        - docs/PRODUCTION_TRACEABILITY_MATRIX.md
+        - tools/run_release_gate.sh
+
   - id: py:zeno_ledger:tee_proof_metadata_adapter_v0
     status: supported
     layer: runtime
