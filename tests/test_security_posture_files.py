@@ -71,8 +71,10 @@ def test_release_gate_runs_zeno_ledger_validator_schedule_peer_check() -> None:
 
     assert "src/integration/zeno_ledger_live_quorum_v0.py" in release_gate
     assert "src/integration/zeno_ledger_validator_schedule_v0.py" in release_gate
+    assert "tools/zeno_ledger_machine_b_acceptance.py" in release_gate
     assert "tools/zeno_ledger_node.py" in release_gate
     assert "tests/integration/test_zeno_ledger_live_quorum_v0.py" in release_gate
+    assert "tests/integration/test_zeno_ledger_node_transport_auth.py" in release_gate
     assert "tests/integration/test_zeno_ledger_public_network_config_quorum.py" in release_gate
     assert "tests/integration/test_zeno_ledger_validator_schedule_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_node_fork_choice.py" in release_gate
