@@ -229,20 +229,26 @@
       "runtime_guard_paths": [
         "tools/check_dependency_pinning_status.py",
         "tools/check_python_hash_locks.py",
+        "tools/check_python_hash_lock_install_surface.py",
+        "tools/install_python_hash_locked_deps.sh",
         "tools/run_release_gate.sh",
-        "docs/dependency_pinning_status.json"
+        "docs/dependency_pinning_status.json",
+        "docs/PYTHON_HASH_LOCK_INSTALL.md"
       ],
       "test_paths": [
         "tests/integration/test_dependency_pinning_status_check.py",
-        "tests/test_check_python_hash_locks.py"
+        "tests/test_check_python_hash_locks.py",
+        "tests/test_check_python_hash_lock_install_surface.py"
       ],
       "evidence_commands": [
         "python3 -m pytest -q tests/integration/test_dependency_pinning_status_check.py",
         "python3 -m pytest -q tests/test_check_python_hash_locks.py",
+        "python3 -m pytest -q tests/test_check_python_hash_lock_install_surface.py",
         "python3 tools/check_dependency_pinning_status.py",
-        "python3 tools/check_python_hash_locks.py"
+        "python3 tools/check_python_hash_locks.py",
+        "python3 tools/check_python_hash_lock_install_surface.py"
       ],
-      "residual_limits": "This is a ratchet over the current dependency posture. It blocks new unpinned Python source requirements and checks required Python, Lean, Rust, and UI lock artifacts by committed SHA-256 hash. Production install closure still needs release scripts and deployment docs to install from the Python lockfiles with require-hashes."
+      "residual_limits": "This is a ratchet over the current dependency posture. It blocks new unpinned Python source requirements, checks required Python, Lean, Rust, and UI lock artifacts by committed SHA-256 hash, and keeps the production install helper/documentation tied to pip require-hashes. The unhashed source requirements remain local convenience and lock-refresh inputs."
     },
     {
       "id": "tee_metadata_binding",
