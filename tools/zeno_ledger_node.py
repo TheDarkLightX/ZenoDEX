@@ -30,6 +30,11 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
+from src.integration.zeno_ledger_peer_discovery_v0 import (
+    build_peer_registry_admission_v0,
+    build_peer_registry_v0,
+    validate_peer_registry_admission_v0,
+)
 from src.integration.zeno_ledger_signer_registry import verify_signature_quorum_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
@@ -522,6 +527,30 @@ def validate_public_network_config_quorum_v0(
     if config.get("config_quorum_admission") != admission:
         raise ValueError("public network config quorum admission mismatch")
     return admission
+
+
+def _validate_public_network_peer_registry_v0(network_config: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Validate optional hash-bound peer discovery fields on a public config."""
+
+    if "peer_registry" not in network_config and "peer_registry_admission" not in network_config:
+        return None
+    peer_registry = network_config.get("peer_registry")
+    if not isinstance(peer_registry, Mapping):
+        raise ValueError("public network config peer_registry is required")
+    peer_registry_admission = network_config.get("peer_registry_admission")
+    if not isinstance(peer_registry_admission, Mapping):
+        raise ValueError("public network config peer_registry_admission is required")
+    writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
+    peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
+    validate_peer_registry_admission_v0(
+        admission=peer_registry_admission,
+        network_id=str(network_config["network_id"]),
+        chain_id=str(network_config["chain_id"]),
+        writer_urls=writer_urls,
+        peer_urls=peer_urls,
+        peer_registry=peer_registry,
+    )
+    return dict(peer_registry_admission)
 
 
 def build_node_status_v0(
@@ -2432,6 +2461,21 @@ def build_public_network_config_v0(
         raise ValueError("node_port must be a valid TCP port")
     public_manifest = _read_public_manifest(bundle_root)
     feature_suite = _read_feature_suite(bundle_root, public_manifest)
+    checked_writer_urls = _unique_strings(writer_urls)
+    checked_peer_urls = _unique_strings([*writer_urls, *peer_urls])
+    peer_registry = build_peer_registry_v0(
+        network_id=str(public_manifest["network_id"]),
+        chain_id=str(public_manifest["chain_id"]),
+        writer_urls=checked_writer_urls,
+        peer_urls=checked_peer_urls,
+    )
+    peer_registry_admission = build_peer_registry_admission_v0(
+        network_id=str(public_manifest["network_id"]),
+        chain_id=str(public_manifest["chain_id"]),
+        writer_urls=checked_writer_urls,
+        peer_urls=checked_peer_urls,
+        peer_registry=peer_registry,
+    )
     config = {
         "schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA,
         "ok": True,
@@ -2440,8 +2484,10 @@ def build_public_network_config_v0(
         "chain_id": public_manifest["chain_id"],
         "token_symbol": public_manifest.get("token_symbol"),
         "mirror_base_url": mirror_base_url.rstrip("/") + "/",
-        "writer_urls": _unique_strings(writer_urls),
-        "peer_urls": _unique_strings([*writer_urls, *peer_urls]),
+        "writer_urls": checked_writer_urls,
+        "peer_urls": checked_peer_urls,
+        "peer_registry": peer_registry,
+        "peer_registry_admission": peer_registry_admission,
         "feature_suite_hash": feature_suite["feature_suite_hash"],
         "feature_count": feature_suite["feature_count"],
         "test_token_catalog": list(public_manifest.get("test_token_catalog", [])),
@@ -2489,6 +2535,7 @@ def _public_network_config_to_join_config_v0(
     peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
     if not writer_urls:
         raise ValueError("public network config must contain at least one writer URL")
+    peer_registry_admission = _validate_public_network_peer_registry_v0(network_config)
     recommended = network_config.get("recommended_node")
     if not isinstance(recommended, Mapping):
         recommended = {}
@@ -2510,6 +2557,7 @@ def _public_network_config_to_join_config_v0(
         "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
         "network_config_quorum_required": require_network_config_quorum,
         "network_config_quorum_admission": config_quorum_admission,
+        "peer_registry_admission": peer_registry_admission,
     }
 
 
@@ -2580,6 +2628,7 @@ def doctor_public_node_v0(
             peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
             if not writer_urls:
                 raise ValueError("public network config must contain at least one writer URL")
+            peer_registry_admission = _validate_public_network_peer_registry_v0(network_config)
             remote_summary = {
                 "network_id": network_config.get("network_id"),
                 "chain_id": network_config.get("chain_id"),
@@ -2591,6 +2640,7 @@ def doctor_public_node_v0(
                 "feature_count": network_config.get("feature_count"),
                 "network_config_quorum_required": require_network_config_quorum,
                 "network_config_quorum_admission": config_quorum_admission,
+                "peer_registry_admission": peer_registry_admission,
             }
             checks.append({"name": "public_network_config", "ok": True, **remote_summary})
         except Exception as exc:
@@ -2667,6 +2717,7 @@ def join_public_node_from_network_config_url_v0(
     report["expected_network_config_hash"] = expected_network_config_hash
     report["network_config_quorum_required"] = require_network_config_quorum
     report["network_config_quorum_admission"] = join_config.get("network_config_quorum_admission")
+    report["peer_registry_admission"] = join_config.get("peer_registry_admission")
     report["expected_config_signer_registry_hash"] = expected_config_signer_registry_hash
     return report
 
