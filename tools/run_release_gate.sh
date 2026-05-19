@@ -60,11 +60,15 @@ echo "== release: Risc0 proof metadata adapter =="
   "$ROOT_DIR/tools/zeno_ledger_risc0_proof_metadata.py" \
   "$ROOT_DIR/tools/zeno_ledger_risc0_real_proof_smoke.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/test_check_zeno_ledger_proof_coverage_matrix.py"
+"$PY" "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_risc0_proof_metadata.py" \
-  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+  "$ROOT_DIR/tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py" \
+  "$ROOT_DIR/tests/test_check_zeno_ledger_proof_coverage_matrix.py"
 
 echo "== release: UPBA grid economic sufficiency =="
 "$PY" -m py_compile \
