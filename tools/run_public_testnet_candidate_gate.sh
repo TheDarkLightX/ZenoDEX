@@ -59,6 +59,10 @@ echo "== public-testnet: API surface profile check =="
 "$PY" tools/check_api_surface_profiles.py \
   > "$OUT_DIR/api_surface_profiles.json"
 
+echo "== public-testnet: production key-management spec check =="
+"$PY" tools/check_production_key_management_spec.py \
+  > "$OUT_DIR/production_key_management_spec.json"
+
 echo "== public-testnet: anti-equivocation check =="
 "$PY" tools/check_zeno_ledger_anti_equivocation.py \
   > "$OUT_DIR/anti_equivocation.json"

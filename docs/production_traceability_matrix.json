@@ -313,6 +313,29 @@
         "python3 tools/check_api_surface_profiles.py"
       ],
       "residual_limits": "This separates API exposure profiles from the monolithic stdlib handler. The handler file itself still needs future route-module decomposition."
+    },
+    {
+      "id": "production_key_management_admission",
+      "status": "supported_scoped",
+      "invariant": "Production privileged actions must be represented as hash-bound action packets and accepted only when a role-scoped active production signer quorum, distinct-custodian quorum, non-software custody requirement, timelock requirement, break-glass scope rule, and transparency receipt requirement are satisfied.",
+      "runtime_guard_paths": [
+        "src/integration/production_key_management_v0.py",
+        "tools/check_production_key_management_spec.py",
+        "tools/check_production_key_management_config.py",
+        "tools/run_release_gate.sh",
+        "tools/run_public_testnet_candidate_gate.sh"
+      ],
+      "test_paths": [
+        "tests/test_production_key_management_spec.py",
+        "tests/integration/test_production_key_management_v0.py",
+        "tests/test_check_production_key_management_config.py",
+        "tests/test_security_posture_files.py"
+      ],
+      "evidence_commands": [
+        "python3 tools/check_production_key_management_spec.py",
+        "python3 -m pytest -q tests/test_production_key_management_spec.py tests/integration/test_production_key_management_v0.py tests/test_check_production_key_management_config.py tests/test_security_posture_files.py"
+      ],
+      "residual_limits": "This is the pure admission and config-validation layer. Production node entrypoint wiring, real signature scheme adapters, hardware/HSM/MPC vendor assurance, and live operator ceremony evidence remain follow-up work."
     }
   ]
 }

@@ -90,3 +90,15 @@ def test_release_gate_runs_zeno_ledger_validator_schedule_peer_check() -> None:
     assert "tests/integration/test_zeno_ledger_public_network_config_quorum.py" in release_gate
     assert "tests/integration/test_zeno_ledger_validator_schedule_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_node_fork_choice.py" in release_gate
+
+
+def test_release_gate_runs_production_key_management_checks() -> None:
+    release_gate = (ROOT / "tools/run_release_gate.sh").read_text(encoding="utf-8")
+    public_testnet_gate = (ROOT / "tools/run_public_testnet_candidate_gate.sh").read_text(encoding="utf-8")
+
+    assert "src/integration/production_key_management_v0.py" in release_gate
+    assert "tools/check_production_key_management_spec.py" in release_gate
+    assert "tools/check_production_key_management_config.py" in release_gate
+    assert "tests/integration/test_production_key_management_v0.py" in release_gate
+    assert "tests/test_check_production_key_management_config.py" in release_gate
+    assert "tools/check_production_key_management_spec.py" in public_testnet_gate

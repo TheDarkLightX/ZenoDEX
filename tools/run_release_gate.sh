@@ -133,6 +133,20 @@ echo "== release: proof toolchain lock =="
 echo "== release: API surface profiles =="
 "$PY" "$ROOT_DIR/tools/check_api_surface_profiles.py"
 
+echo "== release: production key management =="
+"$PY" -m py_compile \
+  "$ROOT_DIR/src/integration/production_key_management_v0.py" \
+  "$ROOT_DIR/tools/check_production_key_management_spec.py" \
+  "$ROOT_DIR/tools/check_production_key_management_config.py" \
+  "$ROOT_DIR/tests/test_production_key_management_spec.py" \
+  "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
+  "$ROOT_DIR/tests/test_check_production_key_management_config.py"
+"$PY" "$ROOT_DIR/tools/check_production_key_management_spec.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/test_production_key_management_spec.py" \
+  "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
+  "$ROOT_DIR/tests/test_check_production_key_management_config.py"
+
 echo "== release: ZenoLedger network admission =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_anti_equivocation.py"
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_bonded_slashing.py"
