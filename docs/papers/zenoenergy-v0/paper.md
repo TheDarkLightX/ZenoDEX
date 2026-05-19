@@ -400,6 +400,12 @@ The full-volume run remained slightly behind the current gap-weighted checkpoint
 at 1.0166 mean calls. This points toward targeted coverage quality, hard
 negative generation, and replay-shaped distributions as the next data axis.
 
+The best-model registry retains the current UPBA gap-weighted checkpoint and
+three deterministic AutoTrader hard synthetic cross-seed models under
+`data/upba_energy/best_models/`, with sha256 hashes in
+`data/upba_energy/zenoenergy_best_model_registry.json`. These retained files are
+stable advisory baselines for follow-up replay and shadow experiments.
+
 The gap-weighted medium hard-case mine requested 4,500 batches and 337,500
 candidate slots. Across 4,466 winner-bearing batches, it had top-1 recall
 98.54%, top-5 recall 100.0%, top-10 recall 100.0%, mean winner position 1.017,

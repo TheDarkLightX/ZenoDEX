@@ -927,6 +927,16 @@ volume still did not beat the current checkpoint. The next data improvement
 should focus on higher-quality synthetic coverage: replay-shaped batches,
 rare verifier disqualifiers, adversarial suffix families, and mined hard cases.
 
+The current retained advisory checkpoints are pinned in
+[ZENO_ENERGY_BEST_MODELS.md](./ZENO_ENERGY_BEST_MODELS.md). The registry keeps
+the UPBA gap-weighted default and three deterministic AutoTrader hard synthetic
+models with sha256 hashes:
+
+| model group | count | promoted research default |
+| --- | ---: | --- |
+| UPBA v2 partial-fill exact-in | 1 | `upba_v2_gap_weighted_default_seed20260517` |
+| AutoTrader hard synthetic guard ordering | 3 | `autotrader_hard_train20260526_holdout20260527` |
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay

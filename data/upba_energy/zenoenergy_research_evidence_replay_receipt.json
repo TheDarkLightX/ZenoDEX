@@ -1,5 +1,5 @@
 {
-  "check_count": 226,
+  "check_count": 231,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -797,6 +797,31 @@
       "passed": true
     },
     {
+      "check_id": "best_model_registry.schema_and_promoted",
+      "detail": "best-model registry records the promoted advisory research defaults",
+      "passed": true
+    },
+    {
+      "check_id": "best_model_registry.files_and_hashes",
+      "detail": "all retained model files exist, match sha256, and match declared schema/dimensions",
+      "passed": true
+    },
+    {
+      "check_id": "best_model_registry.upba_default",
+      "detail": "retained UPBA model is the current gap-weighted default and beats raw full-volume scaling",
+      "passed": true
+    },
+    {
+      "check_id": "best_model_registry.autotrader_retained",
+      "detail": "all three AutoTrader hard synthetic cross-seed models are retained",
+      "passed": true
+    },
+    {
+      "check_id": "best_model_registry.advisory_boundary",
+      "detail": "registry, docs, test, and tool keep retained models advisory only",
+      "passed": true
+    },
+    {
       "check_id": "epiplexity_literature.schema",
       "detail": "epiplexity literature receipt schema and counts are stable",
       "passed": true
@@ -1134,7 +1159,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 226,
+  "passed_count": 231,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1165,6 +1190,22 @@
       "row_count": 20,
       "source": "built-in-zenograph-baseline",
       "valid_count": 12
+    },
+    "best_model_registry": {
+      "model_count": 4,
+      "promoted": {
+        "autotrader_hard_synthetic_best_seed_pair": "autotrader_hard_train20260526_holdout20260527",
+        "upba_v2": "upba_v2_gap_weighted_default_seed20260517"
+      },
+      "safety_contract": {
+        "deterministic_policy_guards_authoritative": true,
+        "deterministic_verifier_authoritative": true,
+        "model_authorizes_settlement": false,
+        "model_authorizes_trade": false,
+        "state_root_dependency": false
+      },
+      "schema": "zenodex/energy/best_model_registry/v1",
+      "scope": "advisory_ranking_only"
     },
     "curriculum_ranker": {
       "baseline_holdout_mean_calls": 1.0166414523449319,

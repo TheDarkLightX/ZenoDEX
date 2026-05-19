@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -612,6 +613,29 @@ def replay_zenoenergy_evidence(
             data_scaling_doc,
             data_scaling_tool,
             data_scaling_tests,
+        )
+    )
+
+    best_model_registry = _load_json(
+        root / "data/upba_energy/zenoenergy_best_model_registry.json"
+    )
+    best_model_doc = (
+        root / "docs/ZENO_ENERGY_BEST_MODELS.md"
+    ).read_text(encoding="utf-8")
+    best_model_tool = (
+        root / "tools/preserve_zenoenergy_best_models.py"
+    ).read_text(encoding="utf-8")
+    best_model_tests = (
+        root / "tests/energy/test_zenoenergy_best_model_registry.py"
+    ).read_text(encoding="utf-8")
+    payloads["best_model_registry"] = best_model_registry
+    checks.extend(
+        _check_best_model_registry(
+            root,
+            best_model_registry,
+            best_model_doc,
+            best_model_tool,
+            best_model_tests,
         )
     )
 
@@ -2572,6 +2596,98 @@ def _check_data_scaling(
     ]
 
 
+def _check_best_model_registry(
+    root: Path,
+    registry: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    models = registry["models"]
+    by_id = {str(model["model_id"]): model for model in models}
+    upba = by_id.get("upba_v2_gap_weighted_default_seed20260517", {})
+    autotrader = [
+        model
+        for model in models
+        if model.get("domain") == "autotrader_policy_guard_ordering"
+    ]
+    expected_autotrader_ids = {
+        "autotrader_hard_train20260522_holdout20260523",
+        "autotrader_hard_train20260524_holdout20260525",
+        "autotrader_hard_train20260526_holdout20260527",
+    }
+    files_ok = True
+    for model in models:
+        retained = root / str(model["retained_path"])
+        if not retained.exists() or _sha256_file(retained) != model.get("sha256"):
+            files_ok = False
+            continue
+        try:
+            payload = _load_json(retained)
+        except Exception:
+            files_ok = False
+            continue
+        if payload.get("schema") != model.get("schema"):
+            files_ok = False
+        if len(payload.get("weights", [])) + 1 != int(model["parameter_count"]):
+            files_ok = False
+        if len(payload.get("feature_names", [])) != int(model["feature_dim"]):
+            files_ok = False
+    return [
+        _expect_true(
+            "best_model_registry.schema_and_promoted",
+            registry.get("schema") == "zenodex/energy/best_model_registry/v1"
+            and registry.get("scope") == "advisory_ranking_only"
+            and registry["promoted"]["upba_v2"]
+            == "upba_v2_gap_weighted_default_seed20260517"
+            and registry["promoted"]["autotrader_hard_synthetic_best_seed_pair"]
+            == "autotrader_hard_train20260526_holdout20260527"
+            and set(by_id) == {
+                "upba_v2_gap_weighted_default_seed20260517",
+                *expected_autotrader_ids,
+            },
+            "best-model registry records the promoted advisory research defaults",
+        ),
+        _expect_true(
+            "best_model_registry.files_and_hashes",
+            files_ok,
+            "all retained model files exist, match sha256, and match declared schema/dimensions",
+        ),
+        _expect_true(
+            "best_model_registry.upba_default",
+            int(upba.get("parameter_count", 0)) == 97
+            and int(upba["metrics"]["cross_seed_invalid_accept_count_total"]) == 0
+            and float(upba["metrics"]["cross_seed_top_10_recall_min"]) == 1.0
+            and int(upba["metrics"]["hard_case_top10_miss_count"]) == 0
+            and float(upba["metrics"]["data_scaling_current_checkpoint_mean_calls"])
+            < float(upba["metrics"]["data_scaling_full_budget_mean_calls"]),
+            "retained UPBA model is the current gap-weighted default and beats raw full-volume scaling",
+        ),
+        _expect_true(
+            "best_model_registry.autotrader_retained",
+            len(autotrader) == 3
+            and {str(model["model_id"]) for model in autotrader}
+            == expected_autotrader_ids
+            and all(int(model["parameter_count"]) == 21 for model in autotrader)
+            and all(int(model["metrics"]["invalid_accept_count"]) == 0 for model in autotrader)
+            and all(float(model["metrics"]["top_5_recall"]) == 1.0 for model in autotrader)
+            and min(float(model["metrics"]["mean_guard_calls"]) for model in autotrader)
+            == 1.008,
+            "all three AutoTrader hard synthetic cross-seed models are retained",
+        ),
+        _expect_true(
+            "best_model_registry.advisory_boundary",
+            bool(registry["safety_contract"]["model_authorizes_settlement"]) is False
+            and bool(registry["safety_contract"]["model_authorizes_trade"]) is False
+            and bool(registry["safety_contract"]["state_root_dependency"]) is False
+            and "zenodex/energy/best_model_registry/v1" in tool_text
+            and "test_best_model_registry_pins_current_models" in test_text
+            and "Deterministic UPBA verification" in doc_text,
+            "registry, docs, test, and tool keep retained models advisory only",
+        ),
+    ]
+
+
 def _check_epiplexity_literature(
     report: dict[str, Any],
     doc_text: str,
@@ -2773,6 +2889,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     negative_curriculum = payloads["negative_curriculum"]
     curriculum_ranker = payloads["curriculum_ranker"]
     data_scaling = payloads["data_scaling"]
+    best_model_registry = payloads["best_model_registry"]
     energy_order_alone_formal = payloads["energy_order_alone_formal"]
     epiplexity_literature = payloads["epiplexity_literature"]
     return {
@@ -3292,6 +3409,13 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "negative_knowledge"
             ],
         },
+        "best_model_registry": {
+            "schema": best_model_registry["schema"],
+            "scope": best_model_registry["scope"],
+            "model_count": len(best_model_registry["models"]),
+            "promoted": best_model_registry["promoted"],
+            "safety_contract": best_model_registry["safety_contract"],
+        },
         "epiplexity_literature": {
             "schema": epiplexity_literature["schema"],
             "source_count": epiplexity_literature["source_count"],
@@ -3346,6 +3470,10 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(path)
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _sha256_file(path: Path) -> str:
+    return "sha256:" + sha256(path.read_bytes()).hexdigest()
 
 
 def _all_modes_zero(modes: dict[str, Any]) -> bool:

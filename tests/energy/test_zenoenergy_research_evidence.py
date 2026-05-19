@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 225
+    assert report["passed_count"] == report["check_count"] == 230
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -147,6 +147,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "data_scaling.quantity_curve",
         "data_scaling.saturates_below_current",
         "data_scaling.source_hooks",
+        "best_model_registry.schema_and_promoted",
+        "best_model_registry.files_and_hashes",
+        "best_model_registry.upba_default",
+        "best_model_registry.autotrader_retained",
+        "best_model_registry.advisory_boundary",
         "epiplexity_literature.schema",
         "epiplexity_literature.sources",
         "epiplexity_literature.task_relevance_gate",

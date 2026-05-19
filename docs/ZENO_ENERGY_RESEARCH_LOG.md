@@ -1836,3 +1836,39 @@ The full 199,860-row same-generator run did not beat the current gap-weighted
 checkpoint. Higher-quality synthetic coverage is a better next bet than raw
 i.i.d. volume.
 ```
+
+## Best Model Registry
+
+Artifact:
+[ZENO_ENERGY_BEST_MODELS.md](./ZENO_ENERGY_BEST_MODELS.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_best_model_registry.json`
+
+Command:
+
+```bash
+python3 tools/preserve_zenoenergy_best_models.py
+```
+
+Retained models:
+
+| group | retained models | promoted research default |
+| --- | ---: | --- |
+| UPBA v2 partial-fill exact-in | 1 | `upba_v2_gap_weighted_default_seed20260517` |
+| AutoTrader hard synthetic guard ordering | 3 | `autotrader_hard_train20260526_holdout20260527` |
+
+Positive knowledge:
+
+```text
+The current preferred advisory checkpoints are retained as versioned JSON files
+with sha256 hashes and replay-checked registry entries.
+```
+
+Negative knowledge:
+
+```text
+Retained models remain advisory rankers. They do not authorize settlement or
+trade execution, and the AutoTrader retained models remain synthetic until real
+shadow evidence supports promotion.
+```

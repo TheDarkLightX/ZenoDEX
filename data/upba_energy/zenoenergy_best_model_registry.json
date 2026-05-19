@@ -1,0 +1,123 @@
+{
+  "created_date": "2026-05-19",
+  "models": [
+    {
+      "advisory_only": true,
+      "domain": "upba_v2_partial_fill_exact_in",
+      "feature_dim": 96,
+      "metrics": {
+        "cross_seed_configs": 9,
+        "cross_seed_invalid_accept_count_total": 0,
+        "cross_seed_mean_verifier_calls_max": 1.032258064516129,
+        "cross_seed_mean_verifier_calls_mean": 1.0175080393875215,
+        "cross_seed_top_10_recall_min": 1.0,
+        "data_scaling_current_checkpoint_mean_calls": 1.0166414523449319,
+        "data_scaling_full_budget_mean_calls": 1.0176500252143217,
+        "hard_case_top10_miss_count": 0,
+        "hard_case_top_10_recall": 1.0,
+        "reserved_nonzero_count": 0
+      },
+      "model_id": "upba_v2_gap_weighted_default_seed20260517",
+      "parameter_count": 97,
+      "retained_path": "data/upba_energy/best_models/upba_v2_linear_gap_weighted_seed20260517.json",
+      "retention_reason": "Best measured UPBA v2 advisory ranker: gap-weighted default beats hand energy, keeps top-10 recall complete on current cross-seed stress, and beats the full same-generator data-scaling rerun.",
+      "role": "current_preferred_research_checkpoint",
+      "schema": "zenodex/energy/linear_ranker/v1",
+      "sha256": "sha256:1a665e8fc07c1b24dd1ae0110f4509b73c0d975805f0a7ac807fc1f0de157c0a",
+      "source_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json"
+    },
+    {
+      "advisory_only": true,
+      "domain": "autotrader_policy_guard_ordering",
+      "feature_dim": 20,
+      "holdout_seed": 20260523,
+      "metrics": {
+        "invalid_accept_count": 0,
+        "invalid_top_1_rate": 0.0,
+        "mean_guard_calls": 1.013,
+        "policy_guards_authoritative": true,
+        "scorer_authorizes_trade": false,
+        "top_10_recall": 1.0,
+        "top_1_recall": 0.988,
+        "top_5_recall": 1.0
+      },
+      "model_id": "autotrader_hard_train20260522_holdout20260523",
+      "parameter_count": 21,
+      "retained_path": "data/upba_energy/best_models/autotrader_linear_hard_train20260522_holdout20260523.json",
+      "retention_reason": "Deterministically regenerated from the hard synthetic AutoTrader cross-seed receipt; retained so the measured advisory rankers are available for future shadow comparison.",
+      "role": "retained_synthetic_cross_seed_model",
+      "schema": "zenodex/energy/autotrader_linear_ranker/v1",
+      "sha256": "sha256:0dab25247a956fc47ab0fabf4619fbc5d9fa00c182b4e2ccaf37639feae4ac4b",
+      "source_report": "data/upba_energy/autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json",
+      "train_seed": 20260522
+    },
+    {
+      "advisory_only": true,
+      "domain": "autotrader_policy_guard_ordering",
+      "feature_dim": 20,
+      "holdout_seed": 20260525,
+      "metrics": {
+        "invalid_accept_count": 0,
+        "invalid_top_1_rate": 0.0,
+        "mean_guard_calls": 1.01,
+        "policy_guards_authoritative": true,
+        "scorer_authorizes_trade": false,
+        "top_10_recall": 1.0,
+        "top_1_recall": 0.99,
+        "top_5_recall": 1.0
+      },
+      "model_id": "autotrader_hard_train20260524_holdout20260525",
+      "parameter_count": 21,
+      "retained_path": "data/upba_energy/best_models/autotrader_linear_hard_train20260524_holdout20260525.json",
+      "retention_reason": "Deterministically regenerated from the hard synthetic AutoTrader cross-seed receipt; retained so the measured advisory rankers are available for future shadow comparison.",
+      "role": "retained_synthetic_cross_seed_model",
+      "schema": "zenodex/energy/autotrader_linear_ranker/v1",
+      "sha256": "sha256:3d0b31b5c45a190a99774f37f79ddb07c8d36e8effe833eb892a4bd1bdff9c0c",
+      "source_report": "data/upba_energy/autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json",
+      "train_seed": 20260524
+    },
+    {
+      "advisory_only": true,
+      "domain": "autotrader_policy_guard_ordering",
+      "feature_dim": 20,
+      "holdout_seed": 20260527,
+      "metrics": {
+        "invalid_accept_count": 0,
+        "invalid_top_1_rate": 0.0,
+        "mean_guard_calls": 1.008,
+        "policy_guards_authoritative": true,
+        "scorer_authorizes_trade": false,
+        "top_10_recall": 1.0,
+        "top_1_recall": 0.992,
+        "top_5_recall": 1.0
+      },
+      "model_id": "autotrader_hard_train20260526_holdout20260527",
+      "parameter_count": 21,
+      "retained_path": "data/upba_energy/best_models/autotrader_linear_hard_train20260526_holdout20260527.json",
+      "retention_reason": "Deterministically regenerated from the hard synthetic AutoTrader cross-seed receipt; retained so the measured advisory rankers are available for future shadow comparison.",
+      "role": "retained_synthetic_cross_seed_model",
+      "schema": "zenodex/energy/autotrader_linear_ranker/v1",
+      "sha256": "sha256:29a450c56c0dc1a6f50b49579cbdd3b3829ee71be68929cc4c3cce207e2ccec3",
+      "source_report": "data/upba_energy/autotrader_energy_hard_cross_seed_3x_seed20260522_20260527.json",
+      "train_seed": 20260526
+    }
+  ],
+  "negative_knowledge": [
+    "A retained model is an advisory search-order artifact with no consensus or policy authority.",
+    "The AutoTrader retained models are still synthetic cross-seed artifacts until real shadow evidence promotes them.",
+    "The UPBA retained model remains bounded synthetic research evidence until real replay and production-gate evidence pass."
+  ],
+  "promoted": {
+    "autotrader_hard_synthetic_best_seed_pair": "autotrader_hard_train20260526_holdout20260527",
+    "upba_v2": "upba_v2_gap_weighted_default_seed20260517"
+  },
+  "safety_contract": {
+    "deterministic_policy_guards_authoritative": true,
+    "deterministic_verifier_authoritative": true,
+    "model_authorizes_settlement": false,
+    "model_authorizes_trade": false,
+    "state_root_dependency": false
+  },
+  "schema": "zenodex/energy/best_model_registry/v1",
+  "scope": "advisory_ranking_only"
+}
