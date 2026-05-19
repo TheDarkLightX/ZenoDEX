@@ -18,6 +18,7 @@ from src.energy.upba_v2_ranker import (
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes
 
 DOMINANCE_COVER_SCHEMA = "zenodex/energy/upba_v2_dominance_cover_certificate/v1"
+PREFIX_DOMINANCE_COVER_SCHEMA = "zenodex/energy/upba_v2_prefix_dominance_cover_audit/v1"
 
 
 def weakly_dominates_verified(
@@ -143,6 +144,127 @@ def verify_upba_v2_dominance_cover_certificate(report: dict[str, object]) -> boo
     )
 
 
+def build_upba_v2_prefix_dominance_cover_audit(
+    *,
+    full_results: Sequence[VerifiedCandidateResult],
+    ordered_results: Sequence[VerifiedCandidateResult],
+    full_list_complete_for_claim: bool = False,
+    max_checked: int | None = None,
+    scope: str = "verified-ranked-prefix",
+) -> dict[str, object]:
+    """Audit the first ranked prefix that has a dominance-cover certificate.
+
+    This is an offline receipt over already verified results. It measures how
+    many candidates a ranking policy must check before the accepted prefix
+    contains a verifier-accepted representative that dominates every accepted
+    full-list candidate. Live early stop still needs a deterministic suffix
+    bound or full fallback.
+    """
+
+    full = tuple(full_results)
+    ordered = tuple(ordered_results)
+    limit = len(ordered) if max_checked is None else max(0, min(int(max_checked), len(ordered)))
+    full_hashes = _result_hash_multiset(full)
+    ordered_hashes = _result_hash_multiset(ordered)
+    permutation_ok = full_hashes == ordered_hashes
+    accepted_prefix: list[VerifiedCandidateResult] = []
+    checked_hashes: list[str] = []
+    selected_certificate: dict[str, object] | None = None
+    certificate_verify_ok = False
+
+    for checked_count, result in enumerate(ordered[:limit], start=1):
+        checked_hashes.append(result.certificate_hash)
+        if result.ok:
+            accepted_prefix.append(result)
+        if not accepted_prefix:
+            continue
+        certificate = build_upba_v2_dominance_cover_certificate(
+            full_results=full,
+            pruned_results=tuple(accepted_prefix),
+            winner_hash=None,
+            full_list_complete_for_claim=full_list_complete_for_claim,
+            scope=f"{scope}:checked={checked_count}",
+        )
+        structural_ok = verify_upba_v2_dominance_cover_certificate(certificate)
+        if structural_ok:
+            selected_certificate = certificate
+            certificate_verify_ok = True
+            break
+
+    if selected_certificate is None and accepted_prefix:
+        selected_certificate = build_upba_v2_dominance_cover_certificate(
+            full_results=full,
+            pruned_results=tuple(accepted_prefix),
+            winner_hash=None,
+            full_list_complete_for_claim=full_list_complete_for_claim,
+            scope=f"{scope}:checked={limit}",
+        )
+        certificate_verify_ok = verify_upba_v2_dominance_cover_certificate(selected_certificate)
+
+    prefix_checked_count = len(checked_hashes)
+    prefix_valid_count = len(accepted_prefix)
+    prefix_invalid_count = prefix_checked_count - prefix_valid_count
+    certificate_ok = bool(selected_certificate and selected_certificate.get("ok"))
+    ok = bool(permutation_ok and certificate_verify_ok and certificate_ok)
+    report: dict[str, object] = {
+        "schema": PREFIX_DOMINANCE_COVER_SCHEMA,
+        "ok": ok,
+        "scope": scope,
+        "full_list_complete_for_claim": bool(full_list_complete_for_claim),
+        "global_claim_ok": bool(ok and full_list_complete_for_claim),
+        "full_candidate_count": len(full),
+        "full_valid_count": sum(1 for result in full if result.ok),
+        "full_invalid_count": sum(1 for result in full if not result.ok),
+        "ordered_candidate_count": len(ordered),
+        "max_checked": limit,
+        "permutation_ok": permutation_ok,
+        "prefix_checked_count": prefix_checked_count,
+        "prefix_valid_count": prefix_valid_count,
+        "prefix_invalid_count": prefix_invalid_count,
+        "checked_hashes": tuple(checked_hashes),
+        "certificate_verify_ok": certificate_verify_ok,
+        "certificate": selected_certificate,
+        "certificate_hash": selected_certificate.get("certificate_hash") if selected_certificate else None,
+        "invalid_accept_count": 0,
+        "safety": {
+            "verifier_authoritative": True,
+            "scorer_authorizes_settlement": False,
+            "model_output_in_state_root": False,
+            "deterministic_verifier_required": True,
+        },
+        "limits": (
+            "This prefix audit is over already verified finite lists.",
+            "A live early stop still needs a verifier-facing unchecked-suffix bound or full fallback.",
+            "A bounded-grid or production claim still needs a separate proof that the full list is complete.",
+        ),
+    }
+    report["audit_hash"] = _prefix_audit_hash(report)
+    return report
+
+
+def verify_upba_v2_prefix_dominance_cover_audit(report: dict[str, object]) -> bool:
+    """Fail-closed structural check for a prefix dominance-cover audit."""
+
+    if report.get("schema") != PREFIX_DOMINANCE_COVER_SCHEMA:
+        return False
+    expected_hash = report.get("audit_hash")
+    if not isinstance(expected_hash, str):
+        return False
+    without_hash = {key: value for key, value in report.items() if key != "audit_hash"}
+    if _prefix_audit_hash(without_hash) != expected_hash:
+        return False
+    certificate = report.get("certificate")
+    if not isinstance(certificate, dict):
+        return False
+    return bool(
+        report.get("ok")
+        and report.get("permutation_ok")
+        and report.get("certificate_verify_ok")
+        and int(report.get("invalid_accept_count", -1)) == 0
+        and verify_upba_v2_dominance_cover_certificate(certificate)
+    )
+
+
 def _select_winner(
     accepted_pruned: Sequence[VerifiedCandidateResult],
     *,
@@ -179,10 +301,23 @@ def _hashes_unique(results: Sequence[VerifiedCandidateResult]) -> bool:
     return all(count == 1 for count in counts.values())
 
 
+def _result_hash_multiset(results: Sequence[VerifiedCandidateResult]) -> tuple[str, ...]:
+    return tuple(sorted(result.certificate_hash for result in results))
+
+
 def _certificate_hash(report: dict[str, object]) -> str:
     payload = {key: value for key, value in report.items() if key != "certificate_hash"}
     digest = sha256(
         domain_sep_bytes("upba_v2_dominance_cover_certificate", version=1)
+        + canonical_json_bytes(payload)
+    ).hexdigest()
+    return "0x" + digest
+
+
+def _prefix_audit_hash(report: dict[str, object]) -> str:
+    payload = {key: value for key, value in report.items() if key != "audit_hash"}
+    digest = sha256(
+        domain_sep_bytes("upba_v2_prefix_dominance_cover_audit", version=1)
         + canonical_json_bytes(payload)
     ).hexdigest()
     return "0x" + digest

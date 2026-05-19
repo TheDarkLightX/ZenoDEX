@@ -4,7 +4,10 @@ from random import Random
 
 from src.energy.upba_v2_dominance_cover import (
     DOMINANCE_COVER_SCHEMA,
+    PREFIX_DOMINANCE_COVER_SCHEMA,
+    build_upba_v2_prefix_dominance_cover_audit,
     build_upba_v2_dominance_cover_certificate,
+    verify_upba_v2_prefix_dominance_cover_audit,
     verify_upba_v2_dominance_cover_certificate,
     weakly_dominates_verified,
 )
@@ -135,3 +138,98 @@ def test_invalid_pruned_candidate_fails_soundness_even_if_full_has_winner() -> N
     assert report["pruned_sound_ok"] is False
     assert report["pruned_invalid_count"] == 1
     assert verify_upba_v2_dominance_cover_certificate(report) is False
+
+
+def test_prefix_dominance_cover_audit_passes_when_winner_is_checked_first() -> None:
+    batch = generate_synthetic_batch(
+        rng=Random(900),
+        batch_index=0,
+        target_candidate_count=20,
+    )
+    full_results = verify_candidates_in_order(
+        pool=batch.pool,
+        intents=batch.intents,
+        balances=batch.balances,
+        candidates=tuple(item.candidate for item in batch.candidates),
+    )
+    winner = deterministic_best_verified_candidate(full_results)
+    assert winner is not None
+    ordered = (winner,) + tuple(
+        result for result in full_results if result.certificate_hash != winner.certificate_hash
+    )
+
+    audit = build_upba_v2_prefix_dominance_cover_audit(
+        full_results=full_results,
+        ordered_results=ordered,
+        full_list_complete_for_claim=True,
+        scope="unit-test-prefix",
+    )
+
+    assert audit["schema"] == PREFIX_DOMINANCE_COVER_SCHEMA
+    assert audit["ok"] is True
+    assert audit["global_claim_ok"] is True
+    assert audit["permutation_ok"] is True
+    assert audit["prefix_checked_count"] == 1
+    assert audit["prefix_valid_count"] == 1
+    assert verify_upba_v2_prefix_dominance_cover_audit(audit) is True
+
+
+def test_prefix_dominance_cover_audit_waits_past_weak_candidate() -> None:
+    batch = generate_synthetic_batch(
+        rng=Random(900),
+        batch_index=0,
+        target_candidate_count=20,
+    )
+    full_results = verify_candidates_in_order(
+        pool=batch.pool,
+        intents=batch.intents,
+        balances=batch.balances,
+        candidates=tuple(item.candidate for item in batch.candidates),
+    )
+    accepted = sorted(
+        (result for result in full_results if result.ok),
+        key=lambda result: (result.volume, result.surplus, result.certificate_hash),
+    )
+    assert len(accepted) >= 2
+    weak = accepted[0]
+    ordered = (weak,) + tuple(
+        result for result in full_results if result.certificate_hash != weak.certificate_hash
+    )
+
+    audit = build_upba_v2_prefix_dominance_cover_audit(
+        full_results=full_results,
+        ordered_results=ordered,
+        full_list_complete_for_claim=True,
+        scope="unit-test-prefix",
+    )
+
+    assert audit["ok"] is True
+    assert audit["permutation_ok"] is True
+    assert audit["prefix_checked_count"] > 1
+    assert audit["prefix_valid_count"] > 1
+    assert verify_upba_v2_prefix_dominance_cover_audit(audit) is True
+
+
+def test_prefix_dominance_cover_audit_rejects_non_permutation_order() -> None:
+    batch = generate_synthetic_batch(
+        rng=Random(900),
+        batch_index=0,
+        target_candidate_count=20,
+    )
+    full_results = verify_candidates_in_order(
+        pool=batch.pool,
+        intents=batch.intents,
+        balances=batch.balances,
+        candidates=tuple(item.candidate for item in batch.candidates),
+    )
+
+    audit = build_upba_v2_prefix_dominance_cover_audit(
+        full_results=full_results,
+        ordered_results=full_results[:-1],
+        full_list_complete_for_claim=True,
+        scope="unit-test-prefix",
+    )
+
+    assert audit["ok"] is False
+    assert audit["permutation_ok"] is False
+    assert verify_upba_v2_prefix_dominance_cover_audit(audit) is False

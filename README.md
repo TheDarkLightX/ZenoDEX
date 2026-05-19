@@ -231,7 +231,9 @@ hand energy, and records zero invalid accepts. Production ranking remains gated
 by real or production-shadow replay. The latest research adds a runtime
 dominance-cover certificate prototype and a WES bridge that ranks
 dominance-cover checker work while deterministic UPBA verification remains
-authoritative.
+authoritative. A follow-up dominance-prefix audit shows the current learned and
+hybrid rankers reaching a finite-list dominance-cover certificate after the
+first checked candidate on the committed bounded run.
 
 Primary entry points:
 
@@ -244,6 +246,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
 - [docs/ZENO_ENERGY_DOMINANCE_COVER.md](docs/ZENO_ENERGY_DOMINANCE_COVER.md)
 - [docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
+- [docs/ZENO_ENERGY_DOMINANCE_PREFIX.md](docs/ZENO_ENERGY_DOMINANCE_PREFIX.md)
 - [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
 
 The replay secret scanner catches obvious key material before packaging. The

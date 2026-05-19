@@ -96,7 +96,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    [ZENO_ENERGY_DOMINANCE_COVER.md](./ZENO_ENERGY_DOMINANCE_COVER.md), with a
    WES search bridge in
    [ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](./ZENO_ENERGY_WES_DOMINANCE_SEARCH.md).
-   The useful next step is a non-oracle pruned-list generator plus a full-list
+   The follow-up prefix audit in
+   [ZENO_ENERGY_DOMINANCE_PREFIX.md](./ZENO_ENERGY_DOMINANCE_PREFIX.md) shows
+   that the learned and hybrid rankers reach the finite-list dominance-cover
+   certificate at the first checked candidate on the committed bounded run. The
+   useful next step is a verifier-facing unchecked-suffix bound plus a full-list
    completeness argument for:
 
    ```text
@@ -105,9 +109,10 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    -> GloballyWeaklyOptimal(winner, Feasible)
    ```
 
-   The Lean theorem exists and the finite-list runtime receipt now exists. The
-   production gap is completeness for the generated full family and a pruning
-   policy that is useful without selecting the full-list winner as an oracle.
+   The Lean theorem exists, the finite-list runtime receipt exists, and the
+   ranked-prefix audit now exists. The production gap is completeness for the
+   generated full family and a live suffix-bound certificate that permits early
+   stop before full fallback.
 
 ## Decisions
 

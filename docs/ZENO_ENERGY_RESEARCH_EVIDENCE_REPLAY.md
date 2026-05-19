@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 156
-passed_count: 156
+check_count: 163
+passed_count: 163
 failed_count: 0
 ```
 
@@ -123,6 +123,11 @@ failed_count: 0
 | wes_dominance_search.useful_ordering | pass | WES-ranked policies find useful dominance-cover checks early under the static budget |
 | wes_dominance_search.safety | pass | WES ranks checker calls only and records zero invalid accepts |
 | wes_dominance_search.source_hooks | pass | bridge source, tests, and docs preserve WES as an advisory search layer |
+| dominance_prefix.schema | pass | dominance-prefix benchmark and audit schemas are stable |
+| dominance_prefix.safety | pass | prefix audit preserves verifier authority and records zero invalid accepts |
+| dominance_prefix.learned_and_hybrid_cover_first | pass | learned and hybrid prefixes obtain dominance-cover certificates at the first checked candidate |
+| dominance_prefix.beats_controls | pass | learned prefix cover beats hand and random controls on checked-call count |
+| dominance_prefix.boundary_and_hooks | pass | source, tests, and docs preserve offline-prefix and suffix-bound limits |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -164,6 +169,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518 | pass | H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518 | pass | H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518 | pass | H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519 | pass | H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519 | pass | H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -213,6 +220,22 @@ failed_count: 0
     "weak_pruned_failed_count": 75,
     "winner_only_count": 79,
     "winner_only_ok_count": 79
+  },
+  "dominance_prefix": {
+    "evaluated_batches": 119,
+    "hand_mean_prefix_checked_count": 1.4453781512605042,
+    "hybrid_mean_prefix_checked_count": 1,
+    "invalid_accept_count": 0,
+    "learned_mean_prefix_checked_count": 1,
+    "learned_p99_prefix_checked_count": 1.0,
+    "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+    "negative_knowledge": [
+      "Dominance-prefix certificates measure ranked search cost; they do not make model scores authoritative.",
+      "If a ranked prefix reaches the full candidate list, the certificate gives no verifier-call savings over full fallback."
+    ],
+    "random_full_fallback_count": 5,
+    "random_mean_prefix_checked_count": 12.882352941176471,
+    "schema": "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1"
   },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
   "fallback_permutation_audit": {

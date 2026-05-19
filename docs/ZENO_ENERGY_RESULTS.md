@@ -728,6 +728,39 @@ bounded synthetic UPBA batches and a pinned external WES commit
 `5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6`. It does not remove the full-list
 completeness obligation for bounded-grid claims.
 
+## Dominance-Prefix Cover
+
+The dominance-prefix audit asks how many ranked verifier calls are needed before
+the accepted prefix has a deterministic dominance-cover certificate over the
+verified finite full list.
+
+Command:
+
+```bash
+python3 tools/check_upba_v2_dominance_prefix.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260540 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_dominance_prefix_benchmark_seed20260540.json \
+  --output-markdown docs/ZENO_ENERGY_DOMINANCE_PREFIX.md
+```
+
+| mode | count | ok | mean checked | p95 | p99 | full fallback count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 119 | 119 | 2.5210 | 6 | 7 | 0 |
+| random | 119 | 119 | 12.8824 | 23 | 24 | 5 |
+| hand | 119 | 119 | 1.4454 | 3 | 4 | 0 |
+| learned | 119 | 119 | 1.0000 | 1 | 1 | 0 |
+| hybrid | 119 | 119 | 1.0000 | 1 | 1 | 0 |
+
+This result is the strongest prefix-cover evidence so far: the learned and
+hybrid rankers reached a finite-list dominance-cover certificate on the first
+checked candidate for every evaluated batch. It is still an offline audit over
+already verified finite lists. Live early stop needs an unchecked-suffix bound
+or deterministic full fallback, and bounded-grid production claims still need
+full-list completeness.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
@@ -737,11 +770,11 @@ shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
 objective-equivalent training hygiene, the production promotion gate, the replay
 source manifest checker, the replay source manifest builder, the real replay
 secret scanner, the real replay report builder, the production evidence bundle,
-the dominance-cover runtime prototype, the WES dominance search bridge, and
-PopperPad status ledger. It also checks
+the dominance-cover runtime prototype, the WES dominance search bridge, the
+dominance-prefix cover audit, and PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 156 passing checks and 0 failed checks, including
+The current receipt reports 163 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

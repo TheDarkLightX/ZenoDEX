@@ -34,6 +34,8 @@ Dominance-cover runtime prototype: [ZenoEnergy Dominance Cover](./ZENO_ENERGY_DO
 
 WES dominance search bridge: [ZenoEnergy WES Dominance Search](./ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
 
+Dominance-prefix audit: [ZenoEnergy Dominance-Prefix Cover](./ZENO_ENERGY_DOMINANCE_PREFIX.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
@@ -81,7 +83,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
 - `src/energy/upba_v2_listwise_set_ranker.py`: deterministic candidate-list context features and top-one listwise softmax training helper.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
-- `src/energy/upba_v2_dominance_cover.py`: runtime dominance-cover certificates for verified finite candidate lists.
+- `src/energy/upba_v2_dominance_cover.py`: runtime dominance-cover certificates and ranked-prefix dominance audits for verified finite candidate lists.
 - `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
 - `src/energy/upba_v2_repair_selector.py`: tiny advisory selector features and ranking for deterministic neighborhood proposals.
 - `src/energy/autotrader_energy.py`: synthetic AutoTrader advisory energy rows, hand scorer, linear ranker, and guard-call evaluator.
@@ -107,6 +109,7 @@ verifier labels for offline training and evaluation.
 - `tools/stress_upba_energy_listwise_set_ranker.py`: retrains and evaluates the listwise set-context ranker across train/holdout seed pairs.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
 - `tools/check_upba_v2_dominance_cover.py`: checks dominance-cover receipts over bounded synthetic verified full lists.
+- `tools/check_upba_v2_dominance_prefix.py`: audits how many ranked verifier calls are needed before a dominance-cover certificate exists.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
@@ -322,6 +325,16 @@ ordering reached its first useful result on the second checked slot.
 The result is a search and certificate-format prototype. A production or
 bounded-grid claim still needs a separate proof that the supplied full list is
 complete for the intended UPBA v2 candidate family.
+
+The dominance-prefix audit connects the certificate to ranked search cost. On
+the committed bounded synthetic run, learned and hybrid orderings reached a
+dominance-cover certificate after the first checked candidate in all 119
+evaluated batches. Hand energy averaged 1.445 checked candidates, while random
+ordering averaged 12.882 and reached full fallback in 5 batches.
+
+This is still an offline audit over verified finite lists. It supports the
+ranking objective and certificate plumbing, while live early stop still needs a
+verifier-facing unchecked-suffix bound or deterministic full fallback.
 
 ## Neighborhood Repair
 

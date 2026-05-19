@@ -404,6 +404,32 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    dominance_prefix = _load_json(
+        root / "data/upba_energy/upba_v2_dominance_prefix_benchmark_seed20260540.json"
+    )
+    dominance_prefix_doc = (
+        root / "docs/ZENO_ENERGY_DOMINANCE_PREFIX.md"
+    ).read_text(encoding="utf-8")
+    dominance_prefix_tool = (
+        root / "tools/check_upba_v2_dominance_prefix.py"
+    ).read_text(encoding="utf-8")
+    dominance_prefix_source = (
+        root / "src/energy/upba_v2_dominance_cover.py"
+    ).read_text(encoding="utf-8")
+    dominance_prefix_tests = (
+        root / "tests/energy/test_upba_v2_dominance_cover.py"
+    ).read_text(encoding="utf-8")
+    payloads["dominance_prefix"] = dominance_prefix
+    checks.extend(
+        _check_dominance_prefix(
+            dominance_prefix,
+            dominance_prefix_doc,
+            dominance_prefix_tool,
+            dominance_prefix_source,
+            dominance_prefix_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -1756,6 +1782,82 @@ def _check_wes_dominance_search(
     ]
 
 
+def _check_dominance_prefix(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    source_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    learned = summary["learned"]
+    hybrid = summary["hybrid"]
+    hand = summary["hand"]
+    random = summary["random"]
+    doc_lower = doc_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_true(
+            "dominance_prefix.schema",
+            report.get("schema")
+            == "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1"
+            and report.get("audit_schema")
+            == "zenodex/energy/upba_v2_prefix_dominance_cover_audit/v1"
+            and bool(report.get("learned_model_present")) is True,
+            "dominance-prefix benchmark and audit schemas are stable",
+        ),
+        _expect_true(
+            "dominance_prefix.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False,
+            "prefix audit preserves verifier authority and records zero invalid accepts",
+        ),
+        _expect_true(
+            "dominance_prefix.learned_and_hybrid_cover_first",
+            int(learned["count"]) > 0
+            and int(learned["ok_count"]) == int(learned["count"])
+            and int(hybrid["ok_count"]) == int(hybrid["count"])
+            and int(learned["structural_verify_ok_count"]) == int(learned["count"])
+            and int(hybrid["structural_verify_ok_count"]) == int(hybrid["count"])
+            and float(learned["mean_prefix_checked_count"]) == 1.0
+            and float(hybrid["mean_prefix_checked_count"]) == 1.0
+            and float(learned["p99_prefix_checked_count"]) == 1.0
+            and float(hybrid["p99_prefix_checked_count"]) == 1.0,
+            "learned and hybrid prefixes obtain dominance-cover certificates at the first checked candidate",
+        ),
+        _expect_true(
+            "dominance_prefix.beats_controls",
+            float(learned["mean_prefix_checked_count"])
+            < float(hand["mean_prefix_checked_count"])
+            and float(learned["mean_prefix_checked_count"])
+            < float(random["mean_prefix_checked_count"])
+            and int(random["full_fallback_count"]) > 0
+            and int(hand["max_prefix_checked_count"]) > int(learned["max_prefix_checked_count"]),
+            "learned prefix cover beats hand and random controls on checked-call count",
+        ),
+        _expect_true(
+            "dominance_prefix.boundary_and_hooks",
+            "build_upba_v2_prefix_dominance_cover_audit" in source_text
+            and "verify_upba_v2_prefix_dominance_cover_audit" in source_text
+            and "PREFIX_DOMINANCE_COVER_SCHEMA" in source_text
+            and "scorer_from_linear_model" in tool_text
+            and "hard_barrier_energy_from_record" in tool_text
+            and "test_prefix_dominance_cover_audit_waits_past_weak_candidate"
+            in test_text
+            and "offline audit" in doc_lower
+            and "unchecked-suffix bound" in doc_lower
+            and "no verifier-call savings" in negative_lower
+            and "not a upba v2 bounded-grid optimality verifier" in limits_lower,
+            "source, tests, and docs preserve offline-prefix and suffix-bound limits",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -1799,6 +1901,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518": "falsified",
         "H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518": "supported",
         "H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518": "falsified",
+        "H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519": "supported",
+        "H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -1871,6 +1975,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     autotrader_shadow = payloads["autotrader_energy_shadow_bridge"]
     dominance_cover = payloads["dominance_cover"]
     wes_dominance_search = payloads["wes_dominance_search"]
+    dominance_prefix = payloads["dominance_prefix"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2158,6 +2263,33 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "checker_invalid_accept_count"
             ],
             "negative_knowledge": wes_dominance_search["negative_knowledge"],
+        },
+        "dominance_prefix": {
+            "schema": dominance_prefix["schema"],
+            "evaluated_batches": dominance_prefix["evaluated_batches"],
+            "model_path": dominance_prefix["model_path"],
+            "learned_mean_prefix_checked_count": dominance_prefix["summary"][
+                "learned"
+            ]["mean_prefix_checked_count"],
+            "learned_p99_prefix_checked_count": dominance_prefix["summary"][
+                "learned"
+            ]["p99_prefix_checked_count"],
+            "hybrid_mean_prefix_checked_count": dominance_prefix["summary"][
+                "hybrid"
+            ]["mean_prefix_checked_count"],
+            "hand_mean_prefix_checked_count": dominance_prefix["summary"]["hand"][
+                "mean_prefix_checked_count"
+            ],
+            "random_mean_prefix_checked_count": dominance_prefix["summary"][
+                "random"
+            ]["mean_prefix_checked_count"],
+            "random_full_fallback_count": dominance_prefix["summary"]["random"][
+                "full_fallback_count"
+            ],
+            "invalid_accept_count": dominance_prefix["safety"][
+                "invalid_accept_count"
+            ],
+            "negative_knowledge": dominance_prefix["negative_knowledge"],
         },
     }
 

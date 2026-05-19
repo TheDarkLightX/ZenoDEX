@@ -520,6 +520,25 @@ wes_refute_edge_ref:                 sha256:a573b82a582cdc1e3ab864557300f2bc9d82
 checkpoint_ref:                      sha256:613dcbee75c02f0050c66de8f03804caa6e4a1084fb6bd661b5c32821f9c70fb
 ```
 
+### Dominance-Prefix Cover
+
+```text
+prefix_json_blob_ref:                sha256:6c143cd02761e721effa978d3f24f47dc3ce013dfd7d6a3fcb0658b8ac4c731d
+prefix_markdown_blob_ref:            sha256:4963f90eb7fa5c0255acf6f12b2a260e78bb19d0e894ba35312c93a3aa35407e
+context_ref:                         sha256:811f2b62279ddf118ac23fc006fb3cb3f84bcf0dffd1679e26f311e72d5499cf
+support_recipe_ref:                  sha256:a508dd1eb9cd56b46ce73aa09c35dfed805d689881d15a0ad2a59fd52eddf2c1
+refute_recipe_ref:                   sha256:20be43aed0c84a95ce6a11496d5d29ed0c7ca73fb6f135ac245ebacff76751cd
+support_hypothesis_ref:              sha256:f479287d7f4377a46ed3a55de0598b34388bab738ed6947d662ec9292334b1b0
+negative_hypothesis_ref:             sha256:a03f4e730ec2eeac8d157b1b6be70def0b37f59841e21a777fc73b1f00e661a2
+support_evidence_ref:                sha256:ba0ce1fcf353a718d08703cc3ef1356854d9aa8cf109e3b10098ffb516315286
+negative_evidence_ref:               sha256:a5c49fb69a1c4bb1f55b07bc74afc173aa22210a2cc216ff60896d2ecba10968
+support_stdout_ref:                  sha256:8ef97b5e6f691d6e02f7888c6616b37a63adb618627493181ed4c85d2b3543cd
+negative_stdout_ref:                 sha256:8c2be9c93c68e37e8dc495c9044e19f7cf153b5b1e88a48a8e291e994dc39754
+support_edge_ref:                    sha256:39b0c1356d0109db8ea6199844b35a073f4a903af679a37a02116c3ff66f54dd
+negative_edge_ref:                   sha256:5f1b21919abfa2ac27875de39cb632cc5014ea29f376ba38cae899ea302d0b26
+checkpoint_ref:                      sha256:6d4d2a044da0b2d046947c258188659d63b847c036afe5d633455abbf1825a4f
+```
+
 ## Current Status
 
 ```text
@@ -570,6 +589,8 @@ H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518: supported
 H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518: falsified
 H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518: supported
 H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518: falsified
+H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519: supported
+H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519: falsified
 doctor_ok: true
 ```
 

@@ -1,0 +1,106 @@
+{
+  "audit_schema": "zenodex/energy/upba_v2_prefix_dominance_cover_audit/v1",
+  "batches": 120,
+  "candidates_per_batch": 24,
+  "evaluated_batches": 119,
+  "learned_model_present": true,
+  "limits": [
+    "This is an offline prefix audit over bounded synthetic verified finite lists.",
+    "A live early stop still needs a verifier-facing unchecked-suffix bound or deterministic full fallback.",
+    "Prefix dominance-cover success is equivalent to finding an objective-equivalent verified winner under the current lexicographic objective.",
+    "This is not a UPBA v2 bounded-grid optimality verifier without a separate full-list completeness proof."
+  ],
+  "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+  "negative_knowledge": [
+    "Dominance-prefix certificates measure ranked search cost; they do not make model scores authoritative.",
+    "If a ranked prefix reaches the full candidate list, the certificate gives no verifier-call savings over full fallback."
+  ],
+  "ok": true,
+  "safety": {
+    "invalid_accept_count": 0,
+    "model_output_in_state_root": false,
+    "scorer_authorizes_settlement": false,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1",
+  "seed": 20260540,
+  "skipped_without_winner": 1,
+  "summary": {
+    "exhaustive": {
+      "count": 119,
+      "failed_count": 0,
+      "full_fallback_count": 0,
+      "max_prefix_checked_count": 7,
+      "mean_checked_ratio": 0.1051638046522957,
+      "mean_prefix_checked_count": 2.5210084033613445,
+      "mean_prefix_invalid_count": 0,
+      "mean_prefix_valid_count": 2.5210084033613445,
+      "ok_count": 119,
+      "p95_prefix_checked_count": 6.0,
+      "p99_prefix_checked_count": 7.0,
+      "permutation_ok_count": 119,
+      "structural_verify_ok_count": 119
+    },
+    "hand": {
+      "count": 119,
+      "failed_count": 0,
+      "full_fallback_count": 0,
+      "max_prefix_checked_count": 5,
+      "mean_checked_ratio": 0.06026976007794422,
+      "mean_prefix_checked_count": 1.4453781512605042,
+      "mean_prefix_invalid_count": 0,
+      "mean_prefix_valid_count": 1.4453781512605042,
+      "ok_count": 119,
+      "p95_prefix_checked_count": 3.0,
+      "p99_prefix_checked_count": 4.0,
+      "permutation_ok_count": 119,
+      "structural_verify_ok_count": 119
+    },
+    "hybrid": {
+      "count": 119,
+      "failed_count": 0,
+      "full_fallback_count": 0,
+      "max_prefix_checked_count": 1,
+      "mean_checked_ratio": 0.04171233710875654,
+      "mean_prefix_checked_count": 1,
+      "mean_prefix_invalid_count": 0,
+      "mean_prefix_valid_count": 1,
+      "ok_count": 119,
+      "p95_prefix_checked_count": 1.0,
+      "p99_prefix_checked_count": 1.0,
+      "permutation_ok_count": 119,
+      "structural_verify_ok_count": 119
+    },
+    "learned": {
+      "count": 119,
+      "failed_count": 0,
+      "full_fallback_count": 0,
+      "max_prefix_checked_count": 1,
+      "mean_checked_ratio": 0.04171233710875654,
+      "mean_prefix_checked_count": 1,
+      "mean_prefix_invalid_count": 0,
+      "mean_prefix_valid_count": 1,
+      "ok_count": 119,
+      "p95_prefix_checked_count": 1.0,
+      "p99_prefix_checked_count": 1.0,
+      "permutation_ok_count": 119,
+      "structural_verify_ok_count": 119
+    },
+    "random": {
+      "count": 119,
+      "failed_count": 0,
+      "full_fallback_count": 5,
+      "max_prefix_checked_count": 24,
+      "mean_checked_ratio": 0.5373431981488247,
+      "mean_prefix_checked_count": 12.882352941176471,
+      "mean_prefix_invalid_count": 9.840336134453782,
+      "mean_prefix_valid_count": 3.042016806722689,
+      "ok_count": 119,
+      "p95_prefix_checked_count": 23.0,
+      "p99_prefix_checked_count": 24.0,
+      "permutation_ok_count": 119,
+      "structural_verify_ok_count": 119
+    }
+  },
+  "wall_clock_ms": 10391.135635785758
+}

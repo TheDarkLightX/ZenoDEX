@@ -1342,3 +1342,54 @@ evidence. It is not production utility evidence for live UPBA distributions.
 Research consequence: WES is now available for witness-search experiments over
 ZenoEnergy certificates. Use it to hunt certificate failures and rank pruning
 claims, then promote only checks that replay without external state.
+
+## Dominance-Prefix Cover
+
+Artifact:
+[ZENO_ENERGY_DOMINANCE_PREFIX.md](./ZENO_ENERGY_DOMINANCE_PREFIX.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_dominance_prefix_benchmark_seed20260540.json`
+
+Command:
+
+```bash
+python3 tools/check_upba_v2_dominance_prefix.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260540 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_dominance_prefix_benchmark_seed20260540.json \
+  --output-markdown docs/ZENO_ENERGY_DOMINANCE_PREFIX.md
+```
+
+Observed result:
+
+| mode | count | ok | mean checked | p95 | p99 | full fallback count |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 119 | 119 | 2.5210 | 6 | 7 | 0 |
+| random | 119 | 119 | 12.8824 | 23 | 24 | 5 |
+| hand | 119 | 119 | 1.4454 | 3 | 4 | 0 |
+| learned | 119 | 119 | 1.0000 | 1 | 1 | 0 |
+| hybrid | 119 | 119 | 1.0000 | 1 | 1 | 0 |
+
+Positive knowledge:
+
+```text
+The gap-weighted learned ranker and hybrid hard-barrier ranker reached a
+finite-list dominance-cover certificate after the first checked candidate on
+every evaluated bounded synthetic batch.
+```
+
+Negative knowledge:
+
+```text
+The prefix audit consumes already verified finite lists. It measures ranked
+search cost and certificate availability, while live early stop still needs a
+verifier-facing unchecked-suffix bound or deterministic full fallback.
+```
+
+Research consequence: the next early-stop step is a deterministic suffix-bound
+certificate that can be checked before full fallback. Until that exists,
+dominance-prefix success remains replay evidence for ranker quality rather than
+a live stopping rule.
