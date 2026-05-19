@@ -12,6 +12,7 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     validate_proof_metadata_v0,
 )
+from src.integration.zeno_ledger_production_key_gates_v0 import validate_verifier_registry_update_gate_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
 VERIFIER_REGISTRY_SCHEMA_V0 = "zenodex/zeno_ledger/verifier_registry/v0"
@@ -154,7 +155,12 @@ def make_verifier_registry_v0(*, entries: list[Mapping[str, Any]]) -> dict[str, 
     return registry
 
 
-def validate_verifier_registry_v0(registry: Mapping[str, Any]) -> None:
+def validate_verifier_registry_v0(
+    registry: Mapping[str, Any],
+    *,
+    production_key_admission_receipt: Mapping[str, Any] | None = None,
+    require_production_key_admission: bool = False,
+) -> None:
     obj = _require_mapping(registry, name="verifier_registry")
     expected = {"schema", "registry_id", "entries"}
     if set(obj.keys()) != expected:
@@ -164,6 +170,10 @@ def validate_verifier_registry_v0(registry: Mapping[str, Any]) -> None:
     registry_id = _require_root(obj.get("registry_id"), name="verifier_registry.registry_id")
     if registry_id != verifier_registry_content_hash_v0(obj):
         raise ValueError("verifier_registry registry_id mismatch")
+    if require_production_key_admission:
+        if production_key_admission_receipt is None:
+            raise ValueError("verifier_registry production key-management admission receipt is required")
+        validate_verifier_registry_update_gate_v0(production_key_admission_receipt)
     entries = _require_list(obj.get("entries"), name="verifier_registry.entries")
     if not entries:
         raise ValueError("verifier_registry entries must be non-empty")

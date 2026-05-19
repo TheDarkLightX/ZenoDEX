@@ -136,15 +136,18 @@ echo "== release: API surface profiles =="
 echo "== release: production key management =="
 "$PY" -m py_compile \
   "$ROOT_DIR/src/integration/production_key_management_v0.py" \
+  "$ROOT_DIR/src/integration/zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tools/check_production_key_management_spec.py" \
   "$ROOT_DIR/tools/check_production_key_management_config.py" \
   "$ROOT_DIR/tests/test_production_key_management_spec.py" \
   "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tests/test_check_production_key_management_config.py"
 "$PY" "$ROOT_DIR/tools/check_production_key_management_spec.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/test_production_key_management_spec.py" \
   "$ROOT_DIR/tests/integration/test_production_key_management_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tests/test_check_production_key_management_config.py"
 
 echo "== release: ZenoLedger network admission =="
@@ -159,6 +162,7 @@ echo "== release: ZenoLedger network admission =="
   "$ROOT_DIR/src/integration/zeno_ledger_dynamic_peers_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_live_quorum_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_peer_discovery_v0.py" \
+  "$ROOT_DIR/src/integration/zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_validator_schedule_v0.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_block_gossip.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_bonded_slashing.py" \
@@ -172,6 +176,7 @@ echo "== release: ZenoLedger network admission =="
   "$ROOT_DIR/tests/integration/test_zeno_ledger_live_quorum_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_transport_auth.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_peer_discovery_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_config_quorum.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_fork_choice.py"
@@ -180,6 +185,7 @@ echo "== release: ZenoLedger network admission =="
   "$ROOT_DIR/tests/integration/test_zeno_ledger_live_quorum_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_transport_auth.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_peer_discovery_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_production_key_gates_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_config_quorum.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_fork_choice.py"
