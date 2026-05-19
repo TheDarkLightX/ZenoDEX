@@ -119,6 +119,15 @@ python3 tools/zeno_ledger_node.py write-network-config \
 Record the printed `network_config_hash`. Share it beside the URL when
 possible, so Machine B can reject a stale or unintended config.
 
+For stricter public-network bootstraps, the config can also carry
+`config_signer_registry`, `config_signature_envelopes`,
+`config_quorum_report`, and `config_quorum_admission`. The envelopes sign the
+`network_config_hash` with payload kind `public_network_config`. Machine B can
+then add `--require-network-config-quorum` and optionally
+`--expected-config-signer-registry-hash <REGISTRY_HASH>` to `doctor` and
+`join-network`, which rejects unsigned or insufficiently signed peer lists
+before joining.
+
 Machine A exposes:
 
 - `GET /health`

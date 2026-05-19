@@ -177,6 +177,7 @@ import Proofs.FIREStrictSpecParsing
 import Proofs.UniformBatchClearingV1
 import Proofs.UniformBatchOptimality
 import Proofs.ZenoLedgerDisjointWrites
+import Proofs.ZenoLedgerPublicNetworkConfigAdmission
 import Proofs.ZenoLedgerZkTeeProofComposition
 
 /-!

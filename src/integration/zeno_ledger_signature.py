@@ -37,6 +37,7 @@ SUPPORTED_PAYLOAD_KINDS_V0 = frozenset(
         "mirror_index",
         "tau_export_packet",
         "checkpoint",
+        "public_network_config",
     }
 )
 
