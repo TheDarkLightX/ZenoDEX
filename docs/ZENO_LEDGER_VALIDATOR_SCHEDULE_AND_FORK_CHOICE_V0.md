@@ -84,3 +84,17 @@ This is a pure policy and replay surface. It does not yet implement open block
 gossip, validator peer discovery, network transport authentication, slashing, or
 automatic signer-quorum verification on live headers. Those are the next wiring
 steps.
+
+## Node Peer-Check Wiring
+
+`tools/zeno_ledger_node.py` now includes `sequencer_set_hash` in node status and
+emits a `fork_choice` report for each peer in `check_peer_status_v0`. Peer
+compatibility requires the deterministic fork-choice decision to be one of:
+
+- `follow_candidate`
+- `same_tip`
+- `keep_local`
+
+Conflicting same-height live tips and peer-ahead tips that require a local reorg
+therefore fail the peer check before the follower path can treat the peer as
+compatible.
