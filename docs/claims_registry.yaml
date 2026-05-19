@@ -823,25 +823,29 @@ claims:
     status: supported_scoped
     layer: runtime
     statement: >
-      ZenoLedger now has a pure validator-network policy surface for canonical
+      ZenoLedger now has a validator-network policy surface for canonical
       validator-set hashing, weighted round-robin proposer duties,
       scheduled-header admission against `header.sequencer_set_hash`, and
-      extend-only fork choice over already verified tips. The policy rejects
-      missing active validators, duplicate validator identities, tampered
-      validator-set hashes, wrong scheduled proposers, candidate tips that
-      require a local reorg, same-height conflicts, and validator-set
-      mismatches. This is a replayable policy surface; open block gossip,
-      validator peer discovery, transport authentication, slashing, and live
-      signer-quorum wiring remain follow-up work.
+      extend-only fork choice over already verified tips. Node peer checks emit
+      the deterministic fork-choice report and reject peers whose tips are
+      neither local-tip extensions, identical tips, nor known local prefixes.
+      The policy rejects missing active validators, duplicate validator
+      identities, tampered validator-set hashes, wrong scheduled proposers,
+      candidate tips that require a local reorg, same-height conflicts, and
+      validator-set mismatches. Open block gossip, validator peer discovery,
+      transport authentication, slashing, and live signer-quorum wiring remain
+      follow-up work.
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile src/integration/zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py
-        - cmd: pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
         - cmd: python3 tools/check_production_traceability_matrix.py
       files:
         - src/integration/zeno_ledger_validator_schedule_v0.py
+        - tools/zeno_ledger_node.py
         - tests/integration/test_zeno_ledger_validator_schedule_v0.py
+        - tests/integration/test_zeno_ledger_node_fork_choice.py
         - docs/ZENO_LEDGER_VALIDATOR_SCHEDULE_AND_FORK_CHOICE_V0.md
         - docs/production_traceability_matrix.json
         - docs/PRODUCTION_TRACEABILITY_MATRIX.md

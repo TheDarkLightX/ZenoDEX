@@ -137,8 +137,12 @@ echo "== release: ZenoLedger anti-equivocation =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_anti_equivocation.py"
 "$PY" -m py_compile \
   "$ROOT_DIR/src/integration/zeno_ledger_validator_schedule_v0.py" \
-  "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py"
-"$PY" -m pytest -q "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py"
+  "$ROOT_DIR/tools/zeno_ledger_node.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_node_fork_choice.py"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_validator_schedule_v0.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_node_fork_choice.py"
 
 require_file "system-spec lint" "$ROOT_DIR/tools/system_spec_lint.py"
 require_file "system-spec compose" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"

@@ -148,18 +148,20 @@
     {
       "id": "zenoledger_validator_schedule_fork_choice",
       "status": "supported_scoped",
-      "invariant": "A scheduled ZenoLedger header is admitted only when it binds the active validator set hash and the claimed proposer matches the deterministic weighted round-robin duty; candidate tips are accepted only when they extend the local tip under the same validator set.",
+      "invariant": "A scheduled ZenoLedger header is admitted only when it binds the active validator set hash and the claimed proposer matches the deterministic weighted round-robin duty; node peer checks accept candidate tips only when the deterministic fork-choice report says the peer extends the local tip, is the same tip, or is a known local prefix under the same validator set.",
       "runtime_guard_paths": [
         "src/integration/zeno_ledger_validator_schedule_v0.py",
+        "tools/zeno_ledger_node.py",
         "tools/run_release_gate.sh"
       ],
       "test_paths": [
-        "tests/integration/test_zeno_ledger_validator_schedule_v0.py"
+        "tests/integration/test_zeno_ledger_validator_schedule_v0.py",
+        "tests/integration/test_zeno_ledger_node_fork_choice.py"
       ],
       "evidence_commands": [
-        "python3 -m pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py"
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py"
       ],
-      "residual_limits": "This is a pure policy and replay surface. Open block gossip, validator peer discovery, network transport authentication, slashing, and automatic signer-quorum verification on live headers remain follow-up work."
+      "residual_limits": "This is a deterministic policy and peer-check replay surface. Open block gossip, validator peer discovery, network transport authentication, slashing, and automatic signer-quorum verification on live headers remain follow-up work."
     },
     {
       "id": "zk_risc0_metadata_binding",

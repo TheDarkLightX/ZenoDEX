@@ -46,6 +46,7 @@ from src.integration.zeno_ledger_v0 import (
     tx_hash_v0,
     validate_body_v0,
 )
+from src.integration.zeno_ledger_validator_schedule_v0 import build_fork_choice_report_v0
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.state.canonical import canonical_hex_fixed_allow_0x
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
@@ -376,6 +377,7 @@ def build_node_status_v0(
         fallback=bundle_root / "bootstrap" / "manifest.json",
     )
     bootstrap_root = bootstrap_manifest_path.parent
+    bootstrap_manifest = _load_json_object(bootstrap_manifest_path)
     heights = _header_heights(bootstrap_root / "ledger" / "headers")
     latest_height = heights[-1] if heights else 0
     covered_features = list(operator_report.get("covered_features", []))
@@ -397,6 +399,7 @@ def build_node_status_v0(
         "combined_testnet_status_path": operator_report.get("combined_testnet_status_path"),
         "combined_testnet_status_hash": operator_report.get("combined_testnet_status_hash"),
         "combined_watcher_count": operator_report.get("combined_watcher_count"),
+        "sequencer_set_hash": bootstrap_manifest["sequencer_set_hash"],
         "mirror_index_hash": operator_report.get("mirror_index_hash"),
         "feature_suite_hash": operator_report.get("feature_suite_hash"),
         "covered_feature_count": len(covered_features),
@@ -1503,6 +1506,23 @@ def _peer_header_hash_at_height_v0(
     raise ValueError(f"cannot fetch peer bootstrap header at height {height}")
 
 
+def _fork_choice_tip_v0(
+    *,
+    node_status: Mapping[str, Any],
+    tip: Mapping[str, Any],
+    name: str,
+) -> dict[str, Any]:
+    sequencer_set_hash = node_status.get("sequencer_set_hash")
+    if not isinstance(sequencer_set_hash, str) or sequencer_set_hash == "":
+        raise ValueError(f"{name} sequencer_set_hash is required")
+    return {
+        "chain_id": node_status["chain_id"],
+        "height": int(tip["height"]),
+        "header_hash": str(tip["header_hash"]),
+        "validator_set_hash": sequencer_set_hash,
+    }
+
+
 def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, Any]:
     """Check that peer nodes are on the same network and common live prefix."""
 
@@ -1536,7 +1556,27 @@ def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, A
                 height=common_height,
             )
             common_header_match = local_common_hash == peer_common_hash
-            compatible = bool(network_match and chain_match and feature_suite_match and common_header_match)
+            fork_choice_report = build_fork_choice_report_v0(
+                local_tip=_fork_choice_tip_v0(
+                    node_status=node_status,
+                    tip=local_tip,
+                    name="local_tip",
+                ),
+                candidate_tip=_fork_choice_tip_v0(
+                    node_status=peer_status,
+                    tip=peer_tip,
+                    name="peer_tip",
+                ),
+                common_height=common_height,
+                local_common_header_hash=local_common_hash,
+                candidate_common_header_hash=peer_common_hash,
+            )
+            fork_choice_compatible = fork_choice_report["decision"] in {
+                "follow_candidate",
+                "same_tip",
+                "keep_local",
+            }
+            compatible = bool(network_match and chain_match and feature_suite_match and fork_choice_compatible)
             if int(peer_tip["height"]) > int(local_tip["height"]):
                 relation = "peer_ahead"
             elif int(peer_tip["height"]) < int(local_tip["height"]):
@@ -1553,6 +1593,8 @@ def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, A
                     "chain_match": chain_match,
                     "feature_suite_match": feature_suite_match,
                     "common_header_match": common_header_match,
+                    "fork_choice_compatible": fork_choice_compatible,
+                    "fork_choice": fork_choice_report,
                     "height_relation": relation,
                     "local_tip": local_tip,
                     "peer_tip": peer_tip,
