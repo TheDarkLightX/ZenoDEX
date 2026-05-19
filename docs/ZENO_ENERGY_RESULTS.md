@@ -830,6 +830,29 @@ python3 tools/stress_upba_v2_suffix_bound_adversarial.py \
 | without-disqualifiers certificate ok | 0 |
 | declared-output-only forced fail | 119 |
 
+Adversarial suffix family stress command:
+
+```bash
+python3 tools/stress_upba_v2_suffix_bound_adversarial_families.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260545 \
+  --output-json data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md
+```
+
+| metric | value |
+| --- | ---: |
+| evaluated batches | 118 |
+| adversarial families | 8 |
+| total adversarial cases | 944 |
+| adversary invalid count | 944 |
+| adversary disqualified count | 944 |
+| with-disqualifiers certificate ok | 944 |
+| without-disqualifiers certificate ok | 590 |
+| high-declared-output forced fail | 118 |
+| observed disqualifier count | 8 |
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -847,11 +870,11 @@ secret scanner, the real replay report builder, the production evidence bundle,
 the dominance-cover runtime prototype, the WES dominance search bridge, the
 dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
-receipt, and
+receipt, the suffix-bound adversarial family stress receipt, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 184 passing checks and 0 failed checks, including
+The current receipt reports 192 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

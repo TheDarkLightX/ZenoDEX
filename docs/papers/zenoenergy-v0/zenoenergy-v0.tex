@@ -330,6 +330,30 @@ Declared-output-only forced fail & 119 \\
 \end{tabular}
 \end{table}
 
+The follow-up adversarial family stress generated 944 verifier-invalid suffix
+cases across 8 invalidity families. Every case was deterministically
+disqualified, every with-disqualifier suffix certificate passed, and
+high-declared-output cases still failed under declared-output-only bounds.
+
+\begin{table}[h]
+\centering
+\caption{Suffix-bound adversarial family stress.}
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Evaluated batches & 118 \\
+Adversarial families & 8 \\
+Total adversarial cases & 944 \\
+Adversary invalid count & 944 \\
+Adversary disqualified count & 944 \\
+With-disqualifiers certificate ok & 944 \\
+Without-disqualifiers certificate ok & 590 \\
+Observed disqualifier count & 8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 This supports a sharper design lesson: suffix certificates need
 verifier-derived deterministic invalidity signals. Raw declared outputs are too
 weak against attractive invalid suffixes.
@@ -374,10 +398,12 @@ the v2 bounded-grid optimality verifier or an equivalent certificate.
 Top-k recall is an empirical accelerator. The current suffix-bound certificate
 is a deterministic prototype over generated finite lists. The adversarial
 stress shows that declared-output-only bounds are insufficient and that
-deterministic disqualifiers are part of the certificate design. Production
-early stop still requires candidate-family coverage, real replay, and
-source-manifested evidence that the bound remains useful on representative
-traffic.
+deterministic disqualifiers are part of the certificate design. The
+multi-family stress broadens that result across schema/policy, fill coverage,
+all-zero, limit-price, price-objective, reserve/invariant, and output-mismatch
+failures. Production early stop still requires candidate-family coverage, real
+replay, and source-manifested evidence that the bound remains useful on
+representative traffic.
 \item \textbf{Scope is narrow.} The experiment covers a single pool, CPMM,
 exact-in swaps, fixed admitted intents, and partial fills. Multi-pool routing,
 exact-out, confidential orderflow, latency races, and adversarial live behavior

@@ -504,6 +504,31 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    suffix_bound_adversarial_families = _load_json(
+        root
+        / "data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json"
+    )
+    suffix_bound_adversarial_families_doc = (
+        root / "docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md"
+    ).read_text(encoding="utf-8")
+    suffix_bound_adversarial_families_tool = (
+        root / "tools/stress_upba_v2_suffix_bound_adversarial_families.py"
+    ).read_text(encoding="utf-8")
+    suffix_bound_adversarial_families_tests = (
+        root / "tests/energy/test_upba_v2_suffix_bound_adversarial_family_stress.py"
+    ).read_text(encoding="utf-8")
+    payloads["suffix_bound_adversarial_families"] = (
+        suffix_bound_adversarial_families
+    )
+    checks.extend(
+        _check_suffix_bound_adversarial_families(
+            suffix_bound_adversarial_families,
+            suffix_bound_adversarial_families_doc,
+            suffix_bound_adversarial_families_tool,
+            suffix_bound_adversarial_families_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -2144,6 +2169,94 @@ def _check_suffix_bound_adversarial(
     ]
 
 
+def _check_suffix_bound_adversarial_families(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    doc_lower = doc_text.lower()
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    evaluated = int(summary["evaluated_batches"])
+    total_cases = int(summary["total_cases"])
+    required_families = set(summary["required_families"])
+    family_counts = summary["family_case_counts"]
+    histogram = summary["disqualifier_histogram"]
+    required_disqualifiers = {
+        "all_zero_fill_vector_flag",
+        "fill_coverage_violation_flag",
+        "invariant_violation_flag",
+        "limit_violation_count",
+        "negative_reserve_flag",
+        "price_objective_violation_flag",
+        "schema_policy_mismatch_flag",
+    }
+    return [
+        _expect_true(
+            "suffix_bound_adversarial_families.schema",
+            report.get("schema")
+            == "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1"
+            and bool(report.get("ok")) is True
+            and int(report.get("batches")) == 120
+            and int(report.get("candidates_per_batch")) == 24
+            and int(report.get("seed")) == 20260545,
+            "suffix-bound adversarial family stress schema and parameters are stable",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial_families.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True,
+            "multi-family adversarial suffix stress preserves verifier authority",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial_families.family_coverage",
+            evaluated == 118
+            and int(summary["family_count"]) == 8
+            and total_cases == 944
+            and all(int(family_counts[family]) == evaluated for family in required_families)
+            and int(summary["observed_disqualifier_count"]) >= 8,
+            "eight adversarial families are represented across all evaluated batches",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial_families.disqualifiers_close",
+            int(summary["adversary_invalid_count"]) == total_cases
+            and int(summary["adversary_disqualified_count"]) == total_cases
+            and int(summary["with_disqualifiers_certificate_ok_count"]) == total_cases
+            and required_disqualifiers.issubset(set(histogram))
+            and int(histogram["all_zero_fill_vector_flag"]) == evaluated
+            and int(histogram["fill_coverage_violation_flag"]) == evaluated
+            and int(histogram["price_objective_violation_flag"]) == evaluated
+            and int(histogram["schema_policy_mismatch_flag"]) == evaluated,
+            "deterministic disqualifiers close every multi-family adversarial suffix case",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial_families.declared_output_negative",
+            int(summary["high_declared_output_forced_fail_count"])
+            == int(summary["high_declared_output_cases"])
+            and "high-declared-output suffix adversaries still force failure"
+            in negative_lower,
+            "declared-output-only bounds still fail on high-output family cases",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial_families.boundary_and_hooks",
+            "stress_adversarial_suffix_bound_families" in tool_text
+            and "_family_builders" in tool_text
+            and "candidate_objective_upper_bound" in tool_text
+            and "test_suffix_bound_adversarial_family_stress_smoke" in test_text
+            and "several verifier-invalid suffix-candidate families" in doc_lower
+            and "bounded synthetic evidence" in negative_lower
+            and "not v2 bounded-grid completeness" in negative_lower,
+            "tool, test, and doc preserve multi-family bounded synthetic limits",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -2195,6 +2308,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519": "falsified",
         "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519": "supported",
         "H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519": "falsified",
+        "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519": "supported",
+        "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2271,6 +2386,9 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     suffix_bound = payloads["suffix_bound"]
     suffix_bound_cross_seed = payloads["suffix_bound_cross_seed"]
     suffix_bound_adversarial = payloads["suffix_bound_adversarial"]
+    suffix_bound_adversarial_families = payloads[
+        "suffix_bound_adversarial_families"
+    ]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2672,6 +2790,56 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "disqualifier_histogram"
             ],
             "negative_knowledge": suffix_bound_adversarial["negative_knowledge"],
+        },
+        "suffix_bound_adversarial_families": {
+            "schema": suffix_bound_adversarial_families["schema"],
+            "batches": suffix_bound_adversarial_families["batches"],
+            "evaluated_batches": suffix_bound_adversarial_families["summary"][
+                "evaluated_batches"
+            ],
+            "candidates_per_batch": suffix_bound_adversarial_families[
+                "candidates_per_batch"
+            ],
+            "seed": suffix_bound_adversarial_families["seed"],
+            "family_count": suffix_bound_adversarial_families["summary"][
+                "family_count"
+            ],
+            "total_cases": suffix_bound_adversarial_families["summary"][
+                "total_cases"
+            ],
+            "adversary_invalid_count": suffix_bound_adversarial_families[
+                "summary"
+            ]["adversary_invalid_count"],
+            "adversary_disqualified_count": suffix_bound_adversarial_families[
+                "summary"
+            ]["adversary_disqualified_count"],
+            "with_disqualifiers_certificate_ok_count": (
+                suffix_bound_adversarial_families["summary"][
+                    "with_disqualifiers_certificate_ok_count"
+                ]
+            ),
+            "without_disqualifiers_certificate_ok_count": (
+                suffix_bound_adversarial_families["summary"][
+                    "without_disqualifiers_certificate_ok_count"
+                ]
+            ),
+            "high_declared_output_forced_fail_count": (
+                suffix_bound_adversarial_families["summary"][
+                    "high_declared_output_forced_fail_count"
+                ]
+            ),
+            "observed_disqualifier_count": suffix_bound_adversarial_families[
+                "summary"
+            ]["observed_disqualifier_count"],
+            "family_case_counts": suffix_bound_adversarial_families["summary"][
+                "family_case_counts"
+            ],
+            "disqualifier_histogram": suffix_bound_adversarial_families["summary"][
+                "disqualifier_histogram"
+            ],
+            "negative_knowledge": suffix_bound_adversarial_families[
+                "negative_knowledge"
+            ],
         },
     }
 

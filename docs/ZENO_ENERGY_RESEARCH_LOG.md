@@ -1557,5 +1557,79 @@ H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519: falsified
 ```
 
 Research consequence: deterministic disqualifiers are required in the
-suffix-bound certificate design. The next hard-negative step is to diversify
+suffix-bound certificate design. The next hard-negative step was to diversify
 adversarial suffix families beyond invariant-violating output mismatches.
+
+## Suffix-Bound Adversarial Family Stress
+
+Artifact:
+[ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json`
+
+Command:
+
+```bash
+python3 tools/stress_upba_v2_suffix_bound_adversarial_families.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260545 \
+  --output-json data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md
+```
+
+Observed result:
+
+| metric | value |
+| --- | ---: |
+| evaluated batches | 118 |
+| family count | 8 |
+| total adversarial cases | 944 |
+| adversary invalid count | 944 |
+| adversary disqualified count | 944 |
+| with-disqualifiers certificate ok | 944 |
+| without-disqualifiers certificate ok | 590 |
+| high-declared-output forced fail | 118 |
+| observed disqualifier count | 8 |
+
+Observed disqualifier families:
+
+| disqualifier | count |
+| --- | ---: |
+| all_zero_fill_vector_flag | 118 |
+| fill_coverage_violation_flag | 118 |
+| invariant_violation_flag | 201 |
+| limit_violation_count | 117 |
+| negative_reserve_flag | 134 |
+| output_mismatch_count | 20 |
+| price_objective_violation_flag | 118 |
+| schema_policy_mismatch_flag | 118 |
+
+Positive knowledge:
+
+```text
+Verifier-derived deterministic disqualifiers close all 944 injected
+multi-family adversarial suffix cases after the verifier winner is checked.
+```
+
+Negative knowledge:
+
+```text
+High-declared-output suffix adversaries still force failure when deterministic
+disqualifiers are removed. The stress checks disqualifier mechanics over a
+supplied finite candidate list; it does not prove v2 bounded-grid completeness
+or production distribution coverage.
+```
+
+PopperPad refs:
+
+```text
+H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519: supported
+H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519: falsified
+```
+
+Research consequence: the suffix-bound certificate now has both single-family
+and multi-family adversarial hard-negative receipts. The remaining promotion
+work is real replay, production-shadow replay, and exact candidate-family
+coverage.

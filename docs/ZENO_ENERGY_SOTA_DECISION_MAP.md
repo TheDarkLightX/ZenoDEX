@@ -110,6 +110,10 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    [ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
    shows declared-output-only bounds fail on injected high-output invalid
    suffix candidates, while deterministic disqualifiers close the certificate.
+   The adversarial family stress in
+   [ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
+   extends that boundary to 944 verifier-invalid cases across 8 invalidity
+   families with zero invalid accepts.
    The useful next step is a full-list completeness argument for:
 
    ```text

@@ -498,6 +498,14 @@ when only declared-output bounds were used. This supports a sharper design
 lesson: suffix certificates need verifier-derived deterministic invalidity
 signals. Raw declared outputs are too weak against attractive invalid suffixes.
 
+The follow-up adversarial family stress generated 944 verifier-invalid suffix
+cases across 8 invalidity families. Every case was deterministically
+disqualified, every with-disqualifier suffix certificate passed, and
+high-declared-output cases still failed under declared-output-only bounds. This
+turns the disqualifier result from a single hard-negative family into broader
+bounded synthetic evidence over schema/policy, fill coverage, all-zero,
+limit-price, price-objective, reserve/invariant, and output-mismatch failures.
+
 This result changes the interpretation of ranking utility. The model still has
 no authority over settlement validity, but it can place the first verifier call
 where a deterministic suffix-bound certificate is likely to close the finite
@@ -730,7 +738,7 @@ work is mathematical first. Larger models are lower priority:
 - implement certified dominance-pruning witnesses;
 - add source-manifested non-private or privacy-approved real corpora;
 - replay suffix-bound early-stop on real or production-shadow candidate sets;
-- diversify adversarial suffix stress beyond invariant-violating output mismatches;
+- extend adversarial family stress with real replay and candidate-coverage evidence;
 - train the optional tiny MLP and compare it against the current linear ranker.
 
 The current evidence says the search-order signal is strong enough to continue.

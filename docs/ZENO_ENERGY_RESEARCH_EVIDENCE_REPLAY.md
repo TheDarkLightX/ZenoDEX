@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 184
-passed_count: 184
+check_count: 192
+passed_count: 192
 failed_count: 0
 ```
 
@@ -143,6 +143,12 @@ failed_count: 0
 | suffix_bound_adversarial.disqualifier_closes | pass | deterministic disqualifiers close every injected high-output suffix case |
 | suffix_bound_adversarial.declared_output_negative | pass | declared-output-only bounds fail on every injected adversarial suffix case |
 | suffix_bound_adversarial.boundary_and_hooks | pass | tool, test, and doc preserve adversarial suffix and bounded synthetic limits |
+| suffix_bound_adversarial_families.schema | pass | suffix-bound adversarial family stress schema and parameters are stable |
+| suffix_bound_adversarial_families.safety | pass | multi-family adversarial suffix stress preserves verifier authority |
+| suffix_bound_adversarial_families.family_coverage | pass | eight adversarial families are represented across all evaluated batches |
+| suffix_bound_adversarial_families.disqualifiers_close | pass | deterministic disqualifiers close every multi-family adversarial suffix case |
+| suffix_bound_adversarial_families.declared_output_negative | pass | declared-output-only bounds still fail on high-output family cases |
+| suffix_bound_adversarial_families.boundary_and_hooks | pass | tool, test, and doc preserve multi-family bounded synthetic limits |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -192,6 +198,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519 | pass | H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -453,6 +461,46 @@ failed_count: 0
     "seed": 20260544,
     "with_disqualifiers_certificate_ok_count": 119,
     "without_disqualifiers_certificate_ok_count": 0
+  },
+  "suffix_bound_adversarial_families": {
+    "adversary_disqualified_count": 944,
+    "adversary_invalid_count": 944,
+    "batches": 120,
+    "candidates_per_batch": 24,
+    "disqualifier_histogram": {
+      "all_zero_fill_vector_flag": 118,
+      "fill_coverage_violation_flag": 118,
+      "invariant_violation_flag": 201,
+      "limit_violation_count": 117,
+      "negative_reserve_flag": 134,
+      "output_mismatch_count": 20,
+      "price_objective_violation_flag": 118,
+      "schema_policy_mismatch_flag": 118
+    },
+    "evaluated_batches": 118,
+    "family_case_counts": {
+      "all_zero": 118,
+      "fill_coverage": 118,
+      "high_declared_output": 118,
+      "limit_violation": 118,
+      "negative_reserve": 118,
+      "output_mismatch": 118,
+      "price_objective": 118,
+      "schema_policy": 118
+    },
+    "family_count": 8,
+    "high_declared_output_forced_fail_count": 118,
+    "negative_knowledge": [
+      "High-declared-output suffix adversaries still force failure when deterministic disqualifiers are removed.",
+      "This multi-family stress remains bounded synthetic evidence and does not prove production distribution coverage.",
+      "The stress checks disqualifier mechanics over a supplied finite candidate list, not v2 bounded-grid completeness."
+    ],
+    "observed_disqualifier_count": 8,
+    "schema": "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1",
+    "seed": 20260545,
+    "total_cases": 944,
+    "with_disqualifiers_certificate_ok_count": 944,
+    "without_disqualifiers_certificate_ok_count": 590
   },
   "suffix_bound_cross_seed": {
     "batches_per_config": 60,

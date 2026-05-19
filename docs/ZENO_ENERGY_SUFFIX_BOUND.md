@@ -22,6 +22,11 @@ Adversarial suffix stress is recorded in
 It shows deterministic disqualifiers close injected high-declared-output
 invalid suffix candidates, while declared-output-only bounds fail every case.
 
+Adversarial suffix family stress is recorded in
+[ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md).
+It covers 944 verifier-invalid cases across 8 invalidity families, with every
+case closed by deterministic disqualifiers and zero invalid accepts.
+
 ## Safety Boundary
 
 - The scorer only orders candidates.

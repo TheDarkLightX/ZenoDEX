@@ -600,6 +600,27 @@ negative_edge_ref:                   sha256:60566eb14dca2032a667af43d4243058505c
 checkpoint_ref:                      sha256:a311b25650e9fe9744860cef3c08f5f6f45e9a2833c1072d026400050ee77f41
 ```
 
+### Suffix-Bound Adversarial Family Stress
+
+```text
+family_json_blob_ref:                sha256:4726148b30d22f76fc288fc9fbced43eb4dd7a0029ac2238bbccdbff2d1db389
+family_markdown_blob_ref:            sha256:978953be19586a915190e5c92756090ef67bff69980c9ed96eb116164ee68dfd
+context_ref:                         sha256:44751365858d45c93f7ebabbe38d63d6078c14136561dc53b44b67a16fcb47c6
+json_artifact_ref:                   sha256:1c73166d2a87c1a4d2fae42e8c4c26c056c506180559c73f4061bcad24fcff5f
+markdown_artifact_ref:               sha256:9dfc2574540c15deafedb2afbbeb4a5d26b9d6fad8ef157bb4f67a06980ea6ee
+support_recipe_ref:                  sha256:6fd53606998d389d2c0a1402ba7ca5933f1d5b54f36dd88f4ebb3c1c307f21f9
+refute_recipe_ref:                   sha256:a6eea0f3aeeaba8fac1d994ea9a776d019e4b73c7782da46975ac9cb6ed329e6
+support_hypothesis_ref:              sha256:04c323af43a172037dd4ca6b08e72b6fc10443c17ac7fb38a2563bdbb9f730f4
+negative_hypothesis_ref:             sha256:297a61fc5fb7227a4fc65c517bc95c1e09c6dc3f78c4183b046a9ef847e1ebc2
+support_evidence_ref:                sha256:bc42cefd48e58083a48acdaf60d8de0189c19fa70a79d171aed8dee4418657f8
+negative_evidence_ref:               sha256:f6a61f1b3e6fcfd2f3d9cd96a72a7bde2a01313c910d4d08d0ced8faf802c112
+support_stdout_ref:                  sha256:304e6534836e3db86c097daf83848020e5634184c88e2ac2fdcee5d3879874db
+negative_stdout_ref:                 sha256:61de4d04625ca24ac8beb1e4a0417e9a575d404cf6ea459b9fa4b9048429f1bb
+support_edge_ref:                    sha256:df9e6d99fbd5f23482692d016f31346109946b5369a59964767e45e6b044b376
+negative_edge_ref:                   sha256:26a22bb1d2439bfc30421656db31edcb1ad2ad350d6f7a34972a52ad2a7041f0
+checkpoint_ref:                      sha256:12e1b46a603052ca9d146af00a86a25507b8632fee7787df9d206d0bd5fce280
+```
+
 ## Current Status
 
 ```text
@@ -658,6 +679,8 @@ H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519: supported
 H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519: falsified
 H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519: supported
 H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519: falsified
+H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519: supported
+H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519: falsified
 doctor_ok: true
 ```
 

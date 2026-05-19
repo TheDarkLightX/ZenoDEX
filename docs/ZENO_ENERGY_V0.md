@@ -42,6 +42,8 @@ Suffix-bound cross-seed stress: [ZenoEnergy Suffix-Bound Cross-Seed Stress](./ZE
 
 Suffix-bound adversarial stress: [ZenoEnergy Suffix-Bound Adversarial Stress](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
 
+Suffix-bound adversarial family stress: [ZenoEnergy Suffix-Bound Adversarial Family Stress](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
@@ -120,6 +122,7 @@ verifier labels for offline training and evaluation.
 - `tools/check_upba_v2_suffix_bound.py`: benchmarks deterministic early stop with checked-prefix dominance and unchecked-suffix objective bounds.
 - `tools/stress_upba_v2_suffix_bound.py`: reruns suffix-bound early stop across seeds and candidate-count grids.
 - `tools/stress_upba_v2_suffix_bound_adversarial.py`: injects high-declared-output invalid unchecked suffix candidates and compares deterministic disqualifiers against declared-output-only bounds.
+- `tools/stress_upba_v2_suffix_bound_adversarial_families.py`: injects multiple verifier-invalid unchecked suffix families and checks deterministic disqualifier coverage.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
@@ -367,6 +370,13 @@ deterministic disqualifiers, all 119 evaluated certificates pass. With
 declared-output-only bounds, all 119 certificates fail. This records a concrete
 negative result: suffix bounds need verifier-derived deterministic invalidity
 signals, not raw declared outputs alone.
+
+The adversarial family stress extends that check to 944 verifier-invalid cases
+across 8 invalidity families: high declared output, negative reserve, limit
+violation, fill coverage, all-zero fill vector, price objective, schema/policy,
+and output mismatch. Every case is deterministically disqualified and every
+with-disqualifier suffix certificate passes. High-declared-output cases still
+fail under declared-output-only bounds.
 
 This remains scoped to the supplied finite candidate family. Production
 bounded-grid claims still require candidate-family coverage, and real replay is
