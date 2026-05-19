@@ -136,16 +136,20 @@ echo "== release: API surface profiles =="
 echo "== release: ZenoLedger network admission =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_anti_equivocation.py"
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_bonded_slashing.py"
+"$PY" "$ROOT_DIR/tools/check_zeno_ledger_block_gossip.py"
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_peer_discovery.py"
 "$PY" -m py_compile \
+  "$ROOT_DIR/src/integration/zeno_ledger_block_gossip_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_bonded_slashing_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_live_quorum_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_peer_discovery_v0.py" \
   "$ROOT_DIR/src/integration/zeno_ledger_validator_schedule_v0.py" \
+  "$ROOT_DIR/tools/check_zeno_ledger_block_gossip.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_bonded_slashing.py" \
   "$ROOT_DIR/tools/check_zeno_ledger_peer_discovery.py" \
   "$ROOT_DIR/tools/zeno_ledger_machine_b_acceptance.py" \
   "$ROOT_DIR/tools/zeno_ledger_node.py" \
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_block_gossip_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_bonded_slashing_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_live_quorum_v0.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node_transport_auth.py" \

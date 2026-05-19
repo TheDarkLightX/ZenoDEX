@@ -13,7 +13,9 @@ import hashlib
 import hmac
 import json
 import re
+import shutil
 import sys
+import tempfile
 import threading
 import time
 from http import HTTPStatus
@@ -29,6 +31,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
+from src.integration.zeno_ledger_block_gossip_v0 import validate_block_gossip_envelope_v0
 from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
 from src.integration.zeno_ledger_peer_discovery_v0 import (
     build_peer_registry_admission_v0,
@@ -72,6 +75,7 @@ NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
 NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
+NODE_GOSSIP_REPORT_SCHEMA = "zenodex.zeno_ledger.node_gossip_report.v0"
 NODE_EVIDENCE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
@@ -110,6 +114,12 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be a JSON object")
+    return value
 
 
 def _is_safe_relative(path_text: str) -> bool:
@@ -1664,6 +1674,155 @@ def pull_live_from_peer_v0(
     return {**report, "pull_report_path": str(pull_report_path)}
 
 
+def accept_block_gossip_envelope_v0(
+    *,
+    data_dir: Path,
+    envelope: Mapping[str, Any],
+    live_quorum_registry: Mapping[str, Any] | None = None,
+    live_quorum_envelopes: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Accept one pushed gossip block only after local replay and binding checks."""
+
+    envelope_obj = dict(_require_mapping(envelope, name="block_gossip_envelope"))
+    validate_block_gossip_envelope_v0(envelope_obj)
+    header = dict(_require_mapping(envelope_obj["header"], name="block_gossip_envelope.header"))
+    body = dict(_require_mapping(envelope_obj["body"], name="block_gossip_envelope.body"))
+    checkpoint = dict(_require_mapping(envelope_obj["checkpoint"], name="block_gossip_envelope.checkpoint"))
+
+    node_status = load_node_status_v0(data_dir)
+    bundle_root = Path(str(node_status["bundle_root"]))
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    local_latest = int(base["latest_height"])
+    height = int(envelope_obj["height"])
+    if height != local_latest + 1:
+        raise ValueError("gossiped block must extend local tip by exactly one height")
+    if header["chain_id"] != node_status["chain_id"] or body["chain_id"] != node_status["chain_id"]:
+        raise ValueError("gossiped block chain_id does not match local node")
+    current_prev_header = dict(_load_json_object(Path(str(base["prev_header_path"]))))
+    current_prev_hash = canonical_header_hash_v0(current_prev_header)
+    if header["prev_header_hash"] != current_prev_hash:
+        raise ValueError("gossiped block prev_header_hash does not match local tip")
+
+    quorum_admission: dict[str, Any] | None = None
+    if live_quorum_registry is not None:
+        if live_quorum_envelopes is None:
+            raise ValueError("live quorum envelopes are required for gossiped block")
+        quorum_admission = build_live_checkpoint_quorum_admission_v0(
+            header=header,
+            checkpoint=checkpoint,
+            registry=live_quorum_registry,
+            envelopes=live_quorum_envelopes,
+        )
+
+    staging_parent = data_dir / "gossip_staging"
+    staging_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f"height-{height}-", dir=str(staging_parent)) as tmp:
+        staging = Path(tmp)
+        registry_path = _testnet_token_registry_path(data_dir)
+        if registry_path.is_file():
+            shutil.copy2(registry_path, _testnet_token_registry_path(staging))
+        staging_live = staging / "live_ledger"
+        if _is_faucet_body_v0(body):
+            block_report = _build_faucet_block_from_body_v0(
+                data_dir=staging,
+                body=body,
+                time_ms=int(header["time_ms"]),
+                prev_header_path=Path(str(base["prev_header_path"])),
+                pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        elif _is_token_create_body_v0(body):
+            block_report = _build_token_create_block_from_body_v0(
+                data_dir=staging,
+                body=body,
+                time_ms=int(header["time_ms"]),
+                prev_header_path=Path(str(base["prev_header_path"])),
+                pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+            )
+        else:
+            body_path = staging / "gossiped_bodies" / f"{height}.json"
+            _write_json(body_path, body)
+            block_report = build_local_block_v0(
+                body_path=body_path,
+                out_dir=staging_live,
+                time_ms=int(header["time_ms"]),
+                pre_snapshot_path=Path(str(base["pre_snapshot_path"])),
+                prev_header_path=Path(str(base["prev_header_path"])),
+                trusted_prev_header_hash=ZERO_ROOT,
+                sequencer_set_hash=str(bootstrap_manifest["sequencer_set_hash"]),
+                data_availability_root=ZERO_ROOT,
+                proof_journal_hash=ZERO_ROOT,
+                config_digest=str(bootstrap_manifest["config_digest"]),
+                module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
+                signature_set_root=ZERO_ROOT,
+                allow_missing_settlement=True,
+                require_intent_signatures=True,
+                allow_unsigned_intents_if_tx_sender_matches=False,
+            )
+
+        replayed_header = dict(_load_json_object(Path(str(block_report["header_path"]))))
+        replayed_checkpoint = dict(_load_json_object(Path(str(block_report["checkpoint_path"]))))
+        if replayed_header != header:
+            raise ValueError("gossiped block header does not match local replay")
+        if replayed_checkpoint != checkpoint:
+            raise ValueError("gossiped block checkpoint does not match local replay")
+
+        live_ledger_dir = data_dir / "live_ledger"
+        destinations = {
+            "header_path": live_ledger_dir / "headers" / f"{height}.json",
+            "body_path": live_ledger_dir / "bodies" / f"{height}.json",
+            "checkpoint_path": live_ledger_dir / "checkpoints" / f"{height}.json",
+            "receipts_path": live_ledger_dir / "receipts" / f"{height}.json",
+            "post_snapshot_path": live_ledger_dir / "snapshots" / f"{height}.json",
+        }
+        for key, destination in destinations.items():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(Path(str(block_report[key])), destination)
+        staged_registry_path = _testnet_token_registry_path(staging)
+        if staged_registry_path.is_file():
+            shutil.copy2(staged_registry_path, _testnet_token_registry_path(data_dir))
+
+    header_hash = canonical_header_hash_v0(header)
+    _write_live_state(
+        data_dir=data_dir,
+        height=height,
+        header_path=str(destinations["header_path"]),
+        snapshot_path=str(destinations["post_snapshot_path"]),
+        header_hash=header_hash,
+        app_hash=str(header["app_hash"]),
+    )
+    report = {
+        "schema": NODE_GOSSIP_REPORT_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "node_id": node_status["node_id"],
+        "network_id": public_manifest["network_id"],
+        "chain_id": public_manifest["chain_id"],
+        "source_node_id": envelope_obj["source_node_id"],
+        "source_peer_url": envelope_obj["source_peer_url"],
+        "height": height,
+        "header_hash": header_hash,
+        "envelope_hash": envelope_obj["envelope_hash"],
+        "live_quorum_required": live_quorum_registry is not None,
+        "live_quorum_admission": quorum_admission,
+        "header_path": str(destinations["header_path"]),
+        "body_path": str(destinations["body_path"]),
+        "checkpoint_path": str(destinations["checkpoint_path"]),
+        "receipts_path": str(destinations["receipts_path"]),
+        "post_snapshot_path": str(destinations["post_snapshot_path"]),
+    }
+    report_path = data_dir / "gossip_reports" / f"{height}.json"
+    _write_json(report_path, report)
+    return {**report, "gossip_report_path": str(report_path)}
+
+
 def poll_live_peers_once_v0(
     *,
     data_dir: Path,
@@ -1996,6 +2155,7 @@ def make_node_http_server_v0(
     port: int,
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
+    enable_block_gossip: bool = False,
     submit_peer_url: str | None = None,
     node_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
@@ -2125,6 +2285,7 @@ def make_node_http_server_v0(
                                 "transport_auth_required": required_auth is not None,
                                 "testnet_intake_enabled": enable_testnet_intake,
                                 "testnet_faucet_enabled": enable_testnet_faucet,
+                                "block_gossip_enabled": enable_block_gossip,
                                 "submission_forwarding_enabled": submit_peer_url is not None,
                                 "peer_follow_enabled": bool(peer_urls) and poll_seconds > 0,
                             },
@@ -2265,6 +2426,19 @@ def make_node_http_server_v0(
                         )
                     self._send_json(report)
                     return
+                if self.path == "/gossip/block":
+                    if not enable_block_gossip:
+                        self._send_json({"ok": False, "error": "block_gossip_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    envelope = payload.get("envelope", payload)
+                    if not isinstance(envelope, Mapping):
+                        self._send_json({"ok": False, "error": "gossip_envelope_must_be_object"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    with append_lock:
+                        report = accept_block_gossip_envelope_v0(data_dir=root, envelope=envelope)
+                    self._send_json(report)
+                    return
                 self._send_json({"ok": False, "error": "not_found"}, status=HTTPStatus.NOT_FOUND)
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -2308,6 +2482,7 @@ def serve_node_v0(
     poll_seconds: int = 0,
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
+    enable_block_gossip: bool = False,
     submit_peer_url: str | None = None,
     peer_auth_token: str | None = None,
     node_auth_token: str | None = None,
@@ -2325,6 +2500,7 @@ def serve_node_v0(
         port=port,
         enable_testnet_intake=enable_testnet_intake,
         enable_testnet_faucet=enable_testnet_faucet,
+        enable_block_gossip=enable_block_gossip,
         submit_peer_url=submit_peer_url,
         node_auth_token=node_auth_token,
         submit_peer_auth_token=submit_peer_auth_token,
@@ -2343,6 +2519,7 @@ def serve_node_v0(
                 "poll_seconds": poll_seconds,
                 "testnet_intake_enabled": enable_testnet_intake,
                 "testnet_faucet_enabled": enable_testnet_faucet,
+                "block_gossip_enabled": enable_block_gossip,
                 "transport_auth_required": node_auth_token is not None,
                 "submit_peer_url": submit_peer_url,
                 "status_url": f"http://{address}:{actual_port}/status",
@@ -2450,6 +2627,7 @@ def build_public_network_config_v0(
     node_port: int,
     enable_testnet_intake: bool = True,
     enable_testnet_faucet: bool = True,
+    enable_block_gossip: bool = False,
 ) -> dict[str, Any]:
     """Build a public operator config for joining a ZenoLedger testnet."""
 
@@ -2498,6 +2676,7 @@ def build_public_network_config_v0(
             "poll_seconds": poll_seconds,
             "enable_testnet_intake": enable_testnet_intake,
             "enable_testnet_faucet": enable_testnet_faucet,
+            "enable_block_gossip": enable_block_gossip,
             "submit_peer_url": writer_urls[0],
         },
     }
@@ -2554,6 +2733,7 @@ def _public_network_config_to_join_config_v0(
         "poll_seconds": effective_poll,
         "enable_testnet_intake": bool(recommended.get("enable_testnet_intake", True)),
         "enable_testnet_faucet": bool(recommended.get("enable_testnet_faucet", True)),
+        "enable_block_gossip": bool(recommended.get("enable_block_gossip", False)),
         "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
         "network_config_quorum_required": require_network_config_quorum,
         "network_config_quorum_admission": config_quorum_admission,
@@ -2918,6 +3098,7 @@ def _cmd_join(args: argparse.Namespace) -> int:
             poll_seconds=int(config.get("poll_seconds", 0)),
             enable_testnet_intake=config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=config.get("enable_testnet_faucet") is True,
+            enable_block_gossip=config.get("enable_block_gossip") is True,
             submit_peer_url=str(config["submit_peer_url"]) if config.get("submit_peer_url") else None,
             peer_auth_token=peer_auth_token,
             node_auth_token=node_auth_token,
@@ -2960,6 +3141,7 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             poll_seconds=int(join_config.get("poll_seconds", 5)),
             enable_testnet_intake=join_config.get("enable_testnet_intake") is True,
             enable_testnet_faucet=join_config.get("enable_testnet_faucet") is True,
+            enable_block_gossip=join_config.get("enable_block_gossip") is True,
             submit_peer_url=str(join_config["submit_peer_url"]) if join_config.get("submit_peer_url") else None,
             peer_auth_token=peer_auth_token,
             node_auth_token=node_auth_token,
@@ -3027,6 +3209,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         poll_seconds=args.poll_seconds,
         enable_testnet_intake=args.enable_testnet_intake,
         enable_testnet_faucet=args.enable_testnet_faucet,
+        enable_block_gossip=args.enable_block_gossip,
         submit_peer_url=args.submit_peer_url,
         peer_auth_token=_read_transport_auth_token_file_v0(args.peer_auth_token_file),
         node_auth_token=_read_transport_auth_token_file_v0(args.node_auth_token_file),
@@ -3178,6 +3361,7 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--poll-seconds", type=int, default=0)
     serve.add_argument("--enable-testnet-intake", action="store_true")
     serve.add_argument("--enable-testnet-faucet", action="store_true")
+    serve.add_argument("--enable-block-gossip", action="store_true")
     serve.add_argument("--submit-peer-url")
     serve.add_argument("--peer-auth-token-file", type=Path)
     serve.add_argument("--node-auth-token-file", type=Path)
