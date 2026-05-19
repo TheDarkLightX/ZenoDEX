@@ -393,14 +393,16 @@ pytest -q tests/test_production_key_management_spec.py
 The checker enumerates every v0 action policy and asserts:
 
 - valid quorum accepts;
+- one positive and one negative case exists for each invariant `PKM-G-001`
+  through `PKM-G-007`;
+- every case records its primary failure axis;
+- failed cases emit counterexample packets with action, policy, signer summary,
+  and failed invariant ID;
+- packet and signature-binding reject axes are covered;
 - single key is rejected for critical actions;
-- same-custodian quorum is rejected for critical actions;
 - revoked key is rejected;
-- expired key is rejected;
 - testnet keys are rejected for production actions;
 - wrong role is rejected;
-- MPC keys are accepted as non-software custody when the action otherwise has a
-  valid quorum;
 - software keys are rejected when non-software custody is required;
 - missing timelock is rejected when timelock is required;
 - missing transparency receipt is rejected when transparency is required;
@@ -420,14 +422,17 @@ formal/esso/production_key_management_v0.esso.yaml
 Required ESSO commands once ESSO is available:
 
 ```bash
+python3 tools/check_production_key_management_esso_equivalent.py
 python3 -m ESSO validate formal/esso/production_key_management_v0.esso.yaml
 python3 -m ESSO guide --input formal/esso/production_key_management_v0.esso.yaml --goal verify --profile ci
 python3 -m ESSO verify --input formal/esso/production_key_management_v0.esso.yaml --output runs/esso/production_key_management_v0
 ```
 
-Fail closed on missing ESSO, timeout, solver `unknown`, invalid IR, or any
-invariant failure. Do not introduce unbounded integers, strings, network calls,
-wall-clock time, or random values.
+The in-repo equivalent checker is the release-gated finite model while the
+external ESSO package is unavailable. If external ESSO is used, fail closed on
+missing ESSO, timeout, solver `unknown`, invalid IR, or any invariant failure.
+Do not introduce unbounded integers, strings, network calls, wall-clock time, or
+random values.
 
 ## Lean Proof Work
 

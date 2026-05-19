@@ -53,6 +53,7 @@ Commands run:
 python3 -m json.tool formal/property/production_key_management_v0.json >/dev/null
 python3 -m py_compile tools/check_production_key_management_spec.py tests/test_production_key_management_spec.py
 python3 tools/check_production_key_management_spec.py
+python3 tools/check_production_key_management_esso_equivalent.py
 pytest -q tests/test_production_key_management_spec.py
 ${USER}/.elan/toolchains/leanprover--lean4---v4.27.0/bin/lean lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean
 rg -n -w "sorry|admit|axiom" lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean
@@ -64,7 +65,8 @@ Results:
 ```text
 property model JSON parse: pass
 py_compile: pass
-property checker: pass, 135 cases
+property checker: pass, 164 cases
+ESSO-equivalent finite-model checker: pass
 pytest: pass, 1 test
 standalone Lean target: pass
 placeholder scan: pass, no matches
@@ -86,8 +88,9 @@ Artifact hashes:
 ```text
 4649e1ab848af81ed61c0813708af5845d5af97db37369ad8f2486ea62dc0167  lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean
 f1a8fceab39a2768784f57db96990fa2442db95a88d1ddd358069c4eaaa350e7  formal/property/production_key_management_v0.json
-5584331fc5dd16e3b0c8ddf0e6888a16953cdf3e7b9681757ef236e75ee99a22  formal/esso/production_key_management_v0.esso.yaml
-38aec28dd2172943e39c5447b7f83311e68f43e66c908097474303d5b0f69b27  tools/check_production_key_management_spec.py
-8dddc93fa6971a2a2777cfb740eb4890cafdf3f29aa54e68540033c5ff2af61a  docs/PRODUCTION_KEY_MANAGEMENT_V0_SPEC.md
+2c85414aa9f0133ce44e953e8c700a9bea626a489392cbeb5476454b782614c4  formal/esso/production_key_management_v0.esso.yaml
+8b3e70f441b687d5fef7cf147f7b734e8cd509cf041f0c71692a338318479815  tools/check_production_key_management_spec.py
+d4165eb51731d350fc07e57afb77c3dd41620015f4a739f8f57587941209f9d7  tools/check_production_key_management_esso_equivalent.py
+73fd3bdac46792a16363cd6b69a0e28a2c7ba4dbd047d3b17ac5176912d2c9c1  docs/PRODUCTION_KEY_MANAGEMENT_V0_SPEC.md
 277d62426199d913453171205d55a56e10a09600a6455cb505c01a69250bde2b  docs/PRODUCTION_KEY_MANAGEMENT_AGENT_TASKS.md
 ```

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from dataclasses import dataclass
@@ -14,6 +15,29 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = ROOT / "formal/property/production_key_management_v0.json"
 RESULT_SCHEMA = "zenodex.production_key_management.property_check.v1"
 
+PRIMARY_AXES = {
+    "packet",
+    "signature_binding",
+    "role",
+    "environment",
+    "status",
+    "quorum",
+    "storage",
+    "timelock",
+    "break_glass",
+    "transparency",
+}
+
+INVARIANT_AXIS = {
+    "PKM-G-001": "environment",
+    "PKM-G-002": "status",
+    "PKM-G-003": "quorum",
+    "PKM-G-004": "storage",
+    "PKM-G-005": "timelock",
+    "PKM-G-006": "break_glass",
+    "PKM-G-007": "transparency",
+}
+
 
 @dataclass(frozen=True)
 class Key:
@@ -24,6 +48,12 @@ class Key:
     storage_class: str
     custodian_id: str
     break_glass: bool = False
+
+
+@dataclass(frozen=True)
+class AdmissionDecision:
+    accepted: bool
+    reject_reason: str
 
 
 def _load_model(path: Path) -> dict[str, Any]:
@@ -47,43 +77,386 @@ def _active_key(role: str, index: int, *, storage_class: str = "hardware", envir
     )
 
 
-def _admit(
+def _admission_decision(
     *,
     action: str,
     policy: Mapping[str, Any],
     signers: Iterable[Key],
     environment: str,
+    packet_ok: bool = True,
+    signatures_bind: bool = True,
     timelock_satisfied: bool,
     transparency_receipt_bound: bool,
-) -> bool:
+) -> AdmissionDecision:
     signer_list = list(signers)
-    if environment == "production" and any(key.environment != "production" for key in signer_list):
-        return False
-    if any(key.status != "active" for key in signer_list):
-        return False
     role = str(policy["role"])
+    if not packet_ok:
+        return AdmissionDecision(False, "packet_invalid")
+    if not signatures_bind:
+        return AdmissionDecision(False, "signature_binding_invalid")
+    if environment == "production" and any(key.environment != "production" for key in signer_list):
+        return AdmissionDecision(False, "testnet_key_for_production")
+    if any(key.status != "active" for key in signer_list):
+        return AdmissionDecision(False, "revoked_or_expired_key")
     role_signers = [key for key in signer_list if key.role == role]
     if len(role_signers) < int(policy["threshold"]):
-        return False
+        return AdmissionDecision(False, "threshold_not_met")
     if len({key.custodian_id for key in role_signers}) < int(policy["min_distinct_custodians"]):
-        return False
-    if policy["hardware_required"] is True and any(key.storage_class not in {"hardware", "hsm", "mpc"} for key in role_signers):
-        return False
+        return AdmissionDecision(False, "distinct_custodian_quorum_not_met")
+    if policy["hardware_required"] is True and any(
+        key.storage_class not in {"hardware", "hsm", "mpc"} for key in role_signers
+    ):
+        return AdmissionDecision(False, "software_key_for_hardware_required_action")
     if policy["timelock_required"] is True and not timelock_satisfied:
-        return False
+        return AdmissionDecision(False, "timelock_required")
     if policy["transparency_required"] is True and not transparency_receipt_bound:
-        return False
+        return AdmissionDecision(False, "transparency_receipt_required")
     if any(key.break_glass for key in signer_list) and action != "emergency_pause":
-        return False
-    return True
-
-
-def _case(name: str, ok: bool, detail: str = "") -> dict[str, Any]:
-    return {"name": name, "ok": ok, "detail": detail}
+        return AdmissionDecision(False, "break_glass_scope_violation")
+    return AdmissionDecision(True, "")
 
 
 def _valid_quorum(policy: Mapping[str, Any]) -> list[Key]:
     return [_active_key(str(policy["role"]), index) for index in range(int(policy["threshold"]))]
+
+
+def _key_summary(keys: Iterable[Key]) -> list[dict[str, object]]:
+    return [
+        {
+            "key_id": key.key_id,
+            "role": key.role,
+            "environment": key.environment,
+            "status": key.status,
+            "storage_class": key.storage_class,
+            "custodian_id": key.custodian_id,
+            "break_glass": key.break_glass,
+        }
+        for key in keys
+    ]
+
+
+def _policy_summary(policy: Mapping[str, Any]) -> dict[str, object]:
+    return {
+        "role": policy["role"],
+        "critical": policy["critical"],
+        "threshold": policy["threshold"],
+        "min_distinct_custodians": policy["min_distinct_custodians"],
+        "hardware_required": policy["hardware_required"],
+        "timelock_required": policy["timelock_required"],
+        "break_glass_allowed": policy["break_glass_allowed"],
+        "transparency_required": policy["transparency_required"],
+    }
+
+
+def _case(
+    *,
+    name: str,
+    action: str,
+    policy: Mapping[str, Any],
+    signers: Iterable[Key],
+    decision: AdmissionDecision,
+    expected_accept: bool,
+    invariant_id: str,
+    primary_axis: str,
+    polarity: str,
+    reject_reason: str = "",
+) -> dict[str, Any]:
+    if invariant_id not in INVARIANT_AXIS:
+        raise ValueError(f"unknown invariant_id:{invariant_id}")
+    if primary_axis not in PRIMARY_AXES:
+        raise ValueError(f"unknown primary_axis:{primary_axis}")
+    if polarity not in {"positive", "negative"}:
+        raise ValueError(f"unknown polarity:{polarity}")
+    if polarity == "negative" and not reject_reason:
+        raise ValueError(f"{name}: negative cases require reject_reason")
+    ok = decision.accepted is expected_accept
+    return {
+        "name": name,
+        "ok": ok,
+        "action": action,
+        "expected_accept": expected_accept,
+        "observed_accept": decision.accepted,
+        "reject_reason": reject_reason if polarity == "negative" else "",
+        "observed_reject_reason": decision.reject_reason,
+        "invariant_ids": [invariant_id],
+        "primary_axis": primary_axis,
+        "polarity": polarity,
+        "detail": "" if ok else f"expected_accept={expected_accept}, observed_accept={decision.accepted}",
+        "counterexample": None
+        if ok
+        else {
+            "action": action,
+            "policy": _policy_summary(policy),
+            "signers": _key_summary(signers),
+            "failed_invariant_id": invariant_id,
+            "primary_axis": primary_axis,
+            "expected_reject_reason": reject_reason,
+            "observed_reject_reason": decision.reject_reason,
+        },
+    }
+
+
+def _accepted_case(action: str, policy: Mapping[str, Any], invariant_id: str) -> dict[str, Any]:
+    signers = _valid_quorum(policy)
+    decision = _admission_decision(
+        action=action,
+        policy=policy,
+        signers=signers,
+        environment="production",
+        timelock_satisfied=True,
+        transparency_receipt_bound=True,
+    )
+    return _case(
+        name=f"{action}:{invariant_id}:valid_quorum_accepts",
+        action=action,
+        policy=policy,
+        signers=signers,
+        decision=decision,
+        expected_accept=True,
+        invariant_id=invariant_id,
+        primary_axis=INVARIANT_AXIS[invariant_id],
+        polarity="positive",
+    )
+
+
+def _negative_cases_for_action(action: str, policy: Mapping[str, Any]) -> list[dict[str, Any]]:
+    valid = _valid_quorum(policy)
+    cases: list[dict[str, Any]] = []
+
+    testnet = [Key(**{**key.__dict__, "environment": "testnet"}) for key in valid]
+    cases.append(
+        _case(
+            name=f"{action}:PKM-G-001:testnet_keys_rejected_for_production",
+            action=action,
+            policy=policy,
+            signers=testnet,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=testnet,
+                environment="production",
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=False,
+            invariant_id="PKM-G-001",
+            primary_axis="environment",
+            polarity="negative",
+            reject_reason="testnet_key_for_production",
+        )
+    )
+
+    revoked = [*valid]
+    revoked[0] = Key(**{**revoked[0].__dict__, "status": "revoked"})
+    cases.append(
+        _case(
+            name=f"{action}:PKM-G-002:revoked_key_rejected",
+            action=action,
+            policy=policy,
+            signers=revoked,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=revoked,
+                environment="production",
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=False,
+            invariant_id="PKM-G-002",
+            primary_axis="status",
+            polarity="negative",
+            reject_reason="revoked_or_expired_key",
+        )
+    )
+
+    if policy["critical"] is True:
+        single = [_active_key(str(policy["role"]), 0)]
+        cases.append(
+            _case(
+                name=f"{action}:PKM-G-003:single_key_rejected",
+                action=action,
+                policy=policy,
+                signers=single,
+                decision=_admission_decision(
+                    action=action,
+                    policy=policy,
+                    signers=single,
+                    environment="production",
+                    timelock_satisfied=True,
+                    transparency_receipt_bound=True,
+                ),
+                expected_accept=False,
+                invariant_id="PKM-G-003",
+                primary_axis="quorum",
+                polarity="negative",
+                reject_reason="threshold_not_met",
+            )
+        )
+
+    if policy["hardware_required"] is True:
+        software = [Key(**{**key.__dict__, "storage_class": "software"}) for key in valid]
+        cases.append(
+            _case(
+                name=f"{action}:PKM-G-004:software_keys_rejected",
+                action=action,
+                policy=policy,
+                signers=software,
+                decision=_admission_decision(
+                    action=action,
+                    policy=policy,
+                    signers=software,
+                    environment="production",
+                    timelock_satisfied=True,
+                    transparency_receipt_bound=True,
+                ),
+                expected_accept=False,
+                invariant_id="PKM-G-004",
+                primary_axis="storage",
+                polarity="negative",
+                reject_reason="software_key_for_hardware_required_action",
+            )
+        )
+
+    if policy["timelock_required"] is True:
+        cases.append(
+            _case(
+                name=f"{action}:PKM-G-005:missing_timelock_rejected",
+                action=action,
+                policy=policy,
+                signers=valid,
+                decision=_admission_decision(
+                    action=action,
+                    policy=policy,
+                    signers=valid,
+                    environment="production",
+                    timelock_satisfied=False,
+                    transparency_receipt_bound=True,
+                ),
+                expected_accept=False,
+                invariant_id="PKM-G-005",
+                primary_axis="timelock",
+                polarity="negative",
+                reject_reason="timelock_required",
+            )
+        )
+
+    break_glass = [
+        Key(**{**key.__dict__, "break_glass": True})
+        for key in valid
+    ]
+    cases.append(
+        _case(
+            name=f"{action}:PKM-G-006:break_glass_scope",
+            action=action,
+            policy=policy,
+            signers=break_glass,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=break_glass,
+                environment="production",
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=(action == "emergency_pause"),
+            invariant_id="PKM-G-006",
+            primary_axis="break_glass",
+            polarity="positive" if action == "emergency_pause" else "negative",
+            reject_reason="" if action == "emergency_pause" else "break_glass_scope_violation",
+        )
+    )
+
+    if policy["transparency_required"] is True:
+        cases.append(
+            _case(
+                name=f"{action}:PKM-G-007:missing_transparency_receipt_rejected",
+                action=action,
+                policy=policy,
+                signers=valid,
+                decision=_admission_decision(
+                    action=action,
+                    policy=policy,
+                    signers=valid,
+                    environment="production",
+                    timelock_satisfied=True,
+                    transparency_receipt_bound=False,
+                ),
+                expected_accept=False,
+                invariant_id="PKM-G-007",
+                primary_axis="transparency",
+                polarity="negative",
+                reject_reason="transparency_receipt_required",
+            )
+        )
+
+    return cases
+
+
+def _axis_coverage_cases(action: str, policy: Mapping[str, Any]) -> list[dict[str, Any]]:
+    valid = _valid_quorum(policy)
+    wrong_role = [_active_key("oracle" if policy["role"] != "oracle" else "config", index) for index in range(int(policy["threshold"]))]
+    return [
+        _case(
+            name=f"{action}:packet_invalid_rejected",
+            action=action,
+            policy=policy,
+            signers=valid,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=valid,
+                environment="production",
+                packet_ok=False,
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=False,
+            invariant_id="PKM-G-001",
+            primary_axis="packet",
+            polarity="negative",
+            reject_reason="packet_invalid",
+        ),
+        _case(
+            name=f"{action}:signature_binding_rejected",
+            action=action,
+            policy=policy,
+            signers=valid,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=valid,
+                environment="production",
+                signatures_bind=False,
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=False,
+            invariant_id="PKM-G-002",
+            primary_axis="signature_binding",
+            polarity="negative",
+            reject_reason="signature_binding_invalid",
+        ),
+        _case(
+            name=f"{action}:wrong_role_rejected",
+            action=action,
+            policy=policy,
+            signers=wrong_role,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=wrong_role,
+                environment="production",
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=False,
+            invariant_id="PKM-G-003",
+            primary_axis="role",
+            polarity="negative",
+            reject_reason="threshold_not_met",
+        ),
+    ]
 
 
 def run_check(model_path: Path = DEFAULT_MODEL) -> dict[str, Any]:
@@ -91,206 +464,52 @@ def run_check(model_path: Path = DEFAULT_MODEL) -> dict[str, Any]:
     policies = model.get("action_policies")
     if not isinstance(policies, dict):
         raise ValueError("action_policies must be an object")
+
     cases: list[dict[str, Any]] = []
+    first_action: str | None = None
+    first_policy: Mapping[str, Any] | None = None
     for action, raw_policy in sorted(policies.items()):
         if not isinstance(raw_policy, dict):
             raise ValueError(f"{action} policy must be an object")
-        policy = raw_policy
-        valid = _valid_quorum(policy)
-        accepted = _admit(
-            action=action,
-            policy=policy,
-            signers=valid,
-            environment="production",
-            timelock_satisfied=True,
-            transparency_receipt_bound=True,
-        )
-        cases.append(_case(f"{action}:valid_quorum_accepts", accepted))
+        if first_action is None:
+            first_action = action
+            first_policy = raw_policy
+        for invariant_id in sorted(INVARIANT_AXIS):
+            cases.append(_accepted_case(action, raw_policy, invariant_id))
+        cases.extend(_negative_cases_for_action(action, raw_policy))
 
-        if policy["critical"] is True:
-            single = [_active_key(str(policy["role"]), 0)]
-            rejected_single = not _admit(
-                action=action,
-                policy=policy,
-                signers=single,
-                environment="production",
-                timelock_satisfied=True,
-                transparency_receipt_bound=True,
-            )
-            cases.append(_case(f"{action}:single_key_rejected", rejected_single))
+    if first_action is not None and first_policy is not None:
+        cases.extend(_axis_coverage_cases(first_action, first_policy))
 
-            duplicated_custodian = [
-                Key(
-                    key_id=f"{policy['role']}-dup-{index}",
-                    role=str(policy["role"]),
-                    environment="production",
-                    status="active",
-                    storage_class="hardware",
-                    custodian_id="same-custodian",
-                    break_glass=(policy["role"] == "emergency"),
-                )
-                for index in range(int(policy["threshold"]))
-            ]
-            rejected_same_custodian = not _admit(
-                action=action,
-                policy=policy,
-                signers=duplicated_custodian,
-                environment="production",
-                timelock_satisfied=True,
-                transparency_receipt_bound=True,
-            )
-            cases.append(_case(f"{action}:same_custodian_quorum_rejected", rejected_same_custodian))
-
-        revoked = [*valid]
-        revoked[0] = Key(**{**revoked[0].__dict__, "status": "revoked"})
-        cases.append(
-            _case(
-                f"{action}:revoked_key_rejected",
-                not _admit(
-                    action=action,
-                    policy=policy,
-                    signers=revoked,
-                    environment="production",
-                    timelock_satisfied=True,
-                    transparency_receipt_bound=True,
-                ),
-            )
-        )
-
-        expired = [*valid]
-        expired[0] = Key(**{**expired[0].__dict__, "status": "expired"})
-        cases.append(
-            _case(
-                f"{action}:expired_key_rejected",
-                not _admit(
-                    action=action,
-                    policy=policy,
-                    signers=expired,
-                    environment="production",
-                    timelock_satisfied=True,
-                    transparency_receipt_bound=True,
-                ),
-            )
-        )
-
-        testnet = [Key(**{**key.__dict__, "environment": "testnet"}) for key in valid]
-        cases.append(
-            _case(
-                f"{action}:testnet_keys_rejected_for_production",
-                not _admit(
-                    action=action,
-                    policy=policy,
-                    signers=testnet,
-                    environment="production",
-                    timelock_satisfied=True,
-                    transparency_receipt_bound=True,
-                ),
-            )
-        )
-
-        wrong_role = [_active_key("oracle" if policy["role"] != "oracle" else "config", index) for index in range(int(policy["threshold"]))]
-        cases.append(
-            _case(
-                f"{action}:wrong_role_rejected",
-                not _admit(
-                    action=action,
-                    policy=policy,
-                    signers=wrong_role,
-                    environment="production",
-                    timelock_satisfied=True,
-                    transparency_receipt_bound=True,
-                ),
-            )
-        )
-
-        if policy["hardware_required"] is True:
-            mpc = [Key(**{**key.__dict__, "storage_class": "mpc"}) for key in valid]
-            cases.append(
-                _case(
-                    f"{action}:mpc_keys_accept_as_non_software_custody",
-                    _admit(
-                        action=action,
-                        policy=policy,
-                        signers=mpc,
-                        environment="production",
-                        timelock_satisfied=True,
-                        transparency_receipt_bound=True,
-                    ),
-                )
-            )
-
-            software = [Key(**{**key.__dict__, "storage_class": "software"}) for key in valid]
-            cases.append(
-                _case(
-                    f"{action}:software_keys_rejected",
-                    not _admit(
-                        action=action,
-                        policy=policy,
-                        signers=software,
-                        environment="production",
-                        timelock_satisfied=True,
-                        transparency_receipt_bound=True,
-                    ),
-                )
-            )
-
-        if policy["timelock_required"] is True:
-            cases.append(
-                _case(
-                    f"{action}:missing_timelock_rejected",
-                    not _admit(
-                        action=action,
-                        policy=policy,
-                        signers=valid,
-                        environment="production",
-                        timelock_satisfied=False,
-                        transparency_receipt_bound=True,
-                    ),
-                )
-            )
-
-        if policy["transparency_required"] is True:
-            cases.append(
-                _case(
-                    f"{action}:missing_transparency_receipt_rejected",
-                    not _admit(
-                        action=action,
-                        policy=policy,
-                        signers=valid,
-                        environment="production",
-                        timelock_satisfied=True,
-                        transparency_receipt_bound=False,
-                    ),
-                )
-            )
-
-        break_glass = [_active_key("emergency", index) for index in range(max(2, int(policy["threshold"])))]
-        break_glass_ok = _admit(
-            action=action,
-            policy=policy,
-            signers=break_glass,
-            environment="production",
-            timelock_satisfied=True,
-            transparency_receipt_bound=True,
-        )
-        expected_break_glass = action == "emergency_pause"
-        cases.append(_case(f"{action}:break_glass_scope", break_glass_ok is expected_break_glass))
-
+    counterexamples = [
+        case["counterexample"]
+        for case in cases
+        if case.get("counterexample") is not None
+    ]
     ok = all(case["ok"] is True for case in cases)
     return {
         "schema": RESULT_SCHEMA,
         "ok": ok,
         "model_path": str(model_path),
         "case_count": len(cases),
+        "invariant_ids": sorted(INVARIANT_AXIS),
+        "primary_axes": sorted(PRIMARY_AXES),
+        "counterexamples": counterexamples,
         "cases": cases,
     }
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = list(argv or sys.argv[1:])
-    model_path = Path(args[0]) if args else DEFAULT_MODEL
-    result = run_check(model_path)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("model_path", nargs="?", default=str(DEFAULT_MODEL))
+    parser.add_argument("--json-out", type=Path, help="Optional path to write the result JSON")
+    args = parser.parse_args(argv)
+
+    result = run_check(Path(args.model_path))
+    output = json.dumps(result, indent=2, sort_keys=True)
+    print(output)
+    if args.json_out is not None:
+        args.json_out.write_text(output + "\n", encoding="utf-8")
     return 0 if result["ok"] else 1
 
 
