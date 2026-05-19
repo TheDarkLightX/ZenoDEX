@@ -141,6 +141,13 @@ Machine A exposes:
 - `POST /faucet`
 - `POST /tokens`
 
+For an authenticated node surface, start the server with
+`--node-auth-token-file /path/to/token.txt`. Machine B should pass the same
+secret as `--peer-auth-token-file /path/to/token.txt` to `join-network`,
+`check-peers`, `follow-once`, `pull-live`, `evidence`, or
+`tools/zeno_ledger_machine_b_acceptance.py`. The token is operator-local secret
+material and should not be placed in `public_network_config.json`.
+
 ## Machine B: Join And Follow
 
 Join from the public network config:

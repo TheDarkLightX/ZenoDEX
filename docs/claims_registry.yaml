@@ -834,28 +834,35 @@ claims:
       registry is supplied, pulled live heights must also satisfy BLS checkpoint
       signer quorum before admission. Public network configs can require BLS
       signer-registry quorum over the hash-bound writer and peer URL list before
-      a node treats the config as joinable.
+      a node treats the config as joinable. Node HTTP surfaces can require an
+      operator-local bearer token for peer reads and testnet submission routes,
+      and peer checks, pulls, follows, evidence reports, and Machine B acceptance
+      can supply that token without placing it in the signed public config.
       The policy rejects missing active validators, duplicate validator
       identities, tampered validator-set hashes, wrong scheduled proposers,
       candidate tips that require a local reorg, same-height conflicts, and
       validator-set mismatches, unsigned required public-network configs, and
       insufficient public-network config signer quorum. Open block gossip,
-      validator peer discovery, transport authentication, slashing, and
-      production key management remain follow-up work.
+      validator peer discovery, slashing, and production key management remain
+      follow-up work.
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
-        - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tools/zeno_ledger_machine_b_acceptance.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerPublicNetworkConfigAdmission"
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerTransportAuthAdmission"
         - cmd: python3 tools/check_production_traceability_matrix.py
       files:
         - lean-mathlib/Proofs/ZenoLedgerPublicNetworkConfigAdmission.lean
+        - lean-mathlib/Proofs/ZenoLedgerTransportAuthAdmission.lean
         - src/integration/zeno_ledger_signature.py
         - src/integration/zeno_ledger_live_quorum_v0.py
         - src/integration/zeno_ledger_validator_schedule_v0.py
         - tools/zeno_ledger_node.py
+        - tools/zeno_ledger_machine_b_acceptance.py
         - tests/integration/test_zeno_ledger_live_quorum_v0.py
+        - tests/integration/test_zeno_ledger_node_transport_auth.py
         - tests/integration/test_zeno_ledger_public_network_config_quorum.py
         - tests/integration/test_zeno_ledger_validator_schedule_v0.py
         - tests/integration/test_zeno_ledger_node_fork_choice.py
@@ -868,6 +875,8 @@ claims:
         - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_config_hash_mismatch
         - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_registry_hash_mismatch
         - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_missing_quorum
+        - Proofs.ZenoLedgerTransportAuthAdmission.required_admission_token_matches
+        - Proofs.ZenoLedgerTransportAuthAdmission.required_rejects_token_mismatch
 
   - id: py:zeno_ledger:tee_proof_metadata_adapter_v0
     status: supported
