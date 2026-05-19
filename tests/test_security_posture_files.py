@@ -100,7 +100,20 @@ def test_release_gate_runs_production_key_management_checks() -> None:
     assert "src/integration/zeno_ledger_production_key_gates_v0.py" in release_gate
     assert "tools/check_production_key_management_spec.py" in release_gate
     assert "tools/check_production_key_management_config.py" in release_gate
+    assert "tools/check_production_key_management_bypasses.py" in release_gate
     assert "tests/integration/test_production_key_management_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_production_key_gates_v0.py" in release_gate
     assert "tests/test_check_production_key_management_config.py" in release_gate
     assert "tools/check_production_key_management_spec.py" in public_testnet_gate
+
+
+def test_production_key_management_bypass_check_tracks_ledger_surfaces() -> None:
+    checker = (ROOT / "tools/check_production_key_management_bypasses.py").read_text(encoding="utf-8")
+
+    assert "validate_production_key_admission_receipt_v0" in checker
+    assert "raw_validator_import" in checker
+    assert "raw_validator_call" in checker
+    assert "public_network_config_update" in checker
+    assert "verifier_registry_update" in checker
+    assert "validate_public_network_config_update_gate_v0" in checker
+    assert "validate_verifier_registry_update_gate_v0" in checker
