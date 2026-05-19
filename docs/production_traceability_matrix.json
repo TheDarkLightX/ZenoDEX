@@ -146,6 +146,22 @@
       "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
     },
     {
+      "id": "zenoledger_validator_schedule_fork_choice",
+      "status": "supported_scoped",
+      "invariant": "A scheduled ZenoLedger header is admitted only when it binds the active validator set hash and the claimed proposer matches the deterministic weighted round-robin duty; candidate tips are accepted only when they extend the local tip under the same validator set.",
+      "runtime_guard_paths": [
+        "src/integration/zeno_ledger_validator_schedule_v0.py",
+        "tools/run_release_gate.sh"
+      ],
+      "test_paths": [
+        "tests/integration/test_zeno_ledger_validator_schedule_v0.py"
+      ],
+      "evidence_commands": [
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py"
+      ],
+      "residual_limits": "This is a pure policy and replay surface. Open block gossip, validator peer discovery, network transport authentication, slashing, and automatic signer-quorum verification on live headers remain follow-up work."
+    },
+    {
       "id": "zk_risc0_metadata_binding",
       "status": "supported_scoped",
       "invariant": "RISC0 proof metadata must bind nonzero conflict-schedule, feature-suite, dependency-lock, guest, image, receipt, and checkpoint roots before ledger admission.",
