@@ -579,6 +579,27 @@ negative_edge_ref:                   sha256:dc491046b14454ea8ba7ac4b9be08686ac7e
 checkpoint_ref:                      sha256:0ed25f91dac2e841cd5055c0e46920c28d044e9a3adcaf351e90af8ea23c7d68
 ```
 
+### Suffix-Bound Adversarial Stress
+
+```text
+adversarial_json_blob_ref:           sha256:65d29bf75c364ce38df2d694129afc00b528bc96229701a10560018f1bff61cf
+adversarial_markdown_blob_ref:       sha256:58471675dbe76bac298404a244c8af5ae3c46dd40310d7af93ba36d2c2b4f2ba
+context_ref:                         sha256:4b63b96918a699ec4d752badaf3406643a18d3854f12b9b9b43c3b0d716e5bdd
+json_artifact_ref:                   sha256:8c86144ee7f4b8e25fe753a441c4fd241e2b63bb57843be96ce943a5d502b1ff
+markdown_artifact_ref:               sha256:641b4254a73ae1c9ac066e38d58716c1f877e8bbbc07e1290d6f3ff089b542c1
+support_recipe_ref:                  sha256:25b7cebaa7e80cacdd639049a4d29a988507e80896e832e83206649590b5710b
+refute_recipe_ref:                   sha256:60cc13eb4c840793f5ce529dbae4054037c9331853264059d83dd7ab525c53eb
+support_hypothesis_ref:              sha256:8e01f4106922efc302d45f14d99f27970cc4bfe2e2a4441188d486296e1da7c6
+negative_hypothesis_ref:             sha256:20fbbd637f0803c4b9ba06ff4ccf9ee194f550f0e2ddd5663c183ba3c7418d3e
+support_evidence_ref:                sha256:79f1381f4cdc046b3de3e147466c9211e986aab429c7b6badc460940a1618c26
+negative_evidence_ref:               sha256:550fe311af4757946e08c62b2a6180abe812637d0bc5e223074bbe7b1b7e99a3
+support_stdout_ref:                  sha256:f8afe51df28f9100bbdda7602275ad504dcae1750d96a5c6811408eec22e7a0b
+negative_stdout_ref:                 sha256:663ebfbd023828a20b709eb4de7c024aa9136be2e40170d880d5a555eda145b6
+support_edge_ref:                    sha256:d35b341f8c1f5587e73f4deb3e0c521b86378ef28cc45a0edafd64acacd9ddc0
+negative_edge_ref:                   sha256:60566eb14dca2032a667af43d4243058505c798c1869813ac3f087b4d3db6be5
+checkpoint_ref:                      sha256:a311b25650e9fe9744860cef3c08f5f6f45e9a2833c1072d026400050ee77f41
+```
+
 ## Current Status
 
 ```text
@@ -635,6 +656,8 @@ H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519: supported
 H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519: falsified
 H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519: supported
 H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519: falsified
+H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519: supported
+H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519: falsified
 doctor_ok: true
 ```
 

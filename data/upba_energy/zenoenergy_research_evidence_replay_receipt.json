@@ -1,5 +1,5 @@
 {
-  "check_count": 177,
+  "check_count": 184,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -647,6 +647,31 @@
       "passed": true
     },
     {
+      "check_id": "suffix_bound_adversarial.schema",
+      "detail": "suffix-bound adversarial stress schema and parameters are stable",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_adversarial.safety",
+      "detail": "adversarial suffix stress preserves verifier authority and zero invalid accepts",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_adversarial.disqualifier_closes",
+      "detail": "deterministic disqualifiers close every injected high-output suffix case",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_adversarial.declared_output_negative",
+      "detail": "declared-output-only bounds fail on every injected adversarial suffix case",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_adversarial.boundary_and_hooks",
+      "detail": "tool, test, and doc preserve adversarial suffix and bounded synthetic limits",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
       "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
       "passed": true
@@ -882,6 +907,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519",
+      "detail": "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519",
+      "detail": "H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -889,7 +924,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 177,
+  "passed_count": 184,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1128,6 +1163,25 @@
       "random_full_fallback_count": 2,
       "random_mean_verifier_calls": 13.184873949579831,
       "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
+    },
+    "suffix_bound_adversarial": {
+      "adversary_disqualified_count": 119,
+      "adversary_invalid_count": 119,
+      "batches": 120,
+      "candidates_per_batch": 24,
+      "declared_output_only_forced_fail_count": 119,
+      "disqualifier_histogram": {
+        "invariant_violation_flag": 119
+      },
+      "evaluated_batches": 119,
+      "negative_knowledge": [
+        "Declared-output suffix bounds alone fail on every injected adversarial suffix case.",
+        "This stress remains bounded synthetic evidence and does not prove production distribution coverage."
+      ],
+      "schema": "zenodex/energy/upba_v2_suffix_bound_adversarial_stress/v1",
+      "seed": 20260544,
+      "with_disqualifiers_certificate_ok_count": 119,
+      "without_disqualifiers_certificate_ok_count": 0
     },
     "suffix_bound_cross_seed": {
       "batches_per_config": 60,

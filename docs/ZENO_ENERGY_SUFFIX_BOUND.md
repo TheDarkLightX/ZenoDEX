@@ -17,6 +17,11 @@ Cross-seed stress is recorded in
 Across nine bounded synthetic configs, learned and hybrid orderings averaged
 1.0132 verifier calls with zero invalid accepts.
 
+Adversarial suffix stress is recorded in
+[ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md).
+It shows deterministic disqualifiers close injected high-declared-output
+invalid suffix candidates, while declared-output-only bounds fail every case.
+
 ## Safety Boundary
 
 - The scorer only orders candidates.

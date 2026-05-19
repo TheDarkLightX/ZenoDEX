@@ -482,6 +482,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    suffix_bound_adversarial = _load_json(
+        root / "data/upba_energy/upba_v2_suffix_bound_adversarial_stress_seed20260544.json"
+    )
+    suffix_bound_adversarial_doc = (
+        root / "docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md"
+    ).read_text(encoding="utf-8")
+    suffix_bound_adversarial_tool = (
+        root / "tools/stress_upba_v2_suffix_bound_adversarial.py"
+    ).read_text(encoding="utf-8")
+    suffix_bound_adversarial_tests = (
+        root / "tests/energy/test_upba_v2_suffix_bound_adversarial_stress.py"
+    ).read_text(encoding="utf-8")
+    payloads["suffix_bound_adversarial"] = suffix_bound_adversarial
+    checks.extend(
+        _check_suffix_bound_adversarial(
+            suffix_bound_adversarial,
+            suffix_bound_adversarial_doc,
+            suffix_bound_adversarial_tool,
+            suffix_bound_adversarial_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -2060,6 +2082,68 @@ def _check_suffix_bound_cross_seed(
     ]
 
 
+def _check_suffix_bound_adversarial(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    doc_lower = doc_text.lower()
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    evaluated = int(summary["evaluated_batches"])
+    return [
+        _expect_true(
+            "suffix_bound_adversarial.schema",
+            report.get("schema")
+            == "zenodex/energy/upba_v2_suffix_bound_adversarial_stress/v1"
+            and bool(report.get("ok")) is True
+            and int(report.get("batches")) == 120
+            and int(report.get("candidates_per_batch")) == 24
+            and int(report.get("seed")) == 20260544,
+            "suffix-bound adversarial stress schema and parameters are stable",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True,
+            "adversarial suffix stress preserves verifier authority and zero invalid accepts",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial.disqualifier_closes",
+            evaluated == 119
+            and int(summary["adversary_invalid_count"]) == evaluated
+            and int(summary["adversary_disqualified_count"]) == evaluated
+            and int(summary["with_disqualifiers_certificate_ok_count"]) == evaluated
+            and str(summary["disqualifier_histogram"].get("invariant_violation_flag"))
+            == str(evaluated),
+            "deterministic disqualifiers close every injected high-output suffix case",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial.declared_output_negative",
+            int(summary["without_disqualifiers_certificate_ok_count"]) == 0
+            and int(summary["declared_output_only_forced_fail_count"]) == evaluated
+            and "declared-output suffix bounds alone fail" in negative_lower,
+            "declared-output-only bounds fail on every injected adversarial suffix case",
+        ),
+        _expect_true(
+            "suffix_bound_adversarial.boundary_and_hooks",
+            "stress_adversarial_suffix_bound" in tool_text
+            and "_mutate_declared_output_above_winner" in tool_text
+            and "candidate_objective_upper_bound" in tool_text
+            and "test_suffix_bound_adversarial_stress_smoke" in test_text
+            and "high-declared-output invalid candidates" in doc_lower
+            and "bounded synthetic evidence" in negative_lower,
+            "tool, test, and doc preserve adversarial suffix and bounded synthetic limits",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -2109,6 +2193,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519": "falsified",
         "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519": "supported",
         "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519": "falsified",
+        "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519": "supported",
+        "H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2184,6 +2270,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     dominance_prefix = payloads["dominance_prefix"]
     suffix_bound = payloads["suffix_bound"]
     suffix_bound_cross_seed = payloads["suffix_bound_cross_seed"]
+    suffix_bound_adversarial = payloads["suffix_bound_adversarial"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2557,6 +2644,34 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "invalid_accept_count_total"
             ],
             "negative_knowledge": suffix_bound_cross_seed["negative_knowledge"],
+        },
+        "suffix_bound_adversarial": {
+            "schema": suffix_bound_adversarial["schema"],
+            "batches": suffix_bound_adversarial["batches"],
+            "evaluated_batches": suffix_bound_adversarial["summary"][
+                "evaluated_batches"
+            ],
+            "candidates_per_batch": suffix_bound_adversarial["candidates_per_batch"],
+            "seed": suffix_bound_adversarial["seed"],
+            "adversary_invalid_count": suffix_bound_adversarial["summary"][
+                "adversary_invalid_count"
+            ],
+            "adversary_disqualified_count": suffix_bound_adversarial["summary"][
+                "adversary_disqualified_count"
+            ],
+            "with_disqualifiers_certificate_ok_count": suffix_bound_adversarial[
+                "summary"
+            ]["with_disqualifiers_certificate_ok_count"],
+            "without_disqualifiers_certificate_ok_count": suffix_bound_adversarial[
+                "summary"
+            ]["without_disqualifiers_certificate_ok_count"],
+            "declared_output_only_forced_fail_count": suffix_bound_adversarial[
+                "summary"
+            ]["declared_output_only_forced_fail_count"],
+            "disqualifier_histogram": suffix_bound_adversarial["summary"][
+                "disqualifier_histogram"
+            ],
+            "negative_knowledge": suffix_bound_adversarial["negative_knowledge"],
         },
     }
 

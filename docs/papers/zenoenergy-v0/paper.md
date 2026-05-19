@@ -490,6 +490,14 @@ accepts and mean verifier calls of 1.0132. Hand energy averaged 1.3935 calls
 and random ordering averaged 17.1010 calls. This strengthens the bounded
 synthetic utility claim while leaving the same coverage and replay obligations.
 
+The adversarial suffix stress then injected high-declared-output invalid
+candidates into the unchecked suffix after the verifier winner was checked.
+Across 119 evaluated bounded synthetic batches, deterministic disqualifiers
+closed all 119 certificates, and the same certificates failed in all 119 cases
+when only declared-output bounds were used. This supports a sharper design
+lesson: suffix certificates need verifier-derived deterministic invalidity
+signals. Raw declared outputs are too weak against attractive invalid suffixes.
+
 This result changes the interpretation of ranking utility. The model still has
 no authority over settlement validity, but it can place the first verifier call
 where a deterministic suffix-bound certificate is likely to close the finite
@@ -722,6 +730,7 @@ work is mathematical first. Larger models are lower priority:
 - implement certified dominance-pruning witnesses;
 - add source-manifested non-private or privacy-approved real corpora;
 - replay suffix-bound early-stop on real or production-shadow candidate sets;
+- diversify adversarial suffix stress beyond invariant-violating output mismatches;
 - train the optional tiny MLP and compare it against the current linear ranker.
 
 The current evidence says the search-order signal is strong enough to continue.

@@ -810,6 +810,26 @@ python3 tools/stress_upba_v2_suffix_bound.py \
 | learned | 9 | 1.0132 | 1.0517 | 1.0000 | 4.0000 | 4.0000 | 1.0000 | 1.0000 | 0 | 0 |
 | random | 9 | 17.1010 | 27.8333 | 48.0000 | 50.0000 | 50.0000 | 1.0000 | 0.8833 | 16 | 0 |
 
+Adversarial suffix stress command:
+
+```bash
+python3 tools/stress_upba_v2_suffix_bound_adversarial.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260544 \
+  --output-json data/upba_energy/upba_v2_suffix_bound_adversarial_stress_seed20260544.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md
+```
+
+| metric | value |
+| --- | ---: |
+| evaluated batches | 119 |
+| adversary invalid count | 119 |
+| adversary disqualified count | 119 |
+| with-disqualifiers certificate ok | 119 |
+| without-disqualifiers certificate ok | 0 |
+| declared-output-only forced fail | 119 |
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -826,11 +846,12 @@ source manifest checker, the replay source manifest builder, the real replay
 secret scanner, the real replay report builder, the production evidence bundle,
 the dominance-cover runtime prototype, the WES dominance search bridge, the
 dominance-prefix cover audit, the suffix-bound early-stop certificate, the
-suffix-bound cross-seed stress receipt, and
+suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
+receipt, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 177 passing checks and 0 failed checks, including
+The current receipt reports 184 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

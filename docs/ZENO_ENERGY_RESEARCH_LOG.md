@@ -1502,3 +1502,60 @@ Research consequence: suffix-bound early stop now has a broader synthetic
 stress receipt. The next meaningful promotion work remains real UPBA replay,
 production-shadow AutoTrader replay, and a coverage proof or verifier for the
 generated candidate family.
+
+## Suffix-Bound Adversarial Stress
+
+Artifact:
+[ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](./ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_suffix_bound_adversarial_stress_seed20260544.json`
+
+Command:
+
+```bash
+python3 tools/stress_upba_v2_suffix_bound_adversarial.py \
+  --batches 120 \
+  --candidates-per-batch 24 \
+  --seed 20260544 \
+  --output-json data/upba_energy/upba_v2_suffix_bound_adversarial_stress_seed20260544.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md
+```
+
+Observed result:
+
+| metric | value |
+| --- | ---: |
+| evaluated batches | 119 |
+| adversary invalid count | 119 |
+| adversary disqualified count | 119 |
+| with-disqualifiers certificate ok | 119 |
+| without-disqualifiers certificate ok | 0 |
+| declared-output-only forced fail | 119 |
+| mean suffix disqualified with disqualifiers | 20.1933 |
+
+Positive knowledge:
+
+```text
+Verifier-derived deterministic disqualifiers close every injected
+high-declared-output unchecked suffix case after the verifier winner is checked.
+```
+
+Negative knowledge:
+
+```text
+Declared-output suffix bounds alone fail on every injected adversarial suffix
+case. This stress remains bounded synthetic evidence and does not prove
+production distribution coverage.
+```
+
+PopperPad refs:
+
+```text
+H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS_20260519: supported
+H_ZENOENERGY_DECLARED_OUTPUT_SUFFIX_BOUND_SUFFICIENT_20260519: falsified
+```
+
+Research consequence: deterministic disqualifiers are required in the
+suffix-bound certificate design. The next hard-negative step is to diversify
+adversarial suffix families beyond invariant-violating output mismatches.
