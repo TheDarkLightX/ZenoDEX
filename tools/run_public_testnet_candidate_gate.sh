@@ -67,6 +67,10 @@ echo "== public-testnet: bonded slashing check =="
 "$PY" tools/check_zeno_ledger_bonded_slashing.py \
   > "$OUT_DIR/bonded_slashing.json"
 
+echo "== public-testnet: block gossip check =="
+"$PY" tools/check_zeno_ledger_block_gossip.py \
+  > "$OUT_DIR/block_gossip.json"
+
 echo "== public-testnet: peer discovery check =="
 "$PY" tools/check_zeno_ledger_peer_discovery.py \
   > "$OUT_DIR/peer_discovery.json"
