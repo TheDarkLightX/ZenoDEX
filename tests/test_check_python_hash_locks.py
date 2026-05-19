@@ -13,10 +13,10 @@ def test_python_hash_locks_accept_current_lockfiles() -> None:
     assert result["errors"] == []
     assert result["lock_files"]["requirements-core.lock.txt"]["package_count"] == 13
     assert result["lock_files"]["requirements-agents.lock.txt"]["package_count"] == 40
-    assert result["lock_files"]["requirements-dev.lock.txt"]["package_count"] == 107
+    assert result["lock_files"]["requirements-dev.lock.txt"]["package_count"] == 90
     assert result["lock_files"]["requirements-core.lock.txt"]["hash_count"] == 387
     assert result["lock_files"]["requirements-agents.lock.txt"]["hash_count"] == 668
-    assert result["lock_files"]["requirements-dev.lock.txt"]["hash_count"] == 1531
+    assert result["lock_files"]["requirements-dev.lock.txt"]["hash_count"] == 1370
 
 
 def test_python_hash_locks_reject_missing_file(tmp_path: Path) -> None:

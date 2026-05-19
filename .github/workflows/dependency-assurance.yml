@@ -27,8 +27,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install 'pip-audit>=2.7,<3' pytest
 
-      - name: Audit Python requirements
-        run: python -m pip_audit -r requirements.txt
+      - name: Audit Python lockfiles
+        run: |
+          python -m pip_audit -r requirements-core.lock.txt
+          python -m pip_audit -r requirements-agents.lock.txt
+          python -m pip_audit -r requirements-dev.lock.txt
 
       - name: Run dependency parser tests
         run: |

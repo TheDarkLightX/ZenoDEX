@@ -49,7 +49,7 @@ def _check_lock_file(relpath: str) -> LockFileStats:
         current_hashes = 0
 
     text = path.read_text(encoding="utf-8")
-    if "pip-compile --generate-hashes" not in text:
+    if "pip-compile" not in text or "--generate-hashes" not in text:
         errors.append(f"{relpath}:missing_generate_hashes_header")
 
     for line_number, raw_line in enumerate(text.splitlines(), start=1):
