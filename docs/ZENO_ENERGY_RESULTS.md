@@ -790,6 +790,26 @@ python3 tools/check_upba_v2_suffix_bound.py \
 | learned | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 |
 | hybrid | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 |
 
+Cross-seed stress command:
+
+```bash
+python3 tools/stress_upba_v2_suffix_bound.py \
+  --batches 60 \
+  --seeds 20260541,20260542,20260543 \
+  --candidate-counts 20,32,50 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md
+```
+
+| mode | configs | mean calls | max mean calls | p95 max | p99 max | max calls | objective-equiv min | suffix-stop min | full fallbacks | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 9 | 2.3631 | 2.4833 | 5.0000 | 7.0000 | 7.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| hand | 9 | 1.3935 | 1.6102 | 4.0000 | 6.0000 | 6.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| hybrid | 9 | 1.0132 | 1.0517 | 1.0000 | 4.0000 | 4.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| learned | 9 | 1.0132 | 1.0517 | 1.0000 | 4.0000 | 4.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| random | 9 | 17.1010 | 27.8333 | 48.0000 | 50.0000 | 50.0000 | 1.0000 | 0.8833 | 16 | 0 |
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -805,11 +825,12 @@ objective-equivalent training hygiene, the production promotion gate, the replay
 source manifest checker, the replay source manifest builder, the real replay
 secret scanner, the real replay report builder, the production evidence bundle,
 the dominance-cover runtime prototype, the WES dominance search bridge, the
-dominance-prefix cover audit, the suffix-bound early-stop certificate, and
+dominance-prefix cover audit, the suffix-bound early-stop certificate, the
+suffix-bound cross-seed stress receipt, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 170 passing checks and 0 failed checks, including
+The current receipt reports 177 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

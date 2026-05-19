@@ -558,6 +558,27 @@ negative_edge_ref:                   sha256:f25bdc5a0cea109e6c42880ce6931c470cf0
 checkpoint_ref:                      sha256:538fcdf3ba1d53bb8f32f30eb72090d421d2988e4870c6f5d5df59ad95131227
 ```
 
+### Suffix-Bound Cross-Seed Stress
+
+```text
+suffix_cross_seed_json_blob_ref:     sha256:863755691e9f8b201e21d9fc80fb0f3d6b0c1ac4f695826b761f10cbd7a7d279
+suffix_cross_seed_markdown_blob_ref: sha256:63da774966cd0285a299573919acf6dcedab26a9f7826c4570205f5ba633e6eb
+context_ref:                         sha256:878e4f0e061de2444e4e4d9b6fe6efc1d2f3d57768d174d09128c6b5b7f3f994
+json_artifact_ref:                   sha256:bd08d3bf16cfcb1d5c27e2b3519c764498e8687e9a63d7e48217cb2f7608a4c4
+markdown_artifact_ref:               sha256:91276e901c56e1eb4873576406f060f73c254f359bb2749937dc7caacf01393c
+support_recipe_ref:                  sha256:4cbc03f6a5300e294cbec8e606c02ea13b283204a9f1568652e71af7d624ece3
+refute_recipe_ref:                   sha256:797abc7f9a256cb92f6d99d02a681ab735c9f9adc0bac6e487cb782ba50ff9b6
+support_hypothesis_ref:              sha256:ba4dc450046b97d900c643e18bcd5c074acc82854b77dd4e933debe2cb3602f9
+negative_hypothesis_ref:             sha256:2f43d5a3c288ac7e2e21d3fb255ccc740ba7df4b1134789cdf2adbf93c712823
+support_evidence_ref:                sha256:e1f9b17a545823a76bbb37b0ca75999b0e08776d5de03765f6c3546073cea6b3
+negative_evidence_ref:               sha256:6de26a8a8b1fa351a3f66da0ce82e2f0c8d559ceeb3e3a654531ea7c757e5979
+support_stdout_ref:                  sha256:48899ffd0f47d8b95a1fb77b7533905de5a4dcd7141e96b9c93d7158163dd731
+negative_stdout_ref:                 sha256:71cdaeecb70547e867b7e9a30ff04f7469559ea68f9bca87ddddeae79983b8b6
+support_edge_ref:                    sha256:8b0a4f389a2caa17e63d9377d8dc6e13220d9396609c4a3befa0dd34b22d02e8
+negative_edge_ref:                   sha256:dc491046b14454ea8ba7ac4b9be08686ac7ed51677c6c25f662d7f702c863196
+checkpoint_ref:                      sha256:0ed25f91dac2e841cd5055c0e46920c28d044e9a3adcaf351e90af8ea23c7d68
+```
+
 ## Current Status
 
 ```text
@@ -612,6 +633,8 @@ H_ZENOENERGY_DOMINANCE_PREFIX_AUDIT_20260519: supported
 H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519: falsified
 H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519: supported
 H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519: falsified
+H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519: supported
+H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519: falsified
 doctor_ok: true
 ```
 

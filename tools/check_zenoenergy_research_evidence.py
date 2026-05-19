@@ -460,6 +460,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    suffix_bound_cross_seed = _load_json(
+        root / "data/upba_energy/upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json"
+    )
+    suffix_bound_cross_seed_doc = (
+        root / "docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md"
+    ).read_text(encoding="utf-8")
+    suffix_bound_cross_seed_tool = (
+        root / "tools/stress_upba_v2_suffix_bound.py"
+    ).read_text(encoding="utf-8")
+    suffix_bound_cross_seed_tests = (
+        root / "tests/energy/test_upba_v2_suffix_bound_stress.py"
+    ).read_text(encoding="utf-8")
+    payloads["suffix_bound_cross_seed"] = suffix_bound_cross_seed
+    checks.extend(
+        _check_suffix_bound_cross_seed(
+            suffix_bound_cross_seed,
+            suffix_bound_cross_seed_doc,
+            suffix_bound_cross_seed_tool,
+            suffix_bound_cross_seed_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -1964,6 +1986,80 @@ def _check_suffix_bound(
     ]
 
 
+def _check_suffix_bound_cross_seed(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    learned = summary["learned"]
+    hybrid = summary["hybrid"]
+    hand = summary["hand"]
+    random = summary["random"]
+    doc_lower = doc_text.lower()
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_true(
+            "suffix_bound_cross_seed.schema",
+            report.get("schema") == "zenodex/energy/upba_v2_suffix_bound_cross_seed/v1"
+            and bool(report.get("ok")) is True
+            and int(report.get("batches_per_config")) == 60
+            and list(report.get("seeds")) == [20260541, 20260542, 20260543]
+            and list(report.get("candidate_counts")) == [20, 32, 50],
+            "suffix-bound cross-seed stress schema and parameter grid are stable",
+        ),
+        _expect_true(
+            "suffix_bound_cross_seed.safety",
+            int(report["safety"]["invalid_accept_count_total"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and bool(report["safety"]["deterministic_suffix_bound_required"]) is True
+            and int(learned["invalid_accept_count_total"]) == 0
+            and int(hybrid["invalid_accept_count_total"]) == 0,
+            "cross-seed suffix-bound stress has zero invalid accepts and keeps verifier authority",
+        ),
+        _expect_true(
+            "suffix_bound_cross_seed.learned_and_hybrid_hold",
+            int(learned["configs"]) == 9
+            and int(hybrid["configs"]) == 9
+            and float(learned["objective_equiv_accept_rate_min"]) == 1.0
+            and float(hybrid["objective_equiv_accept_rate_min"]) == 1.0
+            and float(learned["suffix_stop_rate_min"]) == 1.0
+            and float(hybrid["suffix_stop_rate_min"]) == 1.0
+            and float(learned["certificate_ok_rate_min"]) == 1.0
+            and float(hybrid["certificate_ok_rate_min"]) == 1.0,
+            "learned and hybrid keep complete objective-equivalent acceptance and suffix stops",
+        ),
+        _expect_true(
+            "suffix_bound_cross_seed.beats_controls",
+            float(learned["mean_verifier_calls_mean"])
+            < float(hand["mean_verifier_calls_mean"])
+            and float(hybrid["mean_verifier_calls_mean"])
+            < float(hand["mean_verifier_calls_mean"])
+            and float(learned["mean_verifier_calls_mean"])
+            < float(random["mean_verifier_calls_mean"])
+            and int(random["full_fallback_count_total"]) > 0
+            and float(learned["p99_verifier_calls_max"]) <= 4.0,
+            "learned and hybrid beat hand and random on verifier-call stress metrics",
+        ),
+        _expect_true(
+            "suffix_bound_cross_seed.boundary_and_hooks",
+            "stress_suffix_bound" in tool_text
+            and "run_suffix_bound_benchmark" in tool_text
+            and "synthetic_batches_requested" in tool_text
+            and "test_suffix_bound_cross_seed_stress_smoke" in test_text
+            and "bounded synthetic evidence" in doc_lower
+            and "candidate-family coverage" in doc_lower
+            and "does not prove candidate-family coverage" in negative_lower,
+            "tool, test, and doc preserve bounded synthetic and coverage limits",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -2011,6 +2107,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519": "falsified",
         "H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519": "supported",
         "H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519": "falsified",
+        "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519": "supported",
+        "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2085,6 +2183,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     wes_dominance_search = payloads["wes_dominance_search"]
     dominance_prefix = payloads["dominance_prefix"]
     suffix_bound = payloads["suffix_bound"]
+    suffix_bound_cross_seed = payloads["suffix_bound_cross_seed"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2424,6 +2523,40 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             ],
             "invalid_accept_count": suffix_bound["safety"]["invalid_accept_count"],
             "limits": suffix_bound["limits"],
+        },
+        "suffix_bound_cross_seed": {
+            "schema": suffix_bound_cross_seed["schema"],
+            "batches_per_config": suffix_bound_cross_seed["batches_per_config"],
+            "seeds": suffix_bound_cross_seed["seeds"],
+            "candidate_counts": suffix_bound_cross_seed["candidate_counts"],
+            "synthetic_batches_requested": suffix_bound_cross_seed[
+                "synthetic_batches_requested"
+            ],
+            "synthetic_candidates_requested": suffix_bound_cross_seed[
+                "synthetic_candidates_requested"
+            ],
+            "learned_mean_verifier_calls": suffix_bound_cross_seed["summary"][
+                "learned"
+            ]["mean_verifier_calls_mean"],
+            "learned_p99_verifier_calls_max": suffix_bound_cross_seed["summary"][
+                "learned"
+            ]["p99_verifier_calls_max"],
+            "hybrid_mean_verifier_calls": suffix_bound_cross_seed["summary"][
+                "hybrid"
+            ]["mean_verifier_calls_mean"],
+            "hand_mean_verifier_calls": suffix_bound_cross_seed["summary"]["hand"][
+                "mean_verifier_calls_mean"
+            ],
+            "random_mean_verifier_calls": suffix_bound_cross_seed["summary"][
+                "random"
+            ]["mean_verifier_calls_mean"],
+            "random_full_fallback_count": suffix_bound_cross_seed["summary"][
+                "random"
+            ]["full_fallback_count_total"],
+            "invalid_accept_count_total": suffix_bound_cross_seed["safety"][
+                "invalid_accept_count_total"
+            ],
+            "negative_knowledge": suffix_bound_cross_seed["negative_knowledge"],
         },
     }
 

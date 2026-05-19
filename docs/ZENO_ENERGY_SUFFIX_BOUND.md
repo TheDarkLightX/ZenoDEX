@@ -12,6 +12,11 @@ This benchmark checks a deterministic early-stop certificate: a verifier-checked
 | learned | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 | 0.0420 | 19.1597 |
 | hybrid | 119 | 119 | 119 | 0 | 1.0084 | 1 | 1 | 0.0420 | 19.1597 |
 
+Cross-seed stress is recorded in
+[ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](./ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md).
+Across nine bounded synthetic configs, learned and hybrid orderings averaged
+1.0132 verifier calls with zero invalid accepts.
+
 ## Safety Boundary
 
 - The scorer only orders candidates.

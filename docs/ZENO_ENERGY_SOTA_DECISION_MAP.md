@@ -103,8 +103,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    suffix-bound early-stop certificate in
    [ZENO_ENERGY_SUFFIX_BOUND.md](./ZENO_ENERGY_SUFFIX_BOUND.md) adds a
    deterministic unchecked-suffix objective bound and stops after mean 1.008
-   verifier calls on the committed bounded run. The useful next step is a
-   full-list completeness argument for:
+   verifier calls on the committed bounded run. The cross-seed stress in
+   [ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](./ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
+   keeps learned and hybrid mean calls at 1.013 across nine bounded synthetic
+   configs with zero invalid accepts. The useful next step is a full-list
+   completeness argument for:
 
    ```text
    DominanceCover(pruned, full)
@@ -113,9 +116,10 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    ```
 
    The Lean theorem exists, the finite-list runtime receipt exists, the
-   ranked-prefix audit exists, and the suffix-bound runtime certificate now
-   exists. The production gap is completeness for the generated full family plus
-   real replay showing the bound remains useful on representative market data.
+   ranked-prefix audit exists, and the suffix-bound runtime certificate has
+   one-seed and cross-seed synthetic receipts. The production gap is
+   completeness for the generated full family plus real replay showing the
+   bound remains useful on representative market data.
 
 ## Decisions
 

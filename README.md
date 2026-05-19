@@ -236,12 +236,14 @@ hybrid rankers reaching a finite-list dominance-cover certificate after the
 first checked candidate on the committed bounded run. The latest suffix-bound
 early-stop certificate adds a deterministic unchecked-suffix objective bound,
 with learned and hybrid orderings averaging 1.008 verifier calls on the
-bounded synthetic run.
+bounded synthetic run and 1.013 verifier calls across a 3-seed by
+3-candidate-count bounded synthetic stress grid.
 
 Primary entry points:
 
 - [docs/ZENO_ENERGY_V0.md](docs/ZENO_ENERGY_V0.md)
 - [docs/ZENO_ENERGY_RESULTS.md](docs/ZENO_ENERGY_RESULTS.md)
+- [docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
 - [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
 - [docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
 - [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)

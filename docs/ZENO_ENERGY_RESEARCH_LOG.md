@@ -1444,3 +1444,61 @@ production claims.
 Research consequence: the early-stop mechanism now has a concrete deterministic
 certificate. The next production-strength step is broader real replay plus a
 coverage proof for the generated UPBA v2 candidate family.
+
+## Suffix-Bound Cross-Seed Stress
+
+Artifact:
+[ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](./ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json`
+
+Command:
+
+```bash
+python3 tools/stress_upba_v2_suffix_bound.py \
+  --batches 60 \
+  --seeds 20260541,20260542,20260543 \
+  --candidate-counts 20,32,50 \
+  --model data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json \
+  --output-json data/upba_energy/upba_v2_suffix_bound_cross_seed_seed20260541_20260543.json \
+  --output-markdown docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md
+```
+
+Observed result:
+
+| mode | configs | mean calls | max mean calls | p95 max | p99 max | max calls | objective-equiv min | suffix-stop min | full fallbacks | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| exhaustive | 9 | 2.3631 | 2.4833 | 5.0000 | 7.0000 | 7.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| hand | 9 | 1.3935 | 1.6102 | 4.0000 | 6.0000 | 6.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| learned | 9 | 1.0132 | 1.0517 | 1.0000 | 4.0000 | 4.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| hybrid | 9 | 1.0132 | 1.0517 | 1.0000 | 4.0000 | 4.0000 | 1.0000 | 1.0000 | 0 | 0 |
+| random | 9 | 17.1010 | 27.8333 | 48.0000 | 50.0000 | 50.0000 | 1.0000 | 0.8833 | 16 | 0 |
+
+Positive knowledge:
+
+```text
+Across 3 seeds and candidate counts 20, 32, and 50, the learned and hybrid
+rankers kept objective-equivalent acceptance, suffix-stop, and certificate-ok
+rates at 1.0, with zero invalid accepts and mean verifier calls of 1.0132.
+```
+
+Negative knowledge:
+
+```text
+The stress result is still bounded synthetic evidence. It does not prove
+candidate-family coverage, production distribution fit, or real replay
+readiness.
+```
+
+PopperPad refs:
+
+```text
+H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519: supported
+H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519: falsified
+```
+
+Research consequence: suffix-bound early stop now has a broader synthetic
+stress receipt. The next meaningful promotion work remains real UPBA replay,
+production-shadow AutoTrader replay, and a coverage proof or verifier for the
+generated candidate family.

@@ -1,5 +1,5 @@
 {
-  "check_count": 170,
+  "check_count": 177,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -622,6 +622,31 @@
       "passed": true
     },
     {
+      "check_id": "suffix_bound_cross_seed.schema",
+      "detail": "suffix-bound cross-seed stress schema and parameter grid are stable",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_cross_seed.safety",
+      "detail": "cross-seed suffix-bound stress has zero invalid accepts and keeps verifier authority",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_cross_seed.learned_and_hybrid_hold",
+      "detail": "learned and hybrid keep complete objective-equivalent acceptance and suffix stops",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_cross_seed.beats_controls",
+      "detail": "learned and hybrid beat hand and random on verifier-call stress metrics",
+      "passed": true
+    },
+    {
+      "check_id": "suffix_bound_cross_seed.boundary_and_hooks",
+      "detail": "tool, test, and doc preserve bounded synthetic and coverage limits",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
       "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
       "passed": true
@@ -847,6 +872,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519",
+      "detail": "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519",
+      "detail": "H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -854,7 +889,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 170,
+  "passed_count": 177,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1093,6 +1128,33 @@
       "random_full_fallback_count": 2,
       "random_mean_verifier_calls": 13.184873949579831,
       "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
+    },
+    "suffix_bound_cross_seed": {
+      "batches_per_config": 60,
+      "candidate_counts": [
+        20,
+        32,
+        50
+      ],
+      "hand_mean_verifier_calls": 1.393488128073935,
+      "hybrid_mean_verifier_calls": 1.0132173084832348,
+      "invalid_accept_count_total": 0,
+      "learned_mean_verifier_calls": 1.0132173084832348,
+      "learned_p99_verifier_calls_max": 4.0,
+      "negative_knowledge": [
+        "Cross-seed suffix-bound stress remains bounded synthetic evidence.",
+        "A stable suffix-bound stress result still does not prove candidate-family coverage."
+      ],
+      "random_full_fallback_count": 16,
+      "random_mean_verifier_calls": 17.100984969404482,
+      "schema": "zenodex/energy/upba_v2_suffix_bound_cross_seed/v1",
+      "seeds": [
+        20260541,
+        20260542,
+        20260543
+      ],
+      "synthetic_batches_requested": 540,
+      "synthetic_candidates_requested": 18360
     },
     "topk_sweep": {
       "batches": 1983,

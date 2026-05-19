@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 170
-passed_count: 170
+check_count: 177
+passed_count: 177
 failed_count: 0
 ```
 
@@ -133,6 +133,11 @@ failed_count: 0
 | suffix_bound.learned_and_hybrid_stop_first | pass | learned and hybrid suffix-bound certificates stop after roughly one verifier call |
 | suffix_bound.beats_controls | pass | learned suffix-bound early stop beats hand and random controls on verifier calls |
 | suffix_bound.boundary_and_hooks | pass | source, tests, Lean theorem, and docs preserve deterministic suffix-bound limits |
+| suffix_bound_cross_seed.schema | pass | suffix-bound cross-seed stress schema and parameter grid are stable |
+| suffix_bound_cross_seed.safety | pass | cross-seed suffix-bound stress has zero invalid accepts and keeps verifier authority |
+| suffix_bound_cross_seed.learned_and_hybrid_hold | pass | learned and hybrid keep complete objective-equivalent acceptance and suffix stops |
+| suffix_bound_cross_seed.beats_controls | pass | learned and hybrid beat hand and random on verifier-call stress metrics |
+| suffix_bound_cross_seed.boundary_and_hooks | pass | tool, test, and doc preserve bounded synthetic and coverage limits |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -178,6 +183,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519 | pass | H_ZENOENERGY_DOMINANCE_PREFIX_AUTHORIZES_LIVE_EARLY_STOP_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_EARLY_STOP_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_REMOVES_COVERAGE_OBLIGATION_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_STRESS_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_CROSS_SEED_REMOVES_REAL_REPLAY_NEED_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -420,6 +427,33 @@ failed_count: 0
     "random_full_fallback_count": 2,
     "random_mean_verifier_calls": 13.184873949579831,
     "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1"
+  },
+  "suffix_bound_cross_seed": {
+    "batches_per_config": 60,
+    "candidate_counts": [
+      20,
+      32,
+      50
+    ],
+    "hand_mean_verifier_calls": 1.393488128073935,
+    "hybrid_mean_verifier_calls": 1.0132173084832348,
+    "invalid_accept_count_total": 0,
+    "learned_mean_verifier_calls": 1.0132173084832348,
+    "learned_p99_verifier_calls_max": 4.0,
+    "negative_knowledge": [
+      "Cross-seed suffix-bound stress remains bounded synthetic evidence.",
+      "A stable suffix-bound stress result still does not prove candidate-family coverage."
+    ],
+    "random_full_fallback_count": 16,
+    "random_mean_verifier_calls": 17.100984969404482,
+    "schema": "zenodex/energy/upba_v2_suffix_bound_cross_seed/v1",
+    "seeds": [
+      20260541,
+      20260542,
+      20260543
+    ],
+    "synthetic_batches_requested": 540,
+    "synthetic_candidates_requested": 18360
   },
   "topk_sweep": {
     "batches": 1983,

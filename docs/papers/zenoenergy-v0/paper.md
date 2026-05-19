@@ -482,6 +482,14 @@ of 1.0084, p99 verifier calls of 1, zero invalid accepts, and zero full fallback
 cases across 119 evaluated batches. Hand energy averaged 1.4202 verifier calls,
 and random ordering averaged 13.1849.
 
+The suffix-bound stress harness then repeated the experiment across seeds
+20260541, 20260542, and 20260543 with 20, 32, and 50 candidates per batch. The
+learned and hybrid rankers kept objective-equivalent acceptance, suffix-stop,
+and certificate-ok rates at 1.0 across all nine configs, with zero invalid
+accepts and mean verifier calls of 1.0132. Hand energy averaged 1.3935 calls
+and random ordering averaged 17.1010 calls. This strengthens the bounded
+synthetic utility claim while leaving the same coverage and replay obligations.
+
 This result changes the interpretation of ranking utility. The model still has
 no authority over settlement validity, but it can place the first verifier call
 where a deterministic suffix-bound certificate is likely to close the finite
@@ -713,6 +721,7 @@ work is mathematical first. Larger models are lower priority:
 - strengthen exact candidate generation certificates;
 - implement certified dominance-pruning witnesses;
 - add source-manifested non-private or privacy-approved real corpora;
+- replay suffix-bound early-stop on real or production-shadow candidate sets;
 - train the optional tiny MLP and compare it against the current linear ranker.
 
 The current evidence says the search-order signal is strong enough to continue.

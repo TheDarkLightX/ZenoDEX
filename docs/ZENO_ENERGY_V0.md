@@ -38,6 +38,8 @@ Dominance-prefix audit: [ZenoEnergy Dominance-Prefix Cover](./ZENO_ENERGY_DOMINA
 
 Suffix-bound early stop: [ZenoEnergy Suffix-Bound Early Stop](./ZENO_ENERGY_SUFFIX_BOUND.md)
 
+Suffix-bound cross-seed stress: [ZenoEnergy Suffix-Bound Cross-Seed Stress](./ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
@@ -114,6 +116,7 @@ verifier labels for offline training and evaluation.
 - `tools/check_upba_v2_dominance_cover.py`: checks dominance-cover receipts over bounded synthetic verified full lists.
 - `tools/check_upba_v2_dominance_prefix.py`: audits how many ranked verifier calls are needed before a dominance-cover certificate exists.
 - `tools/check_upba_v2_suffix_bound.py`: benchmarks deterministic early stop with checked-prefix dominance and unchecked-suffix objective bounds.
+- `tools/stress_upba_v2_suffix_bound.py`: reruns suffix-bound early stop across seeds and candidate-count grids.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
@@ -347,6 +350,13 @@ deterministic objective upper bound no better than the winner. The committed
 bounded synthetic benchmark reports learned and hybrid mean verifier calls of
 1.0084, p99 of 1, zero invalid accepts, and zero full fallback cases over 119
 evaluated batches.
+
+The cross-seed suffix-bound stress extends this to nine bounded synthetic
+configs, 3 seeds by 3 candidate counts. Learned and hybrid orderings keep
+objective-equivalent acceptance and suffix-stop rates at 1.0, with zero invalid
+accepts and mean verifier calls of 1.0132. This is stronger distribution
+evidence for the current synthetic generator, while the candidate-family
+coverage and real replay requirements still stand.
 
 This remains scoped to the supplied finite candidate family. Production
 bounded-grid claims still require candidate-family coverage, and real replay is

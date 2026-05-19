@@ -42,7 +42,9 @@ production readiness, and a transfer path for applying the same advisory-energy
 pattern to AutoTrader candidate planning. The current production-adjacent path
 is an evidence bundle rather than a release claim: source-manifested and
 coverage-profiled real replay reports are assembled and passed through a
-fail-closed advisory ranking promotion gate.
+fail-closed advisory ranking promotion gate. The latest suffix-bound stress
+receipt records learned and hybrid mean verifier calls of 1.0132 across a
+3-seed by 3-candidate-count bounded synthetic grid, with zero invalid accepts.
 \end{abstract}
 
 \noindent\textbf{Keywords:} energy-based ranking, deterministic verification,
@@ -271,6 +273,40 @@ The checked-stop audit is computed offline after suffix labels are known. It
 measures whether a deterministic suffix certificate would have justified
 stopping at that $k$ in the same case.
 
+A later suffix-bound benchmark replaces that offline audit with a deterministic
+early-stop certificate over the unchecked suffix. A checked verifier winner may
+stop only when it dominates the checked prefix and every unchecked candidate has
+a deterministic objective upper bound no better than the winner. On the
+committed bounded synthetic run with seed 20260541, learned and hybrid ordering
+each achieved mean verifier calls of 1.0084, p99 verifier calls of 1, zero
+invalid accepts, and zero full fallback cases across 119 evaluated batches.
+Hand energy averaged 1.4202 verifier calls, and random ordering averaged
+13.1849.
+
+The cross-seed suffix-bound stress then repeated the benchmark across seeds
+20260541, 20260542, and 20260543 with 20, 32, and 50 candidates per batch.
+
+\begin{table}[h]
+\centering
+\caption{Suffix-bound cross-seed stress.}
+\begin{tabular}{lrrrrrr}
+\toprule
+Mode & Configs & Mean calls & P95 max & P99 max & Fallbacks & Invalid accepts \\
+\midrule
+Exhaustive & 9 & 2.3631 & 5.0000 & 7.0000 & 0 & 0 \\
+Hand energy & 9 & 1.3935 & 4.0000 & 6.0000 & 0 & 0 \\
+Learned & 9 & 1.0132 & 1.0000 & 4.0000 & 0 & 0 \\
+Hybrid & 9 & 1.0132 & 1.0000 & 4.0000 & 0 & 0 \\
+Random & 9 & 17.1010 & 48.0000 & 50.0000 & 16 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Learned and hybrid ordering kept objective-equivalent acceptance, suffix-stop,
+and certificate-ok rates at 1.0 across all nine configs. This strengthens the
+bounded synthetic utility claim while leaving the same candidate-family
+coverage and real replay obligations.
+
 \section{Model Audit}
 
 The gap-weighted checkpoint has no forbidden label-like feature names and no
@@ -307,9 +343,11 @@ or a certificate that the bounded family under discussion is sound and complete.
 \item \textbf{UPBA v2 bounded-grid optimality evidence is incomplete.} The
 scorer helps rank v2 candidates, while production settlement claims still need
 the v2 bounded-grid optimality verifier or an equivalent certificate.
-\item \textbf{Early stopping requires a deterministic suffix certificate.} Top-k
-recall is an empirical accelerator. Live early stop requires a verifier-facing
-bound showing that the unchecked suffix cannot beat the current winner.
+\item \textbf{Live early stopping requires production-grade suffix evidence.}
+Top-k recall is an empirical accelerator. The current suffix-bound certificate
+is a deterministic prototype over generated finite lists. Production early stop
+still requires candidate-family coverage, real replay, and source-manifested
+evidence that the bound remains useful on representative traffic.
 \item \textbf{Scope is narrow.} The experiment covers a single pool, CPMM,
 exact-in swaps, fixed admitted intents, and partial fills. Multi-pool routing,
 exact-out, confidential orderflow, latency races, and adversarial live behavior
