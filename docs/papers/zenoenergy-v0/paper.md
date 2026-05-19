@@ -392,6 +392,14 @@ cross-seed stress matrix it kept top-10 recall at 100.0%, kept top-5 recall at
 100.0%, reduced mean winner position to 1.018, reduced the worst mean winner
 position to 1.032, and kept p99 winner position at 2.
 
+A data-scaling probe then trained the same gap-weighted setup over 999, 1,999,
+4,996, 9,996, 19,990, 49,969, 99,940, and 199,860 same-generator synthetic
+rows. Mean verifier calls improved from 1.0736 at 999 rows to 1.0177 at
+199,860 rows, with zero invalid accepts and top-10 recall 100.0% throughout.
+The full-volume run remained slightly behind the current gap-weighted checkpoint
+at 1.0166 mean calls. This points toward targeted coverage quality, hard
+negative generation, and replay-shaped distributions as the next data axis.
+
 The gap-weighted medium hard-case mine requested 4,500 batches and 337,500
 candidate slots. Across 4,466 winner-bearing batches, it had top-1 recall
 98.54%, top-5 recall 100.0%, top-10 recall 100.0%, mean winner position 1.017,

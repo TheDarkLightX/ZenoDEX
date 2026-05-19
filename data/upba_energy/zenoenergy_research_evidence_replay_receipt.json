@@ -1,5 +1,5 @@
 {
-  "check_count": 219,
+  "check_count": 226,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -772,6 +772,31 @@
       "passed": true
     },
     {
+      "check_id": "data_scaling.schema",
+      "detail": "data-scaling receipt records the committed synthetic corpus and eight budgets",
+      "passed": true
+    },
+    {
+      "check_id": "data_scaling.safety",
+      "detail": "all scaling budgets preserve zero invalid accepts and verifier authority",
+      "passed": true
+    },
+    {
+      "check_id": "data_scaling.quantity_curve",
+      "detail": "more same-generator rows improve from the smallest budget",
+      "passed": true
+    },
+    {
+      "check_id": "data_scaling.saturates_below_current",
+      "detail": "full same-generator scaling does not beat the current gap-weighted checkpoint",
+      "passed": true
+    },
+    {
+      "check_id": "data_scaling.source_hooks",
+      "detail": "tool, test, and doc expose the raw-volume saturation boundary",
+      "passed": true
+    },
+    {
       "check_id": "epiplexity_literature.schema",
       "detail": "epiplexity literature receipt schema and counts are stable",
       "passed": true
@@ -1092,6 +1117,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519",
+      "detail": "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519",
+      "detail": "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -1099,7 +1134,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 219,
+  "passed_count": 226,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1142,6 +1177,16 @@
       "schema": "zenodex/energy/upba_v2_curriculum_ranker_report/v1",
       "train_rows": 19981,
       "train_rows_available": 199860
+    },
+    "data_scaling": {
+      "available_train_rows": 199860,
+      "best_budget_beats_current_gap_weighted": false,
+      "current_gap_weighted_mean_calls": 1.0166414523449319,
+      "first_budget_mean_calls": 1.0736258194654564,
+      "full_budget_mean_calls": 1.0176500252143217,
+      "holdout_rows": 39979,
+      "negative_knowledge": "Extra i.i.d. synthetic examples help only if the added batches expose new ranking errors or rare verifier-shaped families; raw volume alone is not a correctness or production-readiness certificate.",
+      "schema": "zenodex/energy/upba_v2_data_scaling_report/v1"
     },
     "dominance_cover": {
       "evaluated_batches": 79,

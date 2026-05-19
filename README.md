@@ -251,6 +251,9 @@ first bounded rare-disqualifier curriculum ranker did not beat the
 gap-weighted default, so the default stays promoted for research.
 The energy-order-alone Lean boundary now records the formal counterexample:
 ranking by low energy alone is not an optimality certificate.
+The data-scaling probe shows raw same-generator synthetic volume helps from
+small budgets but saturates below the current gap-weighted checkpoint, so the
+next data work should target coverage quality and rare hard families.
 
 Primary entry points:
 
@@ -261,6 +264,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
 - [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
 - [docs/ZENO_ENERGY_CURRICULUM_RANKER.md](docs/ZENO_ENERGY_CURRICULUM_RANKER.md)
+- [docs/ZENO_ENERGY_DATA_SCALING.md](docs/ZENO_ENERGY_DATA_SCALING.md)
 - [docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
 - [docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)
 - [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)

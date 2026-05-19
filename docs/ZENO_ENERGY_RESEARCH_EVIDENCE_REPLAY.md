@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 219
-passed_count: 219
+check_count: 226
+passed_count: 226
 failed_count: 0
 ```
 
@@ -163,6 +163,11 @@ failed_count: 0
 | curriculum_ranker.negative_result | pass | rare-disqualifier curriculum does not beat the gap-weighted default |
 | curriculum_ranker.source_hooks | pass | trainer, benchmark, and test expose curriculum weighting and bounded scope |
 | curriculum_ranker.doc_boundary | pass | doc records the negative result and keeps the default ranker |
+| data_scaling.schema | pass | data-scaling receipt records the committed synthetic corpus and eight budgets |
+| data_scaling.safety | pass | all scaling budgets preserve zero invalid accepts and verifier authority |
+| data_scaling.quantity_curve | pass | more same-generator rows improve from the smallest budget |
+| data_scaling.saturates_below_current | pass | full same-generator scaling does not beat the current gap-weighted checkpoint |
+| data_scaling.source_hooks | pass | tool, test, and doc expose the raw-volume saturation boundary |
 | epiplexity_literature.schema | pass | epiplexity literature receipt schema and counts are stable |
 | epiplexity_literature.sources | pass | primary epiplexity, proxy counterexample, and companion sources are recorded |
 | epiplexity_literature.task_relevance_gate | pass | literature note requires task-specific heldout ranking metrics |
@@ -227,6 +232,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 | pass | H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519 | pass | H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519 | pass | H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519 | pass | H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 | pass | H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -273,6 +280,16 @@ failed_count: 0
     "schema": "zenodex/energy/upba_v2_curriculum_ranker_report/v1",
     "train_rows": 19981,
     "train_rows_available": 199860
+  },
+  "data_scaling": {
+    "available_train_rows": 199860,
+    "best_budget_beats_current_gap_weighted": false,
+    "current_gap_weighted_mean_calls": 1.0166414523449319,
+    "first_budget_mean_calls": 1.0736258194654564,
+    "full_budget_mean_calls": 1.0176500252143217,
+    "holdout_rows": 39979,
+    "negative_knowledge": "Extra i.i.d. synthetic examples help only if the added batches expose new ranking errors or rare verifier-shaped families; raw volume alone is not a correctness or production-readiness certificate.",
+    "schema": "zenodex/energy/upba_v2_data_scaling_report/v1"
   },
   "dominance_cover": {
     "evaluated_batches": 79,

@@ -697,6 +697,25 @@ negative_edge_ref:                   sha256:0f8ab9e597af214f084f933c53eeaaaf9c77
 checkpoint_ref:                      sha256:502d5c7aff5d700e4069d99c67ac0cd4b003e53f541a080357013b0707a8eafd
 ```
 
+### Synthetic Data Scaling Probe
+
+```text
+json_blob_ref:                       sha256:7fbbc3065e1df1e4f752cd8371e42b32caadb7490cd82728623857a99576b1a7
+markdown_blob_ref:                   sha256:b6b9b36e02235e09f864b96a94f18604b6395b9f26428044741c940dfb9ac723
+context_ref:                         sha256:8309b74d7c226cd23a006317764e9ee3f4a0ae30600b4853f7801efb0bd7d751
+json_artifact_ref:                   sha256:273e44e4e9ad9f09c868ed285682b96eea93a8aa4bd4f0470b8a8dfabd90dcef
+markdown_artifact_ref:               sha256:0fad20cd728f60d8fdb34da10e22cd449420cdbda49c99f58d251bf25a968ac7
+support_recipe_ref:                  sha256:711702d787fba964c94e0dc836c887a8ad7274bfdedaea2c510af70c4684eab7
+refute_recipe_ref:                   sha256:c661298f697bf07e32b9d5cf8ae3daeb61596d4fac0bd396d6741cc73b1ebef0
+support_hypothesis_ref:              sha256:cf476938a53ad0844f9c1115845fa21493f44c06e14f298d75ed07756e394169
+negative_hypothesis_ref:             sha256:02149bbc52224746365ec3b9be9c5b88754aa056160fefbb9fb4b9480ad51023
+support_evidence_ref:                sha256:6a61086adc31203069867b149d0ed1d30f40ab540ed09559c0d64dd9fb21193b
+negative_evidence_ref:               sha256:28df3fbee216e6d2515990a5304cc6614093f11300c2e97090ccea93b5a93d06
+support_edge_ref:                    sha256:848b61b43511cc9ce8ad2e81801f46842cbbbf5a58acae626fde94f2d61bc641
+negative_edge_ref:                   sha256:4a15fca0da9216e7a815490ffe8f95ee70b8befc0c785036e742fd50bc8ec85b
+checkpoint_ref:                      sha256:beccb91109213aad1fbf42510308fefe6970931f67c78e6f9b7336052e2f2584
+```
+
 ## Current Status
 
 ```text
@@ -765,6 +784,8 @@ H_ZENOENERGY_CURRICULUM_RANKER_SAFETY_20260519: supported
 H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519: falsified
 H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519: supported
 H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519: falsified
+H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519: supported
+H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519: falsified
 doctor_ok: true
 ```
 

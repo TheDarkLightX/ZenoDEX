@@ -110,6 +110,12 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    curriculum attempt should change the data generator or loss rather than
    merely increasing rare-disqualifier pair weights.
 
+   The data-scaling probe is recorded in
+   [ZENO_ENERGY_DATA_SCALING.md](./ZENO_ENERGY_DATA_SCALING.md). Raw
+   same-generator volume improved from 999 to 199,860 training rows but still
+   did not beat the current gap-weighted checkpoint, making data quality and
+   coverage the higher-priority axis.
+
    The formal energy-order-alone boundary is recorded in
    [ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md).
    Lean counterexamples now make the weakest safety claim explicit: advisory
@@ -165,6 +171,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | bounded epiplexity proxy | use for data steering | flags label diversity and policy separation before spending training budget |
 | epiplexity as promotion proof | reject | recent proxy/OOD counterexample makes task-relevance evidence mandatory |
 | rare-disqualifier pair-weight curriculum | revise | first bounded probe increased mean verifier calls versus the gap-weighted default |
+| raw same-generator synthetic scaling | revise | more rows helped from small budgets but saturated below the current checkpoint |
 | top-k without fallback | reject | empirical recall cannot replace certificate or fallback |
 | online checked stop | prototype only with suffix-bound certificate | current checked-stop rates are offline audits |
 

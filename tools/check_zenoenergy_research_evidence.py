@@ -593,6 +593,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    data_scaling = _load_json(
+        root / "data/upba_energy/upba_v2_energy_data_scaling_seed20260517.json"
+    )
+    data_scaling_doc = (
+        root / "docs/ZENO_ENERGY_DATA_SCALING.md"
+    ).read_text(encoding="utf-8")
+    data_scaling_tool = (
+        root / "tools/benchmark_upba_energy_data_scaling.py"
+    ).read_text(encoding="utf-8")
+    data_scaling_tests = (
+        root / "tests/energy/test_upba_v2_data_scaling.py"
+    ).read_text(encoding="utf-8")
+    payloads["data_scaling"] = data_scaling
+    checks.extend(
+        _check_data_scaling(
+            data_scaling,
+            data_scaling_doc,
+            data_scaling_tool,
+            data_scaling_tests,
+        )
+    )
+
     epiplexity_literature = _load_json(
         root / "data/upba_energy/zenoenergy_epiplexity_literature_receipt.json"
     )
@@ -2497,6 +2519,59 @@ def _check_curriculum_ranker(
     ]
 
 
+def _check_data_scaling(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    runs = report["runs"]
+    first = runs[0]["metrics"]
+    last = runs[-1]["metrics"]
+    baseline = report["baselines"]["current_gap_weighted"]
+    interpretation = report["interpretation"]
+    return [
+        _expect_true(
+            "data_scaling.schema",
+            report.get("schema") == "zenodex/energy/upba_v2_data_scaling_report/v1"
+            and int(report["available_train_batches"]) == 10000
+            and int(report["available_train_rows"]) == 199860
+            and int(report["holdout_rows"]) == 39979
+            and len(runs) == 8,
+            "data-scaling receipt records the committed synthetic corpus and eight budgets",
+        ),
+        _expect_true(
+            "data_scaling.safety",
+            int(report["safety"]["invalid_accept_count_total"]) == 0
+            and all(int(row["metrics"]["invalid_accept_count"]) == 0 for row in runs)
+            and bool(report["safety"]["verifier_authoritative"]) is True,
+            "all scaling budgets preserve zero invalid accepts and verifier authority",
+        ),
+        _expect_true(
+            "data_scaling.quantity_curve",
+            float(last["mean_verifier_calls"]) < float(first["mean_verifier_calls"])
+            and float(last["top_1_recall"]) > float(first["top_1_recall"])
+            and float(last["top_10_recall"]) == 1.0,
+            "more same-generator rows improve from the smallest budget",
+        ),
+        _expect_true(
+            "data_scaling.saturates_below_current",
+            float(last["mean_verifier_calls"]) >= float(baseline["mean_verifier_calls"])
+            and bool(interpretation["best_budget_beats_current_gap_weighted"]) is False
+            and bool(interpretation["best_budget_matches_current_gap_weighted_top10"]) is True,
+            "full same-generator scaling does not beat the current gap-weighted checkpoint",
+        ),
+        _expect_true(
+            "data_scaling.source_hooks",
+            "upba_v2_data_scaling_report/v1" in tool_text
+            and "raw volume alone" in test_text
+            and "raw volume alone" in doc_text
+            and "Repeating the same" in doc_text,
+            "tool, test, and doc expose the raw-volume saturation boundary",
+        ),
+    ]
+
+
 def _check_epiplexity_literature(
     report: dict[str, Any],
     doc_text: str,
@@ -2614,6 +2689,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_CURRICULUM_RANKER_BEATS_GAP_WEIGHTED_20260519": "falsified",
         "H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519": "supported",
         "H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519": "falsified",
+        "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519": "supported",
+        "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2695,6 +2772,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     ]
     negative_curriculum = payloads["negative_curriculum"]
     curriculum_ranker = payloads["curriculum_ranker"]
+    data_scaling = payloads["data_scaling"]
     energy_order_alone_formal = payloads["energy_order_alone_formal"]
     epiplexity_literature = payloads["epiplexity_literature"]
     return {
@@ -3191,6 +3269,26 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "promotion_decision"
             ],
             "negative_knowledge": curriculum_ranker["interpretation"][
+                "negative_knowledge"
+            ],
+        },
+        "data_scaling": {
+            "schema": data_scaling["schema"],
+            "available_train_rows": data_scaling["available_train_rows"],
+            "holdout_rows": data_scaling["holdout_rows"],
+            "first_budget_mean_calls": data_scaling["runs"][0]["metrics"][
+                "mean_verifier_calls"
+            ],
+            "full_budget_mean_calls": data_scaling["runs"][-1]["metrics"][
+                "mean_verifier_calls"
+            ],
+            "current_gap_weighted_mean_calls": data_scaling["baselines"][
+                "current_gap_weighted"
+            ]["mean_verifier_calls"],
+            "best_budget_beats_current_gap_weighted": data_scaling[
+                "interpretation"
+            ]["best_budget_beats_current_gap_weighted"],
+            "negative_knowledge": data_scaling["interpretation"][
                 "negative_knowledge"
             ],
         },

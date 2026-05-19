@@ -1796,3 +1796,43 @@ Research consequence: the repo now has a machine-checked counterexample to the
 claim that low energy ordering alone is a verifier-facing optimality proof. The
 ranker may reduce search cost only when deterministic verification, full
 fallback, or a suffix-bound checked-stop certificate supplies the authority.
+
+## Synthetic Data Scaling Probe
+
+Artifact:
+[ZENO_ENERGY_DATA_SCALING.md](./ZENO_ENERGY_DATA_SCALING.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_data_scaling_seed20260517.json`
+
+Command:
+
+```bash
+python3 tools/benchmark_upba_energy_data_scaling.py \
+  --batch-counts 50,100,250,500,1000,2500,5000,10000 \
+  --epochs 4
+```
+
+Observed result:
+
+| train rows | top-1 recall | mean calls | p99 | invalid accepts |
+| ---: | ---: | ---: | ---: | ---: |
+| 999 | 0.9390 | 1.0736 | 2 | 0 |
+| 49,969 | 0.9808 | 1.0242 | 2 | 0 |
+| 199,860 | 0.9823 | 1.0177 | 2 | 0 |
+| current checkpoint | 0.9834 | 1.0166 | 2 | 0 |
+
+Positive knowledge:
+
+```text
+More same-generator synthetic examples improve the tiny ranker from small
+training budgets while preserving zero invalid accepts.
+```
+
+Negative knowledge:
+
+```text
+The full 199,860-row same-generator run did not beat the current gap-weighted
+checkpoint. Higher-quality synthetic coverage is a better next bet than raw
+i.i.d. volume.
+```

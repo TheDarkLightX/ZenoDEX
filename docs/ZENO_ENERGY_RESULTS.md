@@ -912,6 +912,21 @@ counterexample in
 Lean proves that low energy ordering alone does not imply true verifier
 weak-optimality for either minimization or maximization objectives.
 
+The data-scaling probe is recorded in
+[ZENO_ENERGY_DATA_SCALING.md](./ZENO_ENERGY_DATA_SCALING.md):
+
+| train rows | top-1 recall | top-10 recall | mean verifier calls | invalid accepts |
+| ---: | ---: | ---: | ---: | ---: |
+| 999 | 0.9390 | 1.0000 | 1.0736 | 0 |
+| 19,990 | 0.9768 | 1.0000 | 1.0308 | 0 |
+| 199,860 | 0.9823 | 1.0000 | 1.0177 | 0 |
+| current gap-weighted checkpoint | 0.9834 | 1.0000 | 1.0166 | 0 |
+
+More same-generator synthetic examples help from small budgets, but full raw
+volume still did not beat the current checkpoint. The next data improvement
+should focus on higher-quality synthetic coverage: replay-shaped batches,
+rare verifier disqualifiers, adversarial suffix families, and mined hard cases.
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -931,12 +946,12 @@ dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
 receipt, the suffix-bound adversarial family stress receipt, the negative
 curriculum epiplexity receipt, the curriculum-ranker negative result, the
-epiplexity literature boundary receipt, the energy-order-alone formal boundary,
-and
+data-scaling saturation receipt, the epiplexity literature boundary receipt, the
+energy-order-alone formal boundary, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 219 passing checks and 0 failed checks, including
+The current receipt reports 226 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy
