@@ -832,30 +832,42 @@ claims:
       Live peer pulls run the same peer check as a preflight, so incompatible
       same-height tips cannot be accepted as no-op pulls. When a live quorum
       registry is supplied, pulled live heights must also satisfy BLS checkpoint
-      signer quorum before admission.
+      signer quorum before admission. Public network configs can require BLS
+      signer-registry quorum over the hash-bound writer and peer URL list before
+      a node treats the config as joinable.
       The policy rejects missing active validators, duplicate validator
       identities, tampered validator-set hashes, wrong scheduled proposers,
       candidate tips that require a local reorg, same-height conflicts, and
-      validator-set mismatches. Open block gossip, validator peer discovery,
-      transport authentication, slashing, and live signer-quorum wiring remain
-      follow-up work.
+      validator-set mismatches, unsigned required public-network configs, and
+      insufficient public-network config signer quorum. Open block gossip,
+      validator peer discovery, transport authentication, slashing, and
+      production key management remain follow-up work.
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
-        - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerPublicNetworkConfigAdmission"
         - cmd: python3 tools/check_production_traceability_matrix.py
       files:
+        - lean-mathlib/Proofs/ZenoLedgerPublicNetworkConfigAdmission.lean
+        - src/integration/zeno_ledger_signature.py
         - src/integration/zeno_ledger_live_quorum_v0.py
         - src/integration/zeno_ledger_validator_schedule_v0.py
         - tools/zeno_ledger_node.py
         - tests/integration/test_zeno_ledger_live_quorum_v0.py
+        - tests/integration/test_zeno_ledger_public_network_config_quorum.py
         - tests/integration/test_zeno_ledger_validator_schedule_v0.py
         - tests/integration/test_zeno_ledger_node_fork_choice.py
         - docs/ZENO_LEDGER_VALIDATOR_SCHEDULE_AND_FORK_CHOICE_V0.md
         - docs/production_traceability_matrix.json
         - docs/PRODUCTION_TRACEABILITY_MATRIX.md
         - tools/run_release_gate.sh
+      formal_objects:
+        - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_admission_safe
+        - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_config_hash_mismatch
+        - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_registry_hash_mismatch
+        - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_missing_quorum
 
   - id: py:zeno_ledger:tee_proof_metadata_adapter_v0
     status: supported

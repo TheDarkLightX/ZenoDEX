@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
+from src.integration.zeno_ledger_signer_registry import verify_signature_quorum_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -71,6 +72,9 @@ NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PEER_FOLLOW_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_follow_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
+NODE_PUBLIC_NETWORK_CONFIG_QUORUM_ADMISSION_SCHEMA = (
+    "zenodex.zeno_ledger.public_network_config_quorum_admission.v0"
+)
 NODE_DOCTOR_REPORT_SCHEMA = "zenodex.zeno_ledger.node_doctor_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
@@ -80,6 +84,14 @@ TESTNET_TOKEN_CREATE_KIND = "ZENODEX_TESTNET_TOKEN_CREATE"
 MAX_TESTNET_TOKEN_SYMBOL_LEN = 16
 MAX_TESTNET_TOKEN_NAME_LEN = 80
 _TESTNET_TOKEN_SYMBOL_RE = re.compile(r"^t[A-Z0-9][A-Z0-9_]{0,14}$")
+PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS = frozenset(
+    {
+        "config_signer_registry",
+        "config_signature_envelopes",
+        "config_quorum_report",
+        "config_quorum_admission",
+    }
+)
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -357,8 +369,108 @@ def _node_status_hash(status: Mapping[str, Any]) -> str:
 
 
 def _public_network_config_hash_v0(config: Mapping[str, Any]) -> str:
-    body = {key: value for key, value in config.items() if key != "network_config_hash"}
+    excluded = {"network_config_hash", *PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS}
+    body = {key: value for key, value in config.items() if key not in excluded}
     return hash_v0("public_network_config_v0", body)
+
+
+def _has_public_network_config_quorum_fields_v0(config: Mapping[str, Any]) -> bool:
+    return any(field in config for field in PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS)
+
+
+def _public_network_config_quorum_admission_v0(
+    *,
+    network_config_hash: str,
+    quorum_report: Mapping[str, Any],
+) -> dict[str, Any]:
+    body = {
+        "schema": NODE_PUBLIC_NETWORK_CONFIG_QUORUM_ADMISSION_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "payload_kind": "public_network_config",
+        "network_config_hash": _require_root_v0(network_config_hash, name="network_config_hash"),
+        "registry_hash": quorum_report["registry_hash"],
+        "threshold": quorum_report["threshold"],
+        "accepted_weight": quorum_report["accepted_weight"],
+        "accepted_signature_count": len(quorum_report["accepted_signatures"]),
+        "quorum_report_hash": quorum_report["quorum_report_hash"],
+    }
+    return {**body, "admission_hash": hash_v0("public_network_config_quorum_admission_v0", body)}
+
+
+def attach_public_network_config_quorum_v0(
+    *,
+    network_config: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    envelopes: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Attach signer-quorum evidence to a public network config."""
+
+    config = dict(network_config)
+    if config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+        raise ValueError("public network config schema mismatch")
+    network_config_hash = _public_network_config_hash_v0(config)
+    if config.get("network_config_hash") != network_config_hash:
+        raise ValueError("public network config hash mismatch")
+    quorum_report = verify_signature_quorum_v0(
+        registry=registry,
+        payload_kind="public_network_config",
+        payload_hash=network_config_hash,
+        envelopes=envelopes,
+    )
+    return {
+        **config,
+        "config_signer_registry": dict(registry),
+        "config_signature_envelopes": [dict(envelope) for envelope in envelopes],
+        "config_quorum_report": quorum_report,
+        "config_quorum_admission": _public_network_config_quorum_admission_v0(
+            network_config_hash=network_config_hash,
+            quorum_report=quorum_report,
+        ),
+    }
+
+
+def validate_public_network_config_quorum_v0(
+    *,
+    network_config: Mapping[str, Any],
+    expected_config_signer_registry_hash: str | None = None,
+) -> dict[str, Any]:
+    """Validate signer-quorum evidence attached to a public network config."""
+
+    config = dict(network_config)
+    if config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+        raise ValueError("public network config schema mismatch")
+    network_config_hash = _public_network_config_hash_v0(config)
+    if config.get("network_config_hash") != network_config_hash:
+        raise ValueError("public network config hash mismatch")
+    registry = config.get("config_signer_registry")
+    if not isinstance(registry, Mapping):
+        raise ValueError("public network config quorum registry is required")
+    envelopes = config.get("config_signature_envelopes")
+    if not isinstance(envelopes, Sequence) or isinstance(envelopes, (str, bytes, bytearray)):
+        raise ValueError("public network config quorum envelopes are required")
+    if expected_config_signer_registry_hash is not None:
+        expected_hash = _require_root_v0(
+            expected_config_signer_registry_hash,
+            name="expected_config_signer_registry_hash",
+        )
+        if registry.get("registry_hash") != expected_hash:
+            raise ValueError("public network config signer registry hash did not match expected hash")
+    quorum_report = verify_signature_quorum_v0(
+        registry=registry,
+        payload_kind="public_network_config",
+        payload_hash=network_config_hash,
+        envelopes=[dict(envelope) for envelope in envelopes],
+    )
+    if config.get("config_quorum_report") != quorum_report:
+        raise ValueError("public network config quorum report mismatch")
+    admission = _public_network_config_quorum_admission_v0(
+        network_config_hash=network_config_hash,
+        quorum_report=quorum_report,
+    )
+    if config.get("config_quorum_admission") != admission:
+        raise ValueError("public network config quorum admission mismatch")
+    return admission
 
 
 def build_node_status_v0(
@@ -2199,12 +2311,23 @@ def _public_network_config_to_join_config_v0(
     port: int | None,
     poll_seconds: int | None,
     serve: bool,
+    require_network_config_quorum: bool = False,
+    expected_config_signer_registry_hash: str | None = None,
 ) -> dict[str, Any]:
     if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
         raise ValueError("public network config schema mismatch")
     expected_hash = network_config.get("network_config_hash")
     if expected_hash is not None and expected_hash != _public_network_config_hash_v0(network_config):
         raise ValueError("public network config hash mismatch")
+    config_quorum_admission: dict[str, Any] | None = None
+    if require_network_config_quorum or expected_config_signer_registry_hash is not None:
+        if not _has_public_network_config_quorum_fields_v0(network_config):
+            raise ValueError("public network config quorum is required")
+    if require_network_config_quorum or expected_config_signer_registry_hash is not None or _has_public_network_config_quorum_fields_v0(network_config):
+        config_quorum_admission = validate_public_network_config_quorum_v0(
+            network_config=network_config,
+            expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+        )
     writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
     peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
     if not writer_urls:
@@ -2228,6 +2351,8 @@ def _public_network_config_to_join_config_v0(
         "enable_testnet_intake": bool(recommended.get("enable_testnet_intake", True)),
         "enable_testnet_faucet": bool(recommended.get("enable_testnet_faucet", True)),
         "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
+        "network_config_quorum_required": require_network_config_quorum,
+        "network_config_quorum_admission": config_quorum_admission,
     }
 
 
@@ -2235,6 +2360,8 @@ def doctor_public_node_v0(
     *,
     config_url: str | None = None,
     expected_network_config_hash: str | None = None,
+    require_network_config_quorum: bool = False,
+    expected_config_signer_registry_hash: str | None = None,
 ) -> dict[str, Any]:
     """Check local and optional remote prerequisites before joining a testnet."""
 
@@ -2279,6 +2406,19 @@ def doctor_public_node_v0(
                 )
                 if actual_hash != pinned_hash:
                     raise ValueError("public network config hash did not match expected hash")
+            config_quorum_admission: dict[str, Any] | None = None
+            if require_network_config_quorum or expected_config_signer_registry_hash is not None:
+                if not _has_public_network_config_quorum_fields_v0(network_config):
+                    raise ValueError("public network config quorum is required")
+            if (
+                require_network_config_quorum
+                or expected_config_signer_registry_hash is not None
+                or _has_public_network_config_quorum_fields_v0(network_config)
+            ):
+                config_quorum_admission = validate_public_network_config_quorum_v0(
+                    network_config=network_config,
+                    expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+                )
             writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
             peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
             if not writer_urls:
@@ -2292,6 +2432,8 @@ def doctor_public_node_v0(
                 "peer_urls": peer_urls,
                 "feature_suite_hash": network_config.get("feature_suite_hash"),
                 "feature_count": network_config.get("feature_count"),
+                "network_config_quorum_required": require_network_config_quorum,
+                "network_config_quorum_admission": config_quorum_admission,
             }
             checks.append({"name": "public_network_config", "ok": True, **remote_summary})
         except Exception as exc:
@@ -2311,6 +2453,8 @@ def doctor_public_node_v0(
         "root": str(ROOT),
         "config_url": config_url,
         "expected_network_config_hash": expected_network_config_hash,
+        "require_network_config_quorum": require_network_config_quorum,
+        "expected_config_signer_registry_hash": expected_config_signer_registry_hash,
         "checks": checks,
         "remote_network": remote_summary,
     }
@@ -2327,6 +2471,8 @@ def join_public_node_from_network_config_url_v0(
     poll_seconds: int | None,
     serve: bool,
     expected_network_config_hash: str | None = None,
+    require_network_config_quorum: bool = False,
+    expected_config_signer_registry_hash: str | None = None,
 ) -> dict[str, Any]:
     """Join a public ZenoLedger testnet from one published network config URL."""
 
@@ -2345,6 +2491,8 @@ def join_public_node_from_network_config_url_v0(
         port=port,
         poll_seconds=poll_seconds,
         serve=serve,
+        require_network_config_quorum=require_network_config_quorum,
+        expected_config_signer_registry_hash=expected_config_signer_registry_hash,
     )
     data_dir.mkdir(parents=True, exist_ok=True)
     network_config_path = data_dir / "public_network_config.json"
@@ -2356,6 +2504,9 @@ def join_public_node_from_network_config_url_v0(
     report["network_config_path"] = str(network_config_path)
     report["network_config_hash"] = network_config.get("network_config_hash")
     report["expected_network_config_hash"] = expected_network_config_hash
+    report["network_config_quorum_required"] = require_network_config_quorum
+    report["network_config_quorum_admission"] = join_config.get("network_config_quorum_admission")
+    report["expected_config_signer_registry_hash"] = expected_config_signer_registry_hash
     return report
 
 
@@ -2397,6 +2548,17 @@ def _cmd_write_network_config(args: argparse.Namespace) -> int:
             poll_seconds=args.poll_seconds,
             node_port=args.node_port,
         )
+        if args.config_signature_envelope and args.config_signer_registry is None:
+            raise ValueError("config signer registry is required when config signature envelopes are supplied")
+        if args.config_signer_registry is not None:
+            report = attach_public_network_config_quorum_v0(
+                network_config=report,
+                registry=_load_json_object(args.config_signer_registry),
+                envelopes=[
+                    _load_json_object(path)
+                    for path in args.config_signature_envelope
+                ],
+            )
         _write_json(args.out, report)
         report = {**report, "config_path": str(args.out)}
     except Exception as exc:
@@ -2533,6 +2695,8 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             poll_seconds=args.poll_seconds,
             serve=args.serve,
             expected_network_config_hash=args.expected_network_config_hash,
+            require_network_config_quorum=args.require_network_config_quorum,
+            expected_config_signer_registry_hash=args.expected_config_signer_registry_hash,
         )
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -2559,6 +2723,8 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         report = doctor_public_node_v0(
             config_url=args.config_url,
             expected_network_config_hash=args.expected_network_config_hash,
+            require_network_config_quorum=args.require_network_config_quorum,
+            expected_config_signer_registry_hash=args.expected_config_signer_registry_hash,
         )
     except Exception as exc:
         report = {"schema": NODE_DOCTOR_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -2644,6 +2810,8 @@ def main(argv: list[str] | None = None) -> int:
     write_network_config.add_argument("--peer-url", action="append", default=[])
     write_network_config.add_argument("--poll-seconds", type=int, default=5)
     write_network_config.add_argument("--node-port", type=int, default=8788)
+    write_network_config.add_argument("--config-signer-registry", type=Path)
+    write_network_config.add_argument("--config-signature-envelope", action="append", default=[], type=Path)
     write_network_config.add_argument("--out", required=True, type=Path)
     write_network_config.set_defaults(func=_cmd_write_network_config)
 
@@ -2661,11 +2829,15 @@ def main(argv: list[str] | None = None) -> int:
     join_network.add_argument("--port", type=int)
     join_network.add_argument("--poll-seconds", type=int)
     join_network.add_argument("--expected-network-config-hash")
+    join_network.add_argument("--require-network-config-quorum", action="store_true")
+    join_network.add_argument("--expected-config-signer-registry-hash")
     join_network.set_defaults(func=_cmd_join_network)
 
     doctor = sub.add_parser("doctor", help="check local and optional public-network bootstrap prerequisites")
     doctor.add_argument("--config-url")
     doctor.add_argument("--expected-network-config-hash")
+    doctor.add_argument("--require-network-config-quorum", action="store_true")
+    doctor.add_argument("--expected-config-signer-registry-hash")
     doctor.set_defaults(func=_cmd_doctor)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")
