@@ -57,11 +57,34 @@ What is intentionally **not** shipped:
 Clean checkout workflow (with documented external toolchains available):
 
 ```bash
+PYTHON=python3 tools/install_python_hash_locked_deps.sh dev
+python3 tools/check_release_external_toolchains.py
 python3 tools/permissionless_assurance.py status
 python3 tools/permissionless_assurance.py replay public
 python3 tools/permissionless_assurance.py replay critical
 python3 tools/permissionless_assurance.py replay full
 ```
+
+External toolchain preflight:
+
+- `tools/run_release_gate.sh` fails fast through
+  `tools/check_release_external_toolchains.py` before long-running release
+  lanes start.
+- The release gate requires ESSO for the snapshot recovery lane. Provide it by
+  placing a matching ESSO checkout at `external/ESSO` or by using a Python
+  environment where `import ESSO` exposes the LTLf multi-property API used by
+  the perps evidence lane.
+- The Tau syntax lane requires a Tau compiler. Provide it with
+  `TAU_BIN=/path/to/tau` or by building
+  `external/tau-lang/build-Release/tau`.
+- The bounded TLA/TLC lane requires `tla2tools.jar`. Provide it with
+  `TLA_JAR=/path/to/tla2tools.jar` or by running
+  `bash tools/install_tla_tools.sh`.
+- Lean release lanes require `external/mathlib4` because
+  `lean-mathlib/lakefile.lean` pins mathlib through that relative checkout.
+  A local symlink to a reviewed mathlib4 checkout is sufficient.
+- `external/` remains git-ignored by design. The public replay contract is the
+  tracked checker plus the documented external toolchain requirement.
 
 Acceptance fuzz tiers:
 

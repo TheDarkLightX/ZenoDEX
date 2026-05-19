@@ -46,6 +46,9 @@ run_if_present() {
 require_module "pytest" "pytest"
 require_module "pip_audit" "pip-audit"
 
+echo "== release: external toolchain preflight =="
+"$PY" "$ROOT_DIR/tools/check_release_external_toolchains.py"
+
 echo "== release: shape v1 ratchet =="
 "$PY" "$ROOT_DIR/tools/check_shape_v1_ratchet.py"
 

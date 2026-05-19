@@ -49,7 +49,9 @@ if [[ -d "$ROOT_DIR/external/ESSO" ]]; then
 fi
 require_module "ESSO" "ESSO"
 
-require_path "TLA tools" "$ROOT_DIR/external/tla-tools/tla2tools.jar"
+TLA_TOOLS_JAR="${TLA_JAR:-$ROOT_DIR/external/tla-tools/tla2tools.jar}"
+require_path "TLA tools" "$TLA_TOOLS_JAR"
+export TLA_JAR="$TLA_TOOLS_JAR"
 require_path "mathlib4 checkout" "$ROOT_DIR/external/mathlib4"
 require_path "Lean proof root" "$ROOT_DIR/lean-mathlib"
 require_path "Tau provenance ESSO kernel" "$ROOT_DIR/src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml"
