@@ -176,6 +176,7 @@ import Proofs.FIREStrictSettlementAuthority
 import Proofs.FIREStrictSpecParsing
 import Proofs.UniformBatchClearingV1
 import Proofs.UniformBatchOptimality
+import Proofs.ZenoLedgerBondedSlashingSafety
 import Proofs.ZenoLedgerDisjointWrites
 import Proofs.ZenoLedgerPublicNetworkConfigAdmission
 import Proofs.ZenoLedgerSlashingEvidenceAdmission

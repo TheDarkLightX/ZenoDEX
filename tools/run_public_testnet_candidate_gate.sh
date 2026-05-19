@@ -63,6 +63,10 @@ echo "== public-testnet: anti-equivocation check =="
 "$PY" tools/check_zeno_ledger_anti_equivocation.py \
   > "$OUT_DIR/anti_equivocation.json"
 
+echo "== public-testnet: bonded slashing check =="
+"$PY" tools/check_zeno_ledger_bonded_slashing.py \
+  > "$OUT_DIR/bonded_slashing.json"
+
 echo "== public-testnet: public bundle =="
 "$PY" tools/zeno_ledger_make_public_testnet_bundle.py \
   --out-dir "$OUT_DIR/public_bundle"

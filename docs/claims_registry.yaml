@@ -839,37 +839,50 @@ claims:
       and peer checks, pulls, follows, evidence reports, and Machine B acceptance
       can supply that token without placing it in the signed public config.
       Checkpoint and watcher-attestation equivocation can be converted into
-      hash-bound slashing evidence packets for later policy execution.
+      hash-bound slashing evidence packets and consumed by a bounded bonded
+      slashing receipt policy when the subject has an active bond, the evidence
+      hash is fresh, the event height is inside the slashability window, and the
+      slash amount is bounded by the available bond.
       The policy rejects missing active validators, duplicate validator
       identities, tampered validator-set hashes, wrong scheduled proposers,
       candidate tips that require a local reorg, same-height conflicts, and
       validator-set mismatches, unsigned required public-network configs, and
-      insufficient public-network config signer quorum. Open block gossip,
-      validator peer discovery, bonded slashing execution, and production key
+      insufficient public-network config signer quorum. The bonded slashing
+      surface rejects unbonded subjects, replayed evidence hashes,
+      slash-over-available-bond receipts, expired slashability windows, and
+      wrong subject kinds. Open block gossip, validator peer discovery, live
+      custody integration, appeal/governance policy, and production key
       management remain follow-up work.
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile src/integration/zeno_ledger_anti_equivocation_v0.py src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/check_zeno_ledger_anti_equivocation.py tools/zeno_ledger_node.py tools/zeno_ledger_machine_b_acceptance.py tests/integration/test_zeno_ledger_anti_equivocation_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_anti_equivocation_v0.py src/integration/zeno_ledger_bonded_slashing_v0.py src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/check_zeno_ledger_anti_equivocation.py tools/check_zeno_ledger_bonded_slashing.py tools/zeno_ledger_node.py tools/zeno_ledger_machine_b_acceptance.py tests/integration/test_zeno_ledger_anti_equivocation_v0.py tests/integration/test_zeno_ledger_bonded_slashing_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_anti_equivocation_v0.py
         - cmd: python3 tools/check_zeno_ledger_anti_equivocation.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_bonded_slashing_v0.py
+        - cmd: python3 tools/check_zeno_ledger_bonded_slashing.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerBondedSlashingSafety"
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerPublicNetworkConfigAdmission"
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerSlashingEvidenceAdmission"
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerTransportAuthAdmission"
         - cmd: python3 tools/check_production_traceability_matrix.py
       files:
+        - lean-mathlib/Proofs/ZenoLedgerBondedSlashingSafety.lean
         - lean-mathlib/Proofs/ZenoLedgerPublicNetworkConfigAdmission.lean
         - lean-mathlib/Proofs/ZenoLedgerSlashingEvidenceAdmission.lean
         - lean-mathlib/Proofs/ZenoLedgerTransportAuthAdmission.lean
         - src/integration/zeno_ledger_anti_equivocation_v0.py
+        - src/integration/zeno_ledger_bonded_slashing_v0.py
         - src/integration/zeno_ledger_signature.py
         - src/integration/zeno_ledger_live_quorum_v0.py
         - src/integration/zeno_ledger_validator_schedule_v0.py
         - tools/zeno_ledger_node.py
         - tools/zeno_ledger_machine_b_acceptance.py
         - tools/check_zeno_ledger_anti_equivocation.py
+        - tools/check_zeno_ledger_bonded_slashing.py
         - tests/integration/test_zeno_ledger_anti_equivocation_v0.py
+        - tests/integration/test_zeno_ledger_bonded_slashing_v0.py
         - tests/integration/test_zeno_ledger_live_quorum_v0.py
         - tests/integration/test_zeno_ledger_node_transport_auth.py
         - tests/integration/test_zeno_ledger_public_network_config_quorum.py
@@ -880,6 +893,13 @@ claims:
         - docs/PRODUCTION_TRACEABILITY_MATRIX.md
         - tools/run_release_gate.sh
       formal_objects:
+        - Proofs.ZenoLedgerBondedSlashingSafety.admitted_slash_le_available_bond
+        - Proofs.ZenoLedgerBondedSlashingSafety.admitted_evidence_hash_fresh
+        - Proofs.ZenoLedgerBondedSlashingSafety.admitted_inside_slashability_window
+        - Proofs.ZenoLedgerBondedSlashingSafety.admitted_burn_treasury_conservation
+        - Proofs.ZenoLedgerBondedSlashingSafety.rejects_slash_over_available_bond
+        - Proofs.ZenoLedgerBondedSlashingSafety.rejects_replayed_evidence_hash
+        - Proofs.ZenoLedgerBondedSlashingSafety.rejects_expired_slashability_window
         - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_admission_safe
         - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_config_hash_mismatch
         - Proofs.ZenoLedgerPublicNetworkConfigAdmission.required_rejects_registry_hash_mismatch
