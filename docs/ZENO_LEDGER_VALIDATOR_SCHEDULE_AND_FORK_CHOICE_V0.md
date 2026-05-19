@@ -98,3 +98,6 @@ compatibility requires the deterministic fork-choice decision to be one of:
 Conflicting same-height live tips and peer-ahead tips that require a local reorg
 therefore fail the peer check before the follower path can treat the peer as
 compatible.
+
+`pull_live_from_peer_v0` uses the same peer check as a preflight. An
+incompatible peer therefore cannot be accepted as a harmless zero-block pull.

@@ -1266,10 +1266,26 @@ def pull_live_from_peer_v0(
 
     node_status = load_node_status_v0(data_dir)
     bundle_root = Path(str(node_status["bundle_root"]))
-    public_manifest = _read_public_manifest(bundle_root)
-    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
     base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
     local_latest = int(base["latest_height"])
+    peer_check = check_peer_status_v0(data_dir=data_dir, peer_urls=[peer_url])
+    peer_report = peer_check["peers"][0] if peer_check.get("peers") else None
+    if peer_check.get("ok") is not True:
+        return {
+            "schema": NODE_PULL_REPORT_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "peer_url": peer_url,
+            "pulled_count": 0,
+            "local_latest_height": local_latest,
+            "peer_latest_height": (
+                dict(peer_report).get("peer_tip", {}).get("height")
+                if isinstance(peer_report, Mapping)
+                else None
+            ),
+            "reject_reason": "peer_check_rejected",
+            "peer_check": peer_check,
+        }
     peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
     if peer_live.get("ok") is not True or peer_live.get("live") is not True:
         return {
@@ -1279,6 +1295,7 @@ def pull_live_from_peer_v0(
             "pulled_count": 0,
             "local_latest_height": local_latest,
             "peer_live": False,
+            "peer_check": peer_check,
         }
     peer_state = peer_live.get("state")
     if not isinstance(peer_state, Mapping):
@@ -1292,8 +1309,11 @@ def pull_live_from_peer_v0(
             "pulled_count": 0,
             "local_latest_height": local_latest,
             "peer_latest_height": peer_latest,
+            "peer_check": peer_check,
         }
 
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
     pulled: list[dict[str, Any]] = []
     current_prev_header = Path(str(base["prev_header_path"]))
     current_pre_snapshot = Path(str(base["pre_snapshot_path"]))
@@ -1379,6 +1399,7 @@ def pull_live_from_peer_v0(
         "pulled_count": len(pulled),
         "pulled": pulled,
         "local_latest_height": peer_latest,
+        "peer_check": peer_check,
     }
     pull_report_path = data_dir / "pull_reports" / f"{peer_latest}.json"
     _write_json(pull_report_path, report)

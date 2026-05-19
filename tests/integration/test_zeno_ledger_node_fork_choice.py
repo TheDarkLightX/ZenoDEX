@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from src.integration.zeno_ledger_v0 import build_header_v0, canonical_header_hash_v0, hash_v0
-from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, check_peer_status_v0
+from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, check_peer_status_v0, pull_live_from_peer_v0
 
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -266,3 +266,48 @@ def test_peer_check_rejects_same_height_conflicting_live_tip(tmp_path: Path) -> 
     assert peer["fork_choice_compatible"] is False
     assert peer["fork_choice"]["decision"] == "reject_candidate"
     assert peer["fork_choice"]["reason"] == "common_prefix_mismatch"
+
+
+def test_pull_live_from_peer_rejects_incompatible_same_height_tip(tmp_path: Path) -> None:
+    sequencer_set_hash = _root("validator-set")
+    local_header_hash = _root("local-live-6")
+    peer_header = _header(height=6, label="peer-conflict", sequencer_set_hash=sequencer_set_hash)
+    peer_header_hash = canonical_header_hash_v0(peer_header)
+    data_dir = tmp_path / "local"
+    _write_local_node(
+        data_dir=data_dir,
+        latest_height=6,
+        latest_header_hash=local_header_hash,
+        sequencer_set_hash=sequencer_set_hash,
+        live=True,
+    )
+    peer_status = _status(
+        node_id="peer-node",
+        data_dir=tmp_path / "peer",
+        bundle_root=tmp_path / "peer-bundle",
+        latest_height=5,
+        last_header_hash=_root("bootstrap-5"),
+        sequencer_set_hash=sequencer_set_hash,
+    )
+    server = _serve_peer(
+        peer_status=peer_status,
+        live_state={
+            "schema": "zenodex.zeno_ledger.node_live_state.v0",
+            "latest_height": 6,
+            "latest_header_hash": peer_header_hash,
+            "latest_app_hash": _root("peer-app-6"),
+        },
+        live_headers={6: peer_header},
+    )
+    try:
+        host, port = server.server_address
+        pull_report = pull_live_from_peer_v0(data_dir=data_dir, peer_url=f"http://{host}:{port}")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert pull_report["ok"] is False
+    assert pull_report["status"] == "rejected"
+    assert pull_report["pulled_count"] == 0
+    assert pull_report["reject_reason"] == "peer_check_rejected"
+    assert pull_report["peer_check"]["peers"][0]["fork_choice"]["decision"] == "reject_candidate"

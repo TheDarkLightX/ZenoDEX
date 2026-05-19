@@ -829,6 +829,8 @@ claims:
       extend-only fork choice over already verified tips. Node peer checks emit
       the deterministic fork-choice report and reject peers whose tips are
       neither local-tip extensions, identical tips, nor known local prefixes.
+      Live peer pulls run the same peer check as a preflight, so incompatible
+      same-height tips cannot be accepted as no-op pulls.
       The policy rejects missing active validators, duplicate validator
       identities, tampered validator-set hashes, wrong scheduled proposers,
       candidate tips that require a local reorg, same-height conflicts, and
