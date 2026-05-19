@@ -44,7 +44,7 @@ bash tools/prod_gate.sh --skip-ui
 - Trivy is downloaded into `tools/_secbin/` when missing or when the existing binary is not at the pinned version, and the pinned tarball checksum is verified before extraction.
 - The PR-time dependency assurance workflow is stricter than the historical
   local production gate: it requires zero DEX UI npm vulnerabilities, a clean
-  `pip-audit -r requirements.txt`, and no RISC0 RustSec vulnerability
+  `pip-audit` run over the Python lockfiles, and no RISC0 RustSec vulnerability
   findings.
 - The local production gate still treats the final container artifact as the
   launch blocker and scans it for fixable HIGH/CRITICAL vulnerabilities.
