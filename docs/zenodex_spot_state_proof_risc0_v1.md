@@ -95,6 +95,7 @@ useful subset:
 - Supported intent kinds:
   - `CREATE_POOL`
   - `SWAP_EXACT_IN`
+  - `SWAP_EXACT_OUT`
   - `ADD_LIQUIDITY`
   - `REMOVE_LIQUIDITY`
 - Faucet op:
@@ -135,6 +136,7 @@ Risc0 receipts for:
 - `faucet_mint`
 - `create_pool`
 - `swap_exact_in`
+- `swap_exact_out`
 - `add_liquidity`
 - `remove_liquidity`
 - `spot_block_liquidity_cycle`
