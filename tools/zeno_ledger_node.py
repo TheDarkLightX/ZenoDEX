@@ -18,7 +18,7 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.error import HTTPError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
+from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -1261,6 +1262,8 @@ def pull_live_from_peer_v0(
     *,
     data_dir: Path,
     peer_url: str,
+    live_quorum_registry: Mapping[str, Any] | None = None,
+    live_quorum_envelopes_by_height: Mapping[int, Sequence[Mapping[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Pull live blocks from a peer and accept only deterministic replays."""
 
@@ -1312,15 +1315,63 @@ def pull_live_from_peer_v0(
             "peer_check": peer_check,
         }
 
+    quorum_admissions_by_height: dict[int, dict[str, Any]] = {}
+    if live_quorum_registry is not None:
+        for height in range(local_latest + 1, peer_latest + 1):
+            envelopes = (
+                dict(live_quorum_envelopes_by_height or {}).get(height)
+                if live_quorum_envelopes_by_height is not None
+                else None
+            )
+            if envelopes is None:
+                return {
+                    "schema": NODE_PULL_REPORT_SCHEMA,
+                    "ok": False,
+                    "status": "rejected",
+                    "peer_url": peer_url,
+                    "pulled_count": 0,
+                    "local_latest_height": local_latest,
+                    "peer_latest_height": peer_latest,
+                    "reject_reason": "live_quorum_missing_envelopes",
+                    "height": height,
+                    "peer_check": peer_check,
+                }
+            try:
+                peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+                peer_checkpoint = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/checkpoint/{height}"))
+                quorum_admissions_by_height[height] = build_live_checkpoint_quorum_admission_v0(
+                    header=peer_header,
+                    checkpoint=peer_checkpoint,
+                    registry=live_quorum_registry,
+                    envelopes=envelopes,
+                )
+            except Exception as exc:
+                return {
+                    "schema": NODE_PULL_REPORT_SCHEMA,
+                    "ok": False,
+                    "status": "rejected",
+                    "peer_url": peer_url,
+                    "pulled_count": 0,
+                    "local_latest_height": local_latest,
+                    "peer_latest_height": peer_latest,
+                    "reject_reason": "live_quorum_rejected",
+                    "height": height,
+                    "errors": [str(exc)],
+                    "peer_check": peer_check,
+                }
+
     public_manifest = _read_public_manifest(bundle_root)
     bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
     pulled: list[dict[str, Any]] = []
+    quorum_admissions: list[dict[str, Any]] = []
     current_prev_header = Path(str(base["prev_header_path"]))
     current_pre_snapshot = Path(str(base["pre_snapshot_path"]))
     live_ledger_dir = data_dir / "live_ledger"
     for height in range(local_latest + 1, peer_latest + 1):
         peer_body = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"))
         peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+        if live_quorum_registry is not None:
+            quorum_admissions.append(quorum_admissions_by_height[height])
         if _is_faucet_body_v0(peer_body):
             block_report = _build_faucet_block_from_body_v0(
                 data_dir=data_dir,
@@ -1399,6 +1450,8 @@ def pull_live_from_peer_v0(
         "pulled_count": len(pulled),
         "pulled": pulled,
         "local_latest_height": peer_latest,
+        "live_quorum_required": live_quorum_registry is not None,
+        "live_quorum_admissions": quorum_admissions,
         "peer_check": peer_check,
     }
     pull_report_path = data_dir / "pull_reports" / f"{peer_latest}.json"
@@ -1410,6 +1463,8 @@ def poll_live_peers_once_v0(
     *,
     data_dir: Path,
     peer_urls: list[str],
+    live_quorum_registry: Mapping[str, Any] | None = None,
+    live_quorum_envelopes_by_height: Mapping[int, Sequence[Mapping[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Poll all configured peers once and persist an operator-visible report."""
 
@@ -1417,7 +1472,12 @@ def poll_live_peers_once_v0(
     peer_reports: list[dict[str, Any]] = []
     for peer_url in peer_urls:
         try:
-            pull_report = pull_live_from_peer_v0(data_dir=data_dir, peer_url=peer_url)
+            pull_report = pull_live_from_peer_v0(
+                data_dir=data_dir,
+                peer_url=peer_url,
+                live_quorum_registry=live_quorum_registry,
+                live_quorum_envelopes_by_height=live_quorum_envelopes_by_height,
+            )
             peer_reports.append(
                 {
                     "peer_url": peer_url,

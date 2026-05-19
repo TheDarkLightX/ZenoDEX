@@ -830,7 +830,9 @@ claims:
       the deterministic fork-choice report and reject peers whose tips are
       neither local-tip extensions, identical tips, nor known local prefixes.
       Live peer pulls run the same peer check as a preflight, so incompatible
-      same-height tips cannot be accepted as no-op pulls.
+      same-height tips cannot be accepted as no-op pulls. When a live quorum
+      registry is supplied, pulled live heights must also satisfy BLS checkpoint
+      signer quorum before admission.
       The policy rejects missing active validators, duplicate validator
       identities, tampered validator-set hashes, wrong scheduled proposers,
       candidate tips that require a local reorg, same-height conflicts, and
@@ -840,12 +842,14 @@ claims:
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
-        - cmd: pytest -q tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/zeno_ledger_node.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
         - cmd: python3 tools/check_production_traceability_matrix.py
       files:
+        - src/integration/zeno_ledger_live_quorum_v0.py
         - src/integration/zeno_ledger_validator_schedule_v0.py
         - tools/zeno_ledger_node.py
+        - tests/integration/test_zeno_ledger_live_quorum_v0.py
         - tests/integration/test_zeno_ledger_validator_schedule_v0.py
         - tests/integration/test_zeno_ledger_node_fork_choice.py
         - docs/ZENO_LEDGER_VALIDATOR_SCHEDULE_AND_FORK_CHOICE_V0.md
