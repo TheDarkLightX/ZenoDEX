@@ -73,6 +73,13 @@ echo "== release: UPBA grid economic sufficiency =="
 "$PY" "$ROOT_DIR/tools/check_upba_grid_policy.py"
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_upba_grid_policy.py"
 
+echo "== release: UPBA v2 grid economic sufficiency =="
+"$PY" -m py_compile \
+  "$ROOT_DIR/tools/check_upba_v2_grid_policy.py" \
+  "$ROOT_DIR/tests/tools/test_check_upba_v2_grid_policy.py"
+"$PY" "$ROOT_DIR/tools/check_upba_v2_grid_policy.py"
+"$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_upba_v2_grid_policy.py"
+
 echo "== release: acceptance mutation gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
 

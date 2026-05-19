@@ -599,6 +599,43 @@ claims:
         - Proofs.UPBAGridEpsilon.actual_loss_plus_rounding_le_budget
         - Proofs.UPBAGridEpsilon.relative_loss_cross_mul_budget
 
+  - id: py_lean:upba:v2_grid_economic_sufficiency_policy_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The UPBA v2 bounded-grid economic sufficiency checker validates a
+      production-candidate v2 single-pool partial-fill exact-in grid policy
+      using exact integer arithmetic. It checks that the raw bounded price grid
+      contains the declared fixed-denominator economic ladder, that maximum
+      total executed input is bounded by active-intent and reserve-fraction
+      caps, that the declared fill quantum induces a finite fill-vector surface
+      within policy limits, and that the conservative price-grid plus
+      fill-quantum loss bound fits both absolute and relative loss budgets. The
+      Lean packet `Proofs.UPBAV2GridEpsilon` proves the budget-composition
+      step: when model-side price-grid and fill-quantum approximation losses are
+      each bounded by the checker-computed terms, the accepted
+      price-plus-fill-plus-rounding budget also bounds actual combined loss plus
+      rounding. This claim does not prove unbounded rational optimality, every
+      possible market condition, exact-out, multi-hop routing, oracle truth,
+      fair inclusion, or production safety for a scorer that skips the declared
+      fill-vector surface.
+    evidence:
+      kind: python+lean
+      check:
+        - cmd: python3 tools/check_upba_v2_grid_policy.py
+        - cmd: pytest -q tests/tools/test_check_upba_v2_grid_policy.py
+        - cmd: bash -lc "cd lean-mathlib && lake env lean Proofs/UPBAV2GridEpsilon.lean"
+        - cmd: pytest -q tests/formal/test_lean_upba_v2_grid_epsilon.py
+      files:
+        - tools/check_upba_v2_grid_policy.py
+        - tests/tools/test_check_upba_v2_grid_policy.py
+        - docs/UPBA_V2_ECONOMIC_SUFFICIENCY_V1.md
+        - lean-mathlib/Proofs/UPBAV2GridEpsilon.lean
+        - tests/formal/test_lean_upba_v2_grid_epsilon.py
+      theorems:
+        - Proofs.UPBAV2GridEpsilon.actual_partial_loss_plus_rounding_le_budget
+        - Proofs.UPBAV2GridEpsilon.relative_loss_cross_mul_budget
+
   - id: lean:zeno_ledger:zk_tee_proof_composition_v1
     status: proved
     layer: math
