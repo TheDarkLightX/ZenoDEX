@@ -858,23 +858,31 @@ claims:
       disabled by default, and when enabled it accepts only hash-bound
       header/body/checkpoint envelopes that extend the local tip by one height,
       match the local replayed header and checkpoint, and satisfy any configured
-      live checkpoint quorum. Dynamic peer exchange, broad gossip mesh/flood
-      control, live custody integration, appeal/governance policy, and
-      production key management remain follow-up work.
+      live checkpoint quorum. Block gossip also records a bounded seen-envelope
+      cache and enforces a transaction-count cap before replay. Dynamic peer
+      exchange is an opt-in `/peers/announce` path: candidate URLs must be
+      canonical, hash-bound, same network/chain, locally peer-checked, fork-choice
+      compatible, and inside the configured peer-count cap before they enter the
+      node's dynamic peer state. Live custody integration, appeal/governance
+      policy, production key management, and internet-scale gossip scoring remain
+      follow-up work.
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile src/integration/zeno_ledger_anti_equivocation_v0.py src/integration/zeno_ledger_block_gossip_v0.py src/integration/zeno_ledger_bonded_slashing_v0.py src/integration/zeno_ledger_peer_discovery_v0.py src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/check_zeno_ledger_anti_equivocation.py tools/check_zeno_ledger_block_gossip.py tools/check_zeno_ledger_bonded_slashing.py tools/check_zeno_ledger_peer_discovery.py tools/zeno_ledger_node.py tools/zeno_ledger_machine_b_acceptance.py tests/integration/test_zeno_ledger_anti_equivocation_v0.py tests/integration/test_zeno_ledger_block_gossip_v0.py tests/integration/test_zeno_ledger_bonded_slashing_v0.py tests/integration/test_zeno_ledger_peer_discovery_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
+        - cmd: python3 -m py_compile src/integration/zeno_ledger_anti_equivocation_v0.py src/integration/zeno_ledger_block_gossip_v0.py src/integration/zeno_ledger_bonded_slashing_v0.py src/integration/zeno_ledger_dynamic_peers_v0.py src/integration/zeno_ledger_peer_discovery_v0.py src/integration/zeno_ledger_signature.py src/integration/zeno_ledger_live_quorum_v0.py src/integration/zeno_ledger_validator_schedule_v0.py tools/check_zeno_ledger_anti_equivocation.py tools/check_zeno_ledger_block_gossip.py tools/check_zeno_ledger_bonded_slashing.py tools/check_zeno_ledger_dynamic_peers.py tools/check_zeno_ledger_peer_discovery.py tools/zeno_ledger_node.py tools/zeno_ledger_machine_b_acceptance.py tests/integration/test_zeno_ledger_anti_equivocation_v0.py tests/integration/test_zeno_ledger_block_gossip_v0.py tests/integration/test_zeno_ledger_bonded_slashing_v0.py tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py tests/integration/test_zeno_ledger_peer_discovery_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_anti_equivocation_v0.py
         - cmd: python3 tools/check_zeno_ledger_anti_equivocation.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_bonded_slashing_v0.py
         - cmd: python3 tools/check_zeno_ledger_bonded_slashing.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_block_gossip_v0.py
         - cmd: python3 tools/check_zeno_ledger_block_gossip.py
+        - cmd: pytest -q tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py
+        - cmd: python3 tools/check_zeno_ledger_dynamic_peers.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_peer_discovery_v0.py
         - cmd: python3 tools/check_zeno_ledger_peer_discovery.py
         - cmd: pytest -q tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_node_transport_auth.py tests/integration/test_zeno_ledger_peer_discovery_v0.py tests/integration/test_zeno_ledger_public_network_config_quorum.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerBlockGossipAdmission"
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerDynamicPeerAdmission"
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerBondedSlashingSafety"
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerPeerDiscoveryAdmission"
         - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoLedgerPublicNetworkConfigAdmission"
@@ -884,6 +892,7 @@ claims:
       files:
         - lean-mathlib/Proofs/ZenoLedgerBlockGossipAdmission.lean
         - lean-mathlib/Proofs/ZenoLedgerBondedSlashingSafety.lean
+        - lean-mathlib/Proofs/ZenoLedgerDynamicPeerAdmission.lean
         - lean-mathlib/Proofs/ZenoLedgerPeerDiscoveryAdmission.lean
         - lean-mathlib/Proofs/ZenoLedgerPublicNetworkConfigAdmission.lean
         - lean-mathlib/Proofs/ZenoLedgerSlashingEvidenceAdmission.lean
@@ -891,6 +900,7 @@ claims:
         - src/integration/zeno_ledger_anti_equivocation_v0.py
         - src/integration/zeno_ledger_block_gossip_v0.py
         - src/integration/zeno_ledger_bonded_slashing_v0.py
+        - src/integration/zeno_ledger_dynamic_peers_v0.py
         - src/integration/zeno_ledger_peer_discovery_v0.py
         - src/integration/zeno_ledger_signature.py
         - src/integration/zeno_ledger_live_quorum_v0.py
@@ -900,10 +910,12 @@ claims:
         - tools/check_zeno_ledger_anti_equivocation.py
         - tools/check_zeno_ledger_block_gossip.py
         - tools/check_zeno_ledger_bonded_slashing.py
+        - tools/check_zeno_ledger_dynamic_peers.py
         - tools/check_zeno_ledger_peer_discovery.py
         - tests/integration/test_zeno_ledger_anti_equivocation_v0.py
         - tests/integration/test_zeno_ledger_block_gossip_v0.py
         - tests/integration/test_zeno_ledger_bonded_slashing_v0.py
+        - tests/integration/test_zeno_ledger_dynamic_peer_exchange_v0.py
         - tests/integration/test_zeno_ledger_peer_discovery_v0.py
         - tests/integration/test_zeno_ledger_live_quorum_v0.py
         - tests/integration/test_zeno_ledger_node_transport_auth.py
@@ -921,6 +933,11 @@ claims:
         - Proofs.ZenoLedgerBlockGossipAdmission.rejects_disabled_route
         - Proofs.ZenoLedgerBlockGossipAdmission.rejects_non_extending_block
         - Proofs.ZenoLedgerBlockGossipAdmission.rejects_replay_header_mismatch
+        - Proofs.ZenoLedgerDynamicPeerAdmission.admitted_peer_check_passed
+        - Proofs.ZenoLedgerDynamicPeerAdmission.admitted_final_peer_count_within_cap
+        - Proofs.ZenoLedgerDynamicPeerAdmission.rejects_disabled_route
+        - Proofs.ZenoLedgerDynamicPeerAdmission.rejects_failed_peer_check
+        - Proofs.ZenoLedgerDynamicPeerAdmission.rejects_cap_overflow
         - Proofs.ZenoLedgerBondedSlashingSafety.admitted_slash_le_available_bond
         - Proofs.ZenoLedgerBondedSlashingSafety.admitted_evidence_hash_fresh
         - Proofs.ZenoLedgerBondedSlashingSafety.admitted_inside_slashability_window

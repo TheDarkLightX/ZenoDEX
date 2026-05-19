@@ -179,6 +179,7 @@ import Proofs.UniformBatchOptimality
 import Proofs.ZenoLedgerBlockGossipAdmission
 import Proofs.ZenoLedgerBondedSlashingSafety
 import Proofs.ZenoLedgerDisjointWrites
+import Proofs.ZenoLedgerDynamicPeerAdmission
 import Proofs.ZenoLedgerPeerDiscoveryAdmission
 import Proofs.ZenoLedgerPublicNetworkConfigAdmission
 import Proofs.ZenoLedgerSlashingEvidenceAdmission
