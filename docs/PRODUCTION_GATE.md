@@ -46,6 +46,9 @@ bash tools/prod_gate.sh --skip-ui
   local production gate: it requires zero DEX UI npm vulnerabilities, a clean
   `pip-audit` run over the Python lockfiles, and no RISC0 RustSec vulnerability
   findings.
+- The local production gate installs Python tooling through
+  `tools/install_python_hash_locked_deps.sh dev`, which uses
+  `pip --require-hashes` over the committed lockfile.
 - The local production gate still treats the final container artifact as the
   launch blocker and scans it for fixable HIGH/CRITICAL vulnerabilities.
 - If the vendored ESSO repo carries intentional local patches, update the manifest with the exact `esso_tree_sha256` after a successful assurance run instead of relying on a clean git checkout alone.

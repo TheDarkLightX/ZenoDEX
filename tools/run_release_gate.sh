@@ -17,7 +17,7 @@ require_module() {
   local package_hint="$2"
   if ! "$PY" -c "import importlib.util as u, sys; sys.exit(0 if u.find_spec('$module') else 1)"; then
     echo "error: missing python module '$module'" >&2
-    echo "hint: install dev tooling with '$PY -m pip install -r requirements-dev.txt'" >&2
+    echo "hint: install dev tooling with 'PYTHON=$PY tools/install_python_hash_locked_deps.sh dev'" >&2
     echo "hint: expected package: $package_hint" >&2
     exit 2
   fi
@@ -212,6 +212,8 @@ echo "== release: system-spec lint =="
 "$PY" "$ROOT_DIR/tools/system_spec_lint.py" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
 
 echo "== release: dependency audit =="
-"$PY" -m pip_audit -r "$ROOT_DIR/requirements.txt"
+"$PY" -m pip_audit -r "$ROOT_DIR/requirements-core.lock.txt"
+"$PY" -m pip_audit -r "$ROOT_DIR/requirements-agents.lock.txt"
+"$PY" -m pip_audit -r "$ROOT_DIR/requirements-dev.lock.txt"
 
 echo "ok"

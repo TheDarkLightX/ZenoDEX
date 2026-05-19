@@ -56,10 +56,10 @@ if [[ ! -d .venv ]]; then
   python3 -m venv .venv
 fi
 
-echo "[gate] installing python requirements"
+echo "[gate] installing hash-locked python requirements"
 . .venv/bin/activate
 python -m pip install --upgrade --quiet pip
-pip install --quiet -r requirements.txt
+PYTHON=python tools/install_python_hash_locked_deps.sh dev
 
 KERNEL_JSON="$(mktemp)"
 echo "[gate] running kernel assurance (manifest-backed)"
