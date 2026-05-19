@@ -1,5 +1,5 @@
 {
-  "check_count": 199,
+  "check_count": 206,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -727,6 +727,31 @@
       "passed": true
     },
     {
+      "check_id": "epiplexity_literature.schema",
+      "detail": "epiplexity literature receipt schema and counts are stable",
+      "passed": true
+    },
+    {
+      "check_id": "epiplexity_literature.sources",
+      "detail": "primary epiplexity, proxy counterexample, and companion sources are recorded",
+      "passed": true
+    },
+    {
+      "check_id": "epiplexity_literature.task_relevance_gate",
+      "detail": "literature note requires task-specific heldout ranking metrics",
+      "passed": true
+    },
+    {
+      "check_id": "epiplexity_literature.proxy_boundary",
+      "detail": "literature note rejects proxy-as-certificate and proxy-as-production evidence",
+      "passed": true
+    },
+    {
+      "check_id": "epiplexity_literature.source_hooks",
+      "detail": "checker and test enforce the data-selection-only decision",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
       "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
       "passed": true
@@ -992,6 +1017,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519",
+      "detail": "H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519",
+      "detail": "H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -999,7 +1034,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 199,
+  "passed_count": 206,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1061,6 +1096,23 @@
       "random_full_fallback_count": 5,
       "random_mean_prefix_checked_count": 12.882352941176471,
       "schema": "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1"
+    },
+    "epiplexity_literature": {
+      "decision": "use_epiplexity_for_training_data_selection_only",
+      "negative_knowledge": [
+        "A high epiplexity proxy is insufficient without task-relevant heldout ranking improvement.",
+        "The epiplexity proxy is not a correctness certificate, production-readiness claim, or bounded-grid completeness proof."
+      ],
+      "passed_count": 7,
+      "proxy": {
+        "classification": "measurable_bounded_structure",
+        "label_entropy_bits": 2.866122,
+        "policy_separation": 0.375,
+        "rare_label_headroom": 0.900498,
+        "score": 0.358265
+      },
+      "schema": "zenodex/energy/epiplexity_literature_receipt/v1",
+      "source_count": 6
     },
     "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
     "fallback_permutation_audit": {

@@ -551,6 +551,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    epiplexity_literature = _load_json(
+        root / "data/upba_energy/zenoenergy_epiplexity_literature_receipt.json"
+    )
+    epiplexity_literature_doc = (
+        root / "docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md"
+    ).read_text(encoding="utf-8")
+    epiplexity_literature_tool = (
+        root / "tools/check_zenoenergy_epiplexity_literature.py"
+    ).read_text(encoding="utf-8")
+    epiplexity_literature_tests = (
+        root / "tests/energy/test_zenoenergy_epiplexity_literature.py"
+    ).read_text(encoding="utf-8")
+    payloads["epiplexity_literature"] = epiplexity_literature
+    checks.extend(
+        _check_epiplexity_literature(
+            epiplexity_literature,
+            epiplexity_literature_doc,
+            epiplexity_literature_tool,
+            epiplexity_literature_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -2335,6 +2357,62 @@ def _check_negative_curriculum(
     ]
 
 
+def _check_epiplexity_literature(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    check_ids = {str(item["check_id"]) for item in report["checks"]}
+    doc_lower = doc_text.lower()
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    required_sources = report["required_source_urls"]
+    return [
+        _expect_true(
+            "epiplexity_literature.schema",
+            report.get("schema") == "zenodex/energy/epiplexity_literature_receipt/v1"
+            and bool(report.get("ok")) is True
+            and int(report["source_count"]) == 6
+            and int(report["passed_count"]) == 7
+            and int(report["failed_count"]) == 0,
+            "epiplexity literature receipt schema and counts are stable",
+        ),
+        _expect_true(
+            "epiplexity_literature.sources",
+            all(str(url).startswith("https://arxiv.org/abs/") for url in required_sources.values())
+            and "https://arxiv.org/abs/2601.03220" in required_sources.values()
+            and "https://arxiv.org/abs/2605.11554" in required_sources.values()
+            and "https://arxiv.org/abs/2602.05463" in required_sources.values(),
+            "primary epiplexity, proxy counterexample, and companion sources are recorded",
+        ),
+        _expect_true(
+            "epiplexity_literature.task_relevance_gate",
+            "mapping.task_relevance_gate" in check_ids
+            and "task_metric_improves" in doc_text
+            and "mean verifier calls" in doc_lower
+            and "top-k" in doc_lower
+            and "invalid accepts" in doc_lower,
+            "literature note requires task-specific heldout ranking metrics",
+        ),
+        _expect_true(
+            "epiplexity_literature.proxy_boundary",
+            "mapping.proxy_boundary" in check_ids
+            and "epiplexity_proxy -/-> correctness_certificate" in doc_text
+            and "epiplexity_proxy -/-> production_readiness" in doc_text
+            and "not a correctness certificate" in negative_text,
+            "literature note rejects proxy-as-certificate and proxy-as-production evidence",
+        ),
+        _expect_true(
+            "epiplexity_literature.source_hooks",
+            "REQUIRED_SOURCE_URLS" in tool_text
+            and "check_epiplexity_literature" in tool_text
+            and "test_epiplexity_literature_note_preserves_task_boundary" in test_text
+            and report["decision"] == "use_epiplexity_for_training_data_selection_only",
+            "checker and test enforce the data-selection-only decision",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -2390,6 +2468,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519": "falsified",
         "H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2": "supported",
         "H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2": "falsified",
+        "H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519": "supported",
+        "H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2470,6 +2550,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
         "suffix_bound_adversarial_families"
     ]
     negative_curriculum = payloads["negative_curriculum"]
+    epiplexity_literature = payloads["epiplexity_literature"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -2935,6 +3016,14 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "bounded_epiplexity_proxy"
             ],
             "negative_knowledge": negative_curriculum["negative_knowledge"],
+        },
+        "epiplexity_literature": {
+            "schema": epiplexity_literature["schema"],
+            "source_count": epiplexity_literature["source_count"],
+            "passed_count": epiplexity_literature["passed_count"],
+            "decision": epiplexity_literature["decision"],
+            "proxy": epiplexity_literature["proxy"],
+            "negative_knowledge": epiplexity_literature["negative_knowledge"],
         },
     }
 

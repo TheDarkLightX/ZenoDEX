@@ -30,6 +30,9 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | Learning to Branch in MIP | Learn cheap ranking surrogates for expensive exact solver choices. | ZenoEnergy’s scorer should imitate verifier-backed winners and hard solver calls, then defer to the verifier. |
 | GNN branch-and-bound | Structural encoders can generalize search policies across larger combinatorial instances. | A graph/set encoder is a v1 direction if simple listwise rankers saturate. |
 | Learned Large Neighborhood Search | Learned policies can select neighborhoods while an exact solver evaluates repairs. | The repair selector is the right model family to keep extending, but only with fallback and dominance certificates. |
+| Finzi et al., epiplexity | Learnable structure should be measured for computationally bounded observers and used for data selection. | Use epiplexity as a curriculum diagnostic for synthetic and replay corpora, tied to an explicit observer budget. |
+| Li, proxy/OOD counterexample | A structure proxy can fail to track downstream task-relevant structure. | Require heldout verifier-call and top-k improvements before treating a high epiplexity proxy as useful. |
+| Takahashi and Hayashi, thermodynamic epiplexity | MDL or compression-gain surrogates are useful when latent structure is unavailable, provided boundaries are explicit. | Report proxy definitions, compute/data boundaries, and cost accounting as companion diagnostics only. |
 
 ## Evidence Already In Repo
 
@@ -96,6 +99,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    should train with those weights and require a cross-seed improvement over
    the gap-weighted default before promotion.
 
+   The literature boundary is recorded in
+   [ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](./ZENO_ENERGY_EPIPLEXITY_LITERATURE.md):
+   epiplexity can guide data selection only when a task-relevance gate shows
+   verifier-call, top-k, and safety metrics improve on heldout data.
+
 4. **Dominance-Cover Certificate Prototype**
 
    Status: first runtime prototype exists in
@@ -144,6 +152,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | larger transformer | defer | data and evidence bottleneck comes before model capacity |
 | learned repair selector | continue | strongest alignment with LNS and solver-guidance literature |
 | bounded epiplexity proxy | use for data steering | flags label diversity and policy separation before spending training budget |
+| epiplexity as promotion proof | reject | recent proxy/OOD counterexample makes task-relevance evidence mandatory |
 | top-k without fallback | reject | empirical recall cannot replace certificate or fallback |
 | online checked stop | prototype only with suffix-bound certificate | current checked-stop rates are offline audits |
 
@@ -159,3 +168,6 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 - Elias Khalil et al. [Learning to Branch in Mixed Integer Programming](https://ojs.aaai.org/index.php/AAAI/article/view/10080), AAAI 2016.
 - Maxime Gasse et al. [Exact Combinatorial Optimization with Graph Convolutional Neural Networks](https://papers.neurips.cc/paper/9690-exact-combinatorial-optimization-with-graph-convolutional-neural-networks), NeurIPS 2019.
 - Nicolas Sonnerat et al. [Learning a Large Neighborhood Search Algorithm for Mixed Integer Programs](https://arxiv.org/abs/2107.10201), 2021.
+- Marc Finzi et al. [From Entropy to Epiplexity: Rethinking Information for Computationally Bounded Intelligence](https://arxiv.org/abs/2601.03220), 2026.
+- Hongmin Li. [A Controlled Counterexample to Strong Proxy-Based Explanations of OOD Performance](https://arxiv.org/abs/2605.11554), 2026.
+- Koichi Takahashi and Yusuke Hayashi. [Thermodynamic Limits of Physical Intelligence](https://arxiv.org/abs/2602.05463), 2026.

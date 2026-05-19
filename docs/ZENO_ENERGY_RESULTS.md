@@ -878,6 +878,22 @@ This helps decide whether the current hard-negative corpus has learnable
 structure before training. The proxy is diagnostic only; it does not prove
 model accuracy, grid completeness, or production readiness.
 
+The literature follow-up
+[ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](./ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
+adds the task-relevance gate from the current epiplexity literature:
+
+```text
+EpiProxy(D) high
+∧ task_metric_improves(D, heldout)
+∧ safety_boundary_clean
+-> curriculum_supported_for_research
+```
+
+The local receipt
+`data/upba_energy/zenoenergy_epiplexity_literature_receipt.json` checks 6
+required sources and 7 local boundary checks. It preserves the decision
+`use_epiplexity_for_training_data_selection_only`.
+
 This improves the production story materially: model ranking is still
 advisory, while the stop condition is deterministic. The remaining production
 gaps are candidate-family coverage for the bounded grid and real replay
@@ -896,11 +912,11 @@ the dominance-cover runtime prototype, the WES dominance search bridge, the
 dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
 receipt, the suffix-bound adversarial family stress receipt, the negative
-curriculum epiplexity receipt, and
+curriculum epiplexity receipt, the epiplexity literature boundary receipt, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 199 passing checks and 0 failed checks, including
+The current receipt reports 206 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

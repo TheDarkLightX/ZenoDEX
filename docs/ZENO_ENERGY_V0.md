@@ -46,6 +46,8 @@ Suffix-bound adversarial family stress: [ZenoEnergy Suffix-Bound Adversarial Fam
 
 Negative curriculum and epiplexity proxy: [ZenoEnergy Negative Curriculum](./ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
 
+Epiplexity literature boundary: [ZenoEnergy Epiplexity Literature Note](./ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
@@ -126,6 +128,7 @@ verifier labels for offline training and evaluation.
 - `tools/stress_upba_v2_suffix_bound_adversarial.py`: injects high-declared-output invalid unchecked suffix candidates and compares deterministic disqualifiers against declared-output-only bounds.
 - `tools/stress_upba_v2_suffix_bound_adversarial_families.py`: injects multiple verifier-invalid unchecked suffix families and checks deterministic disqualifier coverage.
 - `tools/zenoenergy_negative_curriculum.jl`: turns adversarial-family stress into hard-negative sampling weights plus a bounded epiplexity proxy for training-data steering.
+- `tools/check_zenoenergy_epiplexity_literature.py`: checks the epiplexity literature note, required sources, task-relevance gate, and proxy boundary.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.

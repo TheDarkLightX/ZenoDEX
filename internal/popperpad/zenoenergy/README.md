@@ -640,6 +640,25 @@ negative_edge_ref:                   sha256:51c562bc7e06bee08e8b8f06187e3f577c4c
 checkpoint_ref:                      sha256:f184ab30127b0f7d9044fbcdc0f26b613e70b54f41520465c92bfc7600a9b67d
 ```
 
+### Epiplexity Literature Boundary
+
+```text
+json_blob_ref:                       sha256:307bba08eac5b1792df09dead603d29a9eaae074ab3fcd8b7e06e2b87e284598
+markdown_blob_ref:                   sha256:16af3ca37c13f33cbe787d69aeca639ebcb32f662827e5cba877032315a35401
+context_ref:                         sha256:bbd61440a22c232876b918ff508a8cdef376bfef65254dffbb914d2560f57b58
+json_artifact_ref:                   sha256:3afe7c6476199fca5255d7778b8d96584e3378700bbded28f76bf53b53eff5e4
+markdown_artifact_ref:               sha256:a0fa010d0594dc39325a5fa358d3b4e9e4e370740b2f3998f00ef1cf7a67dbbd
+support_recipe_ref:                  sha256:c8a9b123a033b96ca9d9eb326c9374dde33a2d36016c921ecdd8a2404685f40e
+refute_recipe_ref:                   sha256:f162d2eab8a3b238b5cb10bc0b22dc61d9f2d5b659d5751ebd6eb133a22d62b3
+support_hypothesis_ref:              sha256:77ed646a26bec7d06a8190f98f382f644c2c2052dd06927b1df59219f7f71d93
+negative_hypothesis_ref:             sha256:edbdfc8ad2d429879491cde53cafc78877d4de0bbad5306ce42adb92be0c2c7b
+support_evidence_ref:                sha256:45ffb6455fbd03128c91b8f68a78e7832a20e6976fd26963ec35bdcbfc375365
+negative_evidence_ref:               sha256:31b9f295e9c67a8144cbd6fa654743420f39e81ae2125900997912c996f06ec7
+support_edge_ref:                    sha256:883455f26108d6197558853acaf22bb8efafcf506a750a9f27b03f83b80dfb70
+negative_edge_ref:                   sha256:85592a9102c0fcfe121bfbd8881a04856a53c24a919a650667b9e1a983488f45
+checkpoint_ref:                      sha256:e9ac3667c003a0c7e20b9dc9332bb1208efbd5dd69b150914e770b4a91c3dfbb
+```
+
 ## Current Status
 
 ```text
@@ -702,6 +721,8 @@ H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_20260519: supported
 H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519: falsified
 H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2: supported
 H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2: falsified
+H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519: supported
+H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519: falsified
 doctor_ok: true
 ```
 

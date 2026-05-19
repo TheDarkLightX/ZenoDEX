@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 199
-passed_count: 199
+check_count: 206
+passed_count: 206
 failed_count: 0
 ```
 
@@ -154,6 +154,11 @@ failed_count: 0
 | negative_curriculum.epiplexity_proxy | pass | bounded epiplexity proxy reports measurable structure with a diagnostic-only boundary |
 | negative_curriculum.source_hooks | pass | Julia tool, test, and doc expose curriculum and academic hooks |
 | negative_curriculum.negative_knowledge | pass | negative knowledge preserves the boundary around epiplexity and synthetic hard negatives |
+| epiplexity_literature.schema | pass | epiplexity literature receipt schema and counts are stable |
+| epiplexity_literature.sources | pass | primary epiplexity, proxy counterexample, and companion sources are recorded |
+| epiplexity_literature.task_relevance_gate | pass | literature note requires task-specific heldout ranking metrics |
+| epiplexity_literature.proxy_boundary | pass | literature note rejects proxy-as-certificate and proxy-as-production evidence |
+| epiplexity_literature.source_hooks | pass | checker and test enforce the data-selection-only decision |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -207,6 +212,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519 | pass | H_ZENOENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS_PROVES_GRID_COMPLETENESS_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2 | pass | H_ZENOENERGY_NEGATIVE_CURRICULUM_EPIPLEXITY_20260519_V2 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 | pass | H_ZENOENERGY_EPIPLEXITY_PROXY_IS_CORRECTNESS_CERTIFICATE_20260519_V2 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519 | pass | H_ZENOENERGY_EPIPLEXITY_LITERATURE_TASK_GATE_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 | pass | H_ZENOENERGY_EPIPLEXITY_PROXY_PREDICTS_DOWNSTREAM_IMPROVEMENT_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -272,6 +279,23 @@ failed_count: 0
     "random_full_fallback_count": 5,
     "random_mean_prefix_checked_count": 12.882352941176471,
     "schema": "zenodex/energy/upba_v2_dominance_prefix_benchmark/v1"
+  },
+  "epiplexity_literature": {
+    "decision": "use_epiplexity_for_training_data_selection_only",
+    "negative_knowledge": [
+      "A high epiplexity proxy is insufficient without task-relevant heldout ranking improvement.",
+      "The epiplexity proxy is not a correctness certificate, production-readiness claim, or bounded-grid completeness proof."
+    ],
+    "passed_count": 7,
+    "proxy": {
+      "classification": "measurable_bounded_structure",
+      "label_entropy_bits": 2.866122,
+      "policy_separation": 0.375,
+      "rare_label_headroom": 0.900498,
+      "score": 0.358265
+    },
+    "schema": "zenodex/energy/epiplexity_literature_receipt/v1",
+    "source_count": 6
   },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
   "fallback_permutation_audit": {

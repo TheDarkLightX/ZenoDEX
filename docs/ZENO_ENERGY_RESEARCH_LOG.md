@@ -1682,3 +1682,47 @@ an optimality proof, or a replacement for real replay.
 Research consequence: use the output-mismatch and rare-disqualifier weights for
 the next curriculum-trained advisory ranker, then compare against the current
 gap-weighted default on cross-seed mean verifier calls and top-k recall.
+
+## Epiplexity Literature Boundary
+
+Artifact:
+[ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](./ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_epiplexity_literature_receipt.json`
+
+Command:
+
+```bash
+python3 tools/check_zenoenergy_epiplexity_literature.py \
+  --output-json data/upba_energy/zenoenergy_epiplexity_literature_receipt.json
+```
+
+Observed result:
+
+| metric | value |
+| --- | ---: |
+| required sources | 6 |
+| local boundary checks | 7 |
+| failed checks | 0 |
+| proxy score | 0.358265 |
+| policy separation | 0.375000 |
+
+Positive knowledge:
+
+```text
+Epiplexity provides a useful language for selecting and transforming
+ZenoEnergy training corpora under an explicit bounded-observer budget.
+```
+
+Negative knowledge:
+
+```text
+A structure proxy can fail to track downstream task relevance, so ZenoEnergy
+must require heldout verifier-call, top-k, regret, and safety metrics before
+claiming a curriculum helped.
+```
+
+Research consequence: epiplexity can steer which synthetic or replay examples
+to generate next. It cannot promote a model, certify a settlement, or replace
+real replay evidence.
