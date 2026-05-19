@@ -737,8 +737,8 @@ claims:
       constant names in both paths.
       This is a bounded runtime-equivalence fixture claim for the current Risc0
       v1 guest scope; it does not prove full Rust/Python equivalence,
-      multi-intent batches inside one transaction, exact-out, multi-hop
-      routing, nonce/receipt execution, or cryptographic Risc0 receipt
+      multi-intent batches inside one transaction, multi-hop routing,
+      rejection-path receipt execution, or cryptographic Risc0 receipt
       soundness.
     evidence:
       kind: rust_pytest
@@ -764,9 +764,9 @@ claims:
       The opt-in Risc0 real-proof smoke builds the ZenoDEX spot v1 guest with
       `RISC0_FORCE_BUILD=1`, generates non-empty Risc0 receipts for an empty
       transition plus the current supported spot v1 operation families
-      (faucet mint, create-pool, swap-exact-in, add-liquidity, and
-      remove-liquidity), plus one multi-transaction spot liquidity-cycle block,
-      and verifies each receipt through the host CLI with state-hash,
+      (faucet mint, create-pool, swap-exact-in, swap-exact-out, add-liquidity,
+      and remove-liquidity), plus one multi-transaction spot liquidity-cycle
+      block, and verifies each receipt through the host CLI with state-hash,
       transaction-commitment, pre-app-hash, post-app-hash, and block timestamp
       checks. This is a real local proof-of-execution smoke for the current v1
       guest operation set. For every case it also emits a ZenoLedger v0 body,
