@@ -101,10 +101,13 @@ def test_release_gate_runs_production_key_management_checks() -> None:
     assert "tools/check_production_key_management_spec.py" in release_gate
     assert "tools/check_production_key_management_config.py" in release_gate
     assert "tools/check_production_key_management_bypasses.py" in release_gate
+    assert "tools/check_production_key_management_esso_equivalent.py" in release_gate
     assert "tests/integration/test_production_key_management_v0.py" in release_gate
     assert "tests/integration/test_zeno_ledger_production_key_gates_v0.py" in release_gate
     assert "tests/test_check_production_key_management_config.py" in release_gate
+    assert "tests/test_check_production_key_management_esso_equivalent.py" in release_gate
     assert "tools/check_production_key_management_spec.py" in public_testnet_gate
+    assert "tools/check_production_key_management_esso_equivalent.py" in public_testnet_gate
 
 
 def test_production_key_management_bypass_check_tracks_ledger_surfaces() -> None:

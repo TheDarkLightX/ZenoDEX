@@ -1,10 +1,10 @@
 schema: esso.ir.v1
 model_id: production_key_management_v0
-status: specification_only
+status: equivalent_finite_model_backed
 description: >
   Finite-domain production key-management admission model for ZenoDEX and
-  ZenoLedger. This file is intended for ESSO validation/sweep once ESSO is
-  available in the runner. The currently executable twin is
+  ZenoLedger. This file remains ESSO-ready for validation/sweep once ESSO is
+  available in the runner. The executable finite-model twin is
   formal/property/production_key_management_v0.json plus
   tools/check_production_key_management_spec.py.
 

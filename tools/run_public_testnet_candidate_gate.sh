@@ -63,6 +63,10 @@ echo "== public-testnet: production key-management spec check =="
 "$PY" tools/check_production_key_management_spec.py \
   > "$OUT_DIR/production_key_management_spec.json"
 
+echo "== public-testnet: production key-management ESSO-equivalent check =="
+"$PY" tools/check_production_key_management_esso_equivalent.py \
+  > "$OUT_DIR/production_key_management_esso_equivalent.json"
+
 echo "== public-testnet: anti-equivocation check =="
 "$PY" tools/check_zeno_ledger_anti_equivocation.py \
   > "$OUT_DIR/anti_equivocation.json"
