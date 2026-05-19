@@ -716,6 +716,25 @@ negative_edge_ref:                   sha256:4a15fca0da9216e7a815490ffe8f95ee70b8
 checkpoint_ref:                      sha256:beccb91109213aad1fbf42510308fefe6970931f67c78e6f9b7336052e2f2584
 ```
 
+### Synthetic Quality Selection Probe
+
+```text
+json_blob_ref:                       sha256:5f442c19317d4cba9bd6476c789836ec289f612cf4f17532c932c7c3bcb73a2d
+markdown_blob_ref:                   sha256:61be115d09868d53bef121dfec7a9979ed5028f8ea356d4c726a30d193ce8e5f
+context_ref:                         sha256:0f15cd3439699336e70f8b9aa70b85e904ceae7653dd867d8f9a9a38cebdb0a4
+json_artifact_ref:                   sha256:18d33ec1be5d35eb62c5b3da9c4b3bc5f4c626c7f1509d1e1c0a47884b40ad92
+markdown_artifact_ref:               sha256:3dab2a99c534392924d0eccd16362aab4a1fe4352e56fe6d734b01b5ec331ff0
+support_recipe_ref:                  sha256:70a9e69d98a3f56c3c3564fe8dd247ca01e257f6a728bfd92639c9f8c0452cc1
+refute_recipe_ref:                   sha256:0fe9c84051ea8cfa537ad2b4b7530d65e308844a54e3f5e9c56610cf23999669
+support_hypothesis_ref:              sha256:4a77bcfd1a6b2d3d4a0f59fef1df8b225cee21467f837be1933159176614fb34
+negative_hypothesis_ref:             sha256:f38b1417667c5b99abb221e1554bdfece4a487454ce783f054f09ce34abf278c
+support_evidence_ref:                sha256:ada9efe87a0e33ae75cc05c6c47ab04ad89a2211f84670acdf7ba3ccce02207e
+negative_evidence_ref:               sha256:9ead9badfce40ed99ef329c6499d0124206f38395d4a91a3b6f29abc8a3ec957
+support_edge_ref:                    sha256:d9cde2feda546eb974a2281672eff118a5dbae309d25faf31a2636bde6415065
+negative_edge_ref:                   sha256:cef8a2353786cd42faa12da316819806bde56c4cb975fdab12a79295f95c6b77
+checkpoint_ref:                      sha256:13f03ae0d773e4dc54346cd58e579eaf0674e542d298301d4545b6f679582b49
+```
+
 ## Current Status
 
 ```text
@@ -786,6 +805,8 @@ H_ZENOENERGY_ENERGY_ORDER_ALONE_FORMAL_BOUNDARY_20260519: supported
 H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519: falsified
 H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519: supported
 H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519: falsified
+H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519: supported
+H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519: falsified
 doctor_ok: true
 ```
 

@@ -400,6 +400,15 @@ The full-volume run remained slightly behind the current gap-weighted checkpoint
 at 1.0166 mean calls. This points toward targeted coverage quality, hard
 negative generation, and replay-shaped distributions as the next data axis.
 
+A follow-up quality-selection probe filtered out the 84 no-winner training
+batches and compared raw winner-bearing sampling against batches ranked by
+current-model winner position, hand-energy winner position, hard-family density,
+and valid-count variety. Quality selection reduced mean verifier calls relative
+to raw sampling on four of six budgets, including 1.0388 versus 1.0610 at 250
+training batches and 1.0217 versus 1.0247 at 2,500 batches, with zero invalid
+accepts. The smallest 100-batch quality run was worse than raw sampling
+(1.0620 versus 1.0439), showing that hard examples need distribution balance.
+
 The best-model registry retains the current UPBA gap-weighted checkpoint and
 three deterministic AutoTrader hard synthetic cross-seed models under
 `data/upba_energy/best_models/`, with sha256 hashes in

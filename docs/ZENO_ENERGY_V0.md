@@ -50,6 +50,8 @@ Negative-curriculum ranker probe: [ZenoEnergy Curriculum Ranker](./ZENO_ENERGY_C
 
 Synthetic data scaling: [ZenoEnergy Synthetic Data Scaling](./ZENO_ENERGY_DATA_SCALING.md)
 
+Synthetic quality selection: [ZenoEnergy Quality Selection](./ZENO_ENERGY_QUALITY_SELECTION.md)
+
 Best retained models: [ZenoEnergy Best Model Registry](./ZENO_ENERGY_BEST_MODELS.md)
 
 Epiplexity literature boundary: [ZenoEnergy Epiplexity Literature Note](./ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
@@ -138,6 +140,7 @@ verifier labels for offline training and evaluation.
 - `tools/zenoenergy_negative_curriculum.jl`: turns adversarial-family stress into hard-negative sampling weights plus a bounded epiplexity proxy for training-data steering.
 - `tools/benchmark_upba_energy_curriculum.py`: trains a bounded rare-disqualifier curriculum ranker and compares it against the gap-weighted default.
 - `tools/benchmark_upba_energy_data_scaling.py`: trains the same gap-weighted setup over increasing same-generator synthetic batch budgets and records saturation.
+- `tools/benchmark_upba_energy_quality_selection.py`: compares raw winner-bearing synthetic batches against current-model-hard winner-bearing batches at matched budgets.
 - `tools/preserve_zenoenergy_best_models.py`: copies or deterministically regenerates the retained advisory checkpoints and writes the best-model registry with sha256 hashes.
 - `tools/check_zenoenergy_epiplexity_literature.py`: checks the epiplexity literature note, required sources, task-relevance gate, and proxy boundary.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.

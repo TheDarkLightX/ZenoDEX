@@ -116,6 +116,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    did not beat the current gap-weighted checkpoint, making data quality and
    coverage the higher-priority axis.
 
+   The quality-selection probe is recorded in
+   [ZENO_ENERGY_QUALITY_SELECTION.md](./ZENO_ENERGY_QUALITY_SELECTION.md). It
+   shows that current-model-hard winner-bearing batches beat raw winner-bearing
+   sampling at medium budgets, while very small hard-only budgets are worse.
+
    The formal energy-order-alone boundary is recorded in
    [ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md).
    Lean counterexamples now make the weakest safety claim explicit: advisory
@@ -172,6 +177,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | epiplexity as promotion proof | reject | recent proxy/OOD counterexample makes task-relevance evidence mandatory |
 | rare-disqualifier pair-weight curriculum | revise | first bounded probe increased mean verifier calls versus the gap-weighted default |
 | raw same-generator synthetic scaling | revise | more rows helped from small budgets but saturated below the current checkpoint |
+| winner-bearing quality selection | keep as data lane | medium budgets improved over raw sampling, but tiny hard-only budgets were worse |
 | top-k without fallback | reject | empirical recall cannot replace certificate or fallback |
 | online checked stop | prototype only with suffix-bound certificate | current checked-stop rates are offline audits |
 

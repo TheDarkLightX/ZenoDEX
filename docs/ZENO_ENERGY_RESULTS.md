@@ -927,6 +927,24 @@ volume still did not beat the current checkpoint. The next data improvement
 should focus on higher-quality synthetic coverage: replay-shaped batches,
 rare verifier disqualifiers, adversarial suffix families, and mined hard cases.
 
+The quality-selection probe is recorded in
+[ZENO_ENERGY_QUALITY_SELECTION.md](./ZENO_ENERGY_QUALITY_SELECTION.md). It
+filters out the 84 no-winner training batches, then compares raw winner-bearing
+samples with winner-bearing batches where the current checkpoint or hand energy
+places the winner later:
+
+| train batches | raw mean calls | quality mean calls | quality better? |
+| ---: | ---: | ---: | --- |
+| 100 | 1.0439 | 1.0620 | no |
+| 250 | 1.0610 | 1.0388 | yes |
+| 1000 | 1.0303 | 1.0247 | yes |
+| 2500 | 1.0247 | 1.0217 | yes |
+| 5000 | 1.0177 | 1.0177 | no |
+
+Quality selection beat raw winner-bearing sampling on four of six budgets and
+kept `invalid_accept_count_total = 0`. The 100-batch result is negative
+knowledge: tiny hard-only budgets can overfocus on rare current-model misses.
+
 The current retained advisory checkpoints are pinned in
 [ZENO_ENERGY_BEST_MODELS.md](./ZENO_ENERGY_BEST_MODELS.md). The registry keeps
 the UPBA gap-weighted default and three deterministic AutoTrader hard synthetic

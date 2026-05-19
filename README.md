@@ -254,6 +254,9 @@ ranking by low energy alone is not an optimality certificate.
 The data-scaling probe shows raw same-generator synthetic volume helps from
 small budgets but saturates below the current gap-weighted checkpoint, so the
 next data work should target coverage quality and rare hard families.
+The quality-selection probe sharpens this: winner-bearing hard-batch selection
+beats raw winner-bearing sampling at medium budgets, while tiny hard-only
+budgets can overfocus on rare current-model misses.
 The best-model registry now pins the preferred UPBA checkpoint and the three
 deterministically regenerated AutoTrader hard synthetic models with sha256
 hashes, so future experiments have stable advisory baselines.
@@ -268,6 +271,7 @@ Primary entry points:
 - [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
 - [docs/ZENO_ENERGY_CURRICULUM_RANKER.md](docs/ZENO_ENERGY_CURRICULUM_RANKER.md)
 - [docs/ZENO_ENERGY_DATA_SCALING.md](docs/ZENO_ENERGY_DATA_SCALING.md)
+- [docs/ZENO_ENERGY_QUALITY_SELECTION.md](docs/ZENO_ENERGY_QUALITY_SELECTION.md)
 - [docs/ZENO_ENERGY_BEST_MODELS.md](docs/ZENO_ENERGY_BEST_MODELS.md)
 - [docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
 - [docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)

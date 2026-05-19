@@ -616,6 +616,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    quality_selection = _load_json(
+        root / "data/upba_energy/upba_v2_energy_quality_selection_seed20260517.json"
+    )
+    quality_selection_doc = (
+        root / "docs/ZENO_ENERGY_QUALITY_SELECTION.md"
+    ).read_text(encoding="utf-8")
+    quality_selection_tool = (
+        root / "tools/benchmark_upba_energy_quality_selection.py"
+    ).read_text(encoding="utf-8")
+    quality_selection_tests = (
+        root / "tests/energy/test_upba_v2_quality_selection.py"
+    ).read_text(encoding="utf-8")
+    payloads["quality_selection"] = quality_selection
+    checks.extend(
+        _check_quality_selection(
+            quality_selection,
+            quality_selection_doc,
+            quality_selection_tool,
+            quality_selection_tests,
+        )
+    )
+
     best_model_registry = _load_json(
         root / "data/upba_energy/zenoenergy_best_model_registry.json"
     )
@@ -2688,6 +2710,63 @@ def _check_best_model_registry(
     ]
 
 
+def _check_quality_selection(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    raw = report["runs"]["raw_winner_bearing"]
+    quality = report["runs"]["quality_hard_winner_bearing"]
+    interpretation = report["interpretation"]
+    return [
+        _expect_true(
+            "quality_selection.schema",
+            report.get("schema") == "zenodex/energy/upba_v2_quality_selection_report/v1"
+            and int(report["available_train_batches"]) == 10000
+            and int(report["winner_bearing_train_batches"]) == 9916
+            and int(report["selection"]["excluded_no_winner_train_batches"]) == 84
+            and len(raw) == 6
+            and len(quality) == 6,
+            "quality-selection receipt records winner-bearing filtering and six budgets",
+        ),
+        _expect_true(
+            "quality_selection.safety",
+            int(report["safety"]["invalid_accept_count_total"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["model_authorizes_settlement"]) is False
+            and all(int(run["metrics"]["invalid_accept_count"]) == 0 for run in raw)
+            and all(int(run["metrics"]["invalid_accept_count"]) == 0 for run in quality),
+            "all quality-selection policies preserve verifier authority and zero invalid accepts",
+        ),
+        _expect_true(
+            "quality_selection.medium_budget_gain",
+            int(interpretation["quality_beats_raw_budget_count"]) == 4
+            and float(quality[1]["metrics"]["mean_verifier_calls"])
+            < float(raw[1]["metrics"]["mean_verifier_calls"])
+            and float(quality[3]["metrics"]["mean_verifier_calls"])
+            < float(raw[3]["metrics"]["mean_verifier_calls"]),
+            "quality selection improves medium-budget mean verifier calls over raw winner-bearing samples",
+        ),
+        _expect_true(
+            "quality_selection.small_budget_negative",
+            int(interpretation["quality_worse_than_raw_budget_count"]) == 1
+            and float(quality[0]["metrics"]["mean_verifier_calls"])
+            > float(raw[0]["metrics"]["mean_verifier_calls"])
+            and "hard-only quality budgets" in interpretation["negative_knowledge"],
+            "small hard-only quality budget can overfocus on current-model misses",
+        ),
+        _expect_true(
+            "quality_selection.source_hooks",
+            "quality_hard_winner_bearing" in tool_text
+            and "test_quality_selection_receipt_records_quality_tradeoff" in test_text
+            and "quality better?" in doc_text
+            and "winner-bearing" in doc_text,
+            "tool, test, and doc expose the quality-selection boundary",
+        ),
+    ]
+
+
 def _check_epiplexity_literature(
     report: dict[str, Any],
     doc_text: str,
@@ -2807,6 +2886,8 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519": "falsified",
         "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519": "supported",
         "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519": "falsified",
+        "H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519": "supported",
+        "H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2889,6 +2970,7 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     negative_curriculum = payloads["negative_curriculum"]
     curriculum_ranker = payloads["curriculum_ranker"]
     data_scaling = payloads["data_scaling"]
+    quality_selection = payloads["quality_selection"]
     best_model_registry = payloads["best_model_registry"]
     energy_order_alone_formal = payloads["energy_order_alone_formal"]
     epiplexity_literature = payloads["epiplexity_literature"]
@@ -3406,6 +3488,30 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "interpretation"
             ]["best_budget_beats_current_gap_weighted"],
             "negative_knowledge": data_scaling["interpretation"][
+                "negative_knowledge"
+            ],
+        },
+        "quality_selection": {
+            "schema": quality_selection["schema"],
+            "winner_bearing_train_batches": quality_selection[
+                "winner_bearing_train_batches"
+            ],
+            "excluded_no_winner_train_batches": quality_selection["selection"][
+                "excluded_no_winner_train_batches"
+            ],
+            "quality_beats_raw_budget_count": quality_selection["interpretation"][
+                "quality_beats_raw_budget_count"
+            ],
+            "quality_worse_than_raw_budget_count": quality_selection[
+                "interpretation"
+            ]["quality_worse_than_raw_budget_count"],
+            "best_quality_mean_verifier_calls": quality_selection["interpretation"][
+                "best_quality_mean_verifier_calls"
+            ],
+            "best_quality_matches_or_beats_current_gap_weighted": quality_selection[
+                "interpretation"
+            ]["best_quality_matches_or_beats_current_gap_weighted"],
+            "negative_knowledge": quality_selection["interpretation"][
                 "negative_knowledge"
             ],
         },

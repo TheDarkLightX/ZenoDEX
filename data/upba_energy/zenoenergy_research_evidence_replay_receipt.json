@@ -1,5 +1,5 @@
 {
-  "check_count": 231,
+  "check_count": 238,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -797,6 +797,31 @@
       "passed": true
     },
     {
+      "check_id": "quality_selection.schema",
+      "detail": "quality-selection receipt records winner-bearing filtering and six budgets",
+      "passed": true
+    },
+    {
+      "check_id": "quality_selection.safety",
+      "detail": "all quality-selection policies preserve verifier authority and zero invalid accepts",
+      "passed": true
+    },
+    {
+      "check_id": "quality_selection.medium_budget_gain",
+      "detail": "quality selection improves medium-budget mean verifier calls over raw winner-bearing samples",
+      "passed": true
+    },
+    {
+      "check_id": "quality_selection.small_budget_negative",
+      "detail": "small hard-only quality budget can overfocus on current-model misses",
+      "passed": true
+    },
+    {
+      "check_id": "quality_selection.source_hooks",
+      "detail": "tool, test, and doc expose the quality-selection boundary",
+      "passed": true
+    },
+    {
       "check_id": "best_model_registry.schema_and_promoted",
       "detail": "best-model registry records the promoted advisory research defaults",
       "passed": true
@@ -1152,6 +1177,16 @@
       "passed": true
     },
     {
+      "check_id": "popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519",
+      "detail": "H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519",
+      "detail": "H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
       "check_id": "popperpad.doctor",
       "detail": "PopperPad doctor ok",
       "passed": true
@@ -1159,7 +1194,7 @@
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 231,
+  "passed_count": 238,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1387,6 +1422,16 @@
       "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
       "promotion_allowed": false,
       "scope": "advisory_ranking_only"
+    },
+    "quality_selection": {
+      "best_quality_matches_or_beats_current_gap_weighted": false,
+      "best_quality_mean_verifier_calls": 1.0176500252143217,
+      "excluded_no_winner_train_batches": 84,
+      "negative_knowledge": "Very small hard-only quality budgets can overfocus on rare current-model misses; quality selection is useful as a coverage lane, not as proof that hard examples alone dominate raw training.",
+      "quality_beats_raw_budget_count": 4,
+      "quality_worse_than_raw_budget_count": 1,
+      "schema": "zenodex/energy/upba_v2_quality_selection_report/v1",
+      "winner_bearing_train_batches": 9916
     },
     "real_replay_report_builder": {
       "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",

@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 230
+    assert report["passed_count"] == report["check_count"] == 237
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -147,6 +147,11 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "data_scaling.quantity_curve",
         "data_scaling.saturates_below_current",
         "data_scaling.source_hooks",
+        "quality_selection.schema",
+        "quality_selection.safety",
+        "quality_selection.medium_budget_gain",
+        "quality_selection.small_budget_negative",
+        "quality_selection.source_hooks",
         "best_model_registry.schema_and_promoted",
         "best_model_registry.files_and_hashes",
         "best_model_registry.upba_default",
@@ -207,4 +212,6 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519",
         "popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519",
         "popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519",
+        "popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519",
+        "popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519",
     }.issubset(check_ids)

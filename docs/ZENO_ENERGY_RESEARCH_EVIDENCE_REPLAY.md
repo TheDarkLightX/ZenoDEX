@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 231
-passed_count: 231
+check_count: 238
+passed_count: 238
 failed_count: 0
 ```
 
@@ -168,6 +168,11 @@ failed_count: 0
 | data_scaling.quantity_curve | pass | more same-generator rows improve from the smallest budget |
 | data_scaling.saturates_below_current | pass | full same-generator scaling does not beat the current gap-weighted checkpoint |
 | data_scaling.source_hooks | pass | tool, test, and doc expose the raw-volume saturation boundary |
+| quality_selection.schema | pass | quality-selection receipt records winner-bearing filtering and six budgets |
+| quality_selection.safety | pass | all quality-selection policies preserve verifier authority and zero invalid accepts |
+| quality_selection.medium_budget_gain | pass | quality selection improves medium-budget mean verifier calls over raw winner-bearing samples |
+| quality_selection.small_budget_negative | pass | small hard-only quality budget can overfocus on current-model misses |
+| quality_selection.source_hooks | pass | tool, test, and doc expose the quality-selection boundary |
 | best_model_registry.schema_and_promoted | pass | best-model registry records the promoted advisory research defaults |
 | best_model_registry.files_and_hashes | pass | all retained model files exist, match sha256, and match declared schema/dimensions |
 | best_model_registry.upba_default | pass | retained UPBA model is the current gap-weighted default and beats raw full-volume scaling |
@@ -239,6 +244,8 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519 | pass | H_ZENOENERGY_ENERGY_ORDER_ALONE_AUTHORIZES_OPTIMALITY_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519 | pass | H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 | pass | H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519 | pass | H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519 | pass | H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -470,6 +477,16 @@ failed_count: 0
     "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
     "promotion_allowed": false,
     "scope": "advisory_ranking_only"
+  },
+  "quality_selection": {
+    "best_quality_matches_or_beats_current_gap_weighted": false,
+    "best_quality_mean_verifier_calls": 1.0176500252143217,
+    "excluded_no_winner_train_batches": 84,
+    "negative_knowledge": "Very small hard-only quality budgets can overfocus on rare current-model misses; quality selection is useful as a coverage lane, not as proof that hard examples alone dominate raw training.",
+    "quality_beats_raw_budget_count": 4,
+    "quality_worse_than_raw_budget_count": 1,
+    "schema": "zenodex/energy/upba_v2_quality_selection_report/v1",
+    "winner_bearing_train_batches": 9916
   },
   "real_replay_report_builder": {
     "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",

@@ -1837,6 +1837,45 @@ checkpoint. Higher-quality synthetic coverage is a better next bet than raw
 i.i.d. volume.
 ```
 
+## Synthetic Quality Selection Probe
+
+Artifact:
+[ZENO_ENERGY_QUALITY_SELECTION.md](./ZENO_ENERGY_QUALITY_SELECTION.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_quality_selection_seed20260517.json`
+
+Command:
+
+```bash
+python3 tools/benchmark_upba_energy_quality_selection.py
+```
+
+Observed result:
+
+| train batches | raw mean calls | quality mean calls | quality better? | invalid accepts |
+| ---: | ---: | ---: | --- | ---: |
+| 100 | 1.0439 | 1.0620 | no | 0 |
+| 250 | 1.0610 | 1.0388 | yes | 0 |
+| 500 | 1.0343 | 1.0282 | yes | 0 |
+| 1000 | 1.0303 | 1.0247 | yes | 0 |
+| 2500 | 1.0247 | 1.0217 | yes | 0 |
+| 5000 | 1.0177 | 1.0177 | no | 0 |
+
+Positive knowledge:
+
+```text
+Winner-bearing hard-batch selection improves mean verifier calls at medium
+budgets while preserving zero invalid accepts.
+```
+
+Negative knowledge:
+
+```text
+The 100-batch quality-selected model is worse than raw winner-bearing sampling.
+Hard examples are a coverage lane, not a replacement for distribution balance.
+```
+
 ## Best Model Registry
 
 Artifact:
