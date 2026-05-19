@@ -1,0 +1,193 @@
+{
+  "schema": "zenodex.zeno_ledger.proof_coverage_matrix.v0",
+  "proof_type": "risc0.zenodex_spot_transition.v1",
+  "current_required_real_proof_cases": [
+    "empty",
+    "faucet_mint",
+    "create_pool",
+    "swap_exact_in",
+    "swap_exact_out",
+    "add_liquidity",
+    "remove_liquidity",
+    "spot_block_liquidity_cycle"
+  ],
+  "current_supported_intent_kinds": [
+    "CREATE_POOL",
+    "SWAP_EXACT_IN",
+    "SWAP_EXACT_OUT",
+    "ADD_LIQUIDITY",
+    "REMOVE_LIQUIDITY"
+  ],
+  "coverage": [
+    {
+      "id": "spot_v1_empty",
+      "status": "covered_required",
+      "required_case": "empty",
+      "claim": "The empty transition path emits and verifies a Risc0 receipt and bound ZenoLedger artifacts.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py",
+        "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+      ]
+    },
+    {
+      "id": "spot_v1_faucet_mint",
+      "status": "covered_required",
+      "required_case": "faucet_mint",
+      "claim": "The faucet-mint transition path is included in the required real-proof smoke scope.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+      ]
+    },
+    {
+      "id": "spot_v1_create_pool",
+      "status": "covered_required",
+      "required_case": "create_pool",
+      "claim": "The create-pool transition path is included in the required real-proof smoke scope.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py"
+      ]
+    },
+    {
+      "id": "spot_v1_swap_exact_in",
+      "status": "covered_required",
+      "required_case": "swap_exact_in",
+      "claim": "The single-pool exact-in swap transition path is included in the required real-proof smoke scope.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py"
+      ]
+    },
+    {
+      "id": "spot_v1_swap_exact_out",
+      "status": "covered_required",
+      "required_case": "swap_exact_out",
+      "claim": "The single-pool exact-out swap transition path is included in the required real-proof smoke scope.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py"
+      ]
+    },
+    {
+      "id": "spot_v1_add_liquidity",
+      "status": "covered_required",
+      "required_case": "add_liquidity",
+      "claim": "The add-liquidity transition path is included in the required real-proof smoke scope.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py"
+      ]
+    },
+    {
+      "id": "spot_v1_remove_liquidity",
+      "status": "covered_required",
+      "required_case": "remove_liquidity",
+      "claim": "The remove-liquidity transition path is included in the required real-proof smoke scope.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/integration/test_risc0_shared_fixture_equivalence.py"
+      ]
+    },
+    {
+      "id": "spot_v1_liquidity_cycle_block",
+      "status": "covered_required",
+      "required_case": "spot_block_liquidity_cycle",
+      "claim": "One multi-transaction block covers create-pool, add-liquidity, exact-in swap, and remove-liquidity in sequence.",
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py"
+      ]
+    },
+    {
+      "id": "spot_v1_latest_required_real_proof_archive",
+      "status": "open_gap",
+      "gap": "No clean latest-main all-case real-proof archive is committed. The release gate validates the checker and scope tests; the real-proof archive remains an opt-in artifact because prover builds are heavy.",
+      "blocking_for": [
+        "fresh_latest_release_evidence"
+      ],
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py"
+      ]
+    },
+    {
+      "id": "spot_v1_multi_hop_routing",
+      "status": "open_gap",
+      "gap": "The current guest proves single-pool spot transitions and one liquidity-cycle block; multi-hop routing transitions are outside the v1 proof scope.",
+      "blocking_for": [
+        "full_production_spot_block_scope"
+      ],
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md"
+      ]
+    },
+    {
+      "id": "spot_v1_upba_batch_clearing",
+      "status": "open_gap",
+      "gap": "UPBA batch clearing is covered by separate certificate checks and Lean surfaces, but it is not yet executed inside the spot-transition Risc0 guest.",
+      "blocking_for": [
+        "full_production_spot_block_scope"
+      ],
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md"
+      ]
+    },
+    {
+      "id": "spot_v1_rejected_receipts",
+      "status": "open_gap",
+      "gap": "The current guest aborts invalid transitions and binds accepted-receipts roots; production rejected-receipt execution semantics remain outside the v1 proof scope.",
+      "blocking_for": [
+        "full_production_ingress_semantics"
+      ],
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md"
+      ]
+    },
+    {
+      "id": "spot_v1_full_python_runtime_equivalence",
+      "status": "open_gap",
+      "gap": "Fixture equivalence covers supported spot v1 lanes; it does not prove whole Python-runtime equivalence.",
+      "blocking_for": [
+        "full_runtime_equivalence_claims"
+      ],
+      "evidence_files": [
+        "tests/integration/test_risc0_shared_fixture_equivalence.py",
+        "docs/zenodex_spot_state_proof_risc0_v1.md"
+      ]
+    },
+    {
+      "id": "spot_v1_recursive_aggregation",
+      "status": "open_gap",
+      "gap": "Recursive proof aggregation is not part of the current Risc0 spot v1 transition proof scope.",
+      "blocking_for": [
+        "recursive_proof_claims"
+      ],
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md"
+      ]
+    },
+    {
+      "id": "spot_v1_native_asset_sync",
+      "status": "open_gap",
+      "gap": "The current guest rejects native-asset pools; native per-transaction synchronization is outside the current spot v1 proof scope.",
+      "blocking_for": [
+        "native_asset_production_scope"
+      ],
+      "evidence_files": [
+        "docs/zenodex_spot_state_proof_risc0_v1.md",
+        "zk/state_proof_risc0/shared/src/lib.rs"
+      ]
+    }
+  ]
+}

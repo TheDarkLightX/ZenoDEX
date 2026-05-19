@@ -796,6 +796,29 @@ claims:
         - zk/state_proof_risc0/methods/guest/src/main.rs
         - zk/state_proof_risc0/cli/src/main.rs
 
+  - id: py:zeno_ledger:risc0_spot_proof_coverage_matrix_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The tracked ZenoLedger proof coverage matrix mirrors the current required
+      Risc0 real-proof smoke cases for `risc0.zenodex_spot_transition.v1`,
+      including exact-out, and records the remaining production ZK scope gaps
+      as explicit blocking items. The checker fails closed if the matrix omits a
+      required smoke case, references an unsupported required case, loses all
+      open-gap entries, or points at missing evidence files. This is a scope and
+      claim-boundary gate; it is not itself a Risc0 receipt archive.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zeno_ledger_proof_coverage_matrix.py
+        - cmd: pytest -q tests/test_check_zeno_ledger_proof_coverage_matrix.py
+      files:
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - tools/check_zeno_ledger_proof_coverage_matrix.py
+        - tests/test_check_zeno_ledger_proof_coverage_matrix.py
+        - tools/check_zeno_ledger_risc0_real_proof_smoke_report.py
+        - docs/zenodex_spot_state_proof_risc0_v1.md
+
   - id: py:zeno_ledger:tee_proof_metadata_adapter_v0
     status: supported
     layer: runtime
