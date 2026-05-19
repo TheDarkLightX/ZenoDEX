@@ -1237,3 +1237,108 @@ breadth guard rather than a representativeness proof.
 Research consequence: real replay collection now needs source manifests, secret
 scans, and coverage profiles. This moves the production bottleneck from raw
 counts toward replay breadth and data-custody quality.
+
+## Dominance-Cover Runtime Prototype
+
+Artifacts:
+[ZENO_ENERGY_DOMINANCE_COVER.md](./ZENO_ENERGY_DOMINANCE_COVER.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_dominance_cover_benchmark_seed20260538.json`
+
+Command:
+
+```bash
+python3 tools/check_upba_v2_dominance_cover.py \
+  --batches 80 \
+  --candidates-per-batch 24 \
+  --seed 20260538 \
+  --output-json data/upba_energy/upba_v2_dominance_cover_benchmark_seed20260538.json \
+  --output-markdown docs/ZENO_ENERGY_DOMINANCE_COVER.md
+```
+
+Observed result:
+
+| mode | count | ok | failed | structural verify ok | max uncovered |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| winner_only | 79 | 79 | 0 | 79 | 0 |
+| hand_top1 | 79 | 56 | 23 | 56 | 3 |
+| weak_pruned | 75 | 0 | 75 | 0 | 8 |
+
+Positive knowledge:
+
+```text
+The runtime certificate can replay a dominance-cover claim over a verified
+finite full list. Invalid pruned candidates fail soundness, and weak retained
+candidates fail when a better verified full-list candidate is uncovered.
+```
+
+Negative knowledge:
+
+```text
+Winner-only certificates are oracle witnesses in this benchmark. They prove the
+certificate format and checker path, not a useful pruning generator. A bounded
+UPBA v2 claim still needs proof that the supplied full list is complete.
+```
+
+Research consequence: the next dominance step is to generate non-oracle pruned
+sets and attach a full-list completeness proof or bounded-grid enumerator.
+
+## WES Dominance Search Bridge
+
+Artifacts:
+[ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](./ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
+
+Static JSON:
+`data/upba_energy/zenoenergy_wes_dominance_search_seed20260539.json`
+
+Candidate JSONL:
+`data/upba_energy/zenoenergy_wes_dominance_candidates_seed20260539.jsonl`
+
+External WES checkout:
+`external/WitnessEnergySearch`, commit
+`5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6`
+
+Command:
+
+```bash
+python3 tools/run_zenoenergy_wes_dominance_search.py \
+  --batches 40 \
+  --candidates-per-batch 24 \
+  --budget 60 \
+  --top-k 25 \
+  --seed 20260539 \
+  --out-dir runs/wes/zenoenergy_dominance_cover_seed20260539 \
+  --output-json data/upba_energy/zenoenergy_wes_dominance_search_seed20260539.json \
+  --output-markdown docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md \
+  --candidates-jsonl data/upba_energy/zenoenergy_wes_dominance_candidates_seed20260539.jsonl
+```
+
+Observed result:
+
+| policy | checked | useful at k=25 | calls to first useful | near misses at k=25 |
+| --- | ---: | ---: | ---: | ---: |
+| model_online | 60 | 24 | 1 | 16 |
+| model_frozen | 60 | 24 | 1 | 24 |
+| declared_priority | 60 | 24 | 1 | 24 |
+| random_seeded | 60 | 23 | 2 | 13 |
+
+Positive knowledge:
+
+```text
+WES can rank ZenoEnergy dominance-cover checker work through a narrow bridge.
+The bridge keeps deterministic UPBA verification and dominance-cover checking
+as the label authority, with zero invalid accepts in this bounded run.
+```
+
+Negative knowledge:
+
+```text
+The current WES corpus contains explicit constructive and weak-pruning control
+rows. The useful-at-k result is integration evidence and search-boundary
+evidence. It is not production utility evidence for live UPBA distributions.
+```
+
+Research consequence: WES is now available for witness-search experiments over
+ZenoEnergy certificates. Use it to hunt certificate failures and rank pruning
+claims, then promote only checks that replay without external state.

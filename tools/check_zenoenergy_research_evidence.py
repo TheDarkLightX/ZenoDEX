@@ -356,6 +356,54 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    dominance_cover = _load_json(
+        root / "data/upba_energy/upba_v2_dominance_cover_benchmark_seed20260538.json"
+    )
+    dominance_cover_doc = (
+        root / "docs/ZENO_ENERGY_DOMINANCE_COVER.md"
+    ).read_text(encoding="utf-8")
+    dominance_cover_source = (
+        root / "src/energy/upba_v2_dominance_cover.py"
+    ).read_text(encoding="utf-8")
+    dominance_cover_tool = (
+        root / "tools/check_upba_v2_dominance_cover.py"
+    ).read_text(encoding="utf-8")
+    dominance_cover_tests = (
+        root / "tests/energy/test_upba_v2_dominance_cover.py"
+    ).read_text(encoding="utf-8")
+    payloads["dominance_cover"] = dominance_cover
+    checks.extend(
+        _check_dominance_cover(
+            dominance_cover,
+            dominance_cover_doc,
+            dominance_cover_source,
+            dominance_cover_tool,
+            dominance_cover_tests,
+        )
+    )
+
+    wes_dominance_search = _load_json(
+        root / "data/upba_energy/zenoenergy_wes_dominance_search_seed20260539.json"
+    )
+    wes_dominance_doc = (
+        root / "docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md"
+    ).read_text(encoding="utf-8")
+    wes_dominance_tool = (
+        root / "tools/run_zenoenergy_wes_dominance_search.py"
+    ).read_text(encoding="utf-8")
+    wes_dominance_tests = (
+        root / "tests/energy/test_zenoenergy_wes_dominance_search.py"
+    ).read_text(encoding="utf-8")
+    payloads["wes_dominance_search"] = wes_dominance_search
+    checks.extend(
+        _check_wes_dominance_search(
+            wes_dominance_search,
+            wes_dominance_doc,
+            wes_dominance_tool,
+            wes_dominance_tests,
+        )
+    )
+
     popperpad_readme = (
         root / "internal/popperpad/zenoenergy/README.md"
     ).read_text(encoding="utf-8")
@@ -1570,6 +1618,144 @@ def _check_autotrader_energy_shadow_bridge(
     ]
 
 
+def _check_dominance_cover(
+    report: dict[str, Any],
+    doc_text: str,
+    source_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    winner = summary["winner_only"]
+    weak = summary["weak_pruned"]
+    hand = summary["hand_top1"]
+    doc_lower = doc_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_true(
+            "dominance_cover.schema",
+            report.get("schema")
+            == "zenodex/energy/upba_v2_dominance_cover_benchmark/v1"
+            and report.get("certificate_schema")
+            == "zenodex/energy/upba_v2_dominance_cover_certificate/v1",
+            "dominance-cover benchmark and certificate schemas are stable",
+        ),
+        _expect_true(
+            "dominance_cover.winner_only_passes",
+            int(winner["count"]) > 0
+            and int(winner["ok_count"]) == int(winner["count"])
+            and int(winner["structural_verify_ok_count"]) == int(winner["count"])
+            and int(winner["max_uncovered_full_count"]) == 0,
+            "winner-only certificates pass over the verified full list",
+        ),
+        _expect_true(
+            "dominance_cover.weak_pruned_rejected",
+            int(weak["count"]) > 0
+            and int(weak["failed_count"]) == int(weak["count"])
+            and int(weak["dominance_cover_ok_count"]) == 0
+            and int(weak["max_uncovered_full_count"]) > 0
+            and "uncovered better verified candidate" in negative_lower,
+            "weak pruned negative controls are rejected when better verified candidates are uncovered",
+        ),
+        _expect_true(
+            "dominance_cover.hand_top1_nonvacuous",
+            int(hand["count"]) > 0
+            and 0 < int(hand["failed_count"]) < int(hand["count"])
+            and int(hand["ok_count"]) == int(hand["structural_verify_ok_count"]),
+            "hand-energy top-1 pruning is a mixed baseline rather than a vacuous pass",
+        ),
+        _expect_true(
+            "dominance_cover.safety_and_hooks",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and "full_list_complete_for_claim" in source_text
+            and "pruned_sound_ok" in source_text
+            and "global_claim_ok" in source_text
+            and "verify_upba_v2_dominance_cover_certificate" in tool_text
+            and "test_weak_pruned_set_fails_when_better_verified_candidate_is_uncovered"
+            in test_text
+            and "bounded synthetic full lists" in doc_lower
+            and "completeness proof" in doc_lower
+            and "not a upba v2 bounded-grid optimality verifier" in limits_lower,
+            "runtime checker preserves verifier authority and states finite-list scope",
+        ),
+    ]
+
+
+def _check_wes_dominance_search(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    summary = report["summary"]
+    doc_lower = doc_text.lower()
+    limits_lower = " ".join(str(item).lower() for item in report.get("limits", []))
+    negative_lower = " ".join(
+        str(item).lower() for item in report.get("negative_knowledge", [])
+    )
+    return [
+        _expect_true(
+            "wes_dominance_search.schema",
+            report.get("schema")
+            == "zenodex/energy/zenoenergy_wes_dominance_search/v1"
+            and report.get("wes_report_schema") == "wes_generic_policy_comparison.v1"
+            and report.get("wes_commit")
+            == "5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6",
+            "WES bridge schema and pinned external WES commit are recorded",
+        ),
+        _expect_true(
+            "wes_dominance_search.candidate_corpus",
+            int(report["input_candidates"]) == 120
+            and int(report["budget"]) == 60
+            and int(report["top_k"]) == 25
+            and int(summary["input_candidates"]) == int(report["input_candidates"])
+            and "external/witnessenergysearch" in tool_text.lower()
+            and "WES commit" in doc_text,
+            "bounded WES candidate corpus and external source reference are stable",
+        ),
+        _expect_true(
+            "wes_dominance_search.useful_ordering",
+            int(summary["model_online_checked"]) == int(report["budget"])
+            and int(summary["model_online_useful_at_k"]) >= 24
+            and int(summary["declared_priority_useful_at_k"]) >= 24
+            and int(summary["model_online_useful_at_k"])
+            >= int(summary["random_seeded_useful_at_k"])
+            and int(summary["model_online_calls_to_first_useful"]) == 1
+            and int(summary["random_seeded_calls_to_first_useful"]) >= 1,
+            "WES-ranked policies find useful dominance-cover checks early under the static budget",
+        ),
+        _expect_true(
+            "wes_dominance_search.safety",
+            int(report["safety"]["invalid_accept_count"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["wes_ranks_only"]) is True
+            and bool(report["safety"]["scorer_authorizes_settlement"]) is False
+            and bool(report["safety"]["model_output_in_state_root"]) is False
+            and int(summary["checker_invalid_accept_count"]) == 0,
+            "WES ranks checker calls only and records zero invalid accepts",
+        ),
+        _expect_true(
+            "wes_dominance_search.source_hooks",
+            "compare_candidate_search_policies" in tool_text
+            and "check_wes_dominance_candidate" in tool_text
+            and "verify_candidates_in_order" in tool_text
+            and "verify_upba_v2_dominance_cover_certificate" in tool_text
+            and "test_wes_dominance_policy_comparison_smoke" in test_text
+            and "bounded synthetic" in doc_lower
+            and "checker order only" in doc_lower
+            and "does not remove the full-list completeness obligation" in negative_lower
+            and "not a upba v2 bounded-grid production verifier" in limits_lower,
+            "bridge source, tests, and docs preserve WES as an advisory search layer",
+        ),
+    ]
+
+
 def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
     expected = {
         "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517": "supported",
@@ -1609,6 +1795,10 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518": "supported",
         "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518": "falsified",
         "H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518": "supported",
+        "H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518": "supported",
+        "H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518": "falsified",
+        "H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518": "supported",
+        "H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518": "falsified",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -1679,6 +1869,8 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     autotrader = payloads["autotrader_energy_hard_cross_seed"]
     autotrader_aggregate = autotrader["aggregate"]
     autotrader_shadow = payloads["autotrader_energy_shadow_bridge"]
+    dominance_cover = payloads["dominance_cover"]
+    wes_dominance_search = payloads["wes_dominance_search"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -1921,6 +2113,51 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "negative_knowledge": autotrader_shadow["interpretation"][
                 "negative_knowledge"
             ],
+        },
+        "dominance_cover": {
+            "schema": dominance_cover["schema"],
+            "evaluated_batches": dominance_cover["evaluated_batches"],
+            "winner_only_ok_count": dominance_cover["summary"]["winner_only"][
+                "ok_count"
+            ],
+            "winner_only_count": dominance_cover["summary"]["winner_only"]["count"],
+            "weak_pruned_failed_count": dominance_cover["summary"]["weak_pruned"][
+                "failed_count"
+            ],
+            "weak_pruned_count": dominance_cover["summary"]["weak_pruned"]["count"],
+            "hand_top1_ok_count": dominance_cover["summary"]["hand_top1"][
+                "ok_count"
+            ],
+            "hand_top1_failed_count": dominance_cover["summary"]["hand_top1"][
+                "failed_count"
+            ],
+            "invalid_accept_count": dominance_cover["safety"][
+                "invalid_accept_count"
+            ],
+            "negative_knowledge": dominance_cover["negative_knowledge"],
+        },
+        "wes_dominance_search": {
+            "schema": wes_dominance_search["schema"],
+            "wes_commit": wes_dominance_search["wes_commit"],
+            "input_candidates": wes_dominance_search["input_candidates"],
+            "budget": wes_dominance_search["budget"],
+            "top_k": wes_dominance_search["top_k"],
+            "model_online_useful_at_k": wes_dominance_search["summary"][
+                "model_online_useful_at_k"
+            ],
+            "model_frozen_useful_at_k": wes_dominance_search["summary"][
+                "model_frozen_useful_at_k"
+            ],
+            "declared_priority_useful_at_k": wes_dominance_search["summary"][
+                "declared_priority_useful_at_k"
+            ],
+            "random_seeded_useful_at_k": wes_dominance_search["summary"][
+                "random_seeded_useful_at_k"
+            ],
+            "checker_invalid_accept_count": wes_dominance_search["summary"][
+                "checker_invalid_accept_count"
+            ],
+            "negative_knowledge": wes_dominance_search["negative_knowledge"],
         },
     }
 

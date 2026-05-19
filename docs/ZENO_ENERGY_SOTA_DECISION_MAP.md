@@ -92,7 +92,12 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 
 4. **Dominance-Cover Certificate Prototype**
 
-   The most useful formal next step is a runtime receipt for:
+   Status: first runtime prototype exists in
+   [ZENO_ENERGY_DOMINANCE_COVER.md](./ZENO_ENERGY_DOMINANCE_COVER.md), with a
+   WES search bridge in
+   [ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](./ZENO_ENERGY_WES_DOMINANCE_SEARCH.md).
+   The useful next step is a non-oracle pruned-list generator plus a full-list
+   completeness argument for:
 
    ```text
    DominanceCover(pruned, full)
@@ -100,8 +105,9 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    -> GloballyWeaklyOptimal(winner, Feasible)
    ```
 
-   The Lean theorem exists. The runtime side still needs a concrete bounded
-   receipt format.
+   The Lean theorem exists and the finite-list runtime receipt now exists. The
+   production gap is completeness for the generated full family and a pruning
+   policy that is useful without selecting the full-list winner as an oracle.
 
 ## Decisions
 

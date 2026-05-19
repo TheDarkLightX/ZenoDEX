@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 142
-passed_count: 142
+check_count: 156
+passed_count: 156
 failed_count: 0
 ```
 
@@ -113,6 +113,16 @@ failed_count: 0
 | autotrader_energy_shadow_bridge.learned_ties_hand_negative | pass | learned ordering ties hand energy, beats random mean calls, and records top-1 miss knowledge |
 | autotrader_energy_shadow_bridge.objective_equiv_argmax | pass | objective-equivalent argmax recall separates tied maxima from hash-selected exact winner misses |
 | autotrader_energy_shadow_bridge.doc_boundary | pass | shadow bridge doc records fixture scope and argmax-equivalence boundary |
+| dominance_cover.schema | pass | dominance-cover benchmark and certificate schemas are stable |
+| dominance_cover.winner_only_passes | pass | winner-only certificates pass over the verified full list |
+| dominance_cover.weak_pruned_rejected | pass | weak pruned negative controls are rejected when better verified candidates are uncovered |
+| dominance_cover.hand_top1_nonvacuous | pass | hand-energy top-1 pruning is a mixed baseline rather than a vacuous pass |
+| dominance_cover.safety_and_hooks | pass | runtime checker preserves verifier authority and states finite-list scope |
+| wes_dominance_search.schema | pass | WES bridge schema and pinned external WES commit are recorded |
+| wes_dominance_search.candidate_corpus | pass | bounded WES candidate corpus and external source reference are stable |
+| wes_dominance_search.useful_ordering | pass | WES-ranked policies find useful dominance-cover checks early under the static budget |
+| wes_dominance_search.safety | pass | WES ranks checker calls only and records zero invalid accepts |
+| wes_dominance_search.source_hooks | pass | bridge source, tests, and docs preserve WES as an advisory search layer |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -150,6 +160,10 @@ failed_count: 0
 | popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518 | pass | H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518 is recorded as supported |
 | popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518 | pass | H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518 is recorded as falsified |
 | popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518 | pass | H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518 | pass | H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518 | pass | H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518 is recorded as falsified |
+| popperpad.status.H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518 | pass | H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518 | pass | H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518 is recorded as falsified |
 | popperpad.doctor | pass | PopperPad doctor ok |
 
 ## Summary
@@ -184,6 +198,21 @@ failed_count: 0
     "row_count": 20,
     "source": "built-in-zenograph-baseline",
     "valid_count": 12
+  },
+  "dominance_cover": {
+    "evaluated_batches": 79,
+    "hand_top1_failed_count": 23,
+    "hand_top1_ok_count": 56,
+    "invalid_accept_count": 0,
+    "negative_knowledge": [
+      "A weak pruned set with an uncovered better verified candidate fails the dominance-cover check.",
+      "Dominance-cover certificates are about pruning correctness, not about model accuracy."
+    ],
+    "schema": "zenodex/energy/upba_v2_dominance_cover_benchmark/v1",
+    "weak_pruned_count": 75,
+    "weak_pruned_failed_count": 75,
+    "winner_only_count": 79,
+    "winner_only_ok_count": 79
   },
   "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list. A verifier-accepted candidate with the same volume and surplus as a certified representative is an objective-equivalent global weak optimum over the same exact finite family.",
   "fallback_permutation_audit": {
@@ -353,6 +382,22 @@ failed_count: 0
     "learned_mean_objective_winner_position": 1.0166414523449319,
     "objective_tie_batch_count": 1,
     "random_k10_false_exclusion_rate": 0.4931921331316188
+  },
+  "wes_dominance_search": {
+    "budget": 60,
+    "checker_invalid_accept_count": 0,
+    "declared_priority_useful_at_k": 24,
+    "input_candidates": 120,
+    "model_frozen_useful_at_k": 24,
+    "model_online_useful_at_k": 24,
+    "negative_knowledge": [
+      "Weak pruned sets remain useful negative controls because the checker rejects uncovered better verified candidates.",
+      "A passing WES search report does not remove the full-list completeness obligation for bounded-grid claims."
+    ],
+    "random_seeded_useful_at_k": 23,
+    "schema": "zenodex/energy/zenoenergy_wes_dominance_search/v1",
+    "top_k": 25,
+    "wes_commit": "5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6"
   }
 }
 ```

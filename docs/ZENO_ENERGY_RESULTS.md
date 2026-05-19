@@ -675,6 +675,59 @@ manifest checker, and promotion gate. It emits a single
 A malformed source manifest or missing attestation fails closed. Insufficient
 but well-formed evidence still produces `decision: blocked`.
 
+## Dominance-Cover And WES
+
+The dominance-cover prototype checks a finite verified full list and asks
+whether a pruned verified list covers every accepted full-list candidate by
+weak dominance over `(volume, surplus)`.
+
+Command:
+
+```bash
+python3 tools/check_upba_v2_dominance_cover.py \
+  --batches 80 \
+  --candidates-per-batch 24 \
+  --seed 20260538 \
+  --output-json data/upba_energy/upba_v2_dominance_cover_benchmark_seed20260538.json \
+  --output-markdown docs/ZENO_ENERGY_DOMINANCE_COVER.md
+```
+
+| mode | count | ok | failed | structural verify ok | max uncovered |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| winner_only | 79 | 79 | 0 | 79 | 0 |
+| hand_top1 | 79 | 56 | 23 | 56 | 3 |
+| weak_pruned | 75 | 0 | 75 | 0 | 8 |
+
+The WES bridge then treats each pruning claim as a WES candidate and lets the
+deterministic checker label it. WES changes checker order only.
+
+Command:
+
+```bash
+python3 tools/run_zenoenergy_wes_dominance_search.py \
+  --batches 40 \
+  --candidates-per-batch 24 \
+  --budget 60 \
+  --top-k 25 \
+  --seed 20260539 \
+  --out-dir runs/wes/zenoenergy_dominance_cover_seed20260539 \
+  --output-json data/upba_energy/zenoenergy_wes_dominance_search_seed20260539.json \
+  --output-markdown docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md \
+  --candidates-jsonl data/upba_energy/zenoenergy_wes_dominance_candidates_seed20260539.jsonl
+```
+
+| policy | checked | useful at k=25 | calls to first useful | near misses at k=25 |
+| --- | ---: | ---: | ---: | ---: |
+| model_online | 60 | 24 | 1 | 16 |
+| model_frozen | 60 | 24 | 1 | 24 |
+| declared_priority | 60 | 24 | 1 | 24 |
+| random_seeded | 60 | 23 | 2 | 13 |
+
+Safety result: `invalid_accept_count = 0`. Boundary result: the WES bridge uses
+bounded synthetic UPBA batches and a pinned external WES commit
+`5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6`. It does not remove the full-list
+completeness obligation for bounded-grid claims.
+
 The replay gate
 [ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 checks the set-aware comparison, listwise set-ranker comparison, neighborhood
@@ -684,10 +737,11 @@ shadow bridge, objective-equivalence formal boundary, fallback/top-k receipts,
 objective-equivalent training hygiene, the production promotion gate, the replay
 source manifest checker, the replay source manifest builder, the real replay
 secret scanner, the real replay report builder, the production evidence bundle,
-and PopperPad status ledger. It also checks
+the dominance-cover runtime prototype, the WES dominance search bridge, and
+PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 136 passing checks and 0 failed checks, including
+The current receipt reports 156 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy
@@ -759,5 +813,6 @@ for UPBA v2, and it does not add a consensus claim.
 Recommendation: keep the isolated scorer and benchmark harness, with the
 gap-weighted checkpoint as the current research default. Next work should train
 the listwise set ranker, train the repair selector on outcome-level labels,
-refresh hard negatives, prototype a dominance-cover certificate, and compare
-against a finalized v2 bounded-grid optimality verifier.
+refresh hard negatives, replace winner-only dominance witnesses with non-oracle
+dominance-cover generators, and compare against a finalized v2 bounded-grid
+optimality verifier.

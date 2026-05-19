@@ -27,6 +27,12 @@ from .upba_v2_hand_energy import (
     hand_energy_from_record,
     score_upba_v2_hand_energy,
 )
+from .upba_v2_dominance_cover import (
+    DOMINANCE_COVER_SCHEMA,
+    build_upba_v2_dominance_cover_certificate,
+    verify_upba_v2_dominance_cover_certificate,
+    weakly_dominates_verified,
+)
 from .upba_v2_listwise_set_ranker import (
     LISTWISE_SET_FEATURE_DIM,
     LISTWISE_SET_FEATURE_NAMES,
@@ -75,6 +81,7 @@ __all__ = [
     "LISTWISE_SET_FEATURE_DIM",
     "LISTWISE_SET_FEATURE_NAMES",
     "AUTOTRADER_FEATURE_NAMES",
+    "DOMINANCE_COVER_SCHEMA",
     "AutoTraderLinearEnergyModel",
     "UpbaV2FeatureRecord",
     "UpbaV2NeighborhoodAugmentation",
@@ -82,6 +89,7 @@ __all__ = [
     "UpbaV2RepairSelectorFeatureRecord",
     "UpbaV2SetFeatureRecord",
     "augment_candidates_with_neighborhood",
+    "build_upba_v2_dominance_cover_certificate",
     "extract_upba_v2_feature_record",
     "extract_upba_v2_repair_selector_features",
     "extract_upba_v2_set_aware_feature_record",
@@ -104,5 +112,7 @@ __all__ = [
     "train_autotrader_linear_ranker",
     "train_listwise_set_ranker",
     "verified_checked_stop_certificate_holds",
+    "verify_upba_v2_dominance_cover_certificate",
+    "weakly_dominates_verified",
     "rank_upba_v2_candidates",
 ]

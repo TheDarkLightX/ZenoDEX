@@ -30,6 +30,10 @@ AutoTrader shadow bridge receipt: [AutoTraderEnergy Shadow Bridge Receipt](./AUT
 
 Fallback and checked-stop formal boundary: [ZenoEnergy Fallback And Checked-Stop Formal Boundary](./ZENO_ENERGY_FALLBACK_CHECKED_STOP_FORMAL.md)
 
+Dominance-cover runtime prototype: [ZenoEnergy Dominance Cover](./ZENO_ENERGY_DOMINANCE_COVER.md)
+
+WES dominance search bridge: [ZenoEnergy WES Dominance Search](./ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
+
 Research evidence replay gate: [ZenoEnergy Research Evidence Replay](./ZENO_ENERGY_RESEARCH_EVIDENCE_REPLAY.md)
 
 Replay source manifest: [ZenoEnergy Replay Source Manifest](./ZENO_ENERGY_REPLAY_SOURCE_MANIFEST.md)
@@ -77,6 +81,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
 - `src/energy/upba_v2_listwise_set_ranker.py`: deterministic candidate-list context features and top-one listwise softmax training helper.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
+- `src/energy/upba_v2_dominance_cover.py`: runtime dominance-cover certificates for verified finite candidate lists.
 - `src/energy/upba_v2_neighborhood.py`: deterministic repair and neighborhood proposal helpers.
 - `src/energy/upba_v2_repair_selector.py`: tiny advisory selector features and ranking for deterministic neighborhood proposals.
 - `src/energy/autotrader_energy.py`: synthetic AutoTrader advisory energy rows, hand scorer, linear ranker, and guard-call evaluator.
@@ -101,6 +106,8 @@ verifier labels for offline training and evaluation.
 - `tools/compare_upba_energy_listwise_set_ranker.py`: compares a listwise set-context ranker against pairwise linear baselines.
 - `tools/stress_upba_energy_listwise_set_ranker.py`: retrains and evaluates the listwise set-context ranker across train/holdout seed pairs.
 - `tools/benchmark_upba_energy_neighborhood.py`: compares limited candidate budgets against deterministic neighborhood-expanded budgets.
+- `tools/check_upba_v2_dominance_cover.py`: checks dominance-cover receipts over bounded synthetic verified full lists.
+- `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.
 - `tools/benchmark_upba_repair_selector.py`: trains and benchmarks a 35-parameter linear proposal selector over deterministic neighborhood repairs.
 - `tools/stress_upba_repair_selector.py`: retrains and evaluates the repair selector across train/holdout seed pairs.
 - `tools/benchmark_autotrader_energy_cross_seed.py`: trains and evaluates a tiny AutoTraderEnergy scorer across synthetic train/holdout seed pairs.
@@ -267,10 +274,10 @@ this as `checked_stop_top_k_rate` and `checked_stop_at_winner_rate`.
 
 ## Dominance Pruning
 
-The next math-first reduction is dominance pruning. A pruned list may replace the
-full bounded candidate list when every full-domain candidate has a retained
-representative that is weakly at least as good by volume first and surplus
-second:
+Dominance pruning is now represented by a runtime research certificate over a
+verified finite full list. A pruned list may replace the full bounded candidate
+list when every full-domain candidate has a retained representative that is
+weakly at least as good by volume first and surplus second:
 
 ```text
 DominanceCover(pruned, full) :=
@@ -292,8 +299,29 @@ full bounded-grid coverage
 ```
 
 This gives a proof path for reducing verifier work before applying any learned
-ranking. A learned scorer should operate after exact generation and certified
-dominance pruning when those certificates are available.
+ranking. The current runtime prototype checks the finite-list premise and
+records the remaining bounded-grid obligation explicitly.
+
+Current bounded synthetic receipt:
+
+```text
+winner_only: 79 / 79 dominance-cover certificates pass
+weak_pruned: 75 / 75 weak-pruning negative controls fail
+hand_top1:   56 / 79 hand-energy top-1 pruning attempts pass
+```
+
+The WES bridge imports `external/WitnessEnergySearch` as an external research
+tool and ranks dominance-cover candidate claims. WES can change checker order,
+while UPBA verification and the dominance-cover checker decide labels. The
+static WES receipt used WES commit
+`5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6`, checked 60 of 120 candidates, and
+put a useful dominance-cover result in the first checked slot for the learned,
+frozen, declared-priority, cheap-first, and input-order policies. Random seeded
+ordering reached its first useful result on the second checked slot.
+
+The result is a search and certificate-format prototype. A production or
+bounded-grid claim still needs a separate proof that the supplied full list is
+complete for the intended UPBA v2 candidate family.
 
 ## Neighborhood Repair
 

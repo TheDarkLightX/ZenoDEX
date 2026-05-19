@@ -493,6 +493,33 @@ support_edge_ref:           sha256:d0a1b2ab9fd9feaf114298233e478f7e70932111c23d4
 checkpoint_ref:             sha256:6f0b9f736b68106fb152439df0de11e3a0b276b02249aaffe919aad169f21522
 ```
 
+### Dominance-Cover And WES Bridge
+
+```text
+context_ref:                         sha256:a0c8978817a96b9a8ea09a2ad48c9653db7a9f261ff7b8d07c83ad0f79b46943
+dominance_json_blob_ref:             sha256:26f63a58876585f173a4ba07ee6ad1022b7b80f9fc916efa6ffa0d645e736222
+dominance_markdown_blob_ref:         sha256:85ad5f49de66089ade7b969485907be19e3fcb3dd0d6f9a7e5af408d51ef71fd
+wes_json_blob_ref:                   sha256:09c43655e54265f78104232471c4593a30b4631367ec354162423a5685dae267
+wes_markdown_blob_ref:               sha256:7693f4fcae87bed3f238383a715f824af8eb92329c6239e0fc95d282b54973d2
+dominance_support_recipe_ref:        sha256:29900b5aef4f9be9c8454d5af0aa5422454e0a4073a5ff16d368824ae1abee9f
+dominance_refute_recipe_ref:         sha256:c88d85228c4ff837bb957be1532ca79171c9b2dc463757049e3979eb7ce23ed6
+wes_support_recipe_ref:              sha256:2099f5b730449cb5aa059ecfa79367aac3723d0e5963faeca939f32ff135eadd
+wes_refute_recipe_ref:               sha256:c4bd7423b862f57f0c19cff383128a70785e4b6dfd3b8fed58ab947e9a7af510
+dominance_hypothesis_ref:            sha256:dc3507a3a2fd7023825294398e2d5b38fb153343f91eca160f6c12df3215ae1f
+dominance_negative_hypothesis_ref:   sha256:bdf08b70e56956a05f983f06a61ea761bab18d61c34812201ffbbaf377589e47
+wes_hypothesis_ref:                  sha256:35b4d6c7f1831db9babff81e7aee37b4c59ca5fb28e2df77e356efdd81693e70
+wes_negative_hypothesis_ref:         sha256:fe82b183294454578e420e22f95233e64adfe2a06f53c22252fbab4d2725a7ce
+dominance_support_evidence_ref:      sha256:d4df0b69f384b4c4e1a1e881fcdc7f1c280cb116f5a555fa7aa3705bafa5965a
+dominance_refute_evidence_ref:       sha256:92e11901abf9a3123773e3e0ba90ec1fce563558cd55d8e7fa6b9a1a382a5574
+wes_support_evidence_ref:            sha256:942228ea8ffc454149cdc0ec1c52966fb8437118569b097bc750f6952eb4b516
+wes_refute_evidence_ref:             sha256:ce7805a379f60a29c318c276d3b5ffac3fa2ada4c5b20d0a3b947d670e894920
+dominance_support_edge_ref:          sha256:abbba32251a91f0679cc900e2243c0769094098fcb959f5d463ed6e879c24217
+dominance_refute_edge_ref:           sha256:ed9592a69f38feda6a7743b44b23b086413c6f307194887092652abe1a0c2a97
+wes_support_edge_ref:                sha256:624e9c5bb1ed74dc1f0f1fbc916b75c4bcb6aa44dc064a5fdd0981ac88251e74
+wes_refute_edge_ref:                 sha256:a573b82a582cdc1e3ab864557300f2bc9d82dfd8919f2a7555d9f91b96a97089
+checkpoint_ref:                      sha256:613dcbee75c02f0050c66de8f03804caa6e4a1084fb6bd661b5c32821f9c70fb
+```
+
 ## Current Status
 
 ```text
@@ -539,6 +566,10 @@ H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_SAFETY_20260518: supported
 H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518: supported
 H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518: falsified
 H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518: supported
+H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518: supported
+H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518: falsified
+H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518: supported
+H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518: falsified
 doctor_ok: true
 ```
 

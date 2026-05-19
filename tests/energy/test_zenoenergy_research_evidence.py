@@ -15,7 +15,7 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
     assert report["schema"] == "zenodex/energy/research_evidence_replay_receipt/v1"
     assert report["ok"] is True
     assert report["failed_count"] == 0
-    assert report["passed_count"] == report["check_count"] == 141
+    assert report["passed_count"] == report["check_count"] == 155
     assert {
         "set_aware.negative_knowledge_recorded",
         "listwise_set.safety",
@@ -92,6 +92,16 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "autotrader_energy_shadow_bridge.learned_ties_hand_negative",
         "autotrader_energy_shadow_bridge.objective_equiv_argmax",
         "autotrader_energy_shadow_bridge.doc_boundary",
+        "dominance_cover.schema",
+        "dominance_cover.winner_only_passes",
+        "dominance_cover.weak_pruned_rejected",
+        "dominance_cover.hand_top1_nonvacuous",
+        "dominance_cover.safety_and_hooks",
+        "wes_dominance_search.schema",
+        "wes_dominance_search.candidate_corpus",
+        "wes_dominance_search.useful_ordering",
+        "wes_dominance_search.safety",
+        "wes_dominance_search.source_hooks",
         "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
         "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
@@ -118,4 +128,8 @@ def test_research_evidence_replay_receipt_passes_without_doctor() -> None:
         "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_NONVACUOUS_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_LEARNED_BEATS_HAND_20260518",
         "popperpad.status.H_AUTOTRADER_ENERGY_SHADOW_BRIDGE_OBJECTIVE_EQUIV_TOP1_20260518",
+        "popperpad.status.H_ZENOENERGY_DOMINANCE_COVER_RUNTIME_20260518",
+        "popperpad.status.H_ZENOENERGY_WEAK_PRUNED_DOMINANCE_ALWAYS_PASSES_20260518",
+        "popperpad.status.H_ZENOENERGY_WES_DOMINANCE_SEARCH_BRIDGE_20260518",
+        "popperpad.status.H_ZENOENERGY_WES_REMOVES_FULL_LIST_COMPLETENESS_20260518",
     }.issubset(check_ids)

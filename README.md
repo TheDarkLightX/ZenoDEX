@@ -228,7 +228,10 @@ Current bounded synthetic evidence is strong: the preferred 97-parameter
 gap-weighted ranker reaches 100% top-10 recall on committed holdout and
 cross-seed synthetic receipts, reduces mean verifier-winner position versus
 hand energy, and records zero invalid accepts. Production ranking remains gated
-by real or production-shadow replay.
+by real or production-shadow replay. The latest research adds a runtime
+dominance-cover certificate prototype and a WES bridge that ranks
+dominance-cover checker work while deterministic UPBA verification remains
+authoritative.
 
 Primary entry points:
 
@@ -239,6 +242,8 @@ Primary entry points:
 - [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
 - [docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md](docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md)
 - [docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
+- [docs/ZENO_ENERGY_DOMINANCE_COVER.md](docs/ZENO_ENERGY_DOMINANCE_COVER.md)
+- [docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
 - [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
 
 The replay secret scanner catches obvious key material before packaging. The
