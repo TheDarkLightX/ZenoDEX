@@ -45,6 +45,7 @@ from src.integration.zeno_ledger_peer_discovery_v0 import (
     build_peer_registry_v0,
     validate_peer_registry_admission_v0,
 )
+from src.integration.zeno_ledger_production_key_gates_v0 import validate_public_network_config_update_gate_v0
 from src.integration.zeno_ledger_signer_registry import verify_signature_quorum_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
@@ -113,6 +114,7 @@ PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS = frozenset(
         "config_signature_envelopes",
         "config_quorum_report",
         "config_quorum_admission",
+        "production_key_admission_receipt",
     }
 )
 
@@ -649,6 +651,7 @@ def validate_public_network_config_quorum_v0(
     *,
     network_config: Mapping[str, Any],
     expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
 ) -> dict[str, Any]:
     """Validate signer-quorum evidence attached to a public network config."""
 
@@ -685,6 +688,11 @@ def validate_public_network_config_quorum_v0(
     )
     if config.get("config_quorum_admission") != admission:
         raise ValueError("public network config quorum admission mismatch")
+    if require_production_key_admission:
+        receipt = config.get("production_key_admission_receipt")
+        if not isinstance(receipt, Mapping):
+            raise ValueError("public network config production key-management admission receipt is required")
+        validate_public_network_config_update_gate_v0(receipt)
     return admission
 
 
@@ -3074,6 +3082,7 @@ def _public_network_config_to_join_config_v0(
     serve: bool,
     require_network_config_quorum: bool = False,
     expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
 ) -> dict[str, Any]:
     if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
         raise ValueError("public network config schema mismatch")
@@ -3084,10 +3093,21 @@ def _public_network_config_to_join_config_v0(
     if require_network_config_quorum or expected_config_signer_registry_hash is not None:
         if not _has_public_network_config_quorum_fields_v0(network_config):
             raise ValueError("public network config quorum is required")
-    if require_network_config_quorum or expected_config_signer_registry_hash is not None or _has_public_network_config_quorum_fields_v0(network_config):
+    if require_production_key_admission and not isinstance(
+        network_config.get("production_key_admission_receipt"),
+        Mapping,
+    ):
+        raise ValueError("public network config production key-management admission receipt is required")
+    if (
+        require_network_config_quorum
+        or expected_config_signer_registry_hash is not None
+        or require_production_key_admission
+        or _has_public_network_config_quorum_fields_v0(network_config)
+    ):
         config_quorum_admission = validate_public_network_config_quorum_v0(
             network_config=network_config,
             expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+            require_production_key_admission=require_production_key_admission,
         )
     writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
     peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
@@ -3120,6 +3140,7 @@ def _public_network_config_to_join_config_v0(
         ),
         "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
         "network_config_quorum_required": require_network_config_quorum,
+        "production_key_admission_required": require_production_key_admission,
         "network_config_quorum_admission": config_quorum_admission,
         "peer_registry_admission": peer_registry_admission,
     }
@@ -3131,6 +3152,7 @@ def doctor_public_node_v0(
     expected_network_config_hash: str | None = None,
     require_network_config_quorum: bool = False,
     expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
 ) -> dict[str, Any]:
     """Check local and optional remote prerequisites before joining a testnet."""
 
@@ -3179,14 +3201,21 @@ def doctor_public_node_v0(
             if require_network_config_quorum or expected_config_signer_registry_hash is not None:
                 if not _has_public_network_config_quorum_fields_v0(network_config):
                     raise ValueError("public network config quorum is required")
+            if require_production_key_admission and not isinstance(
+                network_config.get("production_key_admission_receipt"),
+                Mapping,
+            ):
+                raise ValueError("public network config production key-management admission receipt is required")
             if (
                 require_network_config_quorum
                 or expected_config_signer_registry_hash is not None
+                or require_production_key_admission
                 or _has_public_network_config_quorum_fields_v0(network_config)
             ):
                 config_quorum_admission = validate_public_network_config_quorum_v0(
                     network_config=network_config,
                     expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+                    require_production_key_admission=require_production_key_admission,
                 )
             writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
             peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
@@ -3203,6 +3232,7 @@ def doctor_public_node_v0(
                 "feature_suite_hash": network_config.get("feature_suite_hash"),
                 "feature_count": network_config.get("feature_count"),
                 "network_config_quorum_required": require_network_config_quorum,
+                "production_key_admission_required": require_production_key_admission,
                 "network_config_quorum_admission": config_quorum_admission,
                 "peer_registry_admission": peer_registry_admission,
             }
@@ -3226,6 +3256,7 @@ def doctor_public_node_v0(
         "expected_network_config_hash": expected_network_config_hash,
         "require_network_config_quorum": require_network_config_quorum,
         "expected_config_signer_registry_hash": expected_config_signer_registry_hash,
+        "require_production_key_admission": require_production_key_admission,
         "checks": checks,
         "remote_network": remote_summary,
     }
@@ -3244,6 +3275,7 @@ def join_public_node_from_network_config_url_v0(
     expected_network_config_hash: str | None = None,
     require_network_config_quorum: bool = False,
     expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
     peer_auth_token: str | None = None,
 ) -> dict[str, Any]:
     """Join a public ZenoLedger testnet from one published network config URL."""
@@ -3265,6 +3297,7 @@ def join_public_node_from_network_config_url_v0(
         serve=serve,
         require_network_config_quorum=require_network_config_quorum,
         expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+        require_production_key_admission=require_production_key_admission,
     )
     data_dir.mkdir(parents=True, exist_ok=True)
     network_config_path = data_dir / "public_network_config.json"
@@ -3513,6 +3546,7 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
             expected_network_config_hash=args.expected_network_config_hash,
             require_network_config_quorum=args.require_network_config_quorum,
             expected_config_signer_registry_hash=args.expected_config_signer_registry_hash,
+            require_production_key_admission=args.require_production_key_admission,
             peer_auth_token=_read_transport_auth_token_file_v0(args.peer_auth_token_file),
         )
     except Exception as exc:
@@ -3551,6 +3585,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
             expected_network_config_hash=args.expected_network_config_hash,
             require_network_config_quorum=args.require_network_config_quorum,
             expected_config_signer_registry_hash=args.expected_config_signer_registry_hash,
+            require_production_key_admission=args.require_production_key_admission,
         )
     except Exception as exc:
         report = {"schema": NODE_DOCTOR_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
@@ -3669,6 +3704,7 @@ def main(argv: list[str] | None = None) -> int:
     join_network.add_argument("--expected-network-config-hash")
     join_network.add_argument("--require-network-config-quorum", action="store_true")
     join_network.add_argument("--expected-config-signer-registry-hash")
+    join_network.add_argument("--require-production-key-admission", action="store_true")
     join_network.add_argument("--peer-auth-token-file", type=Path)
     join_network.add_argument("--node-auth-token-file", type=Path)
     join_network.add_argument("--submit-peer-auth-token-file", type=Path)
@@ -3679,6 +3715,7 @@ def main(argv: list[str] | None = None) -> int:
     doctor.add_argument("--expected-network-config-hash")
     doctor.add_argument("--require-network-config-quorum", action="store_true")
     doctor.add_argument("--expected-config-signer-registry-hash")
+    doctor.add_argument("--require-production-key-admission", action="store_true")
     doctor.set_defaults(func=_cmd_doctor)
 
     run = sub.add_parser("run", help="replay a bundle and optionally serve node status")

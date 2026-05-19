@@ -8,6 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from src.integration.production_key_management_v0 import (
+    DEFAULT_ACTION_POLICIES_V0,
+    build_admission_receipt_v0,
+    build_key_descriptor_v0,
+    build_privileged_action_packet_v0,
+    build_signature_envelope_v0,
+)
+from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_ledger_signature import (
     bls_public_key_hex_from_private_key_v0,
     build_bls_signed_artifact_envelope_v0,
@@ -60,6 +68,54 @@ def _registry() -> dict[str, object]:
                 "status": "active",
             },
         ],
+    )
+
+
+def _pkm_receipt(action: str = "public_network_config_update") -> dict[str, object]:
+    policy = DEFAULT_ACTION_POLICIES_V0[action]
+    packet = build_privileged_action_packet_v0(
+        environment="production",
+        action=action,
+        target_kind="zeno_ledger_public_network_config",
+        target_hash=hash_v0("pkm_test_target", {"action": action}),
+        policy_hash=str(policy["policy_hash"]),
+        nonce=1,
+        epoch=10,
+        not_before_epoch=5,
+        expires_at_epoch=20,
+        payload_hash=hash_v0("pkm_test_payload", {"action": action}),
+    )
+    keys = [
+        build_key_descriptor_v0(
+            key_id=f"{action}-key-{index}",
+            public_key=f"{action}-pub-{index}",
+            role=str(policy["role"]),
+            environment="production",
+            status="active",
+            storage_class="hardware",
+            custodian_id=f"{action}-custodian-{index}",
+            valid_from_epoch=0,
+            valid_until_epoch=100,
+        )
+        for index in range(int(policy["threshold"]))
+    ]
+    envelopes = [
+        build_signature_envelope_v0(
+            key_id=str(key["key_id"]),
+            public_key=str(key["public_key"]),
+            packet_hash=str(packet["packet_hash"]),
+            signature_scheme="external-verifier-v0",
+            signature=f"fixture:{key['key_id']}:{packet['packet_hash']}",
+        )
+        for key in keys
+    ]
+    return build_admission_receipt_v0(
+        packet,
+        policy,
+        keys,
+        envelopes,
+        transparency_log_hash=hash_v0("pkm_test_transparency", {"action": action}),
+        signature_verifier=lambda p, d, e: e["signature"] == f"fixture:{d['key_id']}:{p['packet_hash']}",
     )
 
 
@@ -277,3 +333,88 @@ def test_join_config_conversion_requires_signed_public_network_config_quorum(tmp
     assert join_config["network_config_quorum_admission"]["accepted_weight"] == 2
     assert join_config["peer_registry_admission"]["writer_count"] == 1
     assert join_config["peer_registry_admission"]["peer_count"] == 1
+
+
+def test_production_strict_join_requires_public_network_config_key_admission(tmp_path: Path) -> None:
+    bundle_root = tmp_path / "bundle"
+    _bundle(bundle_root)
+    config = build_public_network_config_v0(
+        bundle_root=bundle_root,
+        mirror_base_url="http://127.0.0.1:8000",
+        writer_urls=["http://127.0.0.1:8799"],
+        peer_urls=[],
+        poll_seconds=5,
+        node_port=8788,
+    )
+    registry = _registry()
+    signed_config = attach_public_network_config_quorum_v0(
+        network_config=config,
+        registry=registry,
+        envelopes=_envelopes(str(config["network_config_hash"])),
+    )
+
+    with pytest.raises(ValueError, match="production key-management admission receipt is required"):
+        _public_network_config_to_join_config_v0(
+            network_config=signed_config,
+            node_id="node-b",
+            bundle_root=tmp_path / "synced",
+            data_dir=tmp_path / "node-b",
+            host="127.0.0.1",
+            port=None,
+            poll_seconds=None,
+            serve=False,
+            require_network_config_quorum=True,
+            require_production_key_admission=True,
+        )
+
+    signed_config["production_key_admission_receipt"] = _pkm_receipt()
+    join_config = _public_network_config_to_join_config_v0(
+        network_config=signed_config,
+        node_id="node-b",
+        bundle_root=tmp_path / "synced",
+        data_dir=tmp_path / "node-b",
+        host="127.0.0.1",
+        port=None,
+        poll_seconds=None,
+        serve=False,
+        require_network_config_quorum=True,
+        require_production_key_admission=True,
+    )
+
+    assert join_config["production_key_admission_required"] is True
+
+
+def test_production_strict_join_rejects_tampered_key_admission(tmp_path: Path) -> None:
+    bundle_root = tmp_path / "bundle"
+    _bundle(bundle_root)
+    config = build_public_network_config_v0(
+        bundle_root=bundle_root,
+        mirror_base_url="http://127.0.0.1:8000",
+        writer_urls=["http://127.0.0.1:8799"],
+        peer_urls=[],
+        poll_seconds=5,
+        node_port=8788,
+    )
+    registry = _registry()
+    signed_config = attach_public_network_config_quorum_v0(
+        network_config=config,
+        registry=registry,
+        envelopes=_envelopes(str(config["network_config_hash"])),
+    )
+    receipt = dict(_pkm_receipt())
+    receipt["action"] = "verifier_registry_update"
+    signed_config["production_key_admission_receipt"] = receipt
+
+    with pytest.raises(ValueError, match="receipt hash mismatch"):
+        _public_network_config_to_join_config_v0(
+            network_config=signed_config,
+            node_id="node-b",
+            bundle_root=tmp_path / "synced",
+            data_dir=tmp_path / "node-b",
+            host="127.0.0.1",
+            port=None,
+            poll_seconds=None,
+            serve=False,
+            require_network_config_quorum=True,
+            require_production_key_admission=True,
+        )
