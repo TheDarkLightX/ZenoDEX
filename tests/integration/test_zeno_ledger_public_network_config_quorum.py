@@ -275,3 +275,5 @@ def test_join_config_conversion_requires_signed_public_network_config_quorum(tmp
 
     assert join_config["network_config_quorum_required"] is True
     assert join_config["network_config_quorum_admission"]["accepted_weight"] == 2
+    assert join_config["peer_registry_admission"]["writer_count"] == 1
+    assert join_config["peer_registry_admission"]["peer_count"] == 1

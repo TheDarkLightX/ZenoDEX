@@ -122,13 +122,15 @@
     {
       "id": "zenoledger_public_testnet_rehearsal",
       "status": "supported_replay",
-      "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout. When required, public network configs must carry BLS signer-registry quorum over the hash-bound writer and peer URL list before a node treats them as joinable, node HTTP surfaces can require operator-local bearer authentication for peer reads and testnet submissions, and checkpoint/watcher equivocation can be converted into hash-bound slashing evidence packets plus bounded bonded slashing receipts.",
+      "invariant": "A public-testnet candidate run must rebuild matching feature-suite, watcher, status-root, bundle, dual-operator, and live-intake evidence from the local checkout. When required, public network configs must carry BLS signer-registry quorum over the hash-bound writer and peer URL list before a node treats them as joinable, derive a hash-bound peer registry admission receipt from the writer and peer URLs, allow node HTTP surfaces to require operator-local bearer authentication for peer reads and testnet submissions, and convert checkpoint/watcher equivocation into hash-bound slashing evidence packets plus bounded bonded slashing receipts.",
       "runtime_guard_paths": [
         "tools/run_public_testnet_candidate_gate.sh",
         "tools/check_zeno_ledger_anti_equivocation.py",
         "tools/check_zeno_ledger_bonded_slashing.py",
+        "tools/check_zeno_ledger_peer_discovery.py",
         "src/integration/zeno_ledger_anti_equivocation_v0.py",
         "src/integration/zeno_ledger_bonded_slashing_v0.py",
+        "src/integration/zeno_ledger_peer_discovery_v0.py",
         "tools/zeno_ledger_make_public_testnet_bundle.py",
         "tools/zeno_ledger_node.py",
         "tools/zeno_ledger_machine_b_acceptance.py",
@@ -143,41 +145,47 @@
         "tests/integration/test_zeno_ledger_machine_a_host.py",
         "tests/integration/test_zeno_ledger_machine_b_acceptance.py",
         "tests/integration/test_zeno_ledger_anti_equivocation_v0.py",
-        "tests/integration/test_zeno_ledger_bonded_slashing_v0.py"
+        "tests/integration/test_zeno_ledger_bonded_slashing_v0.py",
+        "tests/integration/test_zeno_ledger_peer_discovery_v0.py"
       ],
       "evidence_commands": [
         "python3 tools/check_zeno_ledger_anti_equivocation.py",
         "python3 tools/check_zeno_ledger_bonded_slashing.py",
+        "python3 tools/check_zeno_ledger_peer_discovery.py",
         "python3 -m pytest -q tests/integration/test_zeno_ledger_node_transport_auth.py",
         "python3 -m pytest -q tests/integration/test_zeno_ledger_public_network_config_quorum.py",
         "python3 -m pytest -q tests/integration/test_zeno_ledger_machine_b_acceptance.py",
         "PYTHON=python3 ZENO_PUBLIC_TESTNET_GATE_OUT=/tmp/zenodex_public_testnet_candidate_gate tools/run_public_testnet_candidate_gate.sh"
       ],
-      "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, hash-bound slashing evidence construction, bounded bonded slashing receipt construction, optional signed public-network config admission, optional bearer-authenticated node transport, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
+      "residual_limits": "This is same-machine replay, anti-equivocation sample evidence, hash-bound slashing evidence construction, bounded bonded slashing receipt construction, optional signed public-network config admission, hash-bound peer registry admission, optional bearer-authenticated node transport, and local public-network smoke evidence. A fresh two-machine Machine A/B run remains a separate operator test."
     },
     {
       "id": "zenoledger_validator_schedule_fork_choice",
       "status": "supported_scoped",
-      "invariant": "A scheduled ZenoLedger header is admitted only when it binds the active validator set hash and the claimed proposer matches the deterministic weighted round-robin duty; node peer checks accept candidate tips only when the deterministic fork-choice report says the peer extends the local tip, is the same tip, or is a known local prefix under the same validator set. When live checkpoint quorum is configured, pulled live heights require BLS checkpoint signer quorum before admission. When equivocation evidence is slashed, the receipt requires an active bond, fresh evidence hash, in-window evidence height, and a slash amount no larger than the available bond.",
+      "invariant": "A scheduled ZenoLedger header is admitted only when it binds the active validator set hash and the claimed proposer matches the deterministic weighted round-robin duty; node peer checks accept candidate tips only when the deterministic fork-choice report says the peer extends the local tip, is the same tip, or is a known local prefix under the same validator set. When live checkpoint quorum is configured, pulled live heights require BLS checkpoint signer quorum before admission. When public peer discovery is present, the peer registry must be hash-bound and exactly derived from the signed public config URL set. When equivocation evidence is slashed, the receipt requires an active bond, fresh evidence hash, in-window evidence height, and a slash amount no larger than the available bond.",
       "runtime_guard_paths": [
         "src/integration/zeno_ledger_bonded_slashing_v0.py",
         "src/integration/zeno_ledger_live_quorum_v0.py",
+        "src/integration/zeno_ledger_peer_discovery_v0.py",
         "src/integration/zeno_ledger_validator_schedule_v0.py",
         "tools/check_zeno_ledger_bonded_slashing.py",
+        "tools/check_zeno_ledger_peer_discovery.py",
         "tools/zeno_ledger_node.py",
         "tools/run_release_gate.sh"
       ],
       "test_paths": [
         "tests/integration/test_zeno_ledger_bonded_slashing_v0.py",
         "tests/integration/test_zeno_ledger_live_quorum_v0.py",
+        "tests/integration/test_zeno_ledger_peer_discovery_v0.py",
         "tests/integration/test_zeno_ledger_validator_schedule_v0.py",
         "tests/integration/test_zeno_ledger_node_fork_choice.py"
       ],
       "evidence_commands": [
         "python3 tools/check_zeno_ledger_bonded_slashing.py",
-        "python3 -m pytest -q tests/integration/test_zeno_ledger_bonded_slashing_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py"
+        "python3 tools/check_zeno_ledger_peer_discovery.py",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_bonded_slashing_v0.py tests/integration/test_zeno_ledger_live_quorum_v0.py tests/integration/test_zeno_ledger_peer_discovery_v0.py tests/integration/test_zeno_ledger_validator_schedule_v0.py tests/integration/test_zeno_ledger_node_fork_choice.py"
       ],
-      "residual_limits": "This is a deterministic policy, peer-check replay, opt-in live checkpoint quorum surface, and bounded slashing receipt surface. Open block gossip, validator peer discovery, live custody integration, appeal/governance policy, and automatic production key management remain follow-up work."
+      "residual_limits": "This is a deterministic policy, peer-check replay, opt-in live checkpoint quorum surface, hash-bound peer registry admission surface, and bounded slashing receipt surface. Open block gossip, dynamic peer exchange, live custody integration, appeal/governance policy, and automatic production key management remain follow-up work."
     },
     {
       "id": "zk_risc0_metadata_binding",
