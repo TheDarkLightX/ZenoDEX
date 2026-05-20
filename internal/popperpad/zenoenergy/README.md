@@ -807,8 +807,52 @@ H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_HELPS_20260519: supported
 H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519: falsified
 H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519: supported
 H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519: falsified
+H_ZENOENERGY_ENSEMBLE_SAFETY_20260519: supported
+H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519: supported
+H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519: falsified
+H_ZENOENERGY_PARTICLE_SEARCH_IMPROVES_CANDIDATE_QUALITY_20260519: supported
+H_ZENOENERGY_FILTERED_PARTICLE_BEST_HELPS_WES_20260519: supported
+H_ZENOENERGY_RAW_PARTICLE_ARCHIVES_ARE_SOUND_WES_CLAIMS_20260519: falsified
+H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519: supported
 doctor_ok: true
 ```
+
+### Particle Search And WES
+
+```text
+context_ref:                 sha256:4584563a3997ed05ea982ad6e4b1a1dc89d6de55209370f56516a70bc852e626
+particle_hypothesis_ref:     sha256:29a88c14be746fc9f04239d7103e272c048d0720fff9e7295246ccfa0aadf71b
+particle_support_edge_ref:   sha256:b12b5f554278daa1506954e2caaac3264b647d7e487aedbe5f3ccea332701dad
+wes_hypothesis_ref:          sha256:22e8d9810e0dd6fa82548e7516d281c5f2f8967ee72c5ec9317d4f63abd78132
+wes_support_edge_ref:        sha256:2a7970d394ecc7fc4e83bd5a30718c5fdbff0be3b456c6513e25a6cd3fbdfbdb
+raw_archive_hypothesis_ref:  sha256:0474ff43a25d0136d53371044f6559de6a1f98a2a7d2bd309c7a6addf672b8f6
+raw_archive_refute_edge_ref: sha256:a58be2a82cf3197c7d00a261aa230cc627915ade25d7bf98f4fc963c890fc0f7
+checkpoint_ref:              sha256:8d2d5dd610cf7b4f742c0fc96942d07ba899dbc959a5960999e4f90b50804e27
+```
+
+Negative knowledge: raw particle archives are not sound WES dominance-cover
+claims by themselves. The useful WES path is verifier-filtered
+`particle_best_obligation`.
+
+### AutoTrader JEPA UX Future Risk
+
+```text
+context_ref:                 sha256:3b30b088d048ee590d8f94870e2b5c5e5032f711c8d36774cc8ef7d18624039b
+receipt_artifact_ref:        sha256:eb0642ece43a8f767f75379b7b52adea53debad8fb216bdd83b2db990cb7dce5
+markdown_artifact_ref:       sha256:d84604ca1841ca60b570ee900224e8864b0e674058b6b23f33c6b009aafce9ae
+checker_artifact_ref:        sha256:6e42dea7b2fe3e6b274ab351447599b14a42698f30ddee9c8d1c86751a3f44da
+recipe_ref:                  sha256:a262e584b5715c1bf4f98a00a73df1dbb0d7e6960a3940e36c2b1d27794db907
+hypothesis_ref:              sha256:31db25debeaac4a2e60d691594d4e25aa15623f9216f52c0632aeb36966538d8
+evidence_ref:                sha256:28c9225cb7b2b14a98b3056c5cc3ae47e4542849e9a77a77406bf885a6f0c015
+support_edge_ref:            sha256:705244d4742b0fd3d1c3dbb2456c24f1ab51a15d59ef9e380b7fa4c39e4237ba
+```
+
+Status: `H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519` is supported for the
+committed synthetic receipt. Future tension predicts synthetic later policy
+failures and stress axes, suggested controls lower future tension, UX warnings
+match deterministic guard outcomes, and neither the model nor the UX card
+authorizes trades. Real AutoTrader shadow replay remains required before
+promotion.
 
 ## Replay
 
