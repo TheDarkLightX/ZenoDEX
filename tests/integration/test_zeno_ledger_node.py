@@ -381,6 +381,8 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         features = _read_url_json(f"http://{host}:{port}/features")
         tokens = _read_url_json(f"http://{host}:{port}/tokens")
         live = _read_url_json(f"http://{host}:{port}/live")
+        trade_telemetry = _read_url_json(f"http://{host}:{port}/telemetry/trades?limit=20")
+        trade_telemetry_summary = _read_url_json(f"http://{host}:{port}/telemetry/summary?limit=20")
         network = _read_url_json(f"http://{host}:{port}/network")
         testnet_status = _read_url_json(f"http://{host}:{port}/testnet-status")
         pre_pull_peer_check = check_peer_status_v0(
@@ -442,6 +444,18 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
         assert network["capabilities"]["submission_forwarding_enabled"] is False
         assert live["live"] is True
         assert live["state"]["latest_height"] == 11
+        assert trade_telemetry["ok"] is True
+        assert trade_telemetry["row_count"] >= 6
+        telemetry_kinds = {row["intent_kind"] for row in trade_telemetry["rows"]}
+        assert "SWAP_EXACT_IN" in telemetry_kinds
+        assert "ADD_LIQUIDITY" in telemetry_kinds
+        assert "REMOVE_LIQUIDITY" in telemetry_kinds
+        assert "ZENODEX_TESTNET_FAUCET" in telemetry_kinds
+        swap_rows = [row for row in trade_telemetry["rows"] if row["intent_kind"] == "SWAP_EXACT_IN"]
+        assert swap_rows and swap_rows[-1]["context"]["pre_pool"]["pool_id"] == compute_pool_id(asset_a, asset_b, 30)
+        assert trade_telemetry_summary["ok"] is True
+        assert trade_telemetry_summary["accepted_count"] >= 6
+        assert trade_telemetry_summary["action_counts"]["SWAP_EXACT_IN"] >= 1
         assert pre_pull_peer_check["ok"] is True
         assert pre_pull_peer_check["peers"][0]["height_relation"] == "peer_ahead"
         assert pre_pull_peer_check["peers"][0]["common_height"] == 5

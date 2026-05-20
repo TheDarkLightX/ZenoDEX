@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +70,9 @@ NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PREFLIGHT_REPORT_SCHEMA = "zenodex.zeno_ledger.node_preflight_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
+NODE_TRADE_TELEMETRY_SCHEMA_V0 = "zenodex.zeno_ledger.node_trade_telemetry.v0"
+NODE_TRADE_TELEMETRY_ROW_SCHEMA_V0 = "zenodex.zeno_ledger.node_trade_telemetry_row.v0"
+NODE_TRADE_TELEMETRY_SUMMARY_SCHEMA_V0 = "zenodex.zeno_ledger.node_trade_telemetry_summary.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
@@ -669,6 +672,323 @@ def _is_faucet_body_v0(body: Mapping[str, Any]) -> bool:
 
 def _latest_live_state_path(data_dir: Path) -> Path:
     return data_dir / "live_state.json"
+
+
+def _query_int_v0(
+    query: Mapping[str, list[str]],
+    name: str,
+    *,
+    default: int,
+    lo: int,
+    hi: int,
+) -> int:
+    values = query.get(name)
+    if not values:
+        return default
+    try:
+        value = int(values[-1])
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, value))
+
+
+def _latest_live_height_v0(*, data_dir: Path, node_status: Mapping[str, Any]) -> int:
+    live_state_path = _latest_live_state_path(data_dir)
+    if live_state_path.is_file():
+        try:
+            return int(_load_json_object(live_state_path)["latest_height"])
+        except Exception:
+            pass
+    return int(node_status["latest_height"])
+
+
+def _snapshot_path_for_height_v0(*, data_dir: Path, node_status: Mapping[str, Any], height: int) -> Path:
+    if height > int(node_status["latest_height"]):
+        return data_dir / "live_ledger" / "snapshots" / f"{height}.json"
+    return Path(str(node_status["bundle_root"])) / "bootstrap" / "ledger" / "snapshots" / f"{height}.json"
+
+
+def _header_path_for_height_v0(*, data_dir: Path, node_status: Mapping[str, Any], height: int) -> Path:
+    if height > int(node_status["latest_height"]):
+        return data_dir / "live_ledger" / "headers" / f"{height}.json"
+    return Path(str(node_status["bundle_root"])) / "bootstrap" / "ledger" / "headers" / f"{height}.json"
+
+
+def _artifact_path_for_height_v0(
+    *,
+    data_dir: Path,
+    node_status: Mapping[str, Any],
+    kind: str,
+    height: int,
+) -> Path:
+    live_path = _live_artifact_path(data_dir=data_dir, kind=kind, height=height)
+    if live_path.is_file():
+        return live_path
+    plural = {
+        "header": "headers",
+        "body": "bodies",
+        "checkpoint": "checkpoints",
+        "snapshot": "snapshots",
+    }[kind]
+    bootstrap_path = Path(str(node_status["bundle_root"])) / "bootstrap" / "ledger" / plural / f"{height}.json"
+    if bootstrap_path.is_file():
+        return bootstrap_path
+    return live_path
+
+
+def _find_pool_snapshot_v0(snapshot: object, pool_id: object) -> dict[str, Any] | None:
+    if not isinstance(snapshot, Mapping) or not isinstance(pool_id, str) or not pool_id:
+        return None
+    pools = snapshot.get("pools")
+    if not isinstance(pools, list):
+        return None
+    for pool in pools:
+        if isinstance(pool, Mapping) and pool.get("pool_id") == pool_id:
+            return {
+                "pool_id": str(pool.get("pool_id", "")),
+                "asset0": str(pool.get("asset0", "")),
+                "asset1": str(pool.get("asset1", "")),
+                "reserve0": int(pool.get("reserve0", 0)),
+                "reserve1": int(pool.get("reserve1", 0)),
+                "fee_bps": int(pool.get("fee_bps", 0)),
+                "lp_supply": int(pool.get("lp_supply", 0)),
+                "status": str(pool.get("status", "")),
+            }
+    return None
+
+
+def _pool_trade_features_v0(*, operation: Mapping[str, Any], pre_pool: Mapping[str, Any] | None) -> dict[str, Any]:
+    kind = str(operation.get("kind", ""))
+    asset_in = operation.get("asset_in")
+    amount_in = operation.get("amount_in")
+    stress_bps = 0
+    reserve_skew_bps = 0
+    if pre_pool is not None:
+        reserve0 = int(pre_pool.get("reserve0", 0))
+        reserve1 = int(pre_pool.get("reserve1", 0))
+        reserve_sum = reserve0 + reserve1
+        if reserve_sum > 0:
+            reserve_skew_bps = abs(reserve0 - reserve1) * 10_000 // reserve_sum
+        reserve_in = 0
+        if kind == "SWAP_EXACT_IN":
+            if asset_in == pre_pool.get("asset0"):
+                reserve_in = reserve0
+            elif asset_in == pre_pool.get("asset1"):
+                reserve_in = reserve1
+        elif kind == "ADD_LIQUIDITY":
+            reserve_in = reserve_sum
+            raw_amount0 = operation.get("amount0_desired", 0)
+            raw_amount1 = operation.get("amount1_desired", 0)
+            if isinstance(raw_amount0, int) and isinstance(raw_amount1, int):
+                amount_in = raw_amount0 + raw_amount1
+        elif kind == "REMOVE_LIQUIDITY":
+            reserve_in = int(pre_pool.get("lp_supply", 0))
+            amount_in = operation.get("lp_amount", 0)
+        if isinstance(amount_in, int) and not isinstance(amount_in, bool) and reserve_in > 0:
+            stress_bps = min(10_000, max(0, amount_in * 10_000 // reserve_in))
+    return {
+        "stress_bps": int(stress_bps),
+        "reserve_skew_bps": int(reserve_skew_bps),
+    }
+
+
+def _intent_operations_v0(tx: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    operations = tx.get("operations")
+    if not isinstance(operations, Mapping):
+        return []
+    rows: list[Mapping[str, Any]] = []
+    for key in ("2", "5"):
+        value = operations.get(key)
+        if isinstance(value, list):
+            rows.extend(item for item in value if isinstance(item, Mapping))
+    if rows:
+        return rows
+    for value in operations.values():
+        if isinstance(value, list):
+            rows.extend(item for item in value if isinstance(item, Mapping))
+    return rows
+
+
+def _trade_telemetry_rows_for_tx_v0(
+    *,
+    node_status: Mapping[str, Any],
+    height: int,
+    time_ms: int | None,
+    tx: Mapping[str, Any],
+    receipt: Mapping[str, Any] | None,
+    pre_snapshot: object | None,
+    post_snapshot: object | None,
+    header: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    accepted = bool(receipt and receipt.get("accepted") is True)
+    outcome = "accepted" if accepted else "rejected"
+    receipt_hash = str(receipt.get("receipt_hash", "")) if receipt else ""
+    error_code = receipt.get("error_code") if receipt else None
+    tx_hash = tx_hash_v0(dict(tx))
+    base = {
+        "schema": NODE_TRADE_TELEMETRY_ROW_SCHEMA_V0,
+        "source": "zeno_ledger_node_live",
+        "network_id": str(node_status.get("network_id", "")),
+        "chain_id": str(node_status.get("chain_id", "")),
+        "node_id": str(node_status.get("node_id", "")),
+        "node_role": str(node_status.get("node_role", "")),
+        "height": int(height),
+        "time_ms": time_ms,
+        "tx_id": str(tx.get("tx_id", "")),
+        "tx_hash": tx_hash,
+        "tx_sender_pubkey": str(tx.get("tx_sender_pubkey", "")),
+        "accepted": accepted,
+        "outcome": outcome,
+        "error_code": error_code,
+        "receipt_hash": receipt_hash,
+        "state_changed": bool(receipt and receipt.get("state_changed") is True),
+        "header_hash": canonical_header_hash_v0(dict(header)) if header else "",
+        "app_hash": str(header.get("app_hash", "")) if header else "",
+    }
+    if tx.get("kind") == TESTNET_FAUCET_KIND:
+        return [
+            {
+                **base,
+                "row_kind": "testnet_faucet",
+                "intent_kind": TESTNET_FAUCET_KIND,
+                "intent_id": "",
+                "sender_pubkey": str(tx.get("to_pubkey", "")),
+                "pool_id": "",
+                "asset_in": str(tx.get("asset", "")),
+                "asset_out": "",
+                "amount_in": int(tx.get("amount", 0)) if isinstance(tx.get("amount"), int) else 0,
+                "min_amount_out": None,
+                "features": {"stress_bps": 0, "reserve_skew_bps": 0},
+                "context": {"pre_pool": None, "post_pool": None},
+            }
+        ]
+    rows: list[dict[str, Any]] = []
+    for index, operation in enumerate(_intent_operations_v0(tx)):
+        pool_id = operation.get("pool_id")
+        pre_pool = _find_pool_snapshot_v0(pre_snapshot, pool_id)
+        post_pool = _find_pool_snapshot_v0(post_snapshot, pool_id)
+        features = _pool_trade_features_v0(operation=operation, pre_pool=pre_pool)
+        rows.append(
+            {
+                **base,
+                "row_kind": "dex_intent",
+                "operation_index": index,
+                "intent_kind": str(operation.get("kind", "")),
+                "intent_id": str(operation.get("intent_id", "")),
+                "sender_pubkey": str(operation.get("sender_pubkey", "")),
+                "pool_id": str(pool_id or ""),
+                "asset_in": str(operation.get("asset_in", "")),
+                "asset_out": str(operation.get("asset_out", "")),
+                "amount_in": operation.get("amount_in"),
+                "min_amount_out": operation.get("min_amount_out"),
+                "amount0_desired": operation.get("amount0_desired"),
+                "amount1_desired": operation.get("amount1_desired"),
+                "lp_amount": operation.get("lp_amount"),
+                "nonce": operation.get("nonce"),
+                "deadline": operation.get("deadline"),
+                "features": features,
+                "context": {
+                    "pre_height": height - 1,
+                    "post_height": height,
+                    "pre_pool": pre_pool,
+                    "post_pool": post_pool,
+                },
+            }
+        )
+    return rows
+
+
+def _trade_telemetry_rows_from_live_ledger_v0(
+    *,
+    data_dir: Path,
+    node_status: Mapping[str, Any],
+    since_height: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    latest_height = _latest_live_height_v0(data_dir=data_dir, node_status=node_status)
+    rows: list[dict[str, Any]] = []
+    start_height = max(1, int(since_height))
+    for height in range(start_height, latest_height + 1):
+        body_path = _live_artifact_path(data_dir=data_dir, kind="body", height=height)
+        receipts_path = data_dir / "live_ledger" / "receipts" / f"{height}.json"
+        if not body_path.is_file() or not receipts_path.is_file():
+            continue
+        body = _load_json_object(body_path)
+        receipts_obj = json.loads(receipts_path.read_text(encoding="utf-8"))
+        receipts = receipts_obj if isinstance(receipts_obj, list) else []
+        pre_snapshot: object | None = None
+        post_snapshot: object | None = None
+        header: Mapping[str, Any] | None = None
+        pre_snapshot_path = _snapshot_path_for_height_v0(data_dir=data_dir, node_status=node_status, height=height - 1)
+        post_snapshot_path = _snapshot_path_for_height_v0(data_dir=data_dir, node_status=node_status, height=height)
+        header_path = _header_path_for_height_v0(data_dir=data_dir, node_status=node_status, height=height)
+        if pre_snapshot_path.is_file():
+            pre_snapshot = _load_json_object(pre_snapshot_path)
+        if post_snapshot_path.is_file():
+            post_snapshot = _load_json_object(post_snapshot_path)
+        if header_path.is_file():
+            header = _load_json_object(header_path)
+        txs = body.get("transactions")
+        if not isinstance(txs, list):
+            continue
+        time_ms: int | None = None
+        ingress = body.get("ingress")
+        if isinstance(ingress, Mapping):
+            cutoff = ingress.get("batch_cutoff")
+            if isinstance(cutoff, Mapping) and isinstance(cutoff.get("cutoff_time_ms"), int):
+                time_ms = int(cutoff["cutoff_time_ms"])
+        for index, tx in enumerate(txs):
+            if not isinstance(tx, Mapping):
+                continue
+            receipt = receipts[index] if index < len(receipts) and isinstance(receipts[index], Mapping) else None
+            rows.extend(
+                _trade_telemetry_rows_for_tx_v0(
+                    node_status=node_status,
+                    height=height,
+                    time_ms=time_ms,
+                    tx=tx,
+                    receipt=receipt,
+                    pre_snapshot=pre_snapshot,
+                    post_snapshot=post_snapshot,
+                    header=header,
+                )
+            )
+    if limit > 0:
+        return rows[-limit:]
+    return rows
+
+
+def _trade_telemetry_summary_v0(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
+    action_counts: dict[str, int] = {}
+    accepted_count = 0
+    rejected_count = 0
+    stress_max_bps = 0
+    for row in rows:
+        kind = str(row.get("intent_kind", "unknown"))
+        action_counts[kind] = action_counts.get(kind, 0) + 1
+        if row.get("accepted") is True:
+            accepted_count += 1
+        else:
+            rejected_count += 1
+        features = row.get("features")
+        if isinstance(features, Mapping):
+            try:
+                stress_max_bps = max(stress_max_bps, int(features.get("stress_bps", 0)))
+            except Exception:
+                pass
+    return {
+        "schema": NODE_TRADE_TELEMETRY_SUMMARY_SCHEMA_V0,
+        "row_count": len(rows),
+        "accepted_count": accepted_count,
+        "rejected_count": rejected_count,
+        "action_counts": dict(sorted(action_counts.items())),
+        "max_stress_bps": stress_max_bps,
+        "model_training_boundary": {
+            "rows_are_observations": True,
+            "receipts_are_authoritative": True,
+            "models_do_not_authorize_settlement": True,
+        },
+    }
 
 
 def _live_base_paths(*, bundle_root: Path, data_dir: Path, node_status: Mapping[str, Any]) -> dict[str, Path | int]:
@@ -1311,20 +1631,28 @@ def make_node_http_server_v0(
         def do_GET(self) -> None:  # noqa: N802
             try:
                 status = load_node_status_v0(root)
-                parts = [part for part in self.path.split("?", 1)[0].split("/") if part]
+                parsed_path = urlparse(self.path)
+                request_path = parsed_path.path
+                query = parse_qs(parsed_path.query)
+                parts = [part for part in request_path.split("/") if part]
                 if len(parts) == 3 and parts[0] == "live" and parts[1] in {"header", "body", "checkpoint", "snapshot"}:
                     try:
                         height = int(parts[2])
                     except ValueError:
                         self._send_json({"ok": False, "error": "invalid_height"}, status=HTTPStatus.BAD_REQUEST)
                         return
-                    artifact_path = _live_artifact_path(data_dir=root, kind=parts[1], height=height)
+                    artifact_path = _artifact_path_for_height_v0(
+                        data_dir=root,
+                        node_status=status,
+                        kind=parts[1],
+                        height=height,
+                    )
                     if not artifact_path.is_file():
                         self._send_json({"ok": False, "error": "live_artifact_missing"}, status=HTTPStatus.NOT_FOUND)
                     else:
                         self._send_json(_load_json_object(artifact_path))
                     return
-                if self.path in {"/", "/health"}:
+                if request_path in {"/", "/health"}:
                     self._send_json(
                         {
                             "ok": status["ok"],
@@ -1334,10 +1662,10 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/status":
+                if request_path == "/status":
                     self._send_json(status)
                     return
-                if self.path == "/features":
+                if request_path == "/features":
                     self._send_json(
                         {
                             "feature_suite_hash": status["feature_suite_hash"],
@@ -1347,7 +1675,7 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/tokens":
+                if request_path == "/tokens":
                     self._send_json(
                         {
                             "token_symbol": status["token_symbol"],
@@ -1357,7 +1685,7 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/network":
+                if request_path == "/network":
                     self._send_json(
                         {
                             "schema": "zenodex.zeno_ledger.node_network_status.v0",
@@ -1381,21 +1709,59 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/live":
+                if request_path == "/live":
                     live_path = root / "live_state.json"
                     if not live_path.is_file():
                         self._send_json({"ok": True, "live": False})
                     else:
                         self._send_json({"ok": True, "live": True, "state": _load_json_object(live_path)})
                     return
-                if self.path == "/attestation":
+                if request_path == "/telemetry/trades":
+                    rows = _trade_telemetry_rows_from_live_ledger_v0(
+                        data_dir=root,
+                        node_status=status,
+                        since_height=_query_int_v0(query, "since_height", default=1, lo=1, hi=10**9),
+                        limit=_query_int_v0(query, "limit", default=1_000, lo=1, hi=10_000),
+                    )
+                    self._send_json(
+                        {
+                            "schema": NODE_TRADE_TELEMETRY_SCHEMA_V0,
+                            "ok": True,
+                            "node_id": status["node_id"],
+                            "network_id": status["network_id"],
+                            "chain_id": status["chain_id"],
+                            "latest_height": _latest_live_height_v0(data_dir=root, node_status=status),
+                            "row_count": len(rows),
+                            "rows": rows,
+                        }
+                    )
+                    return
+                if request_path == "/telemetry/summary":
+                    rows = _trade_telemetry_rows_from_live_ledger_v0(
+                        data_dir=root,
+                        node_status=status,
+                        since_height=_query_int_v0(query, "since_height", default=1, lo=1, hi=10**9),
+                        limit=_query_int_v0(query, "limit", default=10_000, lo=1, hi=10_000),
+                    )
+                    self._send_json(
+                        {
+                            **_trade_telemetry_summary_v0(rows),
+                            "ok": True,
+                            "node_id": status["node_id"],
+                            "network_id": status["network_id"],
+                            "chain_id": status["chain_id"],
+                            "latest_height": _latest_live_height_v0(data_dir=root, node_status=status),
+                        }
+                    )
+                    return
+                if request_path == "/attestation":
                     attestation = _load_optional_json(status.get("operator_attestation_path"))
                     if attestation is None:
                         self._send_json({"ok": False, "error": "attestation_missing"}, status=HTTPStatus.NOT_FOUND)
                     else:
                         self._send_json(attestation)
                     return
-                if self.path == "/testnet-status":
+                if request_path == "/testnet-status":
                     testnet_status = _load_optional_json(status.get("combined_testnet_status_path"))
                     if testnet_status is None:
                         self._send_json({"ok": False, "error": "testnet_status_missing"}, status=HTTPStatus.NOT_FOUND)
