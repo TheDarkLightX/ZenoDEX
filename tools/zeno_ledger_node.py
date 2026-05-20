@@ -597,6 +597,16 @@ def _body_for_tx_v0(
     return body
 
 
+def _tx_requires_intent_signatures_v0(tx: Mapping[str, Any]) -> bool:
+    operations = tx.get("operations")
+    if not isinstance(operations, Mapping):
+        return False
+    raw_intents = operations.get("2")
+    if not isinstance(raw_intents, list):
+        return False
+    return any(isinstance(item, Mapping) and item.get("signature") is not None for item in raw_intents)
+
+
 def _read_http_json_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     raw_length = handler.headers.get("Content-Length")
     if raw_length is None:
@@ -725,6 +735,8 @@ def append_dex_transaction_v0(
         sequencer_id=sequencer_id,
         tx=tx,
     )
+    require_intent_signatures = _tx_requires_intent_signatures_v0(tx)
+    allow_unsigned_intents_if_tx_sender_matches = not require_intent_signatures
     live_body_path = data_dir / "live_bodies" / f"{height}.json"
     _write_json(live_body_path, body)
     live_ledger_dir = data_dir / "live_ledger"
@@ -742,7 +754,8 @@ def append_dex_transaction_v0(
         module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
         signature_set_root=ZERO_ROOT,
         allow_missing_settlement=True,
-        require_intent_signatures=False,
+        require_intent_signatures=require_intent_signatures,
+        allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
     )
     receipts_path = Path(str(block_report["receipts_path"]))
     receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
@@ -763,6 +776,8 @@ def append_dex_transaction_v0(
         "tx_accepted": accepted,
         "height": height,
         "tx_hash": tx_hash_v0(dict(tx)),
+        "require_intent_signatures": require_intent_signatures,
+        "allow_unsigned_intents_if_tx_sender_matches": allow_unsigned_intents_if_tx_sender_matches,
         "header_hash": block_report["header_hash"],
         "app_hash": block_report["app_hash"],
         "body_path": block_report["body_path"],
@@ -1022,6 +1037,12 @@ def pull_live_from_peer_v0(
             )
         else:
             replay_body = _strip_replay_derived_rejections_v0(peer_body)
+            transactions = replay_body.get("transactions", [])
+            require_intent_signatures = isinstance(transactions, list) and any(
+                isinstance(tx, Mapping) and _tx_requires_intent_signatures_v0(tx)
+                for tx in transactions
+            )
+            allow_unsigned_intents_if_tx_sender_matches = not require_intent_signatures
             body_path = data_dir / "pulled_bodies" / f"{height}.json"
             _write_json(body_path, replay_body)
             block_report = build_local_block_v0(
@@ -1038,7 +1059,8 @@ def pull_live_from_peer_v0(
                 module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
                 signature_set_root=ZERO_ROOT,
                 allow_missing_settlement=True,
-                require_intent_signatures=False,
+                require_intent_signatures=require_intent_signatures,
+                allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
             )
         local_header = _load_json_object(Path(str(block_report["header_path"])))
         if dict(local_header) != dict(peer_header):

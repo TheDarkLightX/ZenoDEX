@@ -23,6 +23,7 @@ from tools.zeno_ledger_node import (
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
     _strip_replay_derived_rejections_v0,
+    _tx_requires_intent_signatures_v0,
 )
 
 
@@ -83,6 +84,16 @@ def test_pull_live_strips_replay_derived_rejection_receipts() -> None:
     assert replay_body["evidence"]["upba_certificates"] == [{"keep": "upba"}]
     assert replay_body["evidence"]["proof_receipts"] == [{"keep": "proof"}]
     assert body["evidence"]["rejection_receipts"] == [{"derived": "strip-before-replay"}]
+
+
+def test_node_live_intake_requires_signatures_when_any_intent_is_signed() -> None:
+    unsigned_tx = {"operations": {"2": [{"intent_id": "0x" + "11" * 32}]}}
+    explicit_unsigned_tx = {"operations": {"2": [{"intent_id": "0x" + "22" * 32, "signature": None}]}}
+    signed_tx = {"operations": {"2": [{"intent_id": "0x" + "33" * 32, "signature": "0x" + "44" * 96}]}}
+
+    assert _tx_requires_intent_signatures_v0(unsigned_tx) is False
+    assert _tx_requires_intent_signatures_v0(explicit_unsigned_tx) is False
+    assert _tx_requires_intent_signatures_v0(signed_tx) is True
 
 
 def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path) -> None:
