@@ -1,0 +1,746 @@
+{
+  "candidates_per_context": 12,
+  "contexts": 96,
+  "control_metrics": {
+    "available_control_ids": [
+      "refresh_receipts",
+      "improve_route",
+      "reduce_notional",
+      "slow_execution",
+      "wait_budget_recovery"
+    ],
+    "model_authorizes_trade": false,
+    "per_control": {
+      "improve_route": {
+        "mean_delta": -0.5176779112278154,
+        "reduction_rate": 1.0,
+        "sample_count": 256
+      },
+      "reduce_notional": {
+        "mean_delta": -0.6444626073905143,
+        "reduction_rate": 1.0,
+        "sample_count": 256
+      },
+      "slow_execution": {
+        "mean_delta": -0.23712793507291027,
+        "reduction_rate": 1.0,
+        "sample_count": 256
+      },
+      "wait_budget_recovery": {
+        "mean_delta": -0.46089772608474266,
+        "reduction_rate": 1.0,
+        "sample_count": 256
+      }
+    },
+    "risk_row_count": 256,
+    "safer_counterfactual_count": 1024,
+    "safer_counterfactual_mean_delta": -0.46504154494399563,
+    "safer_counterfactual_reduction_rate": 1.0,
+    "schema": "zenodex/energy/autotrader_control_counterfactuals/v1",
+    "suggested_card_count": 256,
+    "suggested_control_authority_ok": true,
+    "suggested_control_best_mean_delta": -0.47554004134046934,
+    "suggested_control_best_reduction_rate": 1.0,
+    "suggested_control_effect_count": 494
+  },
+  "decision": "research_only_future_aware_autotrader_ux",
+  "efficiency": {
+    "model_authorizes_trade": false,
+    "ok": true,
+    "parameter_count": 68,
+    "runtime_dependency_profile": "pure_python_no_runtime_ml_dependency",
+    "schema": "zenodex/energy/autotrader_jepa_efficiency_profile/v1",
+    "score_path": "linear_encoder_plus_linear_predictor"
+  },
+  "future_aware_evaluation": {
+    "base_model": "autotrader_linear_ranker",
+    "batches": 96,
+    "future_tension_authorizes_trade": false,
+    "future_tension_mean": 2.954524782834043,
+    "future_weight": 0.1,
+    "invalid_accept_count": 0,
+    "invalid_top_1_rate": 0.0,
+    "mean_guard_calls": 1.0625,
+    "mode": "learned_future_aware",
+    "model_authorizes_trade": false,
+    "p95_guard_calls": 2,
+    "policy_guards_authoritative": true,
+    "schema": "zenodex/energy/autotrader_future_aware_evaluation/v1",
+    "top_1_recall": 0.9375,
+    "top_5_recall": 1.0,
+    "winner_future_tension_mean": 2.706974639727547
+  },
+  "future_risk_prediction": {
+    "future_failure_tension_delta_mean": 0.5007285096238818,
+    "future_failure_tension_mean": 3.333983106533391,
+    "future_non_failure_tension_mean": 2.833254596909509,
+    "later_policy_failure_auc": 0.814428884044226,
+    "later_policy_failure_count": 279,
+    "model_authorizes_trade": false,
+    "non_failure_count": 873,
+    "sample_count": 1152,
+    "schema": "zenodex/energy/autotrader_future_risk_prediction/v1",
+    "stress_correlations": {
+      "budget_stress": 0.5592288517861025,
+      "drawdown_stress": 0.5555945666227806,
+      "operational_stress": 0.386435404784279,
+      "slippage_stress": 0.6133274060907299
+    }
+  },
+  "future_weight": 0.1,
+  "hand_evaluation": {
+    "argmax_class_size_mean": 1,
+    "batches": 96,
+    "candidate_count_mean": 12,
+    "invalid_accept_count": 0,
+    "invalid_top_1_rate": 0.0,
+    "mean_guard_calls": 3.40625,
+    "mean_guard_calls_to_objective_winner": 3.40625,
+    "mode": "hand",
+    "objective_tie_batch_count": 0,
+    "objective_tie_batch_rate": 0.0,
+    "p95_guard_calls": 8,
+    "p95_guard_calls_to_objective_winner": 8,
+    "p99_guard_calls": 10,
+    "p99_guard_calls_to_objective_winner": 10,
+    "policy_guards_authoritative": true,
+    "schema": "zenodex/energy/autotrader_evaluation_report/v1",
+    "scorer_authorizes_trade": false,
+    "top_10_objective_recall": 0.9895833333333334,
+    "top_10_recall": 0.9895833333333334,
+    "top_1_objective_recall": 0.3020833333333333,
+    "top_1_recall": 0.3020833333333333,
+    "top_25_objective_recall": 1.0,
+    "top_25_recall": 1.0,
+    "top_5_objective_recall": 0.8020833333333334,
+    "top_5_recall": 0.8020833333333334
+  },
+  "hand_future_aware_evaluation": {
+    "base_model": "hand_energy",
+    "batches": 96,
+    "future_tension_authorizes_trade": false,
+    "future_tension_mean": 2.954524782834043,
+    "future_weight": 0.1,
+    "invalid_accept_count": 0,
+    "invalid_top_1_rate": 0.0,
+    "mean_guard_calls": 3.40625,
+    "mode": "hand_future_aware",
+    "model_authorizes_trade": false,
+    "p95_guard_calls": 8,
+    "policy_guards_authoritative": true,
+    "schema": "zenodex/energy/autotrader_future_aware_evaluation/v1",
+    "top_1_recall": 0.3020833333333333,
+    "top_5_recall": 0.8020833333333334,
+    "winner_future_tension_mean": 2.706974639727547
+  },
+  "learned_evaluation": {
+    "argmax_class_size_mean": 1,
+    "batches": 96,
+    "candidate_count_mean": 12,
+    "invalid_accept_count": 0,
+    "invalid_top_1_rate": 0.0,
+    "mean_guard_calls": 1.03125,
+    "mean_guard_calls_to_objective_winner": 1.03125,
+    "mode": "hybrid",
+    "objective_tie_batch_count": 0,
+    "objective_tie_batch_rate": 0.0,
+    "p95_guard_calls": 1,
+    "p95_guard_calls_to_objective_winner": 1,
+    "p99_guard_calls": 2,
+    "p99_guard_calls_to_objective_winner": 2,
+    "policy_guards_authoritative": true,
+    "schema": "zenodex/energy/autotrader_evaluation_report/v1",
+    "scorer_authorizes_trade": false,
+    "top_10_objective_recall": 1.0,
+    "top_10_recall": 1.0,
+    "top_1_objective_recall": 0.96875,
+    "top_1_recall": 0.96875,
+    "top_25_objective_recall": 1.0,
+    "top_25_recall": 1.0,
+    "top_5_objective_recall": 1.0,
+    "top_5_recall": 1.0
+  },
+  "model": {
+    "action_feature_names": [
+      "edge_gap_norm",
+      "execution_urgency_norm",
+      "slippage_bps_norm",
+      "budget_used_norm",
+      "price_deviation_norm",
+      "position_pressure_norm"
+    ],
+    "fingerprint": "22f8f010760fdb8847c25f8655711abd56e0b7beebe18ea832fff2d9dd672736",
+    "latent_names": [
+      "liquidity_fragility",
+      "drawdown_fragility",
+      "execution_fragility",
+      "operational_fragility"
+    ],
+    "schema": "zenodex/energy/zeno_jepa_linear_world_model/v1",
+    "state_feature_names": [
+      "liquidity_gap_norm",
+      "drawdown_risk_norm",
+      "price_deviation_norm",
+      "position_pressure_norm",
+      "budget_used_norm",
+      "nonce_age_norm"
+    ]
+  },
+  "negative_knowledge": [
+    "Future-tension UX is a warning and proposal-shaping feature, not execution authority.",
+    "JEPA-over-hand ordering is weaker than learned AutoTraderEnergy; use learned ranking as the ordering guardrail.",
+    "Synthetic UX receipts do not prove live AutoTrader profitability.",
+    "Production use still needs source-manifested real shadow replay and wallet-level policy gates."
+  ],
+  "ok": true,
+  "positive_knowledge": "Source-level JEPA future tension predicts synthetic later policy failures and stress axes well enough to drive user-facing warnings and safer counterfactual controls while deterministic policy guards remain authoritative.",
+  "ranking": {
+    "hand_future_top_5_recall": 0.8020833333333334,
+    "hand_mean_guard_calls": 3.40625,
+    "learned_future_mean_guard_calls": 1.0625,
+    "learned_future_top_1_recall": 0.9375,
+    "learned_future_top_5_recall": 1.0,
+    "learned_mean_guard_calls": 1.03125,
+    "ranking_guardrail_passed": true
+  },
+  "research_inputs": {
+    "artifacts": {
+      "experiments_breakthroughs": {
+        "byte_length": 604,
+        "path": "experiments/breakthroughs.md",
+        "sha256": "c59bab34af7df57071c226250b48458490f4314df1a9795844efcc18ac554cac"
+      },
+      "experiments_ideas": {
+        "byte_length": 663,
+        "path": "experiments/ideas.md",
+        "sha256": "ddf2ee7165746f722cbb183ef4184b26a08b5bef78e1a9e1d4cb9f58d0f777a7"
+      },
+      "popperpad_zenoenergy_log": {
+        "byte_length": 288885,
+        "path": "internal/popperpad/zenoenergy/log.jsonl",
+        "sha256": "57b3e609b56cab1a7f3d04087f324eaf1c213d754e07970f22d5f45334b766a0"
+      },
+      "popperpad_zenoenergy_readme": {
+        "byte_length": 63736,
+        "path": "internal/popperpad/zenoenergy/README.md",
+        "sha256": "1f0ad82f66e3f53f9b01237cbeff28bc4b0e29d1c242f0915756e90f8a7f9950"
+      }
+    },
+    "incorporated_lessons": [
+      "Use canonical feature projections before JEPA scoring.",
+      "Treat sequence-sensitive winner roots as negative knowledge for UPBA-style semantics.",
+      "Keep ZenoEnergy advisory: models propose warnings and controls; guards decide execution."
+    ],
+    "ok": true,
+    "schema": "zenodex/energy/autotrader_jepa_research_inputs/v1"
+  },
+  "safety_contract": {
+    "authority_ok": true,
+    "deterministic_policy_guards_authoritative": true,
+    "deterministic_verifier_authoritative": true,
+    "future_tension_authorizes_trade": false,
+    "model_authorizes_trade": false,
+    "ux_card_authorizes_trade": false
+  },
+  "scenario_scores": {
+    "balanced_future_tension": 0.9103033672902678,
+    "fragile_future_tension": 4.764275349683307,
+    "future_tension_differentiates_fragility": true
+  },
+  "schema": "zenodex/energy/autotrader_jepa_ux_receipt/v1",
+  "seed": 20260531,
+  "train_contexts": 1200,
+  "train_seed": 20260522,
+  "ux": {
+    "batch_ux": {
+      "authority": {
+        "deterministic_policy_guards_authoritative": true,
+        "model_authorizes_trade": false,
+        "policy_guard_required": true,
+        "ux_card_authorizes_trade": false
+      },
+      "blocked_count": 0,
+      "candidate_count": 12,
+      "cards": [
+        {
+          "authority": {
+            "deterministic_policy_guards_authoritative": true,
+            "future_tension_authorizes_trade": false,
+            "model_authorizes_trade": false,
+            "policy_guard_required": true,
+            "ux_card_authorizes_trade": false
+          },
+          "badges": [
+            "policy-valid",
+            "low-slippage",
+            "future-medium"
+          ],
+          "blocked_reasons": [],
+          "candidate_id": "autotrader-20260531-0-6",
+          "control_effects": [
+            {
+              "control_authorizes_trade": false,
+              "control_id": "refresh_receipts",
+              "future_tension_after": 2.5296531143904164,
+              "future_tension_before": 2.5688386369101917,
+              "future_tension_delta": -0.03918552251977525,
+              "label": "Refresh oracle and quote receipts.",
+              "later_failure_count_after": 0,
+              "later_failure_count_before": 0,
+              "later_failure_delta": 0,
+              "schema": "zenodex/energy/autotrader_control_effect/v1"
+            }
+          ],
+          "display": {
+            "primary": "Policy-valid proposal with moderate future-tension risk.",
+            "secondary": "Edge 0.26, liquidity 0.56, slippage 0.21, future tension 2.57."
+          },
+          "reasons": [
+            "Deterministic policy flags are clear for this proposal.",
+            "Predicted post-action future tension is moderate."
+          ],
+          "risk_level": "medium",
+          "schema": "zenodex/energy/autotrader_advisory_card/v1",
+          "scores": {
+            "deterministic_objective": 28.185427577535023,
+            "future_stress": {
+              "any_later_policy_failure": false,
+              "budget_stress": 0.6415436590935016,
+              "current_policy_failure_count": 0,
+              "deterministic_projection_authorizes_trade": false,
+              "drawdown_stress": 0.2533600362707568,
+              "later_failure_count": 0,
+              "later_failures": {
+                "next_budget_failure": false,
+                "next_drawdown_failure": false,
+                "next_operational_failure": false,
+                "next_slippage_failure": false
+              },
+              "operational_stress": 0.33382250210093994,
+              "schema": "zenodex/energy/autotrader_future_stress_projection/v1",
+              "slippage_stress": 0.2679561633427993
+            },
+            "future_tension": 2.5688386369101917,
+            "future_tension_level": "medium",
+            "hand_energy": 6.211726026466411
+          },
+          "status": "policy_valid_with_caution",
+          "suggested_controls": [
+            "Refresh oracle and quote receipts."
+          ]
+        },
+        {
+          "authority": {
+            "deterministic_policy_guards_authoritative": true,
+            "future_tension_authorizes_trade": false,
+            "model_authorizes_trade": false,
+            "policy_guard_required": true,
+            "ux_card_authorizes_trade": false
+          },
+          "badges": [
+            "policy-valid",
+            "future-medium"
+          ],
+          "blocked_reasons": [],
+          "candidate_id": "autotrader-20260531-0-0",
+          "control_effects": [
+            {
+              "control_authorizes_trade": false,
+              "control_id": "reduce_notional",
+              "future_tension_after": 2.0058316081115217,
+              "future_tension_before": 2.5781579560601076,
+              "future_tension_delta": -0.5723263479485858,
+              "label": "Reduce notional size.",
+              "later_failure_count_after": 0,
+              "later_failure_count_before": 0,
+              "later_failure_delta": 0,
+              "schema": "zenodex/energy/autotrader_control_effect/v1"
+            },
+            {
+              "control_authorizes_trade": false,
+              "control_id": "wait_budget_recovery",
+              "future_tension_after": 2.0948265617543487,
+              "future_tension_before": 2.5781579560601076,
+              "future_tension_delta": -0.4833313943057589,
+              "label": "Wait for budget recovery.",
+              "later_failure_count_after": 0,
+              "later_failure_count_before": 0,
+              "later_failure_delta": 0,
+              "schema": "zenodex/energy/autotrader_control_effect/v1"
+            }
+          ],
+          "display": {
+            "primary": "Policy-valid proposal with moderate future-tension risk.",
+            "secondary": "Edge 0.30, liquidity 0.28, slippage 0.47, future tension 2.58."
+          },
+          "reasons": [
+            "Deterministic policy flags are clear for this proposal.",
+            "Budget usage is close to the configured limit.",
+            "Liquidity score is thin, so future fragility can rise.",
+            "Predicted post-action future tension is moderate."
+          ],
+          "risk_level": "medium",
+          "schema": "zenodex/energy/autotrader_advisory_card/v1",
+          "scores": {
+            "deterministic_objective": 45.64442181162552,
+            "future_stress": {
+              "any_later_policy_failure": false,
+              "budget_stress": 0.6091180300619295,
+              "current_policy_failure_count": 0,
+              "deterministic_projection_authorizes_trade": false,
+              "drawdown_stress": 0.2519062512129459,
+              "later_failure_count": 0,
+              "later_failures": {
+                "next_budget_failure": false,
+                "next_drawdown_failure": false,
+                "next_operational_failure": false,
+                "next_slippage_failure": false
+              },
+              "operational_stress": 0.3213256198012333,
+              "schema": "zenodex/energy/autotrader_future_stress_projection/v1",
+              "slippage_stress": 0.4560845397427806
+            },
+            "future_tension": 2.5781579560601076,
+            "future_tension_level": "medium",
+            "hand_energy": 7.362702802949399
+          },
+          "status": "policy_valid_with_caution",
+          "suggested_controls": [
+            "Reduce notional size.",
+            "Wait for budget recovery."
+          ]
+        },
+        {
+          "authority": {
+            "deterministic_policy_guards_authoritative": true,
+            "future_tension_authorizes_trade": false,
+            "model_authorizes_trade": false,
+            "policy_guard_required": true,
+            "ux_card_authorizes_trade": false
+          },
+          "badges": [
+            "policy-valid",
+            "strong-edge",
+            "drawdown-risk",
+            "future-medium"
+          ],
+          "blocked_reasons": [],
+          "candidate_id": "autotrader-20260531-0-1",
+          "control_effects": [
+            {
+              "control_authorizes_trade": false,
+              "control_id": "refresh_receipts",
+              "future_tension_after": 2.7291801483412996,
+              "future_tension_before": 2.8155557776493607,
+              "future_tension_delta": -0.08637562930806109,
+              "label": "Refresh oracle and quote receipts.",
+              "later_failure_count_after": 0,
+              "later_failure_count_before": 0,
+              "later_failure_delta": 0,
+              "schema": "zenodex/energy/autotrader_control_effect/v1"
+            }
+          ],
+          "display": {
+            "primary": "Policy-valid proposal with moderate future-tension risk.",
+            "secondary": "Edge 0.79, liquidity 0.64, slippage 0.45, future tension 2.82."
+          },
+          "reasons": [
+            "Deterministic policy flags are clear for this proposal.",
+            "Expected edge is high relative to the synthetic policy scale.",
+            "Predicted post-action future tension is moderate."
+          ],
+          "risk_level": "medium",
+          "schema": "zenodex/energy/autotrader_advisory_card/v1",
+          "scores": {
+            "deterministic_objective": 78.83022471260458,
+            "future_stress": {
+              "any_later_policy_failure": false,
+              "budget_stress": 0.35758670165698525,
+              "current_policy_failure_count": 0,
+              "deterministic_projection_authorizes_trade": false,
+              "drawdown_stress": 0.594890252887657,
+              "later_failure_count": 0,
+              "later_failures": {
+                "next_budget_failure": false,
+                "next_drawdown_failure": false,
+                "next_operational_failure": false,
+                "next_slippage_failure": false
+              },
+              "operational_stress": 0.25482682515983884,
+              "schema": "zenodex/energy/autotrader_future_stress_projection/v1",
+              "slippage_stress": 0.45228570708496096
+            },
+            "future_tension": 2.8155557776493607,
+            "future_tension_level": "medium",
+            "hand_energy": 13.73159524970252
+          },
+          "status": "policy_valid_with_caution",
+          "suggested_controls": [
+            "Refresh oracle and quote receipts."
+          ]
+        }
+      ],
+      "high_future_tension_count": 12,
+      "schema": "zenodex/energy/autotrader_batch_ux/v1",
+      "valid_count": 12
+    },
+    "blocked_card": {
+      "authority": {
+        "deterministic_policy_guards_authoritative": true,
+        "future_tension_authorizes_trade": false,
+        "model_authorizes_trade": false,
+        "policy_guard_required": true,
+        "ux_card_authorizes_trade": false
+      },
+      "badges": [
+        "policy-blocked",
+        "strong-edge",
+        "drawdown-risk",
+        "future-high"
+      ],
+      "blocked_reasons": [
+        "stale signal or quote",
+        "slippage limit",
+        "route or quote binding"
+      ],
+      "candidate_id": "blocked-stale-route",
+      "control_effects": [
+        {
+          "control_authorizes_trade": false,
+          "control_id": "refresh_receipts",
+          "future_tension_after": 4.643986021434603,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.12028932824870342,
+          "label": "Refresh oracle and quote receipts.",
+          "later_failure_count_after": 3,
+          "later_failure_count_before": 3,
+          "later_failure_delta": 0,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "improve_route",
+          "future_tension_after": 3.917558609121247,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.8467167405620599,
+          "label": "Tighten route selection to reduce slippage.",
+          "later_failure_count_after": 2,
+          "later_failure_count_before": 3,
+          "later_failure_delta": -1,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "reduce_notional",
+          "future_tension_after": 3.6939780726338918,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -1.070297277049415,
+          "label": "Reduce notional size.",
+          "later_failure_count_after": 1,
+          "later_failure_count_before": 3,
+          "later_failure_delta": -2,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "wait_budget_recovery",
+          "future_tension_after": 4.075116615499856,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.6891587341834509,
+          "label": "Wait for budget recovery.",
+          "later_failure_count_after": 2,
+          "later_failure_count_before": 3,
+          "later_failure_delta": -1,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "slow_execution",
+          "future_tension_after": 4.35787766543991,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.4063976842433972,
+          "label": "Prefer a slower execution plan.",
+          "later_failure_count_after": 3,
+          "later_failure_count_before": 3,
+          "later_failure_delta": 0,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        }
+      ],
+      "display": {
+        "primary": "Blocked before execution: stale signal or quote, slippage limit, route or quote binding.",
+        "secondary": "Edge 0.86, liquidity 0.18, slippage 0.78, future tension 4.76."
+      },
+      "reasons": [
+        "Deterministic policy flags must clear before execution.",
+        "Expected edge is high relative to the synthetic policy scale.",
+        "Slippage pressure is elevated.",
+        "Budget usage is close to the configured limit.",
+        "Liquidity score is thin, so future fragility can rise.",
+        "Predicted post-action future tension is high."
+      ],
+      "risk_level": "high",
+      "schema": "zenodex/energy/autotrader_advisory_card/v1",
+      "scores": {
+        "deterministic_objective": 0.0,
+        "future_stress": {
+          "any_later_policy_failure": true,
+          "budget_stress": 0.8694999999999999,
+          "current_policy_failure_count": 3,
+          "deterministic_projection_authorizes_trade": false,
+          "drawdown_stress": 0.798,
+          "later_failure_count": 3,
+          "later_failures": {
+            "next_budget_failure": true,
+            "next_drawdown_failure": true,
+            "next_operational_failure": false,
+            "next_slippage_failure": true
+          },
+          "operational_stress": 0.513,
+          "schema": "zenodex/energy/autotrader_future_stress_projection/v1",
+          "slippage_stress": 0.7780000000000001
+        },
+        "future_tension": 4.764275349683307,
+        "future_tension_level": "high",
+        "hand_energy": 3019.79
+      },
+      "status": "blocked_by_policy_guard",
+      "suggested_controls": [
+        "Refresh oracle and quote receipts.",
+        "Tighten route selection to reduce slippage.",
+        "Reduce notional size.",
+        "Wait for budget recovery.",
+        "Prefer a slower execution plan."
+      ]
+    },
+    "fragile_card": {
+      "authority": {
+        "deterministic_policy_guards_authoritative": true,
+        "future_tension_authorizes_trade": false,
+        "model_authorizes_trade": false,
+        "policy_guard_required": true,
+        "ux_card_authorizes_trade": false
+      },
+      "badges": [
+        "policy-valid",
+        "strong-edge",
+        "drawdown-risk",
+        "future-high"
+      ],
+      "blocked_reasons": [],
+      "candidate_id": "fragile-but-policy-valid",
+      "control_effects": [
+        {
+          "control_authorizes_trade": false,
+          "control_id": "improve_route",
+          "future_tension_after": 3.917558609121247,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.8467167405620599,
+          "label": "Tighten route selection to reduce slippage.",
+          "later_failure_count_after": 2,
+          "later_failure_count_before": 3,
+          "later_failure_delta": -1,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "reduce_notional",
+          "future_tension_after": 3.6939780726338918,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -1.070297277049415,
+          "label": "Reduce notional size.",
+          "later_failure_count_after": 1,
+          "later_failure_count_before": 3,
+          "later_failure_delta": -2,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "wait_budget_recovery",
+          "future_tension_after": 4.075116615499856,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.6891587341834509,
+          "label": "Wait for budget recovery.",
+          "later_failure_count_after": 2,
+          "later_failure_count_before": 3,
+          "later_failure_delta": -1,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        },
+        {
+          "control_authorizes_trade": false,
+          "control_id": "slow_execution",
+          "future_tension_after": 4.35787766543991,
+          "future_tension_before": 4.764275349683307,
+          "future_tension_delta": -0.4063976842433972,
+          "label": "Prefer a slower execution plan.",
+          "later_failure_count_after": 3,
+          "later_failure_count_before": 3,
+          "later_failure_delta": 0,
+          "schema": "zenodex/energy/autotrader_control_effect/v1"
+        }
+      ],
+      "display": {
+        "primary": "Policy-valid proposal with high future-tension risk.",
+        "secondary": "Edge 0.86, liquidity 0.18, slippage 0.78, future tension 4.76."
+      },
+      "reasons": [
+        "Deterministic policy flags are clear for this proposal.",
+        "Expected edge is high relative to the synthetic policy scale.",
+        "Slippage pressure is elevated.",
+        "Budget usage is close to the configured limit.",
+        "Liquidity score is thin, so future fragility can rise.",
+        "Predicted post-action future tension is high."
+      ],
+      "risk_level": "high",
+      "schema": "zenodex/energy/autotrader_advisory_card/v1",
+      "scores": {
+        "deterministic_objective": 75.36999999999998,
+        "future_stress": {
+          "any_later_policy_failure": true,
+          "budget_stress": 0.8694999999999999,
+          "current_policy_failure_count": 0,
+          "deterministic_projection_authorizes_trade": false,
+          "drawdown_stress": 0.798,
+          "later_failure_count": 3,
+          "later_failures": {
+            "next_budget_failure": true,
+            "next_drawdown_failure": true,
+            "next_operational_failure": false,
+            "next_slippage_failure": true
+          },
+          "operational_stress": 0.513,
+          "schema": "zenodex/energy/autotrader_future_stress_projection/v1",
+          "slippage_stress": 0.7780000000000001
+        },
+        "future_tension": 4.764275349683307,
+        "future_tension_level": "high",
+        "hand_energy": 19.79
+      },
+      "status": "needs_risk_review",
+      "suggested_controls": [
+        "Tighten route selection to reduce slippage.",
+        "Reduce notional size.",
+        "Wait for budget recovery.",
+        "Prefer a slower execution plan."
+      ]
+    },
+    "ux_explains_status_and_controls": true
+  },
+  "warning_metrics": {
+    "blocked_status_match_count": 512,
+    "blocked_status_match_rate": 1.0,
+    "deterministic_policy_guard_authoritative": true,
+    "future_positive_valid_count": 93,
+    "future_warning_match_count": 93,
+    "future_warning_match_rate": 1.0,
+    "model_authorizes_trade": false,
+    "sample_count": 512,
+    "schema": "zenodex/energy/autotrader_ux_warning_alignment/v1",
+    "status_counts": {
+      "blocked_by_policy_guard": 109,
+      "needs_risk_review": 42,
+      "policy_valid_candidate": 62,
+      "policy_valid_with_caution": 299
+    },
+    "ux_card_authorizes_trade_count": 0
+  }
+}

@@ -1,11 +1,36 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
 
 import src.integration.autotrader_live as autotrader_live
+from src.agents.autotrader_client_policy_bundle import (
+    AutoTraderClientPolicyBundle,
+    build_autotrader_client_policy_bundle,
+    sign_autotrader_client_policy_bundle,
+)
+from src.agents.autotrader_client_policy_surface import build_autotrader_client_policy_surface
+from src.agents.autotrader_user_rule_bundle import (
+    AutoTraderUserBudgetRule,
+    AutoTraderUserControlRule,
+    AutoTraderUserMarket,
+    AutoTraderUserRiskRule,
+    AutoTraderUserRuleBundle,
+    AutoTraderUserRuleMode,
+    AutoTraderUserRulePreset,
+    AutoTraderUserSizingRule,
+    AutoTraderUserTriggerRule,
+    AutoTraderUserWindowRule,
+    build_autotrader_client_policy_bundle_from_user_rule_bundle,
+    build_autotrader_user_rule_bundle_from_mode,
+    build_autotrader_user_rule_bundle_from_preset,
+    build_autotrader_user_rule_source_artifact,
+    compile_autotrader_user_rule_bundle,
+)
+from src.agents.policy_artifacts import build_strategy_source_artifact
 from src.agents.intent_signer import (
     _create_canonical_message,
     create_swap_intent,
@@ -92,6 +117,7 @@ def _compiled_strategy(
     backend: str = "local",
     fixed_order_size: int = 100,
     max_live_orders: int = 3,
+    allowed_actions: tuple[autotrader_live.StrategyAction, ...] | None = None,
 ) -> StrategyIR:
     return compile_policy_candidate(
         {
@@ -100,6 +126,14 @@ def _compiled_strategy(
             "policy_backend": backend,
             "template": "dca",
             "asset_universe": ["A", "B"],
+            "allowed_actions": [
+                action.value
+                for action in (
+                    allowed_actions
+                    if allowed_actions is not None
+                    else (autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,)
+                )
+            ],
             "notional_caps": {
                 "per_order_max": fixed_order_size,
                 "per_window_max": 1_000,
@@ -129,6 +163,97 @@ def _compiled_strategy(
     ).strategy
 
 
+def _user_rule_bundle(*, owner_pubkey: str, backend: str = "local") -> AutoTraderUserRuleBundle:
+    return AutoTraderUserRuleBundle(
+        bundle_name=f"{backend}.user.rules.bundle",
+        built_at="2026-04-09T19:00:00Z",
+        compiler_version="autotrader-user-rule-bundle/v1",
+        strategy_id=f"{backend}.user.rules.strategy",
+        owner_pubkey=owner_pubkey,
+        policy_backend=autotrader_live.PolicyBackend(backend),
+        mode=AutoTraderUserRuleMode.DCA_SWAP_EXACT_IN,
+        market=AutoTraderUserMarket(asset_in="A", asset_out="B"),
+        sizing=AutoTraderUserSizingRule(fixed_order_size=100, cadence_epochs=4),
+        budget=AutoTraderUserBudgetRule(per_window_max=500, lifetime_max=1_000),
+        risk=AutoTraderUserRiskRule(max_slippage_bps=50, max_oracle_staleness_epochs=3),
+        window=AutoTraderUserWindowRule(valid_from_epoch=1, valid_until_epoch=100),
+        controls=AutoTraderUserControlRule(kill_switch_enabled=True, max_live_orders=3),
+    )
+
+
+def _client_policy_bundle(strategy: StrategyIR, *, privkey: int) -> AutoTraderClientPolicyBundle:
+    surface = build_autotrader_client_policy_surface(strategy=strategy)
+    bundle = build_autotrader_client_policy_bundle(
+        bundle_name=f"{strategy.strategy_id}.bundle",
+        built_at="2026-04-09T16:00:00Z",
+        client_policy_surface=surface,
+    )
+    return sign_autotrader_client_policy_bundle(bundle, privkey=privkey)
+
+
+def _pinned_client_policy_bundle(
+    strategy: StrategyIR,
+    *,
+    privkey: int,
+    source_artifact_hash: str | None = None,
+    tau_policy_bundle_hash: str | None = None,
+    policy_artifact_hash: str | None = None,
+) -> AutoTraderClientPolicyBundle:
+    source_artifact = build_strategy_source_artifact(
+        strategy=strategy,
+        source_form="compiled_strategy_ir",
+    )
+    tau_policy_bundle = autotrader_live.build_tau_policy_bundle(
+        strategy=strategy,
+        source_artifact=source_artifact,
+        compile_contract_tau_receipt=autotrader_live.build_compile_contract_tau_policy_receipt(
+            strategy=strategy
+        ).to_dict(),
+    )
+    policy_artifact = autotrader_live.sign_strategy_policy_artifact(
+        autotrader_live.build_strategy_policy_artifact(
+            strategy=strategy,
+            tau_policy_bundle=tau_policy_bundle,
+            source_artifact=source_artifact,
+        ),
+        privkey=privkey,
+    )
+    surface = build_autotrader_client_policy_surface(
+        strategy=strategy,
+        source_artifact=source_artifact,
+        tau_policy_bundle=tau_policy_bundle,
+        policy_artifact=policy_artifact,
+    )
+    if any(
+        value is not None
+        for value in (source_artifact_hash, tau_policy_bundle_hash, policy_artifact_hash)
+    ):
+        surface = replace(
+            surface,
+            source_artifact_hash=(
+                source_artifact_hash
+                if source_artifact_hash is not None
+                else surface.source_artifact_hash
+            ),
+            tau_policy_bundle_hash=(
+                tau_policy_bundle_hash
+                if tau_policy_bundle_hash is not None
+                else surface.tau_policy_bundle_hash
+            ),
+            policy_artifact_hash=(
+                policy_artifact_hash
+                if policy_artifact_hash is not None
+                else surface.policy_artifact_hash
+            ),
+        )
+    bundle = build_autotrader_client_policy_bundle(
+        bundle_name=f"{strategy.strategy_id}.bundle",
+        built_at="2026-04-09T16:00:00Z",
+        client_policy_surface=surface,
+    )
+    return sign_autotrader_client_policy_bundle(bundle, privkey=privkey)
+
+
 def test_prepare_autotrader_live_submit_builds_signed_ops_and_tau_tx_payload() -> None:
     privkey = 7
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
@@ -151,6 +276,9 @@ def test_prepare_autotrader_live_submit_builds_signed_ops_and_tau_tx_payload() -
     )
 
     assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.local_guard_evaluation is not None
+    assert report.local_guard_evaluation.ok is True
+    assert report.local_guard_evaluation.blocking_families == ()
     assert report.live_admission_ok is True
     assert report.live_admission_error is None
     assert report.system_compose_ok is True
@@ -160,8 +288,58 @@ def test_prepare_autotrader_live_submit_builds_signed_ops_and_tau_tx_payload() -
     assert report.emit_finalize_ok is True
     assert report.emit_finalize_error is None
     assert report.krr_advice is not None
+    assert report.krr_explanation is not None
+    assert report.user_rule_summary is not None
+    assert report.actionability_explanation is not None
+    assert report.user_rule_summary["source_form"] == "compiled_strategy_ir"
+    assert report.user_rule_summary["overall_support_status"] == "supported"
+    assert report.user_rule_summary["surface_support_matrix"]["compile"]["supported"] is True
+    assert report.user_rule_summary["surface_support_matrix"]["shadow"]["supported"] is True
+    assert report.user_rule_summary["surface_support_matrix"]["live"]["supported"] is True
+    assert report.user_rule_summary["intent"]["asset_pair"] == "A/B"
+    assert report.user_rule_summary["sizing"]["fixed_order_size"] == 100
+    assert report.user_rule_summary["budget"]["per_window_max"] == 1000
+    assert report.krr_explanation["authoring_posture"]["source_form"] == "compiled_strategy_ir"
+    assert report.krr_explanation["trust_posture"]["primary_trust_tier"] == "verified"
+    assert report.krr_explanation["trust_posture"]["primary_weighted_trust_score"] == 0.95
+    assert report.krr_explanation["trust_posture"]["weighted_trusted_signal_score"] == 0.95
+    assert report.krr_explanation["confidence_posture"]["discounted"] is False
+    assert report.actionability_explanation["actionability"]["actionable"] is True
+    assert report.actionability_explanation["actionability"]["blocking_layer"] is None
+    assert report.actionability_explanation["authoring"]["overall_support_status"] == "supported"
+    assert report.actionability_explanation["authoring"]["surface_support_matrix"]["live"]["supported"] is True
+    assert report.actionability_explanation["intent"]["asset_pair"] == "A/B"
+    assert report.actionability_explanation["trust_posture"]["primary_trust_tier"] == "verified"
+    assert report.actionability_summary is not None
+    assert report.actionability_summary["headline"] == "Actionable: submit because ok."
+    assert report.actionability_summary["trust_summary"] == "Trust posture: primary tier verified from 1 trusted signal without registry support. Weighted support: primary=0.95, trusted=0.95."
     assert "live::nonce_guard" in report.krr_advice["preferred_checks"]
     assert report.last_used_nonce_after == 1
+    assert report.bounded_multiaction_candidate_set is not None
+    assert report.bounded_multiaction_candidate_set_contract == {
+        "ok": True,
+        "error": None,
+        "frontier_unambiguous": True,
+    }
+    assert report.bounded_multiaction_decision_certificate is not None
+    assert report.bounded_multiaction_decision_witness is not None
+    assert report.bounded_multiaction_decision_contract == {
+        "ok": True,
+        "error": None,
+        "frontier_unambiguous": True,
+    }
+    assert report.bounded_multiaction_decision_witness_contract == {
+        "ok": True,
+        "error": None,
+        "frontier_unambiguous": True,
+    }
+    assert report.bounded_multiaction_tau_argmax_contract == {
+        "ok": None,
+        "error": "tau_disabled",
+        "tau_enabled": False,
+        "tau_used": False,
+        "frontier_unambiguous": True,
+    }
     assert len(report.signed_intents) == 1
     assert report.operations["2"][0]["signature"].startswith("0x")
     assert report.tau_tx_payload is not None
@@ -181,6 +359,111 @@ def test_prepare_autotrader_live_submit_builds_signed_ops_and_tau_tx_payload() -
         SignedIntent(intent=env.intent, signature=str(env.signature)),
         chain_id="tau-local",
     ) is True
+
+
+def test_prepare_autotrader_live_actionability_summary_surfaces_weighted_external_trust() -> None:
+    privkey = 8
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    signal = ExternalSignalObservation(
+        signal_id="sig.oracle.1",
+        source_id="oracle.alpha",
+        source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+        trust_tier=SignalTrustTier.VERIFIED,
+        freshness_ok=True,
+        auth_ok=True,
+        advisory_only=False,
+    )
+    registry = ExternalSignalSourceRegistry(
+        entries=(
+            ExternalSignalSourceRegistryEntry(
+                source_id="oracle.alpha",
+                source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+                allowed_trust_tiers=(SignalTrustTier.ATTESTED, SignalTrustTier.VERIFIED),
+                require_auth=True,
+                require_freshness=True,
+            ),
+        )
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=10,
+        tx_expiration_time=1000,
+        external_signals=(signal,),
+        signal_source_registry=registry,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.actionability_summary is not None
+    trust_summary = report.actionability_summary["trust_summary"]
+    assert isinstance(trust_summary, str)
+    assert "with registry support" in trust_summary
+    assert "Weighted support:" in trust_summary
+    assert "external=" in trust_summary
+
+
+def test_prepare_autotrader_live_marks_multiaction_sidecar_ambiguous_for_multi_action_strategy() -> None:
+    privkey = 23
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(
+        owner_pubkey=owner_pubkey,
+        allowed_actions=(
+            autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,
+            autotrader_live.StrategyAction.PLACE_ORDER_INTENT,
+        ),
+    )
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.bounded_multiaction_candidate_set is None
+    assert report.bounded_multiaction_candidate_set_contract == {
+        "ok": None,
+        "error": "multi_action_frontier_ambiguous",
+        "frontier_unambiguous": False,
+    }
+    assert report.bounded_multiaction_decision_certificate is None
+    assert report.bounded_multiaction_decision_witness is None
+    assert report.bounded_multiaction_decision_contract == {
+        "ok": None,
+        "error": "multi_action_frontier_ambiguous",
+        "frontier_unambiguous": False,
+    }
+    assert report.bounded_multiaction_decision_witness_contract == {
+        "ok": None,
+        "error": "multi_action_frontier_ambiguous",
+        "frontier_unambiguous": False,
+    }
+    assert report.bounded_multiaction_tau_argmax_contract == {
+        "ok": None,
+        "error": "multi_action_frontier_ambiguous",
+        "tau_enabled": False,
+        "tau_used": False,
+        "frontier_unambiguous": False,
+    }
 
 
 def test_prepare_autotrader_live_submit_with_tau_nonce_checks_on_split_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -264,6 +547,387 @@ def test_prepare_autotrader_live_accepts_supplied_policy_bundle_and_artifact() -
     assert report.policy_artifact == artifact
 
 
+def test_prepare_autotrader_live_krr_advice_reflects_user_rule_bundle_authoring() -> None:
+    privkey = 31
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    user_bundle = _user_rule_bundle(owner_pubkey=owner_pubkey)
+    strategy = compile_autotrader_user_rule_bundle(user_bundle)
+    source_artifact = build_autotrader_user_rule_source_artifact(user_bundle)
+    tau_policy_bundle = autotrader_live.build_tau_policy_bundle(
+        strategy=strategy,
+        source_artifact=source_artifact,
+        compile_contract_tau_receipt=autotrader_live.build_compile_contract_tau_policy_receipt(
+            strategy=strategy
+        ).to_dict(),
+    )
+    policy_artifact = autotrader_live.sign_strategy_policy_artifact(
+        autotrader_live.build_strategy_policy_artifact(
+            strategy=strategy,
+            tau_policy_bundle=tau_policy_bundle,
+            source_artifact=source_artifact,
+        ),
+        privkey=privkey,
+    )
+    client_policy_bundle = build_autotrader_client_policy_bundle_from_user_rule_bundle(
+        user_bundle,
+        tau_policy_bundle=tau_policy_bundle,
+        policy_artifact=policy_artifact,
+    )
+    client_policy_bundle = sign_autotrader_client_policy_bundle(client_policy_bundle, privkey=privkey)
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        client_policy_bundle=client_policy_bundle,
+        tau_policy_bundle=tau_policy_bundle,
+        policy_artifact=policy_artifact,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.client_policy_bundle_ok is True
+    assert report.krr_advice is not None
+    assert report.krr_explanation is not None
+    assert report.user_rule_summary is not None
+    assert report.actionability_explanation is not None
+    assert report.user_rule_summary["source_form"] == "autotrader_user_rule_bundle"
+    assert report.user_rule_summary["authoring_mode"] == "dca_swap_exact_in"
+    assert report.user_rule_summary["sizing"]["cadence_epochs"] == 4
+    assert report.actionability_explanation["authoring"]["source_form"] == "autotrader_user_rule_bundle"
+    assert report.actionability_explanation["authoring"]["authoring_mode"] == "dca_swap_exact_in"
+    assert report.krr_explanation["authoring_posture"]["source_form"] == "autotrader_user_rule_bundle"
+    assert report.krr_explanation["authoring_posture"]["authored_via_user_bundle"] is True
+    assert report.krr_explanation["authoring_posture"]["asset_pair"] == "A/B"
+    assert report.krr_advice["authoring_summary"]["source_form"] == "autotrader_user_rule_bundle"
+    assert report.krr_advice["authoring_summary"]["authored_via_user_bundle"] is True
+    assert report.krr_advice["authoring_summary"]["authoring_mode"] == "dca_swap_exact_in"
+    assert "authored_via_user_bundle=1" in report.krr_advice["semantic_signature"]
+    assert "authoring_mode=dca_swap_exact_in" in report.krr_advice["semantic_signature"]
+
+
+def test_prepare_autotrader_live_rejects_unsupported_stop_loss_user_rule_mode() -> None:
+    privkey = 131
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    user_bundle = build_autotrader_user_rule_bundle_from_mode(
+        bundle_name="stop_loss.user.rules.bundle",
+        built_at="2026-04-09T19:05:00Z",
+        strategy_id="stop_loss.user.rules.strategy",
+        owner_pubkey=owner_pubkey,
+        policy_backend=autotrader_live.PolicyBackend.LOCAL,
+        mode=AutoTraderUserRuleMode.STOP_LOSS_ORDER_INTENT,
+        market=AutoTraderUserMarket(asset_in="A", asset_out="B"),
+        fixed_order_size=100,
+        per_window_max=300,
+        lifetime_max=1200,
+        max_slippage_bps=50,
+        max_oracle_staleness_epochs=3,
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        trigger_price=90000,
+    )
+    strategy = compile_autotrader_user_rule_bundle(user_bundle)
+    source_artifact = build_autotrader_user_rule_source_artifact(user_bundle)
+    tau_policy_bundle = autotrader_live.build_tau_policy_bundle(
+        strategy=strategy,
+        source_artifact=source_artifact,
+        compile_contract_tau_receipt=autotrader_live.build_compile_contract_tau_policy_receipt(
+            strategy=strategy
+        ).to_dict(),
+    )
+    policy_artifact = autotrader_live.sign_strategy_policy_artifact(
+        autotrader_live.build_strategy_policy_artifact(
+            strategy=strategy,
+            tau_policy_bundle=tau_policy_bundle,
+            source_artifact=source_artifact,
+        ),
+        privkey=privkey,
+    )
+    client_policy_bundle = sign_autotrader_client_policy_bundle(
+        build_autotrader_client_policy_bundle_from_user_rule_bundle(
+            user_bundle,
+            tau_policy_bundle=tau_policy_bundle,
+            policy_artifact=policy_artifact,
+        ),
+        privkey=privkey,
+    )
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        client_policy_bundle=client_policy_bundle,
+        tau_policy_bundle=tau_policy_bundle,
+        policy_artifact=policy_artifact,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "unsupported_live_strategy_mode"
+    assert report.user_rule_summary is not None
+    assert report.user_rule_summary["overall_support_status"] == "compile_only"
+    assert report.user_rule_summary["surface_support_matrix"]["compile"]["supported"] is True
+    assert report.user_rule_summary["surface_support_matrix"]["shadow"]["supported"] is False
+    assert report.user_rule_summary["surface_support_matrix"]["live"]["supported"] is False
+    assert report.user_rule_summary["intent"]["template"] == "stop_loss"
+    assert report.user_rule_summary["trigger"]["trigger_price"] == 90000
+    assert report.actionability_explanation is not None
+    assert report.actionability_explanation["authoring"]["overall_support_status"] == "compile_only"
+    assert report.actionability_explanation["authoring"]["surface_support_matrix"]["live"]["status"] == "rejected"
+    assert report.actionability_explanation["actionability"]["blocking_layer"] == "live_admission"
+
+
+def test_prepare_autotrader_live_preserves_user_rule_preset_authoring() -> None:
+    privkey = 32
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    user_bundle = build_autotrader_user_rule_bundle_from_preset(
+        bundle_name="preset.user.rules.bundle",
+        built_at="2026-04-09T19:10:00Z",
+        strategy_id="preset.user.rules.strategy",
+        owner_pubkey=owner_pubkey,
+        policy_backend=autotrader_live.PolicyBackend.LOCAL,
+        preset_id=AutoTraderUserRulePreset.CONSERVATIVE_DCA,
+        market=AutoTraderUserMarket(asset_in="A", asset_out="B"),
+        fixed_order_size=100,
+        cadence_epochs=4,
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+    )
+    strategy = compile_autotrader_user_rule_bundle(user_bundle)
+    source_artifact = build_autotrader_user_rule_source_artifact(user_bundle)
+    tau_policy_bundle = autotrader_live.build_tau_policy_bundle(
+        strategy=strategy,
+        source_artifact=source_artifact,
+        compile_contract_tau_receipt=autotrader_live.build_compile_contract_tau_policy_receipt(
+            strategy=strategy
+        ).to_dict(),
+    )
+    policy_artifact = autotrader_live.sign_strategy_policy_artifact(
+        autotrader_live.build_strategy_policy_artifact(
+            strategy=strategy,
+            tau_policy_bundle=tau_policy_bundle,
+            source_artifact=source_artifact,
+        ),
+        privkey=privkey,
+    )
+    client_policy_bundle = build_autotrader_client_policy_bundle_from_user_rule_bundle(
+        user_bundle,
+        tau_policy_bundle=tau_policy_bundle,
+        policy_artifact=policy_artifact,
+    )
+    client_policy_bundle = sign_autotrader_client_policy_bundle(client_policy_bundle, privkey=privkey)
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        client_policy_bundle=client_policy_bundle,
+        tau_policy_bundle=tau_policy_bundle,
+        policy_artifact=policy_artifact,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.user_rule_summary is not None
+    assert report.actionability_explanation is not None
+    assert report.krr_explanation is not None
+    assert report.krr_advice is not None
+    assert report.user_rule_summary["preset_id"] == "conservative_dca"
+    assert report.user_rule_summary["preset_profile"]["label"] == "Conservative DCA"
+    assert report.user_rule_summary["preset_profile"]["optimize_for"] == "execution_safety"
+    assert report.actionability_explanation["authoring"]["preset_id"] == "conservative_dca"
+    assert report.actionability_explanation["authoring"]["preset_profile"]["label"] == "Conservative DCA"
+    assert report.actionability_summary is not None
+    assert report.actionability_summary["preset_summary"].startswith("Conservative DCA: Accumulate slowly")
+    assert report.krr_explanation["authoring_posture"]["source_preset_id"] == "conservative_dca"
+    assert report.krr_explanation["authoring_posture"]["preset_profile"]["summary"].startswith("Accumulate slowly")
+    assert report.krr_advice["authoring_summary"]["source_preset_id"] == "conservative_dca"
+    assert "source_preset_id=conservative_dca" in report.krr_advice["semantic_signature"]
+
+
+def test_prepare_autotrader_live_accepts_supplied_client_policy_bundle() -> None:
+    privkey = 805
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    client_policy_bundle = _client_policy_bundle(strategy, privkey=privkey)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        client_policy_bundle=client_policy_bundle,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.client_policy_bundle == client_policy_bundle
+    assert report.client_policy_bundle_ok is True
+    assert report.client_policy_bundle_signature_ok is True
+
+
+def test_prepare_autotrader_live_rejects_invalid_client_policy_bundle_signature() -> None:
+    privkey = 806
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    client_policy_bundle = _client_policy_bundle(strategy, privkey=privkey)
+    tampered_bundle = replace(client_policy_bundle, signature="0x00")
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        client_policy_bundle=tampered_bundle,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "client_policy_bundle_signature_invalid"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "client_policy_bundle_signature_invalid"
+    assert report.client_policy_bundle == tampered_bundle
+    assert report.client_policy_bundle_ok is False
+    assert report.client_policy_bundle_error == "client_policy_bundle_signature_invalid"
+    assert report.client_policy_bundle_signature_ok is False
+
+
+def test_prepare_autotrader_live_rejects_missing_client_policy_bundle_signature() -> None:
+    privkey = 8061
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    client_policy_bundle = replace(
+        _client_policy_bundle(strategy, privkey=privkey),
+        signature=None,
+        signer_pubkey=None,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        client_policy_bundle=client_policy_bundle,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "client_policy_bundle_signature_missing"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "client_policy_bundle_signature_missing"
+    assert report.client_policy_bundle == client_policy_bundle
+    assert report.client_policy_bundle_ok is False
+    assert report.client_policy_bundle_error == "client_policy_bundle_signature_missing"
+    assert report.client_policy_bundle_signature_ok is False
+
+
+def test_prepare_autotrader_live_rejects_client_policy_bundle_strategy_mismatch() -> None:
+    privkey = 807
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    mismatched_strategy = _compiled_strategy(owner_pubkey=owner_pubkey, fixed_order_size=101)
+    pools, receipt = _single_hop_receipt()
+    client_policy_bundle = _client_policy_bundle(mismatched_strategy, privkey=privkey)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        client_policy_bundle=client_policy_bundle,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "client_policy_bundle_strategy_hash_mismatch"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "client_policy_bundle_strategy_hash_mismatch"
+    assert report.client_policy_bundle == client_policy_bundle
+    assert report.client_policy_bundle_ok is False
+    assert report.client_policy_bundle_error == "client_policy_bundle_strategy_hash_mismatch"
+    assert report.client_policy_bundle_signature_ok is None
+
+
+@pytest.mark.parametrize(
+    ("bundle_kwargs", "expected_reason"),
+    (
+        ({"source_artifact_hash": "0xdeadbeef"}, "client_policy_bundle_source_artifact_hash_mismatch"),
+        ({"tau_policy_bundle_hash": "0xdeadbeef"}, "client_policy_bundle_tau_policy_bundle_hash_mismatch"),
+        ({"policy_artifact_hash": "0xdeadbeef"}, "client_policy_bundle_policy_artifact_hash_mismatch"),
+    ),
+)
+def test_prepare_autotrader_live_rejects_client_policy_bundle_artifact_hash_mismatches(
+    bundle_kwargs: dict[str, str],
+    expected_reason: str,
+) -> None:
+    privkey = 808
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    client_policy_bundle = _pinned_client_policy_bundle(
+        strategy,
+        privkey=privkey,
+        **bundle_kwargs,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        client_policy_bundle=client_policy_bundle,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == expected_reason
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == expected_reason
+    assert report.client_policy_bundle == client_policy_bundle
+    assert report.client_policy_bundle_ok is False
+    assert report.client_policy_bundle_error == expected_reason
+    assert report.client_policy_bundle_signature_ok is True
+
+
 def test_prepare_autotrader_live_rejects_invalid_policy_artifact() -> None:
     privkey = 81
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
@@ -327,15 +991,18 @@ def test_prepare_autotrader_live_rejects_when_decision_prefers_noop(monkeypatch:
         autotrader_live,
         "build_strategy_decision_certificate",
         lambda **kwargs: autotrader_live.StrategyDecisionCertificate(
-            policy_artifact_hash="artifact.hash",
-            tau_policy_bundle_hash="bundle.hash",
-            observation_hash="obs.hash",
-            candidate_set_hash="candidate.hash",
+            policy_artifact_hash=kwargs["candidate_set"].policy_artifact_hash,
+            tau_policy_bundle_hash=kwargs["candidate_set"].tau_policy_bundle_hash,
+            observation_hash=kwargs["candidate_set"].observation_hash,
+            candidate_set_hash=kwargs["candidate_set"].candidate_set_hash_hex(),
             decision_model_version="autotrader-binary-v1",
             winner_index=0,
             winner_kind=DecisionCandidateKind.NO_OP,
             winner_key=0,
-            argmax_steps=({"winner_index": 0, "winner_key": 0, "cand_index": 0, "cand_key": 0, "binding_ok": 1},),
+            argmax_steps=(
+                {"winner_index": 0, "winner_key": 0, "cand_index": 0, "cand_key": 0, "binding_ok": 1},
+                {"winner_index": 0, "winner_key": 0, "cand_index": 1, "cand_key": 1, "binding_ok": 1},
+            ),
             kill_switch_active=False,
         ),
     )
@@ -351,7 +1018,7 @@ def test_prepare_autotrader_live_rejects_when_decision_prefers_noop(monkeypatch:
         last_used_nonce=0,
     )
 
-    assert report.live_admission_error == "decision_prefers_noop"
+    assert report.live_admission_error == "decision_certificate_rejected:winner_index mismatch"
     assert report.live_admission_ok is False
 
 
@@ -364,15 +1031,18 @@ def test_prepare_autotrader_live_rejects_when_decision_prefers_emit(monkeypatch:
         autotrader_live,
         "build_strategy_decision_certificate",
         lambda **kwargs: autotrader_live.StrategyDecisionCertificate(
-            policy_artifact_hash="artifact.hash",
-            tau_policy_bundle_hash="bundle.hash",
-            observation_hash="obs.hash",
-            candidate_set_hash="candidate.hash",
+            policy_artifact_hash=kwargs["candidate_set"].policy_artifact_hash,
+            tau_policy_bundle_hash=kwargs["candidate_set"].tau_policy_bundle_hash,
+            observation_hash=kwargs["candidate_set"].observation_hash,
+            candidate_set_hash=kwargs["candidate_set"].candidate_set_hash_hex(),
             decision_model_version="autotrader-binary-v1",
             winner_index=1,
             winner_kind=DecisionCandidateKind.EMIT_COMPILED_INTENT,
             winner_key=1,
-            argmax_steps=({"winner_index": 1, "winner_key": 1, "cand_index": 1, "cand_key": 1, "binding_ok": 1},),
+            argmax_steps=(
+                {"winner_index": 1, "winner_key": 1, "cand_index": 0, "cand_key": 0, "binding_ok": 1},
+                {"winner_index": 1, "winner_key": 1, "cand_index": 1, "cand_key": 1, "binding_ok": 1},
+            ),
             kill_switch_active=False,
         ),
     )
@@ -389,7 +1059,49 @@ def test_prepare_autotrader_live_rejects_when_decision_prefers_emit(monkeypatch:
     )
 
     assert report.decision.tag is not AutoTraderDecisionTag.SUBMIT
-    assert report.live_admission_error == "decision_prefers_emit"
+    assert report.live_admission_error == "decision_certificate_rejected:winner_index mismatch"
+    assert report.live_admission_ok is False
+
+
+def test_prepare_autotrader_live_rejects_when_decision_certificate_binding_breaks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 831
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live,
+        "build_strategy_decision_certificate",
+        lambda **kwargs: autotrader_live.StrategyDecisionCertificate(
+            policy_artifact_hash="artifact.hash",
+            tau_policy_bundle_hash="bundle.hash",
+            observation_hash="obs.hash",
+            candidate_set_hash="wrong.hash",
+            decision_model_version="autotrader-binary-v1",
+            winner_index=1,
+            winner_kind=DecisionCandidateKind.EMIT_COMPILED_INTENT,
+            winner_key=1,
+            argmax_steps=(
+                {"winner_index": 1, "winner_key": 1, "cand_index": 0, "cand_key": 0, "binding_ok": 1},
+                {"winner_index": 1, "winner_key": 1, "cand_index": 1, "cand_key": 1, "binding_ok": 1},
+            ),
+            kill_switch_active=False,
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.live_admission_error == "decision_certificate_rejected:policy_artifact_hash mismatch"
     assert report.live_admission_ok is False
 
 
@@ -594,6 +1306,34 @@ def test_prepare_autotrader_live_rejects_signer_mismatch() -> None:
     assert report.operations == {}
 
 
+def test_prepare_autotrader_live_degrades_when_krr_advice_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 10
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    def _boom(**_: object) -> dict[str, object] | None:
+        raise RuntimeError("krr unavailable")
+
+    monkeypatch.setattr(autotrader_live, "advise_autotrader_krr", _boom)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.krr_advice is None
+    assert report.krr_advice_error == "RuntimeError:krr unavailable"
+    assert report.krr_explanation is None
+
+
 def test_prepare_autotrader_live_returns_skip_without_signing() -> None:
     privkey = 11
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
@@ -612,6 +1352,18 @@ def test_prepare_autotrader_live_returns_skip_without_signing() -> None:
     )
 
     assert report.decision.tag is AutoTraderDecisionTag.SKIP
+    assert report.local_guard_evaluation is not None
+    assert report.local_guard_evaluation.ok is False
+    assert report.local_guard_evaluation.blocking_families == ("oracle_freshness",)
+    assert report.local_guard_evaluation.first_blocking_reason == "quote_receipt_stale:age=4,max=3"
+    assert report.actionability_explanation is not None
+    assert report.actionability_explanation["actionability"]["actionable"] is False
+    assert report.actionability_explanation["actionability"]["blocking_layer"] == "local_guards"
+    assert report.actionability_explanation["actionability"]["blocking_reasons"][0] == "quote_receipt_stale:age=4,max=3"
+    assert report.actionability_explanation["guard_posture"]["blocking_families"] == ["oracle_freshness"]
+    assert report.actionability_summary is not None
+    assert report.actionability_summary["headline"] == "Blocked by local guards: quote_receipt_stale:age=4,max=3."
+    assert report.actionability_summary["blocking_summary"] == "Blocked by local guards: quote_receipt_stale:age=4,max=3."
     assert report.live_admission_ok is False
     assert report.live_admission_error == report.decision.reason
     assert report.system_compose_ok is True
@@ -677,6 +1429,7 @@ def test_prepare_autotrader_live_rejects_invalid_nonce_batch(monkeypatch: pytest
     assert report.decision.tag is AutoTraderDecisionTag.REJECT
     assert report.decision.reason.startswith("observation_packet_build_failed:TypeError:")
     assert report.live_admission_ok is False
+    assert report.live_admission_error is not None
     assert report.live_admission_error.startswith("observation_packet_build_failed:TypeError:")
     assert report.system_compose_ok is False
     assert report.system_compose_error == "observation_packet_rejected"
@@ -1385,11 +2138,11 @@ def test_verify_boolean_tau_receipt_branches(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_autotrader_live_source_registry_helper_type_guards() -> None:
     with pytest.raises(TypeError, match="packet must be an AutoTraderObservationPacket"):
-        autotrader_live._observation_source_registry_ok(object())  # type: ignore[arg-type]
+        autotrader_live._observation_source_registry_ok(object())
     with pytest.raises(TypeError, match="signal must be an ExternalSignalObservation"):
-        autotrader_live._trusted_external_signal_requires_registry(object())  # type: ignore[arg-type]
+        autotrader_live._trusted_external_signal_requires_registry(object())
     with pytest.raises(TypeError, match="signal must be an ExternalSignalObservation"):
-        autotrader_live._registry_guard_relevant(object(), None)  # type: ignore[arg-type]
+        autotrader_live._registry_guard_relevant(object(), None)
     assert (
         autotrader_live._trusted_external_signal_requires_registry(
             ExternalSignalObservation(
@@ -1419,7 +2172,7 @@ def test_autotrader_live_source_registry_helper_type_guards() -> None:
         is False
     )
     with pytest.raises(TypeError, match="registry must be an ExternalSignalSourceRegistry or None"):
-        autotrader_live._registry_guard_relevant(  # type: ignore[arg-type]
+        autotrader_live._registry_guard_relevant(
             ExternalSignalObservation(
                 signal_id="sig.news.1",
                 source_id="news.alpha",
@@ -1841,4 +2594,5 @@ def test_prepare_autotrader_live_rejects_controller_guard_bundle_gap(monkeypatch
     assert report.decision.tag is AutoTraderDecisionTag.REJECT
     assert report.decision.reason.startswith("observation_packet_build_failed:TypeError:")
     assert report.live_admission_ok is False
+    assert report.live_admission_error is not None
     assert report.live_admission_error.startswith("observation_packet_build_failed:TypeError:")

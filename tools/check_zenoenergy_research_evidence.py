@@ -638,6 +638,32 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    ensemble = _load_json(
+        root / "data/upba_energy/upba_v2_energy_ensemble_seed20260556.json"
+    )
+    ensemble_doc = (
+        root / "docs/ZENO_ENERGY_ENSEMBLE.md"
+    ).read_text(encoding="utf-8")
+    ensemble_tool = (
+        root / "tools/benchmark_upba_energy_ensemble.py"
+    ).read_text(encoding="utf-8")
+    ensemble_module = (
+        root / "src/energy/upba_v2_ensemble.py"
+    ).read_text(encoding="utf-8")
+    ensemble_tests = (
+        root / "tests/energy/test_upba_v2_ensemble.py"
+    ).read_text(encoding="utf-8")
+    payloads["ensemble"] = ensemble
+    checks.extend(
+        _check_ensemble(
+            ensemble,
+            ensemble_doc,
+            ensemble_tool,
+            ensemble_module,
+            ensemble_tests,
+        )
+    )
+
     best_model_registry = _load_json(
         root / "data/upba_energy/zenoenergy_best_model_registry.json"
     )
@@ -661,6 +687,28 @@ def replay_zenoenergy_evidence(
         )
     )
 
+    upba_v2_model_leaderboard = _load_json(
+        root / "data/upba_energy/upba_v2_energy_model_leaderboard.json"
+    )
+    upba_v2_model_leaderboard_doc = (
+        root / "docs/ZENO_ENERGY_UPBA_V2_MODEL_LEADERBOARD.md"
+    ).read_text(encoding="utf-8")
+    upba_v2_model_leaderboard_tool = (
+        root / "tools/build_upba_energy_model_leaderboard.py"
+    ).read_text(encoding="utf-8")
+    upba_v2_model_leaderboard_tests = (
+        root / "tests/energy/test_upba_v2_model_leaderboard.py"
+    ).read_text(encoding="utf-8")
+    payloads["upba_v2_model_leaderboard"] = upba_v2_model_leaderboard
+    checks.extend(
+        _check_upba_v2_model_leaderboard(
+            upba_v2_model_leaderboard,
+            upba_v2_model_leaderboard_doc,
+            upba_v2_model_leaderboard_tool,
+            upba_v2_model_leaderboard_tests,
+        )
+    )
+
     epiplexity_literature = _load_json(
         root / "data/upba_energy/zenoenergy_epiplexity_literature_receipt.json"
     )
@@ -680,6 +728,124 @@ def replay_zenoenergy_evidence(
             epiplexity_literature_doc,
             epiplexity_literature_tool,
             epiplexity_literature_tests,
+        )
+    )
+
+    synthetic_data_limits = _load_json(
+        root / "data/upba_energy/zenoenergy_synthetic_data_limits_receipt.json"
+    )
+    synthetic_data_limits_doc = (
+        root / "docs/ZENO_ENERGY_SYNTHETIC_DATA_LIMITS.md"
+    ).read_text(encoding="utf-8")
+    synthetic_data_limits_tool = (
+        root / "tools/check_zenoenergy_synthetic_data_limits.py"
+    ).read_text(encoding="utf-8")
+    synthetic_data_limits_tests = (
+        root / "tests/energy/test_zenoenergy_synthetic_data_limits.py"
+    ).read_text(encoding="utf-8")
+    payloads["synthetic_data_limits"] = synthetic_data_limits
+    checks.extend(
+        _check_synthetic_data_limits(
+            synthetic_data_limits,
+            synthetic_data_limits_doc,
+            synthetic_data_limits_tool,
+            synthetic_data_limits_tests,
+        )
+    )
+
+    langevin_discovery = _load_json(
+        root / "data/upba_energy/gemini_langevin_discovery_receipt.json"
+    )
+    langevin_discovery_doc = (
+        root / "docs/ZENO_ENERGY_GEMINI_LANGEVIN_DISCOVERY.md"
+    ).read_text(encoding="utf-8")
+    langevin_discovery_tool = (
+        root / "tools/check_gemini_langevin_discovery.py"
+    ).read_text(encoding="utf-8")
+    langevin_discovery_tests = (
+        root / "tests/energy/test_gemini_langevin.py"
+    ).read_text(encoding="utf-8")
+    payloads["langevin_discovery"] = langevin_discovery
+    checks.extend(
+        _check_langevin_discovery(
+            langevin_discovery,
+            langevin_discovery_doc,
+            langevin_discovery_tool,
+            langevin_discovery_tests,
+        )
+    )
+
+    autotrader_refiner_boundary = _load_json(
+        root / "data/upba_energy/autotrader_refiner_boundary_seed20260529.json"
+    )
+    autotrader_refiner_doc = (
+        root / "docs/AUTOTRADER_REFINER_BOUNDARY.md"
+    ).read_text(encoding="utf-8")
+    autotrader_refiner_tool = (
+        root / "tools/check_autotrader_refiner_boundary.py"
+    ).read_text(encoding="utf-8")
+    autotrader_refiner_tests = (
+        root / "tests/energy/test_autotrader_refiner_boundary.py"
+    ).read_text(encoding="utf-8")
+    payloads["autotrader_refiner_boundary"] = autotrader_refiner_boundary
+    checks.extend(
+        _check_autotrader_refiner_boundary(
+            autotrader_refiner_boundary,
+            autotrader_refiner_doc,
+            autotrader_refiner_tool,
+            autotrader_refiner_tests,
+        )
+    )
+
+    jepa_logic_boundary = _load_json(
+        root / "data/upba_energy/gemini_jepa_logic_boundary_receipt.json"
+    )
+    jepa_logic_doc = (
+        root / "docs/ZENO_ENERGY_GEMINI_JEPA_LOGIC_BOUNDARY.md"
+    ).read_text(encoding="utf-8")
+    jepa_logic_tool = (
+        root / "tools/check_gemini_jepa_logic_boundary.py"
+    ).read_text(encoding="utf-8")
+    jepa_logic_tests = (
+        root / "tests/energy/test_gemini_jepa_logic_boundary.py"
+    ).read_text(encoding="utf-8")
+    payloads["jepa_logic_boundary"] = jepa_logic_boundary
+    checks.extend(
+        _check_jepa_logic_boundary(
+            jepa_logic_boundary,
+            jepa_logic_doc,
+            jepa_logic_tool,
+            jepa_logic_tests,
+        )
+    )
+
+    autotrader_jepa_ux = _load_json(
+        root / "data/upba_energy/autotrader_jepa_ux_receipt_seed20260531.json"
+    )
+    autotrader_jepa_ux_doc = (
+        root / "docs/ZENO_ENERGY_AUTOTRADER_JEPA_UX.md"
+    ).read_text(encoding="utf-8")
+    autotrader_jepa_ux_tool = (
+        root / "tools/check_zenoenergy_autotrader_jepa_ux.py"
+    ).read_text(encoding="utf-8")
+    autotrader_jepa_ux_tests = (
+        root / "tests/energy/test_zenoenergy_autotrader_jepa_ux.py"
+    ).read_text(encoding="utf-8") + (
+        root / "tests/energy/test_zeno_jepa_autotrader_ux.py"
+    ).read_text(encoding="utf-8")
+    autotrader_jepa_ux_source = (
+        root / "src/energy/zeno_jepa.py"
+    ).read_text(encoding="utf-8") + (
+        root / "src/energy/autotrader_ux.py"
+    ).read_text(encoding="utf-8")
+    payloads["autotrader_jepa_ux"] = autotrader_jepa_ux
+    checks.extend(
+        _check_autotrader_jepa_ux(
+            autotrader_jepa_ux,
+            autotrader_jepa_ux_doc,
+            autotrader_jepa_ux_tool,
+            autotrader_jepa_ux_tests,
+            autotrader_jepa_ux_source,
         )
     )
 
@@ -1744,6 +1910,7 @@ def _check_sota_decision_map(
         "listwise set ranker: test next",
         "larger transformer: defer",
         "learned repair selector: continue",
+        "tiny ensemble uncertainty: diagnostic only",
         "top-k without fallback: reject",
         "online checked stop: prototype only with suffix-bound certificate",
     }
@@ -1757,6 +1924,7 @@ def _check_sota_decision_map(
         "set-aware linear ranker did not beat aggregate learned baseline",
         "deterministic neighborhood repair reduced regret but increased verifier work",
         "learned repair selector did not consistently beat hand-selected repairs",
+        "tiny ensemble ranker did not beat the gap-weighted default",
     }
     required_sources = {
         "https://cs.nyu.edu/~yann/research/ebm/",
@@ -1766,6 +1934,7 @@ def _check_sota_decision_map(
         "https://papers.nips.cc/paper/6931-deep-sets",
         "https://proceedings.mlr.press/v97/lee19d.html",
         "https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2007-40.pdf",
+        "https://papers.neurips.cc/paper/7219-simple-and-scalable-predictive-uncertainty-estimation-using-deep-ensembles",
         "https://ojs.aaai.org/index.php/AAAI/article/view/10080",
         "https://papers.neurips.cc/paper/9690-exact-combinatorial-optimization-with-graph-convolutional-neural-networks",
         "https://arxiv.org/abs/2107.10201",
@@ -1784,6 +1953,8 @@ def _check_sota_decision_map(
         "larger transformer",
         "learned repair selector",
         "continue",
+        "tiny ensemble uncertainty",
+        "diagnostic only",
         "top-k without fallback",
         "reject",
         "online checked stop",
@@ -2627,7 +2798,9 @@ def _check_best_model_registry(
 ) -> list[EvidenceCheck]:
     models = registry["models"]
     by_id = {str(model["model_id"]): model for model in models}
-    upba = by_id.get("upba_v2_gap_weighted_default_seed20260517", {})
+    upba = by_id.get("gemini_mlp_v6_seed20260519", {})
+    upba_linear = by_id.get("gemini_highwinner_seed20260517", {})
+    upba_baseline = by_id.get("upba_v2_gap_weighted_default_seed20260517", {})
     autotrader = [
         model
         for model in models
@@ -2651,7 +2824,7 @@ def _check_best_model_registry(
             continue
         if payload.get("schema") != model.get("schema"):
             files_ok = False
-        if len(payload.get("weights", [])) + 1 != int(model["parameter_count"]):
+        if _retained_model_parameter_count(payload) != int(model["parameter_count"]):
             files_ok = False
         if len(payload.get("feature_names", [])) != int(model["feature_dim"]):
             files_ok = False
@@ -2661,10 +2834,12 @@ def _check_best_model_registry(
             registry.get("schema") == "zenodex/energy/best_model_registry/v1"
             and registry.get("scope") == "advisory_ranking_only"
             and registry["promoted"]["upba_v2"]
-            == "upba_v2_gap_weighted_default_seed20260517"
+            == "gemini_mlp_v6_seed20260519"
             and registry["promoted"]["autotrader_hard_synthetic_best_seed_pair"]
             == "autotrader_hard_train20260526_holdout20260527"
             and set(by_id) == {
+                "gemini_mlp_v6_seed20260519",
+                "gemini_highwinner_seed20260517",
                 "upba_v2_gap_weighted_default_seed20260517",
                 *expected_autotrader_ids,
             },
@@ -2677,13 +2852,20 @@ def _check_best_model_registry(
         ),
         _expect_true(
             "best_model_registry.upba_default",
-            int(upba.get("parameter_count", 0)) == 97
+            int(upba.get("parameter_count", 0)) == 6273
+            and bool(upba["metrics"]["promotion_allowed"]) is True
+            and int(upba["metrics"]["holdout_invalid_accept_count"]) == 0
             and int(upba["metrics"]["cross_seed_invalid_accept_count_total"]) == 0
+            and int(upba["metrics"]["cross_seed_permutation_violation_count_total"]) == 0
+            and float(upba["metrics"]["holdout_top_1_recall"]) > 0.997
+            and float(upba["metrics"]["cross_seed_top_1_recall_min"]) >= 0.983
             and float(upba["metrics"]["cross_seed_top_10_recall_min"]) == 1.0
+            and float(upba["metrics"]["hard_case_top_1_recall"]) > 0.993
             and int(upba["metrics"]["hard_case_top10_miss_count"]) == 0
-            and float(upba["metrics"]["data_scaling_current_checkpoint_mean_calls"])
-            < float(upba["metrics"]["data_scaling_full_budget_mean_calls"]),
-            "retained UPBA model is the current gap-weighted default and beats raw full-volume scaling",
+            and upba.get("supersedes") == "gemini_highwinner_seed20260517"
+            and upba_linear.get("superseded_by") == "gemini_mlp_v6_seed20260519"
+            and upba_baseline.get("superseded_by") == "gemini_mlp_v6_seed20260519",
+            "retained UPBA model is the promoted v6 MLP checkpoint and keeps the old linear baselines",
         ),
         _expect_true(
             "best_model_registry.autotrader_retained",
@@ -2708,6 +2890,111 @@ def _check_best_model_registry(
             "registry, docs, test, and tool keep retained models advisory only",
         ),
     ]
+
+
+def _check_upba_v2_model_leaderboard(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    rows = {str(row["model_id"]): row for row in report["models"]}
+    promoted = rows.get("gemini_mlp_v6_seed20260519", {})
+    highwinner = rows.get("gemini_highwinner_seed20260517", {})
+    gap = rows.get("upba_v2_gap_weighted_default_seed20260517", {})
+    objective8 = rows.get("gemini_objective8_seed20260517", {})
+    handinit = rows.get("gemini_handinit_seed20260517", {})
+    obligation_ids = {str(item["id"]) for item in report["obligations"]}
+    required_obligations = {
+        "holdout_best_mean_calls",
+        "holdout_best_top1",
+        "cross_seed_best_mean_calls",
+        "cross_seed_best_worst_top1",
+        "hard_case_best_top1",
+        "hard_case_fewest_top1_misses",
+        "safety_counts_clean",
+    }
+    full_rows = [
+        row for row in report["models"] if row["coverage"]["full_three_lane"]
+    ]
+    return [
+        _expect_true(
+            "upba_v2_model_leaderboard.schema_and_decision",
+            report.get("schema") == "zenodex/energy/upba_v2_model_leaderboard/v1"
+            and report.get("scope") == "advisory_ranking_only"
+            and report.get("decision") == "promote_v6_research_candidate"
+            and report.get("promoted_model_id") == "gemini_mlp_v6_seed20260519"
+            and int(report["compared_model_count"]) == 7
+            and int(report["full_three_lane_model_count"]) == 6
+            and report.get("blocked_reasons") == [],
+            "leaderboard promotes the v6 MLP advisory UPBA v2 ranker",
+        ),
+        _expect_true(
+            "upba_v2_model_leaderboard.obligations",
+            required_obligations == obligation_ids
+            and all(bool(item["passed"]) is True for item in report["obligations"]),
+            "all highwinner promotion obligations pass",
+        ),
+        _expect_true(
+            "upba_v2_model_leaderboard.metric_dominance",
+            float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
+            < float(highwinner["metrics"]["holdout"]["mean_verifier_calls"])
+            and float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
+            < float(gap["metrics"]["holdout"]["mean_verifier_calls"])
+            and float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
+            < float(objective8["metrics"]["holdout"]["mean_verifier_calls"])
+            and float(promoted["metrics"]["holdout"]["mean_verifier_calls"])
+            < float(handinit["metrics"]["holdout"]["mean_verifier_calls"])
+            and float(promoted["metrics"]["cross_seed"]["top_1_recall_min"])
+            > float(gap["metrics"]["cross_seed"]["top_1_recall_min"])
+            and float(promoted["metrics"]["cross_seed"]["mean_verifier_calls_mean"])
+            < float(highwinner["metrics"]["cross_seed"]["mean_verifier_calls_mean"])
+            and int(promoted["metrics"]["hard_cases"]["top1_miss_count"])
+            < int(highwinner["metrics"]["hard_cases"]["top1_miss_count"])
+            and int(promoted["metrics"]["hard_cases"]["top1_miss_count"])
+            < int(gap["metrics"]["hard_cases"]["top1_miss_count"]),
+            "v6 beats the retained linear checkpoints on selected verifier-facing metrics",
+        ),
+        _expect_true(
+            "upba_v2_model_leaderboard.safety_boundary",
+            len(full_rows) == 6
+            and int(promoted["metrics"]["holdout"]["invalid_accept_count"]) == 0
+            and int(
+                promoted["metrics"]["cross_seed"]["invalid_accept_count_total"]
+            )
+            == 0
+            and int(
+                promoted["metrics"]["cross_seed"][
+                    "permutation_violation_count_total"
+                ]
+            )
+            == 0
+            and "advisory rankers only" in doc_text
+            and "does not authorize settlement" in doc_text,
+            "leaderboard keeps safety as verifier-authoritative and advisory only",
+        ),
+        _expect_true(
+            "upba_v2_model_leaderboard.source_hooks",
+            "upba_v2_model_leaderboard/v1" in tool_text
+            and "test_highwinner_leads_comparable_upba_energy_leaderboard"
+            in test_text
+            and "gemini_mlp_v6_seed20260519" in doc_text
+            and "gemini_highwinner_seed20260517" in doc_text
+            and "gemini_handinit_seed20260517" in doc_text,
+            "tool, test, and doc pin the comparable model set",
+        ),
+    ]
+
+
+def _retained_model_parameter_count(payload: dict[str, Any]) -> int:
+    if payload.get("schema") == "zenodex/energy/gemini_mlp/v1":
+        return (
+            sum(len(row) for row in payload["w1"])
+            + len(payload["b1"])
+            + len(payload["w2"])
+            + 1
+        )
+    return len(payload.get("weights", [])) + 1
 
 
 def _check_quality_selection(
@@ -2767,6 +3054,63 @@ def _check_quality_selection(
     ]
 
 
+def _check_ensemble(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    module_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    modes = report["modes"]
+    baseline = report["baselines"]["current_gap_weighted"]
+    interpretation = report["interpretation"]
+    uncertainty = report["uncertainty"]
+    best_auc = float(interpretation["best_uncertainty_auc"])
+    return [
+        _expect_true(
+            "ensemble.schema",
+            report.get("schema") == "zenodex/energy/upba_v2_ensemble_report/v1"
+            and int(report["ensemble"]["member_count"]) == 6
+            and int(report["ensemble"]["total_parameter_count"]) == 582
+            and len(modes) == 6,
+            "ensemble receipt records six tiny advisory members and six aggregation modes",
+        ),
+        _expect_true(
+            "ensemble.safety",
+            int(report["safety"]["invalid_accept_count_total"]) == 0
+            and bool(report["safety"]["verifier_authoritative"]) is True
+            and bool(report["safety"]["model_authorizes_settlement"]) is False
+            and bool(report["safety"]["deterministic_fallback_required"]) is True
+            and all(int(mode["invalid_accept_count"]) == 0 for mode in modes.values()),
+            "ensemble preserves verifier authority, deterministic fallback, and zero invalid accepts",
+        ),
+        _expect_true(
+            "ensemble.top10_and_default_negative",
+            all(float(mode["top_10_recall"]) == 1.0 for mode in modes.values())
+            and bool(interpretation["best_ensemble_beats_current_gap_weighted"]) is False
+            and float(baseline["mean_verifier_calls"])
+            < float(interpretation["best_ensemble_mean_verifier_calls"])
+            and "keep the single retained UPBA model" in interpretation["negative_knowledge"],
+            "ensemble keeps top-10 recall but does not beat the current gap-weighted default",
+        ),
+        _expect_true(
+            "ensemble.uncertainty_signal",
+            best_auc > 0.6
+            and float(uncertainty["ensemble_mean_rank"]["top1_uncertainty_miss_mean"])
+            > float(uncertainty["ensemble_mean_rank"]["top1_uncertainty_hit_mean"]),
+            "rank disagreement has moderate signal for top-1 misses",
+        ),
+        _expect_true(
+            "ensemble.source_hooks",
+            "LinearEnergyEnsemble" in module_text
+            and "ensemble_rank_std_penalty" in tool_text
+            and "test_ensemble_report_records_negative_default_decision" in test_text
+            and "Deterministic UPBA verification and fallback remain the authority" in doc_text,
+            "module, benchmark, tests, and docs expose the ensemble advisory boundary",
+        ),
+    ]
+
+
 def _check_epiplexity_literature(
     report: dict[str, Any],
     doc_text: str,
@@ -2819,6 +3163,324 @@ def _check_epiplexity_literature(
             and "test_epiplexity_literature_note_preserves_task_boundary" in test_text
             and report["decision"] == "use_epiplexity_for_training_data_selection_only",
             "checker and test enforce the data-selection-only decision",
+        ),
+    ]
+
+
+def _check_synthetic_data_limits(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    check_ids = {str(item["check_id"]) for item in report["checks"]}
+    doc_lower = doc_text.lower()
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    required_sources = report["required_source_urls"]
+    return [
+        _expect_true(
+            "synthetic_data_limits.schema",
+            report.get("schema") == "zenodex/energy/synthetic_data_limits_receipt/v1"
+            and bool(report.get("ok")) is True
+            and int(report["source_count"]) == 8
+            and int(report["passed_count"]) == 6
+            and int(report["failed_count"]) == 0,
+            "synthetic-data limits receipt schema and counts are stable",
+        ),
+        _expect_true(
+            "synthetic_data_limits.sources",
+            "https://www.nature.com/articles/s41586-024-07566-y"
+            in required_sources.values()
+            and "https://arxiv.org/abs/2305.17493" in required_sources.values()
+            and "https://arxiv.org/abs/2404.01413" in required_sources.values()
+            and "https://arxiv.org/abs/1703.06907" in required_sources.values(),
+            "model-collapse, accumulation, and simulation-transfer sources are recorded",
+        ),
+        _expect_true(
+            "synthetic_data_limits.verifier_label_boundary",
+            "boundary.verifier_labels" in check_ids
+            and "model outputs as authoritative labels" in doc_lower
+            and "VerifierLabel(ctx, candidate)" in doc_text,
+            "note requires verifier or policy labels instead of self-labels",
+        ),
+        _expect_true(
+            "synthetic_data_limits.replay_boundary",
+            "boundary.no_real_replay_replacement" in check_ids
+            and "do not replace real replay" in doc_lower
+            and "real_upba_replay_report_ok" in doc_text
+            and "coverage_profile_ok" in doc_text,
+            "note keeps real replay and coverage profiles as production-gate requirements",
+        ),
+        _expect_true(
+            "synthetic_data_limits.source_hooks",
+            "REQUIRED_SOURCE_URLS" in tool_text
+            and "check_synthetic_data_limits" in tool_text
+            and "test_synthetic_data_limits_note_preserves_replay_boundary" in test_text
+            and report["decision"] == "synthetic_data_research_only_until_real_replay_gate"
+            and "not production distribution evidence" in negative_text,
+            "checker and test enforce research-only synthetic-data limits",
+        ),
+    ]
+
+
+def _check_langevin_discovery(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    return [
+        _expect_true(
+            "langevin_discovery.schema",
+            report.get("schema")
+            == "zenodex/energy/gemini_langevin_discovery_receipt/v1"
+            and bool(report.get("ok")) is True
+            and int(report["candidate_count"]) == 32,
+            "Langevin discovery receipt schema and deterministic seed are stable",
+        ),
+        _expect_true(
+            "langevin_discovery.verifier_selection",
+            bool(report["seed_verifier_ok"]) is True
+            and bool(report["selected_verifier_ok"]) is True
+            and bool(report["accepted_refinement"]) is False
+            and bool(report["fallback_to_seed"]) is True,
+            "invalid lower-energy refinement falls back to a verifier-backed seed",
+        ),
+        _expect_true(
+            "langevin_discovery.energy_is_not_safety",
+            float(report["energy_delta"]) < 0.0
+            and bool(report["refined_verifier_ok"]) is False
+            and "lower learned energy does not imply verifier acceptance" in negative_text
+            and "ZenoGuard is an advisory soft prior" in doc_text,
+            "lower energy and ZenoGuard are not treated as safety proof",
+        ),
+        _expect_true(
+            "langevin_discovery.source_hooks",
+            "research_only_verifier_checked_proposal" in tool_text
+            and "discover_verified" in tool_text
+            and "test_langevin_discovery_is_verifier_checked_before_selection"
+            in test_text,
+            "tool and test enforce verifier-backed Langevin selection",
+        ),
+    ]
+
+
+def _check_autotrader_refiner_boundary(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    return [
+        _expect_true(
+            "autotrader_refiner_boundary.schema",
+            report.get("schema")
+            == "zenodex/energy/autotrader_refiner_boundary_receipt/v1"
+            and bool(report.get("ok")) is True
+            and int(report["evaluated_contexts"]) == 160,
+            "AutoTrader refiner boundary receipt schema and deterministic seed are stable",
+        ),
+        _expect_true(
+            "autotrader_refiner_boundary.policy_selection",
+            int(report["selected_invalid_count"]) == 0
+            and bool(report["policy_guards_authoritative"]) is True
+            and bool(report["model_authorizes_trade"]) is False
+            and bool(report["refined_proposal_authorizes_trade"]) is False,
+            "refined AutoTrader proposals are selected only through policy labels",
+        ),
+        _expect_true(
+            "autotrader_refiner_boundary.synthetic_gain",
+            float(report["selected_vs_initial_objective_delta_mean"]) > 0.0
+            and float(report["selected_vs_initial_energy_delta_mean"]) < 0.0
+            and int(report["accepted_refinement_count"]) > 0,
+            "bounded synthetic refiner improves selected objective while lowering advisory energy",
+        ),
+        _expect_true(
+            "autotrader_refiner_boundary.source_hooks",
+            "research_only_policy_checked_refinement" in tool_text
+            and "refine_trade_checked" in tool_text
+            and "test_autotrader_refiner_is_policy_checked_before_selection" in test_text
+            and "deterministic policy labels decide selection" in negative_text
+            and "AutoTrader refinement is proposal search" in doc_text,
+            "tool, doc, and test preserve policy-gated refinement boundary",
+        ),
+    ]
+
+
+def _check_jepa_logic_boundary(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+) -> list[EvidenceCheck]:
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    safety = report["safety_contract"]
+    jepa = report["jepa"]
+    logic = report["zeno_logic"]
+    return [
+        _expect_true(
+            "jepa_logic_boundary.schema",
+            report.get("schema")
+            == "zenodex/energy/gemini_jepa_logic_boundary_receipt/v1"
+            and bool(report.get("ok")) is True
+            and report["decision"] == "research_only_future_aware_advisory_score",
+            "JEPA/ZenoLogic boundary receipt schema and decision are stable",
+        ),
+        _expect_true(
+            "jepa_logic_boundary.future_score_advisory",
+            bool(jepa["future_tension_prefers_balanced"]) is True
+            and float(jepa["balanced_action_tension"]) < float(jepa["draining_action_tension"])
+            and bool(jepa["model_authorizes_settlement"]) is False,
+            "future-tension score ranks proposals but does not authorize settlement",
+        ),
+        _expect_true(
+            "jepa_logic_boundary.logic_negation_warning",
+            bool(logic["energy_not_inverts_barrier"]) is True
+            and "EnergyNot can invert hard barriers" in doc_text
+            and "must not be used over safety predicates" in negative_text,
+            "ZenoLogic records the hard-barrier inversion hazard",
+        ),
+        _expect_true(
+            "jepa_logic_boundary.safety_contract",
+            bool(safety["deterministic_verifier_authoritative"]) is True
+            and bool(safety["deterministic_policy_guards_authoritative"]) is True
+            and bool(safety["model_authorizes_settlement"]) is False
+            and bool(safety["future_tension_authorizes_settlement"]) is False
+            and bool(safety["logic_expression_authorizes_settlement"]) is False,
+            "JEPA and ZenoLogic remain advisory scoring surfaces",
+        ),
+        _expect_true(
+            "jepa_logic_boundary.source_hooks",
+            "check_gemini_jepa_logic_boundary" in tool_text
+            and "ZenoJepaModel" in tool_text
+            and "test_jepa_logic_boundary_is_advisory_only" in test_text
+            and "advisory scoring surfaces" in doc_text,
+            "tool, doc, and test preserve JEPA/ZenoLogic boundary",
+        ),
+    ]
+
+
+def _check_autotrader_jepa_ux(
+    report: dict[str, Any],
+    doc_text: str,
+    tool_text: str,
+    test_text: str,
+    source_text: str,
+) -> list[EvidenceCheck]:
+    negative_text = " ".join(str(item) for item in report["negative_knowledge"]).lower()
+    scenario = report["scenario_scores"]
+    future_eval = report["future_aware_evaluation"]
+    ranking = report["ranking"]
+    safety = report["safety_contract"]
+    ux = report["ux"]
+    prediction = report["future_risk_prediction"]
+    controls = report["control_metrics"]
+    warnings = report["warning_metrics"]
+    research_inputs = report["research_inputs"]
+    efficiency = report["efficiency"]
+    correlations = prediction["stress_correlations"]
+    return [
+        _expect_true(
+            "autotrader_jepa_ux.schema",
+            report.get("schema")
+            == "zenodex/energy/autotrader_jepa_ux_receipt/v1"
+            and bool(report.get("ok")) is True
+            and report["decision"] == "research_only_future_aware_autotrader_ux",
+            "source-level AutoTrader JEPA UX receipt schema and decision are stable",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.future_tension",
+            bool(scenario["future_tension_differentiates_fragility"]) is True
+            and float(scenario["fragile_future_tension"])
+            > float(scenario["balanced_future_tension"]),
+            "future tension distinguishes fragile and balanced proposal scenarios",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.future_policy_prediction",
+            float(prediction["later_policy_failure_auc"]) >= 0.80
+            and float(prediction["future_failure_tension_delta_mean"]) > 0.25
+            and int(prediction["later_policy_failure_count"]) > 0
+            and bool(prediction["model_authorizes_trade"]) is False,
+            "future tension separates later policy failures from non-failures",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.stress_correlations",
+            float(correlations["slippage_stress"]) >= 0.55
+            and float(correlations["budget_stress"]) >= 0.55
+            and float(correlations["drawdown_stress"]) >= 0.55,
+            "future tension correlates with slippage, budget, and drawdown stress",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.counterfactual_controls",
+            float(controls["safer_counterfactual_reduction_rate"]) >= 0.95
+            and float(controls["suggested_control_best_reduction_rate"]) >= 0.95
+            and bool(controls["suggested_control_authority_ok"]) is True
+            and bool(controls["model_authorizes_trade"]) is False,
+            "safer counterfactual controls and suggested controls reduce future tension",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.warning_match",
+            float(warnings["blocked_status_match_rate"]) == 1.0
+            and float(warnings["future_warning_match_rate"]) >= 0.80
+            and int(warnings["ux_card_authorizes_trade_count"]) == 0,
+            "UX warnings match deterministic guard outcomes and later-risk positives",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.policy_boundary",
+            int(future_eval["invalid_accept_count"]) == 0
+            and bool(future_eval["policy_guards_authoritative"]) is True
+            and bool(safety["model_authorizes_trade"]) is False
+            and bool(safety["future_tension_authorizes_trade"]) is False
+            and bool(safety["ux_card_authorizes_trade"]) is False,
+            "future-aware UX keeps deterministic policy guards authoritative",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.ranking_quality",
+            future_eval["mode"] == "learned_future_aware"
+            and float(ranking["learned_future_top_5_recall"]) >= 0.99
+            and float(ranking["learned_future_mean_guard_calls"]) <= 1.10
+            and bool(ranking["ranking_guardrail_passed"]) is True,
+            "learned+JEPA ranking remains a guardrail with high top-k recall",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.ux_explanations",
+            bool(ux["ux_explains_status_and_controls"]) is True
+            and ux["blocked_card"]["status"] == "blocked_by_policy_guard"
+            and "stale signal or quote" in ux["blocked_card"]["blocked_reasons"]
+            and ux["fragile_card"]["status"]
+            in {"needs_risk_review", "policy_valid_with_caution"}
+            and any(
+                float(effect["future_tension_delta"]) < 0.0
+                for effect in ux["fragile_card"]["control_effects"]
+            )
+            and "warning and proposal-shaping feature" in negative_text,
+            "UX cards explain blocked states, future risk, and controls",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.research_inputs",
+            bool(research_inputs["ok"]) is True
+            and "experiments_ideas" in research_inputs["artifacts"]
+            and "experiments_breakthroughs" in research_inputs["artifacts"]
+            and "popperpad_zenoenergy_readme" in research_inputs["artifacts"]
+            and int(efficiency["parameter_count"]) == 68
+            and bool(efficiency["ok"]) is True,
+            "ideas, breakthroughs, PopperPad, and a small JEPA profile are linked",
+        ),
+        _expect_true(
+            "autotrader_jepa_ux.source_hooks",
+            "check_zenoenergy_autotrader_jepa_ux" in tool_text
+            and "build_autotrader_advisory_card" in source_text
+            and "default_autotrader_jepa_model" in source_text
+            and "project_autotrader_future_stress" in source_text
+            and "autotrader_control_effect" in source_text
+            and "test_autotrader_jepa_ux_receipt_preserves_authority_boundary"
+            in test_text
+            and "test_autotrader_future_stress_tracks_later_policy_failures"
+            in test_text
+            and "deterministic policy guards remain authoritative" in doc_text,
+            "tool, source, doc, and tests preserve the source-level JEPA UX boundary",
         ),
     ]
 
@@ -2888,6 +3550,10 @@ def _check_popperpad_status_text(readme: str) -> list[EvidenceCheck]:
         "H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519": "falsified",
         "H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519": "supported",
         "H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519": "falsified",
+        "H_ZENOENERGY_ENSEMBLE_SAFETY_20260519": "supported",
+        "H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519": "supported",
+        "H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519": "falsified",
+        "H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519": "supported",
     }
     checks = []
     for hypothesis_id, state in expected.items():
@@ -2971,9 +3637,16 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
     curriculum_ranker = payloads["curriculum_ranker"]
     data_scaling = payloads["data_scaling"]
     quality_selection = payloads["quality_selection"]
+    ensemble = payloads["ensemble"]
     best_model_registry = payloads["best_model_registry"]
+    upba_v2_model_leaderboard = payloads["upba_v2_model_leaderboard"]
     energy_order_alone_formal = payloads["energy_order_alone_formal"]
     epiplexity_literature = payloads["epiplexity_literature"]
+    synthetic_data_limits = payloads["synthetic_data_limits"]
+    langevin_discovery = payloads["langevin_discovery"]
+    autotrader_refiner_boundary = payloads["autotrader_refiner_boundary"]
+    jepa_logic_boundary = payloads["jepa_logic_boundary"]
+    autotrader_jepa_ux = payloads["autotrader_jepa_ux"]
     return {
         "set_aware_negative_knowledge": payloads["set_aware"]["interpretation"][
             "negative_knowledge"
@@ -3515,12 +4188,46 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
                 "negative_knowledge"
             ],
         },
+        "ensemble": {
+            "schema": ensemble["schema"],
+            "member_count": ensemble["ensemble"]["member_count"],
+            "best_ensemble_mode": ensemble["interpretation"][
+                "best_ensemble_mode"
+            ],
+            "best_ensemble_mean_verifier_calls": ensemble["interpretation"][
+                "best_ensemble_mean_verifier_calls"
+            ],
+            "baseline_mean_verifier_calls": ensemble["interpretation"][
+                "baseline_mean_verifier_calls"
+            ],
+            "best_ensemble_beats_current_gap_weighted": ensemble[
+                "interpretation"
+            ]["best_ensemble_beats_current_gap_weighted"],
+            "best_uncertainty_auc": ensemble["interpretation"][
+                "best_uncertainty_auc"
+            ],
+            "negative_knowledge": ensemble["interpretation"][
+                "negative_knowledge"
+            ],
+        },
         "best_model_registry": {
             "schema": best_model_registry["schema"],
             "scope": best_model_registry["scope"],
             "model_count": len(best_model_registry["models"]),
             "promoted": best_model_registry["promoted"],
             "safety_contract": best_model_registry["safety_contract"],
+        },
+        "upba_v2_model_leaderboard": {
+            "schema": upba_v2_model_leaderboard["schema"],
+            "decision": upba_v2_model_leaderboard["decision"],
+            "promoted_model_id": upba_v2_model_leaderboard["promoted_model_id"],
+            "compared_model_count": upba_v2_model_leaderboard[
+                "compared_model_count"
+            ],
+            "full_three_lane_model_count": upba_v2_model_leaderboard[
+                "full_three_lane_model_count"
+            ],
+            "blocked_reasons": upba_v2_model_leaderboard["blocked_reasons"],
         },
         "epiplexity_literature": {
             "schema": epiplexity_literature["schema"],
@@ -3529,6 +4236,99 @@ def _summary(payloads: dict[str, Any]) -> dict[str, Any]:
             "decision": epiplexity_literature["decision"],
             "proxy": epiplexity_literature["proxy"],
             "negative_knowledge": epiplexity_literature["negative_knowledge"],
+        },
+        "synthetic_data_limits": {
+            "schema": synthetic_data_limits["schema"],
+            "source_count": synthetic_data_limits["source_count"],
+            "passed_count": synthetic_data_limits["passed_count"],
+            "decision": synthetic_data_limits["decision"],
+            "negative_knowledge": synthetic_data_limits["negative_knowledge"],
+        },
+        "langevin_discovery": {
+            "schema": langevin_discovery["schema"],
+            "decision": langevin_discovery["decision"],
+            "energy_delta": langevin_discovery["energy_delta"],
+            "seed_verifier_ok": langevin_discovery["seed_verifier_ok"],
+            "refined_verifier_ok": langevin_discovery["refined_verifier_ok"],
+            "selected_verifier_ok": langevin_discovery["selected_verifier_ok"],
+            "accepted_refinement": langevin_discovery["accepted_refinement"],
+            "fallback_to_seed": langevin_discovery["fallback_to_seed"],
+        },
+        "autotrader_refiner_boundary": {
+            "schema": autotrader_refiner_boundary["schema"],
+            "decision": autotrader_refiner_boundary["decision"],
+            "evaluated_contexts": autotrader_refiner_boundary["evaluated_contexts"],
+            "accepted_refinement_count": autotrader_refiner_boundary[
+                "accepted_refinement_count"
+            ],
+            "selected_invalid_count": autotrader_refiner_boundary[
+                "selected_invalid_count"
+            ],
+            "selected_vs_initial_objective_delta_mean": autotrader_refiner_boundary[
+                "selected_vs_initial_objective_delta_mean"
+            ],
+            "selected_vs_initial_energy_delta_mean": autotrader_refiner_boundary[
+                "selected_vs_initial_energy_delta_mean"
+            ],
+            "negative_knowledge": autotrader_refiner_boundary["negative_knowledge"],
+        },
+        "jepa_logic_boundary": {
+            "schema": jepa_logic_boundary["schema"],
+            "decision": jepa_logic_boundary["decision"],
+            "balanced_action_tension": jepa_logic_boundary["jepa"][
+                "balanced_action_tension"
+            ],
+            "draining_action_tension": jepa_logic_boundary["jepa"][
+                "draining_action_tension"
+            ],
+            "future_tension_prefers_balanced": jepa_logic_boundary["jepa"][
+                "future_tension_prefers_balanced"
+            ],
+            "energy_not_inverts_barrier": jepa_logic_boundary["zeno_logic"][
+                "energy_not_inverts_barrier"
+            ],
+            "negative_knowledge": jepa_logic_boundary["negative_knowledge"],
+        },
+        "autotrader_jepa_ux": {
+            "schema": autotrader_jepa_ux["schema"],
+            "decision": autotrader_jepa_ux["decision"],
+            "mean_guard_calls": autotrader_jepa_ux["future_aware_evaluation"][
+                "mean_guard_calls"
+            ],
+            "top_5_recall": autotrader_jepa_ux["future_aware_evaluation"][
+                "top_5_recall"
+            ],
+            "invalid_accept_count": autotrader_jepa_ux["future_aware_evaluation"][
+                "invalid_accept_count"
+            ],
+            "balanced_future_tension": autotrader_jepa_ux["scenario_scores"][
+                "balanced_future_tension"
+            ],
+            "fragile_future_tension": autotrader_jepa_ux["scenario_scores"][
+                "fragile_future_tension"
+            ],
+            "later_policy_failure_auc": autotrader_jepa_ux[
+                "future_risk_prediction"
+            ]["later_policy_failure_auc"],
+            "stress_correlations": autotrader_jepa_ux["future_risk_prediction"][
+                "stress_correlations"
+            ],
+            "safer_counterfactual_reduction_rate": autotrader_jepa_ux[
+                "control_metrics"
+            ]["safer_counterfactual_reduction_rate"],
+            "suggested_control_best_reduction_rate": autotrader_jepa_ux[
+                "control_metrics"
+            ]["suggested_control_best_reduction_rate"],
+            "blocked_status_match_rate": autotrader_jepa_ux["warning_metrics"][
+                "blocked_status_match_rate"
+            ],
+            "future_warning_match_rate": autotrader_jepa_ux["warning_metrics"][
+                "future_warning_match_rate"
+            ],
+            "ux_explains_status_and_controls": autotrader_jepa_ux["ux"][
+                "ux_explains_status_and_controls"
+            ],
+            "negative_knowledge": autotrader_jepa_ux["negative_knowledge"],
         },
     }
 

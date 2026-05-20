@@ -2,8 +2,8 @@
 
 ```text
 ok: true
-check_count: 238
-passed_count: 238
+check_count: 280
+passed_count: 280
 failed_count: 0
 ```
 
@@ -173,16 +173,55 @@ failed_count: 0
 | quality_selection.medium_budget_gain | pass | quality selection improves medium-budget mean verifier calls over raw winner-bearing samples |
 | quality_selection.small_budget_negative | pass | small hard-only quality budget can overfocus on current-model misses |
 | quality_selection.source_hooks | pass | tool, test, and doc expose the quality-selection boundary |
+| ensemble.schema | pass | ensemble receipt records six tiny advisory members and six aggregation modes |
+| ensemble.safety | pass | ensemble preserves verifier authority, deterministic fallback, and zero invalid accepts |
+| ensemble.top10_and_default_negative | pass | ensemble keeps top-10 recall but does not beat the current gap-weighted default |
+| ensemble.uncertainty_signal | pass | rank disagreement has moderate signal for top-1 misses |
+| ensemble.source_hooks | pass | module, benchmark, tests, and docs expose the ensemble advisory boundary |
 | best_model_registry.schema_and_promoted | pass | best-model registry records the promoted advisory research defaults |
 | best_model_registry.files_and_hashes | pass | all retained model files exist, match sha256, and match declared schema/dimensions |
-| best_model_registry.upba_default | pass | retained UPBA model is the current gap-weighted default and beats raw full-volume scaling |
+| best_model_registry.upba_default | pass | retained UPBA model is the promoted v6 MLP checkpoint and keeps the old linear baselines |
 | best_model_registry.autotrader_retained | pass | all three AutoTrader hard synthetic cross-seed models are retained |
 | best_model_registry.advisory_boundary | pass | registry, docs, test, and tool keep retained models advisory only |
+| upba_v2_model_leaderboard.schema_and_decision | pass | leaderboard promotes the v6 MLP advisory UPBA v2 ranker |
+| upba_v2_model_leaderboard.obligations | pass | all highwinner promotion obligations pass |
+| upba_v2_model_leaderboard.metric_dominance | pass | v6 beats the retained linear checkpoints on selected verifier-facing metrics |
+| upba_v2_model_leaderboard.safety_boundary | pass | leaderboard keeps safety as verifier-authoritative and advisory only |
+| upba_v2_model_leaderboard.source_hooks | pass | tool, test, and doc pin the comparable model set |
 | epiplexity_literature.schema | pass | epiplexity literature receipt schema and counts are stable |
 | epiplexity_literature.sources | pass | primary epiplexity, proxy counterexample, and companion sources are recorded |
 | epiplexity_literature.task_relevance_gate | pass | literature note requires task-specific heldout ranking metrics |
 | epiplexity_literature.proxy_boundary | pass | literature note rejects proxy-as-certificate and proxy-as-production evidence |
 | epiplexity_literature.source_hooks | pass | checker and test enforce the data-selection-only decision |
+| synthetic_data_limits.schema | pass | synthetic-data limits receipt schema and counts are stable |
+| synthetic_data_limits.sources | pass | model-collapse, accumulation, and simulation-transfer sources are recorded |
+| synthetic_data_limits.verifier_label_boundary | pass | note requires verifier or policy labels instead of self-labels |
+| synthetic_data_limits.replay_boundary | pass | note keeps real replay and coverage profiles as production-gate requirements |
+| synthetic_data_limits.source_hooks | pass | checker and test enforce research-only synthetic-data limits |
+| langevin_discovery.schema | pass | Langevin discovery receipt schema and deterministic seed are stable |
+| langevin_discovery.verifier_selection | pass | invalid lower-energy refinement falls back to a verifier-backed seed |
+| langevin_discovery.energy_is_not_safety | pass | lower energy and ZenoGuard are not treated as safety proof |
+| langevin_discovery.source_hooks | pass | tool and test enforce verifier-backed Langevin selection |
+| autotrader_refiner_boundary.schema | pass | AutoTrader refiner boundary receipt schema and deterministic seed are stable |
+| autotrader_refiner_boundary.policy_selection | pass | refined AutoTrader proposals are selected only through policy labels |
+| autotrader_refiner_boundary.synthetic_gain | pass | bounded synthetic refiner improves selected objective while lowering advisory energy |
+| autotrader_refiner_boundary.source_hooks | pass | tool, doc, and test preserve policy-gated refinement boundary |
+| jepa_logic_boundary.schema | pass | JEPA/ZenoLogic boundary receipt schema and decision are stable |
+| jepa_logic_boundary.future_score_advisory | pass | future-tension score ranks proposals but does not authorize settlement |
+| jepa_logic_boundary.logic_negation_warning | pass | ZenoLogic records the hard-barrier inversion hazard |
+| jepa_logic_boundary.safety_contract | pass | JEPA and ZenoLogic remain advisory scoring surfaces |
+| jepa_logic_boundary.source_hooks | pass | tool, doc, and test preserve JEPA/ZenoLogic boundary |
+| autotrader_jepa_ux.schema | pass | source-level AutoTrader JEPA UX receipt schema and decision are stable |
+| autotrader_jepa_ux.future_tension | pass | future tension distinguishes fragile and balanced proposal scenarios |
+| autotrader_jepa_ux.future_policy_prediction | pass | future tension separates later policy failures from non-failures |
+| autotrader_jepa_ux.stress_correlations | pass | future tension correlates with slippage, budget, and drawdown stress |
+| autotrader_jepa_ux.counterfactual_controls | pass | safer counterfactual controls and suggested controls reduce future tension |
+| autotrader_jepa_ux.warning_match | pass | UX warnings match deterministic guard outcomes and later-risk positives |
+| autotrader_jepa_ux.policy_boundary | pass | future-aware UX keeps deterministic policy guards authoritative |
+| autotrader_jepa_ux.ranking_quality | pass | learned+JEPA ranking remains a guardrail with high top-k recall |
+| autotrader_jepa_ux.ux_explanations | pass | UX cards explain blocked states, future risk, and controls |
+| autotrader_jepa_ux.research_inputs | pass | ideas, breakthroughs, PopperPad, and a small JEPA profile are linked |
+| autotrader_jepa_ux.source_hooks | pass | tool, source, doc, and tests preserve the source-level JEPA UX boundary |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 | pass | H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 | pass | H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 | pass | H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported |
@@ -246,7 +285,10 @@ failed_count: 0
 | popperpad.status.H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 | pass | H_ZENOENERGY_DATA_SCALING_RAW_VOLUME_BEATS_DEFAULT_20260519 is recorded as falsified |
 | popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519 | pass | H_ZENOENERGY_QUALITY_SELECTION_MEDIUM_BUDGET_HELPS_20260519 is recorded as supported |
 | popperpad.status.H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519 | pass | H_ZENOENERGY_QUALITY_SELECTION_ALWAYS_BEATS_RAW_20260519 is recorded as falsified |
-| popperpad.doctor | pass | PopperPad doctor ok |
+| popperpad.status.H_ZENOENERGY_ENSEMBLE_SAFETY_20260519 | pass | H_ZENOENERGY_ENSEMBLE_SAFETY_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519 | pass | H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519 is recorded as supported |
+| popperpad.status.H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519 | pass | H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519 is recorded as falsified |
+| popperpad.status.H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519 | pass | H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519 is recorded as supported |
 
 ## Summary
 
@@ -281,11 +323,52 @@ failed_count: 0
     "source": "built-in-zenograph-baseline",
     "valid_count": 12
   },
+  "autotrader_jepa_ux": {
+    "balanced_future_tension": 0.9103033672902678,
+    "blocked_status_match_rate": 1.0,
+    "decision": "research_only_future_aware_autotrader_ux",
+    "fragile_future_tension": 4.764275349683307,
+    "future_warning_match_rate": 1.0,
+    "invalid_accept_count": 0,
+    "later_policy_failure_auc": 0.814428884044226,
+    "mean_guard_calls": 1.0625,
+    "negative_knowledge": [
+      "Future-tension UX is a warning and proposal-shaping feature, not execution authority.",
+      "JEPA-over-hand ordering is weaker than learned AutoTraderEnergy; use learned ranking as the ordering guardrail.",
+      "Synthetic UX receipts do not prove live AutoTrader profitability.",
+      "Production use still needs source-manifested real shadow replay and wallet-level policy gates."
+    ],
+    "safer_counterfactual_reduction_rate": 1.0,
+    "schema": "zenodex/energy/autotrader_jepa_ux_receipt/v1",
+    "stress_correlations": {
+      "budget_stress": 0.5592288517861025,
+      "drawdown_stress": 0.5555945666227806,
+      "operational_stress": 0.386435404784279,
+      "slippage_stress": 0.6133274060907299
+    },
+    "suggested_control_best_reduction_rate": 1.0,
+    "top_5_recall": 1.0,
+    "ux_explains_status_and_controls": true
+  },
+  "autotrader_refiner_boundary": {
+    "accepted_refinement_count": 160,
+    "decision": "research_only_policy_checked_refinement",
+    "evaluated_contexts": 160,
+    "negative_knowledge": [
+      "Lower policy energy does not authorize an AutoTrader trade.",
+      "The refiner is proposal search; deterministic policy labels decide selection.",
+      "This receipt is hard synthetic evidence and does not replace real shadow replay."
+    ],
+    "schema": "zenodex/energy/autotrader_refiner_boundary_receipt/v1",
+    "selected_invalid_count": 0,
+    "selected_vs_initial_energy_delta_mean": -4.622399796321953,
+    "selected_vs_initial_objective_delta_mean": 12.0035342199319
+  },
   "best_model_registry": {
-    "model_count": 4,
+    "model_count": 6,
     "promoted": {
       "autotrader_hard_synthetic_best_seed_pair": "autotrader_hard_train20260526_holdout20260527",
-      "upba_v2": "upba_v2_gap_weighted_default_seed20260517"
+      "upba_v2": "gemini_mlp_v6_seed20260519"
     },
     "safety_contract": {
       "deterministic_policy_guards_authoritative": true,
@@ -363,6 +446,16 @@ failed_count: 0
     ],
     "schema": "zenodex/energy/energy_order_alone_formal_receipt/v1"
   },
+  "ensemble": {
+    "baseline_mean_verifier_calls": 1.0166414523449319,
+    "best_ensemble_beats_current_gap_weighted": false,
+    "best_ensemble_mean_verifier_calls": 1.0237014624306606,
+    "best_ensemble_mode": "ensemble_mean_energy",
+    "best_uncertainty_auc": 0.6819185578178384,
+    "member_count": 6,
+    "negative_knowledge": "If the best ensemble mode does not beat the current gap-weighted checkpoint, keep the single retained UPBA model as the default and use ensemble disagreement only as diagnostic coverage evidence.",
+    "schema": "zenodex/energy/upba_v2_ensemble_report/v1"
+  },
   "epiplexity_literature": {
     "decision": "use_epiplexity_for_training_data_selection_only",
     "negative_knowledge": [
@@ -402,6 +495,30 @@ failed_count: 0
     "learned_top_10_recall_min": 1.0,
     "model_parameter_count": 97,
     "model_reserved_nonzero_count": 0
+  },
+  "jepa_logic_boundary": {
+    "balanced_action_tension": 0.3093881057830117,
+    "decision": "research_only_future_aware_advisory_score",
+    "draining_action_tension": 1.3515909144412004,
+    "energy_not_inverts_barrier": true,
+    "future_tension_prefers_balanced": true,
+    "negative_knowledge": [
+      "Future-tension energy is a search feature, not a proof of future market safety.",
+      "ZenoLogic composes advisory energies and does not create a formal verifier.",
+      "EnergyNot can invert hard barriers, so it must not be used over safety predicates.",
+      "Production use still requires deterministic verifier or policy-gate checks and real replay."
+    ],
+    "schema": "zenodex/energy/gemini_jepa_logic_boundary_receipt/v1"
+  },
+  "langevin_discovery": {
+    "accepted_refinement": false,
+    "decision": "research_only_verifier_checked_proposal",
+    "energy_delta": -8.472667704926721,
+    "fallback_to_seed": true,
+    "refined_verifier_ok": false,
+    "schema": "zenodex/energy/gemini_langevin_discovery_receipt/v1",
+    "seed_verifier_ok": true,
+    "selected_verifier_ok": true
   },
   "listwise_cross_seed": {
     "checked_stop_at_winner_pass_count": 3,
@@ -572,10 +689,10 @@ failed_count: 0
   "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
   "sota_decision_map": {
     "claim": "Current solver-learning and energy-model guidance supports listwise/set-aware ranker and outcome-level repair-selector experiments while preserving verifier-authoritative fallback or certificates.",
-    "negative_knowledge_count": 3,
+    "negative_knowledge_count": 4,
     "next_experiment_count": 4,
-    "required_decision_count": 7,
-    "source_count": 10
+    "required_decision_count": 8,
+    "source_count": 11
   },
   "suffix_bound": {
     "evaluated_batches": 119,
@@ -680,6 +797,17 @@ failed_count: 0
     "synthetic_batches_requested": 540,
     "synthetic_candidates_requested": 18360
   },
+  "synthetic_data_limits": {
+    "decision": "synthetic_data_research_only_until_real_replay_gate",
+    "negative_knowledge": [
+      "Synthetic verifier-labeled data can improve advisory ranking, but it is not production distribution evidence by itself.",
+      "Recursive synthetic replacement and self-consuming model loops can lose tails or diversity.",
+      "Real replay, source manifests, secret scans, and coverage profiles remain required for production-adjacent promotion."
+    ],
+    "passed_count": 6,
+    "schema": "zenodex/energy/synthetic_data_limits_receipt/v1",
+    "source_count": 8
+  },
   "topk_sweep": {
     "batches": 1983,
     "learned_k2_checked_stop_rate": 1.0,
@@ -688,6 +816,14 @@ failed_count: 0
     "learned_mean_objective_winner_position": 1.0166414523449319,
     "objective_tie_batch_count": 1,
     "random_k10_false_exclusion_rate": 0.4931921331316188
+  },
+  "upba_v2_model_leaderboard": {
+    "blocked_reasons": [],
+    "compared_model_count": 7,
+    "decision": "promote_v6_research_candidate",
+    "full_three_lane_model_count": 6,
+    "promoted_model_id": "gemini_mlp_v6_seed20260519",
+    "schema": "zenodex/energy/upba_v2_model_leaderboard/v1"
   },
   "wes_dominance_search": {
     "budget": 60,

@@ -156,6 +156,39 @@ def _advisory_primary_observation_packet():
     return build_autotrader_observation_packet(primary_signal=primary)
 
 
+def _weak_weighted_external_observation_packet():
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
+    assert quote is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5)
+    primary = build_quote_receipt_signal_packet(receipt=receipt, pools_by_id=pools, current_epoch=6)
+    return build_autotrader_observation_packet(
+        primary_signal=primary,
+        external_signals=(
+            ExternalSignalObservation(
+                signal_id="sig.advisory.weak.1",
+                source_id="newsfeed.weak",
+                source_kind=SignalSourceKind.ADVISORY_EXTERNAL,
+                trust_tier=SignalTrustTier.ADVISORY,
+                freshness_ok=True,
+                auth_ok=False,
+                tags=("macro",),
+            ),
+        ),
+        signal_source_registry=ExternalSignalSourceRegistry(
+            entries=(
+                ExternalSignalSourceRegistryEntry(
+                    source_id="newsfeed.weak",
+                    source_kind=SignalSourceKind.ADVISORY_EXTERNAL,
+                    allowed_trust_tiers=(SignalTrustTier.ADVISORY,),
+                    require_advisory_only=True,
+                ),
+            )
+        ),
+        tau_enabled=False,
+    )
+
+
 def _route_receipt_and_pools():
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
@@ -397,6 +430,7 @@ def test_autotrader_krr_semantic_signature_encodes_pressure_and_phase() -> None:
         phase="live",
         current_epoch=5,
         source_form="sentence",
+        source_preset_id="balanced_dca",
         spent_in_window=450,
         lifetime_spent=900,
         live_orders=1,
@@ -423,6 +457,9 @@ def test_autotrader_krr_semantic_signature_encodes_pressure_and_phase() -> None:
     assert "route_risk_present=1" in signature
     assert "route_shape_supported=1" in signature
     assert "source_form=sentence" in signature
+    assert "source_preset_id=balanced_dca" in signature
+    assert "authored_via_user_bundle=0" in signature
+    assert "authoring_mode=strategy_ir" in signature
     assert "nonce_start=8" in signature
 
     no_optional_signature = autotrader_krr_semantic_signature(
@@ -434,6 +471,138 @@ def test_autotrader_krr_semantic_signature_encodes_pressure_and_phase() -> None:
     )
     assert "source_form=" not in no_optional_signature
     assert "nonce_start=" not in no_optional_signature
+
+
+def test_advise_autotrader_krr_exposes_user_rule_bundle_authoring_summary() -> None:
+    advice = advise_autotrader_krr(
+        strategy=_strategy(),
+        phase="shadow",
+        current_epoch=5,
+        backend="python",
+        source_form="autotrader_user_rule_bundle",
+        source_preset_id="conservative_dca",
+    )
+
+    assert advice is not None
+    assert advice["authoring_summary"]["source_form"] == "autotrader_user_rule_bundle"
+    assert advice["authoring_summary"]["source_preset_id"] == "conservative_dca"
+    assert advice["authoring_summary"]["authored_via_user_bundle"] is True
+    assert advice["authoring_summary"]["authoring_mode"] == "dca_swap_exact_in"
+    assert advice["authoring_summary"]["fixed_order_size"] == 100
+    assert advice["authoring_summary"]["cadence_epochs"] == 4
+    assert advice["authoring_summary"]["asset_in"] == "A"
+    assert advice["authoring_summary"]["asset_out"] == "B"
+    assert "authored_via_user_bundle=1" in advice["semantic_signature"]
+    assert "authoring_mode=dca_swap_exact_in" in advice["semantic_signature"]
+    assert "source_preset_id=conservative_dca" in advice["semantic_signature"]
+
+
+def test_advise_autotrader_krr_exposes_stop_loss_user_rule_bundle_authoring_summary() -> None:
+    strategy = strategy_ir_from_dict(
+        {
+            "strategy_id": "stop_loss.local.krr",
+            "owner_pubkey": "owner.pubkey.1",
+            "policy_backend": "local",
+            "template": "stop_loss",
+            "asset_universe": ["A", "B"],
+            "allowed_actions": ["place_order_intent"],
+            "notional_caps": {
+                "per_order_max": 100,
+                "per_window_max": 300,
+                "lifetime_max": 1200,
+            },
+            "risk_limits": {
+                "max_slippage_bps": 50,
+                "max_oracle_staleness_epochs": 3,
+            },
+            "strategy_window": {
+                "valid_from_epoch": 1,
+                "valid_until_epoch": 100,
+                "min_order_spacing_epochs": 0,
+            },
+            "controls": {
+                "kill_switch_enabled": True,
+                "max_live_orders": 2,
+            },
+            "template_params": {
+                "fixed_order_size": 100,
+                "trigger_price": 90000,
+                "asset_in": "A",
+                "asset_out": "B",
+            },
+        }
+    )
+
+    advice = advise_autotrader_krr(
+        strategy=strategy,
+        phase="shadow",
+        current_epoch=5,
+        backend="python",
+        source_form="autotrader_user_rule_bundle",
+    )
+
+    assert advice is not None
+    assert advice["authoring_summary"]["authoring_mode"] == "stop_loss_order_intent"
+    assert advice["authoring_summary"]["trigger_price"] == 90000
+    assert "authoring_mode=stop_loss_order_intent" in advice["semantic_signature"]
+    assert "trigger_price=90000" in advice["semantic_signature"]
+
+
+def test_advise_autotrader_krr_caps_confidence_for_unsupported_live_surface() -> None:
+    strategy = strategy_ir_from_dict(
+        {
+            "strategy_id": "stop_loss.live.krr",
+            "owner_pubkey": "owner.pubkey.1",
+            "policy_backend": "local",
+            "template": "stop_loss",
+            "asset_universe": ["A", "B"],
+            "allowed_actions": ["place_order_intent"],
+            "notional_caps": {
+                "per_order_max": 100,
+                "per_window_max": 300,
+                "lifetime_max": 1200,
+            },
+            "risk_limits": {
+                "max_slippage_bps": 50,
+                "max_oracle_staleness_epochs": 3,
+            },
+            "strategy_window": {
+                "valid_from_epoch": 1,
+                "valid_until_epoch": 100,
+                "min_order_spacing_epochs": 0,
+            },
+            "controls": {
+                "kill_switch_enabled": True,
+                "max_live_orders": 2,
+            },
+            "template_params": {
+                "fixed_order_size": 100,
+                "trigger_price": 90000,
+                "asset_in": "A",
+                "asset_out": "B",
+            },
+        }
+    )
+
+    advice = advise_autotrader_krr(
+        strategy=strategy,
+        phase="live",
+        current_epoch=5,
+        backend="python",
+        source_form="autotrader_user_rule_bundle",
+    )
+
+    assert advice is not None
+    assert advice["surface_support_summary"]["overall_status"] == "compile_only"
+    assert advice["surface_support_summary"]["current_phase_supported"] is False
+    assert advice["surface_support_summary"]["current_phase_reject_reason"] == "unsupported_live_strategy_mode"
+    assert "surface_current_phase_supported=0" in advice["semantic_signature"]
+    assert "surface_current_phase_status=rejected" in advice["semantic_signature"]
+    assert "surface::mode_support" in advice["candidate_checks"]
+    assert advice["confidence_cap"] == 0.05
+    assert advice["confidence"] <= advice["ranking_confidence"]
+    assert "surface_phase_unsupported" in advice["advisory_risk_flags"]
+    assert "surface::mode_support" in advice["preferred_checks"]
 
 
 def test_advise_autotrader_krr_is_fail_closed_for_off_and_specialized_for_live() -> None:
@@ -487,7 +656,7 @@ def test_advise_autotrader_krr_is_fail_closed_for_off_and_specialized_for_live()
     )
 
     assert advice is not None
-    assert advice["schema"] == "autotrader/strategy_ir/v1"
+    assert advice["schema"] == "zenodex/autotrader-krr-advice/v1"
     assert advice["phase"] == "live"
     assert advice["operator_id"] == "autotrader_dca_live_v1"
     assert advice["tau_enabled"] is True
@@ -513,9 +682,18 @@ def test_advise_autotrader_krr_is_fail_closed_for_off_and_specialized_for_live()
     assert oracle_row["registered"] is True
     assert oracle_row["history_total"] == 4
     assert oracle_row["low_reliability"] is True
+    assert oracle_row["trust_tier_weight"] == 0.95
+    assert oracle_row["history_weight"] == 0.4375
+    assert oracle_row["effective_weight"] == 0.415625
     assert news_row["registered"] is True
     assert news_row["history_total"] == 0
     assert news_row["unseen_history"] is True
+    assert news_row["trust_tier_weight"] == 0.25
+    assert news_row["history_weight"] == 0.65
+    assert news_row["effective_weight"] == 0.138125
+    assert advice["observation_summary"]["primary_weighted_trust_score"] == 0.95
+    assert advice["observation_summary"]["weighted_external_signal_score"] == 0.55375
+    assert advice["observation_summary"]["weighted_trusted_signal_score"] == 1.50375
     preferred = set(advice["preferred_checks"])
     assert "live::signer_match" in preferred
     assert "live::nonce_guard" in preferred
@@ -524,6 +702,21 @@ def test_advise_autotrader_krr_is_fail_closed_for_off_and_specialized_for_live()
     assert "signal::source_history" in advice["candidate_checks"]
     assert "quote::route_shape_support" in advice["candidate_checks"]
     assert "quote::route_economic_sanity" in advice["candidate_checks"]
+
+
+def test_advise_autotrader_krr_caps_confidence_for_weak_weighted_external_support() -> None:
+    advice = advise_autotrader_krr(
+        strategy=_strategy(),
+        phase="shadow",
+        current_epoch=5,
+        backend="python",
+        observation_packet=_weak_weighted_external_observation_packet(),
+    )
+
+    assert advice is not None
+    assert advice["observation_summary"]["weighted_external_signal_score"] == 0.138125
+    assert advice["confidence_cap"] == 0.45
+    assert "weak_weighted_external_support" in advice["advisory_risk_flags"]
 
 
 def test_advise_autotrader_krr_flags_toxic_multihop_route_risk() -> None:
