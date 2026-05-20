@@ -179,7 +179,8 @@ button:disabled {
 }
 
 .trade-panel,
-.status-panel {
+.status-panel,
+.liquidity-panel {
   min-height: 520px;
 }
 
@@ -308,12 +309,23 @@ select:focus {
   white-space: normal;
 }
 
+.validation-line {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(223, 91, 95, 0.42);
+  border-radius: 7px;
+  background: rgba(223, 91, 95, 0.1);
+  color: #f2b8ba;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .reserve-table {
   margin-top: 16px;
 }
 
 .balance-strip {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .button-row {
@@ -423,7 +435,8 @@ pre {
   }
 
   .trade-panel,
-  .status-panel {
+  .status-panel,
+  .liquidity-panel {
     min-height: auto;
   }
 

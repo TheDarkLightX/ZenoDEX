@@ -118,6 +118,7 @@ class ConfidentialFeatureStatus:
     tee_enabled: bool
     sealed_bid_enabled: bool
     sealed_bid_default: bool
+    fhe_alpha_enabled: bool
     attestation_epoch_length_s: int
     max_attestation_age_epochs: int
     operator_contact: str
@@ -130,6 +131,7 @@ class ConfidentialFeatureStatus:
             self.stage in {"beta", "ga"}
             and self.tee_enabled
             and self.sealed_bid_enabled
+            and not self.fhe_alpha_enabled
             and measurement_count > 0
             and _has_real_operator_contact(self.operator_contact)
         )
@@ -138,6 +140,7 @@ class ConfidentialFeatureStatus:
             "tee_enabled": bool(self.tee_enabled),
             "sealed_bid_enabled": bool(self.sealed_bid_enabled),
             "sealed_bid_default": bool(self.sealed_bid_default),
+            "fhe_alpha_enabled": bool(self.fhe_alpha_enabled),
             "default_enabled": bool(default_enabled),
             "beta_ready": bool(beta_ready),
             "attestation_epoch_length_s": int(self.attestation_epoch_length_s),
@@ -191,6 +194,11 @@ class ConfidentialFeatureStatus:
                     if self.stage in {"beta", "ga"}
                     else [f"feature stage is {self.stage}, not beta/ga"]
                 ),
+                *(
+                    []
+                    if not self.fhe_alpha_enabled
+                    else ["fhe alpha must stay disabled for beta posture"]
+                ),
             ],
             "docs": [
                 "docs/CONFIDENTIAL_FEATURES_USE_CASES.md",
@@ -210,6 +218,7 @@ def load_confidential_feature_status_from_env() -> ConfidentialFeatureStatus:
         tee_enabled=_env_bool("CONFIDENTIAL_TEE_ENABLED", True),
         sealed_bid_enabled=_env_bool("CONFIDENTIAL_SEALED_BID_ENABLED", True),
         sealed_bid_default=_env_bool("CONFIDENTIAL_SEALED_BID_DEFAULT", False),
+        fhe_alpha_enabled=_env_bool("CONFIDENTIAL_FHE_ALPHA_ENABLED", False),
         attestation_epoch_length_s=_env_int("CONFIDENTIAL_ATTESTATION_EPOCH_LENGTH_S", 60, lo=1, hi=86_400),
         max_attestation_age_epochs=_env_int("CONFIDENTIAL_MAX_ATTESTATION_AGE_EPOCHS", 2, lo=0, hi=255),
         operator_contact=_env_str("CONFIDENTIAL_OPERATOR_CONTACT", "ops@example.invalid"),

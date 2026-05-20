@@ -2188,6 +2188,15 @@ def _accepted_read_from_aggregate(
 ) -> dict[str, Any]:
     observed_epoch = int(aggregate["observed_epoch"])
     value_e8 = int(aggregate["value_e8"])
+    freshness_window_epochs = int(query.get("freshness_window_epochs", 0))
+    try:
+        from src.integration.zeno_oracle_authorization import CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS
+
+        profile_window = CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS.get(profile_id)
+    except Exception:
+        profile_window = None
+    if profile_window is not None:
+        freshness_window_epochs = min(freshness_window_epochs, int(profile_window))
     body = {
         "schema": "zeno_oracle.accepted_read.v1",
         "aggregate_id": aggregate["aggregate_id"],
@@ -2203,7 +2212,7 @@ def _accepted_read_from_aggregate(
         "confidence_e8": int(aggregate["confidence_e8"]),
         "deviation_bps": int(aggregate["deviation_bps"]),
         "observed_epoch": observed_epoch,
-        "expires_at_epoch": observed_epoch + int(query.get("freshness_window_epochs", 0)),
+        "expires_at_epoch": observed_epoch + freshness_window_epochs,
         "evidence_class": aggregate.get("evidence_class", query.get("evidence_floor", "O3")),
         "production_authority": False,
     }

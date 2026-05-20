@@ -67,9 +67,11 @@ def test_apply_app_tx_sync_only(monkeypatch):
     assert isinstance(app_hash_hex, str) and len(app_hash_hex) == 64
     assert balances_patch is None
 
+    from src.integration.dex_snapshot import DEX_SNAPSHOT_VERSION
+
     parsed = json.loads(app_state_json)
     assert isinstance(parsed, dict)
-    assert parsed.get("version") == 2
+    assert parsed.get("version") == DEX_SNAPSHOT_VERSION
 
 
 def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):

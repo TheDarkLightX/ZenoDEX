@@ -119,7 +119,7 @@ def build_public_testnet_bundle_v0(
     )
     bootstrap_manifest_path = Path(str(bootstrap_build_report["manifest_path"]))
     bootstrap_run_command = [
-        "python3",
+        sys.executable,
         "tools/zeno_ledger_run_manifest.py",
         "--manifest",
         str(bootstrap_manifest_path),
@@ -140,7 +140,7 @@ def build_public_testnet_bundle_v0(
     _write_json(core_suite_build_report_path, core_suite_build_report)
     core_suite_path = Path(str(core_suite_build_report["suite_path"]))
     core_suite_run_command = [
-        "python3",
+        sys.executable,
         "tools/zeno_ledger_run_feature_suite.py",
         "--suite",
         str(core_suite_path),

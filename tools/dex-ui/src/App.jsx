@@ -62,6 +62,48 @@ function currentTimeMs() {
   return Date.now();
 }
 
+function positiveIntFromText(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function bpsFromText(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 10_000 ? parsed : null;
+}
+
+function resultAccepted(result) {
+  return result?.data?.tx_accepted === true || result?.data?.receipt?.accepted === true;
+}
+
+function resultRejected(result) {
+  return result?.data?.tx_accepted === false || result?.data?.receipt?.accepted === false || result?.ok === false;
+}
+
+function resultPill(result) {
+  if (!result) {
+    return { label: '', className: '' };
+  }
+  if (resultAccepted(result)) {
+    return { label: `accepted ${result.status}`, className: 'good' };
+  }
+  if (resultRejected(result)) {
+    return { label: `rejected ${result.status}`, className: 'bad' };
+  }
+  return { label: `HTTP ${result.status}`, className: result.ok ? 'warn' : 'bad' };
+}
+
+function clientErrorResult(message) {
+  return {
+    ok: false,
+    status: 0,
+    data: {
+      error: message,
+      ok: false,
+    },
+  };
+}
+
 function loadWallet() {
   const raw = window.localStorage.getItem('zenodex.live.wallet.v0');
   if (raw) {
@@ -130,6 +172,12 @@ function findWalletNonce(snapshot, pubkey) {
   return found ? Number(found.last_nonce || 0) : 0;
 }
 
+function findWalletLpBalance(snapshot, pubkey, poolId) {
+  const entries = Array.isArray(snapshot?.lp_balances) ? snapshot.lp_balances : [];
+  const found = entries.find((entry) => entry.pubkey === pubkey && entry.pool_id === poolId);
+  return found ? Number(found.amount || 0) : 0;
+}
+
 function computeQuote(pool, assetIn, amountIn) {
   if (!pool || !Number.isFinite(amountIn) || amountIn <= 0) {
     return null;
@@ -174,6 +222,9 @@ function App() {
   const [amountIn, setAmountIn] = useState('100');
   const [slippageBps, setSlippageBps] = useState('500');
   const [faucetAmount, setFaucetAmount] = useState('1000000');
+  const [liquidityAmount0, setLiquidityAmount0] = useState('100');
+  const [liquidityAmount1, setLiquidityAmount1] = useState('200');
+  const [removeLpAmount, setRemoveLpAmount] = useState('10');
   const [assetIn, setAssetIn] = useState(ASSET0);
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -186,14 +237,25 @@ function App() {
     return pools.find((entry) => entry.pool_id === POOL_ID) || pools[0] || null;
   }, [snapshot]);
   const assetOut = assetIn === ASSET0 ? ASSET1 : ASSET0;
-  const amountInNumber = Number.parseInt(amountIn, 10);
+  const amountInNumber = positiveIntFromText(amountIn);
+  const faucetAmountNumber = positiveIntFromText(faucetAmount);
+  const liquidityAmount0Number = positiveIntFromText(liquidityAmount0);
+  const liquidityAmount1Number = positiveIntFromText(liquidityAmount1);
+  const removeLpAmountNumber = positiveIntFromText(removeLpAmount);
+  const slippageBpsNumber = bpsFromText(slippageBps);
   const quoteOut = computeQuote(pool, assetIn, amountInNumber);
   const minAmountOut = quoteOut === null
     ? 1
-    : Math.max(1, Math.floor(quoteOut * (10_000 - Number.parseInt(slippageBps || '0', 10)) / 10_000));
+    : Math.max(1, Math.floor(quoteOut * (10_000 - slippageBpsNumber) / 10_000));
   const balanceIn = findWalletBalance(snapshot, wallet.pubkey, assetIn);
   const balanceOut = findWalletBalance(snapshot, wallet.pubkey, assetOut);
+  const walletLpBalance = findWalletLpBalance(snapshot, wallet.pubkey, POOL_ID);
   const chainNonce = findWalletNonce(snapshot, wallet.pubkey);
+  const walletLooksValid = /^0x[0-9a-fA-F]{96}$/.test(wallet.pubkey);
+  const canSubmitSwap = !busy && walletLooksValid && amountInNumber !== null && slippageBpsNumber !== null;
+  const canRequestFaucet = !busy && walletLooksValid && faucetAmountNumber !== null;
+  const canAddLiquidity = !busy && walletLooksValid && liquidityAmount0Number !== null && liquidityAmount1Number !== null;
+  const canRemoveLiquidity = !busy && walletLooksValid && removeLpAmountNumber !== null;
 
   const appendEvent = useCallback((kind, result) => {
     const entry = {
@@ -203,7 +265,7 @@ function App() {
       node: selectedNode,
       status: result.status,
       ok: result.ok,
-      accepted: result.data?.tx_accepted ?? result.data?.receipt?.accepted ?? null,
+      accepted: resultAccepted(result) ? true : resultRejected(result) ? false : null,
       height: result.data?.height ?? null,
       error: result.data?.error || result.data?.receipt?.error_code || result.data?.receipt?.reject_code || null,
     };
@@ -265,72 +327,168 @@ function App() {
   };
 
   const requestFaucet = async () => {
+    if (!walletLooksValid) {
+      const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
+      setLastResult({ kind: 'faucet', ...result });
+      appendEvent('faucet', result);
+      return;
+    }
+    if (faucetAmountNumber === null) {
+      const result = clientErrorResult('faucet amount must be a positive integer');
+      setLastResult({ kind: 'faucet', ...result });
+      appendEvent('faucet', result);
+      return;
+    }
     setBusy(true);
     setLastResult(null);
-    const nowMs = currentTimeMs();
-    const result = await fetchJson(nodePath(selectedNode, '/faucet'), {
-      method: 'POST',
-      token,
-      body: {
-        to_pubkey: wallet.pubkey,
-        asset: assetIn,
-        amount: Number.parseInt(faucetAmount, 10),
-        time_ms: nowMs,
-        tx_id: `ui-faucet-${selectedNode}-${nowMs}`,
-      },
-    });
-    setLastResult({ kind: 'faucet', ...result });
-    appendEvent('faucet', result);
-    setBusy(false);
-    await refresh();
+    try {
+      const nowMs = currentTimeMs();
+      const result = await fetchJson(nodePath(selectedNode, '/faucet'), {
+        method: 'POST',
+        token,
+        body: {
+          to_pubkey: wallet.pubkey,
+          asset: assetIn,
+          amount: faucetAmountNumber,
+          time_ms: nowMs,
+          tx_id: `ui-faucet-${selectedNode}-${nowMs}`,
+        },
+      });
+      setLastResult({ kind: 'faucet', ...result });
+      appendEvent('faucet', result);
+    } catch (error) {
+      const result = clientErrorResult(error instanceof Error ? error.message : String(error));
+      setLastResult({ kind: 'faucet', ...result });
+      appendEvent('faucet', result);
+    } finally {
+      setBusy(false);
+      await refresh();
+    }
+  };
+
+  const submitDexIntent = async (eventKind, intentFields) => {
+    setBusy(true);
+    setLastResult(null);
+    try {
+      const nowMs = currentTimeMs();
+      const nowSec = Math.floor(nowMs / 1000);
+      const nonce = Math.max(wallet.nextNonce, chainNonce + 1);
+      const tx = {
+        tx_id: `ui-${eventKind}-${selectedNode}-${nowMs}`,
+        block_timestamp: nowSec,
+        tx_sender_pubkey: wallet.pubkey,
+        operations: {
+          2: [
+            {
+              module: 'TauSwap',
+              version: '0.1',
+              intent_id: `0x${randomHex(32)}`,
+              sender_pubkey: wallet.pubkey,
+              deadline: nowSec + 3600,
+              nonce,
+              ...intentFields,
+            },
+          ],
+        },
+      };
+      const result = await fetchJson(nodePath(selectedNode, '/tx'), {
+        method: 'POST',
+        token,
+        body: { time_ms: nowMs, tx },
+      });
+      setLastResult({ kind: eventKind, ...result });
+      appendEvent(eventKind, result);
+      if (resultAccepted(result)) {
+        const next = { ...wallet, nextNonce: nonce + 1 };
+        setWallet(next);
+        saveWallet(next);
+      }
+    } catch (error) {
+      const result = clientErrorResult(error instanceof Error ? error.message : String(error));
+      setLastResult({ kind: eventKind, ...result });
+      appendEvent(eventKind, result);
+    } finally {
+      setBusy(false);
+      await refresh();
+    }
   };
 
   const submitSwap = async () => {
-    setBusy(true);
-    setLastResult(null);
-    const nowMs = currentTimeMs();
-    const nowSec = Math.floor(nowMs / 1000);
-    const nonce = Math.max(wallet.nextNonce, chainNonce + 1);
-    const tx = {
-      tx_id: `ui-swap-${selectedNode}-${nowMs}`,
-      block_timestamp: nowSec,
-      tx_sender_pubkey: wallet.pubkey,
-      operations: {
-        2: [
-          {
-            module: 'TauSwap',
-            version: '0.1',
-            kind: 'SWAP_EXACT_IN',
-            intent_id: `0x${randomHex(32)}`,
-            sender_pubkey: wallet.pubkey,
-            deadline: nowSec + 3600,
-            nonce,
-            pool_id: POOL_ID,
-            asset_in: assetIn,
-            asset_out: assetOut,
-            amount_in: amountInNumber,
-            min_amount_out: minAmountOut,
-            recipient: wallet.pubkey,
-          },
-        ],
-      },
-    };
-    const result = await fetchJson(nodePath(selectedNode, '/tx'), {
-      method: 'POST',
-      token,
-      body: { time_ms: nowMs, tx },
-    });
-    setLastResult({ kind: 'swap', ...result });
-    appendEvent('swap', result);
-    const accepted = result.data?.tx_accepted === true || result.data?.receipt?.accepted === true;
-    if (accepted) {
-      const next = { ...wallet, nextNonce: nonce + 1 };
-      setWallet(next);
-      saveWallet(next);
+    if (!walletLooksValid) {
+      const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
+      setLastResult({ kind: 'swap', ...result });
+      appendEvent('swap', result);
+      return;
     }
-    setBusy(false);
-    await refresh();
+    if (amountInNumber === null) {
+      const result = clientErrorResult('amount in must be a positive integer');
+      setLastResult({ kind: 'swap', ...result });
+      appendEvent('swap', result);
+      return;
+    }
+    if (slippageBpsNumber === null) {
+      const result = clientErrorResult('slippage bps must be between 0 and 10000');
+      setLastResult({ kind: 'swap', ...result });
+      appendEvent('swap', result);
+      return;
+    }
+    await submitDexIntent('swap', {
+      kind: 'SWAP_EXACT_IN',
+      pool_id: POOL_ID,
+      asset_in: assetIn,
+      asset_out: assetOut,
+      amount_in: amountInNumber,
+      min_amount_out: minAmountOut,
+      recipient: wallet.pubkey,
+    });
   };
+
+  const submitAddLiquidity = async () => {
+    if (!walletLooksValid) {
+      const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
+      setLastResult({ kind: 'add_liquidity', ...result });
+      appendEvent('add_liquidity', result);
+      return;
+    }
+    if (liquidityAmount0Number === null || liquidityAmount1Number === null) {
+      const result = clientErrorResult('liquidity amounts must be positive integers');
+      setLastResult({ kind: 'add_liquidity', ...result });
+      appendEvent('add_liquidity', result);
+      return;
+    }
+    await submitDexIntent('add_liquidity', {
+      kind: 'ADD_LIQUIDITY',
+      pool_id: POOL_ID,
+      amount0_desired: liquidityAmount0Number,
+      amount1_desired: liquidityAmount1Number,
+      amount0_min: 0,
+      amount1_min: 0,
+    });
+  };
+
+  const submitRemoveLiquidity = async () => {
+    if (!walletLooksValid) {
+      const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
+      setLastResult({ kind: 'remove_liquidity', ...result });
+      appendEvent('remove_liquidity', result);
+      return;
+    }
+    if (removeLpAmountNumber === null) {
+      const result = clientErrorResult('LP amount must be a positive integer');
+      setLastResult({ kind: 'remove_liquidity', ...result });
+      appendEvent('remove_liquidity', result);
+      return;
+    }
+    await submitDexIntent('remove_liquidity', {
+      kind: 'REMOVE_LIQUIDITY',
+      pool_id: POOL_ID,
+      lp_amount: removeLpAmountNumber,
+      amount0_min: 0,
+      amount1_min: 0,
+    });
+  };
+
+  const lastResultPill = resultPill(lastResult);
 
   return (
     <div className="live-shell">
@@ -357,6 +515,7 @@ function App() {
               <button
                 type="button"
                 key={node.key}
+                data-testid={`node-${node.key}`}
                 className={`node-tile ${selectedNode === node.key ? 'active' : ''}`}
                 onClick={() => setSelectedNode(node.key)}
               >
@@ -383,11 +542,11 @@ function App() {
           <div className="field-stack">
             <label>
               <span>Auth token</span>
-              <input value={token} onChange={(event) => setToken(event.target.value)} spellCheck="false" />
+              <input data-testid="auth-token" value={token} onChange={(event) => setToken(event.target.value)} spellCheck="false" />
             </label>
             <label>
               <span>Wallet pubkey</span>
-              <input value={wallet.pubkey} onChange={(event) => {
+              <input data-testid="wallet-pubkey" value={wallet.pubkey} onChange={(event) => {
                 const next = { ...wallet, pubkey: event.target.value.trim(), nextNonce: 1 };
                 setWallet(next);
                 saveWallet(next);
@@ -398,18 +557,18 @@ function App() {
           <div className="split-controls">
             <label>
               <span>Asset in</span>
-              <select value={assetIn} onChange={(event) => setAssetIn(event.target.value)}>
+              <select data-testid="asset-in" value={assetIn} onChange={(event) => setAssetIn(event.target.value)}>
                 <option value={ASSET0}>tASSET0</option>
                 <option value={ASSET1}>tASSET1</option>
               </select>
             </label>
             <label>
               <span>Amount in</span>
-              <input type="number" min="1" step="1" value={amountIn} onChange={(event) => setAmountIn(event.target.value)} />
+              <input data-testid="amount-in" type="text" inputMode="numeric" pattern="[0-9]*" value={amountIn} onChange={(event) => setAmountIn(event.target.value)} />
             </label>
             <label>
               <span>Slippage bps</span>
-              <input type="number" min="0" max="10000" step="1" value={slippageBps} onChange={(event) => setSlippageBps(event.target.value)} />
+              <input data-testid="slippage-bps" type="text" inputMode="numeric" pattern="[0-9]*" value={slippageBps} onChange={(event) => setSlippageBps(event.target.value)} />
             </label>
           </div>
 
@@ -418,15 +577,62 @@ function App() {
             <DetailRow label="Minimum out" value={`${formatAmount(minAmountOut)} ${TOKEN_SYMBOLS[assetOut]}`} />
             <DetailRow label="Next nonce" value={Math.max(wallet.nextNonce, chainNonce + 1)} />
           </div>
+          {!walletLooksValid || amountInNumber === null || slippageBpsNumber === null ? (
+            <div className="validation-line">
+              {!walletLooksValid ? 'Wallet pubkey must be 0x plus 96 hex characters.' : null}
+              {walletLooksValid && amountInNumber === null ? 'Amount in must be a positive integer.' : null}
+              {walletLooksValid && amountInNumber !== null && slippageBpsNumber === null ? 'Slippage bps must be between 0 and 10000.' : null}
+            </div>
+          ) : null}
 
           <div className="button-row">
-            <button type="button" className="primary" onClick={submitSwap} disabled={busy || !Number.isFinite(amountInNumber) || amountInNumber <= 0}>
+            <button type="button" data-testid="submit-swap" className="primary" onClick={submitSwap} disabled={!canSubmitSwap}>
               Submit swap
             </button>
             <div className="faucet-box">
-              <input type="number" min="1" step="1" value={faucetAmount} onChange={(event) => setFaucetAmount(event.target.value)} aria-label="Faucet amount" />
-              <button type="button" className="secondary" onClick={requestFaucet} disabled={busy}>Faucet selected asset</button>
+              <input data-testid="faucet-amount" type="text" inputMode="numeric" pattern="[0-9]*" value={faucetAmount} onChange={(event) => setFaucetAmount(event.target.value)} aria-label="Faucet amount" />
+              <button type="button" data-testid="faucet-submit" className="secondary" onClick={requestFaucet} disabled={!canRequestFaucet}>Faucet selected asset</button>
             </div>
+          </div>
+        </section>
+
+        <section className="panel liquidity-panel">
+          <div className="section-title">
+            <div>
+              <h2>Pool Actions</h2>
+              <p>Add or remove liquidity on the same live CPMM pool</p>
+            </div>
+            <span className="pill">CPMM</span>
+          </div>
+
+          <div className="split-controls">
+            <label>
+              <span>tASSET0 add</span>
+              <input data-testid="liquidity-amount0" type="text" inputMode="numeric" pattern="[0-9]*" value={liquidityAmount0} onChange={(event) => setLiquidityAmount0(event.target.value)} />
+            </label>
+            <label>
+              <span>tASSET1 add</span>
+              <input data-testid="liquidity-amount1" type="text" inputMode="numeric" pattern="[0-9]*" value={liquidityAmount1} onChange={(event) => setLiquidityAmount1(event.target.value)} />
+            </label>
+            <label>
+              <span>LP remove</span>
+              <input data-testid="remove-lp-amount" type="text" inputMode="numeric" pattern="[0-9]*" value={removeLpAmount} onChange={(event) => setRemoveLpAmount(event.target.value)} />
+            </label>
+          </div>
+
+          <div className="quote-band">
+            <DetailRow label="Wallet LP" value={formatAmount(walletLpBalance)} />
+            <DetailRow label="LP supply" value={formatAmount(pool?.lp_supply)} />
+            <DetailRow label="Pool status" value={pool?.status || '-'} />
+          </div>
+
+          <div className="button-row">
+            <button type="button" data-testid="add-liquidity" className="primary" onClick={submitAddLiquidity} disabled={!canAddLiquidity}>
+              Add liquidity
+            </button>
+            <button type="button" data-testid="remove-liquidity" className="secondary" onClick={submitRemoveLiquidity} disabled={!canRemoveLiquidity}>
+              Remove liquidity
+            </button>
           </div>
         </section>
 
@@ -463,6 +669,10 @@ function App() {
               <span>Selected balance</span>
               <strong>{formatAmount(balanceIn)} in / {formatAmount(balanceOut)} out</strong>
             </div>
+            <div>
+              <span>Wallet LP</span>
+              <strong>{formatAmount(walletLpBalance)}</strong>
+            </div>
           </div>
         </section>
 
@@ -472,9 +682,9 @@ function App() {
               <h2>Last Response</h2>
               <p>Use readonly and bad-token tests here to confirm rejection paths</p>
             </div>
-            {lastResult ? <span className={`pill ${lastResult.ok ? 'good' : 'bad'}`}>HTTP {lastResult.status}</span> : null}
+            {lastResult ? <span className={`pill ${lastResultPill.className}`}>{lastResultPill.label}</span> : null}
           </div>
-          <pre>{lastResult ? JSON.stringify(lastResult.data, null, 2) : 'No submission yet.'}</pre>
+          <pre data-testid="last-response">{lastResult ? JSON.stringify(lastResult.data, null, 2) : 'No submission yet.'}</pre>
         </section>
 
         <section className="panel log-panel">
