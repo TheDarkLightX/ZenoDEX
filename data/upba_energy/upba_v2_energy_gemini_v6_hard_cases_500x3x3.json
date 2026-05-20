@@ -1,0 +1,364 @@
+{
+  "batches_per_config": 500,
+  "candidate_counts": [
+    50
+  ],
+  "configs": [
+    {
+      "batches_requested": 500,
+      "batches_with_winner": 495,
+      "batches_without_winner": 5,
+      "candidate_count": 50,
+      "candidate_type_counts": {
+        "hard_attractive_output_mismatch": 500,
+        "hard_schema_policy_mismatch": 500,
+        "hard_unreduced_price": 500,
+        "invalid_all_zero": 500,
+        "invalid_balance": 498,
+        "invalid_limit_price": 500,
+        "invalid_negative_reserve": 500,
+        "invalid_noncanonical_fill_vector": 500,
+        "near_miss_adversarial": 500,
+        "random_noisy": 18043,
+        "valid": 2450,
+        "valid_seed": 5
+      },
+      "examples": [
+        {
+          "batch_index": 444,
+          "candidate_count": 50,
+          "seed": 20260521,
+          "surplus_gap": 0,
+          "top_energy": 40.0248463435643,
+          "top_hash": "0x0778ed630c45b82678286c18ccb2a59965059619d4574b7b1d903cff726e06e6",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 5,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 6,
+          "volume_gap": 0,
+          "winner_hash": "0xdd18769f48362c01b85bd4fd1e7e3458061be4e341625d949617689018be5f30",
+          "winner_position": 2,
+          "winner_surplus": 5,
+          "winner_type": "valid",
+          "winner_volume": 6
+        }
+      ],
+      "mean_winner_position": 1.002020202020202,
+      "p95_winner_position": 1,
+      "p99_winner_position": 1,
+      "seed": 20260521,
+      "top10_miss_count": 0,
+      "top1_miss_count": 1,
+      "top1_miss_primary_failure_counts": {
+        "imbalance": 1
+      },
+      "top1_miss_top_error_counts": {
+        "None": 1
+      },
+      "top1_miss_top_type_counts": {
+        "valid": 1
+      },
+      "top1_miss_winner_type_counts": {
+        "valid": 1
+      },
+      "top5_miss_count": 0,
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.997979797979798,
+      "top_5_recall": 1.0,
+      "winner_type_counts": {
+        "valid": 495
+      }
+    },
+    {
+      "batches_requested": 500,
+      "batches_with_winner": 498,
+      "batches_without_winner": 2,
+      "candidate_count": 50,
+      "candidate_type_counts": {
+        "hard_attractive_output_mismatch": 500,
+        "hard_schema_policy_mismatch": 500,
+        "hard_unreduced_price": 500,
+        "invalid_all_zero": 500,
+        "invalid_balance": 495,
+        "invalid_limit_price": 500,
+        "invalid_negative_reserve": 500,
+        "invalid_noncanonical_fill_vector": 500,
+        "near_miss_adversarial": 498,
+        "random_noisy": 18109,
+        "valid": 2387,
+        "valid_seed": 4
+      },
+      "examples": [
+        {
+          "batch_index": 31,
+          "candidate_count": 50,
+          "seed": 20260522,
+          "surplus_gap": 21,
+          "top_energy": -121.36259560381176,
+          "top_hash": "0x049483e589e9c9bb351c11429f0e6ee8391fac9bf4452e98d2a8e773584c9066",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 229,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 298,
+          "volume_gap": 3,
+          "winner_hash": "0x1fb949a035fbedae6d543c1bd7aadbd1578ef449c8e315c3ed0d09a283c577cf",
+          "winner_position": 2,
+          "winner_surplus": 250,
+          "winner_type": "valid",
+          "winner_volume": 301
+        },
+        {
+          "batch_index": 201,
+          "candidate_count": 50,
+          "seed": 20260522,
+          "surplus_gap": 56,
+          "top_energy": -43.05101956074557,
+          "top_hash": "0xb67e7a082a6e326e7424cbcfe3913b3e7d5d09215d5240c2908ca47acc7deb9e",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 137,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 213,
+          "volume_gap": 0,
+          "winner_hash": "0xcaffc3fc3cd11c6c09b53d18a4e185ebbb37ea6581299780d014b06a4fd852d3",
+          "winner_position": 2,
+          "winner_surplus": 193,
+          "winner_type": "valid",
+          "winner_volume": 213
+        },
+        {
+          "batch_index": 287,
+          "candidate_count": 50,
+          "seed": 20260522,
+          "surplus_gap": 22,
+          "top_energy": -114.88480677947118,
+          "top_hash": "0x9cf7a337ea15732ec543cc76f6de19e4f364d727b010adef5d91c8875a712af1",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 184,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 204,
+          "volume_gap": 2,
+          "winner_hash": "0xf5334b15a9789df4f744d77b541a3a05198d373becf2e4842781d8a5aaf9c98e",
+          "winner_position": 2,
+          "winner_surplus": 206,
+          "winner_type": "valid",
+          "winner_volume": 206
+        },
+        {
+          "batch_index": 298,
+          "candidate_count": 50,
+          "seed": 20260522,
+          "surplus_gap": 210,
+          "top_energy": -248.05124706065592,
+          "top_hash": "0xbe5eb021d237b5645f1b9f1f29e8fbd23e7e46c820452c074ce6cd967802a91b",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 235,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 277,
+          "volume_gap": 248,
+          "winner_hash": "0xbc6f4e730713d6ac5460c7b406cb3d492fcfce4393eb84b923067d79dbaf788f",
+          "winner_position": 2,
+          "winner_surplus": 445,
+          "winner_type": "valid",
+          "winner_volume": 525
+        }
+      ],
+      "mean_winner_position": 1.0080321285140563,
+      "p95_winner_position": 1,
+      "p99_winner_position": 1,
+      "seed": 20260522,
+      "top10_miss_count": 0,
+      "top1_miss_count": 4,
+      "top1_miss_primary_failure_counts": {
+        "imbalance": 4
+      },
+      "top1_miss_top_error_counts": {
+        "None": 4
+      },
+      "top1_miss_top_type_counts": {
+        "valid": 4
+      },
+      "top1_miss_winner_type_counts": {
+        "valid": 4
+      },
+      "top5_miss_count": 0,
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.9919678714859438,
+      "top_5_recall": 1.0,
+      "winner_type_counts": {
+        "valid": 496,
+        "valid_seed": 2
+      }
+    },
+    {
+      "batches_requested": 500,
+      "batches_with_winner": 496,
+      "batches_without_winner": 4,
+      "candidate_count": 50,
+      "candidate_type_counts": {
+        "hard_attractive_output_mismatch": 500,
+        "hard_schema_policy_mismatch": 500,
+        "hard_unreduced_price": 500,
+        "invalid_all_zero": 500,
+        "invalid_balance": 497,
+        "invalid_limit_price": 500,
+        "invalid_negative_reserve": 500,
+        "invalid_noncanonical_fill_vector": 500,
+        "near_miss_adversarial": 498,
+        "random_noisy": 18161,
+        "valid": 2334,
+        "valid_seed": 4
+      },
+      "examples": [
+        {
+          "batch_index": 12,
+          "candidate_count": 50,
+          "seed": 20260523,
+          "surplus_gap": -21,
+          "top_energy": -51.08429105286667,
+          "top_hash": "0x4c10eb7b4a0ea4c09ff76f7bda9bddeebde5483fc5eff1466c3c421c5041dca1",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 257,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 332,
+          "volume_gap": 2,
+          "winner_hash": "0x9260d09fb7ab9563e3dec234fbd30bae591df47954caa8a37f0f9a8f6860dfe2",
+          "winner_position": 2,
+          "winner_surplus": 236,
+          "winner_type": "valid",
+          "winner_volume": 334
+        },
+        {
+          "batch_index": 135,
+          "candidate_count": 50,
+          "seed": 20260523,
+          "surplus_gap": 65,
+          "top_energy": -120.56907465979415,
+          "top_hash": "0x3d86de81447055ab899bb5aee5836fd31ab13e779f9251a7b295c3b3474a69fe",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 131,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 212,
+          "volume_gap": 1,
+          "winner_hash": "0x3cc12a7149b4c87513ac1fb0609e7e8f257a1b8d81186548807ace8d56afaf65",
+          "winner_position": 2,
+          "winner_surplus": 196,
+          "winner_type": "valid",
+          "winner_volume": 213
+        },
+        {
+          "batch_index": 142,
+          "candidate_count": 50,
+          "seed": 20260523,
+          "surplus_gap": 30,
+          "top_energy": 0.560435400906012,
+          "top_hash": "0x24f4e68ade869708dff0a79f55b548017bfcd73ed59aaf9569fc8d09cba7cea3",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 36,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 110,
+          "volume_gap": 1,
+          "winner_hash": "0x99b752be46fbe577d3e75e085fcccaf74ff68a61e5b31d8d7a4351dc5f645d9d",
+          "winner_position": 2,
+          "winner_surplus": 66,
+          "winner_type": "valid",
+          "winner_volume": 111
+        },
+        {
+          "batch_index": 267,
+          "candidate_count": 50,
+          "seed": 20260523,
+          "surplus_gap": 57,
+          "top_energy": -254.1613245334791,
+          "top_hash": "0x9ba2982a01d890f2fbd7eb7f5e905386519121d9eec6699d47fa3e7f27f6b472",
+          "top_primary_hand_failure": "imbalance",
+          "top_surplus": 555,
+          "top_type": "valid",
+          "top_verifier_error": null,
+          "top_verifier_ok": true,
+          "top_volume": 664,
+          "volume_gap": 68,
+          "winner_hash": "0x791a24b464c1db500118486962866d9836889fe0eea2b61fc709f03ff6fd7c3a",
+          "winner_position": 2,
+          "winner_surplus": 612,
+          "winner_type": "valid",
+          "winner_volume": 732
+        }
+      ],
+      "mean_winner_position": 1.0080645161290323,
+      "p95_winner_position": 1,
+      "p99_winner_position": 1,
+      "seed": 20260523,
+      "top10_miss_count": 0,
+      "top1_miss_count": 4,
+      "top1_miss_primary_failure_counts": {
+        "imbalance": 4
+      },
+      "top1_miss_top_error_counts": {
+        "None": 4
+      },
+      "top1_miss_top_type_counts": {
+        "valid": 4
+      },
+      "top1_miss_winner_type_counts": {
+        "valid": 4
+      },
+      "top5_miss_count": 0,
+      "top_10_recall": 1.0,
+      "top_1_recall": 0.9919354838709677,
+      "top_5_recall": 1.0,
+      "winner_type_counts": {
+        "valid": 496
+      }
+    }
+  ],
+  "model": "internal/Gemini/gemini_mlp_v6_final.json",
+  "schema": "zenodex/energy/upba_v2_hard_case_mining/v1",
+  "seeds": [
+    20260521,
+    20260522,
+    20260523
+  ],
+  "summary": {
+    "batches_with_winner": 1489,
+    "configs": 3,
+    "max_mean_winner_position": 1.0080645161290323,
+    "max_p99_winner_position": 1,
+    "mean_winner_position_mean": 1.0060389488877635,
+    "top10_miss_count": 0,
+    "top1_miss_count": 9,
+    "top1_miss_primary_failure_counts": {
+      "imbalance": 9
+    },
+    "top1_miss_top_error_counts": {
+      "None": 9
+    },
+    "top1_miss_top_type_counts": {
+      "valid": 9
+    },
+    "top1_miss_winner_type_counts": {
+      "valid": 9
+    },
+    "top5_miss_count": 0,
+    "top_10_recall": 1.0,
+    "top_1_recall": 0.9939556749496307,
+    "top_5_recall": 1.0
+  },
+  "synthetic_batches_requested": 1500,
+  "synthetic_candidates_requested": 75000
+}
