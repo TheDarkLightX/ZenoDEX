@@ -143,11 +143,23 @@ def _check_apparmor_profile(issues: list[str]) -> None:
         _require(re.search(pattern, text) is not None, f"{path}: missing {label}", issues)
 
 
-def _check_dockerfile(issues: list[str]) -> None:
-    path = ROOT / "Dockerfile"
+def _check_dockerfile(path: Path, issues: list[str]) -> None:
     text = path.read_text(encoding="utf-8")
-    _require(re.search(r"(?m)^USER\s+zenodex\s*$", text) is not None, "Dockerfile: production image must end as USER zenodex", issues)
-    _require("EXPOSE 8080 8000" in text, "Dockerfile: expected unprivileged UI port expose", issues)
+    _require(re.search(r"(?m)^USER\s+zenodex\s*$", text) is not None, f"{path.name}: production image must end as USER zenodex", issues)
+    _require("EXPOSE 8080 8000" in text, f"{path.name}: expected unprivileged UI port expose", issues)
+
+
+def _check_operator_dockerfile(issues: list[str]) -> None:
+    path = ROOT / "Dockerfile.operator-tools"
+    text = path.read_text(encoding="utf-8")
+    _require("--require-hashes -r requirements-core.lock.txt" in text, "Dockerfile.operator-tools: must install hash-locked requirements", issues)
+    _require("COPY tools/ ./tools/" in text, "Dockerfile.operator-tools: must copy operator tools", issues)
+    _require(
+        "COPY generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py" in text,
+        "Dockerfile.operator-tools: must copy generated UPBA reference model",
+        issues,
+    )
+    _require(re.search(r"(?m)^USER\s+zenodex\s*$", text) is not None, "Dockerfile.operator-tools: must end as USER zenodex", issues)
 
 
 def run_checks() -> list[str]:
@@ -156,8 +168,19 @@ def run_checks() -> list[str]:
     _check_apparmor_overlay(issues)
     _check_aux_compose(ROOT / "docker-compose.permissionless.yml", "tau-local", issues)
     _check_aux_compose(ROOT / "docker-compose.chaos.yml", "toxiproxy", issues)
+    _check_aux_compose(ROOT / "docker-compose.two-node.yml", "zeno-ledger-two-node-smoke", issues)
+    for service in (
+        "zeno-ledger-bootstrap",
+        "zeno-ledger-writer",
+        "zeno-ledger-forwarder",
+        "zeno-ledger-readonly",
+        "zeno-ledger-multidocker-controller",
+    ):
+        _check_aux_compose(ROOT / "docker-compose.multimachine.yml", service, issues)
     _check_apparmor_profile(issues)
-    _check_dockerfile(issues)
+    _check_dockerfile(ROOT / "Dockerfile", issues)
+    _check_dockerfile(ROOT / "Dockerfile.production-hashlocked", issues)
+    _check_operator_dockerfile(issues)
     return issues
 
 

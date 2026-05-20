@@ -1,0 +1,222 @@
+services:
+  zeno-ledger-bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile.operator-tools
+    image: zenodex/operator-tools:local
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - bootstrap
+      - --bundle-root
+      - /app/data/multidocker/bundle
+      - --network-id
+      - zeno-ledger-testnet-v0
+      - --chain-id
+      - zeno-ledger-testnet-v0
+      - --report-out
+      - /app/data/multidocker/reports/bootstrap.json
+      - --bundle-tar-out
+      - /app/data/multidocker/bundle.tar.gz
+      - --stay-alive
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - zeno-ledger-multidocker-data:/app/data
+    security_opt: &security_opts
+      - no-new-privileges:true
+    init: true
+    cap_drop: &cap_drop
+      - ALL
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: &tmpfs
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=128m
+
+  zeno-ledger-writer:
+    build:
+      context: .
+      dockerfile: Dockerfile.operator-tools
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-bootstrap:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - serve-node
+      - --role
+      - writer
+      - --bundle-root
+      - /app/data/multidocker/bundle
+      - --data-dir
+      - /app/data/multidocker/node-writer
+      - --network-id
+      - zeno-ledger-testnet-v0
+      - --chain-id
+      - zeno-ledger-testnet-v0
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+      - --enable-testnet-intake
+      - --enable-testnet-faucet
+      - --write-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+    environment: &node_env
+      PYTHONDONTWRITEBYTECODE: "1"
+      ZENO_LEDGER_WRITER_TOKEN: ${ZENO_LEDGER_WRITER_TOKEN:-local-multidocker-token}
+    volumes:
+      - zeno-ledger-multidocker-data:/app/data
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zeno-ledger-forwarder:
+    build:
+      context: .
+      dockerfile: Dockerfile.operator-tools
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-bootstrap:
+        condition: service_started
+      zeno-ledger-writer:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - serve-node
+      - --role
+      - forwarder
+      - --bundle-root
+      - /app/data/multidocker/bundle
+      - --data-dir
+      - /app/data/multidocker/node-forwarder
+      - --network-id
+      - zeno-ledger-testnet-v0
+      - --chain-id
+      - zeno-ledger-testnet-v0
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+      - --peer-url
+      - http://zeno-ledger-writer:8787
+      - --poll-seconds
+      - "1"
+      - --enable-testnet-intake
+      - --enable-testnet-faucet
+      - --submit-peer-url
+      - http://zeno-ledger-writer:8787
+      - --write-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+      - --submit-peer-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+    environment: *node_env
+    volumes:
+      - zeno-ledger-multidocker-data:/app/data
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zeno-ledger-readonly:
+    build:
+      context: .
+      dockerfile: Dockerfile.operator-tools
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-bootstrap:
+        condition: service_started
+      zeno-ledger-writer:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - serve-node
+      - --role
+      - readonly
+      - --bundle-root
+      - /app/data/multidocker/bundle
+      - --data-dir
+      - /app/data/multidocker/node-readonly
+      - --network-id
+      - zeno-ledger-testnet-v0
+      - --chain-id
+      - zeno-ledger-testnet-v0
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8787"
+      - --peer-url
+      - http://zeno-ledger-writer:8787
+      - --poll-seconds
+      - "1"
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - zeno-ledger-multidocker-data:/app/data
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+  zeno-ledger-multidocker-controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.operator-tools
+    image: zenodex/operator-tools:local
+    depends_on:
+      zeno-ledger-writer:
+        condition: service_started
+      zeno-ledger-forwarder:
+        condition: service_started
+      zeno-ledger-readonly:
+        condition: service_started
+    command:
+      - tools/zeno_ledger_multidocker_scenario.py
+      - controller
+      - --machine-count
+      - "3"
+      - --writer-url
+      - http://zeno-ledger-writer:8787
+      - --forwarder-url
+      - http://zeno-ledger-forwarder:8787
+      - --readonly-url
+      - http://zeno-ledger-readonly:8787
+      - --node-data-dir
+      - /app/data/multidocker/node-writer
+      - --node-data-dir
+      - /app/data/multidocker/node-forwarder
+      - --node-data-dir
+      - /app/data/multidocker/node-readonly
+      - --network-id
+      - zeno-ledger-testnet-v0
+      - --chain-id
+      - zeno-ledger-testnet-v0
+      - --write-auth-token-env
+      - ZENO_LEDGER_WRITER_TOKEN
+      - --report-out
+      - /app/data/multidocker/reports/multidocker_report.json
+      - --timeout-seconds
+      - "300"
+    environment: *node_env
+    volumes:
+      - zeno-ledger-multidocker-data:/app/data
+    security_opt: *security_opts
+    init: true
+    cap_drop: *cap_drop
+    pids_limit: 256
+    mem_limit: 768m
+    read_only: true
+    tmpfs: *tmpfs
+
+volumes:
+  zeno-ledger-multidocker-data:
