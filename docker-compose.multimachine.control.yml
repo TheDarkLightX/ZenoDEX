@@ -1,0 +1,12 @@
+services:
+  zeno-ledger-writer:
+    ports:
+      - "127.0.0.1:${ZENO_LEDGER_WRITER_PORT:-8787}:8787"
+
+  zeno-ledger-forwarder:
+    ports:
+      - "127.0.0.1:${ZENO_LEDGER_FORWARDER_PORT:-8788}:8787"
+
+  zeno-ledger-readonly:
+    ports:
+      - "127.0.0.1:${ZENO_LEDGER_READONLY_PORT:-8789}:8787"

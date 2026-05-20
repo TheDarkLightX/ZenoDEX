@@ -30,6 +30,52 @@ The controller writes:
 
 inside the `zeno-ledger-multidocker-data` Docker volume.
 
+## Manual Node Control
+
+For adversarial or less deterministic runs, start only the long-lived node
+services and leave the scenario controller off:
+
+```bash
+python3 tools/zenoctl.py testnet up \
+  --profile docker-multimachine \
+  --engine docker \
+  --detach \
+  --nodes-only \
+  --publish-ports
+```
+
+The control override publishes each node on localhost:
+
+```text
+writer:    http://127.0.0.1:8787
+forwarder: http://127.0.0.1:8788
+readonly:  http://127.0.0.1:8789
+```
+
+Each node is still an independent Compose service. Control them by role:
+
+```bash
+python3 tools/zenoctl.py testnet control ps --engine docker
+python3 tools/zenoctl.py testnet control logs --role writer --engine docker
+python3 tools/zenoctl.py testnet control pause --role readonly --engine docker
+python3 tools/zenoctl.py testnet control unpause --role readonly --engine docker
+python3 tools/zenoctl.py testnet control restart --role forwarder --engine docker
+python3 tools/zenoctl.py testnet control stop --role writer --engine docker
+python3 tools/zenoctl.py testnet control start --role writer --engine docker
+```
+
+After manual perturbations, run the controller against the live services:
+
+```bash
+python3 tools/zenoctl.py testnet control run-controller --engine docker
+```
+
+Shut the whole controlled stack down, including its shared evidence volume:
+
+```bash
+python3 tools/zenoctl.py testnet control down --volumes --engine docker
+```
+
 ## Physical Two-Host Or Three-Host Run
 
 Use this when the nodes are on separate machines but each node still runs in

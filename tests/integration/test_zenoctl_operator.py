@@ -92,6 +92,7 @@ def test_zenoctl_doctor_passes_static_repo_checks_without_engine_requirement() -
     assert checks["production_hashlocked_dockerfile"]["ok"] is True
     assert checks["deployment_profiles"]["ok"] is True
     assert checks["docker-compose.multimachine.yml"]["ok"] is True
+    assert checks["docker-compose.multimachine.control.yml"]["ok"] is True
     assert checks["tools/zeno_ledger_multidocker_scenario.py"]["ok"] is True
     assert checks["tools/zeno_ledger_multidocker_wes_disaster_search.py"]["ok"] is True
     assert checks["tools/gate_typecheck.sh"]["ok"] is True
@@ -213,6 +214,91 @@ def test_zenoctl_testnet_up_docker_multimachine_dry_run(capsys) -> None:
     if rc == 0:
         assert "docker-compose.multimachine.yml" in output
         assert "zeno-ledger-multidocker-controller" in output
+
+
+def test_zenoctl_testnet_up_docker_multimachine_nodes_only_detached_dry_run(capsys) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "up",
+            "--profile",
+            "docker-multimachine",
+            "--engine",
+            "auto",
+            "--detach",
+            "--nodes-only",
+            "--publish-ports",
+            "--dry-run",
+        ]
+    )
+
+    assert rc in {0, 1}
+    output = capsys.readouterr().out
+    if rc == 0:
+        assert "docker-compose.multimachine.yml" in output
+        assert "docker-compose.multimachine.control.yml" in output
+        assert "up --build -d" in output
+        assert "zeno-ledger-writer" in output
+        assert "zeno-ledger-forwarder" in output
+        assert "zeno-ledger-readonly" in output
+        assert "--exit-code-from" not in output
+
+
+def test_zenoctl_testnet_control_stop_writer_dry_run(capsys) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "control",
+            "stop",
+            "--role",
+            "writer",
+            "--engine",
+            "auto",
+            "--dry-run",
+        ]
+    )
+
+    assert rc in {0, 1}
+    output = capsys.readouterr().out
+    if rc == 0:
+        assert "docker-compose.multimachine.yml" in output
+        assert "stop zeno-ledger-writer" in output
+
+
+def test_zenoctl_testnet_control_pause_nodes_default_dry_run(capsys) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "control",
+            "pause",
+            "--engine",
+            "auto",
+            "--dry-run",
+        ]
+    )
+
+    assert rc in {0, 1}
+    output = capsys.readouterr().out
+    if rc == 0:
+        assert "pause zeno-ledger-bootstrap zeno-ledger-writer zeno-ledger-forwarder zeno-ledger-readonly" in output
+
+
+def test_zenoctl_testnet_control_run_controller_dry_run(capsys) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "control",
+            "run-controller",
+            "--engine",
+            "auto",
+            "--dry-run",
+        ]
+    )
+
+    assert rc in {0, 1}
+    output = capsys.readouterr().out
+    if rc == 0:
+        assert "run --rm --no-deps zeno-ledger-multidocker-controller" in output
 
 
 def test_multidocker_plan_uses_hashes_for_all_nodes() -> None:

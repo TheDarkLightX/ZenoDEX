@@ -31,6 +31,16 @@ from tools.check_docker_hashlocked_install import evaluate_dockerfile  # noqa: E
 
 
 NODE_IDENTITY_SCHEMA_V0 = "zenodex/zenoctl_node_identity/v0"
+MULTIDOCKER_COMPOSE_FILE = "docker-compose.multimachine.yml"
+MULTIDOCKER_CONTROL_COMPOSE_FILE = "docker-compose.multimachine.control.yml"
+MULTIDOCKER_SERVICE_BY_ROLE = {
+    "bootstrap": "zeno-ledger-bootstrap",
+    "writer": "zeno-ledger-writer",
+    "forwarder": "zeno-ledger-forwarder",
+    "readonly": "zeno-ledger-readonly",
+    "controller": "zeno-ledger-multidocker-controller",
+}
+MULTIDOCKER_NODE_ROLES = ("bootstrap", "writer", "forwarder", "readonly")
 
 
 def _which_engine(engine: str) -> str | None:
@@ -59,6 +69,7 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
         _check_file(repo_root, "docker-compose.local.yml"),
         _check_file(repo_root, "docker-compose.two-node.yml"),
         _check_file(repo_root, "docker-compose.multimachine.yml"),
+        _check_file(repo_root, "docker-compose.multimachine.control.yml"),
         _check_file(repo_root, "requirements-core.lock.txt"),
         _check_file(repo_root, "requirements-dev.lock.txt"),
         _check_file(repo_root, "tools/zeno_ledger_node.py"),
@@ -113,6 +124,31 @@ def _run(command: Sequence[str], *, dry_run: bool = False, cwd: Path = ROOT) -> 
         print(rendered)
         return 0
     return subprocess.run(list(command), cwd=str(cwd), check=False).returncode
+
+
+def _multidocker_compose_command(engine: str, *, publish_ports: bool = False) -> list[str]:
+    command = [engine, "compose", "-f", MULTIDOCKER_COMPOSE_FILE]
+    if publish_ports:
+        command.extend(["-f", MULTIDOCKER_CONTROL_COMPOSE_FILE])
+    return command
+
+
+def _resolve_multidocker_services(roles: Sequence[str], *, default_nodes: bool = False) -> list[str]:
+    selected = list(roles)
+    if not selected and default_nodes:
+        selected = ["nodes"]
+    services: list[str] = []
+    for role in selected:
+        if role == "all":
+            candidates = list(MULTIDOCKER_SERVICE_BY_ROLE.values())
+        elif role == "nodes":
+            candidates = [MULTIDOCKER_SERVICE_BY_ROLE[item] for item in MULTIDOCKER_NODE_ROLES]
+        else:
+            candidates = [MULTIDOCKER_SERVICE_BY_ROLE[role]]
+        for service in candidates:
+            if service not in services:
+                services.append(service)
+    return services
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
@@ -178,17 +214,20 @@ def _cmd_testnet_up(args: argparse.Namespace) -> int:
         if engine is None:
             print(f"container engine not found: {args.engine}", file=sys.stderr)
             return 1
-        command = [
-            engine,
-            "compose",
-            "-f",
-            "docker-compose.multimachine.yml",
-            "up",
-            "--build",
-            "--abort-on-container-exit",
-            "--exit-code-from",
-            "zeno-ledger-multidocker-controller",
-        ]
+        command = _multidocker_compose_command(engine, publish_ports=args.publish_ports)
+        command.extend(["up", "--build"])
+        if args.detach:
+            command.append("-d")
+        if not args.detach and not args.nodes_only:
+            command.extend(
+                [
+                    "--abort-on-container-exit",
+                    "--exit-code-from",
+                    "zeno-ledger-multidocker-controller",
+                ]
+            )
+        if args.nodes_only:
+            command.extend(_resolve_multidocker_services(["nodes"]))
         return _run(command, dry_run=args.dry_run)
     if args.profile in {"local", "two-node-smoke"}:
         command = [
@@ -213,6 +252,43 @@ def _cmd_testnet_up(args: argparse.Namespace) -> int:
             return 0
         return subprocess.run(command, cwd=str(ROOT), env=env, check=False).returncode
     raise ValueError(f"unsupported profile: {args.profile}")
+
+
+def _cmd_testnet_control(args: argparse.Namespace) -> int:
+    engine = _which_engine(args.engine)
+    if engine is None:
+        print(f"container engine not found: {args.engine}", file=sys.stderr)
+        return 1
+    command = _multidocker_compose_command(engine, publish_ports=args.publish_ports)
+    action = args.action
+    services = _resolve_multidocker_services(
+        args.role,
+        default_nodes=action in {"up", "start", "stop", "restart", "pause", "unpause", "kill", "logs"},
+    )
+    if action == "up":
+        command.extend(["up", "--build"])
+        if args.detach:
+            command.append("-d")
+        command.extend(services)
+    elif action == "down":
+        command.append("down")
+        if args.volumes:
+            command.append("-v")
+    elif action == "ps":
+        command.append("ps")
+        command.extend(services)
+    elif action == "logs":
+        command.append("logs")
+        command.extend(["--tail", str(args.tail)])
+        if args.follow:
+            command.append("--follow")
+        command.extend(services)
+    elif action == "run-controller":
+        command.extend(["run", "--rm", "--no-deps", MULTIDOCKER_SERVICE_BY_ROLE["controller"]])
+    else:
+        command.append(action)
+        command.extend(services)
+    return _run(command, dry_run=args.dry_run)
 
 
 def derive_node_hash_v0(
@@ -526,8 +602,52 @@ def main(argv: list[str] | None = None) -> int:
     up.add_argument("--report-out", type=Path, default=Path("/tmp/zenoctl-public-testnet/report.json"))
     up.add_argument("--network-id", default="zeno-ledger-testnet-v0")
     up.add_argument("--chain-id", default="zeno-ledger-testnet-v0")
+    up.add_argument("--detach", action="store_true", help="for Docker profiles, leave services running")
+    up.add_argument(
+        "--nodes-only",
+        action="store_true",
+        help="for docker-multimachine, start bootstrap/writer/forwarder/readonly without the scenario controller",
+    )
+    up.add_argument(
+        "--publish-ports",
+        action="store_true",
+        help="for docker-multimachine, publish writer/forwarder/readonly on 127.0.0.1 ports",
+    )
     up.add_argument("--dry-run", action="store_true")
     up.set_defaults(func=_cmd_testnet_up)
+
+    control = testnet_sub.add_parser("control", help="control individual docker-multimachine services")
+    control.add_argument(
+        "action",
+        choices=[
+            "up",
+            "down",
+            "ps",
+            "logs",
+            "start",
+            "stop",
+            "restart",
+            "pause",
+            "unpause",
+            "kill",
+            "run-controller",
+        ],
+    )
+    control.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
+    control.add_argument(
+        "--role",
+        action="append",
+        choices=["bootstrap", "writer", "forwarder", "readonly", "controller", "nodes", "all"],
+        default=[],
+        help="service role to target; repeatable; defaults to nodes for node actions",
+    )
+    control.add_argument("--detach", action="store_true", help="for action=up, leave selected services running")
+    control.add_argument("--publish-ports", action="store_true", help="include host-port control override")
+    control.add_argument("--volumes", action="store_true", help="for action=down, remove compose volumes")
+    control.add_argument("--tail", type=int, default=80, help="for action=logs, number of lines per service")
+    control.add_argument("--follow", action="store_true", help="for action=logs, follow log output")
+    control.add_argument("--dry-run", action="store_true")
+    control.set_defaults(func=_cmd_testnet_control)
 
     node = sub.add_parser("node", help="node operator views")
     node_sub = node.add_subparsers(dest="node_command", required=True)
