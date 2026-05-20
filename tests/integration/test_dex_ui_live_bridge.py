@@ -447,9 +447,9 @@ def test_dex_ui_smoke_runs_against_published_docker_nodes(tmp_path: Path) -> Non
     writer_url = os.environ.get("ZENO_DEX_DOCKER_WRITER_URL", "http://127.0.0.1:8787")
     forwarder_url = os.environ.get("ZENO_DEX_DOCKER_FORWARDER_URL", "http://127.0.0.1:8788")
     readonly_url = os.environ.get("ZENO_DEX_DOCKER_READONLY_URL", "http://127.0.0.1:8789")
-    _wait_for_http(f"{writer_url}/status", timeout_s=30)
-    _wait_for_http(f"{forwarder_url}/status", timeout_s=30)
-    _wait_for_http(f"{readonly_url}/status", timeout_s=30)
+    _wait_for_http(f"{writer_url}/status", timeout_s=120)
+    _wait_for_http(f"{forwarder_url}/status", timeout_s=120)
+    _wait_for_http(f"{readonly_url}/status", timeout_s=120)
     pre_height = _live_height(writer_url)
 
     vite_port = _free_port()
