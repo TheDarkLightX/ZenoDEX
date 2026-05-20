@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_KB_PATH = ROOT / "tools" / "krr_knowledge_base.json"
@@ -252,48 +252,50 @@ def _extract_semantic_features(*, schema: str, semantic_signature: str) -> tuple
     return toks[:32], predicates
 
 
-def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
-    kb_path = Path(path).resolve() if path else DEFAULT_KB_PATH
-    if not kb_path.exists():
-        return {
-            "schema": "zenodex/krr-kb/v1",
-            "operator_priors": {},
-            "semantic_rules": [],
-            "check_priors": {},
-            "check_family_priors": {},
-            "engine": {
-                "backend": "auto",
-                "prolog": {
-                    "binary": "swipl",
-                    "timeout_s": 2.0,
-                    "preferred_bonus": 0.03,
-                },
-                "souffle": {
-                    "binary": "souffle",
-                    "timeout_s": 2.0,
-                    "preferred_bonus": 0.03,
-                },
-                "scoring": {
-                    "exploitation_weight": 0.72,
-                    "exploration_weight": 0.22,
-                    "uncertainty_weight": 0.08,
-                    "uncertainty_penalty_weight": 0.06,
-                    "reliability_weight": 0.12,
-                    "backend_score_weight": 0.14,
-                    "prior_evidence_weight": 0.5,
-                    "pseudo_count": 1.0,
-                    "position_bonus_weight": 0.01,
-                    "preference_bonus": 0.03,
-                    "reliability_scale": 32.0,
-                },
+def _default_krr_kb() -> dict[str, Any]:
+    return {
+        "schema": "zenodex/krr-kb/v1",
+        "operator_priors": {},
+        "semantic_rules": [],
+        "check_priors": {},
+        "check_family_priors": {},
+        "engine": {
+            "backend": "auto",
+            "prolog": {
+                "binary": "swipl",
+                "timeout_s": 2.0,
+                "preferred_bonus": 0.03,
             },
-        }
-    try:
-        obj = json.loads(kb_path.read_text(encoding="utf-8"))
-    except Exception:
+            "souffle": {
+                "binary": "souffle",
+                "timeout_s": 2.0,
+                "preferred_bonus": 0.03,
+            },
+            "scoring": {
+                "exploitation_weight": 0.72,
+                "exploration_weight": 0.22,
+                "uncertainty_weight": 0.08,
+                "uncertainty_penalty_weight": 0.06,
+                "reliability_weight": 0.12,
+                "backend_score_weight": 0.14,
+                "prior_evidence_weight": 0.5,
+                "pseudo_count": 1.0,
+                "position_bonus_weight": 0.01,
+                "preference_bonus": 0.03,
+                "reliability_scale": 32.0,
+            },
+        },
+    }
+
+
+def normalize_krr_kb_object(
+    obj: Mapping[str, Any] | None,
+    *,
+    kb_path: Path | str | None = None,
+) -> dict[str, Any]:
+    if not isinstance(obj, Mapping):
         obj = {}
-    if not isinstance(obj, dict):
-        obj = {}
+    obj = dict(obj)
     obj.setdefault("schema", "zenodex/krr-kb/v1")
     obj.setdefault("operator_priors", {})
     obj.setdefault("semantic_rules", [])
@@ -338,8 +340,20 @@ def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
     scoring.setdefault("preference_bonus", 0.03)
     scoring.setdefault("reliability_scale", 32.0)
 
-    obj["_kb_path"] = str(kb_path)
+    resolved_path = Path(kb_path).resolve() if kb_path is not None else DEFAULT_KB_PATH
+    obj["_kb_path"] = str(resolved_path)
     return obj
+
+
+def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
+    kb_path = Path(path).resolve() if path else DEFAULT_KB_PATH
+    if not kb_path.exists():
+        return normalize_krr_kb_object(_default_krr_kb(), kb_path=kb_path)
+    try:
+        obj = json.loads(kb_path.read_text(encoding="utf-8"))
+    except Exception:
+        obj = {}
+    return normalize_krr_kb_object(obj, kb_path=kb_path)
 
 
 def _match_rule(
@@ -533,8 +547,6 @@ def _normalize_backend_scores(base_rows: list[dict[str, Any]]) -> dict[str, floa
     denom = max(1e-9, hi - lo)
     out: dict[str, float] = {}
     for row in base_rows:
-        if not isinstance(row, dict):
-            continue
         check = str(row.get("check", "")).strip()
         if not check:
             continue
@@ -792,9 +804,10 @@ def _rank_checks_prolog(
         if len(parts) != 6:
             continue
         cid = _safe_int(parts[1], 0)
-        check = id_to_check.get(cid)
-        if not check:
+        check_opt = id_to_check.get(cid)
+        if not check_opt:
             continue
+        check = check_opt
         ranked_rows.append(
             {
                 "check": check,
@@ -971,9 +984,10 @@ def _rank_checks_souffle(
         if len(parts) != 5:
             continue
         cid = _safe_int(parts[0], 0)
-        check = id_to_check.get(cid)
-        if not check:
+        check_opt = id_to_check.get(cid)
+        if not check_opt:
             continue
+        check = check_opt
         ranked_rows.append(
             {
                 "check": check,
@@ -1240,8 +1254,6 @@ def advise_pack_krr(
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for assignment in assignments:
-        if not isinstance(assignment, dict):
-            continue
         cid = str(assignment.get("candidate_id", "")).strip()
         if not cid:
             continue
