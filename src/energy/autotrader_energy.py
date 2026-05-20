@@ -109,6 +109,72 @@ def hand_energy_from_autotrader_row(row: dict[str, Any]) -> float:
     return initial_autotrader_hand_model().energy(_features(row))
 
 
+def canonical_autotrader_features(features: Mapping[str, float] | Sequence[float]) -> list[float]:
+    """Return feature values in the canonical AutoTrader feature order.
+
+    Flags are canonicalized to 0/1. Continuous features are clamped to [0, 1].
+    This is useful for untrusted proposal mechanisms that emit feature maps.
+    """
+
+    if isinstance(features, Mapping):
+        raw_values = [float(features.get(name, 0.0)) for name in AUTOTRADER_FEATURE_NAMES]
+    else:
+        raw_values = [float(value) for value in features]
+    if len(raw_values) != len(AUTOTRADER_FEATURE_NAMES):
+        raise ValueError("AutoTrader feature length mismatch")
+    values: list[float] = []
+    for index, value in enumerate(raw_values):
+        if index < len(_FLAG_NAMES):
+            values.append(1.0 if value >= 0.5 else 0.0)
+        else:
+            values.append(_clip01(value))
+    return values
+
+
+def autotrader_feature_map(features: Mapping[str, float] | Sequence[float]) -> dict[str, float]:
+    """Return a canonical feature-name map for AutoTrader policy scoring."""
+
+    values = canonical_autotrader_features(features)
+    return {
+        name: float(value)
+        for name, value in zip(AUTOTRADER_FEATURE_NAMES, values, strict=True)
+    }
+
+
+def autotrader_label_from_features(features: Mapping[str, float] | Sequence[float]) -> dict[str, Any]:
+    """Apply the deterministic synthetic AutoTrader policy label to features."""
+
+    row = autotrader_candidate_row_from_features(
+        features,
+        batch_id="label",
+        candidate_index=0,
+    )
+    return dict(row["label"])
+
+
+def autotrader_candidate_row_from_features(
+    features: Mapping[str, float] | Sequence[float],
+    *,
+    batch_id: str,
+    candidate_index: int,
+) -> dict[str, Any]:
+    """Build a deterministic AutoTrader candidate row from proposed features."""
+
+    values = canonical_autotrader_features(features)
+    row = {
+        "schema": "zenodex/energy/autotrader_candidate_row/v1",
+        "batch_id": batch_id,
+        "candidate_id": f"{batch_id}-{candidate_index}",
+        "candidate_hash": _candidate_hash(batch_id, candidate_index, values),
+        "feature_names": list(AUTOTRADER_FEATURE_NAMES),
+        "features": values,
+        "label": {},
+    }
+    _refresh_label(row)
+    row["label"]["hand_energy"] = hand_energy_from_autotrader_row(row)
+    return row
+
+
 def generate_rows(
     *,
     seed: int,
