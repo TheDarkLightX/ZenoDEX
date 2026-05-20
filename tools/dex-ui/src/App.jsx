@@ -104,7 +104,26 @@ function clientErrorResult(message) {
   };
 }
 
+function loadSmokeWallet() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('zenodexUiSmokeSwap') !== '1') {
+    return null;
+  }
+  const rawAddress = String(params.get('walletAddress') || '').trim();
+  if (!/^(0x)?[0-9a-fA-F]{96}$/.test(rawAddress)) {
+    return null;
+  }
+  const pubkey = rawAddress.toLowerCase().startsWith('0x')
+    ? `0x${rawAddress.slice(2).toLowerCase()}`
+    : `0x${rawAddress.toLowerCase()}`;
+  return { pubkey, nextNonce: 1 };
+}
+
 function loadWallet() {
+  const smokeWallet = loadSmokeWallet();
+  if (smokeWallet) {
+    return smokeWallet;
+  }
   const raw = window.localStorage.getItem('zenodex.live.wallet.v0');
   if (raw) {
     try {
@@ -229,6 +248,14 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [eventLog, setEventLog] = useState([]);
+  const uiSmokeSwap = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return {
+      enabled: params.get('zenodexUiSmokeSwap') === '1',
+      amountIn: params.get('smokeAmountIn') || '100',
+    };
+  }, []);
+  const [smokeSubmitted, setSmokeSubmitted] = useState(false);
 
   const selectedState = states[selectedNode] || {};
   const latestHeight = selectedState?.network?.local_tip?.height || selectedState?.live?.state?.latest_height;
@@ -487,6 +514,43 @@ function App() {
       amount1_min: 0,
     });
   };
+
+  useEffect(() => {
+    if (!uiSmokeSwap.enabled || smokeSubmitted) {
+      return;
+    }
+    if (selectedNode !== 'writer') {
+      setSelectedNode('writer');
+      return;
+    }
+    if (amountIn !== uiSmokeSwap.amountIn) {
+      setAmountIn(uiSmokeSwap.amountIn);
+      return;
+    }
+    if (!snapshot || busy || !canSubmitSwap) {
+      return;
+    }
+    try {
+      if (window.sessionStorage.getItem('zenodex.uiSmokeSwap.submitted') === '1') {
+        return;
+      }
+      window.sessionStorage.setItem('zenodex.uiSmokeSwap.submitted', '1');
+    } catch {
+      // Session storage only prevents duplicate smoke submissions during browser tests.
+    }
+    setSmokeSubmitted(true);
+    submitSwap();
+    // submitSwap closes over the same state listed below; the session gate prevents duplicate smoke submissions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    uiSmokeSwap,
+    smokeSubmitted,
+    selectedNode,
+    amountIn,
+    snapshot,
+    busy,
+    canSubmitSwap,
+  ]);
 
   const lastResultPill = resultPill(lastResult);
 

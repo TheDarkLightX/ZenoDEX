@@ -49,6 +49,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+!tools/dex-ui/src/lib/
+!tools/dex-ui/src/lib/**
 lib64/
 parts/
 sdist/

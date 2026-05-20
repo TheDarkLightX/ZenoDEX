@@ -29,6 +29,9 @@ function WalletConnect({ wallet, onConnect }) {
                     AGRS: 1234.56,
                     ZDEX: 5000,
                     USD: 10000,
+                    TASSET0: 1_000_000,
+                    TASSET1: 1_000_000,
+                    TZENO: 1_000_000,
                 },
             });
         } catch (error) {

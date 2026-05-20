@@ -12,19 +12,14 @@ import {
 } from '../lib/routeProfiles';
 import { createQuoteCertificate, verifyQuoteCertificate } from '../lib/quoteCertificate';
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
+import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import {
     FALLBACK_SWAP_POOLS,
+    FALLBACK_SWAP_TOKENS,
     loadSwapPools,
     resolveWalletTokenBalance,
 } from '../lib/swapData.js';
 import './SwapInterface.css';
-
-// Token data (AGRS is the native Tau Net token)
-const TOKENS = [
-    { symbol: 'AGRS', name: 'Agoras', icon: '✦', decimals: 18 },
-    { symbol: 'USDC', name: 'USD Coin', icon: '💵', decimals: 6 },
-    { symbol: 'WETH', name: 'Wrapped ETH', icon: '⟠', decimals: 18 },
-];
 
 // Tooltip component
 function Tooltip({ text, children }) {
@@ -89,8 +84,9 @@ function estimateRoutePendingVolumes({ amountIn, routeType, profileId, gateDecis
 
 function SwapInterface({ wallet }) {
     const { upsertTransaction } = useTransactionCenter();
-    const [fromToken, setFromToken] = useState(TOKENS[0]);
-    const [toToken, setToToken] = useState(TOKENS[1]);
+    const { demoMode } = useDemoMode();
+    const [fromToken, setFromToken] = useState(FALLBACK_SWAP_TOKENS[0]);
+    const [toToken, setToToken] = useState(FALLBACK_SWAP_TOKENS[1]);
     const [amountIn, setAmountIn] = useState('');
     const [slippage, setSlippage] = useState(0.005);
     const [showSettings, setShowSettings] = useState(false);
@@ -124,12 +120,27 @@ function SwapInterface({ wallet }) {
     const [poolFeed, setPoolFeed] = useState({
         source: 'fallback',
         pools: FALLBACK_SWAP_POOLS,
+        tokens: FALLBACK_SWAP_TOKENS,
         error: null,
     });
     const [nowMs, setNowMs] = useState(Date.now());
 
     const quoteDagRef = useRef(createQuoteDagCache());
-    const tokenSymbols = useMemo(() => TOKENS.map((token) => token.symbol), []);
+    const uiSmokeSubmitRef = useRef(false);
+    const tokens = useMemo(() => (
+        Array.isArray(poolFeed.tokens) && poolFeed.tokens.length >= 2
+            ? poolFeed.tokens
+            : FALLBACK_SWAP_TOKENS
+    ), [poolFeed.tokens]);
+    const tokenSymbols = useMemo(() => tokens.map((token) => token.symbol), [tokens]);
+    const uiSmokeSwap = useMemo(() => {
+        if (typeof window === 'undefined') return { enabled: false, amountIn: '' };
+        const params = new URLSearchParams(window.location.search);
+        return {
+            enabled: params.get('zenodexUiSmokeSwap') === '1',
+            amountIn: params.get('smokeAmountIn') || '100',
+        };
+    }, []);
 
     // Auto-refresh prices every 15 seconds
     useEffect(() => {
@@ -192,6 +203,22 @@ function SwapInterface({ wallet }) {
     }, []);
 
     useEffect(() => {
+        if (tokens.length < 2) return;
+        const fromKnown = tokens.some((token) => token.symbol === fromToken.symbol);
+        const toKnown = tokens.some((token) => token.symbol === toToken.symbol);
+        if (fromKnown && toKnown && fromToken.symbol !== toToken.symbol) return;
+        setFromToken(tokens[0]);
+        setToToken(tokens[1]);
+        setAmountIn('');
+        setQuoteError('');
+    }, [tokens, fromToken.symbol, toToken.symbol]);
+
+    useEffect(() => {
+        if (!uiSmokeSwap.enabled || poolFeed.source !== 'api' || amountIn) return;
+        setAmountIn(uiSmokeSwap.amountIn);
+    }, [uiSmokeSwap, poolFeed.source, amountIn]);
+
+    useEffect(() => {
         if (!submittedSwap || submittedSwap.status !== 'pending') return undefined;
         const timeout = setTimeout(() => {
             setSubmittedSwap((prev) => {
@@ -224,6 +251,23 @@ function SwapInterface({ wallet }) {
             ? { reserveIn: pool.reserve0, reserveOut: pool.reserve1 }
             : { reserveIn: pool.reserve1, reserveOut: pool.reserve0 };
     }, [poolKey, fromToken, toToken, poolFeed.pools]);
+
+    const livePoolIntent = useMemo(() => {
+        const pool = poolFeed.pools[poolKey];
+        if (!pool) return null;
+        const assetsBySymbol = pool.assetsBySymbol || {};
+        const assetIn = assetsBySymbol[fromToken.symbol]
+            || (pool.token0 === fromToken.symbol ? pool.asset0 : null)
+            || (pool.token1 === fromToken.symbol ? pool.asset1 : null);
+        const assetOut = assetsBySymbol[toToken.symbol]
+            || (pool.token0 === toToken.symbol ? pool.asset0 : null)
+            || (pool.token1 === toToken.symbol ? pool.asset1 : null);
+        return {
+            poolId: pool.poolId ?? pool.pool_id ?? null,
+            assetIn,
+            assetOut,
+        };
+    }, [poolFeed.pools, poolKey, fromToken.symbol, toToken.symbol]);
 
     const directMetrics = useMemo(() => {
         if (!amountIn || !reserves) return null;
@@ -818,50 +862,119 @@ function SwapInterface({ wallet }) {
         try {
             const submittedAt = Date.now();
             const txId = `swap-${submittedAt}-${Math.random().toString(16).slice(2, 8)}`;
-            let txHash = createMockTxHash();
+            let txHash = '';
             let submitPath = 'local';
+            let remoteAccepted = false;
+            let remoteHeight = null;
+            let remoteReceipt = null;
+            if (!demoMode && poolFeed.source !== 'api') {
+                setQuoteError('Live swap submission requires a live pool feed');
+                return;
+            }
             try {
+                const amountInUnits = Math.max(1, Math.round(Number(amountIn)));
+                const minAmountOutUnits = Math.max(0, Math.floor(Number(activePreview.minOutput ?? 1)));
                 const maybeRemote = await apiSwap(
                     {
                         from: fromToken.symbol,
                         to: toToken.symbol,
-                        amountIn: Number(amountIn),
+                        amountIn: amountInUnits,
+                        minAmountOut: minAmountOutUnits,
+                        poolId: livePoolIntent?.poolId,
+                        assetIn: livePoolIntent?.assetIn,
+                        assetOut: livePoolIntent?.assetOut,
+                        senderPubkey: wallet?.address,
+                        recipient: wallet?.address,
                     },
                     { timeoutMs: 3500 },
                 );
-                if (maybeRemote?.txHash) {
-                    txHash = String(maybeRemote.txHash);
+                if (maybeRemote?.ok === false) {
+                    throw new Error(maybeRemote?.error || 'swap_rejected');
                 }
-                submitPath = maybeRemote?.ok === false ? 'local-fallback' : 'api-or-local';
-            } catch {
+                if (maybeRemote?.txHash || maybeRemote?.tx_hash) {
+                    txHash = String(maybeRemote.txHash || maybeRemote.tx_hash);
+                }
+                remoteReceipt = maybeRemote?.receipt || null;
+                remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
+                remoteHeight = maybeRemote?.height ?? null;
+                submitPath = 'api';
+            } catch (err) {
+                if (!demoMode) {
+                    const msg = err && typeof err === 'object' ? String(err.message || 'swap_submit_failed') : 'swap_submit_failed';
+                    setQuoteError(`Live swap submission failed: ${msg}`);
+                    return;
+                }
+                txHash = createMockTxHash();
                 submitPath = 'local-fallback';
             }
+            if (!txHash) {
+                if (!demoMode) {
+                    setQuoteError('Live swap submission failed: missing transaction hash');
+                    return;
+                }
+                txHash = createMockTxHash();
+            }
+            const transactionStatus = remoteAccepted ? 'confirmed' : 'pending';
 
             setSubmittedSwap({
                 ...submitted,
                 txId,
                 txHash,
                 network: 'Tau Net Alpha',
-                status: 'pending',
+                status: transactionStatus,
                 submitPath,
+                height: remoteHeight,
+                receipt: remoteReceipt,
                 submittedAt,
+                confirmedAt: remoteAccepted ? submittedAt : null,
             });
             upsertTransaction({
                 id: txId,
-                status: 'pending',
+                status: transactionStatus,
                 product: 'swap',
                 title: `Swap ${fromToken.symbol} -> ${toToken.symbol}`,
                 routePath: submitted.routePath,
                 txHash,
                 network: 'Tau Net Alpha',
                 createdAt: submittedAt,
+                confirmedAt: remoteAccepted ? submittedAt : null,
             });
             setAmountIn('');
             setQuoteError('');
         } finally {
             setIsSubmitting(false);
         }
-    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction]);
+    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed.source, livePoolIntent, wallet]);
+
+    useEffect(() => {
+        if (!uiSmokeSwap.enabled) return;
+        if (uiSmokeSubmitRef.current) return;
+        if (!wallet || poolFeed.source !== 'api' || isSubmitting || submittedSwap) return;
+        if (!amountIn || !activePreview || !validation.ok) return;
+        if (advancedMode && !certificateCheck.ok) return;
+        try {
+            if (window.sessionStorage.getItem('zenodex.uiSmokeSwap.submitted') === '1') {
+                return;
+            }
+            window.sessionStorage.setItem('zenodex.uiSmokeSwap.submitted', '1');
+        } catch {
+            // Session storage is a test convenience; the ref still prevents repeats in normal browsers.
+        }
+        uiSmokeSubmitRef.current = true;
+        executeSwap();
+    }, [
+        uiSmokeSwap.enabled,
+        wallet,
+        poolFeed.source,
+        isSubmitting,
+        submittedSwap,
+        amountIn,
+        activePreview,
+        validation.ok,
+        advancedMode,
+        certificateCheck.ok,
+        executeSwap,
+    ]);
 
     const handleFindSaferAmount = useCallback(async () => {
         if (advancedMode) return;
@@ -1573,6 +1686,12 @@ function SwapInterface({ wallet }) {
                                 <span>Submission:</span>
                                 <span>{submittedSwap.submitPath === 'local-fallback' ? 'Local fallback' : 'Network relay'}</span>
                             </div>
+                            {submittedSwap.height !== null && submittedSwap.height !== undefined && (
+                                <div className="confirm-row">
+                                    <span>Block height:</span>
+                                    <span>{submittedSwap.height}</span>
+                                </div>
+                            )}
                             <div className="confirm-row">
                                 <span>You pay:</span>
                                 <span>{submittedSwap.amountIn} {submittedSwap.fromSymbol}</span>
