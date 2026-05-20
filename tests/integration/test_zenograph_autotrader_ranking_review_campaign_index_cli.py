@@ -73,8 +73,16 @@ def test_zenograph_autotrader_ranking_review_campaign_index_cli_lists_bundles(
         json.dumps(newer_payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    older_manifest = campaign_root / "20260326T204500Z_older" / "manifest.json"
+    older_payload = json.loads(older_manifest.read_text(encoding="utf-8"))
+    older_payload["metadata"]["git_dirty"] = True
+    older_manifest.write_text(
+        json.dumps(older_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     latest_manifest = campaign_root / "20260327T000100Z_latest" / "manifest.json"
     latest_payload = json.loads(latest_manifest.read_text(encoding="utf-8"))
+    latest_payload["metadata"]["git_dirty"] = True
     latest_payload["metadata"]["git_commit_short"] = "def5678"
     latest_payload["ranking_influence_allowed"] = True
     latest_payload["block_reason"] = None
