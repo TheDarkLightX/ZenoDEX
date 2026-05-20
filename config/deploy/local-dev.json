@@ -1,0 +1,18 @@
+{
+  "allowed_routes": ["health", "status"],
+  "key_policy": {
+    "production_key_receipts_required": false,
+    "raw_private_key_flags_allowed": true
+  },
+  "peer_policy": {
+    "dynamic_peer_cap_required": false
+  },
+  "profile_id": "local-dev",
+  "proof_policy": {
+    "proof_metadata_required": false
+  },
+  "required_auth": {
+    "write_api": "local"
+  },
+  "schema": "zenodex/deployment_profile/v1"
+}

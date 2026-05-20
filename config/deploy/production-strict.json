@@ -1,0 +1,18 @@
+{
+  "allowed_routes": ["health", "status", "submit"],
+  "key_policy": {
+    "production_key_receipts_required": true,
+    "raw_private_key_flags_allowed": false
+  },
+  "peer_policy": {
+    "dynamic_peer_cap_required": true
+  },
+  "profile_id": "production-strict",
+  "proof_policy": {
+    "proof_metadata_required": true
+  },
+  "required_auth": {
+    "write_api": "signed"
+  },
+  "schema": "zenodex/deployment_profile/v1"
+}
