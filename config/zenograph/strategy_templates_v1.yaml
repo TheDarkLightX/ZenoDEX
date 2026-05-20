@@ -1,0 +1,29 @@
+templates:
+  - id: dca
+    category: investing
+    required_signals: []
+    forbidden_regimes: [protocol_risk_elevated]
+    max_position_fraction_bps: 1500
+    max_turnover_bps: 500
+    execution_style: twap_like
+  - id: rebalance
+    category: investing
+    required_signals: [portfolio_drift]
+    forbidden_regimes: [extreme_liquidity_stress]
+    max_position_fraction_bps: 3000
+    max_turnover_bps: 1000
+    execution_style: route_best_effort
+  - id: onchain_flow_follow
+    category: trading
+    required_signals: [smart_money_accumulation]
+    forbidden_regimes: [governance_attack_risk, oracle_instability]
+    max_position_fraction_bps: 500
+    max_turnover_bps: 300
+    execution_style: exact_route_strict
+  - id: volatility_throttle
+    category: risk
+    required_signals: [volatility_spike]
+    forbidden_regimes: []
+    max_position_fraction_bps: 0
+    max_turnover_bps: 0
+    execution_style: block

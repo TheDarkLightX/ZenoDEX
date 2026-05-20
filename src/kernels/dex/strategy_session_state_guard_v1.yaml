@@ -1,0 +1,69 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_session_state_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless session-state guard for the auto-trader live path.
+
+    This guard keeps delegated live sessions fail-closed:
+    - the session record must still be enabled
+    - the session id must match the delegated wallet capability
+    - the session owner and chain binding must still match
+    - the session must not have been revoked at or before the current epoch
+observables:
+  state_vars: []
+  effects:
+    [
+      "enabled_ok",
+      "session_binding_ok",
+      "owner_binding_ok",
+      "chain_binding_ok",
+      "revocation_ok",
+      "session_state_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_session_state"
+    params:
+      - id: "enabled"
+        type: { kind: "bool" }
+      - id: "session_binding_ok"
+        type: { kind: "bool" }
+      - id: "owner_binding_ok"
+        type: { kind: "bool" }
+      - id: "chain_binding_ok"
+        type: { kind: "bool" }
+      - id: "revocation_epoch_present"
+        type: { kind: "bool" }
+      - id: "current_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "revoked_at_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+    guard: { bool: true }
+    updates: []
+    effects:
+      enabled_ok: { param: "enabled" }
+      session_binding_ok: { param: "session_binding_ok" }
+      owner_binding_ok: { param: "owner_binding_ok" }
+      chain_binding_ok: { param: "chain_binding_ok" }
+      revocation_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "revocation_epoch_present" }]
+          - { op: "<", args: [{ param: "current_epoch" }, { param: "revoked_at_epoch" }] }
+      session_state_ok:
+        op: "and"
+        args:
+          - { param: "enabled" }
+          - { param: "session_binding_ok" }
+          - { param: "owner_binding_ok" }
+          - { param: "chain_binding_ok" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "revocation_epoch_present" }]
+              - { op: "<", args: [{ param: "current_epoch" }, { param: "revoked_at_epoch" }] }

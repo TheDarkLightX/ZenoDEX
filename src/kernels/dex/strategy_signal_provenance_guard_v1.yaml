@@ -1,0 +1,91 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_signal_provenance_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless provenance guard for auto-trader signal packets.
+
+    The guard assumes heavy receipt verification is done in the host layer and
+    checks that the resulting signal packet is admissible for execution:
+    - source is the supported quote-receipt channel
+    - trust tier is verified-or-better
+    - required receipt bindings are present
+    - auth, binding, and source-availability booleans are all true
+observables:
+  state_vars: []
+  effects:
+    [
+      "source_kind_ok",
+      "trust_tier_ok",
+      "quote_receipt_ok",
+      "provenance_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_signal_provenance"
+    params:
+      - id: "source_kind_code"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "trust_tier_code"
+        type: { kind: "int", min: 0, max: 3 }
+      - id: "quote_receipt_present"
+        type: { kind: "bool" }
+      - id: "quote_receipt_verified"
+        type: { kind: "bool" }
+      - id: "quote_epoch_present"
+        type: { kind: "bool" }
+      - id: "binding_ok"
+        type: { kind: "bool" }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+      - id: "source_available"
+        type: { kind: "bool" }
+      - id: "require_quote_receipts"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "source_kind_code" }, { const: 1 }] }
+        - { op: "<=", args: [{ param: "source_kind_code" }, { const: 4 }] }
+        - { op: ">=", args: [{ param: "trust_tier_code" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "trust_tier_code" }, { const: 3 }] }
+    updates: []
+    effects:
+      source_kind_ok:
+        op: "="
+        args: [{ param: "source_kind_code" }, { const: 1 }]
+      trust_tier_ok:
+        op: ">="
+        args: [{ param: "trust_tier_code" }, { const: 2 }]
+      quote_receipt_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "require_quote_receipts" }]
+          - op: "and"
+            args:
+              - { param: "quote_receipt_present" }
+              - { param: "quote_receipt_verified" }
+              - { param: "quote_epoch_present" }
+      provenance_ok:
+        op: "and"
+        args:
+          - { param: "source_available" }
+          - { param: "auth_ok" }
+          - { param: "binding_ok" }
+          - op: "="
+            args: [{ param: "source_kind_code" }, { const: 1 }]
+          - op: ">="
+            args: [{ param: "trust_tier_code" }, { const: 2 }]
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "require_quote_receipts" }]
+              - op: "and"
+                args:
+                  - { param: "quote_receipt_present" }
+                  - { param: "quote_receipt_verified" }
+                  - { param: "quote_epoch_present" }

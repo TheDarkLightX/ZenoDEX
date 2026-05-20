@@ -1,0 +1,15 @@
+{
+  "schema": "zenodex/agents/autotrader_llm_provider_config/v1",
+  "provider_kind": "local_openai_compatible",
+  "provider_label": "local-qwen-or-lfm",
+  "base_url": "http://127.0.0.1:11434/v1/chat/completions",
+  "model": "qwen3.5:0.8b",
+  "api_key_env": null,
+  "timeout_seconds": 2.0,
+  "max_output_chars": 4096,
+  "allow_non_loopback": false,
+  "license_label": "user-supplied-local-model",
+  "user_accepts_model_license_responsibility": true,
+  "user_accepts_local_endpoint_risk": true,
+  "user_acknowledges_no_trade_authority": true
+}

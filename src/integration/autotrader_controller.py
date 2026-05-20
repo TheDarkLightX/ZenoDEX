@@ -15,7 +15,13 @@ from typing import Mapping
 
 from ..agents.intent_signer import create_swap_intents_from_quote_receipt
 from ..agents.route_economic_sanity import build_route_economic_sanity_snapshot
-from ..agents.strategy_ir import PolicyBackend, StrategyAction, StrategyIR, StrategyTemplate
+from ..agents.strategy_ir import (
+    PolicyBackend,
+    StrategyAction,
+    StrategyIR,
+    StrategyTemplate,
+    strategy_budget_window_id,
+)
 from ..agents.tau_policy_adapter import (
     TauPolicyReceipt,
     build_budget_guard_tau_policy_receipt,
@@ -637,7 +643,17 @@ def evaluate_autotrader_quote_receipt(
             explain=tuple(explain),
         )
 
-    projected_live_orders = controller_state.live_orders + len(intents)
+    intent_count = len(intents)
+    if intent_count > strategy.controls.max_intents_per_order:
+        return _skip(
+            state=controller_state,
+            reason=f"max_intents_per_order_exceeded:{intent_count}>{strategy.controls.max_intents_per_order}",
+            explain=tuple(explain),
+            guard_state=guard_state,
+        )
+
+    projected_live_orders = controller_state.live_orders + 1
+    explain.append(f"intent_count={intent_count}")
     explain.append(f"projected_live_orders={projected_live_orders}")
 
     execution_result = check_order_execution(
@@ -734,9 +750,11 @@ def evaluate_autotrader_quote_receipt(
         )
     guard_state = replace(guard_state, oracle_freshness_ok=True)
 
+    target_budget_window_id = strategy_budget_window_id(strategy.strategy_window, current_epoch)
+    explain.append(f"budget_window_id={target_budget_window_id}")
     working_budget_state = controller_state.budget_state
-    if current_epoch > working_budget_state.window_id:
-        rolled = roll_window(state=working_budget_state, new_window_id=current_epoch)
+    if target_budget_window_id > working_budget_state.window_id:
+        rolled = roll_window(state=working_budget_state, new_window_id=target_budget_window_id)
         if not rolled.ok:
             return _reject(
                 state=controller_state,
@@ -744,10 +762,10 @@ def evaluate_autotrader_quote_receipt(
                 explain=tuple(explain),
             )
         working_budget_state = rolled.state
-    elif current_epoch < working_budget_state.window_id:
+    elif target_budget_window_id < working_budget_state.window_id:
         return _reject(
             state=controller_state,
-            reason=f"budget_window_regression:{current_epoch}<{working_budget_state.window_id}",
+            reason=f"budget_window_regression:{target_budget_window_id}<{working_budget_state.window_id}",
             explain=tuple(explain),
         )
 
@@ -804,7 +822,6 @@ def evaluate_autotrader_quote_receipt(
     )
     explain.extend(
         [
-            f"intent_count={len(intents)}",
             f"budget_spent_after={budget_result.state.spent_in_window}",
             f"lifetime_spent_after={next_state.lifetime_spent}",
             f"live_orders_after={next_state.live_orders}",

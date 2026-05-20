@@ -1,5 +1,5 @@
 {
-  "check_count": 238,
+  "check_count": 280,
   "checks": [
     {
       "check_id": "set_aware.schema",
@@ -822,6 +822,31 @@
       "passed": true
     },
     {
+      "check_id": "ensemble.schema",
+      "detail": "ensemble receipt records six tiny advisory members and six aggregation modes",
+      "passed": true
+    },
+    {
+      "check_id": "ensemble.safety",
+      "detail": "ensemble preserves verifier authority, deterministic fallback, and zero invalid accepts",
+      "passed": true
+    },
+    {
+      "check_id": "ensemble.top10_and_default_negative",
+      "detail": "ensemble keeps top-10 recall but does not beat the current gap-weighted default",
+      "passed": true
+    },
+    {
+      "check_id": "ensemble.uncertainty_signal",
+      "detail": "rank disagreement has moderate signal for top-1 misses",
+      "passed": true
+    },
+    {
+      "check_id": "ensemble.source_hooks",
+      "detail": "module, benchmark, tests, and docs expose the ensemble advisory boundary",
+      "passed": true
+    },
+    {
       "check_id": "best_model_registry.schema_and_promoted",
       "detail": "best-model registry records the promoted advisory research defaults",
       "passed": true
@@ -833,7 +858,7 @@
     },
     {
       "check_id": "best_model_registry.upba_default",
-      "detail": "retained UPBA model is the current gap-weighted default and beats raw full-volume scaling",
+      "detail": "retained UPBA model is the promoted v6 MLP checkpoint and keeps the old linear baselines",
       "passed": true
     },
     {
@@ -844,6 +869,31 @@
     {
       "check_id": "best_model_registry.advisory_boundary",
       "detail": "registry, docs, test, and tool keep retained models advisory only",
+      "passed": true
+    },
+    {
+      "check_id": "upba_v2_model_leaderboard.schema_and_decision",
+      "detail": "leaderboard promotes the v6 MLP advisory UPBA v2 ranker",
+      "passed": true
+    },
+    {
+      "check_id": "upba_v2_model_leaderboard.obligations",
+      "detail": "all highwinner promotion obligations pass",
+      "passed": true
+    },
+    {
+      "check_id": "upba_v2_model_leaderboard.metric_dominance",
+      "detail": "v6 beats the retained linear checkpoints on selected verifier-facing metrics",
+      "passed": true
+    },
+    {
+      "check_id": "upba_v2_model_leaderboard.safety_boundary",
+      "detail": "leaderboard keeps safety as verifier-authoritative and advisory only",
+      "passed": true
+    },
+    {
+      "check_id": "upba_v2_model_leaderboard.source_hooks",
+      "detail": "tool, test, and doc pin the comparable model set",
       "passed": true
     },
     {
@@ -869,6 +919,151 @@
     {
       "check_id": "epiplexity_literature.source_hooks",
       "detail": "checker and test enforce the data-selection-only decision",
+      "passed": true
+    },
+    {
+      "check_id": "synthetic_data_limits.schema",
+      "detail": "synthetic-data limits receipt schema and counts are stable",
+      "passed": true
+    },
+    {
+      "check_id": "synthetic_data_limits.sources",
+      "detail": "model-collapse, accumulation, and simulation-transfer sources are recorded",
+      "passed": true
+    },
+    {
+      "check_id": "synthetic_data_limits.verifier_label_boundary",
+      "detail": "note requires verifier or policy labels instead of self-labels",
+      "passed": true
+    },
+    {
+      "check_id": "synthetic_data_limits.replay_boundary",
+      "detail": "note keeps real replay and coverage profiles as production-gate requirements",
+      "passed": true
+    },
+    {
+      "check_id": "synthetic_data_limits.source_hooks",
+      "detail": "checker and test enforce research-only synthetic-data limits",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.schema",
+      "detail": "Langevin discovery receipt schema and deterministic seed are stable",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.verifier_selection",
+      "detail": "invalid lower-energy refinement falls back to a verifier-backed seed",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.energy_is_not_safety",
+      "detail": "lower energy and ZenoGuard are not treated as safety proof",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.source_hooks",
+      "detail": "tool and test enforce verifier-backed Langevin selection",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_refiner_boundary.schema",
+      "detail": "AutoTrader refiner boundary receipt schema and deterministic seed are stable",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_refiner_boundary.policy_selection",
+      "detail": "refined AutoTrader proposals are selected only through policy labels",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_refiner_boundary.synthetic_gain",
+      "detail": "bounded synthetic refiner improves selected objective while lowering advisory energy",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_refiner_boundary.source_hooks",
+      "detail": "tool, doc, and test preserve policy-gated refinement boundary",
+      "passed": true
+    },
+    {
+      "check_id": "jepa_logic_boundary.schema",
+      "detail": "JEPA/ZenoLogic boundary receipt schema and decision are stable",
+      "passed": true
+    },
+    {
+      "check_id": "jepa_logic_boundary.future_score_advisory",
+      "detail": "future-tension score ranks proposals but does not authorize settlement",
+      "passed": true
+    },
+    {
+      "check_id": "jepa_logic_boundary.logic_negation_warning",
+      "detail": "ZenoLogic records the hard-barrier inversion hazard",
+      "passed": true
+    },
+    {
+      "check_id": "jepa_logic_boundary.safety_contract",
+      "detail": "JEPA and ZenoLogic remain advisory scoring surfaces",
+      "passed": true
+    },
+    {
+      "check_id": "jepa_logic_boundary.source_hooks",
+      "detail": "tool, doc, and test preserve JEPA/ZenoLogic boundary",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.schema",
+      "detail": "source-level AutoTrader JEPA UX receipt schema and decision are stable",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.future_tension",
+      "detail": "future tension distinguishes fragile and balanced proposal scenarios",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.future_policy_prediction",
+      "detail": "future tension separates later policy failures from non-failures",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.stress_correlations",
+      "detail": "future tension correlates with slippage, budget, and drawdown stress",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.counterfactual_controls",
+      "detail": "safer counterfactual controls and suggested controls reduce future tension",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.warning_match",
+      "detail": "UX warnings match deterministic guard outcomes and later-risk positives",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.policy_boundary",
+      "detail": "future-aware UX keeps deterministic policy guards authoritative",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.ranking_quality",
+      "detail": "learned+JEPA ranking remains a guardrail with high top-k recall",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.ux_explanations",
+      "detail": "UX cards explain blocked states, future risk, and controls",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.research_inputs",
+      "detail": "ideas, breakthroughs, PopperPad, and a small JEPA profile are linked",
+      "passed": true
+    },
+    {
+      "check_id": "autotrader_jepa_ux.source_hooks",
+      "detail": "tool, source, doc, and tests preserve the source-level JEPA UX boundary",
       "passed": true
     },
     {
@@ -1187,14 +1382,29 @@
       "passed": true
     },
     {
-      "check_id": "popperpad.doctor",
-      "detail": "PopperPad doctor ok",
+      "check_id": "popperpad.status.H_ZENOENERGY_ENSEMBLE_SAFETY_20260519",
+      "detail": "H_ZENOENERGY_ENSEMBLE_SAFETY_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519",
+      "detail": "H_ZENOENERGY_ENSEMBLE_DISAGREEMENT_SIGNAL_20260519 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519",
+      "detail": "H_ZENOENERGY_ENSEMBLE_BEATS_GAP_WEIGHTED_20260519 is recorded as falsified",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519",
+      "detail": "H_AUTOTRADER_JEPA_UX_FUTURE_RISK_20260519 is recorded as supported",
       "passed": true
     }
   ],
   "failed_count": 0,
   "ok": true,
-  "passed_count": 238,
+  "passed_count": 280,
   "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
   "summary": {
     "autotrader_energy_hard_cross_seed": {
@@ -1226,11 +1436,52 @@
       "source": "built-in-zenograph-baseline",
       "valid_count": 12
     },
+    "autotrader_jepa_ux": {
+      "balanced_future_tension": 0.9103033672902678,
+      "blocked_status_match_rate": 1.0,
+      "decision": "research_only_future_aware_autotrader_ux",
+      "fragile_future_tension": 4.764275349683307,
+      "future_warning_match_rate": 1.0,
+      "invalid_accept_count": 0,
+      "later_policy_failure_auc": 0.814428884044226,
+      "mean_guard_calls": 1.0625,
+      "negative_knowledge": [
+        "Future-tension UX is a warning and proposal-shaping feature, not execution authority.",
+        "JEPA-over-hand ordering is weaker than learned AutoTraderEnergy; use learned ranking as the ordering guardrail.",
+        "Synthetic UX receipts do not prove live AutoTrader profitability.",
+        "Production use still needs source-manifested real shadow replay and wallet-level policy gates."
+      ],
+      "safer_counterfactual_reduction_rate": 1.0,
+      "schema": "zenodex/energy/autotrader_jepa_ux_receipt/v1",
+      "stress_correlations": {
+        "budget_stress": 0.5592288517861025,
+        "drawdown_stress": 0.5555945666227806,
+        "operational_stress": 0.386435404784279,
+        "slippage_stress": 0.6133274060907299
+      },
+      "suggested_control_best_reduction_rate": 1.0,
+      "top_5_recall": 1.0,
+      "ux_explains_status_and_controls": true
+    },
+    "autotrader_refiner_boundary": {
+      "accepted_refinement_count": 160,
+      "decision": "research_only_policy_checked_refinement",
+      "evaluated_contexts": 160,
+      "negative_knowledge": [
+        "Lower policy energy does not authorize an AutoTrader trade.",
+        "The refiner is proposal search; deterministic policy labels decide selection.",
+        "This receipt is hard synthetic evidence and does not replace real shadow replay."
+      ],
+      "schema": "zenodex/energy/autotrader_refiner_boundary_receipt/v1",
+      "selected_invalid_count": 0,
+      "selected_vs_initial_energy_delta_mean": -4.622399796321953,
+      "selected_vs_initial_objective_delta_mean": 12.0035342199319
+    },
     "best_model_registry": {
-      "model_count": 4,
+      "model_count": 6,
       "promoted": {
         "autotrader_hard_synthetic_best_seed_pair": "autotrader_hard_train20260526_holdout20260527",
-        "upba_v2": "upba_v2_gap_weighted_default_seed20260517"
+        "upba_v2": "gemini_mlp_v6_seed20260519"
       },
       "safety_contract": {
         "deterministic_policy_guards_authoritative": true,
@@ -1308,6 +1559,16 @@
       ],
       "schema": "zenodex/energy/energy_order_alone_formal_receipt/v1"
     },
+    "ensemble": {
+      "baseline_mean_verifier_calls": 1.0166414523449319,
+      "best_ensemble_beats_current_gap_weighted": false,
+      "best_ensemble_mean_verifier_calls": 1.0237014624306606,
+      "best_ensemble_mode": "ensemble_mean_energy",
+      "best_uncertainty_auc": 0.6819185578178384,
+      "member_count": 6,
+      "negative_knowledge": "If the best ensemble mode does not beat the current gap-weighted checkpoint, keep the single retained UPBA model as the default and use ensemble disagreement only as diagnostic coverage evidence.",
+      "schema": "zenodex/energy/upba_v2_ensemble_report/v1"
+    },
     "epiplexity_literature": {
       "decision": "use_epiplexity_for_training_data_selection_only",
       "negative_knowledge": [
@@ -1347,6 +1608,30 @@
       "learned_top_10_recall_min": 1.0,
       "model_parameter_count": 97,
       "model_reserved_nonzero_count": 0
+    },
+    "jepa_logic_boundary": {
+      "balanced_action_tension": 0.3093881057830117,
+      "decision": "research_only_future_aware_advisory_score",
+      "draining_action_tension": 1.3515909144412004,
+      "energy_not_inverts_barrier": true,
+      "future_tension_prefers_balanced": true,
+      "negative_knowledge": [
+        "Future-tension energy is a search feature, not a proof of future market safety.",
+        "ZenoLogic composes advisory energies and does not create a formal verifier.",
+        "EnergyNot can invert hard barriers, so it must not be used over safety predicates.",
+        "Production use still requires deterministic verifier or policy-gate checks and real replay."
+      ],
+      "schema": "zenodex/energy/gemini_jepa_logic_boundary_receipt/v1"
+    },
+    "langevin_discovery": {
+      "accepted_refinement": false,
+      "decision": "research_only_verifier_checked_proposal",
+      "energy_delta": -8.472667704926721,
+      "fallback_to_seed": true,
+      "refined_verifier_ok": false,
+      "schema": "zenodex/energy/gemini_langevin_discovery_receipt/v1",
+      "seed_verifier_ok": true,
+      "selected_verifier_ok": true
     },
     "listwise_cross_seed": {
       "checked_stop_at_winner_pass_count": 3,
@@ -1517,10 +1802,10 @@
     "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
     "sota_decision_map": {
       "claim": "Current solver-learning and energy-model guidance supports listwise/set-aware ranker and outcome-level repair-selector experiments while preserving verifier-authoritative fallback or certificates.",
-      "negative_knowledge_count": 3,
+      "negative_knowledge_count": 4,
       "next_experiment_count": 4,
-      "required_decision_count": 7,
-      "source_count": 10
+      "required_decision_count": 8,
+      "source_count": 11
     },
     "suffix_bound": {
       "evaluated_batches": 119,
@@ -1625,6 +1910,17 @@
       "synthetic_batches_requested": 540,
       "synthetic_candidates_requested": 18360
     },
+    "synthetic_data_limits": {
+      "decision": "synthetic_data_research_only_until_real_replay_gate",
+      "negative_knowledge": [
+        "Synthetic verifier-labeled data can improve advisory ranking, but it is not production distribution evidence by itself.",
+        "Recursive synthetic replacement and self-consuming model loops can lose tails or diversity.",
+        "Real replay, source manifests, secret scans, and coverage profiles remain required for production-adjacent promotion."
+      ],
+      "passed_count": 6,
+      "schema": "zenodex/energy/synthetic_data_limits_receipt/v1",
+      "source_count": 8
+    },
     "topk_sweep": {
       "batches": 1983,
       "learned_k2_checked_stop_rate": 1.0,
@@ -1633,6 +1929,14 @@
       "learned_mean_objective_winner_position": 1.0166414523449319,
       "objective_tie_batch_count": 1,
       "random_k10_false_exclusion_rate": 0.4931921331316188
+    },
+    "upba_v2_model_leaderboard": {
+      "blocked_reasons": [],
+      "compared_model_count": 7,
+      "decision": "promote_v6_research_candidate",
+      "full_three_lane_model_count": 6,
+      "promoted_model_id": "gemini_mlp_v6_seed20260519",
+      "schema": "zenodex/energy/upba_v2_model_leaderboard/v1"
     },
     "wes_dominance_search": {
       "budget": 60,

@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.agents.autotrader_user_rule_bundle import (  # noqa: E402
+    describe_autotrader_strategy_surface_support,
+)
 from src.agents.krr_bundle_artifacts import (  # noqa: E402
     AutoTraderKRRBundle,
     load_autotrader_krr_bundle_file,
@@ -94,6 +97,77 @@ def _load_json_file(path: str | Path) -> Any:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def _try_load_receipt_file(
+    path: str | Path,
+) -> tuple[Mapping[str, object] | None, str | None]:
+    try:
+        obj = _load_json_file(path)
+        if not isinstance(obj, Mapping):
+            raise ValueError("receipt file must be a JSON object")
+        return obj, None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _try_load_pools_file(
+    path: str | Path,
+) -> tuple[dict[str, PoolState] | None, str | None]:
+    try:
+        return _load_pools_file(path), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _try_load_controller_state_file(
+    path: str | Path | None,
+) -> tuple[AutoTraderControllerState, str | None]:
+    try:
+        return _load_controller_state_file(path), None
+    except Exception as exc:
+        return AutoTraderControllerState(), f"{type(exc).__name__}: {exc}"
+
+
+def _try_load_external_signals_file(
+    path: str | Path | None,
+) -> tuple[tuple[ExternalSignalObservation, ...], str | None]:
+    try:
+        return _load_external_signals_file(path), None
+    except Exception as exc:
+        return (), f"{type(exc).__name__}: {exc}"
+
+
+def _try_load_signal_source_registry_file(
+    path: str | Path | None,
+) -> tuple[ExternalSignalSourceRegistry | None, str | None]:
+    try:
+        return _load_signal_source_registry_file(path), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _try_load_krr_bundle_file(
+    path: str | Path | None,
+) -> tuple[AutoTraderKRRBundle | None, str | None]:
+    try:
+        return _load_krr_bundle_file(path), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _try_load_history_check_stats_file(
+    path: str | Path | None,
+) -> tuple[dict[str, object] | None, str | None]:
+    if path is None:
+        return None, None
+    try:
+        loaded = _load_json_file(path)
+        if not isinstance(loaded, Mapping):
+            raise ValueError("history check stats file must be a JSON object")
+        return dict(loaded), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
 def _load_optional_object_file(path: str | Path | None, *, name: str) -> dict[str, object]:
     if path is None:
         return {}
@@ -109,6 +183,12 @@ def _require_intish(value: object, *, name: str) -> int:
     if isinstance(value, (int, str)):
         return int(value)
     raise ValueError(f"{name} must be int-like")
+
+
+def _require_bool(value: object, *, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"{name} must be a bool")
 
 
 def _pool_status_from_value(value: object) -> PoolStatus:
@@ -166,7 +246,7 @@ def _controller_state_from_dict(data: Mapping[str, object]) -> AutoTraderControl
     budget_state = StrategyBudgetState(
         window_id=int(budget_raw.get("window_id", 0)),
         spent_in_window=int(budget_raw.get("spent_in_window", 0)),
-        kill_switch_on=bool(budget_raw.get("kill_switch_on", False)),
+        kill_switch_on=_require_bool(budget_raw.get("kill_switch_on", False), name="budget_state.kill_switch_on"),
     )
     last_action_epoch_raw = data.get("last_action_epoch")
     return AutoTraderControllerState(
@@ -262,21 +342,29 @@ def _load_strategy(
     policy_text: str | None,
     policy_text_file: str | None,
     owner_pubkey: str | None,
-) -> StrategyIR:
-    if policy_file:
-        return load_local_policy_file(policy_file)
-    if candidate_file:
-        obj = _load_json_file(candidate_file)
-        if not isinstance(obj, Mapping):
-            raise ValueError("candidate file must be an object")
-        return compile_policy_candidate(obj, owner_pubkey=owner_pubkey).strategy
-    if policy_text_file:
-        policy_text = Path(policy_text_file).expanduser().resolve().read_text(encoding="utf-8")
-    if policy_text is not None:
-        return compile_policy_text(policy_text, owner_pubkey=owner_pubkey).compiled.strategy
-    raise ValueError(
-        "one of --policy-file, --candidate-file, --policy-text, or --policy-text-file is required"
-    )
+) -> tuple[StrategyIR | None, str | None, str | None]:
+    source_kind: str | None = None
+    try:
+        if policy_file:
+            source_kind = "policy_file"
+            return load_local_policy_file(policy_file), None, source_kind
+        if candidate_file:
+            source_kind = "candidate_file"
+            obj = _load_json_file(candidate_file)
+            if not isinstance(obj, Mapping):
+                raise ValueError("candidate file must be an object")
+            return compile_policy_candidate(obj, owner_pubkey=owner_pubkey).strategy, None, source_kind
+        if policy_text_file:
+            source_kind = "policy_text_file"
+            policy_text = Path(policy_text_file).expanduser().resolve().read_text(encoding="utf-8")
+        if policy_text is not None:
+            source_kind = source_kind or "policy_text"
+            return compile_policy_text(policy_text, owner_pubkey=owner_pubkey).compiled.strategy, None, source_kind
+        raise ValueError(
+            "one of --policy-file, --candidate-file, --policy-text, or --policy-text-file is required"
+        )
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}", source_kind
 
 
 def _intent_to_dict(intent: Intent) -> dict[str, object]:
@@ -318,28 +406,32 @@ def _krr_advice_for_strategy(
     kb: Mapping[str, Any] | None,
     backend: str,
     history_check_stats: Mapping[str, object] | None,
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any] | None, str | None]:
     if backend == "off":
-        return None
+        return None, None
     if isinstance(history_check_stats, Mapping):
         history = dict(history_check_stats)
     else:
         history = {}
-    return advise_autotrader_krr(
-        strategy=strategy,
-        phase="shadow",
-        current_epoch=current_epoch,
-        backend=backend,
-        kb_path=kb_path,
-        kb=kb,
-        history_check_stats=history,
-        spent_in_window=controller_state.budget_state.spent_in_window,
-        lifetime_spent=controller_state.lifetime_spent,
-        live_orders=controller_state.live_orders,
-        observation_packet=observation_packet,
-        quote_receipt=receipt,
-        pools_by_id=pools_by_id,
-    )
+    try:
+        advice = advise_autotrader_krr(
+            strategy=strategy,
+            phase="shadow",
+            current_epoch=current_epoch,
+            backend=backend,
+            kb_path=kb_path,
+            kb=kb,
+            history_check_stats=history,
+            spent_in_window=controller_state.budget_state.spent_in_window,
+            lifetime_spent=controller_state.lifetime_spent,
+            live_orders=controller_state.live_orders,
+            observation_packet=observation_packet,
+            quote_receipt=receipt,
+            pools_by_id=pools_by_id,
+        )
+    except Exception as exc:
+        return None, f"{type(exc).__name__}:{exc}"
+    return advice, None
 
 
 def build_shadow_report(
@@ -360,6 +452,10 @@ def build_shadow_report(
     external_signals: tuple[ExternalSignalObservation, ...],
     signal_source_registry: ExternalSignalSourceRegistry | None,
     krr_bundle: AutoTraderKRRBundle | None = None,
+    krr_bundle_requested: bool = False,
+    krr_bundle_error: str | None = None,
+    history_check_stats_requested: bool = False,
+    history_check_stats_error: str | None = None,
     chain_id: str = "tau-net-alpha",
     zenograph_enabled: bool = False,
     zenograph_facts: Mapping[tuple[str, str], object] | None = None,
@@ -651,6 +747,18 @@ def build_shadow_report(
                 "tau_used": False,
                 "frontier_unambiguous": False,
             }
+    krr_advice, krr_advice_error = _krr_advice_for_strategy(
+        strategy=strategy,
+        controller_state=controller_state,
+        current_epoch=current_epoch,
+        observation_packet=observation_packet,
+        receipt=receipt,
+        pools_by_id=pools_by_id,
+        kb_path=krr_kb_path,
+        kb=krr_kb,
+        backend=krr_backend,
+        history_check_stats=history_check_stats,
+    )
     return {
         "schema": "zenodex/autotrader-shadow-report/v1",
         "mode": "shadow",
@@ -671,6 +779,7 @@ def build_shadow_report(
         },
         "strategy": strategy.to_dict(),
         "strategy_hash": strategy.strategy_hash_hex(),
+        "strategy_support_matrix": describe_autotrader_strategy_surface_support(strategy),
         "decision_model_version": tau_policy_bundle.decision_model_version,
         "compile_contract_tau_receipt": compile_tau_receipt.to_dict(),
         "tau_policy_bundle_hash": tau_policy_bundle.tau_policy_bundle_hash_hex(),
@@ -678,6 +787,14 @@ def build_shadow_report(
         "policy_artifact_hash": policy_artifact.policy_artifact_hash_hex(),
         "policy_artifact": policy_artifact.to_dict(),
         "krr_bundle": None if krr_bundle is None else krr_bundle.to_dict(),
+        "krr_bundle_contract": {
+            "ok": (None if not krr_bundle_requested else krr_bundle_error is None),
+            "error": krr_bundle_error,
+        },
+        "history_check_stats_contract": {
+            "ok": (None if not history_check_stats_requested else history_check_stats_error is None),
+            "error": history_check_stats_error,
+        },
         "external_signals": [signal.to_dict() for signal in external_signals],
         "signal_source_registry": (
             None if signal_source_registry is None else signal_source_registry.to_dict()
@@ -731,18 +848,50 @@ def build_shadow_report(
                 None if decision.tau_policy_receipt is None else decision.tau_policy_receipt.to_dict()
             ),
         },
-        "krr_advice": _krr_advice_for_strategy(
-            strategy=strategy,
-            controller_state=controller_state,
-            current_epoch=current_epoch,
-            observation_packet=observation_packet,
-            receipt=receipt,
-            pools_by_id=pools_by_id,
-            kb_path=krr_kb_path,
-            kb=krr_kb,
-            backend=krr_backend,
-            history_check_stats=history_check_stats,
+        "krr_advice": krr_advice,
+        "krr_advice_error": krr_advice_error,
+    }
+
+
+def _build_preflight_reject_payload(
+    *,
+    reason: str,
+    source_kind: str | None,
+    load_error: str,
+    contract_key: str = "strategy_source_contract",
+) -> dict[str, Any]:
+    controller_state = _controller_state_to_dict(AutoTraderControllerState())
+    source_label = str(source_kind or "unknown")
+    return {
+        "schema": "zenodex/autotrader-shadow-report/v1",
+        "mode": "shadow",
+        "ok": False,
+        "risk_disclosure": build_autotrader_risk_disclosure(
+            mode="shadow",
+            requires_explicit_acknowledgement=False,
+            user_acknowledged=False,
         ),
+        contract_key: {
+            "ok": False,
+            "error": reason,
+            "source_kind": source_label,
+            "load_error": load_error,
+        },
+        "decision": {
+            "tag": "reject",
+            "should_submit": False,
+            "reason": reason,
+            "explain": [
+                f"source_kind={source_label}",
+                f"load_error={load_error}",
+            ],
+            "controller_state_after": controller_state,
+            "intents": [],
+            "tau_policy_receipt": None,
+        },
+        "controller_state_before": controller_state,
+        "krr_advice": None,
+        "krr_advice_error": None,
     }
 
 
@@ -816,20 +965,73 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        strategy = _load_strategy(
+        strategy, strategy_load_error, strategy_source_kind = _load_strategy(
             policy_file=args.policy_file,
             candidate_file=args.candidate_file,
             policy_text=args.policy_text,
             policy_text_file=args.policy_text_file,
             owner_pubkey=args.owner_pubkey,
         )
-        receipt = _load_json_file(args.receipt_file)
-        if not isinstance(receipt, Mapping):
-            raise ValueError("receipt file must be a JSON object")
-        pools_by_id = _load_pools_file(args.pools_file)
-        controller_state = _load_controller_state_file(args.controller_state_file)
-        krr_bundle = _load_krr_bundle_file(args.krr_bundle_file)
-        if krr_bundle is not None and any(
+        if strategy_load_error is not None or strategy is None:
+            report = _build_preflight_reject_payload(
+                reason="strategy_source_load_rejected",
+                source_kind=strategy_source_kind,
+                load_error=str(strategy_load_error),
+            )
+            text = json.dumps(report, indent=2 if args.pretty else None, sort_keys=True) + "\n"
+            sys.stdout.write(text)
+            if args.telemetry_out:
+                out_path = Path(args.telemetry_out).expanduser().resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(text, encoding="utf-8")
+            return 0
+        receipt, receipt_load_error = _try_load_receipt_file(args.receipt_file)
+        if receipt_load_error is not None or receipt is None:
+            report = _build_preflight_reject_payload(
+                reason="receipt_file_load_rejected",
+                source_kind="receipt_file",
+                load_error=str(receipt_load_error),
+                contract_key="receipt_file_contract",
+            )
+            text = json.dumps(report, indent=2 if args.pretty else None, sort_keys=True) + "\n"
+            sys.stdout.write(text)
+            if args.telemetry_out:
+                out_path = Path(args.telemetry_out).expanduser().resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(text, encoding="utf-8")
+            return 0
+        pools_by_id, pools_load_error = _try_load_pools_file(args.pools_file)
+        if pools_load_error is not None or pools_by_id is None:
+            report = _build_preflight_reject_payload(
+                reason="pools_file_load_rejected",
+                source_kind="pools_file",
+                load_error=str(pools_load_error),
+                contract_key="pools_file_contract",
+            )
+            text = json.dumps(report, indent=2 if args.pretty else None, sort_keys=True) + "\n"
+            sys.stdout.write(text)
+            if args.telemetry_out:
+                out_path = Path(args.telemetry_out).expanduser().resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(text, encoding="utf-8")
+            return 0
+        controller_state, controller_state_load_error = _try_load_controller_state_file(args.controller_state_file)
+        if controller_state_load_error is not None:
+            report = _build_preflight_reject_payload(
+                reason="controller_state_load_rejected",
+                source_kind="controller_state_file",
+                load_error=str(controller_state_load_error),
+                contract_key="controller_state_contract",
+            )
+            text = json.dumps(report, indent=2 if args.pretty else None, sort_keys=True) + "\n"
+            sys.stdout.write(text)
+            if args.telemetry_out:
+                out_path = Path(args.telemetry_out).expanduser().resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(text, encoding="utf-8")
+            return 0
+        krr_bundle, krr_bundle_load_error = _try_load_krr_bundle_file(args.krr_bundle_file)
+        if args.krr_bundle_file is not None and any(
             value is not None
             for value in (
                 args.external_signals_file,
@@ -858,18 +1060,54 @@ def main(argv: list[str] | None = None) -> int:
             history_check_stats = (
                 dict(krr_bundle.runtime_history) if isinstance(krr_bundle.runtime_history, Mapping) else None
             )
+            external_signals_load_error = None
+            signal_source_registry_load_error = None
+            history_check_stats_load_error = None
+        elif krr_bundle_load_error is not None:
+            bundle_krr_kb = None
+            external_signals = ()
+            signal_source_registry = None
+            history_check_stats = None
+            external_signals_load_error = None
+            signal_source_registry_load_error = None
+            history_check_stats_load_error = None
         else:
             bundle_krr_kb = None
-            external_signals = _load_external_signals_file(args.external_signals_file)
-            signal_source_registry = _load_signal_source_registry_file(
+            external_signals, external_signals_load_error = _try_load_external_signals_file(args.external_signals_file)
+            if external_signals_load_error is not None:
+                report = _build_preflight_reject_payload(
+                    reason="external_signals_load_rejected",
+                    source_kind="external_signals_file",
+                    load_error=str(external_signals_load_error),
+                    contract_key="external_signals_contract",
+                )
+                text = json.dumps(report, indent=2 if args.pretty else None, sort_keys=True) + "\n"
+                sys.stdout.write(text)
+                if args.telemetry_out:
+                    out_path = Path(args.telemetry_out).expanduser().resolve()
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    out_path.write_text(text, encoding="utf-8")
+                return 0
+            signal_source_registry, signal_source_registry_load_error = _try_load_signal_source_registry_file(
                 args.signal_source_registry_file
             )
-            history_check_stats = None
-            if args.history_check_stats_file:
-                loaded_history = _load_json_file(args.history_check_stats_file)
-                if not isinstance(loaded_history, Mapping):
-                    raise ValueError("history check stats file must be a JSON object")
-                history_check_stats = dict(loaded_history)
+            if signal_source_registry_load_error is not None:
+                report = _build_preflight_reject_payload(
+                    reason="signal_source_registry_load_rejected",
+                    source_kind="signal_source_registry_file",
+                    load_error=str(signal_source_registry_load_error),
+                    contract_key="signal_source_registry_contract",
+                )
+                text = json.dumps(report, indent=2 if args.pretty else None, sort_keys=True) + "\n"
+                sys.stdout.write(text)
+                if args.telemetry_out:
+                    out_path = Path(args.telemetry_out).expanduser().resolve()
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    out_path.write_text(text, encoding="utf-8")
+                return 0
+            history_check_stats, history_check_stats_load_error = _try_load_history_check_stats_file(
+                args.history_check_stats_file
+            )
         tau_config = AutoTraderTauConfig(
             enabled=bool(args.tau_enabled),
             timeout_s=float(args.tau_timeout_s),
@@ -904,13 +1142,17 @@ def main(argv: list[str] | None = None) -> int:
             slippage_bps=args.slippage_bps,
             nonce_start=args.nonce_start,
             tau_config=tau_config,
-            krr_backend=str(args.krr_backend),
+            krr_backend=("off" if krr_bundle_load_error is not None else str(args.krr_backend)),
             krr_kb_path=args.krr_kb,
             krr_kb=bundle_krr_kb,
             history_check_stats=history_check_stats,
             external_signals=external_signals,
             signal_source_registry=signal_source_registry,
             krr_bundle=krr_bundle,
+            krr_bundle_requested=bool(args.krr_bundle_file),
+            krr_bundle_error=krr_bundle_load_error,
+            history_check_stats_requested=bool(args.history_check_stats_file),
+            history_check_stats_error=history_check_stats_load_error,
             zenograph_enabled=bool(args.zenograph_enable),
             zenograph_facts=zenograph_facts,
             zenograph_signals=zenograph_signals,

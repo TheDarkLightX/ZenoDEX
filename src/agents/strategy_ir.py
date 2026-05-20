@@ -249,6 +249,7 @@ class StrategyWindow:
     valid_from_epoch: int
     valid_until_epoch: int
     min_order_spacing_epochs: int = 0
+    budget_window_epochs: int = 0
 
     def __post_init__(self) -> None:
         valid_from_epoch = _require_int(self.valid_from_epoch, name="valid_from_epoch", minimum=0, maximum=1_000_000)
@@ -259,17 +260,25 @@ class StrategyWindow:
             minimum=0,
             maximum=1_000_000,
         )
+        budget_window_epochs = _require_int(
+            self.budget_window_epochs,
+            name="budget_window_epochs",
+            minimum=0,
+            maximum=1_000_000,
+        )
         if valid_from_epoch > valid_until_epoch:
             raise ValueError("valid_from_epoch must be <= valid_until_epoch")
         object.__setattr__(self, "valid_from_epoch", valid_from_epoch)
         object.__setattr__(self, "valid_until_epoch", valid_until_epoch)
         object.__setattr__(self, "min_order_spacing_epochs", min_order_spacing_epochs)
+        object.__setattr__(self, "budget_window_epochs", budget_window_epochs)
 
     def to_dict(self) -> dict[str, int]:
         return {
             "valid_from_epoch": int(self.valid_from_epoch),
             "valid_until_epoch": int(self.valid_until_epoch),
             "min_order_spacing_epochs": int(self.min_order_spacing_epochs),
+            "budget_window_epochs": int(self.budget_window_epochs),
         }
 
 
@@ -277,6 +286,7 @@ class StrategyWindow:
 class StrategyControls:
     kill_switch_enabled: bool = True
     max_live_orders: int = 1
+    max_intents_per_order: int = 16
 
     def __post_init__(self) -> None:
         if not isinstance(self.kill_switch_enabled, bool):
@@ -286,12 +296,47 @@ class StrategyControls:
             "max_live_orders",
             _require_int(self.max_live_orders, name="max_live_orders", minimum=1, maximum=1_024),
         )
+        object.__setattr__(
+            self,
+            "max_intents_per_order",
+            _require_int(
+                self.max_intents_per_order,
+                name="max_intents_per_order",
+                minimum=1,
+                maximum=1_024,
+            ),
+        )
 
     def to_dict(self) -> dict[str, int | bool]:
         return {
             "kill_switch_enabled": bool(self.kill_switch_enabled),
             "max_live_orders": int(self.max_live_orders),
+            "max_intents_per_order": int(self.max_intents_per_order),
         }
+
+
+def strategy_budget_window_duration_epochs(strategy_window: StrategyWindow) -> int:
+    if not isinstance(strategy_window, StrategyWindow):
+        raise TypeError("strategy_window must be a StrategyWindow")
+    if strategy_window.budget_window_epochs > 0:
+        return int(strategy_window.budget_window_epochs)
+    return int(strategy_window.valid_until_epoch - strategy_window.valid_from_epoch + 1)
+
+
+def strategy_budget_window_id(strategy_window: StrategyWindow, current_epoch: int) -> int:
+    if not isinstance(strategy_window, StrategyWindow):
+        raise TypeError("strategy_window must be a StrategyWindow")
+    current_epoch = _require_int(
+        current_epoch,
+        name="current_epoch",
+        minimum=0,
+        maximum=1_000_000,
+    )
+    duration = strategy_budget_window_duration_epochs(strategy_window)
+    if current_epoch <= strategy_window.valid_from_epoch:
+        return int(strategy_window.valid_from_epoch)
+    offset = current_epoch - strategy_window.valid_from_epoch
+    return int(strategy_window.valid_from_epoch + (offset // duration) * duration)
 
 
 @dataclass(frozen=True)
@@ -455,10 +500,18 @@ def strategy_ir_from_dict(data: Mapping[str, Any]) -> StrategyIR:
                 strategy_window_raw.get("min_order_spacing_epochs", 0),
                 name="strategy_window.min_order_spacing_epochs",
             ),
+            budget_window_epochs=_require_int(
+                strategy_window_raw.get("budget_window_epochs", 0),
+                name="strategy_window.budget_window_epochs",
+            ),
         ),
         controls=StrategyControls(
             kill_switch_enabled=bool(controls_raw.get("kill_switch_enabled", True)),
             max_live_orders=_require_int(controls_raw.get("max_live_orders", 1), name="controls.max_live_orders"),
+            max_intents_per_order=_require_int(
+                controls_raw.get("max_intents_per_order", 16),
+                name="controls.max_intents_per_order",
+            ),
         ),
         template_params=dict(data.get("template_params", {})),
         tau_policy_specs=tuple(data.get("tau_policy_specs", ()) or ()),

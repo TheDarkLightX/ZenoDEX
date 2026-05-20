@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-PYTHON_BIN="${PYTHON_BIN:-${PYTHON:-}}"
-if [ -z "$PYTHON_BIN" ]; then
-  if command -v python3.11 >/dev/null 2>&1; then
-    PYTHON_BIN=python3.11
-  else
-    PYTHON_BIN=python3
-  fi
-fi
-"$PYTHON_BIN" tools/zenoctl.py testnet up --profile docker-multimachine --engine docker
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+PY="${PYTHON:-python3}"
+
+echo "[public-testnet-live] adversarial model harness"
+"$PY" tools/zeno_ledger_chaos_harness.py --json >/tmp/zeno-ledger-chaos-harness.json
+
+echo "[public-testnet-live] candidate gate"
+bash tools/run_public_testnet_candidate_gate.sh
+
+echo "[public-testnet-live] PASS"
