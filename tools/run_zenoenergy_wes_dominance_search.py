@@ -56,6 +56,11 @@ def main() -> int:
     parser.add_argument("--output-json", type=Path)
     parser.add_argument("--output-markdown", type=Path)
     parser.add_argument("--candidates-jsonl", type=Path)
+    parser.add_argument(
+        "--exclude-oracle-control",
+        action="store_true",
+        help="Exclude winner_only oracle-control rows so WES must rank non-oracle pruning claims.",
+    )
     args = parser.parse_args()
 
     report = run_zenoenergy_wes_dominance_search(
@@ -66,6 +71,7 @@ def main() -> int:
         seed=args.seed,
         out_dir=args.out_dir,
         candidates_jsonl=args.candidates_jsonl,
+        include_oracle_control=not args.exclude_oracle_control,
     )
     encoded = json.dumps(report, indent=2, sort_keys=True)
     if args.output_json is not None:
@@ -87,12 +93,14 @@ def run_zenoenergy_wes_dominance_search(
     seed: int,
     out_dir: Path,
     candidates_jsonl: Path | None = None,
+    include_oracle_control: bool = True,
 ) -> dict[str, Any]:
     Candidate, CheckResult, ResultLabel, LinearEnergyRanker, compare_candidate_search_policies = _wes_api()
     candidates = build_wes_dominance_candidates(
         batches=batches,
         candidates_per_batch=candidates_per_batch,
         seed=seed,
+        include_oracle_control=include_oracle_control,
     )
     if candidates_jsonl is not None:
         candidates_jsonl.parent.mkdir(parents=True, exist_ok=True)
@@ -106,8 +114,14 @@ def run_zenoenergy_wes_dominance_search(
     ranker = LinearEnergyRanker(
         weights={
             "constraint.dominance_cover_constructive_witness": -3.0,
+            "constraint.dominance_cover_particle_best_valid": -2.8,
+            "constraint.dominance_cover_particle_search": -2.5,
+            "constraint.dominance_cover_one_shot_best_valid": -1.8,
+            "constraint.dominance_cover_one_shot_neighborhood": -1.5,
             "constraint.dominance_cover_negative_control": -2.0,
             "constraint.pruned_candidate_count": 0.05,
+            "action.particle_iteration_count": 0.08,
+            "action.max_proposals_per_particle": 0.04,
             "checker_budget_cost": 0.02,
         }
     )
@@ -141,6 +155,7 @@ def run_zenoenergy_wes_dominance_search(
         "batches": batches,
         "candidates_per_batch": candidates_per_batch,
         "input_candidates": len(candidates),
+        "include_oracle_control": include_oracle_control,
         "budget": budget,
         "top_k": top_k,
         "seed": seed,
@@ -171,6 +186,7 @@ def build_wes_dominance_candidates(
     batches: int,
     candidates_per_batch: int,
     seed: int,
+    include_oracle_control: bool = True,
 ) -> list[Any]:
     Candidate, _CheckResult, _ResultLabel, _LinearEnergyRanker, _compare = _wes_api()
     candidates: list[Any] = []
@@ -180,11 +196,16 @@ def build_wes_dominance_candidates(
         # per explicit batch seed. The candidate payload stores standalone seed
         # material so WES can check rows in any order.
         batch_seed = rng.randint(1, 2**31 - 1)
-        modes = (
-            ("winner_only", "dominance_cover_winner_only", 0.0, True, False),
+        modes = [
+            ("particle_best_obligation", "dominance_cover_particle_best_obligation", 0.25, False, False),
+            ("particle_obligation", "dominance_cover_particle_obligation", 0.5, False, False),
+            ("one_shot_best_obligation", "dominance_cover_one_shot_best_obligation", 0.6, False, False),
+            ("one_shot_obligation", "dominance_cover_one_shot_obligation", 0.75, False, False),
             ("hand_top1", "dominance_cover_hand_top1", 1.0, False, False),
             ("weak_pruned", "dominance_cover_weak_negative", 2.0, False, True),
-        )
+        ]
+        if include_oracle_control:
+            modes.insert(0, ("winner_only", "dominance_cover_winner_only", 0.0, True, False))
         for mode, lane, declared_energy, constructive, negative in modes:
             predicates = [TARGET_PASS]
             if negative:
@@ -200,12 +221,31 @@ def build_wes_dominance_candidates(
                     },
                     action_features={
                         "prune_mode": mode,
-                        "pruned_candidate_count": 1,
+                        "pruned_candidate_count": _declared_pruned_candidate_count(mode),
+                        "particle_count": 4 if mode in {"particle_obligation", "particle_best_obligation"} else 0,
+                        "particle_iteration_count": (
+                            3 if mode in {"particle_obligation", "particle_best_obligation"} else 0
+                        ),
+                        "max_proposals_per_particle": (
+                            6
+                            if mode
+                            in {
+                                "particle_obligation",
+                                "particle_best_obligation",
+                                "one_shot_obligation",
+                                "one_shot_best_obligation",
+                            }
+                            else 0
+                        ),
                     },
                     constraint_features={
                         "declared_energy": declared_energy,
                         "search_priority": declared_energy,
                         "dominance_cover_constructive_witness": constructive,
+                        "dominance_cover_particle_search": mode == "particle_obligation",
+                        "dominance_cover_particle_best_valid": mode == "particle_best_obligation",
+                        "dominance_cover_one_shot_neighborhood": mode == "one_shot_obligation",
+                        "dominance_cover_one_shot_best_valid": mode == "one_shot_best_obligation",
                         "dominance_cover_negative_control": negative,
                         "dominance_cover_claim": True,
                     },
@@ -220,10 +260,25 @@ def build_wes_dominance_candidates(
                         "batch_index": batch_index,
                         "candidates_per_batch": candidates_per_batch,
                         "mode": mode,
+                        "candidate_budget": 4,
+                        "particle_count": 4,
+                        "iterations": 3,
+                        "max_proposals_per_particle": 6,
+                        "step_denominator": 4,
                     },
                 )
             )
     return candidates
+
+
+def _declared_pruned_candidate_count(mode: str) -> int:
+    if mode in {"particle_best_obligation", "one_shot_best_obligation"}:
+        return 1
+    if mode == "particle_obligation":
+        return 28
+    if mode == "one_shot_obligation":
+        return 16
+    return 1
 
 
 def check_wes_dominance_candidate(candidate: Any) -> Any:
@@ -354,6 +409,54 @@ def _pruned_candidates_for_mode(
         return (winner.candidate,), winner.certificate_hash
     if mode == "hand_top1":
         return _hand_ordered_candidates(batch=batch, candidates=tuple(item.candidate for item in batch.candidates))[:1], None
+    if mode == "one_shot_obligation":
+        candidates = _particle_seed_candidates(batch=batch, limit=4)
+        scorer = _obligation_candidate_scorer(batch=batch)
+        seeds = tuple(sorted(candidates, key=lambda candidate: (scorer(candidate), _candidate_hash(candidate))))[:4]
+        pruned = _one_shot_neighborhood_candidates(
+            batch=batch,
+            seeds=seeds,
+            max_proposals_per_particle=6,
+            step_denominator=4,
+        )
+        return pruned, None
+    if mode == "one_shot_best_obligation":
+        candidates = _particle_seed_candidates(batch=batch, limit=4)
+        scorer = _obligation_candidate_scorer(batch=batch)
+        seeds = tuple(sorted(candidates, key=lambda candidate: (scorer(candidate), _candidate_hash(candidate))))[:4]
+        raw_pruned = _one_shot_neighborhood_candidates(
+            batch=batch,
+            seeds=seeds,
+            max_proposals_per_particle=6,
+            step_denominator=4,
+        )
+        return _best_verified_singleton(batch=batch, candidates=raw_pruned)
+    if mode == "particle_obligation":
+        candidates = _particle_seed_candidates(batch=batch, limit=4)
+        scorer = _obligation_candidate_scorer(batch=batch)
+        pruned = _particle_resample_candidates(
+            batch=batch,
+            seeds=candidates,
+            scorer=scorer,
+            particle_count=4,
+            iterations=3,
+            max_proposals_per_particle=6,
+            step_denominator=4,
+        )
+        return pruned, None
+    if mode == "particle_best_obligation":
+        candidates = _particle_seed_candidates(batch=batch, limit=4)
+        scorer = _obligation_candidate_scorer(batch=batch)
+        raw_pruned = _particle_resample_candidates(
+            batch=batch,
+            seeds=candidates,
+            scorer=scorer,
+            particle_count=4,
+            iterations=3,
+            max_proposals_per_particle=6,
+            step_denominator=4,
+        )
+        return _best_verified_singleton(batch=batch, candidates=raw_pruned)
     if mode == "weak_pruned":
         accepted = sorted(
             (result for result in full_results if result.ok),
@@ -363,6 +466,129 @@ def _pruned_candidates_for_mode(
             return (), None
         return (accepted[0].candidate,), accepted[0].certificate_hash
     raise ValueError(f"unknown dominance-cover prune mode: {mode}")
+
+
+def _particle_seed_candidates(
+    *,
+    batch: SyntheticBatch,
+    limit: int,
+) -> tuple[UniformBatchCertificateV1, ...]:
+    ordered = sorted(
+        (item.candidate for item in batch.candidates),
+        key=lambda candidate: _candidate_hash(candidate),
+    )
+    return tuple(ordered[: max(1, min(limit, len(ordered)))])
+
+
+def _one_shot_neighborhood_candidates(
+    *,
+    batch: SyntheticBatch,
+    seeds: Sequence[UniformBatchCertificateV1],
+    max_proposals_per_particle: int,
+    step_denominator: int,
+) -> tuple[UniformBatchCertificateV1, ...]:
+    from src.energy.upba_v2_neighborhood import propose_upba_v2_neighborhood
+
+    seen = {_candidate_hash(candidate): candidate for candidate in seeds}
+    for seed in seeds:
+        for proposal in propose_upba_v2_neighborhood(
+            pool=batch.pool,
+            intents=batch.intents,
+            balances=batch.balances,
+            seed_candidate=seed,
+            max_proposals=max_proposals_per_particle,
+            step_denominator=step_denominator,
+        ):
+            seen.setdefault(proposal.candidate_hash, proposal.candidate)
+    return tuple(seen.values())
+
+
+def _particle_resample_candidates(
+    *,
+    batch: SyntheticBatch,
+    seeds: Sequence[UniformBatchCertificateV1],
+    scorer: Any,
+    particle_count: int,
+    iterations: int,
+    max_proposals_per_particle: int,
+    step_denominator: int,
+) -> tuple[UniformBatchCertificateV1, ...]:
+    from src.energy.upba_v2_neighborhood import propose_upba_v2_neighborhood
+
+    archive = {_candidate_hash(candidate): candidate for candidate in seeds}
+    particles = tuple(sorted(seeds, key=lambda candidate: (scorer(candidate), _candidate_hash(candidate))))[
+        :particle_count
+    ]
+    for _iteration in range(iterations):
+        frontier = {_candidate_hash(candidate): candidate for candidate in particles}
+        for particle in particles:
+            for proposal in propose_upba_v2_neighborhood(
+                pool=batch.pool,
+                intents=batch.intents,
+                balances=batch.balances,
+                seed_candidate=particle,
+                max_proposals=max_proposals_per_particle,
+                step_denominator=step_denominator,
+            ):
+                frontier.setdefault(proposal.candidate_hash, proposal.candidate)
+                archive.setdefault(proposal.candidate_hash, proposal.candidate)
+        particles = tuple(
+            sorted(frontier.values(), key=lambda candidate: (scorer(candidate), _candidate_hash(candidate)))
+        )[:particle_count]
+    return tuple(archive.values())
+
+
+def _best_verified_singleton(
+    *,
+    batch: SyntheticBatch,
+    candidates: Sequence[UniformBatchCertificateV1],
+) -> tuple[tuple[UniformBatchCertificateV1, ...], str | None]:
+    results = verify_candidates_in_order(
+        pool=batch.pool,
+        intents=batch.intents,
+        balances=batch.balances,
+        candidates=candidates,
+    )
+    best = deterministic_best_verified_candidate(results)
+    if best is None:
+        return (), None
+    return (best.candidate,), best.certificate_hash
+
+
+def _obligation_candidate_scorer(*, batch: SyntheticBatch) -> Any:
+    from src.energy.upba_v2_set_features import extract_upba_v2_set_feature_record
+    from tools.compare_upba_energy_compositional import _obligation_formula_scorer
+
+    def score(candidate: UniformBatchCertificateV1) -> float:
+        record = extract_upba_v2_feature_record(
+            pool=batch.pool,
+            intents=batch.intents,
+            balances=batch.balances,
+            candidate=candidate,
+            include_verifier_label=False,
+        )
+        set_record = extract_upba_v2_set_feature_record(
+            pool=batch.pool,
+            intents=batch.intents,
+            balances=batch.balances,
+            candidate=candidate,
+        )
+        return float(
+            _obligation_formula_scorer(
+                {
+                    "features": list(record.values),
+                    "set_aware_features": list(record.values) + list(set_record.values),
+                }
+            )
+        )
+
+    return score
+
+
+def _candidate_hash(candidate: UniformBatchCertificateV1) -> str:
+    from src.energy.upba_v2_ranker import advisory_candidate_hash
+
+    return advisory_candidate_hash(candidate)
 
 
 def _hand_ordered_candidates(

@@ -60,7 +60,12 @@ def build_registry(
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    upba_entry = _retain_upba_gap_weighted(output_dir)
+    upba_entries = _retain_upba_models(output_dir)
+    upba_entry = next(
+        entry
+        for entry in upba_entries
+        if entry["role"] == "current_preferred_research_checkpoint"
+    )
     autotrader_entries = _retain_autotrader_hard_cross_seed(output_dir)
     best_autotrader = min(
         autotrader_entries,
@@ -82,7 +87,7 @@ def build_registry(
             "deterministic_policy_guards_authoritative": True,
             "state_root_dependency": False,
         },
-        "models": [upba_entry, *autotrader_entries],
+        "models": [*upba_entries, *autotrader_entries],
         "promoted": {
             "upba_v2": upba_entry["model_id"],
             "autotrader_hard_synthetic_best_seed_pair": best_autotrader["model_id"],
@@ -101,6 +106,80 @@ def build_registry(
     registry_markdown.parent.mkdir(parents=True, exist_ok=True)
     registry_markdown.write_text(_markdown(registry), encoding="utf-8")
     return registry
+
+
+def _retain_upba_models(output_dir: Path) -> list[dict[str, Any]]:
+    return [
+        _retain_upba_v6(output_dir),
+        _retain_upba_highwinner(output_dir),
+        _retain_upba_gap_weighted(output_dir),
+    ]
+
+
+def _retain_upba_v6(output_dir: Path) -> dict[str, Any]:
+    source = Path("internal/Gemini/gemini_mlp_v6_final.json")
+    retained = output_dir / "upba_v2_gemini_mlp_v6_seed20260519.json"
+    shutil.copyfile(source, retained)
+
+    payload = _load_json(source)
+    review = _load_json(
+        Path("data/upba_energy/upba_v2_energy_gemini_v6_promotion_review.json")
+    )
+    metrics = review["metrics"]
+    return {
+        "model_id": "gemini_mlp_v6_seed20260519",
+        "domain": "upba_v2_partial_fill_exact_in",
+        "role": "current_preferred_research_checkpoint",
+        "schema": "zenodex/energy/gemini_mlp/v1",
+        "source_path": str(source),
+        "retained_path": str(retained),
+        "sha256": _sha256_file(retained),
+        "feature_dim": len(payload["feature_names"]),
+        "parameter_count": _model_parameter_count(payload),
+        "metrics": _promotion_metrics(metrics, promotion_allowed=review["promotion_allowed"]),
+        "retention_reason": (
+            "Promoted UPBA v2 advisory ranker: the v6 MLP beats the retained "
+            "highwinner linear checkpoint on holdout mean calls, holdout top-1, "
+            "cross-seed mean calls, hard-case top-1, and hard-case miss count "
+            "while preserving worst cross-seed top-1 and clean safety counts."
+        ),
+        "promotion_review": "data/upba_energy/upba_v2_energy_gemini_v6_promotion_review.json",
+        "supersedes": "gemini_highwinner_seed20260517",
+        "advisory_only": True,
+    }
+
+
+def _retain_upba_highwinner(output_dir: Path) -> dict[str, Any]:
+    source = Path("data/upba_energy/upba_v2_energy_gemini_highwinner_seed20260517.json")
+    retained = output_dir / "upba_v2_gemini_highwinner_seed20260517.json"
+    shutil.copyfile(source, retained)
+
+    model = load_linear_model(source)
+    review = _load_json(
+        Path("data/upba_energy/upba_v2_energy_gemini_highwinner_promotion_review.json")
+    )
+    metrics = review["metrics"]
+    return {
+        "model_id": "gemini_highwinner_seed20260517",
+        "domain": "upba_v2_partial_fill_exact_in",
+        "role": "superseded_linear_checkpoint",
+        "schema": "zenodex/energy/linear_ranker/v1",
+        "source_path": str(source),
+        "retained_path": str(retained),
+        "sha256": _sha256_file(retained),
+        "feature_dim": len(model.feature_names),
+        "parameter_count": len(model.weights) + 1,
+        "metrics": _promotion_metrics(metrics, promotion_allowed=review["promotion_allowed"]),
+        "retention_reason": (
+            "Retained linear fallback UPBA v2 advisory ranker: highwinner beats "
+            "the gap-weighted checkpoint and is superseded by the v6 MLP "
+            "research checkpoint."
+        ),
+        "promotion_review": "data/upba_energy/upba_v2_energy_gemini_highwinner_promotion_review.json",
+        "supersedes": "upba_v2_gap_weighted_default_seed20260517",
+        "superseded_by": "gemini_mlp_v6_seed20260519",
+        "advisory_only": True,
+    }
 
 
 def _retain_upba_gap_weighted(output_dir: Path) -> dict[str, Any]:
@@ -123,7 +202,7 @@ def _retain_upba_gap_weighted(output_dir: Path) -> dict[str, Any]:
     return {
         "model_id": "upba_v2_gap_weighted_default_seed20260517",
         "domain": "upba_v2_partial_fill_exact_in",
-        "role": "current_preferred_research_checkpoint",
+        "role": "superseded_baseline_checkpoint",
         "schema": "zenodex/energy/linear_ranker/v1",
         "source_path": str(source),
         "retained_path": str(retained),
@@ -134,6 +213,8 @@ def _retain_upba_gap_weighted(output_dir: Path) -> dict[str, Any]:
             "cross_seed_configs": learned["configs"],
             "cross_seed_mean_verifier_calls_mean": learned["mean_verifier_calls_mean"],
             "cross_seed_mean_verifier_calls_max": learned["mean_verifier_calls_max"],
+            "cross_seed_top_1_recall_mean": learned["top_1_recall_mean"],
+            "cross_seed_top_1_recall_min": learned["top_1_recall_min"],
             "cross_seed_top_10_recall_min": learned["top_10_recall_min"],
             "cross_seed_invalid_accept_count_total": learned["invalid_accept_count_total"],
             "hard_case_top_10_recall": hard_cases["summary"]["top_10_recall"],
@@ -147,12 +228,82 @@ def _retain_upba_gap_weighted(output_dir: Path) -> dict[str, Any]:
             ]["mean_verifier_calls"],
         },
         "retention_reason": (
-            "Best measured UPBA v2 advisory ranker: gap-weighted default beats hand energy, "
-            "keeps top-10 recall complete on current cross-seed stress, and beats the full "
-            "same-generator data-scaling rerun."
+            "Retained baseline UPBA v2 advisory ranker: gap-weighted default beats hand "
+            "energy, keeps top-10 recall complete on current cross-seed stress, and is "
+            "the baseline checkpoint superseded by Gemini research checkpoints."
         ),
+        "superseded_by": "gemini_mlp_v6_seed20260519",
         "advisory_only": True,
     }
+
+
+def _promotion_metrics(
+    metrics: dict[str, Any],
+    *,
+    promotion_allowed: bool,
+) -> dict[str, Any]:
+    return {
+        "holdout_mean_verifier_calls": metrics["holdout"]["candidate"][
+            "mean_verifier_calls"
+        ],
+        "holdout_top_1_recall": metrics["holdout"]["candidate"]["top_1_recall"],
+        "holdout_top_10_recall": metrics["holdout"]["candidate"]["top_10_recall"],
+        "holdout_invalid_accept_count": metrics["holdout"]["candidate"][
+            "invalid_accept_count"
+        ],
+        "cross_seed_configs": 9,
+        "cross_seed_mean_verifier_calls_mean": metrics["cross_seed"]["candidate"][
+            "mean_verifier_calls_mean"
+        ],
+        "cross_seed_mean_verifier_calls_max": metrics["cross_seed"]["candidate"][
+            "mean_verifier_calls_max"
+        ],
+        "cross_seed_top_1_recall_mean": metrics["cross_seed"]["candidate"][
+            "top_1_recall_mean"
+        ],
+        "cross_seed_top_1_recall_min": metrics["cross_seed"]["candidate"][
+            "top_1_recall_min"
+        ],
+        "cross_seed_top_10_recall_min": metrics["cross_seed"]["candidate"][
+            "top_10_recall_min"
+        ],
+        "cross_seed_invalid_accept_count_total": metrics["cross_seed"]["candidate"][
+            "invalid_accept_count_total"
+        ],
+        "cross_seed_permutation_violation_count_total": metrics["cross_seed"][
+            "candidate"
+        ]["permutation_violation_count_total"],
+        "hard_case_top_1_recall": metrics["hard_cases"]["candidate"][
+            "top_1_recall"
+        ],
+        "hard_case_top_5_recall": metrics["hard_cases"]["candidate"][
+            "top_5_recall"
+        ],
+        "hard_case_top_10_recall": metrics["hard_cases"]["candidate"][
+            "top_10_recall"
+        ],
+        "hard_case_top1_miss_count": metrics["hard_cases"]["candidate"][
+            "top1_miss_count"
+        ],
+        "hard_case_top5_miss_count": metrics["hard_cases"]["candidate"][
+            "top5_miss_count"
+        ],
+        "hard_case_top10_miss_count": metrics["hard_cases"]["candidate"][
+            "top10_miss_count"
+        ],
+        "promotion_allowed": bool(promotion_allowed),
+    }
+
+
+def _model_parameter_count(payload: dict[str, Any]) -> int:
+    if payload.get("schema") == "zenodex/energy/gemini_mlp/v1":
+        return (
+            sum(len(row) for row in payload["w1"])
+            + len(payload["b1"])
+            + len(payload["w2"])
+            + 1
+        )
+    return len(payload["weights"]) + 1
 
 
 def _retain_autotrader_hard_cross_seed(output_dir: Path) -> list[dict[str, Any]]:
@@ -253,6 +404,7 @@ def _markdown(registry: dict[str, Any]) -> str:
             primary = (
                 "cross-seed mean calls "
                 f"{metrics['cross_seed_mean_verifier_calls_mean']:.4f}, "
+                f"top-1 min {metrics.get('cross_seed_top_1_recall_min', 0.0):.4f}, "
                 f"top-10 min {metrics['cross_seed_top_10_recall_min']:.4f}"
             )
         else:
