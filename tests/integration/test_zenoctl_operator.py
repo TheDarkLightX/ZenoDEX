@@ -93,6 +93,7 @@ def test_zenoctl_doctor_passes_static_repo_checks_without_engine_requirement() -
     assert checks["deployment_profiles"]["ok"] is True
     assert checks["docker-compose.multimachine.yml"]["ok"] is True
     assert checks["tools/zeno_ledger_multidocker_scenario.py"]["ok"] is True
+    assert checks["tools/zeno_ledger_multidocker_wes_disaster_search.py"]["ok"] is True
     assert checks["tools/gate_typecheck.sh"]["ok"] is True
     assert checks["tools/gate_operator_preflight.sh"]["ok"] is True
 

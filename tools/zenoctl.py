@@ -63,6 +63,7 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
         _check_file(repo_root, "requirements-dev.lock.txt"),
         _check_file(repo_root, "tools/zeno_ledger_node.py"),
         _check_file(repo_root, "tools/zeno_ledger_multidocker_scenario.py"),
+        _check_file(repo_root, "tools/zeno_ledger_multidocker_wes_disaster_search.py"),
         _check_file(repo_root, "tools/run_public_testnet_candidate_gate.sh"),
         _check_file(repo_root, "tools/gate_dev_fast.sh"),
         _check_file(repo_root, "tools/gate_typecheck.sh"),

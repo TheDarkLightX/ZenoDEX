@@ -170,6 +170,35 @@ docker run --rm \
 For a two-host run, omit Machine C and pass `--machine-count 2` without
 `--readonly-url`.
 
+## WES Disaster And Boundary Search
+
+Before a long physical-host run, run the deterministic WES-ranked disaster
+search against the same harness boundary:
+
+```bash
+python3 tools/zeno_ledger_multidocker_wes_disaster_search.py \
+  --budget 64 \
+  --top-k 24 \
+  --out-dir runs/wes/zeno_ledger_multidocker_disaster \
+  --output-json runs/wes/zeno_ledger_multidocker_disaster/report.json \
+  --output-markdown runs/wes/zeno_ledger_multidocker_disaster/report.md
+```
+
+The current probe corpus covers:
+
+```text
+machine-count BVA
+node-hash identity BVA
+host URL validation
+controller role cardinality
+bundle archive path-escape/link/missing-manifest cases
+oversized request-body precheck
+auth-token environment checks
+```
+
+WES changes probe order only. The deterministic checker decides whether each
+probe was rejected or accepted as expected.
+
 ## What It Checks
 
 The live network lane checks:

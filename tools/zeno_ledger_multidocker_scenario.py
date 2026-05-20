@@ -20,6 +20,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,8 @@ REPORT_SCHEMA = "zenodex.zeno_ledger.multidocker_scenario_report.v0"
 PLAN_SCHEMA = "zenodex.zeno_ledger.multidocker_scenario_plan.v0"
 NODE_IDENTITY_SCHEMA_V0 = "zenodex/zenoctl_node_identity/v0"
 DEFAULT_TOKEN_ENV = "ZENO_LEDGER_WRITER_TOKEN"
+MAX_HTTP_JSON_BYTES = 2 * 1024 * 1024
+MAX_BUNDLE_ARCHIVE_BYTES = 32 * 1024 * 1024
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -61,6 +64,80 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise ValueError(f"{path} must decode to an object")
     return obj
+
+
+def _is_http_base_url(value: str) -> bool:
+    parsed = urlparse(value)
+    return (
+        parsed.scheme in {"http", "https"}
+        and bool(parsed.netloc)
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+def _require_http_base_url(value: str, *, name: str) -> str:
+    if not isinstance(value, str) or not _is_http_base_url(value):
+        raise ValueError(f"{name} must be an http(s) URL without embedded credentials, query, or fragment")
+    return value.rstrip("/")
+
+
+def _join_endpoint(base_url: str, endpoint: str) -> str:
+    return urljoin(_require_http_base_url(base_url, name="base_url") + "/", endpoint.lstrip("/"))
+
+
+def _read_bounded_response(response: Any, *, max_bytes: int, url: str) -> bytes:
+    length = response.headers.get("Content-Length")
+    if length is not None:
+        try:
+            declared = int(length)
+        except ValueError as exc:
+            raise ValueError(f"invalid Content-Length from {url}") from exc
+        if declared > max_bytes:
+            raise ValueError(f"response too large from {url}")
+    data = response.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError(f"response too large from {url}")
+    return data
+
+
+def validate_controller_config_v0(
+    *,
+    machine_count: int,
+    writer_url: str,
+    forwarder_url: str | None,
+    readonly_url: str | None,
+    node_data_dirs: list[Path],
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if machine_count not in {2, 3}:
+        errors.append("machine_count_must_be_2_or_3")
+    for name, value, required in (
+        ("writer_url", writer_url, True),
+        ("forwarder_url", forwarder_url, machine_count >= 2),
+        ("readonly_url", readonly_url, machine_count >= 3),
+    ):
+        if value is None:
+            if required:
+                errors.append(f"{name}_required")
+            continue
+        try:
+            _require_http_base_url(value, name=name)
+        except ValueError:
+            errors.append(f"{name}_invalid")
+    if machine_count == 2 and readonly_url is not None:
+        errors.append("readonly_url_not_allowed_for_two_machine_run")
+    if len(node_data_dirs) < machine_count:
+        errors.append("node_data_dir_count_below_machine_count")
+    return {
+        "schema": "zenodex.zeno_ledger.multidocker_controller_config_validation.v0",
+        "ok": not errors,
+        "errors": errors,
+        "machine_count": machine_count,
+        "node_data_dir_count": len(node_data_dirs),
+    }
 
 
 def _is_relative_safe_tar_name(name: str) -> bool:
@@ -113,12 +190,15 @@ def _extract_bundle_archive(*, archive_path: Path, bundle_root: Path) -> None:
 
 
 def fetch_bundle_archive_v0(*, bundle_url: str, bundle_root: Path) -> dict[str, Any]:
+    bundle_url = _require_http_base_url(bundle_url, name="bundle_url")
     with tempfile.TemporaryDirectory(prefix="zeno-ledger-bundle-fetch-") as tmp:
         archive_path = Path(tmp) / "bundle.tar.gz"
         with urlopen(bundle_url, timeout=60.0) as response:  # noqa: S310 - operator-supplied test URL
             if int(response.status) != HTTPStatus.OK:
                 raise ValueError(f"bundle fetch failed with status {response.status}")
-            archive_path.write_bytes(response.read())
+            archive_path.write_bytes(
+                _read_bounded_response(response, max_bytes=MAX_BUNDLE_ARCHIVE_BYTES, url=bundle_url)
+            )
         _extract_bundle_archive(archive_path=archive_path, bundle_root=bundle_root)
     return {
         "schema": "zenodex.zeno_ledger.multidocker_bundle_fetch_report.v0",
@@ -130,6 +210,8 @@ def fetch_bundle_archive_v0(*, bundle_url: str, bundle_root: Path) -> dict[str, 
 
 
 def derive_docker_node_hash_v0(*, network_id: str, chain_id: str, node_identity: str) -> str:
+    if network_id == "" or chain_id == "" or node_identity == "":
+        raise ValueError("network_id, chain_id, and node_identity must be non-empty")
     body = {
         "schema": NODE_IDENTITY_SCHEMA_V0,
         "network_id": network_id,
@@ -143,6 +225,8 @@ def derive_docker_node_hash_v0(*, network_id: str, chain_id: str, node_identity:
 def build_multidocker_plan_v0(*, machine_count: int, network_id: str, chain_id: str) -> dict[str, Any]:
     if machine_count not in {2, 3}:
         raise ValueError("machine_count must be 2 or 3")
+    if network_id == "" or chain_id == "":
+        raise ValueError("network_id and chain_id must be non-empty")
     nodes: list[dict[str, Any]] = []
     for index, name in enumerate(("writer", "forwarder", "readonly")[:machine_count]):
         identity = f"docker://zeno-ledger-{name}/{network_id}/{chain_id}"
@@ -205,8 +289,9 @@ def build_multidocker_plan_v0(*, machine_count: int, network_id: str, chain_id: 
 
 
 def _http_json(url: str, *, timeout: float = 10.0) -> tuple[int, dict[str, Any]]:
+    _require_http_base_url(url, name="url")
     with urlopen(url, timeout=timeout) as response:  # noqa: S310 - local Docker test network
-        body = response.read().decode("utf-8")
+        body = _read_bounded_response(response, max_bytes=MAX_HTTP_JSON_BYTES, url=url).decode("utf-8")
         obj = json.loads(body)
         if not isinstance(obj, dict):
             raise ValueError(f"{url} returned non-object JSON")
@@ -220,35 +305,42 @@ def _post_json(
     token: str | None = None,
     timeout: float = 10.0,
 ) -> tuple[int, dict[str, Any]]:
+    _require_http_base_url(url, name="url")
     payload = json.dumps(value, sort_keys=True).encode("utf-8")
+    if len(payload) > MAX_HTTP_JSON_BYTES:
+        raise ValueError("request body too large")
     headers = {"Content-Type": "application/json"}
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
     request = Request(url, data=payload, headers=headers, method="POST")
     try:
         with urlopen(request, timeout=timeout) as response:  # noqa: S310 - local Docker test network
-            body = response.read().decode("utf-8")
+            body = _read_bounded_response(response, max_bytes=MAX_HTTP_JSON_BYTES, url=url).decode("utf-8")
             obj = json.loads(body)
             if not isinstance(obj, dict):
                 raise ValueError(f"{url} returned non-object JSON")
             return int(response.status), obj
     except HTTPError as exc:
-        body = exc.read().decode("utf-8")
+        body = exc.read(MAX_HTTP_JSON_BYTES + 1)
+        if len(body) > MAX_HTTP_JSON_BYTES:
+            raise ValueError(f"error response too large from {url}") from exc
+        text = body.decode("utf-8")
         try:
-            obj = json.loads(body)
+            obj = json.loads(text)
         except json.JSONDecodeError:
-            obj = {"ok": False, "error": body}
+            obj = {"ok": False, "error": text}
         if not isinstance(obj, dict):
             obj = {"ok": False, "error": str(obj)}
         return int(exc.code), obj
 
 
 def _wait_for_status(url: str, *, timeout_seconds: float) -> dict[str, Any]:
+    url = _require_http_base_url(url, name="url")
     deadline = time.monotonic() + timeout_seconds
     last_error: str | None = None
     while time.monotonic() < deadline:
         try:
-            status, obj = _http_json(url.rstrip("/") + "/status", timeout=5.0)
+            status, obj = _http_json(_join_endpoint(url, "status"), timeout=5.0)
             if status == HTTPStatus.OK and obj.get("ok") is True:
                 return obj
             last_error = f"status={status} body={obj}"
@@ -259,10 +351,11 @@ def _wait_for_status(url: str, *, timeout_seconds: float) -> dict[str, Any]:
 
 
 def _wait_for_tip(url: str, *, height: int, timeout_seconds: float) -> dict[str, Any]:
+    url = _require_http_base_url(url, name="url")
     deadline = time.monotonic() + timeout_seconds
     last: dict[str, Any] | None = None
     while time.monotonic() < deadline:
-        _, network = _http_json(url.rstrip("/") + "/network", timeout=5.0)
+        _, network = _http_json(_join_endpoint(url, "network"), timeout=5.0)
         last = network
         tip = network.get("local_tip")
         if isinstance(tip, dict) and int(tip.get("height", -1)) >= height:
@@ -336,6 +429,12 @@ def serve_role_v0(
     enable_testnet_intake: bool,
     enable_testnet_faucet: bool,
 ) -> None:
+    peer_urls = [_require_http_base_url(url, name="peer_url") for url in peer_urls]
+    submit_peer_url = (
+        _require_http_base_url(submit_peer_url, name="submit_peer_url")
+        if submit_peer_url is not None
+        else None
+    )
     if bundle_url and not (bundle_root / "public_testnet_manifest.json").is_file():
         fetch_bundle_archive_v0(bundle_url=bundle_url, bundle_root=bundle_root)
     _wait_for_bundle(bundle_root)
@@ -460,7 +559,7 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
     steps: list[dict[str, Any]] = []
 
     def post(path: str, body: dict[str, Any], *, url: str = writer_url) -> dict[str, Any]:
-        status, response = _post_json(url.rstrip("/") + path, body, token=token, timeout=30.0)
+        status, response = _post_json(_join_endpoint(url, path), body, token=token, timeout=30.0)
         accepted = status == HTTPStatus.OK and response.get("ok") is True
         steps.append({"path": path, "url": url, "status": status, "ok": accepted, "response": response})
         if not accepted:
@@ -565,7 +664,7 @@ def _adversarial_http_checks(
         )
 
     status, response = _post_json(
-        writer_url.rstrip() + "/faucet",
+        _join_endpoint(writer_url, "faucet"),
         {
             "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
             "asset": min(DEFAULT_ASSET0, DEFAULT_ASSET1),
@@ -577,14 +676,14 @@ def _adversarial_http_checks(
     record("unauthorized_writer_faucet_rejected", status, response, {HTTPStatus.UNAUTHORIZED})
 
     status, response = _post_json(
-        writer_url.rstrip() + "/tx",
+        _join_endpoint(writer_url, "tx"),
         {"tx": "bad", "time_ms": DEFAULT_TIME_MS + 2_000_000},
         token=token,
     )
     record("malformed_writer_tx_rejected", status, response, {HTTPStatus.BAD_REQUEST})
 
     status, response = _post_json(
-        writer_url.rstrip() + "/faucet",
+        _join_endpoint(writer_url, "faucet"),
         {
             "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
             "asset": min(DEFAULT_ASSET0, DEFAULT_ASSET1),
@@ -597,7 +696,7 @@ def _adversarial_http_checks(
 
     if readonly_url is not None:
         status, response = _post_json(
-            readonly_url.rstrip() + "/faucet",
+            _join_endpoint(readonly_url, "faucet"),
             {
                 "to_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                 "asset": min(DEFAULT_ASSET0, DEFAULT_ASSET1),
@@ -629,6 +728,28 @@ def run_controller_v0(
     timeout_seconds: float,
 ) -> dict[str, Any]:
     start = time.perf_counter()
+    validation = validate_controller_config_v0(
+        machine_count=machine_count,
+        writer_url=writer_url,
+        forwarder_url=forwarder_url,
+        readonly_url=readonly_url,
+        node_data_dirs=node_data_dirs,
+    )
+    if not validation["ok"]:
+        report = {
+            "schema": REPORT_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "errors": list(validation["errors"]),
+            "elapsed_ms": (time.perf_counter() - start) * 1000.0,
+            "machine_count": machine_count,
+            "network_id": network_id,
+            "chain_id": chain_id,
+            "controller_config_validation": validation,
+            "report_out": str(report_out),
+        }
+        _write_json(report_out, report)
+        return report
     token = _auth_token_from_env(write_auth_token_env)
     plan = build_multidocker_plan_v0(machine_count=machine_count, network_id=network_id, chain_id=chain_id)
     urls = [writer_url]
@@ -671,6 +792,7 @@ def run_controller_v0(
         "machine_count": machine_count,
         "network_id": network_id,
         "chain_id": chain_id,
+        "controller_config_validation": validation,
         "plan": plan,
         "node_statuses": statuses,
         "observed_node_hashes": observed_node_hashes,
