@@ -12,7 +12,14 @@ curl -fL "${URL}" -o "${DEST_JAR}"
 echo "installed ${DEST_JAR}"
 
 if command -v java >/dev/null 2>&1; then
-  java -XX:+UseParallelGC -cp "${DEST_JAR}" tlc2.TLC -help >/dev/null
+  VERIFY_LOG="$(mktemp)"
+  if java -XX:+UseParallelGC -cp "${DEST_JAR}" tlc2.TLC -help >"${VERIFY_LOG}" 2>&1 || grep -q "TLC - provides model checking" "${VERIFY_LOG}"; then
+    rm -f "${VERIFY_LOG}"
+  else
+    cat "${VERIFY_LOG}" >&2
+    rm -f "${VERIFY_LOG}"
+    exit 1
+  fi
   echo "verified TLC jar"
 else
   echo "warning: java not found on PATH; TLC jar downloaded but not verified" >&2

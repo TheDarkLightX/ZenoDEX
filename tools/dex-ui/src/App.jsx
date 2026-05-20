@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './App.css';
 
-const WRITER_TOKEN = 'local-multidocker-token';
 const POOL_ID = '0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686';
 const ASSET0 = '0x1111111111111111111111111111111111111111111111111111111111111111';
 const ASSET1 = '0x2222222222222222222222222222222222222222222222222222222222222222';
@@ -147,6 +146,29 @@ function saveWallet(wallet) {
   window.localStorage.setItem('zenodex.live.wallet.v0', JSON.stringify(wallet));
 }
 
+function loadNodeTokens() {
+  const params = new URLSearchParams(window.location.search);
+  const sharedSmokeToken = params.get('zenodexUiSmokeToken') || '';
+  let stored = {};
+  const raw = window.localStorage.getItem('zenodex.live.nodeTokens.v0');
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        stored = parsed;
+      }
+    } catch {
+      stored = {};
+    }
+  }
+  const legacyToken = window.localStorage.getItem('zenodex.live.writerToken.v0') || '';
+  return {
+    writer: params.get('zenodexUiSmokeWriterToken') || sharedSmokeToken || stored.writer || legacyToken,
+    forwarder: params.get('zenodexUiSmokeForwarderToken') || sharedSmokeToken || stored.forwarder || legacyToken,
+    readonly: params.get('zenodexUiSmokeReadonlyToken') || stored.readonly || '',
+  };
+}
+
 function nodePath(nodeKey, path) {
   const prefix = NODES[nodeKey].basePath;
   return `${prefix}${path.startsWith('/') ? path : `/${path}`}`;
@@ -235,7 +257,7 @@ function DetailRow({ label, value }) {
 function App() {
   const [selectedNode, setSelectedNode] = useState('writer');
   const [wallet, setWallet] = useState(loadWallet);
-  const [token, setToken] = useState(() => window.localStorage.getItem('zenodex.live.writerToken.v0') || WRITER_TOKEN);
+  const [nodeTokens, setNodeTokens] = useState(loadNodeTokens);
   const [states, setStates] = useState({});
   const [snapshot, setSnapshot] = useState(null);
   const [amountIn, setAmountIn] = useState('100');
@@ -248,10 +270,12 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [eventLog, setEventLog] = useState([]);
-  const uiSmokeSwap = useMemo(() => {
+  const [smokeStatus, setSmokeStatus] = useState(null);
+  const uiSmoke = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
+    const legacySwap = params.get('zenodexUiSmokeSwap') === '1';
     return {
-      enabled: params.get('zenodexUiSmokeSwap') === '1',
+      mode: params.get('zenodexUiSmokeScript') || (legacySwap ? 'swap' : ''),
       amountIn: params.get('smokeAmountIn') || '100',
     };
   }, []);
@@ -284,12 +308,12 @@ function App() {
   const canAddLiquidity = !busy && walletLooksValid && liquidityAmount0Number !== null && liquidityAmount1Number !== null;
   const canRemoveLiquidity = !busy && walletLooksValid && removeLpAmountNumber !== null;
 
-  const appendEvent = useCallback((kind, result) => {
+  const appendEvent = useCallback((kind, result, nodeKey = selectedNode) => {
     const entry = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       at: new Date().toLocaleTimeString(),
       kind,
-      node: selectedNode,
+      node: nodeKey,
       status: result.status,
       ok: result.ok,
       accepted: resultAccepted(result) ? true : resultRejected(result) ? false : null,
@@ -331,8 +355,8 @@ function App() {
   }, [selectedNode]);
 
   useEffect(() => {
-    window.localStorage.setItem('zenodex.live.writerToken.v0', token);
-  }, [token]);
+    window.localStorage.setItem('zenodex.live.nodeTokens.v0', JSON.stringify(nodeTokens));
+  }, [nodeTokens]);
 
   useEffect(() => {
     const refreshLater = () => {
@@ -353,55 +377,67 @@ function App() {
     setLastResult(null);
   };
 
-  const requestFaucet = async () => {
+  const setNodeToken = (nodeKey, value) => {
+    setNodeTokens((current) => ({ ...current, [nodeKey]: value }));
+  };
+
+  const requestFaucetForNode = async ({
+    nodeKey = selectedNode,
+    targetAsset = assetIn,
+    amount = faucetAmountNumber,
+  } = {}) => {
     if (!walletLooksValid) {
       const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
       setLastResult({ kind: 'faucet', ...result });
-      appendEvent('faucet', result);
-      return;
+      appendEvent('faucet', result, nodeKey);
+      return result;
     }
-    if (faucetAmountNumber === null) {
+    if (amount === null) {
       const result = clientErrorResult('faucet amount must be a positive integer');
       setLastResult({ kind: 'faucet', ...result });
-      appendEvent('faucet', result);
-      return;
+      appendEvent('faucet', result, nodeKey);
+      return result;
     }
     setBusy(true);
     setLastResult(null);
     try {
       const nowMs = currentTimeMs();
-      const result = await fetchJson(nodePath(selectedNode, '/faucet'), {
+      const result = await fetchJson(nodePath(nodeKey, '/faucet'), {
         method: 'POST',
-        token,
+        token: nodeTokens[nodeKey] || '',
         body: {
           to_pubkey: wallet.pubkey,
-          asset: assetIn,
-          amount: faucetAmountNumber,
+          asset: targetAsset,
+          amount,
           time_ms: nowMs,
-          tx_id: `ui-faucet-${selectedNode}-${nowMs}`,
+          tx_id: `ui-faucet-${nodeKey}-${nowMs}`,
         },
       });
       setLastResult({ kind: 'faucet', ...result });
-      appendEvent('faucet', result);
+      appendEvent('faucet', result, nodeKey);
+      return result;
     } catch (error) {
       const result = clientErrorResult(error instanceof Error ? error.message : String(error));
       setLastResult({ kind: 'faucet', ...result });
-      appendEvent('faucet', result);
+      appendEvent('faucet', result, nodeKey);
+      return result;
     } finally {
       setBusy(false);
       await refresh();
     }
   };
 
-  const submitDexIntent = async (eventKind, intentFields) => {
+  const requestFaucet = async () => requestFaucetForNode();
+
+  const submitDexIntentForNode = async (nodeKey, eventKind, intentFields, options = {}) => {
     setBusy(true);
     setLastResult(null);
     try {
       const nowMs = currentTimeMs();
       const nowSec = Math.floor(nowMs / 1000);
-      const nonce = Math.max(wallet.nextNonce, chainNonce + 1);
+      const nonce = options.nonce ?? Math.max(wallet.nextNonce, chainNonce + 1);
       const tx = {
-        tx_id: `ui-${eventKind}-${selectedNode}-${nowMs}`,
+        tx_id: `ui-${eventKind}-${nodeKey}-${nowMs}`,
         block_timestamp: nowSec,
         tx_sender_pubkey: wallet.pubkey,
         operations: {
@@ -418,48 +454,54 @@ function App() {
           ],
         },
       };
-      const result = await fetchJson(nodePath(selectedNode, '/tx'), {
+      const result = await fetchJson(nodePath(nodeKey, '/tx'), {
         method: 'POST',
-        token,
+        token: nodeTokens[nodeKey] || '',
         body: { time_ms: nowMs, tx },
       });
       setLastResult({ kind: eventKind, ...result });
-      appendEvent(eventKind, result);
+      appendEvent(eventKind, result, nodeKey);
       if (resultAccepted(result)) {
         const next = { ...wallet, nextNonce: nonce + 1 };
         setWallet(next);
         saveWallet(next);
       }
+      return result;
     } catch (error) {
       const result = clientErrorResult(error instanceof Error ? error.message : String(error));
       setLastResult({ kind: eventKind, ...result });
-      appendEvent(eventKind, result);
+      appendEvent(eventKind, result, nodeKey);
+      return result;
     } finally {
       setBusy(false);
       await refresh();
     }
   };
 
+  const submitDexIntent = async (eventKind, intentFields, options = {}) => (
+    submitDexIntentForNode(selectedNode, eventKind, intentFields, options)
+  );
+
   const submitSwap = async () => {
     if (!walletLooksValid) {
       const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
       setLastResult({ kind: 'swap', ...result });
       appendEvent('swap', result);
-      return;
+      return result;
     }
     if (amountInNumber === null) {
       const result = clientErrorResult('amount in must be a positive integer');
       setLastResult({ kind: 'swap', ...result });
       appendEvent('swap', result);
-      return;
+      return result;
     }
     if (slippageBpsNumber === null) {
       const result = clientErrorResult('slippage bps must be between 0 and 10000');
       setLastResult({ kind: 'swap', ...result });
       appendEvent('swap', result);
-      return;
+      return result;
     }
-    await submitDexIntent('swap', {
+    return submitDexIntent('swap', {
       kind: 'SWAP_EXACT_IN',
       pool_id: POOL_ID,
       asset_in: assetIn,
@@ -475,15 +517,15 @@ function App() {
       const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
       setLastResult({ kind: 'add_liquidity', ...result });
       appendEvent('add_liquidity', result);
-      return;
+      return result;
     }
     if (liquidityAmount0Number === null || liquidityAmount1Number === null) {
       const result = clientErrorResult('liquidity amounts must be positive integers');
       setLastResult({ kind: 'add_liquidity', ...result });
       appendEvent('add_liquidity', result);
-      return;
+      return result;
     }
-    await submitDexIntent('add_liquidity', {
+    return submitDexIntent('add_liquidity', {
       kind: 'ADD_LIQUIDITY',
       pool_id: POOL_ID,
       amount0_desired: liquidityAmount0Number,
@@ -498,15 +540,15 @@ function App() {
       const result = clientErrorResult('wallet pubkey must be 0x plus 96 hex characters');
       setLastResult({ kind: 'remove_liquidity', ...result });
       appendEvent('remove_liquidity', result);
-      return;
+      return result;
     }
     if (removeLpAmountNumber === null) {
       const result = clientErrorResult('LP amount must be a positive integer');
       setLastResult({ kind: 'remove_liquidity', ...result });
       appendEvent('remove_liquidity', result);
-      return;
+      return result;
     }
-    await submitDexIntent('remove_liquidity', {
+    return submitDexIntent('remove_liquidity', {
       kind: 'REMOVE_LIQUIDITY',
       pool_id: POOL_ID,
       lp_amount: removeLpAmountNumber,
@@ -516,40 +558,166 @@ function App() {
   };
 
   useEffect(() => {
-    if (!uiSmokeSwap.enabled || smokeSubmitted) {
+    if (!uiSmoke.mode || smokeSubmitted) {
       return;
     }
     if (selectedNode !== 'writer') {
       setSelectedNode('writer');
       return;
     }
-    if (amountIn !== uiSmokeSwap.amountIn) {
-      setAmountIn(uiSmokeSwap.amountIn);
+    if (amountIn !== uiSmoke.amountIn) {
+      setAmountIn(uiSmoke.amountIn);
       return;
     }
     if (!snapshot || busy || !canSubmitSwap) {
       return;
     }
+    if (
+      uiSmoke.mode === 'full'
+      && (!canRequestFaucet || !canAddLiquidity || !canRemoveLiquidity)
+    ) {
+      return;
+    }
     try {
-      if (window.sessionStorage.getItem('zenodex.uiSmokeSwap.submitted') === '1') {
+      const smokeKey = `zenodex.uiSmoke.${uiSmoke.mode}.submitted`;
+      if (window.sessionStorage.getItem(smokeKey) === '1') {
         return;
       }
-      window.sessionStorage.setItem('zenodex.uiSmokeSwap.submitted', '1');
+      window.sessionStorage.setItem(smokeKey, '1');
     } catch {
       // Session storage only prevents duplicate smoke submissions during browser tests.
     }
     setSmokeSubmitted(true);
-    submitSwap();
-    // submitSwap closes over the same state listed below; the session gate prevents duplicate smoke submissions.
+    setSmokeStatus({ mode: uiSmoke.mode, done: false, results: [] });
+
+    const summarize = (step, result) => ({
+      step,
+      status: result?.status ?? 0,
+      ok: result?.ok === true,
+      accepted: resultAccepted(result) ? true : resultRejected(result) ? false : null,
+      height: result?.data?.height ?? null,
+      error: result?.data?.error || result?.data?.receipt?.error_code || result?.data?.receipt?.reject_code || null,
+    });
+
+    const validateSmokeResults = (results) => {
+      const byStep = Object.fromEntries(results.map((row) => [row.step, row]));
+      const expected = uiSmoke.mode === 'full'
+        ? [
+          ['writer_faucet_asset0', { accepted: true }],
+          ['writer_swap', { accepted: true }],
+          ['writer_add_liquidity', { accepted: true }],
+          ['writer_remove_liquidity', { accepted: true }],
+          ['forwarder_swap', { accepted: true }],
+          ['readonly_swap', { accepted: false, status: 403, error: 'testnet_intake_disabled' }],
+        ]
+        : [
+          ['writer_swap', { accepted: true }],
+        ];
+      for (const [step, want] of expected) {
+        const got = byStep[step];
+        if (!got) {
+          return { ok: false, error: `missing smoke step: ${step}` };
+        }
+        if (got.accepted !== want.accepted) {
+          return { ok: false, error: `${step} accepted=${got.accepted}, expected ${want.accepted}` };
+        }
+        if (want.status !== undefined && got.status !== want.status) {
+          return { ok: false, error: `${step} status=${got.status}, expected ${want.status}` };
+        }
+        if (want.error !== undefined && got.error !== want.error) {
+          return { ok: false, error: `${step} error=${got.error || 'none'}, expected ${want.error}` };
+        }
+      }
+      return { ok: true, error: null };
+    };
+
+    const swapFields = () => ({
+      kind: 'SWAP_EXACT_IN',
+      pool_id: POOL_ID,
+      asset_in: ASSET0,
+      asset_out: ASSET1,
+      amount_in: amountInNumber,
+      min_amount_out: 1,
+      recipient: wallet.pubkey,
+    });
+
+    const runSmoke = async () => {
+      const results = [];
+      let nextNonce = Math.max(wallet.nextNonce, chainNonce + 1);
+      const record = (step, result) => {
+        results.push(summarize(step, result));
+        setSmokeStatus({ mode: uiSmoke.mode, done: false, results: [...results] });
+        return result;
+      };
+      const submitWithNonce = async (nodeKey, eventKind, intentFields) => {
+        const result = await submitDexIntentForNode(nodeKey, eventKind, intentFields, { nonce: nextNonce });
+        record(`${nodeKey}_${eventKind}`, result);
+        if (resultAccepted(result)) {
+          nextNonce += 1;
+        }
+        return result;
+      };
+
+      try {
+        if (uiSmoke.mode === 'full') {
+          record('writer_faucet_asset0', await requestFaucetForNode({
+            nodeKey: 'writer',
+            targetAsset: ASSET0,
+            amount: faucetAmountNumber,
+          }));
+          await submitWithNonce('writer', 'swap', swapFields());
+          await submitWithNonce('writer', 'add_liquidity', {
+            kind: 'ADD_LIQUIDITY',
+            pool_id: POOL_ID,
+            amount0_desired: liquidityAmount0Number,
+            amount1_desired: liquidityAmount1Number,
+            amount0_min: 0,
+            amount1_min: 0,
+          });
+          await submitWithNonce('writer', 'remove_liquidity', {
+            kind: 'REMOVE_LIQUIDITY',
+            pool_id: POOL_ID,
+            lp_amount: removeLpAmountNumber,
+            amount0_min: 0,
+            amount1_min: 0,
+          });
+          await submitWithNonce('forwarder', 'swap', swapFields());
+          await submitWithNonce('readonly', 'swap', swapFields());
+        } else {
+          await submitWithNonce('writer', 'swap', swapFields());
+        }
+        const expectation = validateSmokeResults(results);
+        setSmokeStatus({
+          mode: uiSmoke.mode,
+          done: expectation.ok,
+          ok: expectation.ok,
+          error: expectation.error,
+          results: [...results],
+        });
+      } catch (error) {
+        setSmokeStatus({
+          mode: uiSmoke.mode,
+          done: false,
+          error: error instanceof Error ? error.message : String(error),
+          results: [...results],
+        });
+      }
+    };
+
+    runSmoke();
+    // The smoke script intentionally drives the current rendered console state once per browser profile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    uiSmokeSwap,
+    uiSmoke,
     smokeSubmitted,
     selectedNode,
     amountIn,
     snapshot,
     busy,
     canSubmitSwap,
+    canRequestFaucet,
+    canAddLiquidity,
+    canRemoveLiquidity,
   ]);
 
   const lastResultPill = resultPill(lastResult);
@@ -605,16 +773,27 @@ function App() {
 
           <div className="field-stack">
             <label>
-              <span>Auth token</span>
-              <input data-testid="auth-token" value={token} onChange={(event) => setToken(event.target.value)} spellCheck="false" />
-            </label>
-            <label>
               <span>Wallet pubkey</span>
               <input data-testid="wallet-pubkey" value={wallet.pubkey} onChange={(event) => {
                 const next = { ...wallet, pubkey: event.target.value.trim(), nextNonce: 1 };
                 setWallet(next);
                 saveWallet(next);
               }} spellCheck="false" />
+            </label>
+          </div>
+
+          <div className="split-controls token-controls">
+            <label>
+              <span>Writer token</span>
+              <input data-testid="writer-token" value={nodeTokens.writer} onChange={(event) => setNodeToken('writer', event.target.value)} spellCheck="false" />
+            </label>
+            <label>
+              <span>Forwarder token</span>
+              <input data-testid="forwarder-token" value={nodeTokens.forwarder} onChange={(event) => setNodeToken('forwarder', event.target.value)} spellCheck="false" />
+            </label>
+            <label>
+              <span>Readonly token</span>
+              <input data-testid="readonly-token" value={nodeTokens.readonly} onChange={(event) => setNodeToken('readonly', event.target.value)} spellCheck="false" />
             </label>
           </div>
 
@@ -749,6 +928,11 @@ function App() {
             {lastResult ? <span className={`pill ${lastResultPill.className}`}>{lastResultPill.label}</span> : null}
           </div>
           <pre data-testid="last-response">{lastResult ? JSON.stringify(lastResult.data, null, 2) : 'No submission yet.'}</pre>
+          {smokeStatus ? (
+            <pre data-testid="smoke-status" className="smoke-status">
+              {JSON.stringify(smokeStatus, null, 2)}
+            </pre>
+          ) : null}
         </section>
 
         <section className="panel log-panel">

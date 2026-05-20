@@ -223,6 +223,10 @@ button:disabled {
   gap: 10px;
 }
 
+.token-controls {
+  margin-bottom: 14px;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -387,6 +391,10 @@ pre {
   font-size: 12px;
   line-height: 1.45;
   text-align: left;
+}
+
+.smoke-status {
+  margin-top: 10px;
 }
 
 .event-list {

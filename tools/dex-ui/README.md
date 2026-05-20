@@ -6,17 +6,18 @@ permalink: autonomous-tau-dex-review/tools/dex-ui/readme
 
 # ZenoDEX UI (React + Vite)
 
-Frontend for ZenoDEX: Swap, Pools, Perpetuals, zUSD, Strategy, ZenoOracle,
-and a Confidential tab for the TEE / sealed-bid feature surface.
+The mounted app in this branch is the ZenoDEX live spot-ledger test console.
+It targets writer, forwarder, and readonly ZenoLedger nodes and exercises pool
+discovery, faucet, exact-in swaps, add liquidity, remove liquidity, forwarding,
+and readonly rejection paths.
 
-The Confidential tab is not just a status page. It explains:
-- who the feature is for,
-- why a user would choose it,
-- when the normal public path is better,
-- which formal checks back the current experiment.
-- and, in live mode, the current beta posture from `GET /api/confidential/status`.
+Older product workbench components for Perpetuals, zUSD, Strategy, ZenoOracle,
+and Confidential remain in `src/components/`, but they are not mounted by the
+current `src/App.jsx`. Treat those surfaces as demo or local-operator work until
+they are deliberately mounted with live-mode labels, fail-closed controls, and
+browser smoke tests.
 
-The Oracle tab is a local ZenoOracle operator console. It renders feeds,
+The ZenoOracle dashboard component is a local ZenoOracle operator console. It renders feeds,
 reporter health, source diversity, accepted reads, terminal authorizations,
 disputes, rewards, selected-feed status, evidence class, and the local replay
 posture. With a local Oracle server running in write-enabled mode, it can also
@@ -26,7 +27,8 @@ also build local aggregates, accept reads, and emit typed OracleAuthorization
 bundles for local replay testing. Quick Verify calls the local read-only
 receipt verifier for stored receipt IDs.
 
-Oracle sub-views are addressable with `oracleView`, for example:
+When the dashboard is mounted by a future app shell, Oracle sub-views are
+addressable with `oracleView`, for example:
 
 ```text
 http://127.0.0.1:5173/?tab=oracle&oracleView=Receipts
@@ -60,6 +62,23 @@ npm run dev -- --host 127.0.0.1 --port 5173
 
 Open `http://127.0.0.1:5173`.
 
+To bind the mounted live spot console to the local multi-node ledger bridge,
+set all ledger role targets:
+
+```bash
+VITE_DEMO_MODE=false \
+API_PROXY_TARGET=http://127.0.0.1:8787 \
+LEDGER_WRITER_TARGET=http://127.0.0.1:8787 \
+LEDGER_FORWARDER_TARGET=http://127.0.0.1:8788 \
+LEDGER_READONLY_TARGET=http://127.0.0.1:8789 \
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+The mounted console does not embed a default writer token. Enter the writer,
+forwarder, and readonly tokens in the UI controls, or pass test-only smoke
+parameters such as `zenodexUiSmokeWriterToken` and
+`zenodexUiSmokeForwarderToken` in a browser test URL.
+
 To bind only the Oracle tab to the local ZenoOracle dashboard API:
 
 ```bash
@@ -82,6 +101,9 @@ tools/zenodex-oracle serve --home /tmp/zenodex-oracle --host 127.0.0.1 --port 87
 - `VITE_DEMO_MODE=true|false`: demo mode uses mock data and does not call the API.
 - `VITE_BASE_PATH=/`: optional Vite base path. Use `./` for IPFS / subpath-hosted static builds.
 - `API_PROXY_TARGET=http://127.0.0.1:8000`: Vite dev-server proxy target for `/api/*` requests (keeps requests same-origin in the browser).
+- `LEDGER_WRITER_TARGET=http://127.0.0.1:8787`: Vite dev-server proxy target for writer-node ledger requests.
+- `LEDGER_FORWARDER_TARGET=http://127.0.0.1:8788`: Vite dev-server proxy target for forwarder-node ledger requests.
+- `LEDGER_READONLY_TARGET=http://127.0.0.1:8789`: Vite dev-server proxy target for readonly-node ledger requests.
 - `VITE_API_BASE=http://127.0.0.1:8000`: optional base URL for API requests (use for non-proxied setups / production; empty = same-origin).
 - `VITE_API_TOKEN=<token>`: optional bearer token. If `DEMO_API_TOKEN` is set on the API server, set `VITE_API_TOKEN` to the same value.
 - `VITE_ZENO_ORACLE_API_URL=http://127.0.0.1:8787`: optional ZenoOracle dashboard API base URL. If unset, the Oracle tab tries `http://127.0.0.1:8787` and falls back to static preview data.
