@@ -1,0 +1,325 @@
+{
+  "blocked_reasons": [],
+  "compared_model_count": 7,
+  "decision": "promote_v6_research_candidate",
+  "full_three_lane_model_count": 6,
+  "models": [
+    {
+      "coverage": {
+        "cross_seed": true,
+        "full_three_lane": true,
+        "hard_cases": true,
+        "holdout": true
+      },
+      "kind": "retained_baseline",
+      "metrics": {
+        "cross_seed": {
+          "invalid_accept_count_total": 0,
+          "mean_verifier_calls_max": 1.032258064516129,
+          "mean_verifier_calls_mean": 1.0175080393875215,
+          "top_10_recall_min": 1.0,
+          "top_1_recall_mean": 0.9824919606124785,
+          "top_1_recall_min": 0.967741935483871
+        },
+        "hard_cases": {
+          "max_mean_winner_position": 1.0323232323232323,
+          "mean_winner_position_mean": 1.0170166274862338,
+          "top10_miss_count": 0,
+          "top1_miss_count": 65,
+          "top5_miss_count": 0,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9854455888938648,
+          "top_5_recall": 1.0
+        },
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.0166414523449319,
+          "p99_verifier_calls": 2,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.983358547655068
+        }
+      },
+      "model_id": "upba_v2_gap_weighted_default_seed20260517",
+      "source_paths": {
+        "cross_seed": "data/upba_energy/upba_v2_energy_gap_weighted_cross_seed_stress_250x3x3.json",
+        "hard_cases": "data/upba_energy/upba_v2_energy_gap_weighted_hard_cases_500x3x3.json",
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_highwinner_holdout_compare.json"
+      }
+    },
+    {
+      "coverage": {
+        "cross_seed": true,
+        "full_three_lane": true,
+        "hard_cases": true,
+        "holdout": true
+      },
+      "kind": "candidate",
+      "metrics": {
+        "cross_seed": {
+          "invalid_accept_count_total": 0,
+          "mean_verifier_calls_max": 1.0240963855421688,
+          "mean_verifier_calls_mean": 1.0130021800832674,
+          "permutation_violation_count_total": 0,
+          "top_10_recall_min": 1.0,
+          "top_1_recall_mean": 0.9869978199167325,
+          "top_1_recall_min": 0.9759036144578314
+        },
+        "hard_cases": {
+          "max_mean_winner_position": 1.0180722891566265,
+          "mean_winner_position_mean": 1.0134220001544136,
+          "top10_miss_count": 0,
+          "top1_miss_count": 19,
+          "top5_miss_count": 0,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9872397582269979,
+          "top_5_recall": 1.0
+        },
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.0126071608673726,
+          "p99_verifier_calls": 2,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9878971255673222
+        }
+      },
+      "model_id": "gemini_log_interactions_seed20260517",
+      "source_paths": {
+        "cross_seed": "data/upba_energy/upba_v2_energy_gemini_log_interactions_cross_seed_250x3x3.json",
+        "hard_cases": "data/upba_energy/upba_v2_energy_gemini_log_interactions_hard_cases_500x3x3.json",
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_log_interactions_holdout_compare.json"
+      }
+    },
+    {
+      "coverage": {
+        "cross_seed": true,
+        "full_three_lane": true,
+        "hard_cases": true,
+        "holdout": true
+      },
+      "kind": "candidate",
+      "metrics": {
+        "cross_seed": {
+          "invalid_accept_count_total": 0,
+          "mean_verifier_calls_max": 1.0161290322580645,
+          "mean_verifier_calls_mean": 1.010312120598749,
+          "permutation_violation_count_total": 0,
+          "top_10_recall_min": 1.0,
+          "top_1_recall_mean": 0.989687879401251,
+          "top_1_recall_min": 0.9838709677419355
+        },
+        "hard_cases": {
+          "max_mean_winner_position": 1.0141129032258065,
+          "mean_winner_position_mean": 1.0107446239830615,
+          "top10_miss_count": 0,
+          "top1_miss_count": 15,
+          "top5_miss_count": 0,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.989926124916051,
+          "top_5_recall": 1.0
+        },
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.0105900151285931,
+          "p99_verifier_calls": 1,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9899142713061019
+        }
+      },
+      "model_id": "gemini_objective8_seed20260517",
+      "source_paths": {
+        "cross_seed": "data/upba_energy/upba_v2_energy_gemini_objective8_cross_seed_250x3x3.json",
+        "hard_cases": "data/upba_energy/upba_v2_energy_gemini_objective8_hard_cases_500x3x3.json",
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_objective8_holdout_compare.json"
+      }
+    },
+    {
+      "coverage": {
+        "cross_seed": true,
+        "full_three_lane": true,
+        "hard_cases": true,
+        "holdout": true
+      },
+      "kind": "retained_linear_fallback",
+      "metrics": {
+        "cross_seed": {
+          "invalid_accept_count_total": 0,
+          "mean_verifier_calls_max": 1.0161290322580645,
+          "mean_verifier_calls_mean": 1.0076220762194832,
+          "permutation_violation_count_total": 0,
+          "top_10_recall_min": 1.0,
+          "top_1_recall_mean": 0.9923779237805169,
+          "top_1_recall_min": 0.9838709677419355
+        },
+        "hard_cases": {
+          "max_mean_winner_position": 1.0100401606425702,
+          "mean_winner_position_mean": 1.0087284949508035,
+          "top10_miss_count": 0,
+          "top1_miss_count": 12,
+          "top5_miss_count": 0,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9919408999328408,
+          "top_5_recall": 1.0
+        },
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.0065557236510339,
+          "p99_verifier_calls": 1,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9934442763489663
+        }
+      },
+      "model_id": "gemini_highwinner_seed20260517",
+      "source_paths": {
+        "cross_seed": "data/upba_energy/upba_v2_energy_gemini_highwinner_cross_seed_250x3x3.json",
+        "hard_cases": "data/upba_energy/upba_v2_energy_gemini_highwinner_hard_cases_500x3x3.json",
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_highwinner_holdout_compare.json"
+      }
+    },
+    {
+      "coverage": {
+        "cross_seed": true,
+        "full_three_lane": true,
+        "hard_cases": true,
+        "holdout": true
+      },
+      "kind": "negative_candidate",
+      "metrics": {
+        "cross_seed": {
+          "invalid_accept_count_total": 0,
+          "mean_verifier_calls_max": 1.0362903225806452,
+          "mean_verifier_calls_mean": 1.0201707415635215,
+          "permutation_violation_count_total": 0,
+          "top_10_recall_min": 1.0,
+          "top_1_recall_mean": 0.9798292584364785,
+          "top_1_recall_min": 0.9637096774193549
+        },
+        "hard_cases": {
+          "max_mean_winner_position": 1.0240963855421688,
+          "mean_winner_position_mean": 1.0167768336297291,
+          "top10_miss_count": 0,
+          "top1_miss_count": 24,
+          "top5_miss_count": 0,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9838817998656817,
+          "top_5_recall": 1.0
+        },
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.021684316691881,
+          "p99_verifier_calls": 2,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9788199697428139
+        }
+      },
+      "model_id": "gemini_linear_v5_seed20260519",
+      "source_paths": {
+        "cross_seed": "data/upba_energy/upba_v2_energy_gemini_v5_cross_seed_250x3x3.json",
+        "hard_cases": "data/upba_energy/upba_v2_energy_gemini_v5_hard_cases_500x3x3.json",
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_v5_holdout_compare.json"
+      }
+    },
+    {
+      "coverage": {
+        "cross_seed": true,
+        "full_three_lane": true,
+        "hard_cases": true,
+        "holdout": true
+      },
+      "kind": "promoted_research_candidate",
+      "metrics": {
+        "cross_seed": {
+          "invalid_accept_count_total": 0,
+          "mean_verifier_calls_max": 1.0161290322580645,
+          "mean_verifier_calls_mean": 1.0035860578412792,
+          "permutation_violation_count_total": 0,
+          "top_10_recall_min": 1.0,
+          "top_1_recall_mean": 0.9964139421587209,
+          "top_1_recall_min": 0.9838709677419355
+        },
+        "hard_cases": {
+          "max_mean_winner_position": 1.0080645161290323,
+          "mean_winner_position_mean": 1.0060389488877635,
+          "top10_miss_count": 0,
+          "top1_miss_count": 9,
+          "top5_miss_count": 0,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9939556749496307,
+          "top_5_recall": 1.0
+        },
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.0025214321734746,
+          "p99_verifier_calls": 1,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9974785678265254
+        }
+      },
+      "model_id": "gemini_mlp_v6_seed20260519",
+      "source_paths": {
+        "cross_seed": "data/upba_energy/upba_v2_energy_gemini_v6_cross_seed_250x3x3.json",
+        "hard_cases": "data/upba_energy/upba_v2_energy_gemini_v6_hard_cases_500x3x3.json",
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_v6_holdout_compare.json"
+      }
+    },
+    {
+      "coverage": {
+        "cross_seed": false,
+        "full_three_lane": false,
+        "hard_cases": false,
+        "holdout": true
+      },
+      "kind": "holdout_only_negative",
+      "metrics": {
+        "holdout": {
+          "invalid_accept_count": 0,
+          "mean_verifier_calls": 1.0196671709531013,
+          "p99_verifier_calls": 2,
+          "top_10_recall": 1.0,
+          "top_1_recall": 0.9803328290468987
+        }
+      },
+      "model_id": "gemini_handinit_seed20260517",
+      "source_paths": {
+        "holdout_compare": "data/upba_energy/upba_v2_energy_gemini_handinit_holdout_compare.json"
+      }
+    }
+  ],
+  "non_claims": [
+    "The leaderboard compares advisory rankers only.",
+    "It does not authorize settlement, replace deterministic verification, or establish production replay coverage.",
+    "Holdout-only rows are not used for cross-seed or hard-case dominance claims."
+  ],
+  "obligations": [
+    {
+      "id": "holdout_best_mean_calls",
+      "passed": true
+    },
+    {
+      "id": "holdout_best_top1",
+      "passed": true
+    },
+    {
+      "id": "cross_seed_best_mean_calls",
+      "passed": true
+    },
+    {
+      "id": "cross_seed_best_worst_top1",
+      "passed": true
+    },
+    {
+      "id": "hard_case_best_top1",
+      "passed": true
+    },
+    {
+      "id": "hard_case_fewest_top1_misses",
+      "passed": true
+    },
+    {
+      "id": "safety_counts_clean",
+      "passed": true
+    }
+  ],
+  "promoted_model_id": "gemini_mlp_v6_seed20260519",
+  "schema": "zenodex/energy/upba_v2_model_leaderboard/v1",
+  "scope": "advisory_ranking_only"
+}

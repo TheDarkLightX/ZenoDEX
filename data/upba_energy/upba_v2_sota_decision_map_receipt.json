@@ -2,13 +2,14 @@
   "schema": "zenodex/energy/upba_v2_sota_decision_map_receipt/v1",
   "artifact": "docs/ZENO_ENERGY_SOTA_DECISION_MAP.md",
   "claim": "Current solver-learning and energy-model guidance supports listwise/set-aware ranker and outcome-level repair-selector experiments while preserving verifier-authoritative fallback or certificates.",
-  "source_count": 10,
+  "source_count": 11,
   "required_decisions": [
     "full generative EBM: defer",
     "pairwise linear ranking: keep as baseline",
     "listwise set ranker: test next",
     "larger transformer: defer",
     "learned repair selector: continue",
+    "tiny ensemble uncertainty: diagnostic only",
     "top-k without fallback: reject",
     "online checked stop: prototype only with suffix-bound certificate"
   ],
@@ -21,7 +22,8 @@
   "negative_knowledge": [
     "set-aware linear ranker did not beat aggregate learned baseline",
     "deterministic neighborhood repair reduced regret but increased verifier work",
-    "learned repair selector did not consistently beat hand-selected repairs"
+    "learned repair selector did not consistently beat hand-selected repairs",
+    "tiny ensemble ranker did not beat the gap-weighted default"
   ],
   "limits": [
     "decision map is research guidance rather than benchmark evidence",
