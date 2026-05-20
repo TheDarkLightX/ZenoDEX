@@ -634,6 +634,268 @@ def _require_positive_amount_v0(value: object, *, name: str, maximum: int) -> in
     return int(value)
 
 
+def _ui_amount_int_v0(value: object, *, name: str, maximum: int, allow_zero: bool = False) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    if isinstance(value, int):
+        amount = value
+    elif isinstance(value, float) and value.is_integer():
+        amount = int(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if stripped == "":
+            raise ValueError(f"{name} must be an int")
+        amount = int(stripped, 10)
+    else:
+        raise ValueError(f"{name} must be an int")
+    if allow_zero:
+        if amount < 0:
+            raise ValueError(f"{name} must be a nonnegative int")
+    elif amount <= 0:
+        raise ValueError(f"{name} must be a positive int")
+    if amount > maximum:
+        raise ValueError(f"{name} exceeds maximum")
+    return amount
+
+
+def _latest_snapshot_for_ui_v0(*, data_dir: Path, node_status: Mapping[str, Any]) -> tuple[int, Mapping[str, Any]]:
+    bundle_root = Path(str(node_status["bundle_root"]))
+    base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
+    snapshot_path = Path(str(base["pre_snapshot_path"]))
+    return int(base["latest_height"]), _load_json_object(snapshot_path)
+
+
+def _ui_token_catalog_v0(node_status: Mapping[str, Any]) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    by_asset: dict[str, str] = {}
+    by_symbol: dict[str, dict[str, str]] = {}
+    raw_catalog = node_status.get("test_token_catalog", [])
+    if not isinstance(raw_catalog, list):
+        return by_asset, by_symbol
+    for row in raw_catalog:
+        if not isinstance(row, Mapping):
+            continue
+        raw_symbol = row.get("symbol")
+        raw_asset = row.get("asset_id")
+        if not isinstance(raw_symbol, str) or not raw_symbol.strip() or not isinstance(raw_asset, str):
+            continue
+        try:
+            asset = canonical_hex_fixed_allow_0x(raw_asset, nbytes=32, name="test_token_catalog.asset_id")
+        except Exception:
+            continue
+        symbol = raw_symbol.strip()
+        purpose = row.get("purpose")
+        by_asset[asset] = symbol
+        by_symbol[symbol.upper()] = {
+            "symbol": symbol,
+            "asset_id": asset,
+            "purpose": purpose if isinstance(purpose, str) else "",
+        }
+    return by_asset, by_symbol
+
+
+def _ui_pool_rows_from_snapshot_v0(
+    *,
+    snapshot: Mapping[str, Any],
+    node_status: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    by_asset, _by_symbol = _ui_token_catalog_v0(node_status)
+    raw_pools = snapshot.get("pools", [])
+    if not isinstance(raw_pools, list):
+        raise ValueError("snapshot.pools must be a list")
+    rows: list[dict[str, Any]] = []
+    for raw in raw_pools:
+        if not isinstance(raw, Mapping):
+            continue
+        asset0 = _require_asset_v0(raw.get("asset0"), name="pool.asset0")
+        asset1 = _require_asset_v0(raw.get("asset1"), name="pool.asset1")
+        pool_id = str(raw.get("pool_id", ""))
+        if pool_id == "":
+            continue
+        status = str(raw.get("status", "ACTIVE"))
+        rows.append(
+            {
+                "pool_id": pool_id,
+                "poolId": pool_id,
+                "asset0": asset0,
+                "asset1": asset1,
+                "token0": by_asset.get(asset0, asset0),
+                "token1": by_asset.get(asset1, asset1),
+                "reserve0": int(raw.get("reserve0", 0)),
+                "reserve1": int(raw.get("reserve1", 0)),
+                "fee_bps": int(raw.get("fee_bps", 30)),
+                "feeBps": int(raw.get("fee_bps", 30)),
+                "lp_supply": int(raw.get("lp_supply", 0)),
+                "lpSupply": int(raw.get("lp_supply", 0)),
+                "status": status,
+            }
+        )
+    return rows
+
+
+def _ui_pools_response_v0(*, data_dir: Path, node_status: Mapping[str, Any]) -> dict[str, Any]:
+    latest_height, snapshot = _latest_snapshot_for_ui_v0(data_dir=data_dir, node_status=node_status)
+    pools = _ui_pool_rows_from_snapshot_v0(snapshot=snapshot, node_status=node_status)
+    pool_assets = {
+        str(pool[asset_key])
+        for pool in pools
+        for asset_key in ("asset0", "asset1")
+        if isinstance(pool.get(asset_key), str)
+    }
+    by_asset, _by_symbol = _ui_token_catalog_v0(node_status)
+    tokens = [
+        {"symbol": symbol, "asset_id": asset}
+        for asset, symbol in sorted(by_asset.items(), key=lambda item: item[1].upper())
+        if asset in pool_assets
+    ]
+    return {
+        "ok": True,
+        "schema": "zenodex.zeno_ledger.ui_pools.v0",
+        "source": "zeno_ledger_node_live",
+        "latest_height": latest_height,
+        "pools": pools,
+        "tokens": tokens,
+    }
+
+
+def _snapshot_last_nonce_v0(snapshot: Mapping[str, Any], pubkey: str) -> int:
+    raw_nonces = snapshot.get("nonces", [])
+    if not isinstance(raw_nonces, list):
+        return 0
+    for row in raw_nonces:
+        if not isinstance(row, Mapping):
+            continue
+        if row.get("pubkey") == pubkey:
+            raw_last = row.get("last_nonce", 0)
+            if isinstance(raw_last, int) and not isinstance(raw_last, bool) and raw_last >= 0:
+                return raw_last
+    return 0
+
+
+def _asset_from_ui_symbol_v0(
+    raw: object,
+    *,
+    by_symbol: Mapping[str, Mapping[str, str]],
+    name: str,
+) -> str:
+    if not isinstance(raw, str) or raw.strip() == "":
+        raise ValueError(f"{name} is required")
+    text = raw.strip()
+    try:
+        return _require_asset_v0(text, name=name)
+    except Exception:
+        token = by_symbol.get(text.upper())
+        if token and isinstance(token.get("asset_id"), str):
+            return token["asset_id"]
+    raise ValueError(f"{name} does not match a testnet token")
+
+
+def _find_ui_swap_pool_v0(
+    *,
+    snapshot: Mapping[str, Any],
+    node_status: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], str, str]:
+    _by_asset, by_symbol = _ui_token_catalog_v0(node_status)
+    raw_pools = snapshot.get("pools", [])
+    if not isinstance(raw_pools, list):
+        raise ValueError("snapshot.pools must be a list")
+    pool_id_hint = payload.get("pool_id", payload.get("poolId"))
+    requested_pool_id = pool_id_hint if isinstance(pool_id_hint, str) and pool_id_hint.strip() else None
+    asset_in_raw = payload.get("asset_in", payload.get("assetIn", payload.get("from")))
+    asset_out_raw = payload.get("asset_out", payload.get("assetOut", payload.get("to")))
+    asset_in = _asset_from_ui_symbol_v0(asset_in_raw, by_symbol=by_symbol, name="asset_in")
+    asset_out = _asset_from_ui_symbol_v0(asset_out_raw, by_symbol=by_symbol, name="asset_out")
+    if asset_in == asset_out:
+        raise ValueError("asset_in and asset_out must differ")
+
+    for row in raw_pools:
+        if not isinstance(row, Mapping):
+            continue
+        row_pool_id = str(row.get("pool_id", ""))
+        if requested_pool_id is not None and row_pool_id != requested_pool_id:
+            continue
+        row_asset0 = _require_asset_v0(row.get("asset0"), name="pool.asset0")
+        row_asset1 = _require_asset_v0(row.get("asset1"), name="pool.asset1")
+        if {row_asset0, row_asset1} == {asset_in, asset_out}:
+            if str(row.get("status", "ACTIVE")) != "ACTIVE":
+                raise ValueError("pool is not active")
+            return row, asset_in, asset_out
+    raise ValueError("matching pool not found")
+
+
+def _ui_swap_tx_v0(
+    *,
+    data_dir: Path,
+    node_status: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    time_ms: int,
+) -> dict[str, Any]:
+    sender_raw = payload.get("sender_pubkey", payload.get("senderPubkey", payload.get("sender")))
+    recipient_raw = payload.get("recipient", sender_raw)
+    sender = _require_pubkey_v0(sender_raw, name="sender_pubkey")
+    recipient = _require_pubkey_v0(recipient_raw, name="recipient")
+    amount_in = _ui_amount_int_v0(
+        payload.get("amount_in", payload.get("amountIn")),
+        name="amount_in",
+        maximum=MAX_TESTNET_FAUCET_AMOUNT,
+    )
+    min_amount_out = _ui_amount_int_v0(
+        payload.get("min_amount_out", payload.get("minAmountOut", 1)),
+        name="min_amount_out",
+        maximum=MAX_TESTNET_FAUCET_AMOUNT,
+        allow_zero=True,
+    )
+    deadline = _ui_amount_int_v0(
+        payload.get("deadline", 1_999_999_999),
+        name="deadline",
+        maximum=9_999_999_999,
+    )
+    latest_height, snapshot = _latest_snapshot_for_ui_v0(data_dir=data_dir, node_status=node_status)
+    pool, asset_in, asset_out = _find_ui_swap_pool_v0(snapshot=snapshot, node_status=node_status, payload=payload)
+    nonce_raw = payload.get("nonce")
+    if nonce_raw is None:
+        nonce = _snapshot_last_nonce_v0(snapshot, sender) + 1
+    else:
+        nonce = _ui_amount_int_v0(nonce_raw, name="nonce", maximum=9_223_372_036_854_775_807)
+    pool_id = str(pool["pool_id"])
+    tx_id_raw = payload.get("tx_id", payload.get("txId"))
+    tx_id = str(tx_id_raw).strip() if isinstance(tx_id_raw, str) and tx_id_raw.strip() else f"ui-swap-{latest_height + 1}-{nonce}"
+    intent_payload = {
+        "sender_pubkey": sender,
+        "recipient": recipient,
+        "pool_id": pool_id,
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_in": amount_in,
+        "min_amount_out": min_amount_out,
+        "nonce": nonce,
+    }
+    return {
+        "tx_id": tx_id,
+        "block_timestamp": time_ms // 1000,
+        "tx_sender_pubkey": sender,
+        "operations": {
+            "2": [
+                {
+                    "module": "TauSwap",
+                    "version": "0.1",
+                    "kind": "SWAP_EXACT_IN",
+                    "intent_id": hash_v0("ui_swap_intent_v0", intent_payload),
+                    "sender_pubkey": sender,
+                    "deadline": deadline,
+                    "nonce": nonce,
+                    "pool_id": pool_id,
+                    "asset_in": asset_in,
+                    "asset_out": asset_out,
+                    "amount_in": amount_in,
+                    "min_amount_out": min_amount_out,
+                    "recipient": recipient,
+                }
+            ]
+        },
+    }
+
+
 def _faucet_tx_v0(
     *,
     tx_id: str,
@@ -1279,7 +1541,8 @@ def make_node_http_server_v0(
         def do_GET(self) -> None:  # noqa: N802
             try:
                 status = load_node_status_v0(root)
-                parts = [part for part in self.path.split("?", 1)[0].split("/") if part]
+                request_path = self.path.split("?", 1)[0]
+                parts = [part for part in request_path.split("/") if part]
                 if len(parts) == 3 and parts[0] == "live" and parts[1] in {"header", "body", "checkpoint", "snapshot"}:
                     try:
                         height = int(parts[2])
@@ -1292,7 +1555,7 @@ def make_node_http_server_v0(
                     else:
                         self._send_json(_load_json_object(artifact_path))
                     return
-                if self.path in {"/", "/health"}:
+                if request_path in {"/", "/health"}:
                     self._send_json(
                         {
                             "ok": status["ok"],
@@ -1302,10 +1565,10 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/status":
+                if request_path == "/status":
                     self._send_json(status)
                     return
-                if self.path == "/features":
+                if request_path == "/features":
                     self._send_json(
                         {
                             "feature_suite_hash": status["feature_suite_hash"],
@@ -1315,7 +1578,7 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/tokens":
+                if request_path == "/tokens":
                     self._send_json(
                         {
                             "token_symbol": status["token_symbol"],
@@ -1325,7 +1588,7 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/network":
+                if request_path == "/network":
                     self._send_json(
                         {
                             "schema": "zenodex.zeno_ledger.node_network_status.v0",
@@ -1349,21 +1612,24 @@ def make_node_http_server_v0(
                         }
                     )
                     return
-                if self.path == "/live":
+                if request_path == "/api/pools":
+                    self._send_json(_ui_pools_response_v0(data_dir=root, node_status=status))
+                    return
+                if request_path == "/live":
                     live_path = root / "live_state.json"
                     if not live_path.is_file():
                         self._send_json({"ok": True, "live": False})
                     else:
                         self._send_json({"ok": True, "live": True, "state": _load_json_object(live_path)})
                     return
-                if self.path == "/attestation":
+                if request_path == "/attestation":
                     attestation = _load_optional_json(status.get("operator_attestation_path"))
                     if attestation is None:
                         self._send_json({"ok": False, "error": "attestation_missing"}, status=HTTPStatus.NOT_FOUND)
                     else:
                         self._send_json(attestation)
                     return
-                if self.path == "/testnet-status":
+                if request_path == "/testnet-status":
                     testnet_status = _load_optional_json(status.get("combined_testnet_status_path"))
                     if testnet_status is None:
                         self._send_json({"ok": False, "error": "testnet_status_missing"}, status=HTTPStatus.NOT_FOUND)
@@ -1376,7 +1642,45 @@ def make_node_http_server_v0(
 
         def do_POST(self) -> None:  # noqa: N802
             try:
-                if self.path == "/tx":
+                request_path = self.path.split("?", 1)[0]
+                if request_path == "/api/swap":
+                    if not self._require_write_auth():
+                        return
+                    if not enable_testnet_intake:
+                        self._send_json({"ok": False, "error": "testnet_intake_disabled"}, status=HTTPStatus.FORBIDDEN)
+                        return
+                    payload = _read_http_json_body(self)
+                    if submit_peer_url:
+                        report, peer_status = _post_json_url(
+                            urljoin(submit_peer_url.rstrip("/") + "/", "api/swap"),
+                            payload,
+                            bearer_token=submit_peer_auth_token,
+                        )
+                        self._send_json({**report, "forwarded_to": submit_peer_url}, status=peer_status)
+                        return
+                    time_ms = payload.get("time_ms", payload.get("timeMs"))
+                    if time_ms is None:
+                        time_ms = int(time.time() * 1000)
+                    if not isinstance(time_ms, int) or isinstance(time_ms, bool) or time_ms < 0:
+                        self._send_json({"ok": False, "error": "time_ms_must_be_nonnegative_int"}, status=HTTPStatus.BAD_REQUEST)
+                        return
+                    status = load_node_status_v0(root)
+                    tx = _ui_swap_tx_v0(data_dir=root, node_status=status, payload=payload, time_ms=int(time_ms))
+                    with append_lock:
+                        report = append_dex_transaction_v0(data_dir=root, tx=tx, time_ms=int(time_ms))
+                    receipt = report.get("receipt")
+                    accepted = bool(isinstance(receipt, Mapping) and receipt.get("accepted") is True)
+                    response = {
+                        **report,
+                        "ok": accepted,
+                        "txHash": report["tx_hash"],
+                        "tx_hash": report["tx_hash"],
+                        "tx_accepted": accepted,
+                        "receipt": receipt,
+                    }
+                    self._send_json(response, status=HTTPStatus.OK if accepted else HTTPStatus.BAD_REQUEST)
+                    return
+                if request_path == "/tx":
                     if not self._require_write_auth():
                         return
                     if not enable_testnet_intake:
@@ -1405,7 +1709,7 @@ def make_node_http_server_v0(
                         report = append_dex_transaction_v0(data_dir=root, tx=tx_raw, time_ms=int(time_ms))
                     self._send_json(report, status=HTTPStatus.OK if report["ok"] else HTTPStatus.BAD_REQUEST)
                     return
-                if self.path == "/faucet":
+                if request_path == "/faucet":
                     if not self._require_write_auth():
                         return
                     if not enable_testnet_faucet:

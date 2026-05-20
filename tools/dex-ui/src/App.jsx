@@ -35,9 +35,38 @@ function getInitialTab() {
   return APP_TABS.some((tab) => tab.id === requested) ? requested : 'swap';
 }
 
+function getInitialWallet() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('zenodexUiSmokeSwap') !== '1') {
+    return null;
+  }
+  const rawAddress = String(params.get('walletAddress') || '').trim();
+  if (!/^(0x)?[0-9a-fA-F]{96}$/.test(rawAddress)) {
+    return null;
+  }
+  const address = rawAddress.toLowerCase().startsWith('0x')
+    ? `0x${rawAddress.slice(2).toLowerCase()}`
+    : `0x${rawAddress.toLowerCase()}`;
+  return {
+    address,
+    chainId: 'tau-alpha',
+    balance: {
+      AGRS: 1_000_000,
+      ZDEX: 1_000_000,
+      USD: 1_000_000,
+      TASSET0: 1_000_000,
+      TASSET1: 1_000_000,
+      TZENO: 1_000_000,
+    },
+  };
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
-  const [wallet, setWallet] = useState(null);
+  const [wallet, setWallet] = useState(getInitialWallet);
   const { upsertTransaction } = useTransactionCenter();
 
   return (
