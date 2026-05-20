@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.cpmm import swap_exact_out  # noqa: E402
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1  # noqa: E402
 
 
@@ -115,7 +116,15 @@ def run_market_swarm_v0(
             )
             rows.append(row)
 
-    strategies = ("momentum", "mean_reversion", "noise", "whale", "liquidity", "high_min_out_probe")
+    strategies = (
+        "momentum",
+        "mean_reversion",
+        "noise",
+        "whale",
+        "liquidity",
+        "high_min_out_probe",
+        "exact_out",
+    )
     for step in range(steps):
         snapshot = _latest_snapshot(writer_url)
         pool = _choose_pool(snapshot)
@@ -355,6 +364,24 @@ def _quote_exact_in(pool: Mapping[str, Any], asset_in: str, amount_in: int) -> i
     return (amount_after_fee * reserve_out) // (reserve_in + amount_after_fee)
 
 
+def _quote_exact_out(pool: Mapping[str, Any], asset_in: str, amount_out: int) -> int:
+    reserve_in = int(pool["reserve0"]) if asset_in == pool["asset0"] else int(pool["reserve1"])
+    reserve_out = int(pool["reserve1"]) if asset_in == pool["asset0"] else int(pool["reserve0"])
+    fee_bps = int(pool.get("fee_bps", 30))
+    if amount_out <= 0 or reserve_in <= 0 or reserve_out <= 0 or amount_out >= reserve_out:
+        return 0
+    try:
+        amount_in, _ = swap_exact_out(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_out=amount_out,
+            fee_bps=fee_bps,
+        )
+    except ValueError:
+        return 0
+    return int(amount_in)
+
+
 def _swap_action(
     *,
     run_id: str,
@@ -386,38 +413,74 @@ def _swap_action(
     else:
         amount_in = max(1, min(spendable, max(1, reserve_in * rng.randint(5, 180) // 10_000)))
     quoted_out = _quote_exact_in(pool, asset_in, amount_in)
-    if strategy == "high_min_out_probe":
-        min_amount_out = max(quoted_out + 1, reserve0 + reserve1)
-        expected_valid = True
-        expected_economic_fill = False
-    else:
-        min_amount_out = max(1, quoted_out * 8_500 // 10_000)
-        expected_valid = True
-        expected_economic_fill = True
     now_ms = int(time.time() * 1000)
+    if strategy == "exact_out":
+        reserve_out = reserve1 if asset_in == asset0 else reserve0
+        amount_out = max(1, min(max(1, reserve_out // 20), max(1, reserve_out * rng.randint(5, 120) // 10_000)))
+        quoted_in = _quote_exact_out(pool, asset_in, amount_out)
+        if quoted_in <= 0:
+            quoted_in = amount_in
+        max_amount_in = max(quoted_in, quoted_in * 11_500 // 10_000 + 1)
+        max_amount_in = max(1, min(spendable, max_amount_in))
+        if max_amount_in < quoted_in:
+            amount_out = max(1, amount_out * max_amount_in // max(1, quoted_in))
+            quoted_in = _quote_exact_out(pool, asset_in, amount_out)
+            max_amount_in = max(quoted_in, max_amount_in)
+        operation = {
+            "module": "TauSwap",
+            "version": "0.1",
+            "kind": "SWAP_EXACT_OUT",
+            "intent_id": "0x" + hashlib.sha256(f"{run_id}:swap-exact-out:{step}".encode("utf-8")).hexdigest(),
+            "sender_pubkey": agent["pubkey"],
+            "deadline": now_ms // 1000 + 3600,
+            "nonce": _nonce(snapshot, str(agent["pubkey"])) + 1,
+            "pool_id": pool["pool_id"],
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_out": amount_out,
+            "max_amount_in": max_amount_in,
+            "recipient": agent["pubkey"],
+        }
+        expected_economic_fill = quoted_in > 0 and max_amount_in >= quoted_in
+        context = {
+            "pool": dict(pool),
+            "quoted_in": quoted_in,
+            "stress_bps": amount_out * 10_000 // max(1, reserve_out),
+            "expected_economic_fill": expected_economic_fill,
+        }
+    else:
+        if strategy == "high_min_out_probe":
+            min_amount_out = max(quoted_out + 1, reserve0 + reserve1)
+            expected_economic_fill = False
+        else:
+            min_amount_out = max(1, quoted_out * 8_500 // 10_000)
+            expected_economic_fill = True
+        operation = {
+            "module": "TauSwap",
+            "version": "0.1",
+            "kind": "SWAP_EXACT_IN",
+            "intent_id": "0x" + hashlib.sha256(f"{run_id}:swap:{step}".encode("utf-8")).hexdigest(),
+            "sender_pubkey": agent["pubkey"],
+            "deadline": now_ms // 1000 + 3600,
+            "nonce": _nonce(snapshot, str(agent["pubkey"])) + 1,
+            "pool_id": pool["pool_id"],
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_in": amount_in,
+            "min_amount_out": min_amount_out,
+            "recipient": agent["pubkey"],
+        }
+        context = {
+            "pool": dict(pool),
+            "quoted_out": quoted_out,
+            "stress_bps": amount_in * 10_000 // max(1, reserve_in),
+            "expected_economic_fill": expected_economic_fill,
+        }
     tx = {
         "tx_id": f"{run_id}-swap-{step}",
         "block_timestamp": now_ms // 1000,
         "tx_sender_pubkey": agent["pubkey"],
-        "operations": {
-            "2": [
-                {
-                    "module": "TauSwap",
-                    "version": "0.1",
-                    "kind": "SWAP_EXACT_IN",
-                    "intent_id": "0x" + hashlib.sha256(f"{run_id}:swap:{step}".encode("utf-8")).hexdigest(),
-                    "sender_pubkey": agent["pubkey"],
-                    "deadline": now_ms // 1000 + 3600,
-                    "nonce": _nonce(snapshot, str(agent["pubkey"])) + 1,
-                    "pool_id": pool["pool_id"],
-                    "asset_in": asset_in,
-                    "asset_out": asset_out,
-                    "amount_in": amount_in,
-                    "min_amount_out": min_amount_out,
-                    "recipient": agent["pubkey"],
-                }
-            ]
-        },
+        "operations": {"2": [operation]},
     }
     return _submit_tx(
         run_id=run_id,
@@ -427,14 +490,9 @@ def _swap_action(
         target_url=target_url,
         token=token,
         tx=tx,
-        expected_valid=expected_valid,
+        expected_valid=True,
         action_family=strategy,
-        context={
-            "pool": dict(pool),
-            "quoted_out": quoted_out,
-            "stress_bps": amount_in * 10_000 // max(1, reserve_in),
-            "expected_economic_fill": expected_economic_fill,
-        },
+        context=context,
     )
 
 

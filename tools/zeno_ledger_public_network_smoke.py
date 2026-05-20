@@ -166,6 +166,34 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                 },
             },
         )
+        exact_out_swap = append_dex_transaction_v0(
+            data_dir=node_a_dir,
+            time_ms=DEFAULT_TIME_MS + 1_001_500,
+            tx={
+                "tx_id": "smoke-live-swap-exact-out-v0",
+                "block_timestamp": (DEFAULT_TIME_MS + 1_001_500) // 1000,
+                "tx_sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                "operations": {
+                    "2": [
+                        {
+                            "module": "TauSwap",
+                            "version": "0.1",
+                            "kind": "SWAP_EXACT_OUT",
+                            "intent_id": "0x" + "bc" * 32,
+                            "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
+                            "deadline": 9_999_999_999,
+                            "nonce": 6,
+                            "pool_id": compute_pool_id(asset_a, asset_b, 30),
+                            "asset_in": asset_a,
+                            "asset_out": asset_b,
+                            "amount_out": 10,
+                            "max_amount_in": 100,
+                            "recipient": DEFAULT_BOOTSTRAP_SENDER,
+                        }
+                    ]
+                },
+            },
+        )
         new_asset = "0x" + "33" * 32
         faucet_new = append_testnet_faucet_v0(
             data_dir=node_a_dir,
@@ -193,7 +221,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                             "intent_id": "0x" + "cc" * 32,
                             "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                             "deadline": 1_999_999_999,
-                            "nonce": 6,
+                            "nonce": 7,
                             "asset0": new_pool_asset0,
                             "asset1": new_pool_asset1,
                             "fee_bps": 30,
@@ -222,7 +250,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                             "intent_id": "0x" + "cd" * 32,
                             "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                             "deadline": 1_999_999_999,
-                            "nonce": 7,
+                            "nonce": 8,
                             "pool_id": fake_pool_id,
                             "amount0_desired": 10,
                             "amount1_desired": 10,
@@ -250,7 +278,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
                             "intent_id": "0x" + "ce" * 32,
                             "sender_pubkey": DEFAULT_BOOTSTRAP_SENDER,
                             "deadline": 1_999_999_999,
-                            "nonce": 8,
+                            "nonce": 9,
                             "pool_id": fake_pool_id,
                             "lp_amount": 1,
                             "amount0_min": 0,
@@ -285,6 +313,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             node_a_server.shutdown()
             node_a_server.server_close()
 
+    live_dex_reports = (swap, exact_out_swap, create_fake_pool, add_fake_pool_liquidity, remove_fake_pool_liquidity)
     ok = all(
         item.get("ok") is True
         for item in (
@@ -295,6 +324,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             node_b,
             faucet_existing,
             swap,
+            exact_out_swap,
             faucet_new,
             create_fake_pool,
             add_fake_pool_liquidity,
@@ -306,7 +336,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
             forwarded_pull,
             final_peer_check,
         )
-    )
+    ) and all(item.get("tx_accepted") is True for item in live_dex_reports)
     return {
         "schema": REPORT_SCHEMA,
         "ok": ok,
@@ -321,10 +351,19 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "node_b_watcher_count": node_b["combined_watcher_count"],
         "faucet_existing_height": faucet_existing["height"],
         "swap_height": swap["height"],
+        "swap_exact_out_height": exact_out_swap["height"],
         "faucet_new_asset_height": faucet_new["height"],
         "create_fake_pool_height": create_fake_pool["height"],
         "add_fake_pool_liquidity_height": add_fake_pool_liquidity["height"],
         "remove_fake_pool_liquidity_height": remove_fake_pool_liquidity["height"],
+        "covered_live_dex_intent_kinds": [
+            "CREATE_POOL",
+            "ADD_LIQUIDITY",
+            "REMOVE_LIQUIDITY",
+            "SWAP_EXACT_IN",
+            "SWAP_EXACT_OUT",
+        ],
+        "live_dex_all_accepted": all(item.get("tx_accepted") is True for item in live_dex_reports),
         "node_b_pulled_count": pull["pulled_count"],
         "node_b_total_pulled_count": int(pull["pulled_count"]) + int(forwarded_pull["pulled_count"]),
         "node_b_latest_height": forwarded_pull["local_latest_height"],
@@ -349,6 +388,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--network-id", default=DEFAULT_CHAIN_ID)
     parser.add_argument("--chain-id", default=DEFAULT_CHAIN_ID)
+    parser.add_argument("--report-out", type=Path)
     args = parser.parse_args(argv)
 
     try:
@@ -359,6 +399,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except Exception as exc:
         report = {"schema": REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    if args.report_out is not None:
+        args.report_out.parent.mkdir(parents=True, exist_ok=True)
+        args.report_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 

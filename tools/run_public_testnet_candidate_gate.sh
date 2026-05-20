@@ -43,6 +43,7 @@ echo "== public-testnet: local two-node smoke =="
 
 echo "== public-testnet: node and promotion regression tests =="
 "$PY" -m pytest -q \
+  -p no:cacheprovider \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_smoke.py" \
   "$ROOT_DIR/tests/tau/test_tau_experiment_promotion_candidates.py"

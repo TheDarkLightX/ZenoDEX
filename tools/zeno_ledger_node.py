@@ -761,6 +761,7 @@ def _pool_trade_features_v0(*, operation: Mapping[str, Any], pre_pool: Mapping[s
     kind = str(operation.get("kind", ""))
     asset_in = operation.get("asset_in")
     amount_in = operation.get("amount_in")
+    amount_out = operation.get("amount_out")
     stress_bps = 0
     reserve_skew_bps = 0
     if pre_pool is not None:
@@ -775,6 +776,12 @@ def _pool_trade_features_v0(*, operation: Mapping[str, Any], pre_pool: Mapping[s
                 reserve_in = reserve0
             elif asset_in == pre_pool.get("asset1"):
                 reserve_in = reserve1
+        elif kind == "SWAP_EXACT_OUT":
+            if asset_in == pre_pool.get("asset0"):
+                reserve_in = reserve1
+            elif asset_in == pre_pool.get("asset1"):
+                reserve_in = reserve0
+            amount_in = amount_out
         elif kind == "ADD_LIQUIDITY":
             reserve_in = reserve_sum
             raw_amount0 = operation.get("amount0_desired", 0)
@@ -881,6 +888,8 @@ def _trade_telemetry_rows_for_tx_v0(
                 "asset_out": str(operation.get("asset_out", "")),
                 "amount_in": operation.get("amount_in"),
                 "min_amount_out": operation.get("min_amount_out"),
+                "amount_out": operation.get("amount_out"),
+                "max_amount_in": operation.get("max_amount_in"),
                 "amount0_desired": operation.get("amount0_desired"),
                 "amount1_desired": operation.get("amount1_desired"),
                 "lp_amount": operation.get("lp_amount"),

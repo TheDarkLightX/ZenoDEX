@@ -12,6 +12,7 @@ momentum swaps
 mean-reversion swaps
 noise swaps
 large whale swaps
+exact-output swaps
 liquidity add/remove churn
 high min-output unfilled probes
 malformed tx probes
@@ -75,6 +76,8 @@ asset_in
 asset_out
 amount_in
 min_amount_out
+amount_out
+max_amount_in
 accepted
 error_code
 receipt_hash

@@ -391,9 +391,9 @@ python3 tools/zeno_ledger_public_network_smoke.py \
   --report-out /tmp/zeno-ledger-public-network-smoke-report.json
 ```
 
-The smoke test builds a mirror, syncs two independent nodes, appends faucet and
-swap blocks, creates a fake-token pool, adds and removes liquidity in that
-pool, forwards a faucet request through the follower, and verifies both nodes
-end on the same live header. The tool validates the exact expected height
-sequence, records total `elapsed_ms`, and writes the JSON report when
-`--report-out` is supplied.
+The smoke test builds a mirror, syncs two independent nodes, appends faucet,
+exact-in swap, and exact-out swap blocks, creates a fake-token pool, adds and
+removes liquidity in that pool, forwards a faucet request through the follower,
+and verifies both nodes end on the same live header. The tool validates the
+exact expected height sequence, records total `elapsed_ms`, and writes the JSON
+report when `--report-out` is supplied.

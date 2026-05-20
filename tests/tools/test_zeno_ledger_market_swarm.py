@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tools.zeno_ledger_market_swarm import _agent, _quote_exact_in, _summarize_rows
+from tools.zeno_ledger_market_swarm import _agent, _quote_exact_in, _quote_exact_out, _summarize_rows
 
 
 def test_market_swarm_agent_pubkeys_are_replayable() -> None:
@@ -24,6 +24,20 @@ def test_market_swarm_quote_exact_in_is_bounded_by_reserves() -> None:
     quoted = _quote_exact_in(pool, "A", 1_000)
 
     assert 0 < quoted < pool["reserve1"]
+
+
+def test_market_swarm_quote_exact_out_is_positive_and_affordable() -> None:
+    pool = {
+        "asset0": "A",
+        "asset1": "B",
+        "reserve0": 10_000,
+        "reserve1": 20_000,
+        "fee_bps": 30,
+    }
+
+    quoted = _quote_exact_out(pool, "A", 1_000)
+
+    assert 0 < quoted < pool["reserve0"]
 
 
 def test_market_swarm_summary_tracks_invalid_probes() -> None:
