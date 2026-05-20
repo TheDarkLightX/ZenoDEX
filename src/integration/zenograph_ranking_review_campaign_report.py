@@ -705,6 +705,7 @@ def _render_latest_bundle_panel(item: Mapping[str, object] | None) -> str:
         if gate == "blocked"
         else "Latest bundle gate posture is unknown."
     )
+    empty_links = '<span class="muted">none</span>'
     return (
         '<div class="trend-row">'
         f'<div class="trend-top"><div class="trend-day">{_escape(run_id)}</div>'
@@ -713,7 +714,7 @@ def _render_latest_bundle_panel(item: Mapping[str, object] | None) -> str:
         f'<div class="trend-meta">Block reason: <span class="code">{_escape(block_reason)}</span></div>'
         f'<div class="trend-meta">Git: <span class="code">{_escape(git_commit_short)}</span> | Dirty: {_escape(dirty)}</div>'
         f'<div class="trend-meta">{_escape(explanation)}</div>'
-        f'<div class="link-cluster" style="margin-top:12px;">{links or "<span class=\"muted\">none</span>"}</div>'
+        f'<div class="link-cluster" style="margin-top:12px;">{links or empty_links}</div>'
         "</div>"
     )
 
@@ -738,6 +739,7 @@ def _render_entry_row(item: Mapping[str, object]) -> str:
         )
     )
     pill_class = "allowed" if gate == "allowed" else "blocked" if gate == "blocked" else ""
+    empty_links = '<span class="muted">none</span>'
     return (
         "<tr>"
         f"<td><span class=\"code\">{_escape(run_id)}</span></td>"
@@ -746,7 +748,7 @@ def _render_entry_row(item: Mapping[str, object]) -> str:
         f"<td><span class=\"code\">{_escape(block_reason)}</span></td>"
         f"<td><span class=\"code\">{_escape(git_commit_short)}</span></td>"
         f"<td><span class=\"muted\">{_escape(dirty)}</span></td>"
-        f"<td><div class=\"link-cluster\">{links or '<span class=\"muted\">none</span>'}</div></td>"
+        f"<td><div class=\"link-cluster\">{links or empty_links}</div></td>"
         "</tr>"
     )
 

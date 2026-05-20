@@ -950,6 +950,15 @@ def _live_artifact_path(*, data_dir: Path, kind: str, height: int) -> Path:
     raise ValueError(f"unsupported live artifact kind: {kind}")
 
 
+def _strip_replay_derived_rejections_v0(body: Mapping[str, Any]) -> dict[str, Any]:
+    replay_body = json.loads(json.dumps(body))
+    evidence = replay_body.get("evidence")
+    if not isinstance(evidence, dict):
+        raise ValueError("body.evidence must be an object")
+    evidence["rejection_receipts"] = []
+    return replay_body
+
+
 def pull_live_from_peer_v0(
     *,
     data_dir: Path,
@@ -1012,8 +1021,9 @@ def pull_live_from_peer_v0(
                 module_versions_digest=str(bootstrap_manifest["module_versions_digest"]),
             )
         else:
+            replay_body = _strip_replay_derived_rejections_v0(peer_body)
             body_path = data_dir / "pulled_bodies" / f"{height}.json"
-            _write_json(body_path, peer_body)
+            _write_json(body_path, replay_body)
             block_report = build_local_block_v0(
                 body_path=body_path,
                 out_dir=live_ledger_dir,

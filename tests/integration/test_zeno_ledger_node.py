@@ -22,6 +22,7 @@ from tools.zeno_ledger_node import (
     pull_live_from_peer_v0,
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
+    _strip_replay_derived_rejections_v0,
 )
 
 
@@ -51,6 +52,37 @@ def _post_url_json(url: str, value: dict[str, object]) -> dict[str, object]:
 class _QuietStaticHandler(SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         return
+
+
+def test_pull_live_strips_replay_derived_rejection_receipts() -> None:
+    body = {
+        "schema": "zenodex/zeno_ledger/body/v0",
+        "chain_id": "chain",
+        "height": 6,
+        "ingress": {
+            "batch_cutoff": {},
+            "ingress_receipts": [],
+            "forced_inclusion_requests": [],
+            "forced_inclusion_decisions": [],
+        },
+        "transactions": [{"tx_id": "rejected"}],
+        "settlement_envelopes": [],
+        "evidence": {
+            "upba_certificates": [{"keep": "upba"}],
+            "price_grid_tables": [],
+            "uniform_batch_hypergraph_roots": [],
+            "oracle_packets": [],
+            "proof_receipts": [{"keep": "proof"}],
+            "rejection_receipts": [{"derived": "strip-before-replay"}],
+        },
+    }
+
+    replay_body = _strip_replay_derived_rejections_v0(body)
+
+    assert replay_body["evidence"]["rejection_receipts"] == []
+    assert replay_body["evidence"]["upba_certificates"] == [{"keep": "upba"}]
+    assert replay_body["evidence"]["proof_receipts"] == [{"keep": "proof"}]
+    assert body["evidence"]["rejection_receipts"] == [{"derived": "strip-before-replay"}]
 
 
 def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path) -> None:
