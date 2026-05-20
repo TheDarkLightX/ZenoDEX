@@ -27,6 +27,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | Deep Sets | Permutation-invariant set functions have a structured representation. | Candidate-set context should use set-safe pooling rather than order-sensitive summaries. |
 | Set Transformer | Attention can model interactions inside unordered sets. | Test a tiny set-attention/listwise ranker only after linear baselines and replay gates remain stable. |
 | ListNet / listwise ranking | Ranking losses should use whole lists when the task is ordering a list. | Replace pair-only updates in the next ranker with listwise top-one or top-k loss over each candidate batch. |
+| Deep ensembles | Independent predictors can expose useful uncertainty under distribution shift. | Use ensemble disagreement as diagnostic evidence unless it beats the retained default under verifier-call metrics. |
 | Learning to Branch in MIP | Learn cheap ranking surrogates for expensive exact solver choices. | ZenoEnergy’s scorer should imitate verifier-backed winners and hard solver calls, then defer to the verifier. |
 | GNN branch-and-bound | Structural encoders can generalize search policies across larger combinatorial instances. | A graph/set encoder is a v1 direction if simple listwise rankers saturate. |
 | Learned Large Neighborhood Search | Learned policies can select neighborhoods while an exact solver evaluates repairs. | The repair selector is the right model family to keep extending, but only with fallback and dominance certificates. |
@@ -43,6 +44,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | deterministic neighborhood repair | improves regret sharply but increases verifier work | mixed evidence |
 | learned repair selector | compresses full neighborhood on three seed pairs while preserving aggregate regret | supported as proposal-budget tool |
 | learned vs hand repair selector | learned selector strictly beats hand-selected repairs on only one of three seed pairs | negative knowledge |
+| tiny ensemble ranker | disagreement has moderate top-1 miss signal but mean verifier calls are worse than the default | diagnostic only |
 | fallback equivalence | Lean and runtime receipts cover permutation-preserving full fallback | supported boundary |
 | checked stop | Lean receipt names certificate premises; runtime sweep audits suffix labels offline | supported boundary with online caveat |
 
@@ -121,6 +123,11 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
    shows that current-model-hard winner-bearing batches beat raw winner-bearing
    sampling at medium budgets, while very small hard-only budgets are worse.
 
+   The tiny ensemble probe is recorded in
+   [ZENO_ENERGY_ENSEMBLE.md](./ZENO_ENERGY_ENSEMBLE.md). It gives moderate
+   disagreement signal for top-1 misses, but it does not beat the current
+   gap-weighted default on mean verifier calls.
+
    The formal energy-order-alone boundary is recorded in
    [ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](./ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md).
    Lean counterexamples now make the weakest safety claim explicit: advisory
@@ -178,6 +185,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 | rare-disqualifier pair-weight curriculum | revise | first bounded probe increased mean verifier calls versus the gap-weighted default |
 | raw same-generator synthetic scaling | revise | more rows helped from small budgets but saturated below the current checkpoint |
 | winner-bearing quality selection | keep as data lane | medium budgets improved over raw sampling, but tiny hard-only budgets were worse |
+| tiny ensemble uncertainty | diagnostic only | disagreement predicted some top-1 misses, but every ensemble ordering was worse than the current gap-weighted default on mean verifier calls |
 | top-k without fallback | reject | empirical recall cannot replace certificate or fallback |
 | online checked stop | prototype only with suffix-bound certificate | current checked-stop rates are offline audits |
 
@@ -190,6 +198,7 @@ budget. Validity, state roots, and accepted settlement remain deterministic.
 - Manzil Zaheer et al. [Deep Sets](https://papers.nips.cc/paper/6931-deep-sets), NeurIPS 2017.
 - Juho Lee et al. [Set Transformer](https://proceedings.mlr.press/v97/lee19d.html), ICML 2019.
 - Zhe Cao et al. [Learning to Rank: From Pairwise Approach to Listwise Approach](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2007-40.pdf), ICML 2007.
+- Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell. [Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles](https://papers.neurips.cc/paper/7219-simple-and-scalable-predictive-uncertainty-estimation-using-deep-ensembles), NIPS 2017.
 - Elias Khalil et al. [Learning to Branch in Mixed Integer Programming](https://ojs.aaai.org/index.php/AAAI/article/view/10080), AAAI 2016.
 - Maxime Gasse et al. [Exact Combinatorial Optimization with Graph Convolutional Neural Networks](https://papers.neurips.cc/paper/9690-exact-combinatorial-optimization-with-graph-convolutional-neural-networks), NeurIPS 2019.
 - Nicolas Sonnerat et al. [Learning a Large Neighborhood Search Algorithm for Mixed Integer Programs](https://arxiv.org/abs/2107.10201), 2021.
