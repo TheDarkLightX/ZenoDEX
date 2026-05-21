@@ -67,8 +67,8 @@ The local Tau Testnet path used here carries `fee_limit` in the signed
 transaction payload, but the current `createblock` path does not debit a native
 transaction fee from account balances.
 
-That local behavior should not be promoted as a permanent Tau Net gas
-assumption. zUSD therefore keeps liquidation compensation configurable:
+That local behavior should not be promoted as a permanent Tau Net gas or fee
+assumption. zUSD therefore keeps liquidation keeper compensation configurable:
 
 - `liquidation_gas_comp_fixed_collateral_e8`
 - `liquidation_gas_comp_bps`
@@ -82,14 +82,21 @@ comp = min(liquidated_collateral, fixed_comp + ceil(liquidated_collateral * comp
 The liquidator receives `comp` first; the remaining liquidated collateral is
 assigned to stability-pool collateral gains.
 
-The Tau app bridge exposes these through:
+The Tau app bridge accepts fee-named environment variables first:
+
+- `TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8`
+- `TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS`
+
+For backwards compatibility, it also accepts the older gas-named aliases:
 
 - `TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8`
 - `TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS`
 
 Both defaults are `0` for deterministic local tests. A live Tau fee model can
-turn them on without changing the action vocabulary or the mounted stream `11`
-transaction lane.
+turn compensation on without changing the action vocabulary or the mounted
+stream `11` transaction lane. The parameter pays the keeper from liquidated
+native collateral, independent of whether the external Tau transaction fee is
+called gas, fee, or another chain-cost term.
 
 The wallet API also carries a user-supplied `tx_fee_limit` into the signed Tau
 transaction envelope and reports whether the current native balance appears to
@@ -101,7 +108,9 @@ Pinned app-bridge evidence:
 
 ```bash
 pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper
+pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_zusd_monetary_liquidation_fee_comp_env_aliases_prefer_fee_names tests/integration/test_tau_testnet_dex_plugin.py::test_zusd_monetary_liquidation_fee_comp_env_aliases_accept_legacy_gas_names
 pytest -q tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11
+pytest -q tests/integration/test_zusd_monetary_wallet_api.py::test_status_reports_zusd_monetary_state_from_wrapped_app_state
 pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py::test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node -s
 ```
 

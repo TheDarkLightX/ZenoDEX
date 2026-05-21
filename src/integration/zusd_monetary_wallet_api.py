@@ -96,6 +96,12 @@ def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     return min(max(value, lo), hi)
 
 
+def _env_int_alias(primary: str, fallback: str, default: int, *, lo: int, hi: int) -> int:
+    if os.environ.get(primary, "").strip():
+        return _env_int(primary, default, lo=lo, hi=hi)
+    return _env_int(fallback, default, lo=lo, hi=hi)
+
+
 def _tau_client() -> TauNetTcpClient:
     return TauNetTcpClient(
         TauNetTcpConfig(
@@ -419,13 +425,20 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         chain_id=chain_id,
         oracle_pubkey=os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY"),
         asset_id=asset_id,
-        liquidation_gas_comp_fixed_collateral_e8=_env_int(
+        liquidation_gas_comp_fixed_collateral_e8=_env_int_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
             "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
             0,
             lo=0,
             hi=10**30,
         ),
-        liquidation_gas_comp_bps=_env_int("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", 0, lo=0, hi=10_000),
+        liquidation_gas_comp_bps=_env_int_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
+            0,
+            lo=0,
+            hi=10_000,
+        ),
     )
 
     client = _tau_client()
@@ -526,6 +539,20 @@ def _status_payload() -> Dict[str, Any]:
     chain_id = _tau_chain_id()
     asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
     sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
+    liquidation_fee_comp_fixed_collateral_e8 = _env_int_alias(
+        "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
+        "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
+        0,
+        lo=0,
+        hi=10**30,
+    )
+    liquidation_fee_comp_bps = _env_int_alias(
+        "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
+        "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
+        0,
+        lo=0,
+        hi=10_000,
+    )
     status: Dict[str, Any] = {
         "enabled": True,
         "chain_id": chain_id,
@@ -541,13 +568,10 @@ def _status_payload() -> Dict[str, Any]:
         "auto_mine": _auto_mine(),
         "stability_pool_pubkey": sp_pubkey,
         "oracle_pubkey": os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
-        "liquidation_gas_comp_fixed_collateral_e8": _env_int(
-            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
-            0,
-            lo=0,
-            hi=10**30,
-        ),
-        "liquidation_gas_comp_bps": _env_int("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", 0, lo=0, hi=10_000),
+        "liquidation_fee_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
+        "liquidation_fee_comp_bps": liquidation_fee_comp_bps,
+        "liquidation_gas_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
+        "liquidation_gas_comp_bps": liquidation_fee_comp_bps,
     }
     try:
         client = _tau_client()

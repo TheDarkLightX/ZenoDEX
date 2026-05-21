@@ -1167,6 +1167,34 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
     assert parsed_after_claim["zusd_monetary"]["sp_collateral_claims"] == []
 
 
+def test_zusd_monetary_liquidation_fee_comp_env_aliases_prefer_fee_names(monkeypatch):
+    from src.core.zusd import E8
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8", str(E8))
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", "10")
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8", str(E8 // 4))
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS", "25")
+
+    config = plugin._build_zusd_monetary_config(chain_id="tau-local-zusd-fee-alias")
+
+    assert config.liquidation_gas_comp_fixed_collateral_e8 == E8 // 4
+    assert config.liquidation_gas_comp_bps == 25
+
+
+def test_zusd_monetary_liquidation_fee_comp_env_aliases_accept_legacy_gas_names(monkeypatch):
+    from src.core.zusd import E8
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8", str(E8 // 5))
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", "15")
+
+    config = plugin._build_zusd_monetary_config(chain_id="tau-local-zusd-fee-alias")
+
+    assert config.liquidation_gas_comp_fixed_collateral_e8 == E8 // 5
+    assert config.liquidation_gas_comp_bps == 15
+
+
 def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeypatch):
     from src.core.zusd import E8
     from src.integration import tau_testnet_dex_plugin as plugin

@@ -76,7 +76,7 @@ function PerpTradingView({ wallet }) {
         ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
         : writeEnabled
             ? 'Uses the mounted /api/perps surface for local preview writes. This lane is still a development surface and not an authoritative settlement path.'
-            : 'Uses the mounted /api/perps surface for market data preview only. Write actions stay locked until an authoritative perps transaction path is mounted.';
+            : 'Uses the mounted /api/perps surface for market data preview only. Stream-8 transactions are handled by the Live Perps Wallet below.';
 
     if (loading && markets.length === 0) {
         return (

@@ -87,6 +87,8 @@ class _FakeClient:
 def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8", str(E8 // 20))
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS", "25")
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -102,6 +104,10 @@ def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) 
     assert status["monetary_state_present"] is True
     assert status["core"]["collateral_e8"] == 20 * E8
     assert status["vault_owner_pubkey"] == ALICE
+    assert status["liquidation_fee_comp_fixed_collateral_e8"] == E8 // 20
+    assert status["liquidation_fee_comp_bps"] == 25
+    assert status["liquidation_gas_comp_fixed_collateral_e8"] == E8 // 20
+    assert status["liquidation_gas_comp_bps"] == 25
 
 
 def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) -> None:

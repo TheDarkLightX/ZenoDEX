@@ -194,6 +194,10 @@ function ZUSDMonetarySurface() {
   }, [busy, status]);
 
   const liveSummary = result?.transport || null;
+  const liquidationFeeCompFixedE8 =
+    status?.liquidation_fee_comp_fixed_collateral_e8 ?? status?.liquidation_gas_comp_fixed_collateral_e8 ?? 0;
+  const liquidationFeeCompBps =
+    status?.liquidation_fee_comp_bps ?? status?.liquidation_gas_comp_bps ?? 0;
 
   return (
     <section className="zusd-wallet-surface">
@@ -225,8 +229,8 @@ function ZUSDMonetarySurface() {
             <div className="zusd-wallet-kv"><span>Debt</span><span>{status?.core?.debt_e8 ?? 0} E8</span></div>
             <div className="zusd-wallet-kv"><span>Stability Pool Debt</span><span>{status?.core?.sp_debt_e8 ?? 0} E8</span></div>
             <div className="zusd-wallet-kv"><span>SP Escrow</span><span>{status?.stability_pool_balance ?? 0} zUSD</span></div>
-            <div className="zusd-wallet-kv"><span>Liquidation Comp Fixed</span><span>{status?.liquidation_gas_comp_fixed_collateral_e8 ?? 0} E8</span></div>
-            <div className="zusd-wallet-kv"><span>Liquidation Comp Bps</span><span>{status?.liquidation_gas_comp_bps ?? 0}</span></div>
+            <div className="zusd-wallet-kv"><span>Keeper Fee Comp Fixed</span><span>{liquidationFeeCompFixedE8} E8</span></div>
+            <div className="zusd-wallet-kv"><span>Keeper Fee Comp Bps</span><span>{liquidationFeeCompBps}</span></div>
             <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}

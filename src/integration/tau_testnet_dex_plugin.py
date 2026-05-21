@@ -120,6 +120,12 @@ def _int_env(name: str, *, default: int, minimum: int = 0, maximum: Optional[int
     return out
 
 
+def _int_env_alias(primary: str, fallback: str, *, default: int, minimum: int = 0, maximum: Optional[int] = None) -> int:
+    if os.environ.get(primary, "").strip():
+        return _int_env(primary, default=default, minimum=minimum, maximum=maximum)
+    return _int_env(fallback, default=default, minimum=minimum, maximum=maximum)
+
+
 def _maybe_decode_custom_stream_value(value: Any) -> Any:
     """
     Upstream tau-testnet restricts custom operation streams (keys beyond 0/1) to
@@ -769,11 +775,13 @@ def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
         chain_id=chain_id,
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
         asset_id=asset_id,
-        liquidation_gas_comp_fixed_collateral_e8=_int_env(
+        liquidation_gas_comp_fixed_collateral_e8=_int_env_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
             "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
             default=0,
         ),
-        liquidation_gas_comp_bps=_int_env(
+        liquidation_gas_comp_bps=_int_env_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
             "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
             default=0,
             maximum=10_000,

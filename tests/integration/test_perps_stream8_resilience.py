@@ -110,6 +110,37 @@ def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch
     assert app_state_json2 == app_state_json1
 
 
+def test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effect(monkeypatch) -> None:
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+
+    ok, app_state_json, _hash, _patch, err = _apply(
+        "",
+        operations={
+            "8": [
+                _signed_init_market(
+                    market_id="perp:ch2p:batch-replay-a",
+                    quote_asset=quote_asset,
+                    nonce_a=1,
+                    nonce_b=1,
+                ),
+                _signed_init_market(
+                    market_id="perp:ch2p:batch-replay-b",
+                    quote_asset=quote_asset,
+                    nonce_a=1,
+                    nonce_b=1,
+                ),
+            ]
+        },
+        sender=OPERATOR,
+        block_timestamp=1,
+    )
+
+    assert ok is False
+    assert err == "account_a signature invalid: nonce invalid"
+    assert app_state_json == ""
+
+
 def test_stream8_app_bridge_rejects_expired_signature_without_materializing_market(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)

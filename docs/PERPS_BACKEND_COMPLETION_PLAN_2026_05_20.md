@@ -61,8 +61,11 @@ posted into signed clearinghouse perps collateral.
 
 ## What Is Still Missing
 
-The remaining blockers are full Docker browser evidence, perps liquidation
-transport/UI, typed Oracle adapter fixtures, and proof coverage.
+The remaining blockers are broader stateful/chaos assurance, production wallet
+and key-manager integration, production Oracle evidence selection, proof/ZK
+wrapping, and final branch/PR cleanup. Docker browser evidence, typed
+settle-time Oracle bridge fixtures, and clearinghouse liquidation UI evidence
+exist for the current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -96,7 +99,9 @@ Perps can be called live only when these are true:
    clearinghouse lane.
 6. Oracle settlement fails closed without typed Oracle evidence when
    `TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH=1`.
-   Liquidation transport remains open.
+   Clearinghouse liquidation is exercised through `settle_epoch`; an explicit
+   isolated-market partial-liquidation wallet action remains opt-in work if
+   isolated markets are promoted.
 7. Browser tests and local Tau-node acceptance tests cover the live submission
    path.
 
@@ -238,7 +243,8 @@ Still missing from the mounted perps UI:
 - zUSD wallet balance summaries for both clearinghouse accounts
 - posted perps collateral by role in the form
 - production typed Oracle evidence picker/viewer
-- liquidation controls and evidence display
+- richer liquidation history and a dedicated isolated partial-liquidation
+  control if isolated markets are promoted
 - production wallet/key-manager integration
 
 ### Phase 4: Assurance
@@ -254,8 +260,8 @@ Required evidence before claiming perps live-product coverage:
 - chaos tests for node restart, duplicate tx, expired deadline, stale Oracle
   evidence, and out-of-order signed operations
 - gas/fee compensation checks for keeper paths when exact Tau fee debits are
-  pinned; current wallet surfaces provide fee-limit preflight coverage, not
-  host-level fee debit proof
+  pinned; current wallet surfaces provide fee-limit preflight and configurable
+  keeper compensation coverage, not host-level fee debit proof
 - docs updating the UI surface matrix from preview to live only after the live
   path passes
 
@@ -317,10 +323,11 @@ This is enough to prove the backend app bridge can mint collateralized zUSD,
 transfer it, use it as clearinghouse perps collateral, exercise stability-pool
 liquidation accounting, and pay configured liquidation compensation to a keeper.
 It also proves the mounted zUSD tab can submit a stream `11` monetary mint
-through the Tau-node-backed API and observe post-submit state. It is not enough
-to claim perps product completion because full Docker zUSD-to-perps browser
-evidence, typed Oracle adapter browser evidence, liquidation transport/UI, and
-proof/ZK wrapping remain open.
+through the Tau-node-backed API and observe post-submit state. It is enough for
+the current local/testnet zUSD-to-perps browser lane, but it is not enough to
+claim full perps product completion because broader stateful/chaos assurance,
+production wallet/key-manager integration, production Oracle evidence selection,
+and proof/ZK wrapping remain open.
 
 Perps live wallet checks added on 2026-05-20:
 
@@ -367,6 +374,17 @@ through the Tau app bridge after zUSD collateral deposits. The new bridge
 fixture check proves the browser can build an exact typed aggregate-adapter
 bridge for the current clearinghouse settle action when Oracle evidence is
 required.
+
+Additional stream `8` replay evidence added on 2026-05-21:
+
+```bash
+pytest -q tests/integration/test_perps_stream8_resilience.py::test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effect
+```
+
+Result: batch-local nonce replay check `1 passed`. This covers the disaster
+state `duplicate_side_effect_after_batch_local_nonce_replay`: if a later op in
+one stream `8` transaction reuses signed account nonces, the earlier market init
+does not survive the rejected transaction.
 
 Additional clearinghouse liquidation UI evidence added on 2026-05-21:
 

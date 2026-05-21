@@ -233,7 +233,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
     }), []);
     const writeEnabled = demoMode || perpsPreviewWritesRequested;
     const writeLockReason = !writeEnabled
-        ? 'Perps write actions stay locked until an authoritative settlement-backed path is mounted. Enable local preview writes only for controlled UI development.'
+        ? 'Preview-grid writes stay locked. Use the Live Perps Wallet for stream-8 Tau-node-backed transactions, or enable local preview writes only for controlled UI development.'
         : '';
     const pubkey = wallet?.address ?? null;
     // Monotonic request counter to discard responses from stale loadMarkets calls.
