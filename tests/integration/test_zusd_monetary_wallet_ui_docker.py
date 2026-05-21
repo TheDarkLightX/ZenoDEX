@@ -302,6 +302,18 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         "docker-compose.permissionless.yml",
         "down",
     ]
+    compose_restart_tau = [
+        "docker",
+        "compose",
+        "-p",
+        project_name,
+        "-f",
+        "docker-compose.yml",
+        "-f",
+        "docker-compose.permissionless.yml",
+        "restart",
+        "tau-local",
+    ]
 
     api_proc = None
     vite_proc = None
@@ -533,6 +545,18 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         assert status == 400
         assert perps_replay_rejected["ok"] is False
         assert perps_replay_rejected["error"] == "signed_tau_tx_payload sequence mismatch"
+        assert _read_app_state(tau_client) == state_after_perps_deposit
+
+        subprocess.run(compose_restart_tau, cwd=ROOT, env=compose_env, check=True, capture_output=True, text=True)
+        tau_client = _wait_for_tau_hello(host="127.0.0.1", port=tau_port, timeout_s=240)
+        assert _read_app_state(tau_client) == state_after_perps_deposit
+        status, perps_replay_after_restart = _http_post_json_status(
+            f"http://127.0.0.1:{api_port}/api/perps/wallet/submit",
+            {**perps_deposit_body, "signed_tau_tx_payload": signed_perps_deposit_payload},
+        )
+        assert status == 400
+        assert perps_replay_after_restart["ok"] is False
+        assert perps_replay_after_restart["error"] == "signed_tau_tx_payload sequence mismatch"
         assert _read_app_state(tau_client) == state_after_perps_deposit
     finally:
         for proc in (vite_proc, api_proc):

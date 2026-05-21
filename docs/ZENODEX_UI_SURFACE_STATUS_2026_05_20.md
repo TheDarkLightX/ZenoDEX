@@ -287,7 +287,10 @@ regression suite separately covers the explicit signed-payload sequence-mismatch
 reject path. The same Docker run now submits the follow-on perps collateral
 deposit through an externally signed stream `8` Tau envelope, then replays that
 exact perps envelope and asserts the sequence-mismatch rejection leaves the app
-state unchanged.
+state unchanged. The Docker run now also restarts the `tau-local` container
+after the perps deposit, verifies the post-deposit app state survives restart,
+and rejects the same signed stream `8` payload again after restart without state
+mutation.
 
 Latest perps Oracle evidence inspector pass on 2026-05-21:
 
@@ -338,7 +341,8 @@ cross-stream stateful checks `37 passed`; the replay tool accepted `8` bounded
 scenarios plus `4` deterministic fuzz seeds of `32` steps each. New stream `8`
 coverage rejects out-of-order signed position nonces without app-state mutation
 and rejects stale aggregate-adapter Oracle bridges before `settle_epoch`
-mutates the market. Host-level node restart and network chaos remain open.
+mutates the market. Docker restart evidence is covered below; network chaos
+remains open.
 
 Latest perps wallet Tau RPC send-failure retry pass on 2026-05-21:
 
@@ -367,7 +371,21 @@ perps wallet plus stream `8` resilience checks `37 passed`. The mounted perps
 wallet backend accepts an externally signed stream `8` submit, persists the
 post-submit app state and advanced sender sequence into a restarted Tau client,
 then rejects the old signed payload before a second `sendtx`. Live Docker
-process restart and network partition chaos remain open.
+process restart is covered by the Docker Tau-node browser lane; network
+partition chaos remains open.
+
+Latest Docker Tau-node restart pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_docker.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py -s
+```
+
+Results: py_compile passed; Docker Tau-node browser/restart test `1 passed`.
+The mounted browser lane mints zUSD through stream `11`, posts that zUSD into a
+live perps stream `8` collateral deposit, restarts the `tau-local` container,
+confirms persisted app state, and rejects the same signed perps payload after
+restart before any mutation. Network partition chaos remains open.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt

@@ -61,14 +61,15 @@ posted into signed clearinghouse perps collateral.
 
 ## What Is Still Missing
 
-The remaining blockers are live Docker node restart/network partition chaos,
-hardware/OS wallet UX and recovery flows behind the public wallet-authority
-profile, production Oracle network authority, proof/ZK wrapping, and final
-branch/PR cleanup. Docker browser evidence, typed Oracle bridge fixtures,
-action-aware local Oracle evidence selection, clearinghouse liquidation UI
-evidence, wallet-authority profile preflight, bounded stream `8`
-replay/freshness checks, Tau RPC send-failure retry evidence, and API-level
-node-restart replay evidence exist for the current local/testnet lane.
+The remaining blockers are live Docker network partition chaos, hardware/OS
+wallet UX and recovery flows behind the public wallet-authority profile,
+production Oracle network authority, proof/ZK wrapping, and final branch/PR
+cleanup. Docker browser evidence, typed Oracle bridge fixtures, action-aware
+local Oracle evidence selection, clearinghouse liquidation UI evidence,
+wallet-authority profile preflight, bounded stream `8` replay/freshness checks,
+Tau RPC send-failure retry evidence, API-level node-restart replay evidence, and
+Docker Tau-node restart replay evidence exist for the current local/testnet
+lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -306,8 +307,9 @@ Required evidence before claiming perps live-product coverage:
 - bounded stateful replay/fuzzing over zUSD monetary actions and perps
   collateral actions
 - bounded app-bridge resilience tests for duplicate tx, expired deadline, stale
-  Oracle evidence, and out-of-order signed operations; host-level node restart
-  chaos remains open
+  Oracle evidence, and out-of-order signed operations; API-level and Docker
+  Tau-node restart replay evidence now exists; network partition chaos remains
+  open
 - gas/fee compensation checks for keeper paths when exact Tau fee debits are
   pinned; current wallet surfaces provide fee-limit preflight and configurable
   keeper compensation coverage, not host-level fee debit proof
@@ -600,8 +602,23 @@ wallet plus stream `8` resilience checks `37 passed`. This covers
 `restart_replay_materializes`: after a successful externally signed stream `8`
 submit, a restarted Tau client with persisted app state and the advanced sender
 sequence rejects the old signed payload with `signed_tau_tx_payload sequence
-mismatch` before a second `sendtx`. Live Docker process restart and network
-partition chaos remain open.
+mismatch` before a second `sendtx`. Live Docker process restart is covered
+separately below; network partition chaos remains open.
+
+Additional Docker Tau-node restart evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_docker.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py -s
+```
+
+Results: py_compile passed; Docker Tau-node browser/restart test `1 passed`.
+The test starts the local Docker Tau node, mints zUSD through the mounted browser
+UI with an externally signed stream `11` envelope, feeds that minted zUSD into a
+mounted live perps stream `8` collateral deposit, restarts the `tau-local`
+container, verifies the post-deposit app state survives restart, and proves the
+same signed stream `8` payload is rejected after restart before state mutation.
+Network partition chaos remains open.
 
 Remaining limits:
 
