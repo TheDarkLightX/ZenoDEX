@@ -22,18 +22,31 @@ from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+    build_perps_wallet_device_approval_environment_policy_v1,
+    build_perps_wallet_device_approval_exercise_v1,
+    build_perps_wallet_device_approval_use_policy_v1,
     build_perps_wallet_authority_profile_v1,
+    perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
-from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
+from src.integration.zeno_key_manager import (
+    KEY_ENVIRONMENT_LOCAL_PROCESS,
+    KeyExecutionEnvironment,
+    KeyRef,
+    RecoveryGuardian,
+    SocialRecoveryPolicy,
+    ZenoKeyManager,
+)
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_key_manager_v0 import BACKEND_OS_KEYCHAIN, KeyBackendDescriptor
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
     build_oracle_authority_profile_v1,
@@ -53,6 +66,8 @@ from tools.chaos.toxiproxy_harness import ToxiproxyHarness
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
+ROOT_A = "0x" + "aa" * 32
+ROOT_B = "0x" + "bb" * 32
 
 
 def _privkey_hex(value: int) -> str:
@@ -375,6 +390,70 @@ def _perps_wallet_rotation_exercise(
         ),
     ]
     return exercise
+
+
+def _perps_wallet_device_approval_exercise(*, chain_id: str) -> dict[str, object]:
+    backend = KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_OS_KEYCHAIN,
+        backend_id="macbook-keychain-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "macos-keychain",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+    environment = KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-session-1",
+        environment_kind=KEY_ENVIRONMENT_LOCAL_PROCESS,
+        chain_id=chain_id,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+    use_policy = build_perps_wallet_device_approval_use_policy_v1(
+        allowed_payload_kinds=["perps_wallet_prepare"],
+        allowed_chain_ids=[chain_id],
+        allowed_purposes=["sign"],
+        valid_from_epoch=10,
+        valid_until_epoch=20,
+    )
+    environment_policy = build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_LOCAL_PROCESS],
+        expected_chain_id=chain_id,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+    exercise = build_perps_wallet_device_approval_exercise_v1(
+        authority_id="perps-wallet-authority-v1",
+        chain_id=chain_id,
+        key_id="perps-wallet-a",
+        payload_kind="perps_wallet_prepare",
+        purpose="sign",
+        current_epoch=13,
+        backend_descriptor=backend,
+        use_policy=use_policy,
+        environment=environment,
+        environment_policy=environment_policy,
+        payload={
+            "domain": "zenodex.perps.stream8.device-approval.v1",
+            "chain_id": chain_id,
+            "nonce": 14,
+            "action": "deposit_collateral",
+            "stream_key": "8",
+        },
+        seen_nonces=[11, 12],
+    )
+    return {
+        **exercise,
+        "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
+        "exercise_hash": perps_wallet_device_approval_exercise_hash_v1(exercise),
+    }
 
 
 def _chrome_binary() -> str | None:
@@ -1071,6 +1150,10 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
             _perps_wallet_rotation_exercise(chain_id=chain_id, account_b_pubkey=account_b_pubkey),
             sort_keys=True,
         ),
+        "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON": json.dumps(
+            _perps_wallet_device_approval_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
     }
     old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
     os.environ["TAU_DEX_CHAIN_ID"] = chain_id
@@ -1147,6 +1230,9 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "rotation exercise ready" in dom
         assert "rotation signed quorum 2/2" in dom
         assert "rotation receipt 0x" in dom
+        assert "device approval ready" in dom
+        assert "device sign admission ok" in dom
+        assert "device approval receipt 0x" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

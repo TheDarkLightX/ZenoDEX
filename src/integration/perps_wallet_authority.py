@@ -13,11 +13,20 @@ from src.integration.zeno_key_manager import (
     KEY_MANAGER_SCHEMA_V0,
     KEY_STATUS_ACTIVE,
     KEY_STATUS_REVOKED,
+    KeyEnvironmentPolicy,
+    KeyExecutionEnvironment,
     KeyRef,
+    KeyUsePolicy,
     RecoveryGuardian,
     SECRET_FIELD_NAMES,
+    SignRequestContext,
     SOCIAL_RECOVERY_POLICY_SCHEMA_V0,
     SocialRecoveryPolicy,
+)
+from src.integration.zeno_key_manager_v0 import (
+    KeyBackendDescriptor,
+    SignAdmissionRequest,
+    evaluate_sign_admission_v0,
 )
 from src.integration.zeno_ledger_signer_registry import (
     build_signer_registry_v0,
@@ -33,11 +42,17 @@ PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-recovery-exerci
 PERPS_WALLET_RECOVERY_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-recovery-exercise-status/v1"
 PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-rotation-exercise/v1"
 PERPS_WALLET_ROTATION_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-rotation-exercise-status/v1"
+PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-exercise/v1"
+PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-exercise-status/v1"
+PERPS_WALLET_DEVICE_APPROVAL_USE_POLICY_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-use-policy/v1"
+PERPS_WALLET_DEVICE_APPROVAL_ENVIRONMENT_POLICY_SCHEMA_V1 = "zenodex/perps-wallet-device-approval-environment-policy/v1"
 PERPS_WALLET_AUTHORITY_PAYLOAD_KIND = "perps_wallet_authority_profile"
 PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND = "perps_wallet_recovery_exercise"
 PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND = "perps_wallet_rotation_exercise"
+PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_PAYLOAD_KIND = "perps_wallet_device_approval_exercise"
 _RECOVERY_NON_HASH_FIELDS = frozenset({"exercise_hash", "signature_envelopes", "guardian_signature_quorum"})
 _ROTATION_NON_HASH_FIELDS = frozenset({"exercise_hash", "signature_envelopes", "guardian_signature_quorum"})
+_DEVICE_APPROVAL_NON_HASH_FIELDS = frozenset({"exercise_hash"})
 
 _REQUIRED_WALLET_UX_FLAGS = (
     "external_signer_required",
@@ -78,6 +93,12 @@ def _require_nonnegative_int(value: object, *, name: str) -> int:
     return int(value)
 
 
+def _require_bool(value: object, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be bool")
+    return value
+
+
 def _require_string_list(value: object, *, name: str) -> list[str]:
     if not isinstance(value, list):
         raise TypeError(f"{name} must be a list")
@@ -86,6 +107,15 @@ def _require_string_list(value: object, *, name: str) -> list[str]:
         if not isinstance(item, str) or not item:
             raise ValueError(f"{name}[{index}] must be a non-empty string")
         out.append(item)
+    return out
+
+
+def _require_int_list(value: object, *, name: str) -> list[int]:
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list")
+    out: list[int] = []
+    for index, item in enumerate(value):
+        out.append(_require_nonnegative_int(item, name=f"{name}[{index}]"))
     return out
 
 
@@ -125,6 +155,14 @@ def perps_wallet_rotation_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
     return hash_v0("perps_wallet_rotation_exercise_v1", _rotation_exercise_body(exercise))
 
 
+def _device_approval_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in dict(exercise).items() if key not in _DEVICE_APPROVAL_NON_HASH_FIELDS}
+
+
+def perps_wallet_device_approval_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
+    return hash_v0("perps_wallet_device_approval_exercise_v1", _device_approval_exercise_body(exercise))
+
+
 def build_perps_wallet_authority_profile_v1(
     *,
     authority_id: str,
@@ -150,6 +188,130 @@ def build_perps_wallet_authority_profile_v1(
         "transaction_scope": dict(_require_mapping(transaction_scope, name="transaction_scope")),
     }
     return {**body, "wallet_authority_hash": perps_wallet_authority_profile_hash_v1(body)}
+
+
+def _device_approval_use_policy_public_dict(policy: KeyUsePolicy) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "schema": PERPS_WALLET_DEVICE_APPROVAL_USE_POLICY_SCHEMA_V1,
+        "allowed_payload_kinds": list(policy.allowed_payload_kinds),
+        "allowed_chain_ids": list(policy.allowed_chain_ids),
+        "allowed_purposes": list(policy.allowed_purposes),
+        "valid_from_epoch": int(policy.valid_from_epoch),
+        "allow_rotated_keys": bool(policy.allow_rotated_keys),
+    }
+    if policy.valid_until_epoch is not None:
+        body["valid_until_epoch"] = int(policy.valid_until_epoch)
+    return {**body, "use_policy_hash": hash_v0("perps_wallet_device_approval_use_policy_v1", body)}
+
+
+def build_perps_wallet_device_approval_use_policy_v1(
+    *,
+    allowed_payload_kinds: list[str],
+    allowed_chain_ids: list[str],
+    allowed_purposes: list[str] | None = None,
+    valid_from_epoch: int = 0,
+    valid_until_epoch: int | None = None,
+    allow_rotated_keys: bool = False,
+) -> dict[str, Any]:
+    policy = KeyUsePolicy(
+        allowed_payload_kinds=tuple(_require_string_list(allowed_payload_kinds, name="allowed_payload_kinds")),
+        allowed_chain_ids=tuple(_require_string_list(allowed_chain_ids, name="allowed_chain_ids")),
+        allowed_purposes=tuple(
+            _require_string_list(
+                [] if allowed_purposes is None else allowed_purposes,
+                name="allowed_purposes",
+            )
+            if allowed_purposes is not None
+            else ("sign",)
+        ),
+        valid_from_epoch=_require_nonnegative_int(valid_from_epoch, name="valid_from_epoch"),
+        valid_until_epoch=None
+        if valid_until_epoch is None
+        else _require_nonnegative_int(valid_until_epoch, name="valid_until_epoch"),
+        allow_rotated_keys=_require_bool(allow_rotated_keys, name="allow_rotated_keys"),
+    )
+    return _device_approval_use_policy_public_dict(policy)
+
+
+def _device_approval_environment_policy_public_dict(policy: KeyEnvironmentPolicy) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "schema": PERPS_WALLET_DEVICE_APPROVAL_ENVIRONMENT_POLICY_SCHEMA_V1,
+        "allowed_environment_kinds": list(policy.allowed_environment_kinds),
+        "require_attestation": bool(policy.require_attestation),
+        "require_tee_measurement": bool(policy.require_tee_measurement),
+        "require_user_presence": bool(policy.require_user_presence),
+        "require_rollback_protection": bool(policy.require_rollback_protection),
+    }
+    if policy.expected_chain_id is not None:
+        body["expected_chain_id"] = policy.expected_chain_id
+    if policy.expected_policy_hash is not None:
+        body["expected_policy_hash"] = policy.expected_policy_hash
+    if policy.expected_challenge_hash is not None:
+        body["expected_challenge_hash"] = policy.expected_challenge_hash
+    return {
+        **body,
+        "environment_policy_hash": hash_v0("perps_wallet_device_approval_environment_policy_v1", body),
+    }
+
+
+def build_perps_wallet_device_approval_environment_policy_v1(
+    *,
+    allowed_environment_kinds: list[str],
+    expected_chain_id: str | None = None,
+    expected_policy_hash: str | None = None,
+    expected_challenge_hash: str | None = None,
+    require_attestation: bool = False,
+    require_tee_measurement: bool = False,
+    require_user_presence: bool = True,
+    require_rollback_protection: bool = True,
+) -> dict[str, Any]:
+    policy = KeyEnvironmentPolicy(
+        allowed_environment_kinds=tuple(_require_string_list(allowed_environment_kinds, name="allowed_environment_kinds")),
+        expected_chain_id=None
+        if expected_chain_id is None
+        else _require_nonempty_str(expected_chain_id, name="expected_chain_id"),
+        expected_policy_hash=expected_policy_hash,
+        expected_challenge_hash=expected_challenge_hash,
+        require_attestation=_require_bool(require_attestation, name="require_attestation"),
+        require_tee_measurement=_require_bool(require_tee_measurement, name="require_tee_measurement"),
+        require_user_presence=_require_bool(require_user_presence, name="require_user_presence"),
+        require_rollback_protection=_require_bool(require_rollback_protection, name="require_rollback_protection"),
+    )
+    return _device_approval_environment_policy_public_dict(policy)
+
+
+def build_perps_wallet_device_approval_exercise_v1(
+    *,
+    authority_id: str,
+    chain_id: str,
+    key_id: str,
+    payload_kind: str,
+    purpose: str,
+    current_epoch: int,
+    backend_descriptor: Mapping[str, Any],
+    use_policy: Mapping[str, Any],
+    environment: Mapping[str, Any],
+    environment_policy: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    seen_nonces: list[int] | None = None,
+) -> dict[str, Any]:
+    _reject_secret_fields(payload, name="payload")
+    body = {
+        "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
+        "authority_id": _require_nonempty_str(authority_id, name="authority_id"),
+        "chain_id": _require_nonempty_str(chain_id, name="chain_id"),
+        "key_id": _require_nonempty_str(key_id, name="key_id"),
+        "payload_kind": _require_nonempty_str(payload_kind, name="payload_kind"),
+        "purpose": _require_nonempty_str(purpose, name="purpose"),
+        "current_epoch": _require_nonnegative_int(current_epoch, name="current_epoch"),
+        "backend_descriptor": dict(_require_mapping(backend_descriptor, name="backend_descriptor")),
+        "use_policy": dict(_require_mapping(use_policy, name="use_policy")),
+        "environment": dict(_require_mapping(environment, name="environment")),
+        "environment_policy": dict(_require_mapping(environment_policy, name="environment_policy")),
+        "payload": dict(_require_mapping(payload, name="payload")),
+        "seen_nonces": [] if seen_nonces is None else _require_int_list(seen_nonces, name="seen_nonces"),
+    }
+    return {**body, "exercise_hash": perps_wallet_device_approval_exercise_hash_v1(body)}
 
 
 def _validate_key_manager_public(
@@ -517,6 +679,119 @@ def _validate_guardian_signature_quorum(
     return summary
 
 
+def _key_ref_from_key_manager_public(
+    *,
+    key_manager: Mapping[str, Any],
+    key_id: str,
+) -> KeyRef:
+    key_refs_raw = key_manager.get("key_refs")
+    if not isinstance(key_refs_raw, list):
+        raise TypeError("key manager key_refs must be a list")
+    matches = [
+        KeyRef.from_public_dict(_require_mapping(raw, name="key_ref"))
+        for raw in key_refs_raw
+        if isinstance(raw, Mapping) and raw.get("key_id") == key_id
+    ]
+    if len(matches) != 1:
+        raise ValueError("key ref not found")
+    return matches[0]
+
+
+def _key_backend_descriptor_from_public_dict(payload: Mapping[str, Any]) -> KeyBackendDescriptor:
+    obj = _require_mapping(payload, name="backend_descriptor")
+    descriptor = KeyBackendDescriptor(
+        key_id=_require_nonempty_str(obj.get("key_id"), name="backend_descriptor.key_id"),
+        backend_kind=_require_nonempty_str(obj.get("backend_kind"), name="backend_descriptor.backend_kind"),
+        backend_id=_require_nonempty_str(obj.get("backend_id"), name="backend_descriptor.backend_id"),
+        policy_hash=_require_nonempty_str(obj.get("policy_hash"), name="backend_descriptor.policy_hash"),
+        active=bool(obj.get("active", True)),
+        no_raw_private_key_exposure=bool(obj.get("no_raw_private_key_exposure", True)),
+        metadata=dict(_require_mapping(obj.get("metadata", {}), name="backend_descriptor.metadata")),
+    )
+    if dict(obj) != descriptor.public_dict():
+        raise ValueError("backend_descriptor binding mismatch")
+    return descriptor
+
+
+def _device_approval_use_policy_from_public_dict(payload: Mapping[str, Any]) -> KeyUsePolicy:
+    obj = _require_mapping(payload, name="use_policy")
+    if obj.get("schema") != PERPS_WALLET_DEVICE_APPROVAL_USE_POLICY_SCHEMA_V1:
+        raise ValueError("device approval use policy schema mismatch")
+    policy = KeyUsePolicy(
+        allowed_payload_kinds=tuple(_require_string_list(obj.get("allowed_payload_kinds"), name="allowed_payload_kinds")),
+        allowed_chain_ids=tuple(_require_string_list(obj.get("allowed_chain_ids"), name="allowed_chain_ids")),
+        allowed_purposes=tuple(_require_string_list(obj.get("allowed_purposes"), name="allowed_purposes")),
+        valid_from_epoch=_require_nonnegative_int(obj.get("valid_from_epoch"), name="valid_from_epoch"),
+        valid_until_epoch=None
+        if obj.get("valid_until_epoch") is None
+        else _require_nonnegative_int(obj.get("valid_until_epoch"), name="valid_until_epoch"),
+        allow_rotated_keys=_require_bool(obj.get("allow_rotated_keys"), name="allow_rotated_keys"),
+    )
+    if dict(obj) != _device_approval_use_policy_public_dict(policy):
+        raise ValueError("device approval use policy binding mismatch")
+    return policy
+
+
+def _key_execution_environment_from_public_dict(payload: Mapping[str, Any]) -> KeyExecutionEnvironment:
+    obj = _require_mapping(payload, name="environment")
+    environment = KeyExecutionEnvironment(
+        environment_id=_require_nonempty_str(obj.get("environment_id"), name="environment_id"),
+        environment_kind=_require_nonempty_str(obj.get("environment_kind"), name="environment_kind"),
+        chain_id=_require_nonempty_str(obj.get("chain_id"), name="chain_id"),
+        policy_hash=_require_nonempty_str(obj.get("policy_hash"), name="policy_hash"),
+        challenge_hash=_require_nonempty_str(obj.get("challenge_hash"), name="challenge_hash"),
+        issued_at_epoch=_require_nonnegative_int(obj.get("issued_at_epoch"), name="issued_at_epoch"),
+        expires_at_epoch=_require_nonnegative_int(obj.get("expires_at_epoch"), name="expires_at_epoch"),
+        attestation_hash=None
+        if obj.get("attestation_hash") is None
+        else _require_nonempty_str(obj.get("attestation_hash"), name="attestation_hash"),
+        tee_measurement_hash=None
+        if obj.get("tee_measurement_hash") is None
+        else _require_nonempty_str(obj.get("tee_measurement_hash"), name="tee_measurement_hash"),
+        local_user_presence_confirmed=_require_bool(
+            obj.get("local_user_presence_confirmed"),
+            name="local_user_presence_confirmed",
+        ),
+        rollback_protection_confirmed=_require_bool(
+            obj.get("rollback_protection_confirmed"),
+            name="rollback_protection_confirmed",
+        ),
+    )
+    if dict(obj) != environment.public_dict():
+        raise ValueError("environment binding mismatch")
+    return environment
+
+
+def _device_approval_environment_policy_from_public_dict(payload: Mapping[str, Any]) -> KeyEnvironmentPolicy:
+    obj = _require_mapping(payload, name="environment_policy")
+    if obj.get("schema") != PERPS_WALLET_DEVICE_APPROVAL_ENVIRONMENT_POLICY_SCHEMA_V1:
+        raise ValueError("device approval environment policy schema mismatch")
+    policy = KeyEnvironmentPolicy(
+        allowed_environment_kinds=tuple(
+            _require_string_list(obj.get("allowed_environment_kinds"), name="allowed_environment_kinds")
+        ),
+        expected_chain_id=None
+        if obj.get("expected_chain_id") is None
+        else _require_nonempty_str(obj.get("expected_chain_id"), name="expected_chain_id"),
+        expected_policy_hash=None
+        if obj.get("expected_policy_hash") is None
+        else _require_nonempty_str(obj.get("expected_policy_hash"), name="expected_policy_hash"),
+        expected_challenge_hash=None
+        if obj.get("expected_challenge_hash") is None
+        else _require_nonempty_str(obj.get("expected_challenge_hash"), name="expected_challenge_hash"),
+        require_attestation=_require_bool(obj.get("require_attestation"), name="require_attestation"),
+        require_tee_measurement=_require_bool(obj.get("require_tee_measurement"), name="require_tee_measurement"),
+        require_user_presence=_require_bool(obj.get("require_user_presence"), name="require_user_presence"),
+        require_rollback_protection=_require_bool(
+            obj.get("require_rollback_protection"),
+            name="require_rollback_protection",
+        ),
+    )
+    if dict(obj) != _device_approval_environment_policy_public_dict(policy):
+        raise ValueError("device approval environment policy binding mismatch")
+    return policy
+
+
 def _recovery_exercise_status(
     *,
     ok: bool,
@@ -724,6 +999,49 @@ def _rotation_exercise_status(
     return {**body, "status_hash": hash_v0("perps_wallet_rotation_exercise_status_v1", body)}
 
 
+def _device_approval_exercise_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    exercise: Mapping[str, Any] | None,
+    wallet_authority_hash: str | None,
+    sign_admission_receipt: Mapping[str, Any] | None,
+    backend_hash: str | None,
+    environment_hash: str | None,
+    use_policy_hash: str | None,
+    environment_policy_hash: str | None,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "device_approval_ready": bool(ok),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "exercise_hash": None if exercise is None else perps_wallet_device_approval_exercise_hash_v1(exercise),
+        "chain_id": None if exercise is None else exercise.get("chain_id"),
+        "authority_id": None if exercise is None else exercise.get("authority_id"),
+        "key_id": None if exercise is None else exercise.get("key_id"),
+        "payload_kind": None if exercise is None else exercise.get("payload_kind"),
+        "purpose": None if exercise is None else exercise.get("purpose"),
+        "current_epoch": None if exercise is None else exercise.get("current_epoch"),
+        "backend_hash": backend_hash,
+        "environment_hash": environment_hash,
+        "use_policy_hash": use_policy_hash,
+        "environment_policy_hash": environment_policy_hash,
+        "sign_admission_receipt": None if sign_admission_receipt is None else dict(sign_admission_receipt),
+        "sign_admission_receipt_hash": None
+        if sign_admission_receipt is None
+        else sign_admission_receipt.get("receipt_hash"),
+        "not_claimed": [
+            "does_not_claim_hardware_wallet_custody",
+            "does_not_claim_live_device_prompt_execution",
+            "does_not_claim_production_chain_finality",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_device_approval_exercise_status_v1", body)}
+
+
 def evaluate_perps_wallet_rotation_exercise_v1(
     profile: Mapping[str, Any] | None,
     exercise: Mapping[str, Any] | None,
@@ -903,6 +1221,163 @@ def evaluate_perps_wallet_rotation_exercise_v1(
         policy_id=policy_id,
         evaluation=evaluation,
         guardian_signature_quorum=guardian_signature_quorum,
+    )
+
+
+def evaluate_perps_wallet_device_approval_exercise_v1(
+    profile: Mapping[str, Any] | None,
+    exercise: Mapping[str, Any] | None,
+    *,
+    expected_chain_id: str | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if exercise is None:
+        return _device_approval_exercise_status(
+            ok=False,
+            errors=["perps wallet device approval exercise is missing"],
+            exercise=None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+        )
+    try:
+        exercise_obj = _require_mapping(exercise, name="device_approval_exercise")
+        _reject_secret_fields(exercise_obj, name="device_approval_exercise")
+    except Exception as exc:
+        return _device_approval_exercise_status(
+            ok=False,
+            errors=[f"perps wallet device approval exercise invalid: {exc}"],
+            exercise=exercise if isinstance(exercise, Mapping) else None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+        )
+    if profile is None:
+        return _device_approval_exercise_status(
+            ok=False,
+            errors=["perps wallet authority profile is missing"],
+            exercise=exercise_obj,
+            wallet_authority_hash=None,
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+        )
+
+    authority_status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=expected_chain_id)
+    if authority_status["production_wallet_authority"] is not True:
+        errors.append("perps wallet authority profile is not ready")
+        errors.extend(str(gap) for gap in authority_status.get("readiness_gaps", []))
+
+    backend_hash: str | None = None
+    environment_hash: str | None = None
+    use_policy_hash: str | None = None
+    environment_policy_hash: str | None = None
+    sign_admission_receipt: Mapping[str, Any] | None = None
+
+    try:
+        if exercise_obj.get("schema") != PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1:
+            errors.append("perps wallet device approval exercise schema mismatch")
+        chain_id = _require_nonempty_str(exercise_obj.get("chain_id"), name="chain_id")
+        authority_id = _require_nonempty_str(exercise_obj.get("authority_id"), name="authority_id")
+        key_id = _require_nonempty_str(exercise_obj.get("key_id"), name="key_id")
+        payload_kind = _require_nonempty_str(exercise_obj.get("payload_kind"), name="payload_kind")
+        purpose = _require_nonempty_str(exercise_obj.get("purpose"), name="purpose")
+        current_epoch = _require_nonnegative_int(exercise_obj.get("current_epoch"), name="current_epoch")
+        backend_descriptor = _key_backend_descriptor_from_public_dict(
+            _require_mapping(exercise_obj.get("backend_descriptor"), name="backend_descriptor")
+        )
+        use_policy = _device_approval_use_policy_from_public_dict(
+            _require_mapping(exercise_obj.get("use_policy"), name="use_policy")
+        )
+        environment = _key_execution_environment_from_public_dict(
+            _require_mapping(exercise_obj.get("environment"), name="environment")
+        )
+        environment_policy = _device_approval_environment_policy_from_public_dict(
+            _require_mapping(exercise_obj.get("environment_policy"), name="environment_policy")
+        )
+        payload = dict(_require_mapping(exercise_obj.get("payload"), name="payload"))
+        seen_nonces = tuple(_require_int_list(exercise_obj.get("seen_nonces", []), name="seen_nonces"))
+        _reject_secret_fields(payload, name="payload")
+    except Exception as exc:
+        errors.append(str(exc))
+        return _device_approval_exercise_status(
+            ok=False,
+            errors=errors,
+            exercise=exercise_obj,
+            wallet_authority_hash=profile.get("wallet_authority_hash"),
+            sign_admission_receipt=None,
+            backend_hash=None,
+            environment_hash=None,
+            use_policy_hash=None,
+            environment_policy_hash=None,
+        )
+
+    if expected_chain_id is not None and chain_id != expected_chain_id:
+        errors.append("perps wallet device approval exercise chain_id mismatch")
+    if chain_id != profile.get("chain_id"):
+        errors.append("perps wallet device approval exercise profile chain_id mismatch")
+    if authority_id != profile.get("authority_id"):
+        errors.append("perps wallet device approval exercise authority_id mismatch")
+
+    active_key_ids = {
+        str(item.get("key_id"))
+        for item in authority_status.get("active_signers", [])
+        if isinstance(item, Mapping)
+    }
+    if key_id not in active_key_ids:
+        errors.append("perps wallet device approval exercise key is not active")
+
+    try:
+        key_manager = _require_mapping(profile.get("key_manager"), name="key_manager")
+        key_ref = _key_ref_from_key_manager_public(key_manager=key_manager, key_id=key_id)
+        context = SignRequestContext(
+            payload_kind=payload_kind,
+            chain_id=chain_id,
+            purpose=purpose,
+            current_epoch=current_epoch,
+        )
+        sign_admission_receipt = evaluate_sign_admission_v0(
+            SignAdmissionRequest(
+                key_ref=key_ref,
+                backend=backend_descriptor,
+                policy=use_policy,
+                context=context,
+                payload=payload,
+                environment=environment,
+                environment_policy=environment_policy,
+                seen_nonces=seen_nonces,
+            )
+        )
+        backend_hash = backend_descriptor.public_dict()["backend_hash"]
+        environment_hash = environment.public_dict()["environment_hash"]
+        use_policy_hash = _device_approval_use_policy_public_dict(use_policy)["use_policy_hash"]
+        environment_policy_hash = _device_approval_environment_policy_public_dict(environment_policy)[
+            "environment_policy_hash"
+        ]
+        if sign_admission_receipt.get("ok") is not True:
+            errors.append("device_approval_sign_admission_rejected")
+            errors.extend(str(item) for item in sign_admission_receipt.get("errors", ()))
+    except Exception as exc:
+        errors.append(f"device approval sign admission failed: {exc}")
+
+    return _device_approval_exercise_status(
+        ok=not errors and sign_admission_receipt is not None and sign_admission_receipt.get("ok") is True,
+        errors=errors,
+        exercise=exercise_obj,
+        wallet_authority_hash=profile.get("wallet_authority_hash"),
+        sign_admission_receipt=sign_admission_receipt,
+        backend_hash=backend_hash,
+        environment_hash=environment_hash,
+        use_policy_hash=use_policy_hash,
+        environment_policy_hash=environment_policy_hash,
     )
 
 

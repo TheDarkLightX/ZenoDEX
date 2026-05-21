@@ -616,7 +616,7 @@ and current-to-next authority hashes. The mounted UI renders `rotation
 exercise ready` and a rotation receipt hash when that exercise is present. This
 is public transition evidence for a rotation-broadcast exercise, and it now
 verifies a guardian BLS signature quorum over the rotation exercise hash. It
-does not verify device approval or chain finality.
+does not verify live device prompts or chain finality.
 
 Additional perps Oracle-authority binding evidence added on 2026-05-21:
 
@@ -1093,9 +1093,11 @@ Remaining limits:
   Oracle authority profile is exercised on public testnet;
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
-  approval remain outside the mounted DEX UI; public recovery and
-  rotation-broadcast exercises now have guardian signature quorum checks plus
-  receipts, but they still do not prove device custody or chain finality;
+  integration remain outside the mounted DEX UI; public device-approval
+  exercises now produce bounded sign-admission receipts, and public recovery
+  plus rotation-broadcast exercises have guardian signature quorum checks plus
+  receipts, but they still do not prove device custody, live OS prompt
+  execution, or chain finality;
 - confidential execution is bounded to attested admission, bounded runtime
   receipts, replay protection, redaction, and local accounting evidence; TEE
   hardware confidentiality and fully encrypted on-chain state remain unproved

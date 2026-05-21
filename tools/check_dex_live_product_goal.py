@@ -373,6 +373,25 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="assurance_depth",
+        check_id="perps_wallet_device_approval_receipt",
+        path="tests/integration/test_perps_wallet_api.py",
+        description="Perps wallet authority tests prove public device-approval exercises produce bounded sign-admission receipts.",
+        anchors=(
+            "test_perps_wallet_device_approval_exercise_ready_receipt",
+            "test_perps_wallet_device_approval_exercise_blocks_missing_user_presence",
+            "test_perps_wallet_device_approval_exercise_blocks_reused_nonce",
+            "test_status_loads_ready_perps_wallet_device_approval_exercise",
+            "test_device_approval_evaluate_endpoint_blocks_missing_user_presence",
+            "test_device_approval_evaluate_endpoint_blocks_reused_nonce",
+            "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON",
+            "device_approval_ready",
+            "sign_admission_receipt",
+            "payload_nonce_reused",
+            "local_user_presence_missing",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
         check_id="perps_wallet_recovery_exercise_browser_receipt",
         path="tests/integration/test_perps_wallet_ui_bridge.py",
         description="Mounted perps browser smoke renders recovery and rotation exercise receipts when present.",
@@ -385,6 +404,10 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "rotation exercise ready",
             "rotation signed quorum 2/2",
             "rotation receipt 0x",
+            "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON",
+            "device approval ready",
+            "device sign admission ok",
+            "device approval receipt 0x",
         ),
     ),
     AnchorCheck(
@@ -430,7 +453,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "hardware_wallet_ux",
-        "description": "Hardware/OS signer-device integration and device approval verification remain open; public recovery and rotation exercises now have guardian signature quorum checks and lifecycle receipts.",
+        "description": "Hardware/OS signer-device integration remains open; public device-approval exercises now produce bounded sign-admission receipts, and recovery plus rotation exercises have guardian signature quorum checks and lifecycle receipts.",
     },
     {
         "id": "zk_wrapping",

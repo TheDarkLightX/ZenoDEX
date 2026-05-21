@@ -440,6 +440,7 @@ function PerpLiveWalletSurface() {
   const walletAuthority = status?.wallet_authority || null;
   const walletRecoveryExercise = walletAuthority?.recovery_exercise || null;
   const walletRotationExercise = walletAuthority?.rotation_exercise || null;
+  const walletDeviceApprovalExercise = walletAuthority?.device_approval_exercise || null;
   const oracleAuthority = status?.oracle_authority || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
@@ -480,6 +481,8 @@ function PerpLiveWalletSurface() {
           <div><span>Recovery Exercise</span><span>{walletRecoveryExercise ? walletRecoveryExercise.status : 'not loaded'}</span></div>
           <div><span>Recovery Signed Quorum</span><span>{walletRecoveryExercise?.guardian_signature_quorum ? `${walletRecoveryExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRecoveryExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span></div>
           <div><span>Rotation Signed Quorum</span><span>{walletRotationExercise?.guardian_signature_quorum ? `${walletRotationExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRotationExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span></div>
+          <div><span>Device Approval</span><span>{walletDeviceApprovalExercise ? walletDeviceApprovalExercise.status : 'not loaded'}</span></div>
+          <div><span>Device Sign Admission</span><span>{walletDeviceApprovalExercise?.sign_admission_receipt ? `${walletDeviceApprovalExercise.sign_admission_receipt.ok ? 'ok' : 'blocked'} ${walletDeviceApprovalExercise.sign_admission_receipt.payload_nonce ?? 'unknown'}` : 'unknown'}</span></div>
           <div><span>Oracle Authority</span><span>{oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Oracle Signers</span><span>{oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Oracle Signed Quorum</span><span>{oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span></div>
@@ -779,6 +782,13 @@ function PerpLiveWalletSurface() {
               <span>rotation exercise {walletRotationExercise.rotation_exercise_ready ? 'ready' : 'blocked'}</span>
               <span>rotation signed quorum {walletRotationExercise.guardian_signature_quorum ? `${walletRotationExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRotationExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span>
               <span>rotation receipt {compactId(walletRotationExercise.status_hash)}</span>
+            </>
+          ) : null}
+          {walletDeviceApprovalExercise ? (
+            <>
+              <span>device approval {walletDeviceApprovalExercise.device_approval_ready ? 'ready' : 'blocked'}</span>
+              <span>device sign admission {walletDeviceApprovalExercise.sign_admission_receipt?.ok ? 'ok' : 'blocked'}</span>
+              <span>device approval receipt {compactId(walletDeviceApprovalExercise.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>

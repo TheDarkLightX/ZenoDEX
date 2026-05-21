@@ -285,7 +285,21 @@ the signer and authority posture. Recovery and rotation exercise receipts are
 separate public lifecycle receipts over threshold/delay satisfaction and
 current-to-next authority transitions, and they now include guardian BLS
 signature quorum verification over the public exercise hash. They still do not
-prove custody of keys, device approval, or chain finality.
+prove custody of keys, live OS or hardware prompt execution, or chain finality.
+
+Latest perps wallet device-approval pass on 2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_device_approval_exercise_ready_receipt tests/integration/test_perps_wallet_api.py::test_perps_wallet_device_approval_exercise_blocks_missing_user_presence tests/integration/test_perps_wallet_api.py::test_perps_wallet_device_approval_exercise_blocks_reused_nonce tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_device_approval_exercise tests/integration/test_perps_wallet_api.py::test_device_approval_evaluate_endpoint_blocks_missing_user_presence tests/integration/test_perps_wallet_api.py::test_device_approval_evaluate_endpoint_blocks_reused_nonce -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+```
+
+Results: focused device-approval checks passed and the mounted browser smoke now
+renders `device approval ready`, `device sign admission ok`, and a public
+device-approval receipt hash when `PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON`
+is present. This is a bounded sign-admission receipt over declared backend,
+policy, environment, nonce, and chain binding. It still does not prove live
+hardware custody, a real OS prompt, or chain finality.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

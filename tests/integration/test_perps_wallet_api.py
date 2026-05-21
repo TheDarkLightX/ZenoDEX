@@ -9,14 +9,20 @@ from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+    build_perps_wallet_device_approval_environment_policy_v1,
+    build_perps_wallet_device_approval_exercise_v1,
+    build_perps_wallet_device_approval_use_policy_v1,
     build_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_authority_profile_v1,
+    evaluate_perps_wallet_device_approval_exercise_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
     evaluate_perps_wallet_rotation_exercise_v1,
+    perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
 )
@@ -31,9 +37,17 @@ from src.integration.tau_net_client import (
     build_signed_tau_transaction,
     sign_perp_op_for_engine,
 )
-from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
+from src.integration.zeno_key_manager import (
+    KEY_ENVIRONMENT_LOCAL_PROCESS,
+    KeyExecutionEnvironment,
+    KeyRef,
+    RecoveryGuardian,
+    SocialRecoveryPolicy,
+    ZenoKeyManager,
+)
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0, infer_artifact_hash_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_key_manager_v0 import BACKEND_OS_KEYCHAIN, KeyBackendDescriptor
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
@@ -53,6 +67,8 @@ OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 CAROL = "0x" + bls_pubkey_hex_from_privkey(CAROL_PRIVKEY)
 MARKET_ID = "perp:ch2p:test"
 ISOLATED_MARKET_ID = "perp:isolated:test"
+ROOT_A = "0x" + "aa" * 32
+ROOT_B = "0x" + "bb" * 32
 
 
 def _privkey_hex(value: int) -> str:
@@ -304,6 +320,73 @@ def _perps_wallet_rotation_exercise(**overrides: object) -> dict[str, object]:
         ),
     ]
     return exercise
+
+
+def _perps_wallet_device_approval_exercise(**overrides: object) -> dict[str, object]:
+    backend = KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_OS_KEYCHAIN,
+        backend_id="macbook-keychain-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "macos-keychain",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+    environment = KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-session-1",
+        environment_kind=KEY_ENVIRONMENT_LOCAL_PROCESS,
+        chain_id=CHAIN_ID,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+    use_policy = build_perps_wallet_device_approval_use_policy_v1(
+        allowed_payload_kinds=["perps_wallet_prepare"],
+        allowed_chain_ids=[CHAIN_ID],
+        allowed_purposes=["sign"],
+        valid_from_epoch=10,
+        valid_until_epoch=20,
+    )
+    environment_policy = build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_LOCAL_PROCESS],
+        expected_chain_id=CHAIN_ID,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+    base = build_perps_wallet_device_approval_exercise_v1(
+        authority_id="perps-wallet-mainnet-authority-v1",
+        chain_id=CHAIN_ID,
+        key_id="perps-wallet-a",
+        payload_kind="perps_wallet_prepare",
+        purpose="sign",
+        current_epoch=13,
+        backend_descriptor=backend,
+        use_policy=use_policy,
+        environment=environment,
+        environment_policy=environment_policy,
+        payload={
+            "domain": "zenodex.perps.stream8.device-approval.v1",
+            "chain_id": CHAIN_ID,
+            "nonce": 14,
+            "action": "deposit_collateral",
+            "stream_key": "8",
+        },
+        seen_nonces=[11, 12],
+    )
+    base.update(overrides)
+    if "exercise_hash" in base:
+        del base["exercise_hash"]
+    return {
+        **base,
+        "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
+        "exercise_hash": perps_wallet_device_approval_exercise_hash_v1(base),
+    }
 
 
 def _oracle_authority_key_manager(*, second_pubkey: str = OPERATOR) -> dict[str, object]:
@@ -857,6 +940,72 @@ def test_perps_wallet_recovery_exercise_blocks_bad_guardian_signature_quorum() -
     assert status["ok"] is False
     assert status["recovery_exercise_ready"] is False
     assert any("guardian signature quorum invalid" in error for error in status["errors"])
+
+
+def test_perps_wallet_device_approval_exercise_ready_receipt() -> None:
+    profile = _perps_wallet_authority_profile()
+    exercise = _perps_wallet_device_approval_exercise()
+
+    status = evaluate_perps_wallet_device_approval_exercise_v1(profile, exercise, expected_chain_id=CHAIN_ID)
+
+    assert status["ok"] is True
+    assert status["device_approval_ready"] is True
+    assert status["status"] == "ready"
+    assert status["errors"] == []
+    assert status["wallet_authority_hash"] == profile["wallet_authority_hash"]
+    assert status["exercise_hash"] == perps_wallet_device_approval_exercise_hash_v1(exercise)
+    assert status["key_id"] == "perps-wallet-a"
+    assert status["sign_admission_receipt"]["ok"] is True
+    assert status["sign_admission_receipt"]["payload_nonce"] == 14
+    assert status["sign_admission_receipt_hash"] == status["sign_admission_receipt"]["receipt_hash"]
+    assert status["backend_hash"] == exercise["backend_descriptor"]["backend_hash"]
+    assert status["environment_hash"] == exercise["environment"]["environment_hash"]
+    encoded = json.dumps(status, sort_keys=True)
+    assert "private_key" not in encoded
+    assert "secret_hex" not in encoded
+
+
+def test_perps_wallet_device_approval_exercise_blocks_missing_user_presence() -> None:
+    exercise = _perps_wallet_device_approval_exercise()
+    exercise["environment"] = {
+        **exercise["environment"],
+        "local_user_presence_confirmed": False,
+    }
+    exercise["environment"]["environment_hash"] = KeyExecutionEnvironment(
+        environment_id=exercise["environment"]["environment_id"],
+        environment_kind=exercise["environment"]["environment_kind"],
+        chain_id=exercise["environment"]["chain_id"],
+        policy_hash=exercise["environment"]["policy_hash"],
+        challenge_hash=exercise["environment"]["challenge_hash"],
+        issued_at_epoch=exercise["environment"]["issued_at_epoch"],
+        expires_at_epoch=exercise["environment"]["expires_at_epoch"],
+        local_user_presence_confirmed=False,
+        rollback_protection_confirmed=exercise["environment"]["rollback_protection_confirmed"],
+    ).public_dict()["environment_hash"]
+
+    status = evaluate_perps_wallet_device_approval_exercise_v1(
+        _perps_wallet_authority_profile(),
+        exercise,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["device_approval_ready"] is False
+    assert "device_approval_sign_admission_rejected" in status["errors"]
+    assert "local_user_presence_missing" in status["errors"]
+
+
+def test_perps_wallet_device_approval_exercise_blocks_reused_nonce() -> None:
+    status = evaluate_perps_wallet_device_approval_exercise_v1(
+        _perps_wallet_authority_profile(),
+        _perps_wallet_device_approval_exercise(seen_nonces=[11, 12, 14]),
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["device_approval_ready"] is False
+    assert "device_approval_sign_admission_rejected" in status["errors"]
+    assert "payload_nonce_reused" in status["errors"]
 
 
 def test_perps_wallet_rotation_exercise_ready_receipt() -> None:
@@ -1950,6 +2099,33 @@ def test_status_loads_ready_perps_wallet_rotation_exercise(monkeypatch) -> None:
     assert rotation["guardian_signature_quorum"]["threshold"] == 2
 
 
+def test_status_loads_ready_perps_wallet_device_approval_exercise(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.setenv(
+        "PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON",
+        json.dumps(_perps_wallet_device_approval_exercise(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.delenv("PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    device_approval = payload["status"]["wallet_authority"]["device_approval_exercise"]
+    assert device_approval["device_approval_ready"] is True
+    assert device_approval["status"] == "ready"
+    assert device_approval["sign_admission_receipt"]["ok"] is True
+    assert device_approval["sign_admission_receipt"]["payload_nonce"] == 14
+
+
 def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
@@ -2052,6 +2228,68 @@ def test_rotation_evaluate_endpoint_blocks_bad_guardian_signature_quorum(monkeyp
     rotation = payload["rotation_exercise"]
     assert rotation["rotation_exercise_ready"] is False
     assert any("guardian signature quorum invalid" in error for error in rotation["errors"])
+
+
+def test_device_approval_evaluate_endpoint_blocks_missing_user_presence(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    exercise = _perps_wallet_device_approval_exercise()
+    exercise["environment"] = {
+        **exercise["environment"],
+        "local_user_presence_confirmed": False,
+    }
+    exercise["environment"]["environment_hash"] = KeyExecutionEnvironment(
+        environment_id=exercise["environment"]["environment_id"],
+        environment_kind=exercise["environment"]["environment_kind"],
+        chain_id=exercise["environment"]["chain_id"],
+        policy_hash=exercise["environment"]["policy_hash"],
+        challenge_hash=exercise["environment"]["challenge_hash"],
+        issued_at_epoch=exercise["environment"]["issued_at_epoch"],
+        expires_at_epoch=exercise["environment"]["expires_at_epoch"],
+        local_user_presence_confirmed=False,
+        rollback_protection_confirmed=exercise["environment"]["rollback_protection_confirmed"],
+    ).public_dict()["environment_hash"]
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/device-approval/evaluate",
+        json.dumps(exercise).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    device_approval = payload["device_approval_exercise"]
+    assert device_approval["device_approval_ready"] is False
+    assert "local_user_presence_missing" in device_approval["errors"]
+
+
+def test_device_approval_evaluate_endpoint_blocks_reused_nonce(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/device-approval/evaluate",
+        json.dumps(_perps_wallet_device_approval_exercise(seen_nonces=[11, 12, 14])).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is False
+    device_approval = payload["device_approval_exercise"]
+    assert device_approval["device_approval_ready"] is False
+    assert "payload_nonce_reused" in device_approval["errors"]
 
 
 def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:
