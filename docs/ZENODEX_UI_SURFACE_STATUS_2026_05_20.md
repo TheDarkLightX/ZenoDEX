@@ -299,7 +299,10 @@ coverage includes sensitive startup gating, unapproved measurements, stale
 attestations, host-guard failure, accounting mismatch, policy-digest mismatch
 without request consumption, request replay, and a disabled verifier. The
 browser smoke renders `attestation accepted`, `measurement nitro`, `execution
-admitted`, and `request consumed` through the mounted Confidential tab.
+admitted`, and `request consumed` through the mounted Confidential tab. The API
+checks also assert that raw attestation payload fields are not echoed in accepted
+responses, and the browser smoke asserts that raw Nitro PCR values and the policy
+digest are not rendered in the mounted DOM.
 
 Latest cross-stream stateful replay pass on 2026-05-21:
 

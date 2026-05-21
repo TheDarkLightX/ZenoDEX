@@ -11,6 +11,7 @@ NITRO_PCR8 = "b" * 96
 AZURE_HOSTDATA = "c" * 64
 POLICY_DIGEST = "0x" + ("d" * 64)
 MEASUREMENT = f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}"
+PRIVATE_ROUTE_HINT = "private-route-alpha-do-not-echo"
 
 
 def _start_test_server():
@@ -59,7 +60,11 @@ def _verifier_cmd_json(*, measurement: str = MEASUREMENT, policy_digest: str = P
 
 def _attestation_request() -> dict[str, object]:
     return {
-        "attestation_payload": {"provider": "nitro", "nonce": "ui-smoke"},
+        "attestation_payload": {
+            "provider": "nitro",
+            "nonce": "ui-smoke",
+            "private_route_hint": PRIVATE_ROUTE_HINT,
+        },
         "extension_id": "route-premium-v1",
         "provider_id": "provider-1",
         "request_id": "req-api",
@@ -174,6 +179,11 @@ def test_api_server_confidential_attestation_verify_accepts_allowlisted_external
         assert body["execution_admitted"] is True
         assert str(body["receipt_hash"])
         assert body["claim_scope"] == "local_testnet_external_verifier_receipt"
+        response_text = json.dumps(body, sort_keys=True)
+        assert "attestation_payload" not in body
+        assert "attestation_payload" not in response_text
+        assert "private_route_hint" not in response_text
+        assert PRIVATE_ROUTE_HINT not in response_text
     finally:
         _stop_test_server(httpd, t)
 
@@ -197,6 +207,11 @@ def test_api_server_confidential_attestation_admit_consumes_request_and_rejects_
             "request_id": "req-api",
         }
         assert body["claim_scope"] == "local_testnet_external_verifier_live_admission"
+        response_text = json.dumps(body, sort_keys=True)
+        assert "attestation_payload" not in body
+        assert "attestation_payload" not in response_text
+        assert "private_route_hint" not in response_text
+        assert PRIVATE_ROUTE_HINT not in response_text
 
         status, replay = _post_json(host, port, "/api/confidential/attestation/admit", request)
         assert status == 400
