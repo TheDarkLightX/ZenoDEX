@@ -262,15 +262,17 @@ flow from the mounted Oracle tab. The write smoke creates an identity,
 registers and funds a query, registers and bonds a reporter, registers a
 source, submits a report, builds aggregate/read/authorization receipts, and
 pays rewards against a local `tools/zenodex-oracle serve --allow-writes`
-instance.
+instance. It also proves the read-only local service fails closed for the same
+mounted receipt flow by surfacing `write_api_disabled` instead of accepting a
+receipt write when `--allow-writes` is absent.
 
-Latest Oracle write-browser pass on 2026-05-21:
+Latest Oracle browser pass on 2026-05-21:
 
 ```bash
-pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_runs_write_enabled_receipt_flow -s
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py -s
 ```
 
-Result: `1 passed`.
+Result: `3 passed`.
 
 Latest confidential attestation receipt pass on 2026-05-21:
 
