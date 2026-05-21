@@ -39,7 +39,9 @@ from src.integration.zeno_oracle_authorization import (
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
+from tests.chaos.conftest import requires_toxiproxy
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
+from tools.chaos.toxiproxy_harness import ToxiproxyHarness
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -271,6 +273,27 @@ def _post_json_status(url: str, payload: dict[str, object]) -> tuple[int, dict[s
             return int(response.status), json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         return int(exc.code), json.loads(exc.read().decode("utf-8"))
+
+
+def _tau_command_count(tau_server: socketserver.ThreadingTCPServer, command: str) -> int:
+    state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+    with state.lock:
+        return int(state.command_counts.get(command, 0))
+
+
+def _wait_for_tau_command_count(
+    tau_server: socketserver.ThreadingTCPServer,
+    command: str,
+    minimum: int,
+    *,
+    timeout_s: float = 10.0,
+) -> None:
+    deadline = time.monotonic() + float(timeout_s)
+    while time.monotonic() < deadline:
+        if _tau_command_count(tau_server, command) >= int(minimum):
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"tau command {command!r} did not reach count {minimum}")
 
 
 def _seed_oracle_authorization(base: str, *, action_kind: str = "settle_epoch") -> dict[str, object]:
@@ -718,6 +741,7 @@ class _TauRpcState:
         self.pending_tx: dict[str, object] | None = None
         self.sequences: dict[str, int] = {}
         self.native_balances: dict[str, int] = {}
+        self.command_counts: dict[str, int] = {}
         self.lock = threading.Lock()
 
     def app_state_payload(self) -> dict[str, object]:
@@ -750,6 +774,10 @@ class _TauRpcState:
 class _TauRpcHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         line = self.rfile.readline().decode("utf-8").strip()
+        state: _TauRpcState = self.server.state  # type: ignore[attr-defined]
+        command = line.split(" ", 1)[0] if line else ""
+        with state.lock:
+            state.command_counts[command] = int(state.command_counts.get(command, 0)) + 1
         self._dispatch_line(line)
 
     def _dispatch_line(self, line: str) -> None:
@@ -806,6 +834,21 @@ class _TauRpcDelayedSendSuccessHandler(_TauRpcHandler):
         if line.startswith("sendtx "):
             time.sleep(float(getattr(self.server, "send_delay_s", 0.0)))
         self._dispatch_line(line)
+
+
+class _TauRpcGatedSendSuccessHandler(_TauRpcHandler):
+    def _dispatch_line(self, line: str) -> None:
+        if line.startswith("sendtx "):
+            state: _TauRpcState = self.server.state  # type: ignore[attr-defined]
+            payload = json.loads(line.split(" ", 1)[1])
+            with state.lock:
+                state.pending_tx = payload
+            gate = getattr(self.server, "send_response_event", None)
+            if gate is not None:
+                assert gate.wait(timeout=10.0)
+            self.wfile.write(b"SUCCESS tx accepted\n")
+            return
+        super()._dispatch_line(line)
 
 
 def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
@@ -1625,6 +1668,178 @@ def test_perps_wallet_ui_fails_closed_on_truncated_proxy_sendtx_response(tmp_pat
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=5)
+
+
+@requires_toxiproxy
+def test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-toxiproxy"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(85)
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:ui-toxiproxy"
+    deadline = int(time.time()) + 3600
+    sequence_number = 7
+    deposit_amount = 125
+
+    dex_state = _advanced_market_state(
+        chain_id=chain_id,
+        market_id=market_id,
+        quote_asset=quote_asset,
+        account_a_privkey=account_a_privkey,
+        account_b_privkey=account_b_privkey,
+        oracle_pubkey=oracle_pubkey,
+    )
+    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    app_state_json = _initial_app_state_json(dex_state)
+    signed_payload = build_signed_tau_transaction(
+        privkey=account_a_privkey,
+        sequence_number=sequence_number,
+        expiration_time=deadline,
+        operations={
+            "8": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.0",
+                    "market_id": market_id,
+                    "action": "deposit_collateral",
+                    "account_pubkey": account_a_pubkey,
+                    "amount": deposit_amount,
+                }
+            ]
+        },
+        fee_limit=2,
+    )
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("0.0.0.0", tau_port), _TauRpcGatedSendSuccessHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
+    tau_server.state.sequences[account_a_pubkey[2:].lower()] = sequence_number  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_a_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_server.send_response_event = threading.Event()  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    api_proc: subprocess.Popen[str] | None = None
+    vite_proc: subprocess.Popen[str] | None = None
+    chrome_proc: subprocess.Popen[str] | None = None
+    try:
+        os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+        with ToxiproxyHarness(upstream_host="0.0.0.0", upstream_port=tau_port) as toxiproxy:
+            api_port = _free_port()
+            api_base = f"http://127.0.0.1:{api_port}"
+            api_env = {
+                **os.environ,
+                "API_HOST": "127.0.0.1",
+                "API_PORT": str(api_port),
+                "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+                "PERPS_API_ENABLED": "true",
+                "PERPS_WALLET_API_ENABLED": "true",
+                "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "false",
+                "PERPS_WALLET_AUTO_MINE": "true",
+                "PERPS_WALLET_CHAIN_ID": chain_id,
+                "PERPS_WALLET_TAU_HOST": toxiproxy.listen_host,
+                "PERPS_WALLET_TAU_PORT": str(toxiproxy.listen_port),
+                "PERPS_WALLET_TAU_TIMEOUT_S": "1.0",
+                "TAU_DEX_CHAIN_ID": chain_id,
+            }
+            api_proc = subprocess.Popen(
+                ["python3", "-m", "src.integration.api_server"],
+                cwd=ROOT,
+                env=api_env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            vite_port = _free_port()
+            vite_base = f"http://127.0.0.1:{vite_port}"
+            vite_proc = subprocess.Popen(
+                ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+                cwd=DEX_UI,
+                env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            _wait_for_http(api_base + "/health", timeout_s=30)
+            _wait_for_http(vite_base, timeout_s=30)
+
+            getappstate_before = _tau_command_count(tau_server, "getappstate")
+            query = urlencode(
+                {
+                    "tab": "perps",
+                    "demo": "false",
+                    "zenodexUiSmokePerpsWallet": "1",
+                    "perpsWalletAction": "deposit_collateral",
+                    "marketId": market_id,
+                    "accountPubkey": account_a_pubkey,
+                    "amount": str(deposit_amount),
+                    "txFeeLimit": "2",
+                    "perpsDeadline": str(deadline),
+                    "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+                }
+            )
+            chrome_proc = subprocess.Popen(
+                [
+                    chrome,
+                    "--headless=new",
+                    "--disable-gpu",
+                    "--no-sandbox",
+                    f"--user-data-dir={tmp_path / 'chrome-profile-perps-toxiproxy-limit-data'}",
+                    "--virtual-time-budget=22000",
+                    "--dump-dom",
+                    f"{vite_base}/?{query}",
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            _wait_for_tau_command_count(tau_server, "getappstate", getappstate_before + 1)
+            _wait_for_tau_command_count(tau_server, "sendtx", 1)
+            toxiproxy.limit_data(7)
+            tau_server.send_response_event.set()  # type: ignore[attr-defined]
+            stdout, stderr = chrome_proc.communicate(timeout=70)
+            assert chrome_proc.returncode == 0, stderr[-2000:]
+            dom = stdout
+            assert "Live Perps Wallet" in dom
+            assert "Tau node connected" in dom
+            assert "tau_rpc_error" in dom, dom[-8000:]
+            assert "SUCCESS tx accepted" not in dom
+            rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+            assert json.loads(rpc_state.app_state_json) == json.loads(app_state_json)
+            assert rpc_state.pending_tx is not None
+            assert rpc_state.sequences[account_a_pubkey[2:].lower()] == sequence_number
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        if chrome_proc is not None and chrome_proc.poll() is None:
+            chrome_proc.kill()
+            chrome_proc.wait(timeout=5)
+        for proc in (vite_proc, api_proc):
+            if proc is None:
+                continue
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+        tau_server.shutdown()
+        tau_server.server_close()
+        tau_thread.join(timeout=2.0)
 
 
 def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path) -> None:

@@ -869,9 +869,33 @@ ran without skips at `9 passed`; container hardening checks passed. The harness
 now creates proxies on Docker-published ports, maps host-local upstreams through
 `host.docker.internal`, uses Docker-reachable mock upstreams for daemon tests,
 and checks real `limit_data` and `reset_peer` toxics. This is Tau client and
-Toxiproxy shell-boundary evidence. It does not yet prove mounted browser
-Toxiproxy campaigns, multi-node public-testnet behavior, or stream `8`/`11` ZK
-execution.
+Toxiproxy shell-boundary evidence. At this checkpoint it did not yet prove
+mounted browser Toxiproxy submit-boundary behavior, multi-node public-testnet
+behavior, or stream `8`/`11` ZK execution.
+
+Additional daemon-backed mounted browser Toxiproxy evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_bridge.py tests/integration/test_perps_wallet_ui_bridge.py
+npm run build
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data -s
+python3 tools/check_container_hardening.py
+```
+
+Results: py_compile passed; the DEX UI production build passed; the focused
+mounted zUSD and perps Toxiproxy browser regressions each `1 passed`; container
+hardening checks passed. The tests launch the mounted browser UI against the
+live API, route stream `11` zUSD mint and stream `8` perps collateral submit
+through the real Toxiproxy daemon, let status/preflight reach Tau successfully,
+then apply a live `limit_data` toxic before releasing the upstream `SUCCESS tx
+accepted` frame. Both mounted UIs render `tau_rpc_error`, do not render
+`SUCCESS tx accepted`, preserve committed app state and sender sequence, and
+leave the upstream Tau-compatible server with a pending transaction. This closes
+focused mounted browser Toxiproxy submit-boundary coverage for the ambiguous
+post-commit response-truncation fault. Broader mounted browser chaos campaigns,
+multi-node public-testnet behavior, mempool cleanup policy, and stream `8`/`11`
+ZK execution remain open.
 
 Remaining limits:
 
