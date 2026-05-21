@@ -253,46 +253,48 @@ class TestTauNetClientTimeout:
 class TestTauNetClientToxiproxy:
     """Chaos tests using Toxiproxy for network fault injection."""
 
-    def test_limit_data_toxic_handled(self, mock_tcp_server: MockTcpServer) -> None:
+    def test_limit_data_toxic_handled(self) -> None:
         """Verify limit_data toxic is handled gracefully."""
         from tools.chaos.toxiproxy_harness import ToxiproxyHarness
 
-        mock_tcp_server.set_response(b'{"result": "this is a long response that will be truncated"}\n')
+        with MockTcpServer(host="0.0.0.0") as mock_tcp_server:
+            mock_tcp_server.set_response(b'{"result": "this is a long response that will be truncated"}\n')
 
-        with ToxiproxyHarness(
-            upstream_host=mock_tcp_server.host,
-            upstream_port=mock_tcp_server.port,
-        ) as harness:
-            harness.limit_data(50)
+            with ToxiproxyHarness(
+                upstream_host=mock_tcp_server.host,
+                upstream_port=mock_tcp_server.port,
+            ) as harness:
+                harness.limit_data(50)
 
-            config = TauNetTcpConfig(
-                host=harness.listen_host,
-                port=harness.listen_port,
-                timeout_s=2.0,
-            )
-            client = TauNetTcpClient(config)
+                config = TauNetTcpConfig(
+                    host=harness.listen_host,
+                    port=harness.listen_port,
+                    timeout_s=2.0,
+                )
+                client = TauNetTcpClient(config)
 
-            with pytest.raises(TauNetRpcError, match="closed before response terminator"):
-                client.rpc("test")
+                with pytest.raises(TauNetRpcError, match="closed before response terminator"):
+                    client.rpc("test")
 
-    def test_reset_peer_toxic_handled(self, mock_tcp_server: MockTcpServer) -> None:
+    def test_reset_peer_toxic_handled(self) -> None:
         """Verify reset_peer toxic is handled gracefully."""
         from tools.chaos.toxiproxy_harness import ToxiproxyHarness
 
-        mock_tcp_server.set_response(b"OK\n")
+        with MockTcpServer(host="0.0.0.0") as mock_tcp_server:
+            mock_tcp_server.set_response(b"OK\n")
 
-        with ToxiproxyHarness(
-            upstream_host=mock_tcp_server.host,
-            upstream_port=mock_tcp_server.port,
-        ) as harness:
-            harness.reset_peer(timeout_ms=0)
+            with ToxiproxyHarness(
+                upstream_host=mock_tcp_server.host,
+                upstream_port=mock_tcp_server.port,
+            ) as harness:
+                harness.reset_peer(timeout_ms=0)
 
-            config = TauNetTcpConfig(
-                host=harness.listen_host,
-                port=harness.listen_port,
-                timeout_s=2.0,
-            )
-            client = TauNetTcpClient(config)
+                config = TauNetTcpConfig(
+                    host=harness.listen_host,
+                    port=harness.listen_port,
+                    timeout_s=2.0,
+                )
+                client = TauNetTcpClient(config)
 
-            with pytest.raises((TauNetRpcError, ConnectionError, OSError)):
-                client.rpc("test")
+                with pytest.raises((TauNetRpcError, ConnectionError, OSError)):
+                    client.rpc("test")

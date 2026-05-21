@@ -23,9 +23,11 @@ services:
     mem_limit: 256m
     tmpfs:
       - /tmp:mode=1777,noexec,nosuid,nodev,size=32m
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     init: true
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8474/version"]
+      test: ["CMD", "/toxiproxy-cli", "--host", "http://localhost:8474", "list"]
       interval: 5s
       timeout: 3s
       retries: 3

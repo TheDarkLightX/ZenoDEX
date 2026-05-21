@@ -851,8 +851,27 @@ the upstream has a pending transaction, but the client receives a truncated
 response. The mounted stream `11` mint and stream `8` collateral deposit UIs both
 render `tau_rpc_error`, do not render `SUCCESS tx accepted`, preserve committed
 app state and sender sequence, and record the truncated `sendtx` fault. This
-does not claim mempool cleanup or external Toxiproxy-daemon coverage; it closes a
-deterministic browser packet-fault regression for the submit boundary.
+does not claim mempool cleanup or mounted browser Toxiproxy-daemon coverage; it
+closes a deterministic browser packet-fault regression for the submit boundary.
+
+Additional daemon-backed Toxiproxy Tau client chaos evidence added on 2026-05-21:
+
+```bash
+docker compose -f docker-compose.chaos.yml up -d --force-recreate toxiproxy
+python3 -m py_compile tools/chaos/toxiproxy_harness.py tests/chaos/conftest.py tests/chaos/test_tau_net_client_chaos.py
+python3 -m pytest -q tests/chaos/test_tau_net_client_chaos.py -s
+python3 tools/check_container_hardening.py
+```
+
+Results: the Toxiproxy container reports healthy with published proxy ports
+`8474` through `8480`; py_compile passed; the full Tau Net client chaos suite
+ran without skips at `9 passed`; container hardening checks passed. The harness
+now creates proxies on Docker-published ports, maps host-local upstreams through
+`host.docker.internal`, uses Docker-reachable mock upstreams for daemon tests,
+and checks real `limit_data` and `reset_peer` toxics. This is Tau client and
+Toxiproxy shell-boundary evidence. It does not yet prove mounted browser
+Toxiproxy campaigns, multi-node public-testnet behavior, or stream `8`/`11` ZK
+execution.
 
 Remaining limits:
 
