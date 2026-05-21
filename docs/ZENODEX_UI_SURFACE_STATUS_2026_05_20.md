@@ -344,6 +344,21 @@ profile only when the chain id matches, rejects a chain-mismatched profile, and
 the mounted perps UI renders `oracle authority ready` plus the active signer
 threshold in the live settle flow.
 
+Latest isolated partial-liquidation Oracle-authority pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; mounted partial-liquidation browser smoke `1
+passed`; full mounted perps wallet browser bridge suite `7 passed`. The test now
+binds the mounted `liquidate_account` flow to a production-shaped Oracle
+authority profile with a matching chain id and active 2-of-2 signer registry,
+then renders `oracle authority ready`, `oracle signers 2/2`, and the local
+ZenoOracle evidence picker in the same browser run.
+
 Latest stream `8` stateful resilience pass on 2026-05-21:
 
 ```bash

@@ -1494,6 +1494,10 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
     chain_id = "tau-test-perps-wallet-ui-partial-liquidate"
     account_privkey = 87
     account_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_privkey)
+    oracle_privkey = 88
+    operator_privkey = 89
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
+    operator_pubkey = "0x" + bls_pubkey_hex_from_privkey(operator_privkey)
     quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     market_id = "perp:isolated:ui-liquidation"
     app_state_json = _initial_app_state_json(
@@ -1530,6 +1534,14 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
         "TAU_DEX_CHAIN_ID": chain_id,
         "TAU_DEX_ALLOW_ISOLATED_PERPS": "1",
         "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE": "1",
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON": json.dumps(
+            _oracle_authority_profile(
+                chain_id=chain_id,
+                oracle_pubkey=oracle_pubkey,
+                operator_pubkey=operator_pubkey,
+            ),
+            sort_keys=True,
+        ),
     }
     old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
     old_allow_isolated = os.environ.get("TAU_DEX_ALLOW_ISOLATED_PERPS")
@@ -1654,6 +1666,8 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
         assert "oracle selected action liquidate_account" in dom
         assert "oracle selected value 123456789" in dom
         assert "oracle network local" in dom
+        assert "oracle authority ready" in dom
+        assert "oracle signers 2/2" in dom
         assert "partial liquidation fraction 0 bps" in dom
         assert "isolated liquidated yes" in dom
         assert market_id in dom

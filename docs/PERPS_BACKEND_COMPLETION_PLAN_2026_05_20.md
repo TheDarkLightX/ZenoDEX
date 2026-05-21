@@ -557,6 +557,23 @@ suite `6 passed`. The perps wallet status now exposes `oracle_authority` and
 mounted perps UI renders `oracle authority ready` plus the active signer
 threshold next to the Oracle evidence picker.
 
+Additional isolated partial-liquidation Oracle-authority evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; mounted partial-liquidation browser smoke `1
+passed`; full mounted perps wallet browser bridge suite `7 passed`. The
+isolated partial-liquidation flow now provisions a production-shaped Oracle
+authority profile with a matching chain id and active 2-of-2 signer registry
+before loading the local ZenoOracle picker. The mounted UI renders `oracle
+authority ready` and `oracle signers 2/2` for the `liquidate_account` path while
+still reporting the evidence service network as local.
+
 Additional stream `8` stateful resilience evidence added on 2026-05-21:
 
 ```bash
