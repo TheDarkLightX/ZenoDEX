@@ -19,7 +19,7 @@ from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketStat
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 
@@ -584,6 +584,163 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "preflight ok" in dom
         assert "fee limit 2" in dom
         assert "fee covered yes" in dom
+        assert market_id in dom
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-external"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(85)
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:ui-external"
+    deadline = int(time.time()) + 3600
+    sequence_number = 7
+    deposit_amount = 125
+
+    dex_state = _advanced_market_state(
+        chain_id=chain_id,
+        market_id=market_id,
+        quote_asset=quote_asset,
+        account_a_privkey=account_a_privkey,
+        account_b_privkey=account_b_privkey,
+        oracle_pubkey=oracle_pubkey,
+    )
+    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    app_state_json = _initial_app_state_json(dex_state)
+    signed_payload = build_signed_tau_transaction(
+        privkey=account_a_privkey,
+        sequence_number=sequence_number,
+        expiration_time=deadline,
+        operations={
+            "8": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.0",
+                    "market_id": market_id,
+                    "action": "deposit_collateral",
+                    "account_pubkey": account_a_pubkey,
+                    "amount": deposit_amount,
+                }
+            ]
+        },
+        fee_limit=2,
+    )
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
+    tau_server.state.sequences[account_a_pubkey[2:].lower()] = sequence_number  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_a_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "false",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "TAU_DEX_CHAIN_ID": chain_id,
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "deposit_collateral",
+                "marketId": market_id,
+                "accountPubkey": account_a_pubkey,
+                "amount": str(deposit_amount),
+                "txFeeLimit": "2",
+                "perpsDeadline": str(deadline),
+                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+            }
+        )
+        chrome_profile = tmp_path / "chrome-profile-external-signed"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=50,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Live Perps Wallet" in dom
+        assert "Deposit Collateral" in dom
+        assert "submit accepted" in dom
+        assert "preflight ok" in dom
+        assert "fee limit 2" in dom
+        assert "fee covered yes" in dom
+        assert "signing external_signed_payload" in dom
+        assert "posted A 12500000000" in dom
+        assert "quote A 875" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

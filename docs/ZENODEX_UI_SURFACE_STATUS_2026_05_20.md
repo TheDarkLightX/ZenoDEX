@@ -137,6 +137,18 @@ pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
 
 Results: `8 passed`, `5 passed`, and `2 passed`.
 
+Latest external-signed perps browser pass on 2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing -s
+```
+
+Result: `1 passed`. The mounted perps wallet UI submitted a stream `8`
+collateral deposit with local signing disabled, using an externally signed Tau
+transaction envelope. The DOM receipt included `signing
+external_signed_payload`, fee-limit coverage, and the expected quote/collateral
+deltas after auto-mining through the local Tau RPC harness.
+
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt
 flow from the mounted Oracle tab. The write smoke creates an identity,

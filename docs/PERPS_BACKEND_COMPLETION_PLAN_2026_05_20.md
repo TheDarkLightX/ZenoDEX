@@ -215,6 +215,11 @@ Pinned live-transport evidence:
   side under maintenance, submits `settle_epoch` through the mounted browser UI,
   and verifies the rendered liquidation evidence: `liquidated yes`, fee-pool
   growth, and closed positions.
+- `tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing`
+  runs the mounted browser UI with local signing disabled, passes an externally
+  signed Tau transaction envelope into the live wallet panel, submits stream `8`
+  collateral, and verifies the rendered `external_signed_payload` signing mode
+  plus the post-submit collateral and quote-balance deltas.
 
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.
