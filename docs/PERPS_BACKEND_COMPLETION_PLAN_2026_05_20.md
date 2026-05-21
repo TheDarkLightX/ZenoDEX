@@ -644,6 +644,25 @@ or partial response bytes. This keeps the mounted stream `8` and stream `11`
 submit APIs on the existing `502 tau_rpc_error` fail-closed path when Tau is
 unreachable, slow, or resets the connection.
 
+Additional mounted zUSD Tau RPC partial-response chaos evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; focused browser chaos regression `1 passed`; full
+zUSD monetary browser bridge `2 passed`. The mounted stream `11` test uses a
+Tau-compatible TCP server that supports normal status and prepare calls, then
+sends partial private response bytes on `sendtx` and stalls past the configured
+Tau RPC timeout. The live API returns `502 tau_rpc_error`, the mounted UI renders
+that fail-closed error without exposing the partial response, the app state is
+unchanged, no pending Tau transaction is recorded, and the sender sequence stays
+at its pre-submit value. Broader packet-loss, jitter, and multi-surface network
+chaos campaigns remain open.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker is local/devnet

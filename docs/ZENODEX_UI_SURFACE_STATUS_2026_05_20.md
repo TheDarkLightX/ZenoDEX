@@ -491,6 +491,24 @@ RPC connect, send, receive-reset, and receive-timeout failures are normalized to
 instead of uncaught socket errors. The socket tests also assert Tau RPC error
 details do not echo private command text or partial response bytes.
 
+Latest mounted zUSD Tau RPC partial-response chaos pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; focused browser chaos regression `1 passed`; full
+zUSD monetary browser bridge `2 passed`. The new harness runs the mounted zUSD
+tab, live API server, and a Tau-compatible TCP server that accepts normal status
+and prepare calls but, on `sendtx`, sends partial private response bytes without
+a newline and stalls past the configured Tau RPC timeout. The API returns `502`
+with `tau_rpc_error`, the mounted UI renders that fail-closed error without
+leaking the partial response, the Tau app state is unchanged, no pending
+transaction is recorded, and the sender sequence remains unchanged. Broader
+packet-loss, jitter, and multi-surface network-chaos campaigns remain open.
+
 ## Economic-security status
 
 Algorithmic game theory is required for value-moving actor surfaces before
