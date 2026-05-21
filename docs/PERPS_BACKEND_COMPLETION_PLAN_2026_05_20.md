@@ -1065,6 +1065,23 @@ Results: focused submit-path checks `2 passed`. These checks name
 required proof on stream `8` perps deposit or stream `11` zUSD mint returns a
 400 error before any Tau `sendtx` call is made.
 
+Additional artifact-bound proof-wrapper metadata evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/live_proof_wrapper.py src/integration/perps_wallet_api.py src/integration/zusd_monetary_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_zusd_monetary_wallet_api.py tools/check_dex_live_product_goal.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_prepare_init_market_accepts_verified_zk_wrapper tests/integration/test_perps_wallet_api.py::test_prepare_init_market_accepts_artifact_bound_zk_wrapper tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_accepts_verified_zk_wrapper tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_accepts_artifact_bound_zk_wrapper
+python3 tools/check_dex_live_product_goal.py --json
+```
+
+Results: the shared live proof-wrapper gate can now carry declared verifier and
+circuit artifact metadata from `*_PROOF_VERIFIER_ARTIFACT_JSON|FILE` and
+`*_PROOF_CIRCUIT_ARTIFACT_JSON|FILE`, expose a public binding hash, and thread
+that status into the stream `8` perps and stream `11` zUSD proof profiles.
+`promotion_ready` now requires both `zk_proof_verified=true` and
+`artifact_binding_complete=true`. This is still a metadata-carrying wrapper
+receipt, not a claim that the repo ships production circuit artifacts or proves
+their soundness.
+
 Additional bounded AutoTrader supervisor evidence added on 2026-05-21:
 
 ```bash

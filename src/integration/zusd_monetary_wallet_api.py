@@ -145,7 +145,9 @@ def _zusd_proof_profile() -> dict[str, Any]:
             "does_not_claim_exact_liquity_v2_parity",
         ],
         "zk_proof_verified": False,
+        "artifact_binding_complete": False,
         "zk_wrapper_required_for_production_claim": True,
+        "artifact_binding_required_for_production_claim": True,
         "promotion_ready": False,
     }
 
@@ -226,7 +228,10 @@ def _bind_live_zk_wrapper(
     profile = proof_section.get("profile")
     if isinstance(profile, dict):
         profile["zk_proof_verified"] = bool(zk_wrapper.get("zk_proof_verified"))
-        profile["promotion_ready"] = bool(zk_wrapper.get("zk_proof_verified"))
+        profile["artifact_binding_complete"] = bool(zk_wrapper.get("artifact_binding_complete"))
+        profile["promotion_ready"] = bool(zk_wrapper.get("zk_proof_verified")) and bool(
+            zk_wrapper.get("artifact_binding_complete")
+        )
     return payload
 
 

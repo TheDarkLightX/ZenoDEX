@@ -182,6 +182,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "oracleAuthorityExercise",
             "oracle authority exercised",
             "oracle authority receipt",
+            "ZK Artifacts",
+            "zk artifacts",
+            "zk binding",
             "walletRecoveryExercise",
             "recovery exercise",
             "recovery receipt",
@@ -324,6 +327,19 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="assurance_depth",
+        check_id="live_proof_wrapper_carries_artifact_binding",
+        path="src/integration/live_proof_wrapper.py",
+        description="The shared live proof-wrapper gate carries declared verifier and circuit artifact metadata plus a binding hash.",
+        anchors=(
+            "artifact_binding_configured",
+            "artifact_binding_complete",
+            "PROOF_VERIFIER_ARTIFACT_JSON",
+            "PROOF_CIRCUIT_ARTIFACT_JSON",
+            "binding_hash",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
         check_id="perps_proof_wrapper_submit_blocks_broadcast",
         path="tests/integration/test_perps_wallet_api.py",
         description="Perps submit tests prove rejected required proof-wrapper checks block Tau sendtx.",
@@ -457,7 +473,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "zk_wrapping",
-        "description": "zUSD and perps live paths still need production circuit artifacts; the current gate verifies external proofs over proof-intent receipts.",
+        "description": "zUSD and perps live paths can carry declared verifier and circuit artifact bindings alongside external proof-wrapper checks over proof-intent receipts, but production circuit artifacts and soundness evidence remain open.",
     },
     {
         "id": "production_autotrader",

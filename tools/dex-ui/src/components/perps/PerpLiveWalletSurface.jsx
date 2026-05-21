@@ -475,6 +475,7 @@ function PerpLiveWalletSurface() {
           <div><span>Isolated</span><span>{status?.allow_isolated_markets ? 'enabled' : 'disabled'}</span></div>
           <div><span>Proof profile</span><span>{proofProfile?.profile_id || 'unassigned'}</span></div>
           <div><span>ZK proof</span><span>{proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span></div>
+          <div><span>ZK Artifacts</span><span>{proofProfile?.artifact_binding_complete ? 'ready' : 'pending'}</span></div>
           <div><span>Wallet Authority</span><span>{walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Wallet Signers</span><span>{walletAuthority ? `${walletAuthority.active_signer_count}/${walletAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Wallet Recovery</span><span>{walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span></div>
@@ -766,6 +767,8 @@ function PerpLiveWalletSurface() {
           <span>proof profile {proofProfile?.profile_id || 'unassigned'}</span>
           <span>proof receipt {compactId(proofReceipt?.receipt_hash)}</span>
           <span>zk proof {proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span>
+          <span>zk artifacts {proofProfile?.artifact_binding_complete ? 'ready' : 'pending'}</span>
+          <span>zk binding {compactId(result?.proof?.zk_wrapper?.artifact_binding?.binding_hash)}</span>
           <span>delta witness {stateDeltaWitness ? stateDeltaWitness.changed_markets?.length ?? 0 : 'pending'}</span>
           <span>wallet authority {walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span>
           <span>wallet keys {walletAuthority?.key_ref_count ?? 0}</span>

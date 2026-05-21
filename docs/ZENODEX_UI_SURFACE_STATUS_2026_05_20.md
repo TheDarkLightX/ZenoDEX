@@ -61,11 +61,13 @@ Oracle profile validates and its chain id matches the perps wallet chain. The UI
 reports both authorities as blocked when profiles are absent, invalid, or missing
 a signer-registry BLS signature quorum over the authority profile hash, while
 keeping `zk_proof_verified=false` until a real RISC Zero or equivalent verifier
-is present. The completion plan is recorded in
+is present. The mounted perps wallet now also surfaces `ZK Artifacts` and the
+wrapper binding hash when a submit carries declared verifier and circuit
+artifact metadata. The completion plan is recorded in
 `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
 public-testnet signed Oracle authority exercise, hardware/OS wallet UX and
 runtime signer-device integration behind the public wallet-authority profile,
-and a real proof/ZK wrapper for stream `8`.
+and production circuit artifacts plus soundness evidence for stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
