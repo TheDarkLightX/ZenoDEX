@@ -325,6 +325,21 @@ profile only when the chain id matches, rejects a chain-mismatched profile, and
 the mounted perps UI renders `oracle authority ready` plus the active signer
 threshold in the live settle flow.
 
+Latest stream `8` stateful resilience pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_stream8_resilience.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_stream8_resilience.py tests/integration/test_zenodex_live_cross_stream_stateful.py
+python3 tools/zenodex_live_cross_stream_stateful.py --format json
+```
+
+Results: py_compile passed; adjacent perps wallet, stream `8` resilience, and
+cross-stream stateful checks `37 passed`; the replay tool accepted `8` bounded
+scenarios plus `4` deterministic fuzz seeds of `32` steps each. New stream `8`
+coverage rejects out-of-order signed position nonces without app-state mutation
+and rejects stale aggregate-adapter Oracle bridges before `settle_epoch`
+mutates the market. Host-level node restart and network chaos remain open.
+
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt
 flow from the mounted Oracle tab. The write smoke creates an identity,

@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 
 from src.core.zusd import E8
+from src.integration.perp_engine import PerpEngineConfig
+from src.integration.perps_wallet_api import _local_perps_oracle_bridge_fixture
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+from tools.zenodex_oracle_aggregate_adapter import aggregate_adapter_content_hash, verify_aggregate_adapter_bridge
 
 
 CHAIN_ID = "tau-test-perps-stream8-resilience"
@@ -308,3 +311,149 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
     market = next(entry for entry in state_view["perps"]["markets"] if entry["market_id"] == market_id)
     assert market["state"]["position_base_a"] == 1
     assert market["state"]["position_base_b"] == -1
+
+
+def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(monkeypatch) -> None:
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    market_id = "perp:ch2p:position-out-of-order"
+
+    ok0, app_state_json, _hash0, _patch0, err0 = _apply(
+        "",
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": quote_asset,
+                    "to_pubkey": ALICE,
+                    "amount": 1_000,
+                    "nonce": 1,
+                    "deadline": DEADLINE,
+                    "operator_pubkey": OPERATOR,
+                },
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": quote_asset,
+                    "to_pubkey": BOB,
+                    "amount": 1_000,
+                    "nonce": 2,
+                    "deadline": DEADLINE,
+                    "operator_pubkey": OPERATOR,
+                },
+            ]
+        },
+        sender=OPERATOR,
+        block_timestamp=1,
+    )
+    assert ok0 is True, err0
+
+    for op, sender, timestamp in (
+        (_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1), OPERATOR, 2),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, OPERATOR, 3),
+        (_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1), ORACLE, 4),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}, OPERATOR, 5),
+        (
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": market_id,
+                "action": "deposit_collateral",
+                "account_pubkey": ALICE,
+                "amount": 250,
+            },
+            ALICE,
+            6,
+        ),
+        (
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": market_id,
+                "action": "deposit_collateral",
+                "account_pubkey": BOB,
+                "amount": 250,
+            },
+            BOB,
+            7,
+        ),
+    ):
+        ok_step, app_state_json, _hash_step, _patch_step, err_step = _apply(
+            app_state_json,
+            operations={"8": [op]},
+            sender=sender,
+            block_timestamp=timestamp,
+        )
+        assert ok_step is True, err_step
+
+    ok_bad, app_state_after_bad, _hash_bad, _patch_bad, err_bad = _apply(
+        app_state_json,
+        operations={"8": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=3, nonce_b=3)]},
+        sender=OPERATOR,
+        block_timestamp=8,
+    )
+
+    assert ok_bad is False
+    assert err_bad == "account_a signature invalid: nonce invalid"
+    assert app_state_after_bad == app_state_json
+
+
+def test_stream8_rejects_stale_oracle_adapter_bridge_without_settlement_side_effect(monkeypatch) -> None:
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    market_id = "perp:ch2p:stale-oracle-bridge"
+
+    app_state_json = ""
+    for op, sender, timestamp in (
+        (_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1), OPERATOR, 1),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, OPERATOR, 2),
+        (_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1), ORACLE, 3),
+    ):
+        ok_step, app_state_json, _hash_step, _patch_step, err_step = _apply(
+            app_state_json,
+            operations={"8": [op]},
+            sender=sender,
+            block_timestamp=timestamp,
+        )
+        assert ok_step is True, err_step
+
+    bridge_payload = _local_perps_oracle_bridge_fixture(
+        app_state=json.loads(app_state_json),
+        config=PerpEngineConfig(chain_id=CHAIN_ID, operator_pubkey=OPERATOR, oracle_pubkey=ORACLE),
+        market_id=market_id,
+        action="settle_epoch",
+    )
+    stale_bridge = json.loads(json.dumps(bridge_payload["bridge"]))
+    stale_bridge["action"]["max_freshness_window_epochs"] = 0
+    stale_bridge["bridge_id"] = aggregate_adapter_content_hash(stale_bridge)
+    verify_result = verify_aggregate_adapter_bridge(stale_bridge)
+    assert verify_result.status == "rejected"
+    assert "adapter:adapter_freshness_window_exceeds_action_limit" in verify_result.errors
+
+    ok_bad, app_state_after_bad, _hash_bad, _patch_bad, err_bad = _apply(
+        app_state_json,
+        operations={
+            "8": [
+                {
+                    "module": "TauPerp",
+                    "version": "1.0",
+                    "market_id": market_id,
+                    "action": "settle_epoch",
+                    "oracle_adapter_bridge": stale_bridge,
+                }
+            ]
+        },
+        sender=OPERATOR,
+        block_timestamp=4,
+    )
+
+    assert ok_bad is False
+    assert "oracle_adapter_bridge rejected" in str(err_bad)
+    assert "adapter_freshness_window_exceeds_action_limit" in str(err_bad)
+    assert app_state_after_bad == app_state_json

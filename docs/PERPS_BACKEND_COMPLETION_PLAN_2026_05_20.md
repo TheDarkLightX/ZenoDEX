@@ -61,12 +61,13 @@ posted into signed clearinghouse perps collateral.
 
 ## What Is Still Missing
 
-The remaining blockers are broader stateful/chaos assurance, hardware/OS wallet
-UX and recovery flows behind the public wallet-authority profile, production
-Oracle network authority, proof/ZK wrapping, and final branch/PR cleanup. Docker
+The remaining blockers are host-level chaos assurance, hardware/OS wallet UX and
+recovery flows behind the public wallet-authority profile, production Oracle
+network authority, proof/ZK wrapping, and final branch/PR cleanup. Docker
 browser evidence, typed Oracle bridge fixtures, action-aware local Oracle
-evidence selection, clearinghouse liquidation UI evidence, and a
-wallet-authority profile preflight exist for the current local/testnet lane.
+evidence selection, clearinghouse liquidation UI evidence, wallet-authority
+profile preflight, and bounded stream `8` replay/freshness checks exist for the
+current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -303,8 +304,9 @@ Required evidence before claiming perps live-product coverage:
   zUSD-to-perps deposit through the mounted live perps wallet
 - bounded stateful replay/fuzzing over zUSD monetary actions and perps
   collateral actions
-- chaos tests for node restart, duplicate tx, expired deadline, stale Oracle
-  evidence, and out-of-order signed operations
+- bounded app-bridge resilience tests for duplicate tx, expired deadline, stale
+  Oracle evidence, and out-of-order signed operations; host-level node restart
+  chaos remains open
 - gas/fee compensation checks for keeper paths when exact Tau fee debits are
   pinned; current wallet surfaces provide fee-limit preflight and configurable
   keeper compensation coverage, not host-level fee debit proof
@@ -551,6 +553,23 @@ suite `6 passed`. The perps wallet status now exposes `oracle_authority` and
 `production_oracle_authority`, rejects a chain-mismatched Oracle profile, and the
 mounted perps UI renders `oracle authority ready` plus the active signer
 threshold next to the Oracle evidence picker.
+
+Additional stream `8` stateful resilience evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_stream8_resilience.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_stream8_resilience.py tests/integration/test_zenodex_live_cross_stream_stateful.py
+python3 tools/zenodex_live_cross_stream_stateful.py --format json
+```
+
+Results: py_compile passed; adjacent perps wallet, stream `8` resilience, and
+cross-stream stateful tests `37 passed`; the replay tool accepted `8` bounded
+scenarios plus `4` deterministic fuzz seeds of `32` steps each. The new stream
+`8` regressions cover two additional disaster states:
+`out_of_order_signed_position_nonce_materializes`, where a skipped account nonce
+must reject without changing the app state, and
+`stale_oracle_adapter_bridge_settles`, where a stale aggregate-adapter bridge
+must reject before `settle_epoch` mutates the market.
 
 Remaining limits:
 
