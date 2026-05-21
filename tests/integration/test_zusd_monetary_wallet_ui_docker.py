@@ -6,6 +6,7 @@ import shutil
 import socket
 import subprocess
 import time
+import urllib.error
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -63,6 +64,20 @@ def _http_post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
     )
     with urlopen(request, timeout=8) as response:  # noqa: S310 - local test servers
         return json.loads(response.read().decode("utf-8"))
+
+
+def _http_post_json_status(url: str, payload: dict[str, object]) -> tuple[int, dict[str, object]]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=8) as response:  # noqa: S310 - local test servers
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
 
 
 def _wait_for_tau_hello(*, host: str, port: int, timeout_s: float = 240) -> TauNetTcpClient:
@@ -188,7 +203,7 @@ def _prepare_zusd_monetary_state(
                     "version": "0.1",
                     "action": "deposit_collateral",
                     "owner_pubkey": owner_pubkey,
-                    "amount_e8": 1000,
+                    "amount_e8": 1_000,
                     "nonce": 2,
                     "deadline": deadline,
                 },
@@ -200,7 +215,7 @@ def _prepare_zusd_monetary_state(
     _create_block_checked(client, label="zUSD monetary bootstrap")
 
     core = _zusd_core(_read_app_state(client))
-    assert core["collateral_e8"] == 1000
+    assert core["collateral_e8"] == 1_000
     assert core["price_e8"] == int(price_e8)
 
 
@@ -376,6 +391,19 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         core = _zusd_core(app_state)
         assert core["debt_e8"] == 100 * E8
         assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 100
+        state_after_mint = app_state
+
+        status, replay_rejected = _http_post_json_status(
+            f"http://127.0.0.1:{api_port}/api/zusd/monetary/submit",
+            {**zusd_body, "signed_tau_tx_payload": signed_zusd_payload},
+        )
+        assert status == 400
+        assert replay_rejected["ok"] is False
+        replay_error = str(replay_rejected["error"])
+        assert replay_error == "signed_tau_tx_payload sequence mismatch" or replay_error.startswith(
+            "preflight_failed:"
+        )
+        assert _read_app_state(tau_client) == state_after_mint
 
         init_query = urlencode(
             {

@@ -182,7 +182,11 @@ signatures, and preflight failures before broadcast.
 The Docker lane now also mints zUSD through the mounted browser UI using an
 externally signed stream `11` Tau envelope with local zUSD API signing disabled,
 then feeds that minted zUSD into the live perps wallet flow on the same local
-Tau node.
+Tau node. It resubmits the exact same signed zUSD mint envelope after success
+and asserts a `400` rejection with no app-state mutation. In the bounded Docker
+seed the duplicate is rejected during deterministic preflight; the API
+regression suite separately covers the explicit signed-payload sequence-mismatch
+reject path.
 
 Latest perps Oracle evidence inspector pass on 2026-05-21:
 
