@@ -152,7 +152,7 @@ class _TauRpcState:
         self.app_hash = "ab" * 32
         self.pending_tx: dict[str, object] | None = None
         self.sequences: dict[str, int] = {self.owner_pubkey[2:]: 7}
-        self.native_balances: dict[str, int] = {self.owner_pubkey: 0}
+        self.native_balances: dict[str, int] = {self.owner_pubkey: 5 * E8}
         self.lock = threading.Lock()
 
     def app_state_payload(self) -> dict[str, object]:
@@ -406,6 +406,39 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
             api_base=api_base,
             privkey=owner_privkey,
             actor_pubkey=owner_pubkey,
+            action="deposit_collateral",
+            profile_name="chrome-profile-deposit-collateral",
+            amount_e8=E8,
+            expected_snippets=('"action": "deposit_collateral"',),
+        )
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _zusd_core(app_state)["collateral_e8"] == 21 * E8
+        rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+        assert rpc_state.native_balances[owner_pubkey.lower()] == 4 * E8
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
+            action="withdraw_collateral",
+            profile_name="chrome-profile-withdraw-collateral",
+            amount_e8=E8,
+            expected_snippets=('"action": "withdraw_collateral"',),
+        )
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _zusd_core(app_state)["collateral_e8"] == 20 * E8
+        assert rpc_state.native_balances[owner_pubkey.lower()] == 5 * E8
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
             action="mint_zusd",
             profile_name="chrome-profile-mint",
             amount=1000,
@@ -414,6 +447,41 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         app_state = _app_state_from_tau_server(tau_server)
         assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 1000
         assert _zusd_core(app_state)["debt_e8"] == 1000 * E8
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
+            action="redeem_zusd",
+            profile_name="chrome-profile-redeem",
+            amount=100,
+            expected_snippets=('"action": "redeem_zusd"',),
+        )
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 900
+        assert _zusd_core(app_state)["debt_e8"] == 900 * E8
+        assert _zusd_core(app_state)["collateral_e8"] == 19 * E8
+        assert rpc_state.native_balances[owner_pubkey.lower()] == 6 * E8
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
+            action="mint_zusd",
+            profile_name="chrome-profile-post-redeem-remint",
+            amount=100,
+            expected_snippets=('"debt_e8": 100000000000',),
+        )
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 1000
+        assert _zusd_core(app_state)["debt_e8"] == 1000 * E8
+        assert _zusd_core(app_state)["collateral_e8"] == 19 * E8
 
         _run_zusd_browser_submit(
             chrome=chrome,
@@ -527,7 +595,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert core["debt_e8"] == 0
         assert core["sp_debt_e8"] == 0
         assert _balance_for_asset(app_state, pubkey=sp_pubkey, asset_id=asset_id) == 0
-        assert _sp_claims(app_state) == {owner_pubkey: 20 * E8}
+        assert _sp_claims(app_state) == {owner_pubkey: 19 * E8}
 
         _run_zusd_browser_submit(
             chrome=chrome,
@@ -538,14 +606,13 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
             actor_pubkey=owner_pubkey,
             action="claim_sp_collateral",
             profile_name="chrome-profile-claim-sp",
-            amount_e8=20 * E8,
+            amount_e8=19 * E8,
             expected_snippets=('"action": "claim_sp_collateral"',),
         )
         app_state = _app_state_from_tau_server(tau_server)
         assert _zusd_core(app_state)["sp_coll_e8"] == 0
         assert _sp_claims(app_state) == {}
-        rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
-        assert rpc_state.native_balances[owner_pubkey.lower()] == 20 * E8
+        assert rpc_state.native_balances[owner_pubkey.lower()] == 25 * E8
     finally:
         vite_proc.terminate()
         api_proc.terminate()
