@@ -272,10 +272,11 @@ python3 -m pytest -q tests/integration/test_api_server_confidential.py
 python3 -m pytest -q tests/integration/test_confidential_ui_bridge.py -s
 ```
 
-Results: API checks `4 passed`; mounted browser smoke `1 passed`. The accepted
+Results: API checks `7 passed`; mounted browser smoke `1 passed`. The accepted
 path returns an allowlisted Nitro measurement receipt with a deterministic
-receipt hash, and rejection coverage includes unapproved measurements and a
-disabled verifier. The browser smoke renders `attestation accepted`,
+receipt hash, and rejection coverage includes sensitive startup gating,
+unapproved measurements, stale attestations, host-guard failure, accounting
+mismatch, and a disabled verifier. The browser smoke renders `attestation accepted`,
 `measurement nitro`, and `execution admitted` through the mounted Confidential
 tab.
 

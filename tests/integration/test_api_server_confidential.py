@@ -84,6 +84,30 @@ def _post_json(host: str, port: int, path: str, body: dict[str, object]) -> tupl
     return int(resp.status), payload
 
 
+def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capsys) -> None:
+    from src.integration import api_server
+
+    for name in (
+        "PERPS_API_ENABLED",
+        "PERPS_WALLET_API_ENABLED",
+        "ZUSD_API_ENABLED",
+        "ZUSD_TAU_WALLET_API_ENABLED",
+        "ZUSD_MONETARY_WALLET_API_ENABLED",
+        "AUTOTRADER_LIVE_API_ENABLED",
+        "DEX_API_ENABLED",
+        "DEMO_API_TOKEN",
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED",
+        "ALLOW_DEMO_TOKEN_AUTH",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_API_ENABLED", "true")
+    monkeypatch.setenv("ZENODEX_ENV", "production")
+
+    assert api_server.main([]) == 2
+    out = capsys.readouterr().out
+    assert "confidential_attestation_api=True" in out
+
+
 def test_api_server_confidential_status_endpoint(monkeypatch) -> None:
     monkeypatch.setenv(
         "CONFIDENTIAL_APPROVED_MEASUREMENTS",
@@ -108,6 +132,28 @@ def test_api_server_confidential_status_endpoint(monkeypatch) -> None:
         _stop_test_server(httpd, t)
 
 
+def test_api_server_confidential_attestation_status_reports_verifier_posture(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    httpd, t, host, port = _start_test_server()
+    try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request("GET", "/api/confidential/attestation/status")
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        status = body["status"]
+        assert status["external_verifier_enabled"] is True
+        assert status["external_verifier_configured"] is True
+        assert status["approved_measurements_count"] == 1
+        assert status["providers"] == ["nitro"]
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_confidential_attestation_verify_accepts_allowlisted_external_verifier(monkeypatch) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
@@ -124,6 +170,29 @@ def test_api_server_confidential_attestation_verify_accepts_allowlisted_external
         assert body["execution_admitted"] is True
         assert str(body["receipt_hash"])
         assert body["claim_scope"] == "local_testnet_external_verifier_receipt"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_verify_rejects_bad_receipt_inputs(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    cases = [
+        {"current_epoch": 12},
+        {"policy_ok": 0},
+        {"credit_after": 34},
+    ]
+    httpd, t, host, port = _start_test_server()
+    try:
+        for overrides in cases:
+            request = {**_attestation_request(), **overrides}
+            status, body = _post_json(host, port, "/api/confidential/attestation/verify", request)
+            assert status == 400
+            assert body["ok"] is False
+            assert body["error"] == "bad_request"
+            assert "receipt" not in body
     finally:
         _stop_test_server(httpd, t)
 
