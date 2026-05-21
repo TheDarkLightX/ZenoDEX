@@ -92,6 +92,101 @@
   letter-spacing: 0.08em;
 }
 
+/* Live prepare */
+.strat-live-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.strat-live-copy {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 72ch;
+  margin-top: 4px;
+}
+
+.strat-live-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.strat-live-metric {
+  min-height: 72px;
+  padding: var(--space-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.strat-live-metric span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.strat-live-metric strong {
+  font-size: var(--font-size-base);
+  word-break: break-word;
+}
+
+.strat-live-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.strat-live-ack input {
+  margin-top: 2px;
+}
+
+.strat-live-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.strat-live-error {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-md);
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.08);
+  font-size: var(--font-size-sm);
+}
+
+.strat-live-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.strat-live-code {
+  overflow-wrap: anywhere;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.strat-live-nonclaims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* Template cards */
 .strat-template-grid {
   display: grid;
@@ -444,6 +539,10 @@
   }
 
   .strat-template-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .strat-live-grid {
     grid-template-columns: 1fr;
   }
 

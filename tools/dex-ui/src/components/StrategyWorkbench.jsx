@@ -1,11 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './StrategyWorkbench.css';
+import { useDemoMode } from '../lib/DemoModeContext.jsx';
+import {
+  apiGetAutotraderStatus,
+  apiPrepareAutotraderLive,
+} from '../lib/api.js';
 import {
   STRATEGY_TEMPLATES,
   TAU_POLICY_GUARDS,
   DEMO_STRATEGIES,
   FORMAL_PROOFS,
 } from '../lib/strategyData';
+
+function isAutoTraderSmokeEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLive') === '1';
+}
 
 function StrategyCard({ strategy }) {
   const [expanded, setExpanded] = useState(false);
@@ -137,7 +149,166 @@ function StrategyCard({ strategy }) {
   );
 }
 
+function AutoTraderLivePrepareSurface({ demoMode }) {
+  const smokeEnabled = isAutoTraderSmokeEnabled();
+  const [status, setStatus] = useState(null);
+  const [acknowledged, setAcknowledged] = useState(smokeEnabled);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const report = result?.report || null;
+  const decisionTag = report?.decision?.tag || 'pending';
+  const liveAdmission = report?.live_admission?.ok === true ? 'accepted' : 'pending';
+  const submitBundle = report?.submit_bundle?.ok === true ? 'ready' : 'pending';
+  const operations = report?.operations && typeof report.operations === 'object' ? report.operations : {};
+  const operationCount = Object.values(operations).reduce((total, values) => (
+    Array.isArray(values) ? total + values.length : total
+  ), 0);
+  const nonClaims = result?.not_claimed || status?.not_claimed || [];
+
+  async function refreshStatus() {
+    try {
+      const payload = await apiGetAutotraderStatus();
+      setStatus(payload?.status || null);
+    } catch (err) {
+      setError(err?.message || 'status_unavailable');
+    }
+  }
+
+  async function prepareLiveStrategy() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiPrepareAutotraderLive({
+        acknowledge_experimental_live_risk: acknowledged,
+        signer_privkey: 7,
+        chain_id: 'tau-local',
+        tx_sequence_number: 9,
+        tx_expiration_time: 999,
+      });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'prepare_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshStatus();
+  }, []);
+
+  useEffect(() => {
+    if (!demoMode && smokeEnabled) {
+      prepareLiveStrategy();
+    }
+    // The smoke path intentionally runs once from the URL trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, smokeEnabled]);
+
+  return (
+    <div className="panel strat-section-card strat-live-panel animate-fade-in" aria-label="AutoTrader live prepare">
+      <div className="strat-section-header">
+        <div>
+          <h2>AutoTrader Live Prepare</h2>
+          <p className="strat-live-copy">
+            Receipt-backed prepare builds signed operations after policy, guard, nonce, and tx-envelope checks.
+          </p>
+        </div>
+        <span className="strat-section-badge">{status?.mode || 'receipt-backed prepare'}</span>
+      </div>
+
+      <div className="strat-live-grid">
+        <div className="strat-live-metric">
+          <span>API</span>
+          <strong>{status?.enabled ? 'mounted' : 'checking'}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Decision</span>
+          <strong>{decisionTag}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Live admission</span>
+          <strong>{liveAdmission}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Submit bundle</span>
+          <strong>{submitBundle}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Operations</span>
+          <strong>{operationCount}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Chain</span>
+          <strong>{report?.signing?.chain_id || status?.chain_id || 'tau-local'}</strong>
+        </div>
+      </div>
+
+      <label className="strat-live-ack">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(event) => setAcknowledged(event.target.checked)}
+          disabled={busy || demoMode}
+        />
+        <span>Acknowledge experimental live risk for local receipt preparation</span>
+      </label>
+
+      <div className="strat-live-actions">
+        <button
+          className="btn btn-primary"
+          type="button"
+          onClick={prepareLiveStrategy}
+          disabled={busy || demoMode || !acknowledged}
+        >
+          {busy ? 'Preparing...' : 'Prepare Live Strategy'}
+        </button>
+        <button className="btn btn-secondary" type="button" onClick={refreshStatus} disabled={busy}>
+          Refresh Status
+        </button>
+      </div>
+
+      {error && (
+        <div className="strat-live-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div className="strat-live-result" aria-label="AutoTrader prepare result">
+          <div className="strat-kv"><span>Status</span><span>{result.status}</span></div>
+          <div className="strat-kv"><span>Signer</span><span className="strat-mono">{report?.signing?.signer_pubkey}</span></div>
+          <div className="strat-kv"><span>Intent count</span><span>{report?.decision?.intents?.length || 0}</span></div>
+          <div className="strat-kv"><span>Risk acknowledgement</span><span>{report?.risk_disclosure?.user_acknowledged ? 'recorded' : 'missing'}</span></div>
+          {report?.tau_tx_payload && (
+            <div className="strat-live-code strat-mono">
+              {JSON.stringify({ action: 'SWAP_EXACT_IN', decision: decisionTag, operations: operationCount })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {nonClaims.length > 0 && (
+        <div className="strat-live-nonclaims">
+          {nonClaims.map((item) => (
+            <span key={item} className="strat-action-chip">{item}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StrategyWorkbench() {
+  const { demoMode } = useDemoMode();
+  const postureLabel = demoMode ? 'Demo workbench' : 'Live prepare mounted';
+  const subtitle = demoMode
+    ? 'Inspect strategy templates, guard catalogs, and proof inventory with static reference data. This tab does not submit live strategies or show receipt-backed execution.'
+    : 'Prepare receipt-backed AutoTrader operations locally after explicit risk acknowledgement. Unattended execution and production chain submission remain outside the mounted claim.';
+
   return (
     <section className="strat-workbench">
       {/* Hero */}
@@ -145,16 +316,16 @@ function StrategyWorkbench() {
         <div>
           <p className="strat-kicker">Policy-constrained automation</p>
           <h1>AutoTrader Strategies</h1>
-          <p className="strat-subtitle">
-            Configure automated trading strategies with Tau-verified policy guards.
-            Every decision is bound by a 10-guard pipeline before intent emission.
-          </p>
+          <p className="strat-subtitle">{subtitle}</p>
         </div>
         <div className="strat-hero-meta">
+          <span className="strat-chip">{postureLabel}</span>
           <span className="strat-chip">{DEMO_STRATEGIES.length} strategies</span>
           <span className="strat-chip strat-chip-accent">{TAU_POLICY_GUARDS.length} guards</span>
         </div>
       </div>
+
+      <AutoTraderLivePrepareSurface demoMode={demoMode} />
 
       {/* Strategy Templates */}
       <div className="strat-grid">
@@ -221,7 +392,7 @@ function StrategyWorkbench() {
       {/* Active Strategies */}
       <div className="strat-section-header strat-standalone-header">
         <h2>Active Strategies</h2>
-        <span className="strat-section-badge">Demo data</span>
+        <span className="strat-section-badge">{demoMode ? 'Demo data' : 'Reference data'}</span>
       </div>
       {DEMO_STRATEGIES.map((strategy) => (
         <StrategyCard key={strategy.strategyId} strategy={strategy} />

@@ -970,6 +970,8 @@ class _Handler(BaseHTTPRequestHandler):
             # Witness-preserving exact-out certificate packets can exceed 64 KiB once
             # they include full bounded-domain candidate streams and domination witnesses.
             return 262_144
+        if path.startswith("/api/strategy/autotrader/"):
+            return 96_000
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -1074,6 +1076,22 @@ class _Handler(BaseHTTPRequestHandler):
         from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
 
         status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_autotrader_live_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/strategy/autotrader/"):
+            return False
+        if not getattr(self.server, "autotrader_live_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.autotrader_live_api import handle_autotrader_live_request
+
+        status, resp = handle_autotrader_live_request(method, path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -6614,6 +6632,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_zusd_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_autotrader_live_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
 
@@ -6626,7 +6646,12 @@ class _Handler(BaseHTTPRequestHandler):
         path = (self.path or "").split("?", 1)[0]
 
         raw_body = None
-        if path.startswith("/api/perps/") or path.startswith("/api/zusd/") or path.startswith("/api/dex/"):
+        if (
+            path.startswith("/api/perps/")
+            or path.startswith("/api/zusd/")
+            or path.startswith("/api/dex/")
+            or path.startswith("/api/strategy/autotrader/")
+        ):
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype and ctype != "application/json":
                 self._write_json(415, {"ok": False, "error": "unsupported_media_type"}, cors_origin=cors_origin)
@@ -6639,6 +6664,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self._maybe_handle_perps_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_zusd_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
+        if self._maybe_handle_autotrader_live_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
         if self._maybe_handle_dex_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
@@ -6671,6 +6698,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
     zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
     zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    autotrader_live_enabled = _env_str("AUTOTRADER_LIVE_API_ENABLED", "false").lower() in ("1", "true", "yes")
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
     demo_api_token = _env_str("DEMO_API_TOKEN", "")
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
@@ -6682,6 +6710,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         or zusd_enabled
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
+        or autotrader_live_enabled
         or dex_enabled
     )
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
@@ -6695,7 +6724,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             f"(host={host!r}, perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, "
             f"zusd_api={zusd_enabled}, "
             f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
-            f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, dex_api={dex_enabled})"
+            f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
+            f"autotrader_live_api={autotrader_live_enabled}, dex_api={dex_enabled})"
         )
         return 2
     if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
@@ -6727,6 +6757,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
@@ -6736,7 +6767,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
         f"perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, zusd_api={zusd_enabled}, "
         f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
-        f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, dex_api={dex_enabled}, "
+        f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
+        f"autotrader_live_api={autotrader_live_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
         f"external_auth_enforced={external_auth_enforced}, demo_api_token_set={bool(demo_api_token)}, "
         f"demo_token_auth_allowed={allow_demo_token_auth})"

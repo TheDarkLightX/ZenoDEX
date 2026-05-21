@@ -69,6 +69,7 @@ echo "== autotrader: pytest =="
   "$ROOT_DIR/tests/integration/test_autotrader_krr_import_source_cli.py" \
   "$ROOT_DIR/tests/integration/test_autotrader_krr_import_wikidata_cli.py" \
   "$ROOT_DIR/tests/integration/test_autotrader_live.py" \
+  "$ROOT_DIR/tests/integration/test_autotrader_live_api.py" \
   "$ROOT_DIR/tests/integration/test_autotrader_live_cli.py" \
   "$ROOT_DIR/tests/integration/test_autotrader_policy_compile_cli.py" \
   "$ROOT_DIR/tests/integration/test_autotrader_policy_sign_verify_cli.py" \
