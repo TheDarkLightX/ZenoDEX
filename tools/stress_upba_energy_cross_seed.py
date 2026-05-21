@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.energy.upba_v2_energy_model import load_linear_model
+from src.energy.upba_v2_mlp_energy import load_advisory_energy_model
 from tools.benchmark_upba_energy_search import benchmark_modes
 
 
@@ -40,7 +40,7 @@ def main() -> int:
     if not args.model.exists():
         raise SystemExit(f"model does not exist: {args.model}")
 
-    model = load_linear_model(args.model)
+    model = load_advisory_energy_model(args.model)
     configs: list[dict[str, Any]] = []
     for candidate_count in candidate_counts:
         for seed in seeds:

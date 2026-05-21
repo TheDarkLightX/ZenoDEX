@@ -128,13 +128,20 @@ Priority order:
 1. **Hard-barrier linear or MLP ranker.** Keep verifier-shaped invalidity
 features as dominant penalties, train listwise or pairwise ranking, and keep the
 model tiny.
-2. **Regularized set-aware MLP or listwise ranker.** Replace hand-compressed
+2. **Small ensemble or uncertainty wrapper.** Deep ensembles are a standard
+uncertainty baseline because independent predictors can expose disagreement
+under shift. The first ZenoEnergy ensemble probe in
+[ZenoEnergy Ensemble](./ZENO_ENERGY_ENSEMBLE.md) records moderate top-1 miss
+signal, but it does not beat the current gap-weighted checkpoint on mean
+verifier calls. Use disagreement as diagnostic evidence until a cross-seed
+ensemble run beats the retained default.
+3. **Regularized set-aware MLP or listwise ranker.** Replace hand-compressed
 intent summaries with permutation-invariant intent-set encoding when intent
 heterogeneity becomes important. The first linear set-aware feature block is
 recorded in [ZenoEnergy Set-Aware Ranker](./ZENO_ENERGY_SET_AWARE_RANKER.md),
 and the first comparison run is recorded in
 [ZenoEnergy Research Log](./ZENO_ENERGY_RESEARCH_LOG.md).
-3. **Learned repair or neighborhood model.** Given a bad candidate, suggest a
+4. **Learned repair or neighborhood model.** Given a bad candidate, suggest a
 nearby price/fill adjustment. The verifier still checks every proposed repair.
 The deterministic baseline in
 [ZenoEnergy Neighborhood Repair](./ZENO_ENERGY_NEIGHBORHOOD_REPAIR.md) is the
@@ -148,9 +155,9 @@ hand selector to remain a strong baseline. The cross-seed stress receipt in
 [ZenoEnergy Repair Selector Cross-Seed Stress](./ZENO_ENERGY_REPAIR_SELECTOR_CROSS_SEED.md)
 keeps the same shape over three train/holdout seed pairs: compression succeeds
 on all three, strict hand-selector improvement succeeds on one of three.
-4. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over
+5. **GFlowNet candidate sampler.** Generate diverse high-reward candidates over
 large price/fill spaces, then verify and fall back deterministically.
-5. **Diffusion or score model.** Reserve this for large structured candidate
+6. **Diffusion or score model.** Reserve this for large structured candidate
 spaces where local denoising or continuous relaxation gives measurable search
 benefit.
 
@@ -224,6 +231,10 @@ generative samplers.
   <https://arxiv.org/abs/1811.06128>
 - Yoshua Bengio et al., "GFlowNet Foundations," JMLR 2023:
   <https://jmlr.org/papers/volume24/22-0364/22-0364.pdf>
+- Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell, "Simple
+  and Scalable Predictive Uncertainty Estimation using Deep Ensembles," NIPS
+  2017:
+  <https://papers.neurips.cc/paper/7219-simple-and-scalable-predictive-uncertainty-estimation-using-deep-ensembles>
 - Nicolas Sonnerat et al., "Learning a Large Neighborhood Search Algorithm for
   Mixed Integer Programs," arXiv:2107.10201:
   <https://arxiv.org/abs/2107.10201>

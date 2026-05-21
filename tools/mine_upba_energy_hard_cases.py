@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.energy.upba_v2_energy_model import load_linear_model
+from src.energy.upba_v2_cross_features import feature_values_for_energy_model
+from src.energy.upba_v2_mlp_energy import load_advisory_energy_model
 from src.energy.upba_v2_features import extract_upba_v2_feature_record
 from src.energy.upba_v2_hand_energy import primary_energy_failure_from_record
 from src.energy.upba_v2_ranker import advisory_candidate_hash, verify_candidates_in_order
@@ -47,7 +48,7 @@ def main() -> int:
     if not args.model.exists():
         raise SystemExit(f"model does not exist: {args.model}")
 
-    model = load_linear_model(args.model)
+    model = load_advisory_energy_model(args.model)
     configs = [
         _mine_config(
             seed=seed,
@@ -138,7 +139,8 @@ def _mine_config(
                 include_verifier_label=False,
             )
             records_by_hash[candidate_hash] = record
-            scored.append((float(model.energy(record.values)), candidate_hash, candidate))
+            features = feature_values_for_energy_model(model, record.values)
+            scored.append((float(model.energy(features)), candidate_hash, candidate))
         scored.sort(key=lambda item: (item[0], item[1]))
         winner_position = next(
             index

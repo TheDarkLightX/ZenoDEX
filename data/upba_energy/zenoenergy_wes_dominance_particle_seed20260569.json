@@ -1,0 +1,1625 @@
+{
+  "batches": 40,
+  "budget": 80,
+  "candidates_per_batch": 40,
+  "input_candidates": 200,
+  "limits": [
+    "The WES bridge uses bounded synthetic UPBA batches reconstructed from deterministic seeds.",
+    "WES ranks dominance-cover candidate claims; UPBA verification and dominance-cover checking provide labels.",
+    "The bridge is search-efficiency evidence only. It is not a UPBA v2 bounded-grid production verifier."
+  ],
+  "negative_knowledge": [
+    "Weak pruned sets remain useful negative controls because the checker rejects uncovered better verified candidates.",
+    "A passing WES search report does not remove the full-list completeness obligation for bounded-grid claims."
+  ],
+  "ok": true,
+  "safety": {
+    "invalid_accept_count": 0,
+    "model_output_in_state_root": false,
+    "scorer_authorizes_settlement": false,
+    "verifier_authoritative": true,
+    "wes_ranks_only": true
+  },
+  "schema": "zenodex/energy/zenoenergy_wes_dominance_search/v1",
+  "seed": 20260569,
+  "summary": {
+    "cheap_first_calls_to_first_useful": 1,
+    "cheap_first_checked": 80,
+    "cheap_first_near_misses_at_k": 10,
+    "cheap_first_non_useful_at_k": 10,
+    "cheap_first_useful_at_k": 15,
+    "checker_invalid_accept_count": 0,
+    "declared_priority_calls_to_first_useful": 1,
+    "declared_priority_checked": 80,
+    "declared_priority_near_misses_at_k": 25,
+    "declared_priority_non_useful_at_k": 0,
+    "declared_priority_useful_at_k": 25,
+    "input_candidates": 200,
+    "input_order_calls_to_first_useful": 1,
+    "input_order_checked": 80,
+    "input_order_near_misses_at_k": 10,
+    "input_order_non_useful_at_k": 10,
+    "input_order_useful_at_k": 15,
+    "model_frozen_calls_to_first_useful": 1,
+    "model_frozen_checked": 80,
+    "model_frozen_near_misses_at_k": 25,
+    "model_frozen_non_useful_at_k": 0,
+    "model_frozen_useful_at_k": 25,
+    "model_online_calls_to_first_useful": 1,
+    "model_online_checked": 80,
+    "model_online_near_misses_at_k": 25,
+    "model_online_non_useful_at_k": 0,
+    "model_online_useful_at_k": 25,
+    "random_seeded_calls_to_first_useful": 1,
+    "random_seeded_checked": 80,
+    "random_seeded_near_misses_at_k": 10,
+    "random_seeded_non_useful_at_k": 10,
+    "random_seeded_useful_at_k": 15,
+    "top_k": 25
+  },
+  "top_k": 25,
+  "wall_clock_ms": 30409.807499032468,
+  "wes_commit": "5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6",
+  "wes_report": {
+    "artifacts": {
+      "cheap_first_report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/search_report.json",
+      "declared_priority_report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/search_report.json",
+      "input_order_report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/search_report.json",
+      "model_frozen_report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/search_report.json",
+      "model_online_report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/search_report.json",
+      "random_seeded_report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/search_report.json",
+      "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/policy_comparison_report.json"
+    },
+    "boundary": "This compares WES ordering policies only. Checker verdicts and witness promotion remain authoritative and replay-gated.",
+    "budget": 80,
+    "checker_workers": 1,
+    "input_candidates": 200,
+    "production_ledger": false,
+    "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001",
+    "run_manifest_hash": null,
+    "runs": {
+      "cheap_first": {
+        "actual_search_order": {
+          "avg_training_priority_at_k": 5.89,
+          "calls_to_first_disaster": null,
+          "calls_to_first_useful": 1,
+          "checked_safe_at_k": 10,
+          "checker_cost_at_k": 25.0,
+          "checker_ms_at_k": 977.1645334549248,
+          "cost_to_first_disaster": null,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "disasters_by_predicate_at_k": {},
+          "lane_yield_at_k": {
+            "dominance_cover_hand_top1": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 152.34830183908343,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 5,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            },
+            "dominance_cover_one_shot_obligation": {
+              "checked": 5,
+              "checked_safe": 5,
+              "checker_cost": 5.0,
+              "checker_ms": 195.47838252037764,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 5,
+              "non_useful_checker_cost": 5.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 1.0,
+              "useful": 0,
+              "useful_checker_cost": 0.0,
+              "useful_per_checker_cost": 0.0,
+              "useful_rate": 0.0
+            },
+            "dominance_cover_particle_obligation": {
+              "checked": 5,
+              "checked_safe": 5,
+              "checker_cost": 5.0,
+              "checker_ms": 400.1199915073812,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 5,
+              "non_useful_checker_cost": 5.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 1.0,
+              "useful": 0,
+              "useful_checker_cost": 0.0,
+              "useful_per_checker_cost": 0.0,
+              "useful_rate": 0.0
+            },
+            "dominance_cover_weak_negative": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 114.96927589178085,
+              "disaster": 0,
+              "invariant_violation": 5,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            },
+            "dominance_cover_winner_only": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 114.2485816963017,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 5,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "malformed_at_k": 0,
+          "malformed_by_lane_at_k": {},
+          "near_misses_at_k": 10,
+          "non_useful_at_k": 10,
+          "non_useful_by_lane_at_k": {
+            "dominance_cover_one_shot_obligation": 5,
+            "dominance_cover_particle_obligation": 5
+          },
+          "non_useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10
+          },
+          "predicate_yield_at_k": {
+            "dominance_cover_certificate_passes": {
+              "checked": 20,
+              "checked_safe": 10,
+              "checker_cost": 20.0,
+              "checker_ms": 862.195257563144,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 10,
+              "non_useful": 10,
+              "non_useful_checker_cost": 10.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 0.5,
+              "useful": 10,
+              "useful_checker_cost": 10.0,
+              "useful_per_checker_cost": 0.5,
+              "useful_rate": 0.5
+            },
+            "dominance_cover_rejects_weak_pruned_set": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 114.96927589178085,
+              "disaster": 0,
+              "invariant_violation": 5,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "records": 80,
+          "schema": "wes_search_order_metrics.v1",
+          "top_k": 25,
+          "unique_useful_lanes_at_k": 3,
+          "unique_useful_predicates_at_k": 2,
+          "useful_at_k": 15,
+          "useful_by_lane_at_k": {
+            "dominance_cover_hand_top1": 5,
+            "dominance_cover_weak_negative": 5,
+            "dominance_cover_winner_only": 5
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10,
+            "dominance_cover_rejects_weak_pruned_set": 5
+          }
+        },
+        "artifacts": {
+          "input_candidates": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/input_candidates.jsonl",
+          "ledger": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/search_ledger.jsonl",
+          "ledger_chain": null,
+          "model": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/search_model.json",
+          "regression_corpus": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/regression_corpus.jsonl",
+          "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/search_report.json",
+          "trace": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/search_trace.jsonl"
+        },
+        "boundary": "WES ranks candidates for exact checking. The checker remains the authority for labels and witness promotion.",
+        "budget": 80,
+        "checked": 80,
+        "checker_workers": 1,
+        "frontier_exhausted": false,
+        "frontier_remaining": 120,
+        "input_candidates": 200,
+        "ledger_writer_semantics": "single_process_append",
+        "newly_checked": 80,
+        "online_learning": false,
+        "online_learning_rate": 0.02,
+        "online_model_updates": 0,
+        "online_window": 64,
+        "parallel_checker_execution": false,
+        "production_ledger": false,
+        "production_resume_verified": false,
+        "regression_promotion": {
+          "path": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/cheap_first/regression_corpus.jsonl",
+          "promoted": 0,
+          "rejected": {
+            "not_disaster": 80
+          },
+          "require_minimized": false,
+          "schema": "witness_regression_promotion_report.v1"
+        },
+        "requested_online_learning": false,
+        "result_counts": {
+          "checked_safe": 32,
+          "invariant_violation": 16,
+          "near_miss": 32
+        },
+        "resume": false,
+        "resume_online_replay_updates": 0,
+        "resumed_records": 0,
+        "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001:cheap_first",
+        "run_manifest_hash": null,
+        "schema": "wes_generic_search_run.v1",
+        "search_policy": "cheap_first",
+        "seed": "zenoenergy-wes-20260569",
+        "summary": {
+          "avg_checker_ms": 43.64948951988481,
+          "lane_counts": {
+            "dominance_cover_hand_top1": 16,
+            "dominance_cover_one_shot_obligation": 16,
+            "dominance_cover_particle_obligation": 16,
+            "dominance_cover_weak_negative": 16,
+            "dominance_cover_winner_only": 16
+          },
+          "lane_stats": {
+            "dominance_cover_hand_top1": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 34.681869932683185,
+              "avg_training_priority": 7.9,
+              "count": 16,
+              "result_counts": {
+                "near_miss": 16
+              }
+            },
+            "dominance_cover_one_shot_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 42.875043116509914,
+              "avg_training_priority": 2.2,
+              "count": 16,
+              "result_counts": {
+                "checked_safe": 16
+              }
+            },
+            "dominance_cover_particle_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 88.49737048149109,
+              "avg_training_priority": 2.2,
+              "count": 16,
+              "result_counts": {
+                "checked_safe": 16
+              }
+            },
+            "dominance_cover_weak_negative": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 26.06148543418385,
+              "avg_training_priority": 9.25,
+              "count": 16,
+              "result_counts": {
+                "invariant_violation": 16
+              }
+            },
+            "dominance_cover_winner_only": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 26.13167863455601,
+              "avg_training_priority": 7.9,
+              "count": 16,
+              "result_counts": {
+                "near_miss": 16
+              }
+            }
+          },
+          "negative_knowledge_records": 80,
+          "records": 80,
+          "result_counts": {
+            "checked_safe": 32,
+            "invariant_violation": 16,
+            "near_miss": 32
+          },
+          "schema": "witness_ledger_summary.v1",
+          "system_counts": {
+            "zenoenergy_upba_v2_dominance_cover": 80
+          }
+        },
+        "unique_candidates_seen": 200
+      },
+      "declared_priority": {
+        "actual_search_order": {
+          "avg_training_priority_at_k": 7.9,
+          "calls_to_first_disaster": null,
+          "calls_to_first_useful": 1,
+          "checked_safe_at_k": 0,
+          "checker_cost_at_k": 25.0,
+          "checker_ms_at_k": 841.0671618767083,
+          "cost_to_first_disaster": null,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "disasters_by_predicate_at_k": {},
+          "lane_yield_at_k": {
+            "dominance_cover_winner_only": {
+              "checked": 25,
+              "checked_safe": 0,
+              "checker_cost": 25.0,
+              "checker_ms": 841.0671618767083,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 25,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 25,
+              "useful_checker_cost": 25.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "malformed_at_k": 0,
+          "malformed_by_lane_at_k": {},
+          "near_misses_at_k": 25,
+          "non_useful_at_k": 0,
+          "non_useful_by_lane_at_k": {},
+          "non_useful_by_predicate_at_k": {},
+          "predicate_yield_at_k": {
+            "dominance_cover_certificate_passes": {
+              "checked": 25,
+              "checked_safe": 0,
+              "checker_cost": 25.0,
+              "checker_ms": 841.0671618767083,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 25,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 25,
+              "useful_checker_cost": 25.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "records": 80,
+          "schema": "wes_search_order_metrics.v1",
+          "top_k": 25,
+          "unique_useful_lanes_at_k": 1,
+          "unique_useful_predicates_at_k": 1,
+          "useful_at_k": 25,
+          "useful_by_lane_at_k": {
+            "dominance_cover_winner_only": 25
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 25
+          }
+        },
+        "artifacts": {
+          "input_candidates": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/input_candidates.jsonl",
+          "ledger": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/search_ledger.jsonl",
+          "ledger_chain": null,
+          "model": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/search_model.json",
+          "regression_corpus": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/regression_corpus.jsonl",
+          "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/search_report.json",
+          "trace": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/search_trace.jsonl"
+        },
+        "boundary": "WES ranks candidates for exact checking. The checker remains the authority for labels and witness promotion.",
+        "budget": 80,
+        "checked": 80,
+        "checker_workers": 1,
+        "frontier_exhausted": false,
+        "frontier_remaining": 120,
+        "input_candidates": 200,
+        "ledger_writer_semantics": "single_process_append",
+        "newly_checked": 80,
+        "online_learning": false,
+        "online_learning_rate": 0.02,
+        "online_model_updates": 0,
+        "online_window": 64,
+        "parallel_checker_execution": false,
+        "production_ledger": false,
+        "production_resume_verified": false,
+        "regression_promotion": {
+          "path": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/declared_priority/regression_corpus.jsonl",
+          "promoted": 0,
+          "rejected": {
+            "not_disaster": 80
+          },
+          "require_minimized": false,
+          "schema": "witness_regression_promotion_report.v1"
+        },
+        "requested_online_learning": false,
+        "result_counts": {
+          "checked_safe": 40,
+          "near_miss": 40
+        },
+        "resume": false,
+        "resume_online_replay_updates": 0,
+        "resumed_records": 0,
+        "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001:declared_priority",
+        "run_manifest_hash": null,
+        "schema": "wes_generic_search_run.v1",
+        "search_policy": "declared_priority",
+        "seed": "zenoenergy-wes-20260569",
+        "summary": {
+          "avg_checker_ms": 72.99996073707007,
+          "lane_counts": {
+            "dominance_cover_particle_obligation": 40,
+            "dominance_cover_winner_only": 40
+          },
+          "lane_stats": {
+            "dominance_cover_particle_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 112.15666549978778,
+              "avg_training_priority": 2.2,
+              "count": 40,
+              "result_counts": {
+                "checked_safe": 40
+              }
+            },
+            "dominance_cover_winner_only": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 33.84325597435236,
+              "avg_training_priority": 7.9,
+              "count": 40,
+              "result_counts": {
+                "near_miss": 40
+              }
+            }
+          },
+          "negative_knowledge_records": 80,
+          "records": 80,
+          "result_counts": {
+            "checked_safe": 40,
+            "near_miss": 40
+          },
+          "schema": "witness_ledger_summary.v1",
+          "system_counts": {
+            "zenoenergy_upba_v2_dominance_cover": 80
+          }
+        },
+        "unique_candidates_seen": 200
+      },
+      "input_order": {
+        "actual_search_order": {
+          "avg_training_priority_at_k": 5.89,
+          "calls_to_first_disaster": null,
+          "calls_to_first_useful": 1,
+          "checked_safe_at_k": 10,
+          "checker_cost_at_k": 25.0,
+          "checker_ms_at_k": 1252.4495110847056,
+          "cost_to_first_disaster": null,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "disasters_by_predicate_at_k": {},
+          "lane_yield_at_k": {
+            "dominance_cover_hand_top1": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 197.81836634501815,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 5,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            },
+            "dominance_cover_one_shot_obligation": {
+              "checked": 5,
+              "checked_safe": 5,
+              "checker_cost": 5.0,
+              "checker_ms": 248.94952680915594,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 5,
+              "non_useful_checker_cost": 5.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 1.0,
+              "useful": 0,
+              "useful_checker_cost": 0.0,
+              "useful_per_checker_cost": 0.0,
+              "useful_rate": 0.0
+            },
+            "dominance_cover_particle_obligation": {
+              "checked": 5,
+              "checked_safe": 5,
+              "checker_cost": 5.0,
+              "checker_ms": 504.4348184019327,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 5,
+              "non_useful_checker_cost": 5.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 1.0,
+              "useful": 0,
+              "useful_checker_cost": 0.0,
+              "useful_per_checker_cost": 0.0,
+              "useful_rate": 0.0
+            },
+            "dominance_cover_weak_negative": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 151.30276512354612,
+              "disaster": 0,
+              "invariant_violation": 5,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            },
+            "dominance_cover_winner_only": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 149.94403440505266,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 5,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "malformed_at_k": 0,
+          "malformed_by_lane_at_k": {},
+          "near_misses_at_k": 10,
+          "non_useful_at_k": 10,
+          "non_useful_by_lane_at_k": {
+            "dominance_cover_one_shot_obligation": 5,
+            "dominance_cover_particle_obligation": 5
+          },
+          "non_useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10
+          },
+          "predicate_yield_at_k": {
+            "dominance_cover_certificate_passes": {
+              "checked": 20,
+              "checked_safe": 10,
+              "checker_cost": 20.0,
+              "checker_ms": 1101.1467459611595,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 10,
+              "non_useful": 10,
+              "non_useful_checker_cost": 10.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 0.5,
+              "useful": 10,
+              "useful_checker_cost": 10.0,
+              "useful_per_checker_cost": 0.5,
+              "useful_rate": 0.5
+            },
+            "dominance_cover_rejects_weak_pruned_set": {
+              "checked": 5,
+              "checked_safe": 0,
+              "checker_cost": 5.0,
+              "checker_ms": 151.30276512354612,
+              "disaster": 0,
+              "invariant_violation": 5,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "records": 80,
+          "schema": "wes_search_order_metrics.v1",
+          "top_k": 25,
+          "unique_useful_lanes_at_k": 3,
+          "unique_useful_predicates_at_k": 2,
+          "useful_at_k": 15,
+          "useful_by_lane_at_k": {
+            "dominance_cover_hand_top1": 5,
+            "dominance_cover_weak_negative": 5,
+            "dominance_cover_winner_only": 5
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10,
+            "dominance_cover_rejects_weak_pruned_set": 5
+          }
+        },
+        "artifacts": {
+          "input_candidates": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/input_candidates.jsonl",
+          "ledger": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/search_ledger.jsonl",
+          "ledger_chain": null,
+          "model": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/search_model.json",
+          "regression_corpus": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/regression_corpus.jsonl",
+          "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/search_report.json",
+          "trace": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/search_trace.jsonl"
+        },
+        "boundary": "WES ranks candidates for exact checking. The checker remains the authority for labels and witness promotion.",
+        "budget": 80,
+        "checked": 80,
+        "checker_workers": 1,
+        "frontier_exhausted": false,
+        "frontier_remaining": 120,
+        "input_candidates": 200,
+        "ledger_writer_semantics": "single_process_append",
+        "newly_checked": 80,
+        "online_learning": false,
+        "online_learning_rate": 0.02,
+        "online_model_updates": 0,
+        "online_window": 64,
+        "parallel_checker_execution": false,
+        "production_ledger": false,
+        "production_resume_verified": false,
+        "regression_promotion": {
+          "path": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/input_order/regression_corpus.jsonl",
+          "promoted": 0,
+          "rejected": {
+            "not_disaster": 80
+          },
+          "require_minimized": false,
+          "schema": "witness_regression_promotion_report.v1"
+        },
+        "requested_online_learning": false,
+        "result_counts": {
+          "checked_safe": 32,
+          "invariant_violation": 16,
+          "near_miss": 32
+        },
+        "resume": false,
+        "resume_online_replay_updates": 0,
+        "resumed_records": 0,
+        "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001:input_order",
+        "run_manifest_hash": null,
+        "schema": "wes_generic_search_run.v1",
+        "search_policy": "input_order",
+        "seed": "zenoenergy-wes-20260569",
+        "summary": {
+          "avg_checker_ms": 53.185909282183275,
+          "lane_counts": {
+            "dominance_cover_hand_top1": 16,
+            "dominance_cover_one_shot_obligation": 16,
+            "dominance_cover_particle_obligation": 16,
+            "dominance_cover_weak_negative": 16,
+            "dominance_cover_winner_only": 16
+          },
+          "lane_stats": {
+            "dominance_cover_hand_top1": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 41.65750808897428,
+              "avg_training_priority": 7.9,
+              "count": 16,
+              "result_counts": {
+                "near_miss": 16
+              }
+            },
+            "dominance_cover_one_shot_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 53.31607433618046,
+              "avg_training_priority": 2.2,
+              "count": 16,
+              "result_counts": {
+                "checked_safe": 16
+              }
+            },
+            "dominance_cover_particle_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 106.64514897507615,
+              "avg_training_priority": 2.2,
+              "count": 16,
+              "result_counts": {
+                "checked_safe": 16
+              }
+            },
+            "dominance_cover_weak_negative": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 31.953489262377843,
+              "avg_training_priority": 9.25,
+              "count": 16,
+              "result_counts": {
+                "invariant_violation": 16
+              }
+            },
+            "dominance_cover_winner_only": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 32.35732574830763,
+              "avg_training_priority": 7.9,
+              "count": 16,
+              "result_counts": {
+                "near_miss": 16
+              }
+            }
+          },
+          "negative_knowledge_records": 80,
+          "records": 80,
+          "result_counts": {
+            "checked_safe": 32,
+            "invariant_violation": 16,
+            "near_miss": 32
+          },
+          "schema": "witness_ledger_summary.v1",
+          "system_counts": {
+            "zenoenergy_upba_v2_dominance_cover": 80
+          }
+        },
+        "unique_candidates_seen": 200
+      },
+      "model_frozen": {
+        "actual_search_order": {
+          "avg_training_priority_at_k": 7.9,
+          "calls_to_first_disaster": null,
+          "calls_to_first_useful": 1,
+          "checked_safe_at_k": 0,
+          "checker_cost_at_k": 25.0,
+          "checker_ms_at_k": 657.6035860925913,
+          "cost_to_first_disaster": null,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "disasters_by_predicate_at_k": {},
+          "lane_yield_at_k": {
+            "dominance_cover_winner_only": {
+              "checked": 25,
+              "checked_safe": 0,
+              "checker_cost": 25.0,
+              "checker_ms": 657.6035860925913,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 25,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 25,
+              "useful_checker_cost": 25.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "malformed_at_k": 0,
+          "malformed_by_lane_at_k": {},
+          "near_misses_at_k": 25,
+          "non_useful_at_k": 0,
+          "non_useful_by_lane_at_k": {},
+          "non_useful_by_predicate_at_k": {},
+          "predicate_yield_at_k": {
+            "dominance_cover_certificate_passes": {
+              "checked": 25,
+              "checked_safe": 0,
+              "checker_cost": 25.0,
+              "checker_ms": 657.6035860925913,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 25,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 25,
+              "useful_checker_cost": 25.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "records": 80,
+          "schema": "wes_search_order_metrics.v1",
+          "top_k": 25,
+          "unique_useful_lanes_at_k": 1,
+          "unique_useful_predicates_at_k": 1,
+          "useful_at_k": 25,
+          "useful_by_lane_at_k": {
+            "dominance_cover_winner_only": 25
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 25
+          }
+        },
+        "artifacts": {
+          "input_candidates": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/input_candidates.jsonl",
+          "ledger": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/search_ledger.jsonl",
+          "ledger_chain": null,
+          "model": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/search_model.json",
+          "regression_corpus": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/regression_corpus.jsonl",
+          "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/search_report.json",
+          "trace": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/search_trace.jsonl"
+        },
+        "boundary": "WES ranks candidates for exact checking. The checker remains the authority for labels and witness promotion.",
+        "budget": 80,
+        "checked": 80,
+        "checker_workers": 1,
+        "frontier_exhausted": false,
+        "frontier_remaining": 120,
+        "input_candidates": 200,
+        "ledger_writer_semantics": "single_process_append",
+        "newly_checked": 80,
+        "online_learning": false,
+        "online_learning_rate": 0.02,
+        "online_model_updates": 0,
+        "online_window": 64,
+        "parallel_checker_execution": false,
+        "production_ledger": false,
+        "production_resume_verified": false,
+        "regression_promotion": {
+          "path": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_frozen/regression_corpus.jsonl",
+          "promoted": 0,
+          "rejected": {
+            "not_disaster": 80
+          },
+          "require_minimized": false,
+          "schema": "witness_regression_promotion_report.v1"
+        },
+        "requested_online_learning": false,
+        "result_counts": {
+          "checked_safe": 40,
+          "near_miss": 40
+        },
+        "resume": false,
+        "resume_online_replay_updates": 0,
+        "resumed_records": 0,
+        "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001:model_frozen",
+        "run_manifest_hash": null,
+        "schema": "wes_generic_search_run.v1",
+        "search_policy": "model",
+        "seed": "zenoenergy-wes-20260569",
+        "summary": {
+          "avg_checker_ms": 58.1158819491975,
+          "lane_counts": {
+            "dominance_cover_particle_obligation": 40,
+            "dominance_cover_winner_only": 40
+          },
+          "lane_stats": {
+            "dominance_cover_particle_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 90.47681577503681,
+              "avg_training_priority": 2.2,
+              "count": 40,
+              "result_counts": {
+                "checked_safe": 40
+              }
+            },
+            "dominance_cover_winner_only": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 25.75494812335819,
+              "avg_training_priority": 7.9,
+              "count": 40,
+              "result_counts": {
+                "near_miss": 40
+              }
+            }
+          },
+          "negative_knowledge_records": 80,
+          "records": 80,
+          "result_counts": {
+            "checked_safe": 40,
+            "near_miss": 40
+          },
+          "schema": "witness_ledger_summary.v1",
+          "system_counts": {
+            "zenoenergy_upba_v2_dominance_cover": 80
+          }
+        },
+        "unique_candidates_seen": 200
+      },
+      "model_online": {
+        "actual_search_order": {
+          "avg_training_priority_at_k": 7.9,
+          "calls_to_first_disaster": null,
+          "calls_to_first_useful": 1,
+          "checked_safe_at_k": 0,
+          "checker_cost_at_k": 25.0,
+          "checker_ms_at_k": 655.9501141309738,
+          "cost_to_first_disaster": null,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "disasters_by_predicate_at_k": {},
+          "lane_yield_at_k": {
+            "dominance_cover_winner_only": {
+              "checked": 25,
+              "checked_safe": 0,
+              "checker_cost": 25.0,
+              "checker_ms": 655.9501141309738,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 25,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 25,
+              "useful_checker_cost": 25.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "malformed_at_k": 0,
+          "malformed_by_lane_at_k": {},
+          "near_misses_at_k": 25,
+          "non_useful_at_k": 0,
+          "non_useful_by_lane_at_k": {},
+          "non_useful_by_predicate_at_k": {},
+          "predicate_yield_at_k": {
+            "dominance_cover_certificate_passes": {
+              "checked": 25,
+              "checked_safe": 0,
+              "checker_cost": 25.0,
+              "checker_ms": 655.9501141309738,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 25,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 25,
+              "useful_checker_cost": 25.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "records": 80,
+          "schema": "wes_search_order_metrics.v1",
+          "top_k": 25,
+          "unique_useful_lanes_at_k": 1,
+          "unique_useful_predicates_at_k": 1,
+          "useful_at_k": 25,
+          "useful_by_lane_at_k": {
+            "dominance_cover_winner_only": 25
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 25
+          }
+        },
+        "artifacts": {
+          "input_candidates": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/input_candidates.jsonl",
+          "ledger": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/search_ledger.jsonl",
+          "ledger_chain": null,
+          "model": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/search_model.json",
+          "regression_corpus": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/regression_corpus.jsonl",
+          "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/search_report.json",
+          "trace": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/search_trace.jsonl"
+        },
+        "boundary": "WES ranks candidates for exact checking. The checker remains the authority for labels and witness promotion.",
+        "budget": 80,
+        "checked": 80,
+        "checker_workers": 1,
+        "frontier_exhausted": false,
+        "frontier_remaining": 120,
+        "input_candidates": 200,
+        "ledger_writer_semantics": "single_process_append",
+        "newly_checked": 80,
+        "online_learning": true,
+        "online_learning_rate": 0.02,
+        "online_model_updates": 118,
+        "online_window": 64,
+        "parallel_checker_execution": false,
+        "production_ledger": false,
+        "production_resume_verified": false,
+        "regression_promotion": {
+          "path": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/model_online/regression_corpus.jsonl",
+          "promoted": 0,
+          "rejected": {
+            "not_disaster": 80
+          },
+          "require_minimized": false,
+          "schema": "witness_regression_promotion_report.v1"
+        },
+        "requested_online_learning": true,
+        "result_counts": {
+          "checked_safe": 3,
+          "invariant_violation": 32,
+          "near_miss": 45
+        },
+        "resume": false,
+        "resume_online_replay_updates": 0,
+        "resumed_records": 0,
+        "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001:model_online",
+        "run_manifest_hash": null,
+        "schema": "wes_generic_search_run.v1",
+        "search_policy": "model",
+        "seed": "zenoenergy-wes-20260569",
+        "summary": {
+          "avg_checker_ms": 27.253571251640096,
+          "lane_counts": {
+            "dominance_cover_hand_top1": 5,
+            "dominance_cover_particle_obligation": 1,
+            "dominance_cover_weak_negative": 34,
+            "dominance_cover_winner_only": 40
+          },
+          "lane_stats": {
+            "dominance_cover_hand_top1": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 30.060498602688313,
+              "avg_training_priority": 7.9,
+              "count": 5,
+              "result_counts": {
+                "near_miss": 5
+              }
+            },
+            "dominance_cover_particle_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 117.13844304904342,
+              "avg_training_priority": 2.2,
+              "count": 1,
+              "result_counts": {
+                "checked_safe": 1
+              }
+            },
+            "dominance_cover_weak_negative": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 25.988431373501527,
+              "avg_training_priority": 8.83529411764706,
+              "count": 34,
+              "result_counts": {
+                "checked_safe": 2,
+                "invariant_violation": 32
+              }
+            },
+            "dominance_cover_winner_only": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 25.73095243424177,
+              "avg_training_priority": 7.9,
+              "count": 40,
+              "result_counts": {
+                "near_miss": 40
+              }
+            }
+          },
+          "negative_knowledge_records": 80,
+          "records": 80,
+          "result_counts": {
+            "checked_safe": 3,
+            "invariant_violation": 32,
+            "near_miss": 45
+          },
+          "schema": "witness_ledger_summary.v1",
+          "system_counts": {
+            "zenoenergy_upba_v2_dominance_cover": 80
+          }
+        },
+        "unique_candidates_seen": 200
+      },
+      "random_seeded": {
+        "actual_search_order": {
+          "avg_training_priority_at_k": 5.89,
+          "calls_to_first_disaster": null,
+          "calls_to_first_useful": 1,
+          "checked_safe_at_k": 10,
+          "checker_cost_at_k": 25.0,
+          "checker_ms_at_k": 1236.325139645487,
+          "cost_to_first_disaster": null,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "disasters_by_predicate_at_k": {},
+          "lane_yield_at_k": {
+            "dominance_cover_hand_top1": {
+              "checked": 3,
+              "checked_safe": 0,
+              "checker_cost": 3.0,
+              "checker_ms": 151.87498182058334,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 3,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 3,
+              "useful_checker_cost": 3.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            },
+            "dominance_cover_one_shot_obligation": {
+              "checked": 6,
+              "checked_safe": 6,
+              "checker_cost": 6.0,
+              "checker_ms": 343.0187916383147,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 6,
+              "non_useful_checker_cost": 6.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 1.0,
+              "useful": 0,
+              "useful_checker_cost": 0.0,
+              "useful_per_checker_cost": 0.0,
+              "useful_rate": 0.0
+            },
+            "dominance_cover_particle_obligation": {
+              "checked": 3,
+              "checked_safe": 3,
+              "checker_cost": 3.0,
+              "checker_ms": 324.70745872706175,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 3,
+              "non_useful_checker_cost": 3.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 1.0,
+              "useful": 0,
+              "useful_checker_cost": 0.0,
+              "useful_per_checker_cost": 0.0,
+              "useful_rate": 0.0
+            },
+            "dominance_cover_weak_negative": {
+              "checked": 6,
+              "checked_safe": 1,
+              "checker_cost": 6.0,
+              "checker_ms": 207.27473217993975,
+              "disaster": 0,
+              "invariant_violation": 5,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 1,
+              "non_useful_checker_cost": 1.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 0.16666666666666666,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 0.8333333333333334,
+              "useful_rate": 0.8333333333333334
+            },
+            "dominance_cover_winner_only": {
+              "checked": 7,
+              "checked_safe": 0,
+              "checker_cost": 7.0,
+              "checker_ms": 209.4491752795875,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 7,
+              "non_useful": 0,
+              "non_useful_checker_cost": 0.0,
+              "non_useful_per_checker_cost": 0.0,
+              "non_useful_rate": 0.0,
+              "useful": 7,
+              "useful_checker_cost": 7.0,
+              "useful_per_checker_cost": 1.0,
+              "useful_rate": 1.0
+            }
+          },
+          "malformed_at_k": 0,
+          "malformed_by_lane_at_k": {},
+          "near_misses_at_k": 10,
+          "non_useful_at_k": 10,
+          "non_useful_by_lane_at_k": {
+            "dominance_cover_one_shot_obligation": 6,
+            "dominance_cover_particle_obligation": 3,
+            "dominance_cover_weak_negative": 1
+          },
+          "non_useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 9,
+            "dominance_cover_rejects_weak_pruned_set": 1
+          },
+          "predicate_yield_at_k": {
+            "dominance_cover_certificate_passes": {
+              "checked": 19,
+              "checked_safe": 9,
+              "checker_cost": 19.0,
+              "checker_ms": 1029.0504074655473,
+              "disaster": 0,
+              "invariant_violation": 0,
+              "malformed": 0,
+              "near_miss": 10,
+              "non_useful": 9,
+              "non_useful_checker_cost": 9.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 0.47368421052631576,
+              "useful": 10,
+              "useful_checker_cost": 10.0,
+              "useful_per_checker_cost": 0.5263157894736842,
+              "useful_rate": 0.5263157894736842
+            },
+            "dominance_cover_rejects_weak_pruned_set": {
+              "checked": 6,
+              "checked_safe": 1,
+              "checker_cost": 6.0,
+              "checker_ms": 207.27473217993975,
+              "disaster": 0,
+              "invariant_violation": 5,
+              "malformed": 0,
+              "near_miss": 0,
+              "non_useful": 1,
+              "non_useful_checker_cost": 1.0,
+              "non_useful_per_checker_cost": 1.0,
+              "non_useful_rate": 0.16666666666666666,
+              "useful": 5,
+              "useful_checker_cost": 5.0,
+              "useful_per_checker_cost": 0.8333333333333334,
+              "useful_rate": 0.8333333333333334
+            }
+          },
+          "records": 80,
+          "schema": "wes_search_order_metrics.v1",
+          "top_k": 25,
+          "unique_useful_lanes_at_k": 3,
+          "unique_useful_predicates_at_k": 2,
+          "useful_at_k": 15,
+          "useful_by_lane_at_k": {
+            "dominance_cover_hand_top1": 3,
+            "dominance_cover_weak_negative": 5,
+            "dominance_cover_winner_only": 7
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10,
+            "dominance_cover_rejects_weak_pruned_set": 5
+          }
+        },
+        "artifacts": {
+          "input_candidates": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/input_candidates.jsonl",
+          "ledger": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/search_ledger.jsonl",
+          "ledger_chain": null,
+          "model": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/search_model.json",
+          "regression_corpus": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/regression_corpus.jsonl",
+          "report": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/search_report.json",
+          "trace": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/search_trace.jsonl"
+        },
+        "boundary": "WES ranks candidates for exact checking. The checker remains the authority for labels and witness promotion.",
+        "budget": 80,
+        "checked": 80,
+        "checker_workers": 1,
+        "frontier_exhausted": false,
+        "frontier_remaining": 120,
+        "input_candidates": 200,
+        "ledger_writer_semantics": "single_process_append",
+        "newly_checked": 80,
+        "online_learning": false,
+        "online_learning_rate": 0.02,
+        "online_model_updates": 0,
+        "online_window": 64,
+        "parallel_checker_execution": false,
+        "production_ledger": false,
+        "production_resume_verified": false,
+        "regression_promotion": {
+          "path": "runs/wes/zenoenergy_dominance_cover_particle_seed20260569/random_seeded/regression_corpus.jsonl",
+          "promoted": 0,
+          "rejected": {
+            "not_disaster": 80
+          },
+          "require_minimized": false,
+          "schema": "witness_regression_promotion_report.v1"
+        },
+        "requested_online_learning": false,
+        "result_counts": {
+          "checked_safe": 33,
+          "invariant_violation": 21,
+          "near_miss": 26
+        },
+        "resume": false,
+        "resume_online_replay_updates": 0,
+        "resumed_records": 0,
+        "run_id": "WES-ZENOENERGY-DOMINANCE-COVER-001:random_seeded",
+        "run_manifest_hash": null,
+        "schema": "wes_generic_search_run.v1",
+        "search_policy": "random_seeded",
+        "seed": "zenoenergy-wes-20260569",
+        "summary": {
+          "avg_checker_ms": 47.44747413787991,
+          "lane_counts": {
+            "dominance_cover_hand_top1": 12,
+            "dominance_cover_one_shot_obligation": 20,
+            "dominance_cover_particle_obligation": 9,
+            "dominance_cover_weak_negative": 23,
+            "dominance_cover_winner_only": 16
+          },
+          "lane_stats": {
+            "dominance_cover_hand_top1": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 41.92572890315205,
+              "avg_training_priority": 6.95,
+              "count": 12,
+              "result_counts": {
+                "checked_safe": 2,
+                "near_miss": 10
+              }
+            },
+            "dominance_cover_one_shot_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 54.46352006401867,
+              "avg_training_priority": 2.2,
+              "count": 20,
+              "result_counts": {
+                "checked_safe": 20
+              }
+            },
+            "dominance_cover_particle_obligation": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 107.92905061195295,
+              "avg_training_priority": 2.2,
+              "count": 9,
+              "result_counts": {
+                "checked_safe": 9
+              }
+            },
+            "dominance_cover_weak_negative": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 32.07500021823722,
+              "avg_training_priority": 8.63695652173913,
+              "count": 23,
+              "result_counts": {
+                "checked_safe": 2,
+                "invariant_violation": 21
+              }
+            },
+            "dominance_cover_winner_only": {
+              "avg_checker_budget_cost": 1.0,
+              "avg_checker_ms": 30.895770149072632,
+              "avg_training_priority": 7.9,
+              "count": 16,
+              "result_counts": {
+                "near_miss": 16
+              }
+            }
+          },
+          "negative_knowledge_records": 80,
+          "records": 80,
+          "result_counts": {
+            "checked_safe": 33,
+            "invariant_violation": 21,
+            "near_miss": 26
+          },
+          "schema": "witness_ledger_summary.v1",
+          "system_counts": {
+            "zenoenergy_upba_v2_dominance_cover": 80
+          }
+        },
+        "unique_candidates_seen": 200
+      }
+    },
+    "schema": "wes_generic_policy_comparison.v1",
+    "seed": "zenoenergy-wes-20260569",
+    "summary": {
+      "best_policy_by_useful_at_k": "declared_priority",
+      "metrics": {
+        "cheap_first": {
+          "calls_to_first_useful": 1,
+          "checked": 80,
+          "checker_cost_at_k": 25.0,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "non_useful_at_k": 10,
+          "non_useful_by_lane_at_k": {
+            "dominance_cover_one_shot_obligation": 5,
+            "dominance_cover_particle_obligation": 5
+          },
+          "non_useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10
+          },
+          "online_learning": false,
+          "search_policy": "cheap_first",
+          "unique_useful_lanes_at_k": 3,
+          "unique_useful_predicates_at_k": 2,
+          "useful_at_k": 15,
+          "useful_by_lane_at_k": {
+            "dominance_cover_hand_top1": 5,
+            "dominance_cover_weak_negative": 5,
+            "dominance_cover_winner_only": 5
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10,
+            "dominance_cover_rejects_weak_pruned_set": 5
+          }
+        },
+        "declared_priority": {
+          "calls_to_first_useful": 1,
+          "checked": 80,
+          "checker_cost_at_k": 25.0,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "non_useful_at_k": 0,
+          "non_useful_by_lane_at_k": {},
+          "non_useful_by_predicate_at_k": {},
+          "online_learning": false,
+          "search_policy": "declared_priority",
+          "unique_useful_lanes_at_k": 1,
+          "unique_useful_predicates_at_k": 1,
+          "useful_at_k": 25,
+          "useful_by_lane_at_k": {
+            "dominance_cover_winner_only": 25
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 25
+          }
+        },
+        "input_order": {
+          "calls_to_first_useful": 1,
+          "checked": 80,
+          "checker_cost_at_k": 25.0,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "non_useful_at_k": 10,
+          "non_useful_by_lane_at_k": {
+            "dominance_cover_one_shot_obligation": 5,
+            "dominance_cover_particle_obligation": 5
+          },
+          "non_useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10
+          },
+          "online_learning": false,
+          "search_policy": "input_order",
+          "unique_useful_lanes_at_k": 3,
+          "unique_useful_predicates_at_k": 2,
+          "useful_at_k": 15,
+          "useful_by_lane_at_k": {
+            "dominance_cover_hand_top1": 5,
+            "dominance_cover_weak_negative": 5,
+            "dominance_cover_winner_only": 5
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10,
+            "dominance_cover_rejects_weak_pruned_set": 5
+          }
+        },
+        "model_frozen": {
+          "calls_to_first_useful": 1,
+          "checked": 80,
+          "checker_cost_at_k": 25.0,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "non_useful_at_k": 0,
+          "non_useful_by_lane_at_k": {},
+          "non_useful_by_predicate_at_k": {},
+          "online_learning": false,
+          "search_policy": "model",
+          "unique_useful_lanes_at_k": 1,
+          "unique_useful_predicates_at_k": 1,
+          "useful_at_k": 25,
+          "useful_by_lane_at_k": {
+            "dominance_cover_winner_only": 25
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 25
+          }
+        },
+        "model_online": {
+          "calls_to_first_useful": 1,
+          "checked": 80,
+          "checker_cost_at_k": 25.0,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "non_useful_at_k": 0,
+          "non_useful_by_lane_at_k": {},
+          "non_useful_by_predicate_at_k": {},
+          "online_learning": true,
+          "search_policy": "model",
+          "unique_useful_lanes_at_k": 1,
+          "unique_useful_predicates_at_k": 1,
+          "useful_at_k": 25,
+          "useful_by_lane_at_k": {
+            "dominance_cover_winner_only": 25
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 25
+          }
+        },
+        "random_seeded": {
+          "calls_to_first_useful": 1,
+          "checked": 80,
+          "checker_cost_at_k": 25.0,
+          "cost_to_first_useful": 1.0,
+          "disasters_at_k": 0,
+          "non_useful_at_k": 10,
+          "non_useful_by_lane_at_k": {
+            "dominance_cover_one_shot_obligation": 6,
+            "dominance_cover_particle_obligation": 3,
+            "dominance_cover_weak_negative": 1
+          },
+          "non_useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 9,
+            "dominance_cover_rejects_weak_pruned_set": 1
+          },
+          "online_learning": false,
+          "search_policy": "random_seeded",
+          "unique_useful_lanes_at_k": 3,
+          "unique_useful_predicates_at_k": 2,
+          "useful_at_k": 15,
+          "useful_by_lane_at_k": {
+            "dominance_cover_hand_top1": 3,
+            "dominance_cover_weak_negative": 5,
+            "dominance_cover_winner_only": 7
+          },
+          "useful_by_predicate_at_k": {
+            "dominance_cover_certificate_passes": 10,
+            "dominance_cover_rejects_weak_pruned_set": 5
+          }
+        }
+      },
+      "model_online_vs_reference": {
+        "calls_to_first_useful_reduction": 0.0,
+        "cost_to_first_useful_reduction": 0.0,
+        "left_calls_to_first_useful": 1,
+        "left_useful_at_k": 25,
+        "right_calls_to_first_useful": 1,
+        "right_useful_at_k": 25,
+        "useful_at_k_lift": 0.0
+      },
+      "primary": "model_online",
+      "primary_vs_reference": {
+        "calls_to_first_useful_reduction": 0.0,
+        "cost_to_first_useful_reduction": 0.0,
+        "left_calls_to_first_useful": 1,
+        "left_useful_at_k": 25,
+        "right_calls_to_first_useful": 1,
+        "right_useful_at_k": 25,
+        "useful_at_k_lift": 0.0
+      },
+      "reference": "declared_priority",
+      "schema": "wes_policy_comparison_summary.v1",
+      "top_k": 25
+    },
+    "top_k": 25
+  },
+  "wes_report_schema": "wes_generic_policy_comparison.v1"
+}

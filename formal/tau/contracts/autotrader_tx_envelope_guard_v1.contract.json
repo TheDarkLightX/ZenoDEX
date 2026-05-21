@@ -1,0 +1,182 @@
+{
+  "schema": "zenodex/tau/spec-contract/v1",
+  "spec_id": "autotrader_tx_envelope_guard_v1",
+  "spec_path": "src/tau_specs/recommended/autotrader_tx_envelope_guard_v1.tau",
+  "kind": "bundle_or_composition",
+  "contract_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "human_summary": "Final auto-trader transaction-envelope guard over host-projected booleans for request presence, paired arguments, bounds validation, and allowed stream scope.",
+  "assumptions": [
+    "The host computes the boolean projection for sequence, expiration, fee, and stream-scope checks before Tau evaluation.",
+    "The explicit assurance domain exhaustively enumerates the full boolean input product over i1..i9.",
+    "The live submit lane treats o4 as the authoritative admissibility bit for the final Tau transaction envelope."
+  ],
+  "input_domain": {
+    "streams": [
+      {
+        "name": "i1",
+        "type": "sbf",
+        "role": "tx_requested"
+      },
+      {
+        "name": "i2",
+        "type": "sbf",
+        "role": "sequence_present"
+      },
+      {
+        "name": "i3",
+        "type": "sbf",
+        "role": "expiration_present"
+      },
+      {
+        "name": "i4",
+        "type": "sbf",
+        "role": "sequence_valid"
+      },
+      {
+        "name": "i5",
+        "type": "sbf",
+        "role": "expiration_valid"
+      },
+      {
+        "name": "i6",
+        "type": "sbf",
+        "role": "fee_limit_valid"
+      },
+      {
+        "name": "i7",
+        "type": "sbf",
+        "role": "intent_stream_present"
+      },
+      {
+        "name": "i8",
+        "type": "sbf",
+        "role": "settlement_stream_absent"
+      },
+      {
+        "name": "i9",
+        "type": "sbf",
+        "role": "extra_custom_streams_absent"
+      }
+    ],
+    "domain_model": "bounded_explicit_enumeration",
+    "intended_preconditions": [
+      "Idle traces with tx_requested = 0 are admissible and intentionally keep all outputs high.",
+      "Requested transactions may only pass when argument pairing, bounds checks, and stream-scope checks all succeed."
+    ],
+    "analysis_partitions": [
+      {
+        "id": "idle_trace",
+        "formula": "i1 = 0",
+        "intent": "The idle lane is always admissible."
+      },
+      {
+        "id": "requested_missing_args",
+        "formula": "(i1 = 1) && !((i2 = 1) && (i3 = 1))",
+        "intent": "Requested transactions without both paired arguments must reject."
+      },
+      {
+        "id": "requested_bad_bounds",
+        "formula": "(i1 = 1) && (i2 = 1) && (i3 = 1) && !((i4 = 1) && (i5 = 1) && (i6 = 1))",
+        "intent": "Requested transactions with invalid sequence, expiration, or fee bounds must reject."
+      },
+      {
+        "id": "requested_bad_stream_scope",
+        "formula": "(i1 = 1) && (i2 = 1) && (i3 = 1) && (i4 = 1) && (i5 = 1) && (i6 = 1) && !((i7 = 1) && (i8 = 1) && (i9 = 1))",
+        "intent": "Requested transactions with wrong stream scope must reject."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "name": "o1",
+      "type": "sbf",
+      "meaning": "tx_args_paired_ok",
+      "contract_formula": "o1 = 1 iff (!i1 || (i2 && i3))",
+      "contract_expr": "1 if (i1 == 0 or (i2 == 1 and i3 == 1)) else 0"
+    },
+    {
+      "name": "o2",
+      "type": "sbf",
+      "meaning": "tx_bounds_ok",
+      "contract_formula": "o2 = 1 iff (!i1 || (i4 && i5 && i6))",
+      "contract_expr": "1 if (i1 == 0 or (i4 == 1 and i5 == 1 and i6 == 1)) else 0"
+    },
+    {
+      "name": "o3",
+      "type": "sbf",
+      "meaning": "tx_stream_scope_ok",
+      "contract_formula": "o3 = 1 iff (!i1 || (i7 && i8 && i9))",
+      "contract_expr": "1 if (i1 == 0 or (i7 == 1 and i8 == 1 and i9 == 1)) else 0"
+    },
+    {
+      "name": "o4",
+      "type": "sbf",
+      "meaning": "tx_envelope_ok",
+      "contract_formula": "o4 = 1 iff (!i1 || (i2 && i3 && i4 && i5 && i6 && i7 && i8 && i9))",
+      "contract_expr": "1 if (i1 == 0 or (i2 == 1 and i3 == 1 and i4 == 1 and i5 == 1 and i6 == 1 and i7 == 1 and i8 == 1 and i9 == 1)) else 0"
+    }
+  ],
+  "behavior_partition": {
+    "partition_basis": "output_vector",
+    "coverage_goal": "promotion_gate",
+    "reachable_vectors_must_be_witnessed": true,
+    "unreachable_vectors_must_be_proved": true
+  },
+  "theorems": [
+    {
+      "id": "tx_envelope_sound",
+      "kind": "soundness",
+      "statement": "For all inputs in the explicit boolean domain, o4 = 1 implies either an idle trace or a requested transaction with paired args, validated bounds, and allowed stream scope.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "tx_envelope_complete",
+      "kind": "completeness",
+      "statement": "For all inputs in the explicit boolean domain, idle traces and fully valid requested transactions force o4 = 1.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "tx_envelope_partition_disjoint",
+      "kind": "partition_disjointness",
+      "statement": "Distinct autotrader_tx_envelope_guard_v1 output-vector regions are pairwise disjoint over the explicit boolean domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "tx_envelope_partition_exhaustive",
+      "kind": "partition_exhaustiveness",
+      "statement": "The autotrader_tx_envelope_guard_v1 behavior atlas covers the full explicit boolean domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "tx_envelope_interpreter_equiv",
+      "kind": "interpreter_equivalence",
+      "statement": "The contract semantics and the Tau binary agree on the explicit autotrader_tx_envelope_guard_v1 boolean domain.",
+      "preferred_mechanization": [
+        "tau_differential_exec"
+      ]
+    }
+  ],
+  "evidence_links": [
+    {
+      "kind": "bounded_assurance",
+      "path": "tests/tau/spec_assurance_registry.json",
+      "note": "Explicit boolean-domain parity cases for the transaction-envelope guard."
+    },
+    {
+      "kind": "shadow_model",
+      "path": "formal/tla/AutoTraderTxEnvelopeShadow.tla",
+      "note": "Independent shadow semantics for the requested-envelope policy."
+    }
+  ]
+}

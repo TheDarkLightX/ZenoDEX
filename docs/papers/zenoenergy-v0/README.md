@@ -7,9 +7,11 @@ This directory contains the ZenoEnergy v0 research paper:
 - [zenoenergy-v0.pdf](./zenoenergy-v0.pdf)
 
 The paper summarizes the verifier-preserving candidate-ordering experiment for
-UPBA v2 partial-fill exact-in settlement search. Draft v0.4 also records the
-production evidence bundle, replay coverage profile, and the current real-replay
-promotion gate.
+UPBA v2 partial-fill exact-in settlement search. Draft v0.7 records the v6 MLP
+research checkpoint, corrected Gemini evaluation path, Langevin discovery
+boundary, AutoTrader refiner boundary, JEPA/ZenoLogic boundary, source-level
+AutoTrader JEPA UX receipt, production evidence bundle, replay coverage
+profile, and current real-replay promotion gate.
 
 Build:
 

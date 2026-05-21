@@ -728,6 +728,61 @@ bounded synthetic UPBA batches and a pinned external WES commit
 `5a26bcc1d97c90503bb66e67c7c2a2cf40d41bb6`. It does not remove the full-list
 completeness obligation for bounded-grid claims.
 
+## Particle Search And WES
+
+The compositional-energy probe tested whether summed local or obligation-level
+energies could rank an existing finite candidate list better than the retained
+aggregate scorer. Across the current synthetic seeds, the calibrated obligation
+formula tied or trailed the aggregate scorer:
+
+| probe | candidate count | aggregate top-1 | obligation-calibrated top-1 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: |
+| seed 20260560/20260561 | 24 | 0.9588 | 0.9588 | 0 |
+| seed 20260562/20260563 | 24 | 0.9700 | 0.9600 | 0 |
+| seed 20260564/20260565 | 40 | 1.0000 | 0.9800 | 0 |
+
+That result redirected the experiment toward constructive search. The
+particle-search probe uses energy-ranked particles, local neighborhood
+proposals, resampling, and verifier checks:
+
+```text
+particles -> resample -> propose neighborhood -> resample -> verifier
+```
+
+Receipt:
+[ZENO_ENERGY_PARTICLE_SEARCH_PROBE.md](./ZENO_ENERGY_PARTICLE_SEARCH_PROBE.md)
+
+| mode | candidate count | best dominates full winner | mean calls | mean volume regret | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| limited | 4.0000 | 0.0900 | 3.7300 | 466.7700 | 0 |
+| one-shot neighborhood | 15.6700 | 0.9200 | 14.5300 | 13.4500 | 0 |
+| particle resample | 26.6500 | 0.9600 | 24.1300 | 6.0800 | 0 |
+
+Particle search improved candidate quality and regret, while adding verifier
+work. It is a constructive candidate-generation branch, not a cheaper ordering
+branch in the current form.
+
+The WES no-oracle follow-up then asked whether those generated candidates help
+rank dominance-cover pruning claims without the `winner_only` oracle control.
+The useful WES candidate is a verifier-filtered singleton,
+`particle_best_obligation`. Raw particle archives can contain invalid generated
+candidates and fail structural pruned-set verification.
+
+Receipt:
+[ZENO_ENERGY_WES_DOMINANCE_PARTICLE_NO_ORACLE.md](./ZENO_ENERGY_WES_DOMINANCE_PARTICLE_NO_ORACLE.md)
+
+| policy | checked | useful@25 | calls to first useful | non-useful@25 | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| model_online | 80 | 24 | 1 | 1 | 0 |
+| model_frozen | 80 | 24 | 1 | 1 | 0 |
+| declared_priority | 80 | 25 | 1 | 0 | 0 |
+| input_order | 80 | 17 | 1 | 8 | 0 |
+| random_seeded | 80 | 17 | 1 | 8 | 0 |
+
+WES does benefit from the particle branch after verifier filtering. The
+remaining test gap is a cross-seed WES no-oracle stress run with cost accounting
+for generation, filtering, dominance-cover checking, and deterministic fallback.
+
 ## Dominance-Prefix Cover
 
 The dominance-prefix audit asks how many ranked verifier calls are needed before
@@ -945,6 +1000,24 @@ Quality selection beat raw winner-bearing sampling on four of six budgets and
 kept `invalid_accept_count_total = 0`. The 100-batch result is negative
 knowledge: tiny hard-only budgets can overfocus on rare current-model misses.
 
+The ensemble probe is recorded in
+[ZENO_ENERGY_ENSEMBLE.md](./ZENO_ENERGY_ENSEMBLE.md). It trains five small
+diversified linear members and evaluates them with the current gap-weighted
+checkpoint as a sixth member:
+
+| mode | top-1 recall | top-10 recall | mean verifier calls | p99 | miss AUC | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| current gap-weighted | 0.9834 | 1.0000 | 1.0166 | 2 | n/a | 0 |
+| ensemble mean energy | 0.9813 | 1.0000 | 1.0237 | 2 | 0.6814 | 0 |
+| ensemble mean rank | 0.9813 | 1.0000 | 1.0237 | 2 | 0.6819 | 0 |
+| ensemble rank + std penalty 2.0 | 0.9813 | 1.0000 | 1.0277 | 2 | 0.6819 | 0 |
+
+This is useful negative knowledge. The tiny ensemble gives a moderate
+disagreement signal for top-1 misses, but it does not improve mean verifier
+calls over the current gap-weighted checkpoint. Keep the single retained UPBA
+model as the default; use ensemble disagreement as diagnostic coverage evidence
+unless a later cross-seed run beats the default under the same replay gate.
+
 The current retained advisory checkpoints are pinned in
 [ZENO_ENERGY_BEST_MODELS.md](./ZENO_ENERGY_BEST_MODELS.md). The registry keeps
 the UPBA gap-weighted default and three deterministic AutoTrader hard synthetic
@@ -974,12 +1047,13 @@ dominance-prefix cover audit, the suffix-bound early-stop certificate, the
 suffix-bound cross-seed stress receipt, the suffix-bound adversarial stress
 receipt, the suffix-bound adversarial family stress receipt, the negative
 curriculum epiplexity receipt, the curriculum-ranker negative result, the
-data-scaling saturation receipt, the epiplexity literature boundary receipt, the
+data-scaling saturation receipt, the quality-selection probe, the tiny ensemble
+probe, the best-model registry, the epiplexity literature boundary receipt, the
 energy-order-alone formal boundary, and
 PopperPad status ledger. It also checks
 the SOTA decision-map receipt:
 [ZENO_ENERGY_SOTA_DECISION_MAP.md](./ZENO_ENERGY_SOTA_DECISION_MAP.md).
-The current receipt reports 226 passing checks and 0 failed checks, including
+The current receipt reports 246 passing checks and 0 failed checks, including
 the PopperPad doctor check.
 
 ## Accuracy

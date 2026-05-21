@@ -103,6 +103,7 @@ verifier labels for offline training and evaluation.
 - `src/energy/upba_v2_features.py`: fixed 96-dimensional normalized feature schema plus raw advisory diagnostics.
 - `src/energy/upba_v2_hand_energy.py`: deterministic hand-coded energy baseline.
 - `src/energy/upba_v2_energy_model.py`: optional PyTorch MLP builder and no-dependency linear ranker.
+- `src/energy/upba_v2_ensemble.py`: tiny linear-model ensemble helpers for rank consensus and disagreement diagnostics.
 - `src/energy/upba_v2_listwise_set_ranker.py`: deterministic candidate-list context features and top-one listwise softmax training helper.
 - `src/energy/upba_v2_ranker.py`: ranking, verifier-backed search reports, and deterministic fallback helpers.
 - `src/energy/upba_v2_dominance_cover.py`: runtime dominance-cover certificates and ranked-prefix dominance audits for verified finite candidate lists.
@@ -141,6 +142,7 @@ verifier labels for offline training and evaluation.
 - `tools/benchmark_upba_energy_curriculum.py`: trains a bounded rare-disqualifier curriculum ranker and compares it against the gap-weighted default.
 - `tools/benchmark_upba_energy_data_scaling.py`: trains the same gap-weighted setup over increasing same-generator synthetic batch budgets and records saturation.
 - `tools/benchmark_upba_energy_quality_selection.py`: compares raw winner-bearing synthetic batches against current-model-hard winner-bearing batches at matched budgets.
+- `tools/benchmark_upba_energy_ensemble.py`: trains small diversified advisory rankers and compares mean-energy and rank-consensus ensemble orderings.
 - `tools/preserve_zenoenergy_best_models.py`: copies or deterministically regenerates the retained advisory checkpoints and writes the best-model registry with sha256 hashes.
 - `tools/check_zenoenergy_epiplexity_literature.py`: checks the epiplexity literature note, required sources, task-relevance gate, and proxy boundary.
 - `tools/run_zenoenergy_wes_dominance_search.py`: feeds dominance-cover candidate claims into WES while UPBA verification supplies labels.

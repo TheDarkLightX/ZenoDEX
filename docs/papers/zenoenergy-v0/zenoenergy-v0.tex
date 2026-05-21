@@ -21,33 +21,43 @@
 
 \title{\textbf{ZenoEnergy: Verifier-Preserving Learned Candidate Ordering for UPBA v2 Settlement Search}}
 \author{Dana Edwards}
-\date{May 18, 2026}
+\date{May 20, 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-ZenoEnergy studies whether a small learned energy scorer can reduce candidate
-search cost for UPBA v2 partial-fill exact-in settlement search while preserving
+ZenoEnergy studies whether learned energy scorers can reduce candidate search
+cost for UPBA v2 partial-fill exact-in settlement search while preserving
 deterministic verification. The system follows the rule: model proposes,
-verifier decides. A 97-parameter CPU-only linear energy ranker is trained on
-synthetic, verifier-labeled bounded candidate sets. On a held-out synthetic
-corpus with 1,983 winner-bearing batches and approximately 20 candidates per
-batch, the current gap-weighted checkpoint places the exact verifier winner
-first in 98.34 percent of batches and within the top 2 in 100.0 percent of
-batches. Mean winner position falls from 19.995 under exhaustive ordering to
-1.0166 under learned ordering, while invalid accepts remain zero. The paper
-records the empirical result, the formal safety boundary, the blockers to
-production readiness, and a transfer path for applying the same advisory-energy
-pattern to AutoTrader candidate planning. The current production-adjacent path
-is an evidence bundle rather than a release claim: source-manifested and
+verifier decides. The first stable checkpoint was a 97-parameter CPU-only
+linear ranker trained on synthetic, verifier-labeled bounded candidate sets.
+The current preferred research checkpoint is
+\texttt{gemini\_mlp\_v6\_seed20260519}, a 6,273-parameter pure-Python MLP. On a
+held-out synthetic corpus with 1,983 winner-bearing batches and approximately
+20 candidates per batch, v6 places the exact verifier winner first in 99.75
+percent of batches and in the top 5 and top 10 in 100.0 percent of batches.
+Mean winner position falls from 19.995 under exhaustive ordering to 1.0025
+under v6 learned ordering, while invalid accepts remain zero. The paper records
+the empirical result, the formal safety boundary, the blockers to production
+readiness, and a transfer path for applying the same advisory-energy pattern to
+AutoTrader candidate planning. The current production-adjacent path is an
+evidence bundle rather than a release claim: source-manifested and
 coverage-profiled real replay reports are assembled and passed through a
-fail-closed advisory ranking promotion gate. The latest suffix-bound stress
-receipt records learned and hybrid mean verifier calls of 1.0132 across a
-3-seed by 3-candidate-count bounded synthetic grid, with zero invalid accepts.
-An adversarial suffix stress also records that declared-output-only suffix
-bounds fail on injected high-output invalid candidates, while deterministic
-disqualifiers preserve the certificate.
+fail-closed advisory ranking promotion gate. The latest leaderboard compares
+seven UPBA v2 advisory rankers and promotes v6 as the current research
+checkpoint. The AutoTraderEnergy hard synthetic cross-seed receipt records
+learned mean guard calls of 1.010 versus 4.312 for hand energy, with zero
+invalid accepts; real shadow replay remains the next AutoTrader milestone.
+The checked AutoTrader refiner records a 12.00 mean synthetic objective gain
+across 160 contexts with zero policy-invalid selections; the preconditioned
+refiner replay improves this to 13.01. The JEPA/ZenoLogic boundary receipt
+records future-tension scoring and the hazard that energy negation can invert
+hard safety barriers. The source-level AutoTrader JEPA UX receipt now records
+future-risk and UX evidence: later-policy-failure AUC 0.8144, slippage, budget,
+and drawdown stress correlations of 0.6133, 0.5592, and 0.5556, zero invalid
+accepts over 96 generated contexts, and explicit fields showing that neither
+the model nor the UX card authorizes execution.
 \end{abstract}
 
 \noindent\textbf{Keywords:} energy-based ranking, deterministic verification,
@@ -149,20 +159,21 @@ the objective is early discovery of the deterministic winner.
 
 \section{Model and Training}
 
-The current default model is a linear ranker with 96 feature weights and one
-bias:
+The retained linear baseline is a ranker with 96 feature weights and one bias:
 \[
   E_\theta(x,c) = w^\top \phi(x,c) + b.
 \]
-It has 97 parameters and runs without PyTorch. The optional MLP shape is
-$96 \rightarrow 64 \rightarrow 1$, with 6,273 parameters, but the measured
-artifact in this paper is the no-dependency linear checkpoint.
+It has 97 parameters and runs without PyTorch. The promoted v6 research
+checkpoint uses a pure-Python MLP with shape
+$96 \rightarrow 64 \rightarrow 1$ and 6,273 parameters. The MLP remains an
+advisory ranker. Its output cannot authorize settlement, mutate state, enter a
+state root, or replace deterministic verification.
 
 Training uses pairwise hinge ranking over candidates from the same batch:
 \[
   L = \max(0,\; m + E_\theta(\mathrm{good}) - E_\theta(\mathrm{bad})).
 \]
-The preferred checkpoint uses weighted pair updates:
+The preferred linear checkpoint uses weighted pair updates:
 \[
 \begin{aligned}
   \mathrm{pairWeight} ={}& \mathbf{1}_{\mathrm{winnerPair}}\lambda_w
@@ -172,6 +183,9 @@ The preferred checkpoint uses weighted pair updates:
 \]
 clipped to a fixed maximum. This places more training pressure on the remaining
 hard cases: valid candidates ranked ahead of slightly better valid winners.
+The corrected Gemini evaluation path applies each model's declared feature
+surface before scoring; streaming cross-seed and hard-case evidence now uses
+that same adapter.
 
 \section{Synthetic Candidate Generation}
 
@@ -239,7 +253,31 @@ Metrics below are computed over those 1,983 winner-bearing batches.
 
 \begin{table}[h]
 \centering
-\caption{Holdout candidate-ordering performance.}
+\caption{Current UPBA v2 advisory model leaderboard.}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Holdout & Top-1 & Cross & Worst top-1 & Hard top-1 & Misses \\
+\midrule
+Gemini MLP v6 & 1.0025 & 0.9975 & 1.0036 & 0.9839 & 0.9940 & 9 \\
+Gemini highwinner linear & 1.0066 & 0.9934 & 1.0076 & 0.9839 & 0.9919 & 12 \\
+Gap-weighted linear & 1.0166 & 0.9834 & 1.0175 & 0.9677 & 0.9854 & 65 \\
+Gemini linear v5 & 1.0217 & 0.9788 & 1.0202 & 0.9637 & 0.9839 & 24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The v6 checkpoint is the current preferred UPBA v2 research artifact. It beats
+the retained linear checkpoints on the selected verifier-facing metrics used by
+the leaderboard. Gemini v5 is negative evidence: it underperformed the
+gap-weighted linear baseline. The remaining synthetic headroom is small under
+the current candidate family because v6 already has complete top-5 and top-10
+recall, p99 holdout calls of 1, and 9 hard-case top-1 misses across 1,489
+winner-bearing hard batches.
+
+\begin{table}[h]
+\centering
+\caption{Retained gap-weighted linear holdout candidate-ordering performance.}
 \begin{tabular}{lrrrrrr}
 \toprule
 Mode & Top-1 & Top-5 & Top-10 & Mean calls & P99 & Invalid accepts \\
@@ -358,10 +396,77 @@ This supports a sharper design lesson: suffix certificates need
 verifier-derived deterministic invalidity signals. Raw declared outputs are too
 weak against attractive invalid suffixes.
 
+\section{Langevin Discovery Boundary}
+
+The internal Gemini work also introduced Langevin-style candidate refinement:
+\[
+  x_{t+1} = x_t - \eta \nabla E(x_t) + \sqrt{2\eta}\epsilon.
+\]
+This is proposal search. It can lower learned energy, but lower learned energy
+does not imply verifier acceptance. The committed receipt records the critical
+negative case:
+\[
+\begin{array}{ll}
+\mathrm{seed\_verifier\_ok} & \mathrm{true}\\
+\mathrm{refined\_verifier\_ok} & \mathrm{false}\\
+\mathrm{accepted\_refinement} & \mathrm{false}\\
+\mathrm{fallback\_to\_seed} & \mathrm{true}\\
+\mathrm{selected\_verifier\_ok} & \mathrm{true}.
+\end{array}
+\]
+The implementation selects a refined proposal only when deterministic
+verification accepts it and the learned energy improves. Otherwise it falls
+back to the verifier-backed seed when the seed is valid. ZenoGuard remains a
+soft advisory prior; it is not a validity proof, a settlement authorization
+rule, or a replacement for the UPBA verifier.
+
+\section{AutoTrader Refiner And JEPA Boundary}
+
+The AutoTrader refiner applies bounded Langevin-style proposal search to
+adjustable execution features. The refined feature map is canonicalized and
+rechecked by deterministic policy labels before selection. The committed
+baseline receipt records 160 evaluated contexts, 160 accepted refinements, zero
+selected invalid proposals, mean selected objective gain of 12.0035, and mean
+selected energy delta of -4.6224. The optimizer replay for the preconditioned
+refiner records mean selected objective gain of 13.0087, mean selected energy
+delta of -4.6852, and winning settings
+\texttt{precondition\_decay=0.9}, \texttt{lr=0.04}. This is hard synthetic
+evidence. It shows the correct proposal path, while real shadow replay remains
+required before promotion.
+
+ZenoJEPA and ZenoLogic are also bounded advisory surfaces. The JEPA receipt
+shows a latent future-tension score ranking a balanced action below a draining
+action, with tensions 0.3094 and 1.3516 respectively. The same receipt records
+a ZenoLogic hazard: \texttt{EnergyNot} can make a hard-barrier violation lower
+energy than a valid case. ZenoLogic can compose advisory energies, but it does
+not create a formal verifier, and \texttt{EnergyNot} must not be used over hard
+safety predicates.
+
+The source-level JEPA/UX pass moves the useful part of future-tension scoring
+into \texttt{src.energy}. The default AutoTrader JEPA model projects candidate
+features into liquidity, drawdown, execution, and operational fragility
+latents. The UX helper then turns policy labels, future-tension diagnostics,
+and suggested controls into compact advisory cards. The committed receipt
+records 96 generated contexts, future weight 0.1, later-policy-failure AUC
+0.8144, slippage, budget, and drawdown stress correlations of 0.6133, 0.5592,
+and 0.5556, suggested-control best reduction rate of 1.0000, blocked-status
+match rate of 1.0000, future-warning match rate of 1.0000, zero invalid
+accepts, balanced future tension of 0.9103, and fragile future tension of
+4.7643. The old JEPA-over-hand ordering is recorded as negative evidence:
+hand+JEPA top-5 recall is 0.8021 on this receipt, while learned+JEPA top-5
+recall is 1.0000. Future tension is best used as a risk explanation, warning
+signal, and counterfactual-control score layered behind learned AutoTraderEnergy.
+The UX improvement is practical: blocked actions can show the exact
+deterministic policy guard reason, while policy-valid fragile actions can be
+shown as risk-review candidates with controls such as refreshing quote
+receipts, lowering notional, tightening route selection, or waiting for budget
+recovery. The card is an explanation wrapper around advisory scores and policy
+labels; it is not an approval.
+
 \section{Model Audit}
 
-The gap-weighted checkpoint has no forbidden label-like feature names and no
-nonzero reserved-feature weights. Its largest positive weights are hard
+The retained gap-weighted linear checkpoint has no forbidden label-like feature
+names and no nonzero reserved-feature weights. Its largest positive weights are hard
 verifier-shaped penalties inherited from hand initialization: negative reserves,
 CPMM invariant failures, limit-price violations, balance violations, malformed
 fill vectors, schema/policy mismatches, and output mismatches. Its largest
@@ -536,18 +641,26 @@ execution predicate?
 
 \section{Conclusion}
 
-ZenoEnergy v0 provides strong evidence that a tiny energy ranker can reduce
+ZenoEnergy v0 provides strong evidence that small energy rankers can reduce
 candidate-search cost while preserving deterministic settlement verification.
-The current 97-parameter model moves the winner to position 1.0166 on average
-and to the top 2 in all held-out winner-bearing batches. The result is powerful
-because the model is small, interpretable, CPU-only, and isolated from
-consensus-critical paths.
+The current v6 MLP moves the winner to position 1.0025 on average on the
+holdout corpus and keeps top-5 and top-10 recall complete across the measured
+lanes. The result is useful because the model is still small, CPU-friendly, and
+isolated from consensus-critical paths.
 
-The release path is clear. Keep the scorer advisory, add real replay evidence,
-finish exact candidate-generation and v2 optimality certificates, require a
-deterministic suffix certificate for live early stop, and pass the production
-evidence bundle gate. The same verifier-preserving ranking architecture can then
-be tested in AutoTrader candidate planning.
+The UPBA ranker is near a synthetic-distribution plateau for the current
+candidate family. Further UPBA work should target the remaining valid-vs-valid
+misses, production-shadow replay, and suffix-certificate utility rather than
+raw parameter scaling. The release path stays the same: keep the scorer
+advisory, add real replay evidence, finish exact candidate-generation and v2
+optimality certificates, require a deterministic suffix certificate for live
+early stop, and pass the production evidence bundle gate. AutoTraderEnergy now
+deserves the larger share of modeling work because its synthetic gains are
+large, its checked refiner has the right policy-gated shape, and its real
+shadow evidence is still missing. The next UX milestone is real shadow replay
+that verifies cards surface the correct guard reason, risk level,
+future-tension warning, and operator control without hiding the deterministic
+authority boundary.
 
 \begin{thebibliography}{9}
 

@@ -1876,6 +1876,43 @@ The 100-batch quality-selected model is worse than raw winner-bearing sampling.
 Hard examples are a coverage lane, not a replacement for distribution balance.
 ```
 
+## Tiny Ensemble Probe
+
+Artifact:
+[ZENO_ENERGY_ENSEMBLE.md](./ZENO_ENERGY_ENSEMBLE.md)
+
+Static JSON:
+`data/upba_energy/upba_v2_energy_ensemble_seed20260556.json`
+
+Command:
+
+```bash
+python3 tools/benchmark_upba_energy_ensemble.py
+```
+
+Observed result:
+
+| mode | top-1 recall | top-10 recall | mean calls | p99 | miss AUC | invalid accepts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| current gap-weighted | 0.9834 | 1.0000 | 1.0166 | 2 | n/a | 0 |
+| ensemble mean energy | 0.9813 | 1.0000 | 1.0237 | 2 | 0.6814 | 0 |
+| ensemble mean rank | 0.9813 | 1.0000 | 1.0237 | 2 | 0.6819 | 0 |
+| ensemble rank + std penalty 2.0 | 0.9813 | 1.0000 | 1.0277 | 2 | 0.6819 | 0 |
+
+Positive knowledge:
+
+```text
+Rank disagreement has moderate signal for top-1 misses while preserving
+deterministic verifier authority and zero invalid accepts.
+```
+
+Negative knowledge:
+
+```text
+The six-member ensemble does not beat the current gap-weighted checkpoint on
+mean verifier calls. Keep the single retained UPBA ranker as the default.
+```
+
 ## Best Model Registry
 
 Artifact:

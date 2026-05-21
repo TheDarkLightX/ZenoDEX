@@ -12,6 +12,7 @@ from src.core.uniform_batch_clearing import (
     verify_uniform_batch_certificate_v1,
 )
 from src.energy.upba_v2_features import extract_upba_v2_feature_record
+from src.energy.upba_v2_cross_features import feature_values_for_energy_model
 from src.energy.upba_v2_hand_energy import hand_energy_from_record
 from src.energy.upba_v2_set_features import (
     SET_AWARE_FEATURE_NAMES,
@@ -298,6 +299,7 @@ def scorer_from_linear_model(
                 balances=balances,
                 candidate=candidate,
             )
+            features = record.values
         else:
             record = extract_upba_v2_feature_record(
                 pool=pool,
@@ -306,7 +308,8 @@ def scorer_from_linear_model(
                 candidate=candidate,
                 include_verifier_label=False,
             )
-        return float(model.energy(record.values))  # type: ignore[attr-defined]
+            features = feature_values_for_energy_model(model, record.values)
+        return float(model.energy(features))  # type: ignore[attr-defined]
 
     return score
 
