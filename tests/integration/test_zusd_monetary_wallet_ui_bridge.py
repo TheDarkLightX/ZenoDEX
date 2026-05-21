@@ -21,8 +21,10 @@ from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.integration.zusd_monetary_bridge import (
     ZUSDMonetaryState,
+    stability_pool_pubkey,
     zusd_monetary_state_to_obj,
 )
+from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 
 
@@ -67,6 +69,50 @@ def _http_post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
     )
     with urlopen(request, timeout=8) as response:  # noqa: S310 - local test servers only
         return json.loads(response.read().decode("utf-8"))
+
+
+def _app_state_from_tau_server(tau_server: socketserver.ThreadingTCPServer) -> dict[str, object]:
+    state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+    payload = json.loads(state.app_state_json)
+    assert isinstance(payload, dict)
+    return payload
+
+
+def _zusd_core(app_state: dict[str, object]) -> dict[str, int]:
+    monetary = app_state.get("zusd_monetary")
+    assert isinstance(monetary, dict)
+    core = monetary.get("core")
+    assert isinstance(core, dict)
+    return {str(k): int(v) for k, v in core.items() if isinstance(v, int) and not isinstance(v, bool)}
+
+
+def _balance_for_asset(app_state: dict[str, object], *, pubkey: str, asset_id: str) -> int:
+    dex_state = app_state.get("dex_state")
+    state_view = dex_state if isinstance(dex_state, dict) else app_state
+    balances = state_view.get("balances")
+    if not isinstance(balances, list):
+        return 0
+    for row in balances:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("pubkey", "")).strip().lower() != pubkey.strip().lower():
+            continue
+        if str(row.get("asset", "")).strip().lower() != asset_id.strip().lower():
+            continue
+        return int(row.get("amount", 0))
+    return 0
+
+
+def _sp_claims(app_state: dict[str, object]) -> dict[str, int]:
+    monetary = app_state.get("zusd_monetary")
+    assert isinstance(monetary, dict)
+    claims = monetary.get("sp_collateral_claims")
+    assert isinstance(claims, list)
+    out: dict[str, int] = {}
+    for row in claims:
+        assert isinstance(row, dict)
+        out[str(row["pubkey"])] = int(row["amount_e8"])
+    return out
 
 
 def _ok(core, tag: str, **kwargs):
@@ -125,16 +171,33 @@ class _TauRpcState:
             sequence_number = int(payload["sequence_number"])
             ops = payload["operations"]
             assert isinstance(ops, dict)
-            ok, next_json, app_hash, _patch, err = plugin.apply_app_tx(
-                app_state_json=self.app_state_json,
-                chain_balances=dict(self.native_balances),
-                operations=ops,
-                tx_sender_pubkey=sender,
-                block_timestamp=int(time.time()),
-            )
+            old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+            old_oracle = os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY")
+            os.environ["TAU_DEX_CHAIN_ID"] = self.chain_id
+            os.environ["TAU_DEX_ZUSD_ORACLE_PUBKEY"] = self.owner_pubkey
+            try:
+                ok, next_json, app_hash, _patch, err = plugin.apply_app_tx(
+                    app_state_json=self.app_state_json,
+                    chain_balances=dict(self.native_balances),
+                    operations=ops,
+                    tx_sender_pubkey=sender,
+                    block_timestamp=int(time.time()),
+                )
+            finally:
+                if old_chain_id is None:
+                    os.environ.pop("TAU_DEX_CHAIN_ID", None)
+                else:
+                    os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+                if old_oracle is None:
+                    os.environ.pop("TAU_DEX_ZUSD_ORACLE_PUBKEY", None)
+                else:
+                    os.environ["TAU_DEX_ZUSD_ORACLE_PUBKEY"] = old_oracle
             assert ok, err
             self.app_state_json = next_json
             self.app_hash = app_hash
+            if isinstance(_patch, dict):
+                for pubkey, amount in _patch.items():
+                    self.native_balances[str(pubkey).strip().lower()] = int(amount)
             self.sequences[sender_wire] = sequence_number + 1
             self.pending_tx = None
 
@@ -171,6 +234,105 @@ class _TauRpcHandler(socketserver.StreamRequestHandler):
         self.wfile.write(b"ERR unsupported\n")
 
 
+def _prepare_external_signed_zusd_payload(
+    *,
+    api_base: str,
+    privkey: int,
+    body: dict[str, object],
+) -> dict[str, object]:
+    prepared = _http_post_json(api_base + "/api/zusd/monetary/prepare", body)
+    assert prepared["ok"] is True
+    transport = prepared["transport"]
+    report = prepared["report"]
+    assert isinstance(transport, dict)
+    assert isinstance(report, dict)
+    signed_payload = build_signed_tau_transaction(
+        privkey=privkey,
+        sequence_number=int(transport["tx_sequence_number"]),
+        expiration_time=int(body["deadline"]),
+        operations=report["operations"],
+        fee_limit=0,
+    )
+    return signed_payload
+
+
+def _run_zusd_browser_submit(
+    *,
+    chrome: str,
+    tmp_path: Path,
+    vite_base: str,
+    api_base: str,
+    privkey: int,
+    actor_pubkey: str,
+    action: str,
+    profile_name: str,
+    amount: int | None = None,
+    amount_e8: int | None = None,
+    price_e8: int | None = None,
+    deadline: int | None = None,
+    expected_snippets: tuple[str, ...] = (),
+) -> str:
+    actual_deadline = int(deadline if deadline is not None else int(time.time()) + 3600)
+    body: dict[str, object] = {
+        "action": action,
+        "sender_pubkey": actor_pubkey,
+        "deadline": actual_deadline,
+        "tx_fee_limit": "0",
+    }
+    query: dict[str, str] = {
+        "tab": "zusd",
+        "demo": "false",
+        "zenodexUiSmokeZusdMonetary": "1",
+        "zusdMonetaryAction": action,
+        "actorPubkey": actor_pubkey,
+        "zusdDeadline": str(actual_deadline),
+    }
+    if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"}:
+        body["owner_pubkey"] = actor_pubkey
+    if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}:
+        body["account_pubkey"] = actor_pubkey
+    if action in {"advance_epoch", "bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"}:
+        body["actor_pubkey"] = actor_pubkey
+    if amount is not None:
+        body["amount"] = int(amount)
+        query["zusdAmount"] = str(int(amount))
+    if amount_e8 is not None:
+        body["amount_e8"] = int(amount_e8)
+        query["zusdAmountE8"] = str(int(amount_e8))
+    if price_e8 is not None:
+        body["price_e8"] = int(price_e8)
+        query["zusdPriceE8"] = str(int(price_e8))
+
+    signed_payload = _prepare_external_signed_zusd_payload(api_base=api_base, privkey=privkey, body=body)
+    query["signedTauTxPayload"] = json.dumps(signed_payload, sort_keys=True, separators=(",", ":"))
+    result = subprocess.run(
+        [
+            chrome,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            f"--user-data-dir={tmp_path / profile_name}",
+            "--virtual-time-budget=15000",
+            "--dump-dom",
+            f"{vite_base}/?{urlencode(query)}",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    dom = result.stdout
+    assert "zUSD Monetary Vault" in dom, dom[-8000:]
+    assert "Tau node connected" in dom, dom[-8000:]
+    assert "SUCCESS tx accepted" in dom, dom[-8000:]
+    assert "external_signed_payload" in dom, dom[-8000:]
+    assert f'"action": "{action}"' in dom, dom[-8000:]
+    for snippet in expected_snippets:
+        assert snippet in dom, dom[-8000:]
+    return dom
+
+
 def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     chrome = _chrome_binary()
     if chrome is None:
@@ -182,7 +344,11 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
 
     chain_id = "tau-test-zusd-monetary-ui"
     owner_privkey = 82
+    keeper_privkey = 83
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
+    keeper_pubkey = "0x" + bls_pubkey_hex_from_privkey(keeper_privkey)
+    asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
 
     tau_port = _free_port()
     tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
@@ -205,6 +371,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         "ZUSD_MONETARY_WALLET_TAU_HOST": "127.0.0.1",
         "ZUSD_MONETARY_WALLET_TAU_PORT": str(tau_port),
         "TAU_DEX_CHAIN_ID": chain_id,
+        "TAU_DEX_ZUSD_ORACLE_PUBKEY": owner_pubkey,
     }
     api_proc = subprocess.Popen(
         ["python3", "-m", "src.integration.api_server"],
@@ -232,60 +399,87 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     try:
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
-        deadline = int(time.time()) + 3600
-        prepare_body = {
-            "action": "mint_zusd",
-            "owner_pubkey": owner_pubkey,
-            "amount": 1000,
-            "deadline": deadline,
-            "tx_fee_limit": "0",
-        }
-        prepared = _http_post_json(api_base + "/api/zusd/monetary/prepare", prepare_body)
-        assert prepared["ok"] is True
-        signed_payload = build_signed_tau_transaction(
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
             privkey=owner_privkey,
-            sequence_number=int(prepared["transport"]["tx_sequence_number"]),
-            expiration_time=deadline,
-            operations=prepared["report"]["operations"],
-            fee_limit=0,
+            actor_pubkey=owner_pubkey,
+            action="mint_zusd",
+            profile_name="chrome-profile-mint",
+            amount=1000,
+            expected_snippets=('"debt_e8": 100000000000',),
         )
-        query = urlencode(
-            {
-                "tab": "zusd",
-                "demo": "false",
-                "zenodexUiSmokeZusdMonetary": "1",
-                "zusdMonetaryAction": "mint_zusd",
-                "actorPubkey": owner_pubkey,
-                "zusdAmount": "1000",
-                "zusdDeadline": str(deadline),
-                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
-            }
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 1000
+        assert _zusd_core(app_state)["debt_e8"] == 1000 * E8
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
+            action="deposit_sp",
+            profile_name="chrome-profile-deposit-sp",
+            amount=1000,
+            expected_snippets=('"action": "deposit_sp"',),
         )
-        chrome_profile = tmp_path / "chrome-profile"
-        result = subprocess.run(
-            [
-                chrome,
-                "--headless=new",
-                "--disable-gpu",
-                "--no-sandbox",
-                f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=15000",
-                "--dump-dom",
-                f"{vite_base}/?{query}",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=45,
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 0
+        assert _balance_for_asset(app_state, pubkey=sp_pubkey, asset_id=asset_id) == 1000
+        assert _zusd_core(app_state)["sp_debt_e8"] == 1000 * E8
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
+            action="oracle_report",
+            profile_name="chrome-profile-oracle-report",
+            price_e8=50 * E8,
+            expected_snippets=('"price_e8": 5000000000',),
         )
-        assert result.returncode == 0, result.stderr[-2000:]
-        dom = result.stdout
-        assert "zUSD Monetary Vault" in dom
-        assert "Tau node connected" in dom
-        assert "SUCCESS tx accepted" in dom
-        assert "external_signed_payload" in dom
-        assert '"action": "mint_zusd"' in dom
-        assert '"debt_e8": 100000000000' in dom
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=keeper_privkey,
+            actor_pubkey=keeper_pubkey,
+            action="liquidate",
+            profile_name="chrome-profile-liquidate",
+            expected_snippets=('"action": "liquidate"',),
+        )
+        app_state = _app_state_from_tau_server(tau_server)
+        core = _zusd_core(app_state)
+        assert core["debt_e8"] == 0
+        assert core["sp_debt_e8"] == 0
+        assert _balance_for_asset(app_state, pubkey=sp_pubkey, asset_id=asset_id) == 0
+        assert _sp_claims(app_state) == {owner_pubkey: 20 * E8}
+
+        _run_zusd_browser_submit(
+            chrome=chrome,
+            tmp_path=tmp_path,
+            vite_base=vite_base,
+            api_base=api_base,
+            privkey=owner_privkey,
+            actor_pubkey=owner_pubkey,
+            action="claim_sp_collateral",
+            profile_name="chrome-profile-claim-sp",
+            amount_e8=20 * E8,
+            expected_snippets=('"action": "claim_sp_collateral"',),
+        )
+        app_state = _app_state_from_tau_server(tau_server)
+        assert _zusd_core(app_state)["sp_coll_e8"] == 0
+        assert _sp_claims(app_state) == {}
+        rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+        assert rpc_state.native_balances[owner_pubkey.lower()] == 20 * E8
     finally:
         vite_proc.terminate()
         api_proc.terminate()
