@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -45,6 +46,7 @@ ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
 ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 BOB = "0x" + bls_pubkey_hex_from_privkey(BOB_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
+PARTICIPANTS = (ALICE, BOB)
 
 
 @contextmanager
@@ -211,6 +213,19 @@ def _balance(obj: Mapping[str, Any], *, pubkey: str, asset: str) -> int:
     return 0
 
 
+def _sp_deposit(obj: Mapping[str, Any], *, pubkey: str) -> int:
+    monetary = obj.get("zusd_monetary")
+    if not isinstance(monetary, Mapping):
+        return 0
+    deposits = monetary.get("sp_deposits", [])
+    if not isinstance(deposits, list):
+        raise AssertionError("sp_deposits must be a list")
+    for row in deposits:
+        if isinstance(row, Mapping) and row.get("pubkey") == pubkey:
+            return int(row.get("amount_e8", 0))
+    return 0
+
+
 def _market(obj: Mapping[str, Any], *, market_id: str) -> Mapping[str, Any]:
     perps = _dex_state(obj).get("perps", {})
     if not isinstance(perps, Mapping):
@@ -301,6 +316,41 @@ def _seed_market_state(*, market_id: str) -> str:
         chain_balances=chain_balances,
     )
     return app
+
+
+def _token_transfer(*, sender: str, receiver: str, amount: int, nonce: int) -> dict[str, Any]:
+    return {
+        "module": "TauToken",
+        "action": "transfer",
+        "asset": derive_zusd_tau_asset_id(chain_id=CHAIN_ID),
+        "sender_pubkey": sender,
+        "to_pubkey": receiver,
+        "amount": int(amount),
+        "nonce": int(nonce),
+        "deadline": DEADLINE,
+    }
+
+
+def _perp_collateral_op(*, market_id: str, action: str, account: str, amount: int) -> dict[str, Any]:
+    return {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": market_id,
+        "action": action,
+        "account_pubkey": account,
+        "amount": int(amount),
+    }
+
+
+def _zusd_sp_op(*, action: str, account: str, amount: int, nonce: int, deadline: int = DEADLINE) -> dict[str, Any]:
+    return {
+        "module": "ZUSDFinance",
+        "action": action,
+        "account_pubkey": account,
+        "amount_e8": int(amount) * E8,
+        "nonce": int(nonce),
+        "deadline": int(deadline),
+    }
 
 
 def _scenario_happy_path() -> dict[str, Any]:
@@ -516,6 +566,260 @@ SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
 )
 
 
+def _assert_fuzz_state(app_state_json: str, model: Mapping[str, Any], *, market_id: str) -> None:
+    obj = _state_obj(app_state_json)
+    zusd_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    market = _market(obj, market_id=market_id)
+    market_state = market["state"]
+    balances = model["balances"]
+    perps_collateral = model["perps_collateral"]
+    sp_deposits = model["sp_deposits"]
+
+    assert _balance(obj, pubkey=ALICE, asset=zusd_asset) == int(balances[ALICE])
+    assert _balance(obj, pubkey=BOB, asset=zusd_asset) == int(balances[BOB])
+    assert _balance(obj, pubkey=stability_pool_pubkey(chain_id=CHAIN_ID), asset=zusd_asset) == int(
+        sum(sp_deposits.values())
+    )
+    assert _sp_deposit(obj, pubkey=ALICE) == int(sp_deposits[ALICE]) * E8
+    assert _sp_deposit(obj, pubkey=BOB) == int(sp_deposits[BOB]) * E8
+    assert int(market_state["collateral_e8_a"]) == int(perps_collateral[ALICE]) * E8
+    assert int(market_state["collateral_e8_b"]) == int(perps_collateral[BOB]) * E8
+
+    total_zusd = (
+        int(balances[ALICE])
+        + int(balances[BOB])
+        + int(sp_deposits[ALICE])
+        + int(sp_deposits[BOB])
+        + int(perps_collateral[ALICE])
+        + int(perps_collateral[BOB])
+    )
+    if total_zusd != 1_000:
+        raise AssertionError(f"zUSD conservation drift: {total_zusd}")
+
+
+def _run_fuzz_seed(*, seed: int, steps: int) -> dict[str, Any]:
+    rng = random.Random(seed)
+    market_id = f"perp:ch2p:fuzz-{seed}"
+    app = _seed_market_state(market_id=market_id)
+    model: dict[str, Any] = {
+        "balances": {ALICE: 600, BOB: 400},
+        "perps_collateral": {ALICE: 0, BOB: 0},
+        "sp_deposits": {ALICE: 0, BOB: 0},
+        "token_nonce": {ALICE: 1, BOB: 0},
+        "zusd_nonce": {ALICE: 2, BOB: 0},
+    }
+    _assert_fuzz_state(app, model, market_id=market_id)
+
+    accepted = 0
+    rejected = 0
+    action_counts: dict[str, int] = {}
+    timestamp = 6
+
+    def count(name: str) -> None:
+        action_counts[name] = int(action_counts.get(name, 0)) + 1
+
+    for _ in range(steps):
+        timestamp += 1
+        action = rng.choice(
+            (
+                "token_transfer",
+                "perps_deposit",
+                "perps_withdraw",
+                "zusd_sp_deposit",
+                "zusd_sp_withdraw",
+                "cross_stream_atomic_reject",
+                "zusd_replay_reject",
+            )
+        )
+        balances = model["balances"]
+        perps_collateral = model["perps_collateral"]
+        sp_deposits = model["sp_deposits"]
+
+        if action == "token_transfer":
+            sender, receiver = (ALICE, BOB) if rng.randrange(2) == 0 else (BOB, ALICE)
+            if int(balances[sender]) <= 0:
+                continue
+            amount = rng.randint(1, min(17, int(balances[sender])))
+            nonce = int(model["token_nonce"][sender]) + 1
+            app = _expect_ok(
+                app,
+                operations={"9": [_token_transfer(sender=sender, receiver=receiver, amount=amount, nonce=nonce)]},
+                sender=sender,
+                block_timestamp=timestamp,
+                chain_balances={ALICE: 0},
+            )
+            model["token_nonce"][sender] = nonce
+            balances[sender] -= amount
+            balances[receiver] += amount
+            accepted += 1
+            count(action)
+
+        elif action == "perps_deposit":
+            actor = rng.choice(PARTICIPANTS)
+            if int(balances[actor]) <= 0:
+                continue
+            amount = rng.randint(1, min(23, int(balances[actor])))
+            app = _expect_ok(
+                app,
+                operations={
+                    "8": [_perp_collateral_op(market_id=market_id, action="deposit_collateral", account=actor, amount=amount)]
+                },
+                sender=actor,
+                block_timestamp=timestamp,
+                chain_balances={ALICE: 0},
+            )
+            balances[actor] -= amount
+            perps_collateral[actor] += amount
+            accepted += 1
+            count(action)
+
+        elif action == "perps_withdraw":
+            actor = rng.choice(PARTICIPANTS)
+            if int(perps_collateral[actor]) <= 0:
+                continue
+            amount = rng.randint(1, min(11, int(perps_collateral[actor])))
+            app = _expect_ok(
+                app,
+                operations={
+                    "8": [_perp_collateral_op(market_id=market_id, action="withdraw_collateral", account=actor, amount=amount)]
+                },
+                sender=actor,
+                block_timestamp=timestamp,
+                chain_balances={ALICE: 0},
+            )
+            balances[actor] += amount
+            perps_collateral[actor] -= amount
+            accepted += 1
+            count(action)
+
+        elif action == "zusd_sp_deposit":
+            actor = rng.choice(PARTICIPANTS)
+            if int(balances[actor]) <= 0:
+                continue
+            amount = rng.randint(1, min(19, int(balances[actor])))
+            nonce = int(model["zusd_nonce"][actor]) + 1
+            app = _expect_ok(
+                app,
+                operations={"11": [_zusd_sp_op(action="deposit_sp", account=actor, amount=amount, nonce=nonce)]},
+                sender=actor,
+                block_timestamp=timestamp,
+                chain_balances={ALICE: 0},
+            )
+            model["zusd_nonce"][actor] = nonce
+            balances[actor] -= amount
+            sp_deposits[actor] += amount
+            accepted += 1
+            count(action)
+
+        elif action == "zusd_sp_withdraw":
+            actor = rng.choice(PARTICIPANTS)
+            if int(sp_deposits[actor]) <= 0:
+                continue
+            amount = rng.randint(1, min(13, int(sp_deposits[actor])))
+            nonce = int(model["zusd_nonce"][actor]) + 1
+            app = _expect_ok(
+                app,
+                operations={"11": [_zusd_sp_op(action="withdraw_sp", account=actor, amount=amount, nonce=nonce)]},
+                sender=actor,
+                block_timestamp=timestamp,
+                chain_balances={ALICE: 0},
+            )
+            model["zusd_nonce"][actor] = nonce
+            balances[actor] += amount
+            sp_deposits[actor] -= amount
+            accepted += 1
+            count(action)
+
+        elif action == "cross_stream_atomic_reject":
+            actor = ALICE if int(balances[ALICE]) > 0 else BOB
+            receiver = BOB if actor == ALICE else ALICE
+            nonce = int(model["token_nonce"][actor]) + 1
+            err = _expect_reject_unchanged(
+                app,
+                operations={
+                    "9": [_token_transfer(sender=actor, receiver=receiver, amount=1, nonce=nonce)],
+                    "8": [
+                        _perp_collateral_op(
+                            market_id=market_id,
+                            action="deposit_collateral",
+                            account=actor,
+                            amount=1_000_000,
+                        )
+                    ],
+                },
+                sender=actor,
+                block_timestamp=timestamp,
+                expected_error_fragment="insufficient balance",
+                chain_balances={ALICE: 0},
+            )
+            if "insufficient balance" not in err:
+                raise AssertionError(err)
+            rejected += 1
+            count(action)
+
+        elif action == "zusd_replay_reject":
+            replay_candidates = [pk for pk in PARTICIPANTS if int(model["zusd_nonce"][pk]) > 0]
+            actor = rng.choice(replay_candidates)
+            replay_nonce = int(model["zusd_nonce"][actor])
+            err = _expect_reject_unchanged(
+                app,
+                operations={"11": [_zusd_sp_op(action="deposit_sp", account=actor, amount=1, nonce=replay_nonce)]},
+                sender=actor,
+                block_timestamp=timestamp,
+                expected_error_fragment="nonce invalid",
+                chain_balances={ALICE: 0},
+            )
+            if "nonce invalid" not in err:
+                raise AssertionError(err)
+            rejected += 1
+            count(action)
+
+        _assert_fuzz_state(app, model, market_id=market_id)
+
+    if accepted == 0 or rejected == 0:
+        raise AssertionError("fuzz seed did not exercise both accepted and rejected actions")
+    return {
+        "seed": seed,
+        "steps": steps,
+        "accepted": accepted,
+        "rejected": rejected,
+        "action_counts": dict(sorted(action_counts.items())),
+        "final_balances": {
+            "alice": int(model["balances"][ALICE]),
+            "bob": int(model["balances"][BOB]),
+            "alice_perps_collateral": int(model["perps_collateral"][ALICE]),
+            "bob_perps_collateral": int(model["perps_collateral"][BOB]),
+            "alice_sp_deposit": int(model["sp_deposits"][ALICE]),
+            "bob_sp_deposit": int(model["sp_deposits"][BOB]),
+        },
+    }
+
+
+def run_fuzz_campaign(*, seeds: int = 4, steps: int = 32) -> dict[str, Any]:
+    seed_receipts: list[dict[str, Any]] = []
+    errors: list[str] = []
+    with _patched_env(_base_env()):
+        for seed in range(seeds):
+            try:
+                seed_receipts.append(_run_fuzz_seed(seed=seed, steps=steps))
+            except Exception as exc:
+                errors.append(f"seed {seed}: {exc}")
+    return {
+        "ok": not errors,
+        "seed_count": seeds,
+        "steps_per_seed": steps,
+        "accepted_total": sum(int(item["accepted"]) for item in seed_receipts),
+        "rejected_total": sum(int(item["rejected"]) for item in seed_receipts),
+        "disaster_states": [
+            "long_horizon_balance_drift",
+            "long_horizon_cross_stream_partial_mutation",
+            "long_horizon_nonce_replay_materializes",
+        ],
+        "seeds": seed_receipts,
+        "errors": errors,
+    }
+
+
 def run_campaign() -> dict[str, Any]:
     scenarios: list[dict[str, Any]] = []
     with _patched_env(_base_env()):
@@ -542,15 +846,17 @@ def run_campaign() -> dict[str, Any]:
                         }
                     )
     accepted = sum(1 for scenario in scenarios if scenario["status"] == "accepted")
+    fuzz = run_fuzz_campaign()
     return {
         "schema": SCHEMA,
-        "ok": accepted == len(scenarios),
+        "ok": accepted == len(scenarios) and bool(fuzz["ok"]),
         "chain_id": CHAIN_ID,
         "surface": "stream11_zusd_monetary__stream9_zusd_token__stream8_clearinghouse_perps",
         "scenario_count": len(scenarios),
         "accepted_scenario_count": accepted,
         "disaster_states": [scenario["disaster_state"] for scenario in scenarios],
         "scenarios": scenarios,
+        "fuzz_campaign": fuzz,
         "not_claimed": [
             "production_wallet_key_management",
             "live_tau_fee_market_model",

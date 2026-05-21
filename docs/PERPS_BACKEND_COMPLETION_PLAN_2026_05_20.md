@@ -412,16 +412,18 @@ python3 tools/zenodex_live_cross_stream_stateful.py --format json
 pytest -q tests/integration/test_zenodex_live_cross_stream_stateful.py
 ```
 
-Results: replay tool accepted `6` bounded scenarios; receipt tests `2 passed`.
-This covers stream `11` zUSD monetary, stream `9` zUSD token transport, and
-stream `8` clearinghouse perps in one deterministic campaign. The named
-disaster states are `balance_drift_after_cross_stream_success`,
-`duplicate_side_effect_after_replay`, `cross_stream_partial_mutation`,
-`expired_deadline_materializes`, `perps_overdeposit_materializes`, and
-`stale_or_missing_oracle_evidence_settles`.
+Results: replay tool accepted `6` bounded scenarios plus `4` deterministic fuzz
+seeds of `32` steps each; receipt tests `2 passed`. This covers stream `11`
+zUSD monetary, stream `9` zUSD token transport, and stream `8` clearinghouse
+perps in one deterministic campaign. The named scenario disaster states are
+`balance_drift_after_cross_stream_success`, `duplicate_side_effect_after_replay`,
+`cross_stream_partial_mutation`, `expired_deadline_materializes`,
+`perps_overdeposit_materializes`, and `stale_or_missing_oracle_evidence_settles`.
+The fuzz lane adds `long_horizon_balance_drift`,
+`long_horizon_cross_stream_partial_mutation`, and
+`long_horizon_nonce_replay_materializes`.
 
 Remaining limits:
 
 - no explicit isolated-market partial-liquidation wallet action yet;
-- no randomized long-horizon cross-stream fuzz campaign yet;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

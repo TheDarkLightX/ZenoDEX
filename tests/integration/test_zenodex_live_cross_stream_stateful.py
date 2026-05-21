@@ -24,6 +24,11 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
     assert receipt["ok"] is True
     assert receipt["scenario_count"] == 6
     assert receipt["accepted_scenario_count"] == receipt["scenario_count"]
+    assert receipt["fuzz_campaign"]["ok"] is True
+    assert receipt["fuzz_campaign"]["seed_count"] == 4
+    assert receipt["fuzz_campaign"]["steps_per_seed"] == 32
+    assert receipt["fuzz_campaign"]["accepted_total"] > 0
+    assert receipt["fuzz_campaign"]["rejected_total"] > 0
     assert set(receipt["disaster_states"]) == {
         "balance_drift_after_cross_stream_success",
         "duplicate_side_effect_after_replay",
@@ -57,3 +62,9 @@ def test_live_cross_stream_stateful_replay_writes_receipt(tmp_path: Path) -> Non
     by_id = {scenario["id"]: scenario for scenario in receipt["scenarios"]}
     assert by_id["cross_stream_valid_zusd_bad_perps_is_atomic"]["evidence"]["rejection"] == "unknown market_id"
     assert "nonce invalid" in by_id["duplicate_zusd_mint_replay_rejected_without_side_effect"]["evidence"]["rejection"]
+    assert receipt["fuzz_campaign"]["errors"] == []
+    assert set(receipt["fuzz_campaign"]["disaster_states"]) == {
+        "long_horizon_balance_drift",
+        "long_horizon_cross_stream_partial_mutation",
+        "long_horizon_nonce_replay_materializes",
+    }

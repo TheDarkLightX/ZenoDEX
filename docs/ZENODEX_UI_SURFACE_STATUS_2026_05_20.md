@@ -129,8 +129,9 @@ python3 tools/zenodex_live_cross_stream_stateful.py --format json
 pytest -q tests/integration/test_zenodex_live_cross_stream_stateful.py
 ```
 
-Results: replay tool accepted `6` bounded scenarios; receipt tests `2 passed`.
-The covered disaster states are duplicate zUSD replay side effects,
-cross-stream partial mutation, expired zUSD deadline materialization, perps
-overdeposit materialization, missing Oracle bridge settlement, and balance drift
-after a zUSD-to-perps success path.
+Results: replay tool accepted `6` bounded scenarios plus `4` deterministic fuzz
+seeds of `32` steps each; receipt tests `2 passed`. The covered disaster states
+are duplicate zUSD replay side effects, cross-stream partial mutation, expired
+zUSD deadline materialization, perps overdeposit materialization, missing Oracle
+bridge settlement, balance drift after a zUSD-to-perps success path, and
+long-horizon balance/nonce/atomicity drift.
