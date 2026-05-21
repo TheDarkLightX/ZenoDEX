@@ -44,12 +44,20 @@ that binds chain id, stream key, operation hash, operation-stream hash,
 pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
 result, sender, sequence, fee limit, signing mode, and a public state-delta
 witness for changed perps markets after submit. The mounted UI renders that
-proof profile, receipt hash, and delta-witness count while keeping
-`zk_proof_verified=false` until a real RISC Zero or equivalent verifier is
-present. The completion plan is recorded in
+proof profile, receipt hash, delta-witness count, and the perps wallet-authority
+preflight status. `/api/perps/wallet/status` can load a public wallet-authority
+profile from `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
+`PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
+key-manager refs, a matching signer registry, external signer and device
+approval controls, stream `8` scope, state-delta witness requirements, and an
+explicit proof/ZK runtime profile. The UI reports the authority as blocked when
+that profile is absent or invalid, while keeping `zk_proof_verified=false` until
+a real RISC Zero or equivalent verifier is present. The completion plan is
+recorded in
 `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
-production Oracle network authority, full production wallet/key-manager registry
-and device UX, and a real proof/ZK wrapper for stream `8`.
+production Oracle network authority, hardware/OS wallet UX and recovery flows
+behind the public wallet-authority profile, and a real proof/ZK wrapper for
+stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -203,6 +211,23 @@ Results: API proof-profile checks `3 passed`, browser proof-profile smoke `1
 passed`, and Vite production build passed. This is deterministic proof-intent
 and state-delta witness evidence for stream `8`; it does not claim real zkVM
 execution.
+
+Latest perps wallet-authority preflight pass on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/zeno_ledger_signature.py src/integration/perps_wallet_authority.py src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_stream8_resilience.py
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+npm run build
+```
+
+Results: py_compile passed, perps wallet API plus stream-8 resilience checks `31
+passed`, mounted perps wallet browser checks `6 passed`, and Vite production
+build passed. The mounted wallet status now reports a public perps
+wallet-authority profile as `ready` only when public key-manager refs, signer
+registry binding, required external-signing controls, stream `8` scope, and
+proof-profile requirements all validate; otherwise the UI renders the authority
+as blocked.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

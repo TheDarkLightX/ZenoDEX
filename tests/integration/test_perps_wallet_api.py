@@ -6,8 +6,16 @@ import pytest
 
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.perps_wallet_authority import (
+    PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    build_perps_wallet_authority_profile_v1,
+    evaluate_perps_wallet_authority_profile_v1,
+)
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
+from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
+from src.integration.zeno_ledger_signature import infer_artifact_hash_v0
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
@@ -25,6 +33,77 @@ ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 MARKET_ID = "perp:ch2p:test"
 ISOLATED_MARKET_ID = "perp:isolated:test"
+
+
+def _perps_wallet_key_manager(*, second_pubkey: str = BOB) -> dict[str, object]:
+    return ZenoKeyManager(
+        key_refs=(
+            KeyRef(key_id="perps-wallet-a", public_key=ALICE),
+            KeyRef(key_id="perps-wallet-b", public_key=second_pubkey),
+        )
+    ).public_dict()
+
+
+def _perps_wallet_signer_registry(*, second_pubkey: str = BOB, threshold: int = 1) -> dict[str, object]:
+    return build_signer_registry_v0(
+        registry_id="perps-wallet-authority-v1",
+        payload_kind=PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+        threshold=threshold,
+        signers=(
+            {
+                "signer_id": "wallet-a",
+                "key_id": "perps-wallet-a",
+                "public_key": ALICE,
+                "weight": 1,
+                "status": "active",
+            },
+            {
+                "signer_id": "wallet-b",
+                "key_id": "perps-wallet-b",
+                "public_key": second_pubkey,
+                "weight": 1,
+                "status": "active",
+            },
+        ),
+    )
+
+
+def _perps_wallet_authority_profile(**overrides: object) -> dict[str, object]:
+    base = {
+        "authority_id": "perps-wallet-mainnet-authority-v1",
+        "chain_id": CHAIN_ID,
+        "stage": "production",
+        "enabled": True,
+        "key_manager": _perps_wallet_key_manager(),
+        "signer_registry": _perps_wallet_signer_registry(),
+        "wallet_ux": {
+            "external_signer_required": True,
+            "key_manager_required": True,
+            "device_approval_required": True,
+            "replay_protection_required": True,
+        },
+        "proof_profile": {
+            "stream8_proof_intent_required": True,
+            "state_delta_witness_required": True,
+            "zk_or_proof_required": True,
+            "runtime_proof_profile": "perps-stream8-risc0-or-equivalent-v1",
+        },
+        "transaction_scope": {
+            "stream_key": "8",
+            "allowed_actions": [
+                "init_market_2p",
+                "deposit_collateral",
+                "withdraw_collateral",
+                "set_position_pair",
+                "advance_epoch",
+                "publish_clearing_price",
+                "settle_epoch",
+                "partial_liquidate",
+            ],
+        },
+    }
+    base.update(overrides)
+    return build_perps_wallet_authority_profile_v1(**base)
 
 
 def _wrapped_app_state(state: DexState) -> dict[str, object]:
@@ -308,6 +387,86 @@ def _reset_fake_client_balances() -> None:
     _FakeClient.native_balances = {}
     yield
     _FakeClient.native_balances = {}
+
+
+def test_perps_wallet_authority_missing_profile_is_blocked() -> None:
+    status = evaluate_perps_wallet_authority_profile_v1(None, expected_chain_id=CHAIN_ID)
+
+    assert status["ok"] is False
+    assert status["production_wallet_authority"] is False
+    assert status["status"] == "blocked"
+    assert status["readiness_gaps"] == ["perps wallet authority profile is missing"]
+
+
+def test_perps_wallet_authority_complete_profile_is_ready() -> None:
+    profile = _perps_wallet_authority_profile()
+    status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=CHAIN_ID)
+
+    assert status["ok"] is True
+    assert status["production_wallet_authority"] is True
+    assert status["status"] == "ready"
+    assert status["readiness_gaps"] == []
+    assert status["threshold"] == 1
+    assert status["active_signer_count"] == 2
+    assert status["key_ref_count"] == 2
+    assert status["wallet_ux"]["device_approval_required"] is True
+    assert status["wallet_ux"]["replay_protection_required"] is True
+    assert status["proof_profile"]["state_delta_witness_required"] is True
+    assert status["proof_profile"]["runtime_proof_profile"] == "perps-stream8-risc0-or-equivalent-v1"
+    assert status["transaction_scope"]["stream_key"] == "8"
+    assert "deposit_collateral" in status["transaction_scope"]["allowed_actions"]
+    assert infer_artifact_hash_v0(
+        artifact=profile,
+        payload_kind=PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    ) == profile["wallet_authority_hash"]
+
+
+def test_perps_wallet_authority_blocks_bad_controls_and_chain_mismatch() -> None:
+    profile = _perps_wallet_authority_profile(
+        chain_id="wrong-chain",
+        stage="devnet",
+        enabled=False,
+        wallet_ux={
+            "external_signer_required": True,
+            "key_manager_required": False,
+            "device_approval_required": True,
+            "replay_protection_required": False,
+        },
+        proof_profile={
+            "stream8_proof_intent_required": True,
+            "state_delta_witness_required": False,
+            "zk_or_proof_required": False,
+            "runtime_proof_profile": "",
+        },
+        transaction_scope={"stream_key": "9", "allowed_actions": []},
+    )
+
+    status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=CHAIN_ID)
+    gaps = set(status["readiness_gaps"])
+
+    assert status["production_wallet_authority"] is False
+    assert "perps wallet authority profile is not enabled" in gaps
+    assert "perps wallet authority profile stage must be production" in gaps
+    assert "perps wallet authority profile chain_id mismatch" in gaps
+    assert "wallet_ux.key_manager_required must be true" in gaps
+    assert "wallet_ux.replay_protection_required must be true" in gaps
+    assert "proof_profile.state_delta_witness_required must be true" in gaps
+    assert "proof_profile.zk_or_proof_required must be true" in gaps
+    assert "proof_profile.runtime_proof_profile must be a non-empty string" in gaps
+    assert "transaction_scope.stream_key must be 8" in gaps
+    assert "transaction_scope.allowed_actions must be a non-empty string list" in gaps
+
+
+def test_perps_wallet_authority_blocks_signer_key_manager_public_key_mismatch() -> None:
+    profile = _perps_wallet_authority_profile(
+        key_manager=_perps_wallet_key_manager(second_pubkey=ORACLE),
+        signer_registry=_perps_wallet_signer_registry(second_pubkey=BOB),
+    )
+
+    status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=CHAIN_ID)
+
+    assert status["production_wallet_authority"] is False
+    assert "active signer key_id perps-wallet-b public key mismatch" in status["readiness_gaps"]
 
 
 def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatch) -> None:
@@ -851,6 +1010,8 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", raising=False)
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
@@ -862,6 +1023,10 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     assert proof_profile["zk_wrapper_required_for_production_claim"] is True
     assert proof_profile["promotion_ready"] is False
     assert "does_not_claim_perps_zk_execution" in proof_profile["non_claims"]
+    wallet_authority = payload["status"]["wallet_authority"]
+    assert payload["status"]["production_wallet_authority"] is False
+    assert wallet_authority["status"] == "blocked"
+    assert wallet_authority["readiness_gaps"] == ["perps wallet authority profile is missing"]
     markets = payload["status"]["markets"]
     assert len(markets) == 1
     market = markets[0]
@@ -873,6 +1038,34 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     assert market["position_base_a"] == 0
     assert market["position_base_b"] == 0
     assert market["net_deposited_e8"] == 20_000_000_000
+
+
+def test_status_loads_ready_perps_wallet_authority_profile(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["production_wallet_authority"] is True
+    wallet_authority = payload["status"]["wallet_authority"]
+    assert wallet_authority["status"] == "ready"
+    assert wallet_authority["readiness_gaps"] == []
+    assert wallet_authority["key_ref_count"] == 2
+    assert wallet_authority["active_signer_count"] == 2
+    assert wallet_authority["transaction_scope"]["stream_key"] == "8"
+    encoded = json.dumps(wallet_authority, sort_keys=True)
+    assert "private_key" not in encoded
+    assert "secret_hex" not in encoded
 
 
 def test_prepare_partial_liquidate_is_opt_in_for_isolated_markets(monkeypatch) -> None:

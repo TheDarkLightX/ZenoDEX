@@ -436,6 +436,7 @@ function PerpLiveWalletSurface() {
   const proofProfile = result?.proof?.profile || status?.proof_profile || null;
   const proofReceipt = result?.proof?.intent_receipt || null;
   const stateDeltaWitness = proofReceipt?.state_delta_witness || result?.post_submit?.state_delta_witness || null;
+  const walletAuthority = status?.wallet_authority || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
     && status?.require_oracle_adapter_for_isolated_partial_liquidate
@@ -469,6 +470,8 @@ function PerpLiveWalletSurface() {
           <div><span>Isolated</span><span>{status?.allow_isolated_markets ? 'enabled' : 'disabled'}</span></div>
           <div><span>Proof profile</span><span>{proofProfile?.profile_id || 'unassigned'}</span></div>
           <div><span>ZK proof</span><span>{proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span></div>
+          <div><span>Wallet Authority</span><span>{walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span></div>
+          <div><span>Wallet Signers</span><span>{walletAuthority ? `${walletAuthority.active_signer_count}/${walletAuthority.threshold || '?'}` : 'unknown'}</span></div>
         </div>
 
         <div className="perp-live-wallet-form">
@@ -750,6 +753,8 @@ function PerpLiveWalletSurface() {
           <span>proof receipt {compactId(proofReceipt?.receipt_hash)}</span>
           <span>zk proof {proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span>
           <span>delta witness {stateDeltaWitness ? stateDeltaWitness.changed_markets?.length ?? 0 : 'pending'}</span>
+          <span>wallet authority {walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span>
+          <span>wallet keys {walletAuthority?.key_ref_count ?? 0}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {selectedMarket?.liquidated_this_step != null ? (
             <span>liquidated {selectedMarket.liquidated_this_step ? 'yes' : 'no'}</span>

@@ -38,6 +38,7 @@ SUPPORTED_PAYLOAD_KINDS_V0 = frozenset(
         "tau_export_packet",
         "checkpoint",
         "oracle_authority_profile",
+        "perps_wallet_authority_profile",
     }
 )
 
@@ -292,4 +293,6 @@ def infer_artifact_hash_v0(*, artifact: Mapping[str, Any], payload_kind: str) ->
         return _require_root(obj.get("checkpoint_hash"), name="artifact.checkpoint_hash")
     if kind == "oracle_authority_profile":
         return _require_root(obj.get("authority_hash"), name="artifact.authority_hash")
+    if kind == "perps_wallet_authority_profile":
+        return _require_root(obj.get("wallet_authority_hash"), name="artifact.wallet_authority_hash")
     raise ValueError("payload_kind is not supported")

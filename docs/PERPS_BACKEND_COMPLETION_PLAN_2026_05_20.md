@@ -61,11 +61,12 @@ posted into signed clearinghouse perps collateral.
 
 ## What Is Still Missing
 
-The remaining blockers are broader stateful/chaos assurance, production wallet
-and key-manager integration, production Oracle network authority, proof/ZK
-wrapping, and final branch/PR cleanup. Docker browser evidence, typed
-Oracle bridge fixtures, action-aware local Oracle evidence selection, and
-clearinghouse liquidation UI evidence exist for the current local/testnet lane.
+The remaining blockers are broader stateful/chaos assurance, hardware/OS wallet
+UX and recovery flows behind the public wallet-authority profile, production
+Oracle network authority, proof/ZK wrapping, and final branch/PR cleanup. Docker
+browser evidence, typed Oracle bridge fixtures, action-aware local Oracle
+evidence selection, clearinghouse liquidation UI evidence, and a
+wallet-authority profile preflight exist for the current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -265,6 +266,11 @@ The UI now exposes:
 - externally signed Tau transaction envelope submission for perps, so a
   key-manager or external signer can prepare a stream `8` transaction without
   sending raw private-key material to the wallet API
+- perps wallet-authority preflight via `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
+  `PERPS_WALLET_AUTHORITY_PROFILE_FILE`, with public key-manager refs, a matching
+  signer registry, external signer and device approval controls, stream `8`
+  scope, state-delta witness requirements, and an explicit proof/ZK runtime
+  profile
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
 - first-class local typed Oracle adapter bridge fixtures for settle and opt-in
   isolated partial-liquidation testing, plus a JSON bridge field for externally
@@ -276,7 +282,8 @@ Still missing from the mounted perps UI:
 
 - production Oracle network authority behind the evidence picker/viewer
 - richer liquidation history
-- full production wallet/key-manager UX and backend registry integration
+- hardware/OS wallet UX, recovery flows, and live signer-device integration
+  behind the public wallet-authority profile
 
 ### Phase 4: Assurance
 
@@ -358,7 +365,7 @@ It also proves the mounted zUSD tab can submit a stream `11` monetary mint
 through the Tau-node-backed API and observe post-submit state. It is enough for
 the current local/testnet zUSD-to-perps browser lane, but it is not enough to
 claim full perps product completion because broader stateful/chaos assurance,
-production wallet/key-manager integration, production Oracle network authority,
+hardware/OS wallet UX and recovery flows, production Oracle network authority,
 and proof/ZK wrapping remain open.
 
 Perps live wallet checks added on 2026-05-20:
@@ -507,11 +514,26 @@ production build passed. This covers submit-time validation of externally signed
 stream `8` envelopes against expected sender, sequence, expiry, fee, operations,
 and BLS signature before `sendtx`, without enabling local private-key signing.
 
+Additional perps wallet-authority preflight evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/zeno_ledger_signature.py src/integration/perps_wallet_authority.py src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_missing_profile_is_blocked tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_complete_profile_is_ready tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_bad_controls_and_chain_mismatch tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_signer_key_manager_public_key_mismatch tests/integration/test_perps_wallet_api.py::test_status_exposes_clearinghouse_liquidation_summary_fields tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_authority_profile
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+```
+
+Results: py_compile passed; focused wallet-authority/API status checks `6
+passed`; mounted perps wallet browser smoke `1 passed`.
+
+This is a public profile and readiness-gate check. It does not custody keys,
+prove hardware wallet approval, prove perps ZK execution, or claim production
+Oracle truth.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker is local/devnet
   mounted evidence, not production Oracle network authority;
-- the perps wallet has external signed-envelope submit support, but full
-  production key registry, hardware/OS keychain UX, and recovery flows remain
-  outside the mounted DEX UI;
+- the perps wallet has external signed-envelope submit support and a public
+  wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
+  approval, and recovery flows remain outside the mounted DEX UI;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import urlsplit
 
@@ -18,6 +19,7 @@ from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .dex_snapshot import state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
+from .perps_wallet_authority import evaluate_perps_wallet_authority_profile_v1
 from .tau_net_client import (
     TauNetRpcError,
     TauNetTcpClient,
@@ -124,6 +126,30 @@ def _auto_mine() -> bool:
 def _default_deadline() -> int:
     delta = _env_int("PERPS_WALLET_DEFAULT_DEADLINE_S", 3600, lo=1, hi=86_400)
     return int(time.time()) + int(delta)
+
+
+def _wallet_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    raw = _env_str("PERPS_WALLET_AUTHORITY_PROFILE_JSON", "")
+    if raw:
+        try:
+            obj = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return None, f"perps wallet authority profile JSON invalid: {exc}"
+        if not isinstance(obj, Mapping):
+            return None, "perps wallet authority profile JSON must be an object"
+        return obj, None
+
+    path_raw = _env_str("PERPS_WALLET_AUTHORITY_PROFILE_FILE", "")
+    if path_raw:
+        try:
+            obj = json.loads(Path(path_raw).read_text(encoding="utf-8"))
+        except Exception as exc:
+            return None, f"perps wallet authority profile file invalid: {exc}"
+        if not isinstance(obj, Mapping):
+            return None, "perps wallet authority profile file must contain an object"
+        return obj, None
+
+    return None, None
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -1389,6 +1415,16 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
 
 def _status_payload() -> Dict[str, Any]:
     chain_id = _tau_chain_id()
+    wallet_authority_profile, wallet_authority_error = _wallet_authority_profile_from_env()
+    wallet_authority = evaluate_perps_wallet_authority_profile_v1(
+        wallet_authority_profile,
+        expected_chain_id=chain_id,
+    )
+    if wallet_authority_error is not None:
+        wallet_authority["ok"] = False
+        wallet_authority["production_wallet_authority"] = False
+        wallet_authority["status"] = "blocked"
+        wallet_authority.setdefault("readiness_gaps", []).append(wallet_authority_error)
     status: Dict[str, Any] = {
         "enabled": True,
         "chain_id": chain_id,
@@ -1414,6 +1450,8 @@ def _status_payload() -> Dict[str, Any]:
             False,
         ),
         "proof_profile": _perps_proof_profile(),
+        "wallet_authority": wallet_authority,
+        "production_wallet_authority": wallet_authority["production_wallet_authority"],
     }
     try:
         client = _tau_client()
