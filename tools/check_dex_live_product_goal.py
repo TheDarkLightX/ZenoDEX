@@ -461,7 +461,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "production_autotrader",
-        "description": "AutoTrader evidence covers explicit local/testnet execute-once plus bounded supervisor ticks, not unattended production execution.",
+        "description": "AutoTrader evidence covers explicit local/testnet execute-once plus bounded supervisor ticks with replay guard and per-process run budget, not unattended production execution.",
     },
     {
         "id": "confidential_runtime",

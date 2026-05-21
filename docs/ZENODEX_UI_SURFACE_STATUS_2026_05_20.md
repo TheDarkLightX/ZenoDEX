@@ -86,7 +86,9 @@ encoded operations, and BLS signature before `sendtx`; replaying the same
 signed envelope is rejected before a second `sendtx`; the execute-once path
 consumes a caller-provided execution key only after successful local/testnet
 submission; and the supervisor path requires a public local/testnet supervisor
-profile plus a deterministic preflight receipt before submit. This is
+profile plus a deterministic preflight receipt before submit. The supervisor
+lane now also enforces the declared per-process run budget and exposes the
+remaining run count in mounted status and result receipts. This is
 Tau-envelope transport, stateful replay-guard, and bounded supervisor evidence
 for the Strategy panel, while unattended production strategy execution and
 production wallet key management remain non-claims.
@@ -159,9 +161,10 @@ can submit the prepared Tau envelope to a local/testnet Tau RPC behind
 `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, and renders the result in the
 Strategy tab. The same suite now also covers a bounded supervisor route that
 requires a public local/testnet supervisor profile, emits a supervisor
-preflight receipt, and consumes a replay-guarded execution key after
-successful submit. They do not claim unattended production strategy execution,
-production wallet key management, or production chain submission.
+preflight receipt, consumes a replay-guarded execution key after successful
+submit, and enforces the declared per-process run budget. They do not claim
+unattended production strategy execution, production wallet key management, or
+production chain submission.
 
 Latest AutoTrader live-prepare pass on 2026-05-21:
 

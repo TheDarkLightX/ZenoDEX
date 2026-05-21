@@ -222,6 +222,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const supervisorMode = result?.execution?.mode || 'manual_tick';
   const supervisorReadiness = supervisorStatus?.supervisor_ready ? 'ready' : 'blocked';
   const preflightHash = result?.preflight?.preflight_hash || null;
+  const supervisorRuntime = supervisorStatus?.runtime || null;
+  const supervisorConsumedRuns = result?.execution?.consumed_runs_in_process ?? supervisorRuntime?.consumed_runs_in_process ?? 0;
+  const supervisorRemainingRuns = result?.execution?.remaining_runs_in_process ?? supervisorRuntime?.remaining_runs_in_process ?? 0;
 
   async function refreshStatus() {
     try {
@@ -398,6 +401,14 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           <strong>{supervisorReadiness}</strong>
         </div>
         <div className="strat-live-metric">
+          <span>Supervisor runs</span>
+          <strong>{`${supervisorConsumedRuns}/${supervisorStatus?.max_runs_per_process ?? 0}`}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Supervisor remaining</span>
+          <strong>{supervisorRemainingRuns}</strong>
+        </div>
+        <div className="strat-live-metric">
           <span>Operations</span>
           <strong>{operationCount}</strong>
         </div>
@@ -507,6 +518,12 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           )}
           {result?.execution?.mode && (
             <div className="strat-kv"><span>Supervisor mode</span><span>{supervisorMode}</span></div>
+          )}
+          {result?.execution?.run_scope_id && (
+            <div className="strat-kv"><span>Supervisor scope</span><span>{result.execution.run_scope_id}</span></div>
+          )}
+          {result?.execution?.consumed_runs_in_process != null && (
+            <div className="strat-kv"><span>Supervisor budget</span><span>{`${result.execution.consumed_runs_in_process}/${supervisorStatus?.max_runs_per_process ?? 0}`}</span></div>
           )}
           {report?.tau_tx_payload && (
             <div className="strat-live-code strat-mono">

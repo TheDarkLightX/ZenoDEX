@@ -41,6 +41,7 @@ _AUTOTRADER_LIVE_NOT_CLAIMED = [
     "production_chain_submission",
 ]
 _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA = "zenodex/autotrader-supervisor-preflight/v1"
+_SUPERVISOR_RUN_COUNTERS: dict[str, int] = {}
 
 
 def _env_str(name: str, default: str) -> str:
@@ -458,9 +459,47 @@ def _supervisor_profile_from_env() -> tuple[Mapping[str, Any] | None, str | None
     )
 
 
-def _supervisor_status_payload(*, chain_id: str | None = None) -> dict[str, Any]:
+def _supervisor_process_key(
+    *,
+    supervisor_status: Mapping[str, Any],
+    chain_id: str,
+) -> str:
+    supervisor_id = str(supervisor_status.get("supervisor_id") or "").strip()
+    return f"{chain_id}:{supervisor_id}" if supervisor_id else chain_id
+
+
+def _supervisor_runtime_state(
+    *,
+    supervisor_status: Mapping[str, Any],
+    chain_id: str,
+    supervisor_runs: Mapping[str, int] | None,
+) -> dict[str, Any]:
+    run_scope_id = _supervisor_process_key(supervisor_status=supervisor_status, chain_id=chain_id)
+    max_runs_per_process = int(supervisor_status.get("max_runs_per_process") or 0)
+    consumed_runs_in_process = int((supervisor_runs or {}).get(run_scope_id, 0))
+    remaining_runs_in_process = max(0, max_runs_per_process - consumed_runs_in_process)
+    return {
+        "run_scope_id": run_scope_id,
+        "max_runs_per_process": max_runs_per_process,
+        "consumed_runs_in_process": consumed_runs_in_process,
+        "remaining_runs_in_process": remaining_runs_in_process,
+        "run_budget_available": remaining_runs_in_process > 0,
+    }
+
+
+def _supervisor_status_payload(
+    *,
+    chain_id: str | None = None,
+    supervisor_runs: Mapping[str, int] | None = None,
+) -> dict[str, Any]:
     profile, profile_error = _supervisor_profile_from_env()
     status = evaluate_autotrader_supervisor_profile_v1(profile, expected_chain_id=chain_id)
+    if chain_id is not None:
+        status["runtime"] = _supervisor_runtime_state(
+            supervisor_status=status,
+            chain_id=chain_id,
+            supervisor_runs=supervisor_runs,
+        )
     if profile_error:
         status["ok"] = False
         status["supervisor_ready"] = False
@@ -474,10 +513,13 @@ def _build_supervisor_preflight(
     supervisor_status: Mapping[str, Any],
     execution_id: str,
     report: Mapping[str, Any],
+    consumed_runs_in_process: int,
 ) -> dict[str, Any]:
     stage_certificate = report.get("stage_certificate")
     live_release_certificate = report.get("live_release_certificate")
     operations = report.get("operations")
+    max_runs_per_process = int(supervisor_status.get("max_runs_per_process") or 0)
+    remaining_runs_in_process = max(0, max_runs_per_process - int(consumed_runs_in_process))
     body = {
         "schema": _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA,
         "supervisor_hash": supervisor_status.get("supervisor_hash"),
@@ -489,6 +531,9 @@ def _build_supervisor_preflight(
         "decision_tag": report.get("decision", {}).get("tag") if isinstance(report.get("decision"), Mapping) else None,
         "operation_count": _operation_count(operations),
         "max_actions_per_tick": int(supervisor_status.get("max_actions_per_tick") or 0),
+        "max_runs_per_process": max_runs_per_process,
+        "consumed_runs_in_process": int(consumed_runs_in_process),
+        "remaining_runs_in_process": remaining_runs_in_process,
         "stage_hash": stage_certificate.get("stage_hash") if isinstance(stage_certificate, Mapping) else None,
         "release_hash": live_release_certificate.get("release_hash") if isinstance(live_release_certificate, Mapping) else None,
         "release_ok": (
@@ -687,20 +732,33 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_supervisor_preflight_response(body: Mapping[str, Any]) -> dict[str, Any]:
+def _build_supervisor_preflight_response(
+    body: Mapping[str, Any],
+    *,
+    supervisor_runs: Mapping[str, int] | None,
+) -> dict[str, Any]:
     if not _allow_supervisor():
         return {
             "ok": False,
             "error": "supervisor_disabled",
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
-    supervisor = _supervisor_status_payload(
-        chain_id=str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
-    )
+    chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
+    supervisor = _supervisor_status_payload(chain_id=chain_id, supervisor_runs=supervisor_runs)
     if supervisor.get("supervisor_ready") is not True:
         return {
             "ok": False,
             "error": "supervisor_profile_not_ready",
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    runtime = supervisor.get("runtime") if isinstance(supervisor.get("runtime"), Mapping) else {}
+    consumed_runs_in_process = int(runtime.get("consumed_runs_in_process") or 0)
+    max_runs_per_process = int(supervisor.get("max_runs_per_process") or 0)
+    if max_runs_per_process > 0 and consumed_runs_in_process >= max_runs_per_process:
+        return {
+            "ok": False,
+            "error": f"supervisor_max_runs_per_process_exceeded:{consumed_runs_in_process}>={max_runs_per_process}",
             "supervisor": supervisor,
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
@@ -742,6 +800,7 @@ def _build_supervisor_preflight_response(body: Mapping[str, Any]) -> dict[str, A
         supervisor_status=supervisor,
         execution_id=execution_id,
         report=report,
+        consumed_runs_in_process=consumed_runs_in_process,
     )
     return {
         **prepared,
@@ -757,6 +816,7 @@ def _build_supervisor_execute_response(
     body: Mapping[str, Any],
     *,
     execution_keys: set[str] | None,
+    supervisor_runs: dict[str, int] | None,
 ) -> dict[str, Any]:
     if execution_keys is None:
         return {"ok": False, "error": "execution_key_table_unavailable"}
@@ -766,7 +826,9 @@ def _build_supervisor_execute_response(
             "error": "external_signed_tau_tx_payload_required",
             "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
-    preflight_payload = _build_supervisor_preflight_response(body)
+    if supervisor_runs is None:
+        supervisor_runs = _SUPERVISOR_RUN_COUNTERS
+    preflight_payload = _build_supervisor_preflight_response(body, supervisor_runs=supervisor_runs)
     if preflight_payload.get("ok") is not True:
         return preflight_payload
     execution_id = _request_execution_id(body)
@@ -786,6 +848,13 @@ def _build_supervisor_execute_response(
     if submitted.get("ok") is not True:
         return submitted
     execution_keys.add(execution_id)
+    supervisor = preflight_payload.get("supervisor") if isinstance(preflight_payload.get("supervisor"), Mapping) else {}
+    chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
+    run_scope_id = _supervisor_process_key(supervisor_status=supervisor, chain_id=chain_id)
+    consumed_runs_in_process = int(supervisor_runs.get(run_scope_id, 0)) + 1
+    supervisor_runs[run_scope_id] = consumed_runs_in_process
+    max_runs_per_process = int(supervisor.get("max_runs_per_process") or 0)
+    remaining_runs_in_process = max(0, max_runs_per_process - consumed_runs_in_process)
     return {
         **submitted,
         "status": "supervisor_executed",
@@ -796,6 +865,9 @@ def _build_supervisor_execute_response(
             "execution_id": execution_id,
             "replay_guard": "consumed",
             "mode": "supervised_manual_tick",
+            "run_scope_id": run_scope_id,
+            "consumed_runs_in_process": consumed_runs_in_process,
+            "remaining_runs_in_process": remaining_runs_in_process,
         },
         "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
@@ -846,11 +918,12 @@ def _build_execute_once_response(
 
 
 def _status_payload() -> dict[str, Any]:
+    chain_id = _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local")
     return {
         "enabled": True,
         "surface": "autotrader_live_prepare",
         "mode": "receipt_backed_prepare",
-        "chain_id": _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"),
+        "chain_id": chain_id,
         "allow_local_signing": _allow_signing(),
         "testnet_submission_enabled": _allow_testnet_submission(),
         "execute_once_enabled": _allow_execute_once(),
@@ -859,7 +932,8 @@ def _status_payload() -> dict[str, Any]:
         "tau_host": _env_str("AUTOTRADER_LIVE_TAU_HOST", "127.0.0.1"),
         "tau_port": _env_int("AUTOTRADER_LIVE_TAU_PORT", 65432, lo=1, hi=65535),
         "supervisor": _supervisor_status_payload(
-            chain_id=_env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local")
+            chain_id=chain_id,
+            supervisor_runs=_SUPERVISOR_RUN_COUNTERS,
         ),
         "endpoints": [
             "GET /api/strategy/autotrader/status",
@@ -884,6 +958,7 @@ def handle_autotrader_live_request(
     body: Optional[bytes],
     *,
     execution_keys: set[str] | None = None,
+    supervisor_runs: dict[str, int] | None = None,
 ) -> ResponseT:
     parsed_path = urlsplit(path)
     segments = [segment for segment in parsed_path.path.split("/") if segment]
@@ -914,11 +989,18 @@ def handle_autotrader_live_request(
             status = 200 if payload.get("ok") is True else 400
             return status, payload
         if rest == ["supervisor", "preflight"]:
-            payload = _build_supervisor_preflight_response(parsed)
+            payload = _build_supervisor_preflight_response(
+                parsed,
+                supervisor_runs=_SUPERVISOR_RUN_COUNTERS if supervisor_runs is None else supervisor_runs,
+            )
             status = 200 if payload.get("ok") is True else 400
             return status, payload
         if rest == ["supervisor", "execute"]:
-            payload = _build_supervisor_execute_response(parsed, execution_keys=execution_keys)
+            payload = _build_supervisor_execute_response(
+                parsed,
+                execution_keys=execution_keys,
+                supervisor_runs=_SUPERVISOR_RUN_COUNTERS if supervisor_runs is None else supervisor_runs,
+            )
             status = 200 if payload.get("ok") is True else 400
             return status, payload
         return 404, {"ok": False, "error": "not_found"}

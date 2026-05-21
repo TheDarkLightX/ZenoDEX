@@ -587,6 +587,10 @@ def test_autotrader_live_supervisor_ui_smoke_through_browser(
         assert "supervisor_executed" in dom
         assert "strategy-ui-supervisor-1" in dom
         assert "supervised_manual_tick" in dom
+        assert "tau-local:autotrader.supervisor.local.1" in dom
+        assert "Supervisor remaining" in dom
+        assert "1/16" in dom
+        assert "15" in dom
         assert "external_signed_payload" in dom
         assert "ready" in dom
         assert len(tau_server.state.sent) == 1  # type: ignore[attr-defined]

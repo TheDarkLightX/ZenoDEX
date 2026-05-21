@@ -506,9 +506,13 @@ def test_autotrader_live_supervisor_preflight_emits_receipt(
     assert payload["ok"] is True
     assert payload["status"] == "supervisor_preflight_ready"
     assert payload["supervisor"]["supervisor_ready"] is True
+    assert payload["supervisor"]["runtime"]["consumed_runs_in_process"] == 0
+    assert payload["supervisor"]["runtime"]["remaining_runs_in_process"] == 16
     assert payload["preflight"]["execution_id"] == "supervisor-preflight-1"
     assert payload["preflight"]["required_signing_mode"] == "external_signed_payload"
     assert payload["preflight"]["operation_count"] == 1
+    assert payload["preflight"]["consumed_runs_in_process"] == 0
+    assert payload["preflight"]["remaining_runs_in_process"] == 16
     assert payload["preflight"]["stage_hash"]
     assert payload["preflight"]["release_hash"]
     assert payload["preflight"]["preflight_hash"]
@@ -582,6 +586,9 @@ def test_autotrader_live_supervisor_execute_consumes_execution_key_and_rejects_r
         "execution_id": "supervisor-exec-1",
         "replay_guard": "consumed",
         "mode": "supervised_manual_tick",
+        "run_scope_id": "tau-local:autotrader.supervisor.local.1",
+        "consumed_runs_in_process": 1,
+        "remaining_runs_in_process": 15,
     }
     assert accepted["supervisor"]["supervisor_ready"] is True
     assert accepted["preflight"]["preflight_hash"]
@@ -598,6 +605,119 @@ def test_autotrader_live_supervisor_execute_consumes_execution_key_and_rejects_r
     assert replay["ok"] is False
     assert replay["error"] == "execution_replay"
     assert replay["execution"]["replay_guard"] == "already_consumed"
+    assert len(_FakeTauClient.sent) == 1
+
+
+def test_autotrader_live_supervisor_execute_enforces_max_runs_per_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+        sequence = 9
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return type(self).sequence
+
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
+            type(self).sent.append(dict(payload))
+            type(self).sequence += 1
+            return "SUCCESS: Transaction queued."
+
+    _FakeTauClient.sent = []
+    _FakeTauClient.sequence = 9
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_ENABLED", "true")
+    profile = build_autotrader_supervisor_profile_v1(
+        supervisor_id="autotrader.supervisor.local.1",
+        chain_id="tau-local",
+        stage="local-testnet",
+        enabled=True,
+        external_signed_payload_required=True,
+        execution_id_required=True,
+        release_certificate_required=True,
+        stage_certificate_required=True,
+        require_testnet_submission=True,
+        require_local_preparation=True,
+        max_actions_per_tick=1,
+        max_runs_per_process=1,
+        allowed_templates=["dca"],
+        allowed_actions=["PLACE_SWAP_EXACT_IN"],
+    )
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_PROFILE_JSON", json.dumps(profile, sort_keys=True))
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    execution_keys: set[str] = set()
+    supervisor_runs: dict[str, int] = {}
+    prepare_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+    status, prepared = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(prepare_body).encode("utf-8"),
+    )
+    assert status == 200
+    payload_one = build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=9,
+        expiration_time=999,
+        operations=prepared["report"]["operations"],
+        fee_limit="0",
+    )
+    first_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "execution_id": "supervisor-exec-1",
+        "signed_tau_tx_payload": payload_one,
+    }
+    status, accepted = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/execute",
+        json.dumps(first_body).encode("utf-8"),
+        execution_keys=execution_keys,
+        supervisor_runs=supervisor_runs,
+    )
+    assert status == 200
+    assert accepted["ok"] is True
+    assert supervisor_runs == {"tau-local:autotrader.supervisor.local.1": 1}
+
+    second_payload = build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=10,
+        expiration_time=999,
+        operations=prepared["report"]["operations"],
+        fee_limit="0",
+    )
+    second_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "execution_id": "supervisor-exec-2",
+        "signed_tau_tx_payload": second_payload,
+    }
+    status, blocked = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/execute",
+        json.dumps(second_body).encode("utf-8"),
+        execution_keys=execution_keys,
+        supervisor_runs=supervisor_runs,
+    )
+    assert status == 400
+    assert blocked["ok"] is False
+    assert blocked["error"] == "supervisor_max_runs_per_process_exceeded:1>=1"
+    assert blocked["supervisor"]["runtime"]["consumed_runs_in_process"] == 1
+    assert blocked["supervisor"]["runtime"]["remaining_runs_in_process"] == 0
     assert len(_FakeTauClient.sent) == 1
 
 
