@@ -42,12 +42,14 @@ before `sendtx`, so an external signer or key-manager can drive the live stream
 now emits a deterministic `perps_stream8_live_wallet_v0` proof-intent receipt
 that binds chain id, stream key, operation hash, operation-stream hash,
 pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
-result, sender, sequence, fee limit, and signing mode. The mounted UI renders
-that proof profile and receipt hash while keeping `zk_proof_verified=false`
-until a real RISC Zero or equivalent verifier is present. The completion plan is
-recorded in `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers
-are now production Oracle network authority, full production wallet/key-manager
-registry and device UX, and a real proof/ZK wrapper for stream `8`.
+result, sender, sequence, fee limit, signing mode, and a public state-delta
+witness for changed perps markets after submit. The mounted UI renders that
+proof profile, receipt hash, and delta-witness count while keeping
+`zk_proof_verified=false` until a real RISC Zero or equivalent verifier is
+present. The completion plan is recorded in
+`docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
+production Oracle network authority, full production wallet/key-manager registry
+and device UX, and a real proof/ZK wrapper for stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -199,7 +201,8 @@ npm run build
 
 Results: API proof-profile checks `3 passed`, browser proof-profile smoke `1
 passed`, and Vite production build passed. This is deterministic proof-intent
-evidence for stream `8`; it does not claim real zkVM execution.
+and state-delta witness evidence for stream `8`; it does not claim real zkVM
+execution.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

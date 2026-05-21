@@ -340,6 +340,7 @@ def _perps_proof_profile() -> dict[str, Any]:
             "tau_envelope_signature_binding",
             "engine_preflight_replay",
             "post_submit_app_hash_binding_when_available",
+            "public_state_delta_witness_binding",
         ],
         "not_covered": [
             "risc0_zkvm_wrapper",
@@ -374,6 +375,7 @@ def _perps_proof_intent_receipt(
     tx_fee_limit: int,
     signing_mode: str,
     tau_tx_payload: Mapping[str, Any] | None,
+    state_delta_witness: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     tau_tx_hash = None
     if tau_tx_payload is not None:
@@ -397,6 +399,11 @@ def _perps_proof_intent_receipt(
         "tx_fee_limit": str(int(tx_fee_limit)),
         "signing_mode": str(signing_mode),
         "tau_tx_payload_hash": tau_tx_hash,
+        "state_delta_witness_hash": (
+            None
+            if state_delta_witness is None
+            else _hash_payload("zenodex.perps_wallet.state_delta_witness/v1", state_delta_witness)
+        ),
         "zk_proof_verified": False,
         "proof_verifier": None,
     }
@@ -404,7 +411,110 @@ def _perps_proof_intent_receipt(
         "schema": _PERPS_PROOF_INTENT_SCHEMA,
         "profile_id": _PERPS_PROOF_PROFILE_ID,
         "body": body,
+        "state_delta_witness": None if state_delta_witness is None else dict(state_delta_witness),
         "receipt_hash": _hash_payload(_PERPS_PROOF_INTENT_HASH_DOMAIN, body),
+    }
+
+
+def _perps_state_delta_witness(
+    *,
+    chain_id: str,
+    action: str,
+    app_hash_before: str | None,
+    app_hash_after: str | None,
+    app_state_before: Mapping[str, Any],
+    app_state_after: Mapping[str, Any],
+) -> dict[str, Any]:
+    before_markets = _market_summaries(app_state_before)
+    after_markets = _market_summaries(app_state_after)
+    before_by_id = {str(item.get("market_id")): item for item in before_markets}
+    after_by_id = {str(item.get("market_id")): item for item in after_markets}
+    changed_markets: list[dict[str, Any]] = []
+    numeric_fields = (
+        "account_a_quote_balance",
+        "account_b_quote_balance",
+        "collateral_e8_a",
+        "collateral_e8_b",
+        "fee_pool_e8",
+        "net_deposited_e8",
+        "position_base_a",
+        "position_base_b",
+        "index_price_e8",
+        "clearing_price_e8",
+        "now_epoch",
+        "oracle_last_update_epoch",
+        "fee_pool_quote",
+        "insurance_balance",
+    )
+    for market_id in sorted(set(before_by_id) | set(after_by_id)):
+        before = before_by_id.get(market_id, {})
+        after = after_by_id.get(market_id, {})
+        deltas: dict[str, int] = {}
+        for field in numeric_fields:
+            before_value = before.get(field, 0)
+            after_value = after.get(field, 0)
+            if isinstance(before_value, int) and isinstance(after_value, int):
+                delta = int(after_value) - int(before_value)
+                if delta:
+                    deltas[field] = delta
+        account_deltas: list[dict[str, Any]] = []
+        before_accounts_raw = before.get("accounts")
+        if isinstance(before_accounts_raw, list):
+            before_accounts = {
+                str(account.get("account_pubkey")): account
+                for account in before_accounts_raw
+                if isinstance(account, Mapping)
+            }
+        else:
+            before_accounts = {}
+        after_accounts_raw = after.get("accounts")
+        if isinstance(after_accounts_raw, list):
+            after_accounts = {
+                str(account.get("account_pubkey")): account
+                for account in after_accounts_raw
+                if isinstance(account, Mapping)
+            }
+        else:
+            after_accounts = {}
+        for account_pubkey in sorted(set(before_accounts) | set(after_accounts)):
+            before_account = before_accounts.get(account_pubkey, {})
+            after_account = after_accounts.get(account_pubkey, {})
+            account_delta: dict[str, Any] = {"account_pubkey": account_pubkey}
+            for field in ("position_base", "collateral_quote"):
+                before_value = before_account.get(field, 0)
+                after_value = after_account.get(field, 0)
+                if isinstance(before_value, int) and isinstance(after_value, int):
+                    delta = int(after_value) - int(before_value)
+                    if delta:
+                        account_delta[f"{field}_delta"] = delta
+            liquidation_changed = before_account.get("liquidated_this_step") != after_account.get("liquidated_this_step")
+            if len(account_delta) > 1 or liquidation_changed:
+                account_delta["liquidated_before"] = bool(before_account.get("liquidated_this_step", False))
+                account_delta["liquidated_after"] = bool(after_account.get("liquidated_this_step", False))
+                account_deltas.append(account_delta)
+        market_liquidation_changed = before.get("liquidated_this_step") != after.get("liquidated_this_step")
+        if deltas or account_deltas or not before or not after or market_liquidation_changed:
+            changed_markets.append(
+                {
+                    "market_id": market_id,
+                    "kind_before": before.get("kind"),
+                    "kind_after": after.get("kind"),
+                    "deltas": deltas,
+                    "account_deltas": account_deltas,
+                    "liquidated_before": bool(before.get("liquidated_this_step", False)),
+                    "liquidated_after": bool(after.get("liquidated_this_step", False)),
+                }
+            )
+    return {
+        "schema": "zenodex/perps_wallet/state_delta_witness/v1",
+        "chain_id": str(chain_id),
+        "stream_key": _STREAM_KEY,
+        "action": str(action),
+        "app_hash_before": app_hash_before,
+        "app_hash_after": app_hash_after,
+        "market_count_before": len(before_markets),
+        "market_count_after": len(after_markets),
+        "changed_markets": changed_markets,
     }
 
 
@@ -1236,6 +1346,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
                 tx_fee_limit=tx_fee_limit,
                 signing_mode=signing_mode,
                 tau_tx_payload=tau_tx_payload,
+                state_delta_witness=None,
             ),
         },
     }
@@ -1245,7 +1356,19 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         if _auto_mine():
             payload["submission"]["createblock_response"] = client.createblock()
         app_state_after, app_hash_after = _load_app_state(client)
-        payload["post_submit"] = {"app_hash": app_hash_after, "markets": _market_summaries(app_state_after)}
+        state_delta_witness = _perps_state_delta_witness(
+            chain_id=chain_id,
+            action=action,
+            app_hash_before=app_hash,
+            app_hash_after=app_hash_after,
+            app_state_before=app_state,
+            app_state_after=app_state_after,
+        )
+        payload["post_submit"] = {
+            "app_hash": app_hash_after,
+            "markets": _market_summaries(app_state_after),
+            "state_delta_witness": state_delta_witness,
+        }
         payload["proof"]["intent_receipt"] = _perps_proof_intent_receipt(
             chain_id=chain_id,
             action=action,
@@ -1259,6 +1382,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             tx_fee_limit=tx_fee_limit,
             signing_mode=signing_mode,
             tau_tx_payload=tau_tx_payload,
+            state_delta_witness=state_delta_witness,
         )
     return payload
 

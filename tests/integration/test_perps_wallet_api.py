@@ -497,6 +497,26 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
     monkeypatch.delenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
+    def sendtx_and_apply(self, payload):
+        self.sent.append(dict(payload))
+        wire_ops = payload.get("operations")
+        assert isinstance(wire_ops, dict)
+        stream_ops = json.loads(wire_ops["8"])
+        state = perps_wallet_api._state_from_app_state(self.app_state)
+        result = apply_perp_ops(
+            config=PerpEngineConfig(chain_id=CHAIN_ID, oracle_pubkey=ORACLE, operator_pubkey=OPERATOR),
+            state=state,
+            operations={"5": stream_ops},
+            tx_sender_pubkey="0x" + str(payload["sender_pubkey"]),
+            block_timestamp=1,
+        )
+        assert result.ok, result.error
+        assert result.state is not None
+        self.app_state = _wrapped_app_state(result.state)
+        return "SUCCESS tx accepted"
+
+    monkeypatch.setattr(_FakeClient, "sendtx", sendtx_and_apply)
+
     body = {
         "action": "deposit_collateral",
         "market_id": MARKET_ID,
@@ -543,6 +563,16 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
     assert proof_body["app_hash_after"] == "sha256:" + "cd" * 32
     assert proof_body["signing_mode"] == "external_signed_payload"
     assert proof_body["tau_tx_payload_hash"].startswith("0x")
+    assert proof_body["state_delta_witness_hash"].startswith("0x")
+    witness = payload["proof"]["intent_receipt"]["state_delta_witness"]
+    assert witness["schema"] == "zenodex/perps_wallet/state_delta_witness/v1"
+    assert witness["stream_key"] == "8"
+    assert witness["action"] == "deposit_collateral"
+    assert witness["app_hash_before"] == "sha256:" + "cd" * 32
+    assert witness["app_hash_after"] == "sha256:" + "cd" * 32
+    assert len(witness["changed_markets"]) == 1
+    assert witness["changed_markets"][0]["market_id"] == MARKET_ID
+    assert witness["changed_markets"][0]["deltas"]["collateral_e8_a"] == 1000 * 100_000_000
 
 
 def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:

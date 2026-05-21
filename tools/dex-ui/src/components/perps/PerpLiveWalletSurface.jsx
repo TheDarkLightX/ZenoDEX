@@ -435,6 +435,7 @@ function PerpLiveWalletSurface() {
   const feeCovered = result?.transport?.fee_limit_native_balance_ok;
   const proofProfile = result?.proof?.profile || status?.proof_profile || null;
   const proofReceipt = result?.proof?.intent_receipt || null;
+  const stateDeltaWitness = proofReceipt?.state_delta_witness || result?.post_submit?.state_delta_witness || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
     && status?.require_oracle_adapter_for_isolated_partial_liquidate
@@ -748,6 +749,7 @@ function PerpLiveWalletSurface() {
           <span>proof profile {proofProfile?.profile_id || 'unassigned'}</span>
           <span>proof receipt {compactId(proofReceipt?.receipt_hash)}</span>
           <span>zk proof {proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span>
+          <span>delta witness {stateDeltaWitness ? stateDeltaWitness.changed_markets?.length ?? 0 : 'pending'}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {selectedMarket?.liquidated_this_step != null ? (
             <span>liquidated {selectedMarket.liquidated_this_step ? 'yes' : 'no'}</span>

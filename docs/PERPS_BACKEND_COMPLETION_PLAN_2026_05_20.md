@@ -234,6 +234,15 @@ The mounted UI also loads live ZenoOracle dashboard candidates from
 accepted reads, authorizations, aggregates, selected evidence, and
 local-vs-production authority posture beside the stream `8` submit flow.
 
+The live wallet API now emits `perps_stream8_live_wallet_v0` proof-intent
+receipts. The receipt binds chain id, stream key, operation hash,
+operation-stream hash, pre-submit app hash, optional post-submit app hash, Tau
+envelope hash, preflight result, sender, sequence, fee limit, signing mode, and
+a public state-delta witness for changed perps markets. This completes the
+deterministic receipt/witness step of the proof-promotion plan for stream `8`.
+It still requires a real RISC Zero or equivalent wrapper and verifier gate
+before becoming a ZK execution claim.
+
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.
 
