@@ -23,6 +23,7 @@ const EMPTY_FORM = {
   delta: '1',
   price_e8: '100000000',
   oracle_adapter_bridge: '',
+  signed_tau_tx_payload: '',
   new_position_base_a: '1',
   new_position_base_b: '-1',
   fraction_bps: '2500',
@@ -67,6 +68,7 @@ function readSmokeConfig() {
     delta: params.get('delta') || '1',
     price_e8: params.get('priceE8') || params.get('price_e8') || '100000000',
     oracle_adapter_bridge: params.get('oracleAdapterBridge') || params.get('oracle_adapter_bridge') || '',
+    signed_tau_tx_payload: params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || '',
     new_position_base_a: params.get('positionA') || params.get('new_position_base_a') || '1',
     new_position_base_b: params.get('positionB') || params.get('new_position_base_b') || '-1',
     fraction_bps: params.get('fractionBps') || params.get('fraction_bps') || '2500',
@@ -99,6 +101,9 @@ function buildPayload(form) {
   }
   if (String(form.tx_fee_limit || '').trim()) {
     payload.tx_fee_limit = String(form.tx_fee_limit).trim();
+  }
+  if (form.signed_tau_tx_payload.trim()) {
+    payload.signed_tau_tx_payload = form.signed_tau_tx_payload.trim();
   }
   if (action === 'init_market_2p' || action === 'set_position_pair') {
     if (form.account_a_pubkey.trim()) payload.account_a_pubkey = form.account_a_pubkey.trim();
@@ -344,6 +349,15 @@ function PerpLiveWalletSurface() {
             placeholder="native units"
           />
 
+          <label className="label" htmlFor="perps-wallet-signed-tx">Signed Tau Tx Payload</label>
+          <textarea
+            id="perps-wallet-signed-tx"
+            className="input perp-live-wallet-textarea"
+            value={form.signed_tau_tx_payload}
+            onChange={(event) => setForm((current) => ({ ...current, signed_tau_tx_payload: event.target.value }))}
+            placeholder="external signer JSON"
+          />
+
           {form.action === 'init_market_2p' ? (
             <>
               <label className="label" htmlFor="perps-wallet-quote">Quote Asset</label>
@@ -557,6 +571,7 @@ function PerpLiveWalletSurface() {
           <span>{preflight?.ok ? 'preflight ok' : `preflight failed: ${preflight?.error || 'unknown'}`}</span>
           <span>fee limit {result.transport?.tx_fee_limit ?? '0'}</span>
           <span>fee covered {feeCovered == null ? 'unknown' : feeCovered ? 'yes' : 'no'}</span>
+          <span>signing {result.transport?.signing_mode || 'prepare_only'}</span>
           <span>{result.transport?.app_hash || 'no app hash'}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {selectedMarket?.liquidated_this_step != null ? (

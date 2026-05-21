@@ -30,10 +30,14 @@ asset for signed clearinghouse collateral deposits, and the UI can submit signed
 stream `8` market init, oracle price publish, and opt-in isolated partial
 liquidation actions through `/api/perps/wallet/*`. Local typed Oracle bridge
 fixtures cover both `settle_epoch` and isolated `partial_liquidate` browser
-tests. The completion plan is recorded in
+tests. The perps wallet submit path also accepts externally signed Tau
+transaction envelopes and validates their sender, sequence, expiry, fee,
+operations, and BLS signature before `sendtx`, so an external signer or
+key-manager can drive the live stream `8` lane without enabling local raw-key
+signing in the API. The completion plan is recorded in
 `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
-production Oracle-evidence picker/viewer UX, production wallet/key-manager
-integration, and proof/ZK promotion.
+production Oracle-evidence picker/viewer UX, full production wallet/key-manager
+registry and device UX, and proof/ZK promotion.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in

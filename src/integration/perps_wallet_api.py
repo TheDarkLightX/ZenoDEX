@@ -24,7 +24,9 @@ from .tau_net_client import (
     TauNetTcpConfig,
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
+    encode_tau_operations_for_wire,
     sign_perp_op_for_engine,
+    verify_tau_transaction_payload_signature,
 )
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
@@ -332,6 +334,60 @@ def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]
     if not isinstance(raw, Mapping):
         raise ValueError(f"bad_{name}")
     return raw
+
+
+def _request_signed_tau_tx_payload(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    for name in ("signed_tau_tx_payload", "tau_tx_payload"):
+        value = _request_mapping(body, name=name)
+        if value is not None:
+            return value
+    return None
+
+
+def _validate_external_tau_tx_payload(
+    payload: Mapping[str, Any],
+    *,
+    tx_sender_pubkey: str,
+    tx_sequence_number: int,
+    deadline: int,
+    operations: Mapping[str, Any],
+    tx_fee_limit: int,
+) -> dict[str, Any]:
+    sender_raw = payload.get("sender_pubkey")
+    if not isinstance(sender_raw, str) or not sender_raw.strip():
+        raise ValueError("signed_tau_tx_payload missing sender_pubkey")
+    sender_prefixed = sender_raw if sender_raw.lower().startswith("0x") else "0x" + sender_raw
+    sender_pubkey = _canonical_pubkey(sender_prefixed, name="signed_tau_tx_payload.sender_pubkey")
+    if sender_pubkey.lower() != tx_sender_pubkey.lower():
+        raise ValueError("signed_tau_tx_payload sender mismatch")
+
+    sequence_number = payload.get("sequence_number")
+    if not isinstance(sequence_number, int) or isinstance(sequence_number, bool):
+        raise ValueError("signed_tau_tx_payload bad sequence_number")
+    if int(sequence_number) != int(tx_sequence_number):
+        raise ValueError("signed_tau_tx_payload sequence mismatch")
+
+    expiration_time = payload.get("expiration_time")
+    if not isinstance(expiration_time, int) or isinstance(expiration_time, bool):
+        raise ValueError("signed_tau_tx_payload bad expiration_time")
+    if int(expiration_time) != int(deadline):
+        raise ValueError("signed_tau_tx_payload expiration mismatch")
+
+    if str(payload.get("fee_limit")) != str(tx_fee_limit):
+        raise ValueError("signed_tau_tx_payload fee_limit mismatch")
+
+    raw_operations = payload.get("operations")
+    if not isinstance(raw_operations, Mapping):
+        raise ValueError("signed_tau_tx_payload operations must be an object")
+    if dict(raw_operations) != encode_tau_operations_for_wire(operations):
+        raise ValueError("signed_tau_tx_payload operations mismatch")
+
+    signature = payload.get("signature")
+    if not isinstance(signature, str) or not signature.strip():
+        raise ValueError("signed_tau_tx_payload missing signature")
+    if not verify_tau_transaction_payload_signature(payload):
+        raise ValueError("signed_tau_tx_payload signature invalid")
+    return dict(payload)
 
 
 def _market_id(body: Mapping[str, Any], *, action: str | None = None) -> str:
@@ -942,20 +998,34 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     quote_balance = _balance_for_asset(app_state, pubkey=account_pubkey, asset_id=quote_asset) if quote_asset else 0
 
     tau_tx_payload: dict[str, Any] | None = None
+    signing_mode = "prepare_only"
     if for_submit:
-        if not _allow_signing():
-            raise ValueError("local_signing_disabled")
-        signer_privkey = _tx_signer_privkey(body, action=action)
-        signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="tx_signer_pubkey")
-        if signer_pubkey.lower() != tx_sender_pubkey.lower():
-            raise ValueError("tx_signer_privkey does not match sender_pubkey")
-        tau_tx_payload = build_signed_tau_transaction(
-            privkey=cast(Any, signer_privkey),
-            sequence_number=tx_sequence_number,
-            expiration_time=deadline,
-            operations=operations,
-            fee_limit=tx_fee_limit,
-        )
+        external_payload = _request_signed_tau_tx_payload(body)
+        if external_payload is not None:
+            tau_tx_payload = _validate_external_tau_tx_payload(
+                external_payload,
+                tx_sender_pubkey=tx_sender_pubkey,
+                tx_sequence_number=tx_sequence_number,
+                deadline=deadline,
+                operations=operations,
+                tx_fee_limit=tx_fee_limit,
+            )
+            signing_mode = "external_signed_payload"
+        else:
+            if not _allow_signing():
+                raise ValueError("local_signing_disabled")
+            signer_privkey = _tx_signer_privkey(body, action=action)
+            signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="tx_signer_pubkey")
+            if signer_pubkey.lower() != tx_sender_pubkey.lower():
+                raise ValueError("tx_signer_privkey does not match sender_pubkey")
+            tau_tx_payload = build_signed_tau_transaction(
+                privkey=cast(Any, signer_privkey),
+                sequence_number=tx_sequence_number,
+                expiration_time=deadline,
+                operations=operations,
+                fee_limit=tx_fee_limit,
+            )
+            signing_mode = "local_test_signing"
 
     payload: Dict[str, Any] = {
         "ok": True,
@@ -978,6 +1048,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
                 hi=65535,
             ),
             "allow_local_signing": _allow_signing(),
+            "signing_mode": signing_mode,
             "auto_mine": _auto_mine(),
             "quote_balance": quote_balance,
         },

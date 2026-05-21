@@ -235,6 +235,9 @@ The UI now exposes:
 - opt-in isolated partial liquidation with explicit bps or `0` auto-sizing
 - Tau fee-limit input plus native-balance coverage reporting
 - Tau submission receipt
+- externally signed Tau transaction envelope submission for perps, so a
+  key-manager or external signer can prepare a stream `8` transaction without
+  sending raw private-key material to the wallet API
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
 - first-class local typed Oracle adapter bridge fixtures for settle and opt-in
   isolated partial-liquidation testing, plus a JSON bridge field for externally
@@ -245,7 +248,7 @@ Still missing from the mounted perps UI:
 - production typed Oracle evidence picker/viewer
 - richer liquidation history and a production Oracle-evidence picker for
   isolated partial liquidation
-- production wallet/key-manager integration
+- full production wallet/key-manager UX and backend registry integration
 
 ### Phase 4: Assurance
 
@@ -448,8 +451,24 @@ opt-in gate, typed O3 aggregate-adapter bridge generation for
 fraction, `0` auto-sizing pass-through, and persisted under-maintenance isolated
 accounts reaching the liquidation path.
 
+Additional production-wallet compatibility evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_accepts_external_signed_tau_payload_without_local_signing tests/integration/test_perps_wallet_api.py::test_submit_rejects_external_signed_tau_payload_operation_mismatch
+npm run build
+```
+
+Results: external signed Tau envelope checks `2 passed`; the mounted UI
+production build passed. This covers submit-time validation of externally signed
+stream `8` envelopes against expected sender, sequence, expiry, fee, operations,
+and BLS signature before `sendtx`, without enabling local private-key signing.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in and does not yet have a production
   Oracle-evidence picker;
+- the perps wallet has external signed-envelope submit support, but full
+  production key registry, hardware/OS keychain UX, and recovery flows remain
+  outside the mounted DEX UI;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

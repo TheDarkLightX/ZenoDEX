@@ -7,7 +7,7 @@ import pytest
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
@@ -472,8 +472,102 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
     assert payload["transport"]["quote_balance"] == 5_000
     assert payload["report"]["tau_tx_payload"]["fee_limit"] == "2"
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
+
+
+def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    _FakeClient.native_balances = {ALICE[2:]: 5}
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.delenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "deposit_collateral",
+        "market_id": MARKET_ID,
+        "account_pubkey": ALICE,
+        "amount": 1000,
+        "tx_fee_limit": "2",
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, prepared = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    assert prepared["ok"] is True
+    assert prepared["report"]["tau_tx_payload"] is None
+
+    external_payload = build_signed_tau_transaction(
+        privkey=ALICE_PRIVKEY,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=123456789,
+        operations=prepared["report"]["operations"],
+        fee_limit=2,
+    )
+    submit_body = {**body, "signed_tau_tx_payload": external_payload}
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(submit_body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["transport"]["allow_local_signing"] is False
+    assert payload["transport"]["signing_mode"] == "external_signed_payload"
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["tau_tx_payload"] == external_payload
+    assert _FakeClient.sent == [external_payload]
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
     assert json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])[0]["action"] == "deposit_collateral"
+
+
+def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.delenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "deposit_collateral",
+        "market_id": MARKET_ID,
+        "account_pubkey": ALICE,
+        "amount": 1000,
+        "tx_fee_limit": "2",
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, prepared = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    wrong_operations = json.loads(json.dumps(prepared["report"]["operations"]))
+    wrong_operations["8"][0]["amount"] = 999
+    external_payload = build_signed_tau_transaction(
+        privkey=ALICE_PRIVKEY,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=123456789,
+        operations=wrong_operations,
+        fee_limit=2,
+    )
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps({**body, "signed_tau_tx_payload": external_payload}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "signed_tau_tx_payload operations mismatch"}
+    assert _FakeClient.sent == []
 
 
 def test_submit_withdraw_collateral_uses_sender_bound_account_and_stream_8(monkeypatch) -> None:
