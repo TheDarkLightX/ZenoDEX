@@ -14,7 +14,9 @@ from src.integration.zeno_ledger_signature import (
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_exercise_v1,
     build_oracle_authority_profile_v1,
+    evaluate_oracle_authority_exercise_v1,
     evaluate_oracle_authority_profile_v1,
 )
 
@@ -222,6 +224,63 @@ def test_oracle_authority_status_is_secret_free() -> None:
     assert "secret_hex" not in encoded
 
 
+def test_oracle_authority_local_exercise_is_ready() -> None:
+    profile = _profile()
+    exercise = build_oracle_authority_exercise_v1(
+        chain_id="zeno-ledger-mainnet",
+        authority_id="zenooracle-mainnet-authority-v1",
+        target_network="local",
+        current_epoch=12,
+        operator_service_url="http://127.0.0.1:8787/api/oracle/dashboard",
+        query_id="query:oracle-local",
+        report_id="report:oracle-local",
+        aggregate_id="aggregate:oracle-local",
+        read_id="read:oracle-local",
+        authorization_id="authorization:oracle-local",
+        reward_receipt_id="reward:oracle-local",
+    )
+
+    status = evaluate_oracle_authority_exercise_v1(
+        profile,
+        exercise,
+        expected_chain_id="zeno-ledger-mainnet",
+    )
+
+    assert status["ok"] is True
+    assert status["authority_exercised"] is True
+    assert status["public_testnet_evidence_present"] is False
+    assert status["public_testnet_exercised"] is False
+    assert status["exercise_hash"].startswith("0x")
+    assert status["status_hash"].startswith("0x")
+
+
+def test_oracle_authority_public_testnet_exercise_requires_broadcast_refs() -> None:
+    profile = _profile()
+    exercise = build_oracle_authority_exercise_v1(
+        chain_id="zeno-ledger-mainnet",
+        authority_id="zenooracle-mainnet-authority-v1",
+        target_network="public_testnet",
+        current_epoch=12,
+        operator_service_url="http://127.0.0.1:8787/api/oracle/dashboard",
+        query_id="query:oracle-public",
+        report_id="report:oracle-public",
+        aggregate_id="aggregate:oracle-public",
+        read_id="read:oracle-public",
+        authorization_id="authorization:oracle-public",
+        reward_receipt_id="reward:oracle-public",
+    )
+
+    status = evaluate_oracle_authority_exercise_v1(
+        profile,
+        exercise,
+        expected_chain_id="zeno-ledger-mainnet",
+    )
+
+    assert status["ok"] is False
+    assert status["authority_exercised"] is False
+    assert "public testnet exercise requires public_broadcast_reference and public_settlement_reference" in status["errors"]
+
+
 def test_oracle_authority_endpoint_reports_missing_profile(tmp_path: Path) -> None:
     from tools.zenodex_oracle import _dashboard_endpoint_payload
 
@@ -253,6 +312,39 @@ def test_oracle_dashboard_snapshot_loads_ready_authority_profile(tmp_path: Path)
     assert status_code == 200
     assert payload["production_authority"] is True
     assert payload["authority_status"]["status"] == "ready"
+
+
+def test_oracle_authority_exercise_endpoint_reports_ready_local_exercise(tmp_path: Path) -> None:
+    from tools.zenodex_oracle import _write_endpoint_payload
+
+    home = tmp_path / "oracle-exercise"
+    authority_dir = home / "authority"
+    authority_dir.mkdir(parents=True)
+    (authority_dir / "production_authority_profile.json").write_text(
+        json.dumps(_profile(), sort_keys=True),
+        encoding="utf-8",
+    )
+
+    status_code, payload = _write_endpoint_payload(
+        home,
+        "/api/oracle/authority/exercise/evaluate",
+        {
+            "target_network": "local",
+            "current_epoch": 12,
+            "operator_service_url": "http://127.0.0.1:8787/api/oracle/dashboard",
+            "query_id": "query:oracle-local",
+            "report_id": "report:oracle-local",
+            "aggregate_id": "aggregate:oracle-local",
+            "read_id": "read:oracle-local",
+            "authorization_id": "authorization:oracle-local",
+            "reward_receipt_id": "reward:oracle-local",
+        },
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["authority_exercise_status"]["authority_exercised"] is True
+    assert payload["authority_exercise_status"]["public_testnet_exercised"] is False
 
 
 def test_oracle_authority_cli_provisions_profile_and_status(tmp_path: Path) -> None:

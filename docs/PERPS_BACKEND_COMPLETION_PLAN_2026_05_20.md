@@ -671,6 +671,24 @@ build passed. Production Oracle authority now fails closed unless
 perps live wallet UI renders `oracle signed quorum 2/2` for settle and
 partial-liquidation Oracle authority paths.
 
+Additional bounded Oracle authority-exercise evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/zeno_oracle_authority.py tools/zenodex_oracle.py tests/integration/test_zeno_oracle_authority.py tests/integration/test_zeno_oracle_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_authority.py::test_oracle_authority_local_exercise_is_ready tests/integration/test_zeno_oracle_authority.py::test_oracle_authority_public_testnet_exercise_requires_broadcast_refs tests/integration/test_zeno_oracle_authority.py::test_oracle_authority_exercise_endpoint_reports_ready_local_exercise
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_runs_authority_exercise_flow -s
+```
+
+Results: the local Oracle service now exposes
+`POST /api/oracle/authority/exercise/evaluate`, and the mounted Governance view
+can run an authority exercise that reuses a real local operator flow and binds
+the resulting query/report/aggregate/read/authorization/reward receipt ids into
+a deterministic exercise receipt. Local or testnet exercise can become ready
+when the signed authority profile is ready and the receipt ids are present.
+Public-testnet exercise still stays blocked unless the request also carries
+concrete `public_broadcast_reference` and `public_settlement_reference`
+evidence.
+
 Additional ZenoOracle mounted malformed-dashboard resilience evidence added on
 2026-05-21:
 

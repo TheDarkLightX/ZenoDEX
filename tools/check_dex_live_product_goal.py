@@ -102,8 +102,23 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         description="Oracle browser tests cover write-enabled local flow and fail-closed dashboard behavior.",
         anchors=(
             "zenodexUiSmokeOracleWrites",
+            "zenodexUiSmokeOracleAuthorityExercise",
+            "test_oracle_ui_smoke_runs_authority_exercise_flow",
             "test_oracle_ui_smoke_fails_closed_when_local_service_unreachable",
             "test_oracle_ui_smoke_fails_closed_on_malformed_dashboard_response",
+        ),
+    ),
+    AnchorCheck(
+        area_id="zeno_oracle_live",
+        check_id="oracle_authority_exercise_api_and_ui_are_mounted",
+        path="tools/dex-ui/src/components/ZenoOracleDashboard.jsx",
+        description="The mounted Oracle Governance view can run a bounded authority exercise and render its receipt state.",
+        anchors=(
+            "Authority Exercise",
+            "Run Authority Exercise",
+            "zenodexUiSmokeOracleAuthorityExercise",
+            "/api/oracle/authority/exercise/evaluate",
+            "oracle authority exercise accepted",
         ),
     ),
     AnchorCheck(
@@ -465,7 +480,7 @@ AREA_TITLES: dict[str, str] = {
 RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     {
         "id": "production_oracle_authority",
-        "description": "Public-testnet exercise of a signed production Oracle authority profile remains open.",
+        "description": "Mounted Oracle and perps surfaces now carry bounded signed authority exercise receipts for local or testnet operator flows, but public-testnet exercise of a signed production Oracle authority profile remains open.",
     },
     {
         "id": "hardware_wallet_ux",

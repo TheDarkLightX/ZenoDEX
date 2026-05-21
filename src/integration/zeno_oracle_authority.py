@@ -17,6 +17,8 @@ from src.integration.zeno_ledger_v0 import hash_v0
 
 ORACLE_AUTHORITY_PROFILE_SCHEMA_V1 = "zenodex/oracle-production-authority-profile/v1"
 ORACLE_AUTHORITY_STATUS_SCHEMA_V1 = "zenodex/oracle-production-authority-status/v1"
+ORACLE_AUTHORITY_EXERCISE_SCHEMA_V1 = "zenodex/oracle-production-authority-exercise/v1"
+ORACLE_AUTHORITY_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/oracle-production-authority-exercise-status/v1"
 ORACLE_AUTHORITY_PAYLOAD_KIND = "oracle_authority_profile"
 
 _REQUIRED_WALLET_UX_FLAGS = (
@@ -33,7 +35,14 @@ _NOT_CLAIMED = (
     "does_not_claim_source_honesty",
     "does_not_claim_tau_consensus_finality",
 )
+_EXERCISE_NOT_CLAIMED = (
+    "does_not_claim_public_testnet_exercise_without_broadcast_references",
+    "does_not_claim_true_market_price",
+    "does_not_claim_tau_consensus_finality",
+)
 _NON_HASH_PROFILE_FIELDS = frozenset({"authority_hash", "signature_envelopes", "signature_quorum"})
+_NON_HASH_EXERCISE_FIELDS = frozenset({"exercise_hash"})
+_EXERCISE_NETWORKS = frozenset({"local", "testnet", "public_testnet"})
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -48,12 +57,61 @@ def _require_nonempty_str(value: object, *, name: str) -> str:
     return value
 
 
+def _require_nonnegative_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return int(value)
+
+
 def _body(profile: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in dict(profile).items() if key not in _NON_HASH_PROFILE_FIELDS}
 
 
 def oracle_authority_profile_hash_v1(profile: Mapping[str, Any]) -> str:
     return hash_v0("zeno_oracle_authority_profile_v1", _body(profile))
+
+
+def _exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in dict(exercise).items() if key not in _NON_HASH_EXERCISE_FIELDS}
+
+
+def oracle_authority_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
+    return hash_v0("zeno_oracle_authority_exercise_v1", _exercise_body(exercise))
+
+
+def build_oracle_authority_exercise_v1(
+    *,
+    chain_id: str,
+    authority_id: str,
+    target_network: str,
+    current_epoch: int,
+    operator_service_url: str,
+    query_id: str,
+    report_id: str,
+    aggregate_id: str,
+    read_id: str,
+    authorization_id: str,
+    reward_receipt_id: str,
+    public_broadcast_reference: str | None = None,
+    public_settlement_reference: str | None = None,
+) -> dict[str, Any]:
+    body = {
+        "schema": ORACLE_AUTHORITY_EXERCISE_SCHEMA_V1,
+        "chain_id": _require_nonempty_str(chain_id, name="chain_id"),
+        "authority_id": _require_nonempty_str(authority_id, name="authority_id"),
+        "target_network": _require_nonempty_str(target_network, name="target_network"),
+        "current_epoch": _require_nonnegative_int(current_epoch, name="current_epoch"),
+        "operator_service_url": _require_nonempty_str(operator_service_url, name="operator_service_url"),
+        "query_id": _require_nonempty_str(query_id, name="query_id"),
+        "report_id": _require_nonempty_str(report_id, name="report_id"),
+        "aggregate_id": _require_nonempty_str(aggregate_id, name="aggregate_id"),
+        "read_id": _require_nonempty_str(read_id, name="read_id"),
+        "authorization_id": _require_nonempty_str(authorization_id, name="authorization_id"),
+        "reward_receipt_id": _require_nonempty_str(reward_receipt_id, name="reward_receipt_id"),
+        "public_broadcast_reference": None if public_broadcast_reference is None else _require_nonempty_str(public_broadcast_reference, name="public_broadcast_reference"),
+        "public_settlement_reference": None if public_settlement_reference is None else _require_nonempty_str(public_settlement_reference, name="public_settlement_reference"),
+    }
+    return {**body, "exercise_hash": oracle_authority_exercise_hash_v1(body)}
 
 
 def build_oracle_authority_profile_v1(
@@ -457,3 +515,126 @@ def _status(
         "proof_profile": dict(proof_profile or {}),
         "not_claimed": list(_NOT_CLAIMED),
     }
+
+
+def _exercise_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    exercise: Mapping[str, Any] | None,
+    authority_status: Mapping[str, Any] | None,
+    public_testnet_evidence_present: bool,
+) -> dict[str, Any]:
+    body = {
+        "schema": ORACLE_AUTHORITY_EXERCISE_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "authority_exercised": bool(ok),
+        "public_testnet_evidence_present": bool(public_testnet_evidence_present),
+        "public_testnet_exercised": bool(ok and public_testnet_evidence_present),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "exercise_hash": None if exercise is None else oracle_authority_exercise_hash_v1(exercise),
+        "target_network": None if exercise is None else exercise.get("target_network"),
+        "chain_id": None if exercise is None else exercise.get("chain_id"),
+        "authority_id": None if exercise is None else exercise.get("authority_id"),
+        "current_epoch": None if exercise is None else exercise.get("current_epoch"),
+        "query_id": None if exercise is None else exercise.get("query_id"),
+        "report_id": None if exercise is None else exercise.get("report_id"),
+        "aggregate_id": None if exercise is None else exercise.get("aggregate_id"),
+        "read_id": None if exercise is None else exercise.get("read_id"),
+        "authorization_id": None if exercise is None else exercise.get("authorization_id"),
+        "reward_receipt_id": None if exercise is None else exercise.get("reward_receipt_id"),
+        "public_broadcast_reference": None if exercise is None else exercise.get("public_broadcast_reference"),
+        "public_settlement_reference": None if exercise is None else exercise.get("public_settlement_reference"),
+        "authority_hash": None if authority_status is None else authority_status.get("authority_hash"),
+        "authority_status_hash": None if authority_status is None else hash_v0("zeno_oracle_authority_status_ref_v1", dict(authority_status)),
+        "not_claimed": list(_EXERCISE_NOT_CLAIMED),
+    }
+    return {**body, "status_hash": hash_v0("zeno_oracle_authority_exercise_status_v1", body)}
+
+
+def evaluate_oracle_authority_exercise_v1(
+    profile: Mapping[str, Any] | None,
+    exercise: Mapping[str, Any] | None,
+    *,
+    expected_chain_id: str | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    authority_status = evaluate_oracle_authority_profile_v1(profile)
+    if exercise is None:
+        return _exercise_status(
+            ok=False,
+            errors=["oracle production authority exercise is missing"],
+            exercise=None,
+            authority_status=authority_status,
+            public_testnet_evidence_present=False,
+        )
+    try:
+        exercise_obj = _require_mapping(exercise, name="authority_exercise")
+    except Exception as exc:
+        return _exercise_status(
+            ok=False,
+            errors=[f"oracle production authority exercise invalid: {exc}"],
+            exercise=exercise if isinstance(exercise, Mapping) else None,
+            authority_status=authority_status,
+            public_testnet_evidence_present=False,
+        )
+    if authority_status.get("production_authority") is not True:
+        errors.append("oracle production authority profile is not ready")
+        errors.extend(str(gap) for gap in authority_status.get("readiness_gaps", []))
+    try:
+        if exercise_obj.get("schema") != ORACLE_AUTHORITY_EXERCISE_SCHEMA_V1:
+            errors.append("oracle production authority exercise schema mismatch")
+        chain_id = _require_nonempty_str(exercise_obj.get("chain_id"), name="chain_id")
+        authority_id = _require_nonempty_str(exercise_obj.get("authority_id"), name="authority_id")
+        target_network = _require_nonempty_str(exercise_obj.get("target_network"), name="target_network")
+        current_epoch = _require_nonnegative_int(exercise_obj.get("current_epoch"), name="current_epoch")
+        operator_service_url = _require_nonempty_str(exercise_obj.get("operator_service_url"), name="operator_service_url")
+        query_id = _require_nonempty_str(exercise_obj.get("query_id"), name="query_id")
+        report_id = _require_nonempty_str(exercise_obj.get("report_id"), name="report_id")
+        aggregate_id = _require_nonempty_str(exercise_obj.get("aggregate_id"), name="aggregate_id")
+        read_id = _require_nonempty_str(exercise_obj.get("read_id"), name="read_id")
+        authorization_id = _require_nonempty_str(exercise_obj.get("authorization_id"), name="authorization_id")
+        reward_receipt_id = _require_nonempty_str(exercise_obj.get("reward_receipt_id"), name="reward_receipt_id")
+    except Exception as exc:
+        errors.append(str(exc))
+        return _exercise_status(
+            ok=False,
+            errors=errors,
+            exercise=exercise_obj,
+            authority_status=authority_status,
+            public_testnet_evidence_present=False,
+        )
+    _ = current_epoch
+    _ = operator_service_url
+    _ = query_id
+    _ = report_id
+    _ = aggregate_id
+    _ = read_id
+    _ = authorization_id
+    _ = reward_receipt_id
+    if target_network not in _EXERCISE_NETWORKS:
+        errors.append("target_network must be one of local, testnet, public_testnet")
+    if expected_chain_id is not None and chain_id != expected_chain_id:
+        errors.append("oracle production authority exercise chain_id mismatch")
+    if chain_id != authority_status.get("chain_id"):
+        errors.append("oracle production authority exercise profile chain_id mismatch")
+    if authority_id != authority_status.get("authority_id"):
+        errors.append("oracle production authority exercise authority_id mismatch")
+    public_broadcast_reference = exercise_obj.get("public_broadcast_reference")
+    public_settlement_reference = exercise_obj.get("public_settlement_reference")
+    public_testnet_evidence_present = bool(
+        isinstance(public_broadcast_reference, str)
+        and public_broadcast_reference
+        and isinstance(public_settlement_reference, str)
+        and public_settlement_reference
+    )
+    if target_network == "public_testnet" and not public_testnet_evidence_present:
+        errors.append("public testnet exercise requires public_broadcast_reference and public_settlement_reference")
+    return _exercise_status(
+        ok=not errors,
+        errors=errors,
+        exercise=exercise_obj,
+        authority_status=authority_status,
+        public_testnet_evidence_present=public_testnet_evidence_present,
+    )

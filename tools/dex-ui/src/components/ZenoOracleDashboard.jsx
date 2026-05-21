@@ -333,6 +333,68 @@ function snapshotToDashboardData(snapshot) {
   };
 }
 
+async function runOracleWriteSmokeFlow(post) {
+  const queryId = 'sha256:' + '1'.repeat(64);
+  const actionId = 'sha256:' + '2'.repeat(64);
+  const actionFactsHash = 'sha256:' + '3'.repeat(64);
+  const preStateHash = 'sha256:' + '4'.repeat(64);
+  const identity = await post('/api/oracle/identity/create', { force: true });
+  await post('/api/oracle/query/register', {
+    base_asset: 'AGRS',
+    quote_asset: 'ZDEX',
+    query_id: queryId,
+    source_policy_id: 'source-policy:registered-diverse-v1',
+    min_reporters: 1,
+    report_reward_e8: 17,
+    force: true,
+  });
+  await post('/api/oracle/query/fund', { query_id: queryId, amount_e8: 20 });
+  await post('/api/oracle/reporter/register', { query_id: queryId, required_bond_e8: 1, force: true });
+  await post('/api/oracle/reporter/bond', { amount_e8: 1 });
+  await post('/api/oracle/source/register', {
+    source_id: 'source:ui-smoke',
+    source_kind: 'cex',
+    control_group_id: 'control:ui-smoke',
+    venue_id: 'venue:ui-smoke',
+    data_family_id: 'price:cex-last-trade',
+    transport_id: 'api:https:ui-smoke',
+    asset_class: 'crypto',
+    query_id: queryId,
+    assurance_class: 'S3',
+    force: true,
+  });
+  const submitted = await post('/api/oracle/report/submit', {
+    query_id: queryId,
+    price_e8: 123456789,
+    source_observed_epoch: 12,
+    source_id: 'source:ui-smoke',
+  });
+  const aggregate = await post('/api/oracle/aggregate/build', { query_id: queryId, epoch: 12 });
+  const read = await post('/api/oracle/read/accept', {
+    aggregate_id: aggregate.aggregate_id,
+    consumer_module: 'zenodex.zusd',
+    profile_id: 'critical-zusd-v1',
+  });
+  const authorization = await post('/api/oracle/authorization/build', {
+    read_id: read.read_id,
+    action_kind: 'mint',
+    action_id: actionId,
+    action_facts_hash: actionFactsHash,
+    pre_state_hash: preStateHash,
+    now_epoch: 12,
+  });
+  const reward = await post('/api/oracle/rewards/pay', { amount_e8: 5 });
+  return {
+    identity,
+    submitted,
+    aggregate,
+    read,
+    authorization,
+    reward,
+    queryId,
+  };
+}
+
 function EvidenceBadge({ value }) {
   return <span className={`zor-evidence zor-evidence-${value}`}>{value}</span>;
 }
@@ -1558,6 +1620,80 @@ function AuthorityProfilePanel({ authorityStatus }) {
   );
 }
 
+function AuthorityExercisePanel({
+  authorityStatus,
+  authorityExerciseResult,
+  authorityExerciseState,
+  authorityExerciseBusy,
+  onRunAuthorityExercise,
+}) {
+  const exerciseStatus = authorityExerciseResult?.authority_exercise_status || null;
+  const targetNetwork = exerciseStatus?.target_network || 'local';
+  const publicEvidence = exerciseStatus?.public_testnet_evidence_present === true;
+  const errors = Array.isArray(exerciseStatus?.errors) ? exerciseStatus.errors : [];
+
+  return (
+    <section className="panel zor-panel zor-authority-panel">
+      <div className="zor-section-header">
+        <div>
+          <h2>Authority Exercise</h2>
+          <p>Run a bounded signed authority exercise over a real local operator flow and bind the receipt IDs.</p>
+        </div>
+        <span className={`zor-authority-chip ${exerciseStatus?.ok ? 'zor-authority-ready' : 'zor-authority-blocked'}`}>
+          {exerciseStatus?.ok ? 'Exercise ready' : 'Exercise pending'}
+        </span>
+      </div>
+      <div className="zor-authority-summary">
+        <div>
+          <small>Target network</small>
+          <strong>{targetNetwork}</strong>
+        </div>
+        <div>
+          <small>Authority profile</small>
+          <strong>{authorityStatus?.production_authority ? 'ready' : 'blocked'}</strong>
+        </div>
+        <div>
+          <small>Public testnet evidence</small>
+          <strong>{publicEvidence ? 'present' : 'pending'}</strong>
+        </div>
+        <div>
+          <small>Exercise hash</small>
+          <strong>{compactId(exerciseStatus?.exercise_hash)}</strong>
+        </div>
+        <div>
+          <small>Status hash</small>
+          <strong>{compactId(exerciseStatus?.status_hash)}</strong>
+        </div>
+        <div>
+          <small>Authorization</small>
+          <strong>{compactId(exerciseStatus?.authorization_id)}</strong>
+        </div>
+      </div>
+      <div className="zor-authority-controls">
+        <span className={exerciseStatus?.authority_exercised ? 'zor-control-ok' : 'zor-control-missing'}>
+          Authority exercised
+        </span>
+        <span className={publicEvidence ? 'zor-control-ok' : 'zor-control-missing'}>
+          Public testnet evidence
+        </span>
+      </div>
+      <div className="zor-toolbar">
+        <button className="btn btn-secondary" type="button" onClick={onRunAuthorityExercise} disabled={authorityExerciseBusy}>
+          {authorityExerciseBusy ? 'Running...' : 'Run Authority Exercise'}
+        </button>
+        {authorityExerciseState ? <span className="zor-subtle-chip">{authorityExerciseState}</span> : null}
+      </div>
+      {errors.length ? (
+        <div className="zor-authority-gaps">
+          {errors.slice(0, 5).map((error) => (
+            <span key={error}>{error}</span>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function FeatureStrip() {
   return (
     <div className="zor-feature-strip" aria-label="ZenoOracle properties">
@@ -1683,7 +1819,50 @@ function ZenoOracleDashboard() {
   const [remoteData, setRemoteData] = useState(null);
   const [apiState, setApiState] = useState('Static preview');
   const [oracleSmokeStatus, setOracleSmokeStatus] = useState('');
+  const [authorityExerciseResult, setAuthorityExerciseResult] = useState(null);
+  const [authorityExerciseState, setAuthorityExerciseState] = useState('');
+  const [authorityExerciseBusy, setAuthorityExerciseBusy] = useState(false);
   const oracleSmokeRan = useRef(false);
+  const oracleAuthorityExerciseSmokeRan = useRef(false);
+
+  async function postOracle(path, payload) {
+    const response = await fetch(zenoOracleApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+    if (!response.ok || body.ok === false) {
+      throw new Error(body.error || `HTTP ${response.status}`);
+    }
+    return body;
+  }
+
+  async function runAuthorityExercise() {
+    setAuthorityExerciseBusy(true);
+    setAuthorityExerciseState('oracle authority exercise running');
+    try {
+      const flow = await runOracleWriteSmokeFlow(postOracle);
+      const payload = await postOracle('/api/oracle/authority/exercise/evaluate', {
+        target_network: 'local',
+        current_epoch: 12,
+        operator_service_url: zenoOracleApiUrl('/api/oracle/dashboard'),
+        query_id: flow.queryId,
+        report_id: flow.submitted.report_id,
+        aggregate_id: flow.aggregate.aggregate_id,
+        read_id: flow.read.read_id,
+        authorization_id: flow.authorization.authorization_id,
+        reward_receipt_id: flow.reward.receipt_id || flow.reward.reward_receipt_id || flow.reward.payment_id || 'reward:local',
+      });
+      setAuthorityExerciseResult(payload);
+      setAuthorityExerciseState(`oracle authority exercise accepted ${payload.authority_exercise_status?.exercise_hash || ''}`.trim());
+    } catch (error) {
+      setAuthorityExerciseState(`oracle authority exercise failed ${error?.message || 'unknown'}`);
+      throw error;
+    } finally {
+      setAuthorityExerciseBusy(false);
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1727,79 +1906,34 @@ function ZenoOracleDashboard() {
     }
     window.sessionStorage.setItem(storageKey, '1');
 
-    async function post(path, payload) {
-      const response = await fetch(zenoOracleApiUrl(path), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const body = await response.json();
-      if (!response.ok || body.ok === false) {
-        throw new Error(body.error || `HTTP ${response.status}`);
-      }
-      return body;
-    }
-
     async function runSmoke() {
       setOracleSmokeStatus('oracle write smoke running');
-      const queryId = 'sha256:' + '1'.repeat(64);
-      const actionId = 'sha256:' + '2'.repeat(64);
-      const actionFactsHash = 'sha256:' + '3'.repeat(64);
-      const preStateHash = 'sha256:' + '4'.repeat(64);
-      const identity = await post('/api/oracle/identity/create', { force: true });
-      await post('/api/oracle/query/register', {
-        base_asset: 'AGRS',
-        quote_asset: 'ZDEX',
-        query_id: queryId,
-        source_policy_id: 'source-policy:registered-diverse-v1',
-        min_reporters: 1,
-        report_reward_e8: 17,
-        force: true,
-      });
-      await post('/api/oracle/query/fund', { query_id: queryId, amount_e8: 20 });
-      await post('/api/oracle/reporter/register', { query_id: queryId, required_bond_e8: 1, force: true });
-      await post('/api/oracle/reporter/bond', { amount_e8: 1 });
-      await post('/api/oracle/source/register', {
-        source_id: 'source:ui-smoke',
-        source_kind: 'cex',
-        control_group_id: 'control:ui-smoke',
-        venue_id: 'venue:ui-smoke',
-        data_family_id: 'price:cex-last-trade',
-        transport_id: 'api:https:ui-smoke',
-        asset_class: 'crypto',
-        query_id: queryId,
-        assurance_class: 'S3',
-        force: true,
-      });
-      const submitted = await post('/api/oracle/report/submit', {
-        query_id: queryId,
-        price_e8: 123456789,
-        source_observed_epoch: 12,
-        source_id: 'source:ui-smoke',
-      });
-      const aggregate = await post('/api/oracle/aggregate/build', { query_id: queryId, epoch: 12 });
-      const read = await post('/api/oracle/read/accept', {
-        aggregate_id: aggregate.aggregate_id,
-        consumer_module: 'zenodex.zusd',
-        profile_id: 'critical-zusd-v1',
-      });
-      const authorization = await post('/api/oracle/authorization/build', {
-        read_id: read.read_id,
-        action_kind: 'mint',
-        action_id: actionId,
-        action_facts_hash: actionFactsHash,
-        pre_state_hash: preStateHash,
-        now_epoch: 12,
-      });
-      await post('/api/oracle/rewards/pay', { amount_e8: 5 });
+      const flow = await runOracleWriteSmokeFlow(postOracle);
       setOracleSmokeStatus(
-        `oracle write smoke accepted ${identity.reporter_id} ${submitted.report_id} ${authorization.authorization_id}`,
+        `oracle write smoke accepted ${flow.identity.reporter_id} ${flow.submitted.report_id} ${flow.authorization.authorization_id}`,
       );
     }
 
     void runSmoke().catch((error) => {
       setOracleSmokeStatus(`oracle write smoke failed ${error?.message || 'unknown'}`);
     });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('zenodexUiSmokeOracleAuthorityExercise') !== '1' || oracleAuthorityExerciseSmokeRan.current) {
+      return;
+    }
+    oracleAuthorityExerciseSmokeRan.current = true;
+    const storageKey = 'zenodex.uiSmokeOracleAuthorityExercise.submitted';
+    if (window.sessionStorage.getItem(storageKey) === '1') {
+      return;
+    }
+    window.sessionStorage.setItem(storageKey, '1');
+    void runAuthorityExercise().catch(() => {});
   }, []);
 
   const feeds = remoteData?.feeds?.length ? remoteData.feeds : ORACLE_FEEDS;
@@ -1925,6 +2059,15 @@ function ZenoOracleDashboard() {
       return (
         <>
           <AuthorityProfilePanel authorityStatus={authorityStatus} />
+          <AuthorityExercisePanel
+            authorityStatus={authorityStatus}
+            authorityExerciseResult={authorityExerciseResult}
+            authorityExerciseState={authorityExerciseState}
+            authorityExerciseBusy={authorityExerciseBusy}
+            onRunAuthorityExercise={() => {
+              void runAuthorityExercise().catch(() => {});
+            }}
+          />
           <ConsumerProfilePanel />
           <div className="zor-two-up">
             <FeedCreationPanel />

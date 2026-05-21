@@ -103,7 +103,9 @@ if getattr(sys, "frozen", False):
 sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_oracle_authority import (  # noqa: E402
+    build_oracle_authority_exercise_v1,
     build_oracle_authority_profile_v1,
+    evaluate_oracle_authority_exercise_v1,
     evaluate_oracle_authority_profile_v1,
 )
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0  # noqa: E402
@@ -3951,6 +3953,45 @@ def _oracle_authority_status(home: Path) -> dict[str, Any]:
     return status
 
 
+def _oracle_authority_exercise_report(home: Path, body: Mapping[str, Any]) -> dict[str, Any]:
+    authority_status = _oracle_authority_status(home)
+    profile_path = _authority_profile_path(home)
+    profile: Mapping[str, Any] | None = None
+    if profile_path.exists():
+        payload = _load_json(profile_path)
+        if isinstance(payload, Mapping):
+            profile = payload
+    exercise = build_oracle_authority_exercise_v1(
+        chain_id=str(body.get("chain_id") or authority_status.get("chain_id") or ""),
+        authority_id=str(body.get("authority_id") or authority_status.get("authority_id") or ""),
+        target_network=str(body.get("target_network") or "local"),
+        current_epoch=int(body.get("current_epoch", 0)),
+        operator_service_url=str(body.get("operator_service_url") or ""),
+        query_id=str(body.get("query_id") or ""),
+        report_id=str(body.get("report_id") or ""),
+        aggregate_id=str(body.get("aggregate_id") or ""),
+        read_id=str(body.get("read_id") or ""),
+        authorization_id=str(body.get("authorization_id") or ""),
+        reward_receipt_id=str(body.get("reward_receipt_id") or ""),
+        public_broadcast_reference=body.get("public_broadcast_reference"),
+        public_settlement_reference=body.get("public_settlement_reference"),
+    )
+    exercise_status = evaluate_oracle_authority_exercise_v1(
+        profile,
+        exercise,
+        expected_chain_id=str(authority_status.get("chain_id") or "") or None,
+    )
+    return {
+        "schema": "zeno_oracle.api_authority_exercise.v1",
+        "ok": bool(exercise_status.get("ok") is True),
+        "status": exercise_status.get("status"),
+        "authority_exercise": exercise,
+        "authority_exercise_status": exercise_status,
+        "authority_status": authority_status,
+        "production_authority": bool(authority_status.get("production_authority") is True),
+    }
+
+
 def _load_json_mapping(path: Path, *, name: str) -> Mapping[str, Any]:
     payload = _load_json(path)
     if not isinstance(payload, Mapping):
@@ -4392,6 +4433,9 @@ def _list_payload(value: Any) -> list[str]:
 
 
 def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
+    if path == "/api/oracle/authority/exercise/evaluate":
+        payload = _oracle_authority_exercise_report(home, body)
+        return (200 if payload.get("ok") is True else 400, payload)
     if path == "/api/oracle/identity/create":
         return _command_json(
             cmd_identity_create,
@@ -4753,6 +4797,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ],
         "write_paths_enabled": bool(args.allow_writes),
         "write_paths": [
+            "/api/oracle/authority/exercise/evaluate",
             "/api/oracle/identity/create",
             "/api/oracle/reporter/register",
             "/api/oracle/reporter/bond",
