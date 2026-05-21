@@ -118,7 +118,8 @@ These checks prove:
 
 - the mounted Oracle tab can bind to a real local Oracle service and execute a
   write-enabled local receipt flow when the service is started with
-  `--allow-writes`;
+  `--allow-writes`, while an unreachable local Oracle service renders a
+  fail-closed offline status and keeps authority blocked;
 - the mounted zUSD tab can submit through the Tau wallet bridge, including the local Docker Tau node lane;
 - the mounted zUSD tab can submit stream `11` monetary-vault actions through the Tau-node-backed API, including the local Docker Tau node lane;
 - the mounted perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
@@ -194,6 +195,21 @@ pytest -q tests/integration/test_dex_ui_live_bridge.py
 
 Results: mounted non-spot browser checks `7 passed`; spot/pools browser checks
 `2 passed`.
+
+Latest Oracle offline fail-closed browser pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zeno_oracle_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_fails_closed_when_local_service_unreachable -s
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py -s
+npm --prefix tools/dex-ui run build
+```
+
+Results: py_compile passed; focused mounted Oracle offline smoke `1 passed`;
+full mounted Oracle UI bridge suite `5 passed`; UI production build passed. The
+Oracle tab now renders `Local API offline` when the configured local Oracle
+service URL is unreachable, keeps `Authority blocked`, and does not render
+`Production authority ready`.
 
 Latest perps live-wallet pass on 2026-05-20:
 
@@ -392,7 +408,9 @@ mutation. Packet-level network partition/latency chaos remains open.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt
-flow from the mounted Oracle tab. The write smoke creates an identity,
+flow from the mounted Oracle tab. It also proves an unreachable configured local
+Oracle service renders `Local API offline` and keeps the mounted authority
+status blocked. The write smoke creates an identity,
 registers and funds a query, registers and bonds a reporter, registers a
 source, submits a report, builds aggregate/read/authorization receipts, and
 pays rewards against a local `tools/zenodex-oracle serve --allow-writes`

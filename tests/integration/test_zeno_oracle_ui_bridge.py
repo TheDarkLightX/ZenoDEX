@@ -216,6 +216,65 @@ def test_oracle_ui_smoke_loads_local_service(tmp_path: Path) -> None:
             oracle_proc.wait(timeout=5)
 
 
+def test_oracle_ui_smoke_fails_closed_when_local_service_unreachable(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    unused_oracle_port = _free_port()
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={
+            **os.environ,
+            "VITE_DEMO_MODE": "false",
+            "VITE_ZENO_ORACLE_API_URL": f"http://127.0.0.1:{unused_oracle_port}",
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode({"tab": "oracle", "oracleView": "Governance", "demo": "false"})
+        chrome_profile = tmp_path / "chrome-profile-offline"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=15000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "ZenoOracle" in dom
+        assert "Local API offline" in dom
+        assert "Authority blocked" in dom
+        assert "Production authority ready" not in dom
+    finally:
+        vite_proc.terminate()
+        try:
+            vite_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            vite_proc.kill()
+            vite_proc.wait(timeout=5)
+
+
 def test_oracle_ui_smoke_reports_ready_authority_profile(tmp_path: Path) -> None:
     chrome = _chrome_binary()
     if chrome is None:

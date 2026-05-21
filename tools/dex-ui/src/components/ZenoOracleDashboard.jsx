@@ -1692,7 +1692,7 @@ function ZenoOracleDashboard() {
         setApiState(snapshot?.summary?.replay_ok ? 'Local API connected' : 'Local API replay warning');
       } catch (error) {
         if (error.name !== 'AbortError') {
-          setApiState('Static preview');
+          setApiState('Local API offline');
         }
       }
     }
