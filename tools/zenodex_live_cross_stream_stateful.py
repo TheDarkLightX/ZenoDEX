@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Deterministic stateful replay for live zUSD-to-perps app-bridge surfaces.
+"""Deterministic stateful replay for live ZenoDEX app/API surfaces.
 
 The campaign exercises the mounted live transaction lanes used by the browser:
 
 - stream 11: collateralized zUSD monetary actions;
 - stream 9: transferable zUSD token transport;
 - stream 8: clearinghouse perps collateral and settlement actions.
+- confidential extension attestation live-admission request consumption.
 
 It is intentionally bounded and deterministic. Passing this tool is a receipt
 for the named disaster states under these scenarios, not a broad safety proof.
@@ -27,10 +28,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.zusd import E8  # noqa: E402
+from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission  # noqa: E402
+from src.core.confidential_extension_receipts import make_confidential_extension_receipt  # noqa: E402
 from src.integration import tau_testnet_dex_plugin as plugin  # noqa: E402
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine  # noqa: E402
 from src.integration.zusd_monetary_bridge import stability_pool_pubkey  # noqa: E402
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id  # noqa: E402
+from src.state.confidential_requests import ConfidentialRequestTable  # noqa: E402
 
 
 SCHEMA = "zenodex.live_cross_stream_stateful_replay.v1"
@@ -47,6 +51,13 @@ ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 BOB = "0x" + bls_pubkey_hex_from_privkey(BOB_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 PARTICIPANTS = (ALICE, BOB)
+
+CONF_NITRO_PCR0 = "a" * 96
+CONF_NITRO_PCR8 = "b" * 96
+CONF_POLICY_DIGEST = "0x" + ("d" * 64)
+CONF_OTHER_POLICY_DIGEST = "0x" + ("e" * 64)
+CONF_MEASUREMENT = f"nitro:pcr0:{CONF_NITRO_PCR0}:pcr8:{CONF_NITRO_PCR8}"
+CONF_APPROVED_MEASUREMENTS = {CONF_MEASUREMENT}
 
 
 @contextmanager
@@ -353,6 +364,30 @@ def _zusd_sp_op(*, action: str, account: str, amount: int, nonce: int, deadline:
     }
 
 
+def _confidential_receipt(*, request_id: str = "req-conf-live-1") -> dict[str, Any]:
+    return make_confidential_extension_receipt(
+        extension_id="route-premium-v1",
+        provider_id="provider-1",
+        request_id=request_id,
+        policy_version="tee-policy-v1",
+        policy_digest=CONF_POLICY_DIGEST,
+        measurement=CONF_MEASUREMENT,
+        do_execute=1,
+        policy_ok=1,
+        nonce_unused=1,
+        output_bound_ok=1,
+        current_epoch=10,
+        attestation_epoch=9,
+        max_attestation_age=2,
+        fee_charged=7,
+        receipt_fee=7,
+        credit_before=40,
+        credit_after=33,
+        provider_balance_before=9,
+        provider_balance_after=16,
+    )
+
+
 def _scenario_happy_path() -> dict[str, Any]:
     market_id = "perp:ch2p:stateful-happy"
     app = _seed_market_state(market_id=market_id)
@@ -526,6 +561,49 @@ def _scenario_settle_requires_oracle_bridge() -> dict[str, Any]:
     return {"rejection": err}
 
 
+def _scenario_confidential_admission_replay() -> dict[str, Any]:
+    receipt = _confidential_receipt()
+    empty_table = ConfidentialRequestTable()
+
+    ok, err, used_table = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=CONF_APPROVED_MEASUREMENTS,
+        expected_policy_digest=CONF_POLICY_DIGEST,
+        request_table=empty_table,
+    )
+    if not ok or used_table is None:
+        raise AssertionError(err or "first confidential admission rejected")
+
+    replay_ok, replay_err, replay_table = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=CONF_APPROVED_MEASUREMENTS,
+        expected_policy_digest=CONF_POLICY_DIGEST,
+        request_table=used_table,
+    )
+    if replay_ok or replay_table is not None:
+        raise AssertionError("confidential request replay unexpectedly admitted")
+    if replay_err != "request_replay":
+        raise AssertionError(f"unexpected confidential replay error: {replay_err!r}")
+
+    mismatch_ok, mismatch_err, mismatch_table = validate_confidential_extension_live_admission(
+        receipt=_confidential_receipt(request_id="req-conf-policy-mismatch"),
+        approved_measurements=CONF_APPROVED_MEASUREMENTS,
+        expected_policy_digest=CONF_OTHER_POLICY_DIGEST,
+        request_table=ConfidentialRequestTable(),
+    )
+    if mismatch_ok or mismatch_table is not None:
+        raise AssertionError("confidential policy mismatch consumed a request")
+    if mismatch_err != "policy_digest_mismatch":
+        raise AssertionError(f"unexpected confidential policy error: {mismatch_err!r}")
+
+    return {
+        "first_admission": "accepted",
+        "replay_rejection": replay_err,
+        "policy_mismatch_rejection": mismatch_err,
+        "used_request_count": len(used_table.get_all()),
+    }
+
+
 SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
     (
         "happy_path_zusd_to_perps_collateral_conserves",
@@ -562,6 +640,12 @@ SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
         "stale_or_missing_oracle_evidence_settles",
         _scenario_settle_requires_oracle_bridge,
         True,
+    ),
+    (
+        "confidential_live_admission_replay_rejected_without_double_consume",
+        "duplicate_confidential_admission_after_replay",
+        _scenario_confidential_admission_replay,
+        False,
     ),
 )
 
@@ -851,7 +935,7 @@ def run_campaign() -> dict[str, Any]:
         "schema": SCHEMA,
         "ok": accepted == len(scenarios) and bool(fuzz["ok"]),
         "chain_id": CHAIN_ID,
-        "surface": "stream11_zusd_monetary__stream9_zusd_token__stream8_clearinghouse_perps",
+        "surface": "stream11_zusd_monetary__stream9_zusd_token__stream8_clearinghouse_perps__confidential_live_admission",
         "scenario_count": len(scenarios),
         "accepted_scenario_count": accepted,
         "disaster_states": [scenario["disaster_state"] for scenario in scenarios],

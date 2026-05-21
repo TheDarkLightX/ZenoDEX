@@ -22,7 +22,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["schema"] == "zenodex.live_cross_stream_stateful_replay.v1"
     assert receipt["ok"] is True
-    assert receipt["scenario_count"] == 6
+    assert receipt["scenario_count"] == 7
     assert receipt["accepted_scenario_count"] == receipt["scenario_count"]
     assert receipt["fuzz_campaign"]["ok"] is True
     assert receipt["fuzz_campaign"]["seed_count"] == 4
@@ -36,6 +36,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
         "expired_deadline_materializes",
         "perps_overdeposit_materializes",
         "stale_or_missing_oracle_evidence_settles",
+        "duplicate_confidential_admission_after_replay",
     }
 
 
@@ -62,6 +63,16 @@ def test_live_cross_stream_stateful_replay_writes_receipt(tmp_path: Path) -> Non
     by_id = {scenario["id"]: scenario for scenario in receipt["scenarios"]}
     assert by_id["cross_stream_valid_zusd_bad_perps_is_atomic"]["evidence"]["rejection"] == "unknown market_id"
     assert "nonce invalid" in by_id["duplicate_zusd_mint_replay_rejected_without_side_effect"]["evidence"]["rejection"]
+    assert (
+        by_id["confidential_live_admission_replay_rejected_without_double_consume"]["evidence"]["replay_rejection"]
+        == "request_replay"
+    )
+    assert (
+        by_id["confidential_live_admission_replay_rejected_without_double_consume"]["evidence"][
+            "policy_mismatch_rejection"
+        ]
+        == "policy_digest_mismatch"
+    )
     assert receipt["fuzz_campaign"]["errors"] == []
     assert set(receipt["fuzz_campaign"]["disaster_states"]) == {
         "long_horizon_balance_drift",
