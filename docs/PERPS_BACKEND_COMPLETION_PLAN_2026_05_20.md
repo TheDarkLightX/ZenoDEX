@@ -923,6 +923,33 @@ redaction, and request consumption. It does not prove TEE hardware
 confidentiality, vendor attestation soundness, fully encrypted on-chain state,
 or production FHE confidentiality.
 
+Additional live-product goal audit evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tools/check_dex_live_product_goal.py tests/test_check_dex_live_product_goal.py
+python3 -m pytest -q tests/test_check_dex_live_product_goal.py
+python3 tools/check_dex_live_product_goal.py --json
+python3 -m pytest -q tests/integration/test_zenodex_live_cross_stream_stateful.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_fails_closed_on_malformed_dashboard_response -s
+python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
+python3 tools/check_public_claim_scope.py --json
+python3 -m pytest -q tests/test_check_public_claim_scope.py
+```
+
+Results: py_compile passed; the live-product goal audit checks `4 passed`; the
+audit report returned `ok: true`, `goal_complete: false`, and
+`local_testnet_evidence_present_with_open_production_limits`; cross-stream
+stateful replay checks `2 passed`; the focused mounted Oracle malformed
+dashboard fail-closed browser check `1 passed`; the mounted AutoTrader browser
+prepare, submit, and execute-once suite `3 passed`; public claim-scope checks
+`15 passed`; and the public claim-scope report returned `ok: true`. The audit
+now checks the four live-product areas together: mounted UI direction,
+ZenoOracle live mount, live transaction surfaces beyond spot, and browser plus
+stateful resilience evidence. It also fails if the DEX UI README regresses to
+the stale Strategy wording that said the mounted Strategy tab does not submit
+local/testnet strategies. The README now records the current gated AutoTrader
+local/testnet prepare, submit, and execute-once posture.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle

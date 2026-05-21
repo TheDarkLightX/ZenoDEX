@@ -20,8 +20,11 @@ Current mounted posture:
   and settle transactions. Local preview writes for the older `/api/perps/*`
   lane require an explicit override and still do not represent authoritative
   settlement.
-- Strategy remains a planning workbench and reference surface. It does not
-  submit live strategies.
+- Strategy includes a receipt-backed AutoTrader local/testnet panel for
+  prepare, gated submit, and execute-once flows through
+  `/api/strategy/autotrader/*`. It requires explicit risk acknowledgement plus
+  local/testnet enablement. Unattended production execution and production chain
+  submission remain outside the current claim.
 - Confidential exposes live operator posture through `GET /api/confidential/status`
   plus static proof and disaster-surface context. It is not the default swap
   path or a generally enabled execution lane.
