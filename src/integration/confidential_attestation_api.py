@@ -12,6 +12,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from ..core.confidential_extension_live_admission import validate_confidential_extension_live_admission
 from ..core.confidential_extension_receipts import verify_confidential_extension_receipt
+from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from ..state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable
 from .confidential_attestation_verifier import (
     ConfidentialAttestationVerifierConfig,
@@ -24,6 +25,7 @@ from .confidential_runtime_receipts import build_confidential_runtime_execution_
 
 MAX_POST_BODY = 96_000
 ResponseT = Tuple[int, Dict[str, Any]]
+_EXTERNAL_VERIFIER_BINDING_HASH_DOMAIN_V1 = "zenodex.confidential_external_verifier_binding/v1"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -122,6 +124,21 @@ def _verifier_config_from_env() -> ConfidentialAttestationVerifierConfig:
     )
 
 
+def _external_verifier_binding_hash(config: ConfidentialAttestationVerifierConfig) -> str:
+    payload = {
+        "enabled": bool(config.enabled),
+        "verifier_cmd": list(config.verifier_cmd or ()),
+        "allow_path_lookup": bool(config.allow_path_lookup),
+        "timeout_s_millis": int(round(float(config.timeout_s) * 1000.0)),
+        "max_request_bytes": int(config.max_request_bytes),
+        "max_stdout_bytes": int(config.max_stdout_bytes),
+        "max_stderr_bytes": int(config.max_stderr_bytes),
+    }
+    return sha256_hex(
+        domain_sep_bytes(_EXTERNAL_VERIFIER_BINDING_HASH_DOMAIN_V1) + canonical_json_bytes(payload)
+    )
+
+
 def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]:
     raw = body.get(name)
     if isinstance(raw, str):
@@ -150,15 +167,19 @@ def _request_int(body: Mapping[str, Any], *, name: str) -> int:
 
 def _status_payload() -> dict[str, Any]:
     status = load_confidential_feature_status_from_env()
+    public_status = status.to_public_dict()
     verifier_cfg = _verifier_config_from_env()
     return {
         "enabled": True,
         "external_verifier_enabled": bool(verifier_cfg.enabled),
         "external_verifier_configured": bool(verifier_cfg.verifier_cmd),
         "approved_measurements_count": len(status.approved_measurements),
-        "providers": status.to_public_dict().get("providers", []),
+        "approved_measurements_hash": public_status.get("approved_measurements_hash"),
+        "providers": public_status.get("providers", []),
         "max_attestation_age_epochs": int(status.max_attestation_age_epochs),
         "stage": str(status.stage),
+        "status_hash": public_status.get("status_hash"),
+        "external_verifier_binding_hash": _external_verifier_binding_hash(verifier_cfg),
         "endpoints": [
             "POST /api/confidential/attestation/verify",
             "POST /api/confidential/attestation/admit",
@@ -298,6 +319,7 @@ def _handle_admit(
         return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
 
     status = load_confidential_feature_status_from_env()
+    public_status = status.to_public_dict()
     admitted, admission_error, _updated = validate_confidential_extension_live_admission(
         receipt=receipt,
         approved_measurements=status.approved_measurements,
@@ -352,6 +374,7 @@ def _handle_execute(
         return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
 
     status = load_confidential_feature_status_from_env()
+    public_status = status.to_public_dict()
     admitted, admission_error, _updated = validate_confidential_extension_live_admission(
         receipt=receipt,
         approved_measurements=status.approved_measurements,
@@ -373,6 +396,9 @@ def _handle_execute(
             execution_id=execution_id,
             execution_kind=execution_kind,
             result_code=result_code,
+            operator_status_hash=str(public_status.get("status_hash") or ""),
+            approved_measurements_hash=str(public_status.get("approved_measurements_hash") or ""),
+            external_verifier_binding_hash=_external_verifier_binding_hash(_verifier_config_from_env()),
         )
     except Exception as exc:
         return 400, {
@@ -404,6 +430,9 @@ def _handle_execute(
         "execution_id": runtime_body.get("execution_id"),
         "execution_kind": runtime_body.get("execution_kind"),
         "result_code": runtime_body.get("result_code"),
+        "operator_status_hash": runtime_body.get("operator_status_hash"),
+        "approved_measurements_hash": runtime_body.get("approved_measurements_hash"),
+        "external_verifier_binding_hash": runtime_body.get("external_verifier_binding_hash"),
         "public_effect_digest": runtime_body.get("public_effect_digest"),
         "result_redacted": bool(runtime_body.get("result_redacted") is True),
         "claim_scope": "local_testnet_external_verifier_bounded_runtime_receipt",

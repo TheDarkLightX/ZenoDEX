@@ -143,6 +143,9 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         assert "runtime receipt ready" in dom
         assert "result redacted" in dom
         assert "effect digest 0x" in dom
+        assert "status hash 0x" in dom
+        assert "allowlist hash 0x" in dom
+        assert "verifier binding 0x" in dom
         assert NITRO_PCR0 not in dom
         assert NITRO_PCR8 not in dom
         assert POLICY_DIGEST not in dom

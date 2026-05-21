@@ -86,6 +86,9 @@ def build_confidential_runtime_execution_receipt_v1(
     execution_id: str,
     execution_kind: str,
     result_code: str,
+    operator_status_hash: str,
+    approved_measurements_hash: str,
+    external_verifier_binding_hash: str,
 ) -> dict[str, Any]:
     receipt_obj = _require_mapping(receipt, name="receipt")
     receipt_body = _require_mapping(receipt_obj.get("body"), name="receipt.body")
@@ -101,6 +104,15 @@ def build_confidential_runtime_execution_receipt_v1(
     provider_id = _require_nonempty_str(receipt_body.get("provider_id"), name="receipt.body.provider_id")
     request_id = _require_nonempty_str(receipt_body.get("request_id"), name="receipt.body.request_id")
     measurement = _require_nonempty_str(receipt_body.get("measurement"), name="receipt.body.measurement")
+    operator_status_hash_v = _require_nonempty_str(operator_status_hash, name="operator_status_hash")
+    approved_measurements_hash_v = _require_nonempty_str(
+        approved_measurements_hash,
+        name="approved_measurements_hash",
+    )
+    external_verifier_binding_hash_v = _require_nonempty_str(
+        external_verifier_binding_hash,
+        name="external_verifier_binding_hash",
+    )
     current_epoch = _require_bounded_int(attestation.get("current_epoch"), name="receipt.body.attestation.current_epoch")
     attestation_epoch = _require_bounded_int(
         attestation.get("attestation_epoch"),
@@ -127,6 +139,9 @@ def build_confidential_runtime_execution_receipt_v1(
         "execution_kind": execution_kind_v,
         "result_code": result_code_v,
         "measurement_provider": _provider_family(measurement),
+        "operator_status_hash": operator_status_hash_v,
+        "approved_measurements_hash": approved_measurements_hash_v,
+        "external_verifier_binding_hash": external_verifier_binding_hash_v,
         "attestation_epoch": attestation_epoch,
         "current_epoch": current_epoch,
         "units_charged": fee_charged,

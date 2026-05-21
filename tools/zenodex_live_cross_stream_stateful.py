@@ -62,6 +62,9 @@ CONF_POLICY_DIGEST = "0x" + ("d" * 64)
 CONF_OTHER_POLICY_DIGEST = "0x" + ("e" * 64)
 CONF_MEASUREMENT = f"nitro:pcr0:{CONF_NITRO_PCR0}:pcr8:{CONF_NITRO_PCR8}"
 CONF_APPROVED_MEASUREMENTS = {CONF_MEASUREMENT}
+CONF_STATUS_HASH = "0x" + ("1" * 64)
+CONF_ALLOWLIST_HASH = "0x" + ("2" * 64)
+CONF_VERIFIER_BINDING_HASH = "0x" + ("3" * 64)
 
 
 @contextmanager
@@ -627,6 +630,9 @@ def _scenario_confidential_runtime_execute_replay() -> dict[str, Any]:
             execution_id="exec runtime bad",
             execution_kind="private_route_quote",
             result_code="bounded_route_selected",
+            operator_status_hash=CONF_STATUS_HASH,
+            approved_measurements_hash=CONF_ALLOWLIST_HASH,
+            external_verifier_binding_hash=CONF_VERIFIER_BINDING_HASH,
         )
     except ValueError as exc:
         bad_runtime_error = str(exc)
@@ -647,6 +653,9 @@ def _scenario_confidential_runtime_execute_replay() -> dict[str, Any]:
         execution_id="exec-conf-runtime-1",
         execution_kind="private_route_quote",
         result_code="bounded_route_selected",
+        operator_status_hash=CONF_STATUS_HASH,
+        approved_measurements_hash=CONF_ALLOWLIST_HASH,
+        external_verifier_binding_hash=CONF_VERIFIER_BINDING_HASH,
     )
     request_table.mark_used(
         ConfidentialRequestKey(

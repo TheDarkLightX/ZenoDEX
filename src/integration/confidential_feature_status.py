@@ -15,9 +15,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..core.confidential_extension_receipts import is_canonical_confidential_measurement
+from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 
 _ALLOWED_STAGES = {"disabled", "experimental", "beta", "ga"}
+_MEASUREMENT_SET_HASH_DOMAIN_V1 = "zenodex.confidential_approved_measurements/v1"
+_STATUS_HASH_DOMAIN_V1 = "zenodex.confidential_feature_status/v1"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -131,6 +134,17 @@ def _confidentiality_non_claims() -> tuple[str, ...]:
     )
 
 
+def _approved_measurements_hash(measurements: tuple[str, ...]) -> str:
+    payload = {"approved_measurements": list(measurements)}
+    return sha256_hex(
+        domain_sep_bytes(_MEASUREMENT_SET_HASH_DOMAIN_V1) + canonical_json_bytes(payload)
+    )
+
+
+def _feature_status_hash(body: dict[str, Any]) -> str:
+    return sha256_hex(domain_sep_bytes(_STATUS_HASH_DOMAIN_V1) + canonical_json_bytes(body))
+
+
 @dataclass(frozen=True)
 class ConfidentialFeatureStatus:
     stage: str
@@ -145,6 +159,7 @@ class ConfidentialFeatureStatus:
 
     def to_public_dict(self) -> dict[str, Any]:
         measurement_count = len(self.approved_measurements)
+        approved_measurements_hash = _approved_measurements_hash(self.approved_measurements)
         readiness_gaps = [
             *(
                 []
@@ -180,7 +195,7 @@ class ConfidentialFeatureStatus:
         ]
         beta_ready = not readiness_gaps
         default_enabled = bool(beta_ready and self.sealed_bid_default)
-        return {
+        body = {
             "stage": str(self.stage),
             "tee_enabled": bool(self.tee_enabled),
             "sealed_bid_enabled": bool(self.sealed_bid_enabled),
@@ -191,6 +206,7 @@ class ConfidentialFeatureStatus:
             "attestation_epoch_length_s": int(self.attestation_epoch_length_s),
             "max_attestation_age_epochs": int(self.max_attestation_age_epochs),
             "approved_measurements_count": int(measurement_count),
+            "approved_measurements_hash": approved_measurements_hash,
             "providers": list(_providers(self.approved_measurements)),
             "operator_contact": str(self.operator_contact),
             "user_summary": (
@@ -239,6 +255,7 @@ class ConfidentialFeatureStatus:
                 "docs/SEALED_BID_DISASTER_STATE_CATALOG.md",
             ],
         }
+        return {**body, "status_hash": _feature_status_hash(body)}
 
 
 def load_confidential_feature_status_from_env() -> ConfidentialFeatureStatus:

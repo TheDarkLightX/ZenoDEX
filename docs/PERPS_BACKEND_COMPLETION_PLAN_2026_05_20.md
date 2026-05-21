@@ -1013,6 +1013,25 @@ request consumption, and bounded redacted runtime receipts. It does not prove
 TEE hardware confidentiality, vendor attestation soundness, fully encrypted
 on-chain state, or production FHE confidentiality.
 
+Additional confidential runtime posture-binding evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/confidential_feature_status.py src/integration/confidential_runtime_receipts.py src/integration/confidential_attestation_api.py tests/integration/test_api_server_confidential.py
+python3 -m pytest -q tests/integration/test_api_server_confidential.py
+python3 -m pytest -q tests/integration/test_confidential_ui_bridge.py::test_confidential_ui_loads_live_status_surface -s
+python3 tools/check_dex_live_product_goal.py --json
+```
+
+Results: the public confidential status now exposes a deterministic
+`status_hash` and `approved_measurements_hash`, while the attestation status
+also exposes an `external_verifier_binding_hash`. The bounded runtime receipt
+and execute response now bind those public hashes into the mounted evidence, and
+the Confidential tab renders all three. This narrows the live claim to one
+specific operator posture, one specific measurement allowlist, and one specific
+verifier configuration. It still does not prove runtime private execution,
+hardware confidentiality, vendor attestation soundness, or encrypted on-chain
+state.
+
 Additional live-product goal audit evidence added on 2026-05-21:
 
 ```bash
@@ -1170,9 +1189,9 @@ Remaining limits:
   prompt capture, device custody, and hardware-wallet execution still remain
   outside the mounted DEX UI claim;
 - confidential execution is bounded to attested admission, bounded runtime
-  receipts, replay protection, redaction, and local accounting evidence; TEE
-  hardware confidentiality and fully encrypted on-chain state remain unproved
-  external assumptions;
+  receipts, replay protection, redaction, local accounting evidence, and public
+  operator or verifier binding hashes; TEE hardware confidentiality and fully
+  encrypted on-chain state remain unproved external assumptions;
 - stream `8` and stream `11` now have a fail-closed external proof-verifier
   wrapper gate over proof-intent receipts, but no production RISC Zero, SP1, or
   equivalent circuit proof artifact is present yet.

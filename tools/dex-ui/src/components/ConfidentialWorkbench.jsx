@@ -156,6 +156,14 @@ function ConfidentialWorkbench() {
   const nonClaims = Array.isArray(liveStatus?.non_claims) && liveStatus.non_claims.length > 0
     ? liveStatus.non_claims
     : [CONFIDENTIAL_SURFACE.summary.nonClaim];
+  const statusHash = String(liveStatus?.status_hash || '');
+  const allowlistHash = String(liveStatus?.approved_measurements_hash || '');
+  const verifierBindingHash = String(
+    runtimeResult?.body?.external_verifier_binding_hash
+    || attestationResult?.external_verifier_binding_hash
+    || liveStatus?.external_verifier_binding_hash
+    || ''
+  );
   const receiptHash = String(attestationResult?.receipt_hash || '');
   const measurement = String(attestationResult?.measurement || attestationResult?.measurement_provider || '');
   const executionAdmitted = attestationResult?.execution_admitted === true;
@@ -284,6 +292,9 @@ function ConfidentialWorkbench() {
                   <span>runtime receipt {runtimeReceiptHash || 'missing'}</span>
                   <span>{runtimeRedacted ? 'result redacted' : 'result exposed'}</span>
                   <span>effect digest {runtimeEffectDigest || 'missing'}</span>
+                  <span>status hash {statusHash || runtimeBody?.operator_status_hash || 'missing'}</span>
+                  <span>allowlist hash {allowlistHash || runtimeBody?.approved_measurements_hash || 'missing'}</span>
+                  <span>verifier binding {verifierBindingHash || 'missing'}</span>
                 </>
               ) : runtimeError ? (
                 <span>runtime error {runtimeError}</span>

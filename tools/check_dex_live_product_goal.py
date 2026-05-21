@@ -315,12 +315,15 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="assurance_depth",
         check_id="confidential_runtime_execute_api_and_ui_are_mounted",
         path="src/integration/confidential_attestation_api.py",
-        description="The confidential API exposes a bounded runtime execute route with redacted public receipts.",
+        description="The confidential API exposes a bounded runtime execute route with redacted public receipts and operator-posture binding hashes.",
         anchors=(
             "POST /api/confidential/attestation/execute",
             "local_testnet_external_verifier_bounded_runtime_receipt",
             "bad_runtime_request",
             "result_redacted",
+            "operator_status_hash",
+            "approved_measurements_hash",
+            "external_verifier_binding_hash",
         ),
     ),
     AnchorCheck(
@@ -332,6 +335,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "runtime receipt ready",
             "result redacted",
             "effect digest 0x",
+            "status hash 0x",
+            "allowlist hash 0x",
+            "verifier binding 0x",
         ),
     ),
     AnchorCheck(
@@ -512,7 +518,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "confidential_runtime",
-        "description": "Confidential evidence covers attestation receipt/admission, bounded redacted runtime receipts, replay protection, and redaction posture, not runtime private execution privacy.",
+        "description": "Confidential evidence covers attestation receipt/admission, bounded redacted runtime receipts, replay protection, redaction posture, and public operator or verifier binding hashes, not runtime private execution privacy.",
     },
 )
 

@@ -145,6 +145,8 @@ def test_api_server_confidential_status_endpoint(monkeypatch) -> None:
         assert status["stage"] == "beta"
         assert status["beta_ready"] is False
         assert status["approved_measurements_count"] == 2
+        assert str(status["approved_measurements_hash"]).startswith("0x")
+        assert str(status["status_hash"]).startswith("0x")
         assert status["operator_contact"] == "confidential@zenodex.test"
         assert "response redaction" in status["claim_scope"]
         assert "no in-repo proof of TEE hardware confidentiality" in status["non_claims"]
@@ -170,6 +172,9 @@ def test_api_server_confidential_attestation_status_reports_verifier_posture(mon
         assert status["external_verifier_enabled"] is True
         assert status["external_verifier_configured"] is True
         assert status["approved_measurements_count"] == 1
+        assert str(status["approved_measurements_hash"]).startswith("0x")
+        assert str(status["status_hash"]).startswith("0x")
+        assert str(status["external_verifier_binding_hash"]).startswith("0x")
         assert status["providers"] == ["nitro"]
         assert "POST /api/confidential/attestation/admit" in status["endpoints"]
         assert "POST /api/confidential/attestation/execute" in status["endpoints"]
@@ -267,6 +272,12 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
 
     httpd, t, host, port = _start_test_server()
     try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request("GET", "/api/confidential/attestation/status")
+        status_resp = conn.getresponse()
+        status_body = json.loads(status_resp.read().decode("utf-8"))
+        assert status_resp.status == 200
+        status_payload = status_body["status"]
         status, body = _post_json(host, port, "/api/confidential/attestation/execute", _runtime_request())
         assert status == 200
         assert body["ok"] is True
@@ -280,8 +291,14 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
         runtime_receipt = body["runtime_receipt"]
         assert runtime_receipt["body"]["measurement_provider"] == "nitro"
         assert runtime_receipt["body"]["result_redacted"] is True
+        assert runtime_receipt["body"]["operator_status_hash"] == status_payload["status_hash"]
+        assert runtime_receipt["body"]["approved_measurements_hash"] == status_payload["approved_measurements_hash"]
+        assert runtime_receipt["body"]["external_verifier_binding_hash"] == status_payload["external_verifier_binding_hash"]
         assert runtime_receipt["body"]["public_summary"]["execution_admitted"] is True
         assert body["runtime_receipt_hash"] == runtime_receipt["receipt_hash"]
+        assert body["operator_status_hash"] == status_payload["status_hash"]
+        assert body["approved_measurements_hash"] == status_payload["approved_measurements_hash"]
+        assert body["external_verifier_binding_hash"] == status_payload["external_verifier_binding_hash"]
         response_text = json.dumps(body, sort_keys=True)
         assert "attestation_payload" not in body
         assert "attestation_payload" not in response_text
