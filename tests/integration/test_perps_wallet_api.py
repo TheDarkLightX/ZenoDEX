@@ -421,6 +421,7 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
     assert payload["report"]["preflight"]["ok"] is True
     assert payload["report"]["operation"]["account_pubkey"] == ALICE
     assert payload["transport"]["fee_limit_native_balance_ok"] is True
+    assert payload["transport"]["quote_balance"] == 5_000
     assert payload["report"]["tau_tx_payload"]["fee_limit"] == "2"
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
@@ -604,6 +605,8 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     market = markets[0]
     assert market["market_id"] == MARKET_ID
     assert market["liquidated_this_step"] is True
+    assert market["account_a_quote_balance"] == 900
+    assert market["account_b_quote_balance"] == 900
     assert market["fee_pool_e8"] == 525_000_000
     assert market["position_base_a"] == 0
     assert market["position_base_b"] == 0

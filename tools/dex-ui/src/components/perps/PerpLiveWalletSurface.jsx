@@ -470,6 +470,15 @@ function PerpLiveWalletSurface() {
 
       {statusError ? <p className="perp-live-wallet-error">Status error: {statusError}</p> : null}
       {error ? <p className="perp-live-wallet-error">Action error: {error}</p> : null}
+      {selectedMarket ? (
+        <div className="perp-live-wallet-result" aria-label="Selected perps market summary">
+          <span>market {selectedMarket.market_id}</span>
+          <span>quote A {selectedMarket.account_a_quote_balance ?? 0}</span>
+          <span>quote B {selectedMarket.account_b_quote_balance ?? 0}</span>
+          <span>posted A {selectedMarket.collateral_e8_a ?? 0}</span>
+          <span>posted B {selectedMarket.collateral_e8_b ?? 0}</span>
+        </div>
+      ) : null}
       {result ? (
         <div className="perp-live-wallet-result" role="status">
           <span>{result.submission ? 'submit accepted' : 'prepare ready'}</span>

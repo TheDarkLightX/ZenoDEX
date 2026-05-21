@@ -240,8 +240,6 @@ The UI now exposes:
 
 Still missing from the mounted perps UI:
 
-- zUSD wallet balance summaries for both clearinghouse accounts
-- posted perps collateral by role in the form
 - production typed Oracle evidence picker/viewer
 - richer liquidation history and a dedicated isolated partial-liquidation
   control if isolated markets are promoted
@@ -394,6 +392,17 @@ pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui
 ```
 
 Results: API summary and browser liquidation checks `2 passed`.
+
+Additional selected-market balance evidence added on 2026-05-21:
+
+```bash
+pytest -q tests/integration/test_perps_wallet_api.py::test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8 tests/integration/test_perps_wallet_api.py::test_status_exposes_clearinghouse_liquidation_summary_fields
+pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence -s
+```
+
+Result: API and browser balance checks `3 passed`. The mounted wallet now
+shows the selected market's account-A/account-B quote balances and posted
+clearinghouse collateral beside the live transaction result.
 
 Remaining limits:
 

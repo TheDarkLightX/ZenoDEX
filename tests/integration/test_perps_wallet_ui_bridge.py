@@ -955,6 +955,10 @@ def test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence(tmp_path: Pat
         assert "liquidated yes" in dom
         assert "fee pool 525000000" in dom
         assert "positions 0/0" in dom
+        assert "quote A 900" in dom
+        assert "quote B 900" in dom
+        assert "posted A 15000000000" in dom
+        assert "posted B 4475000000" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

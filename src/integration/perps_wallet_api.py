@@ -205,6 +205,19 @@ def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: s
     return 0
 
 
+def _market_quote_asset(app_state: Mapping[str, Any], *, market_id: str) -> str:
+    state = _state_from_app_state(app_state)
+    if state.perps is None:
+        return ""
+    try:
+        market = state.perps.get_market(market_id)
+    except Exception:
+        return ""
+    if isinstance(market, PerpClearinghouse2pMarketState):
+        return str(market.quote_asset)
+    return ""
+
+
 def _safe_native_balance(client: TauNetTcpClient, pubkey: str) -> int | None:
     try:
         return int(client.get_balance(_pubkey_for_rpc(pubkey)))
@@ -602,6 +615,16 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "quote_asset": market.quote_asset,
                     "account_a_pubkey": market.account_a_pubkey,
                     "account_b_pubkey": market.account_b_pubkey,
+                    "account_a_quote_balance": _balance_for_asset(
+                        app_state,
+                        pubkey=market.account_a_pubkey,
+                        asset_id=market.quote_asset,
+                    ),
+                    "account_b_quote_balance": _balance_for_asset(
+                        app_state,
+                        pubkey=market.account_b_pubkey,
+                        asset_id=market.quote_asset,
+                    ),
                     "now_epoch": int(market.state.get("now_epoch", 0)),
                     "oracle_last_update_epoch": int(market.state.get("oracle_last_update_epoch", 0)),
                     "clearing_price_epoch": int(market.state.get("clearing_price_epoch", 0)),
@@ -833,6 +856,8 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     if for_submit and not preflight.get("ok"):
         raise ValueError(f"preflight_failed: {preflight.get('error') or 'unknown'}")
     quote_asset = str(operation.get("quote_asset") or body.get("quote_asset") or body.get("quoteAsset") or "")
+    if not quote_asset:
+        quote_asset = _market_quote_asset(app_state, market_id=_market_id(body))
     account_pubkey = str(operation.get("account_pubkey") or meta.get("account_a_pubkey") or tx_sender_pubkey)
     quote_balance = _balance_for_asset(app_state, pubkey=account_pubkey, asset_id=quote_asset) if quote_asset else 0
 
