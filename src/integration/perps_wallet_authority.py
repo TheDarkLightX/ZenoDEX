@@ -27,6 +27,8 @@ PERPS_WALLET_AUTHORITY_PROFILE_SCHEMA_V1 = "zenodex/perps-wallet-authority-profi
 PERPS_WALLET_AUTHORITY_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-authority-status/v1"
 PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-recovery-exercise/v1"
 PERPS_WALLET_RECOVERY_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-recovery-exercise-status/v1"
+PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-rotation-exercise/v1"
+PERPS_WALLET_ROTATION_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-rotation-exercise-status/v1"
 PERPS_WALLET_AUTHORITY_PAYLOAD_KIND = "perps_wallet_authority_profile"
 
 _REQUIRED_WALLET_UX_FLAGS = (
@@ -106,6 +108,14 @@ def _recovery_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
 
 def perps_wallet_recovery_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
     return hash_v0("perps_wallet_recovery_exercise_v1", _recovery_exercise_body(exercise))
+
+
+def _rotation_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in dict(exercise).items() if key != "exercise_hash"}
+
+
+def perps_wallet_rotation_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
+    return hash_v0("perps_wallet_rotation_exercise_v1", _rotation_exercise_body(exercise))
 
 
 def build_perps_wallet_authority_profile_v1(
@@ -541,6 +551,175 @@ def evaluate_perps_wallet_recovery_exercise_v1(
         exercise=exercise_obj,
         wallet_authority_hash=profile.get("wallet_authority_hash"),
         evaluation=evaluation,
+    )
+
+
+def _rotation_exercise_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    exercise: Mapping[str, Any] | None,
+    wallet_authority_hash: str | None,
+    current_authority_status: Mapping[str, Any] | None,
+    next_authority_status: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_ROTATION_EXERCISE_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "rotation_exercise_ready": bool(ok),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "exercise_hash": None if exercise is None else perps_wallet_rotation_exercise_hash_v1(exercise),
+        "chain_id": None if exercise is None else exercise.get("chain_id"),
+        "authority_id": None if exercise is None else exercise.get("authority_id"),
+        "rotated_key_id": None if exercise is None else exercise.get("rotated_key_id"),
+        "replacement_key_id": None if exercise is None else exercise.get("replacement_key_id"),
+        "requested_at_epoch": None if exercise is None else exercise.get("requested_at_epoch"),
+        "broadcast_at_epoch": None if exercise is None else exercise.get("broadcast_at_epoch"),
+        "broadcast_reference": None if exercise is None else exercise.get("broadcast_reference"),
+        "current_wallet_authority_hash": None if current_authority_status is None else current_authority_status.get("wallet_authority_hash"),
+        "next_wallet_authority_hash": None if next_authority_status is None else next_authority_status.get("wallet_authority_hash"),
+        "current_signer_registry_hash": None if current_authority_status is None else current_authority_status.get("signer_registry_hash"),
+        "next_signer_registry_hash": None if next_authority_status is None else next_authority_status.get("signer_registry_hash"),
+        "current_key_manager_hash": None if current_authority_status is None else current_authority_status.get("key_manager_hash"),
+        "next_key_manager_hash": None if next_authority_status is None else next_authority_status.get("key_manager_hash"),
+        "not_claimed": [
+            "does_not_claim_hardware_wallet_custody",
+            "does_not_claim_recovery_rotation_chain_finality",
+            "does_not_claim_guardian_signature_verification",
+            "does_not_claim_device_approval_verification",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_rotation_exercise_status_v1", body)}
+
+
+def evaluate_perps_wallet_rotation_exercise_v1(
+    profile: Mapping[str, Any] | None,
+    exercise: Mapping[str, Any] | None,
+    *,
+    expected_chain_id: str | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if exercise is None:
+        return _rotation_exercise_status(
+            ok=False,
+            errors=["perps wallet rotation exercise is missing"],
+            exercise=None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            current_authority_status=None,
+            next_authority_status=None,
+        )
+    try:
+        exercise_obj = _require_mapping(exercise, name="rotation_exercise")
+        _reject_secret_fields(exercise_obj, name="rotation_exercise")
+    except Exception as exc:
+        return _rotation_exercise_status(
+            ok=False,
+            errors=[f"perps wallet rotation exercise invalid: {exc}"],
+            exercise=exercise if isinstance(exercise, Mapping) else None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            current_authority_status=None,
+            next_authority_status=None,
+        )
+    if profile is None:
+        return _rotation_exercise_status(
+            ok=False,
+            errors=["perps wallet authority profile is missing"],
+            exercise=exercise_obj,
+            wallet_authority_hash=None,
+            current_authority_status=None,
+            next_authority_status=None,
+        )
+
+    current_authority_status = evaluate_perps_wallet_authority_profile_v1(
+        profile,
+        expected_chain_id=expected_chain_id,
+    )
+    if current_authority_status["production_wallet_authority"] is not True:
+        errors.append("perps wallet authority profile is not ready")
+        errors.extend(str(gap) for gap in current_authority_status.get("readiness_gaps", []))
+
+    try:
+        if exercise_obj.get("schema") != PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1:
+            errors.append("perps wallet rotation exercise schema mismatch")
+        chain_id = _require_nonempty_str(exercise_obj.get("chain_id"), name="chain_id")
+        authority_id = _require_nonempty_str(exercise_obj.get("authority_id"), name="authority_id")
+        rotated_key_id = _require_nonempty_str(exercise_obj.get("rotated_key_id"), name="rotated_key_id")
+        replacement_key_id = _require_nonempty_str(exercise_obj.get("replacement_key_id"), name="replacement_key_id")
+        requested_at_epoch = _require_nonnegative_int(exercise_obj.get("requested_at_epoch"), name="requested_at_epoch")
+        broadcast_at_epoch = _require_nonnegative_int(exercise_obj.get("broadcast_at_epoch"), name="broadcast_at_epoch")
+        broadcast_reference = _require_nonempty_str(exercise_obj.get("broadcast_reference"), name="broadcast_reference")
+        next_profile = _require_mapping(
+            exercise_obj.get("next_wallet_authority_profile"),
+            name="next_wallet_authority_profile",
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        return _rotation_exercise_status(
+            ok=False,
+            errors=errors,
+            exercise=exercise_obj,
+            wallet_authority_hash=profile.get("wallet_authority_hash"),
+            current_authority_status=current_authority_status,
+            next_authority_status=None,
+        )
+
+    if expected_chain_id is not None and chain_id != expected_chain_id:
+        errors.append("perps wallet rotation exercise chain_id mismatch")
+    if chain_id != profile.get("chain_id"):
+        errors.append("perps wallet rotation exercise profile chain_id mismatch")
+    if authority_id != profile.get("authority_id"):
+        errors.append("perps wallet rotation exercise authority_id mismatch")
+    if broadcast_at_epoch < requested_at_epoch:
+        errors.append("perps wallet rotation exercise broadcast_at_epoch precedes request")
+
+    next_authority_status = evaluate_perps_wallet_authority_profile_v1(
+        next_profile,
+        expected_chain_id=expected_chain_id,
+    )
+    if next_authority_status["production_wallet_authority"] is not True:
+        errors.append("next perps wallet authority profile is not ready")
+        errors.extend(str(gap) for gap in next_authority_status.get("readiness_gaps", []))
+    if next_profile.get("chain_id") != chain_id:
+        errors.append("next perps wallet authority profile chain_id mismatch")
+    if next_profile.get("authority_id") != authority_id:
+        errors.append("next perps wallet authority profile authority_id mismatch")
+
+    current_active_key_ids = {
+        str(item.get("key_id"))
+        for item in current_authority_status.get("active_signers", [])
+        if isinstance(item, Mapping)
+    }
+    next_active_key_ids = {
+        str(item.get("key_id"))
+        for item in next_authority_status.get("active_signers", [])
+        if isinstance(item, Mapping)
+    }
+    if rotated_key_id not in current_active_key_ids:
+        errors.append("rotated key is not active in current wallet authority")
+    if replacement_key_id not in next_active_key_ids:
+        errors.append("replacement key is not active in next wallet authority")
+    if replacement_key_id in current_active_key_ids:
+        errors.append("replacement key is already active in current wallet authority")
+    if rotated_key_id in next_active_key_ids:
+        errors.append("rotated key remains active in next wallet authority")
+    if current_authority_status.get("wallet_authority_hash") == next_authority_status.get("wallet_authority_hash"):
+        errors.append("next wallet authority hash must differ from current wallet authority hash")
+    if (
+        current_authority_status.get("signer_registry_hash") == next_authority_status.get("signer_registry_hash")
+        and current_authority_status.get("key_manager_hash") == next_authority_status.get("key_manager_hash")
+    ):
+        errors.append("rotation exercise does not change key manager or signer registry")
+
+    _ = broadcast_reference
+    return _rotation_exercise_status(
+        ok=not errors,
+        errors=errors,
+        exercise=exercise_obj,
+        wallet_authority_hash=profile.get("wallet_authority_hash"),
+        current_authority_status=current_authority_status,
+        next_authority_status=next_authority_status,
     )
 
 

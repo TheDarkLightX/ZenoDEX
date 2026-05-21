@@ -28,6 +28,7 @@ from .perp_engine import PerpEngineConfig, apply_perp_ops
 from .perps_wallet_authority import (
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
+    evaluate_perps_wallet_rotation_exercise_v1,
 )
 from .tau_net_client import (
     TauNetRpcError,
@@ -172,6 +173,14 @@ def _wallet_recovery_exercise_from_env() -> tuple[Mapping[str, Any] | None, str 
         json_names=("PERPS_WALLET_RECOVERY_EXERCISE_JSON",),
         file_names=("PERPS_WALLET_RECOVERY_EXERCISE_FILE",),
         label="perps wallet recovery exercise",
+    )
+
+
+def _wallet_rotation_exercise_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_ROTATION_EXERCISE_JSON",),
+        file_names=("PERPS_WALLET_ROTATION_EXERCISE_FILE",),
+        label="perps wallet rotation exercise",
     )
 
 
@@ -1661,6 +1670,25 @@ def _status_payload() -> Dict[str, Any]:
             "evaluation": None,
             "evaluation_hash": None,
         }
+    rotation_exercise, rotation_exercise_error = _wallet_rotation_exercise_from_env()
+    if rotation_exercise is not None:
+        wallet_authority["rotation_exercise"] = evaluate_perps_wallet_rotation_exercise_v1(
+            wallet_authority_profile,
+            rotation_exercise,
+            expected_chain_id=chain_id,
+        )
+    elif rotation_exercise_error is not None:
+        wallet_authority["rotation_exercise"] = {
+            "schema": "zenodex/perps-wallet-rotation-exercise-status/v1",
+            "ok": False,
+            "rotation_exercise_ready": False,
+            "status": "blocked",
+            "errors": [rotation_exercise_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "exercise_hash": None,
+            "current_wallet_authority_hash": None,
+            "next_wallet_authority_hash": None,
+        }
     oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
     oracle_authority = _bind_oracle_authority_status(
         evaluate_oracle_authority_profile_v1(oracle_authority_profile),
@@ -1775,6 +1803,20 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 recovery["status"] = "blocked"
                 recovery.setdefault("errors", []).append(profile_error)
             return 200, {"ok": recovery.get("recovery_exercise_ready") is True, "recovery_exercise": recovery}
+        if rest == ["rotation", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            rotation = evaluate_perps_wallet_rotation_exercise_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                rotation["ok"] = False
+                rotation["rotation_exercise_ready"] = False
+                rotation["status"] = "blocked"
+                rotation.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": rotation.get("rotation_exercise_ready") is True, "rotation_exercise": rotation}
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}

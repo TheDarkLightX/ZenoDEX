@@ -592,6 +592,30 @@ when that exercise is present. This is a public threshold/delay evaluation
 receipt. It does not verify guardian signatures, custody hardware keys, or
 broadcast a key-rotation transaction.
 
+Additional perps wallet rotation-broadcast exercise evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_authority.py src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py tools/check_dex_live_product_goal.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_rotation_exercise_ready_receipt tests/integration/test_perps_wallet_api.py::test_perps_wallet_rotation_exercise_blocks_missing_rotation_transition tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_rotation_exercise tests/integration/test_perps_wallet_api.py::test_rotation_evaluate_endpoint_blocks_bad_broadcast_epoch
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+python3 tools/check_dex_live_product_goal.py --json
+```
+
+Results: focused rotation-exercise checks `4 passed`; mounted perps wallet
+browser smoke `1 passed`; and the live-product goal audit still returned
+`goal_complete: false`. The live wallet authority status can now evaluate a
+public rotation-broadcast exercise through
+`PERPS_WALLET_ROTATION_EXERCISE_JSON` or
+`PERPS_WALLET_ROTATION_EXERCISE_FILE`, and the mounted API exposes
+`POST /api/perps/wallet/rotation/evaluate`. The receipt binds the current
+authority profile, a next public wallet-authority profile, the rotated key id,
+the replacement key id, request and broadcast epochs, a broadcast reference,
+and current-to-next authority hashes. The mounted UI renders `rotation
+exercise ready` and a rotation receipt hash when that exercise is present. This
+is public transition evidence for a rotation-broadcast exercise. It does not
+verify device approval, guardian signatures, or chain finality.
+
 Additional perps Oracle-authority binding evidence added on 2026-05-21:
 
 ```bash
@@ -1067,8 +1091,9 @@ Remaining limits:
   Oracle authority profile is exercised on public testnet;
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
-  approval, guardian signature verification, and key-rotation broadcast remain
-  outside the mounted DEX UI;
+  approval and guardian signature verification remain outside the mounted DEX
+  UI; public rotation-broadcast exercises now have receipts, but they still do
+  not prove device custody or chain finality;
 - confidential execution is bounded to attested admission, replay protection,
   redaction, and local accounting evidence; TEE hardware confidentiality and
   fully encrypted on-chain state remain unproved external assumptions;

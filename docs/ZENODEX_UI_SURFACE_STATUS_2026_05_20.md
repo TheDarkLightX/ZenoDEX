@@ -45,7 +45,8 @@ pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
 result, sender, sequence, fee limit, signing mode, and a public state-delta
 witness for changed perps markets after submit. The mounted UI renders that
 proof profile, receipt hash, delta-witness count, the perps wallet-authority
-preflight status, and the perps-side Oracle authority preflight status.
+preflight status, public recovery and rotation exercise receipts when present,
+and the perps-side Oracle authority preflight status.
 `/api/perps/wallet/status` can load a public wallet-authority profile from
 `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
 `PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
@@ -279,8 +280,10 @@ smoke `1 passed`; full perps wallet API `30 passed`; full mounted perps wallet
 browser bridge `7 passed`; Vite production build passed. A ready public
 wallet-authority profile now requires recovery-policy metadata for every active
 wallet signer key and the mounted UI renders `wallet recovery 2/2` alongside
-the signer and authority posture. This is still public recovery-readiness
-metadata, not custody of keys or hardware-wallet approval.
+the signer and authority posture. Recovery and rotation exercise receipts are
+separate public lifecycle receipts over threshold/delay satisfaction and
+current-to-next authority transitions. They still do not prove custody of keys,
+device approval, or chain finality.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

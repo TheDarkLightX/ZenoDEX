@@ -10,10 +10,13 @@ from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
     build_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
+    evaluate_perps_wallet_rotation_exercise_v1,
     perps_wallet_recovery_exercise_hash_v1,
+    perps_wallet_rotation_exercise_hash_v1,
 )
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -40,10 +43,12 @@ ALICE_PRIVKEY = 83
 BOB_PRIVKEY = 84
 ORACLE_PRIVKEY = 85
 OPERATOR_PRIVKEY = 86
+CAROL_PRIVKEY = 87
 ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 BOB = "0x" + bls_pubkey_hex_from_privkey(BOB_PRIVKEY)
 ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
+CAROL = "0x" + bls_pubkey_hex_from_privkey(CAROL_PRIVKEY)
 MARKET_ID = "perp:ch2p:test"
 ISOLATED_MARKET_ID = "perp:isolated:test"
 
@@ -156,6 +161,106 @@ def _perps_wallet_recovery_exercise(**overrides: object) -> dict[str, object]:
         "requested_at_epoch": 10,
         "current_epoch": 13,
         "approvals": ["guardian-oracle", "guardian-operator"],
+    }
+    base.update(overrides)
+    return base
+
+
+def _perps_wallet_rotated_profile() -> dict[str, object]:
+    return build_perps_wallet_authority_profile_v1(
+        authority_id="perps-wallet-mainnet-authority-v1",
+        chain_id=CHAIN_ID,
+        stage="production",
+        enabled=True,
+        key_manager=ZenoKeyManager(
+            key_refs=(
+                KeyRef(key_id="perps-wallet-c", public_key=CAROL, recovery_policy_id="recovery-perps-wallet-c"),
+                KeyRef(key_id="perps-wallet-b", public_key=BOB, recovery_policy_id="recovery-perps-wallet-b"),
+            ),
+            recovery_policies=(
+                SocialRecoveryPolicy(
+                    policy_id="recovery-perps-wallet-c",
+                    subject_key_id="perps-wallet-c",
+                    threshold=2,
+                    delay_epochs=3,
+                    guardians=(
+                        RecoveryGuardian(guardian_id="guardian-oracle", public_key=ORACLE),
+                        RecoveryGuardian(guardian_id="guardian-operator", public_key=OPERATOR),
+                    ),
+                ),
+                SocialRecoveryPolicy(
+                    policy_id="recovery-perps-wallet-b",
+                    subject_key_id="perps-wallet-b",
+                    threshold=2,
+                    delay_epochs=3,
+                    guardians=(
+                        RecoveryGuardian(guardian_id="guardian-oracle", public_key=ORACLE),
+                        RecoveryGuardian(guardian_id="guardian-operator", public_key=OPERATOR),
+                    ),
+                ),
+            ),
+        ).public_dict(),
+        signer_registry=build_signer_registry_v0(
+            registry_id="perps-wallet-authority-v1",
+            payload_kind=PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+            threshold=1,
+            signers=(
+                {
+                    "signer_id": "wallet-c",
+                    "key_id": "perps-wallet-c",
+                    "public_key": CAROL,
+                    "weight": 1,
+                    "status": "active",
+                },
+                {
+                    "signer_id": "wallet-b",
+                    "key_id": "perps-wallet-b",
+                    "public_key": BOB,
+                    "weight": 1,
+                    "status": "active",
+                },
+            ),
+        ),
+        wallet_ux={
+            "external_signer_required": True,
+            "key_manager_required": True,
+            "device_approval_required": True,
+            "replay_protection_required": True,
+            "recovery_policy_required": True,
+        },
+        proof_profile={
+            "stream8_proof_intent_required": True,
+            "state_delta_witness_required": True,
+            "zk_or_proof_required": True,
+            "runtime_proof_profile": "perps-stream8-risc0-or-equivalent-v1",
+        },
+        transaction_scope={
+            "stream_key": "8",
+            "allowed_actions": [
+                "init_market_2p",
+                "deposit_collateral",
+                "withdraw_collateral",
+                "set_position_pair",
+                "advance_epoch",
+                "publish_clearing_price",
+                "settle_epoch",
+                "partial_liquidate",
+            ],
+        },
+    )
+
+
+def _perps_wallet_rotation_exercise(**overrides: object) -> dict[str, object]:
+    base = {
+        "schema": PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+        "chain_id": CHAIN_ID,
+        "authority_id": "perps-wallet-mainnet-authority-v1",
+        "rotated_key_id": "perps-wallet-a",
+        "replacement_key_id": "perps-wallet-c",
+        "requested_at_epoch": 10,
+        "broadcast_at_epoch": 12,
+        "broadcast_reference": "tau-tx:perps-wallet-rotation-1",
+        "next_wallet_authority_profile": _perps_wallet_rotated_profile(),
     }
     base.update(overrides)
     return base
@@ -690,6 +795,36 @@ def test_perps_wallet_recovery_exercise_blocks_early_request() -> None:
     assert "recovery_policy_not_satisfied" in status["errors"]
     assert status["evaluation"]["delay_ok"] is False
     assert status["evaluation"]["threshold_ok"] is True
+
+
+def test_perps_wallet_rotation_exercise_ready_receipt() -> None:
+    profile = _perps_wallet_authority_profile()
+    exercise = _perps_wallet_rotation_exercise()
+
+    status = evaluate_perps_wallet_rotation_exercise_v1(profile, exercise, expected_chain_id=CHAIN_ID)
+
+    assert status["ok"] is True
+    assert status["rotation_exercise_ready"] is True
+    assert status["status"] == "ready"
+    assert status["errors"] == []
+    assert status["wallet_authority_hash"] == profile["wallet_authority_hash"]
+    assert status["exercise_hash"] == perps_wallet_rotation_exercise_hash_v1(exercise)
+    assert status["rotated_key_id"] == "perps-wallet-a"
+    assert status["replacement_key_id"] == "perps-wallet-c"
+    assert status["next_wallet_authority_hash"] == exercise["next_wallet_authority_profile"]["wallet_authority_hash"]
+
+
+def test_perps_wallet_rotation_exercise_blocks_missing_rotation_transition() -> None:
+    status = evaluate_perps_wallet_rotation_exercise_v1(
+        _perps_wallet_authority_profile(),
+        _perps_wallet_rotation_exercise(replacement_key_id="perps-wallet-b"),
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["rotation_exercise_ready"] is False
+    assert status["status"] == "blocked"
+    assert "replacement key is already active in current wallet authority" in status["errors"]
 
 
 def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatch) -> None:
@@ -1697,6 +1832,34 @@ def test_status_loads_ready_perps_wallet_recovery_exercise(monkeypatch) -> None:
     assert recovery["evaluation"]["threshold_ok"] is True
 
 
+def test_status_loads_ready_perps_wallet_rotation_exercise(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.setenv(
+        "PERPS_WALLET_ROTATION_EXERCISE_JSON",
+        json.dumps(_perps_wallet_rotation_exercise(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.delenv("PERPS_WALLET_ROTATION_EXERCISE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    rotation = payload["status"]["wallet_authority"]["rotation_exercise"]
+    assert rotation["rotation_exercise_ready"] is True
+    assert rotation["status"] == "ready"
+    assert rotation["rotated_key_id"] == "perps-wallet-a"
+    assert rotation["replacement_key_id"] == "perps-wallet-c"
+    assert rotation["broadcast_reference"] == "tau-tx:perps-wallet-rotation-1"
+
+
 def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
@@ -1720,6 +1883,29 @@ def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
     assert "recovery_policy_not_satisfied" in recovery["errors"]
     assert recovery["evaluation"]["accepted_weight"] == 1
     assert recovery["evaluation"]["threshold_ok"] is False
+
+
+def test_rotation_evaluate_endpoint_blocks_bad_broadcast_epoch(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/rotation/evaluate",
+        json.dumps(_perps_wallet_rotation_exercise(broadcast_at_epoch=9)).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is False
+    rotation = payload["rotation_exercise"]
+    assert rotation["rotation_exercise_ready"] is False
+    assert "perps wallet rotation exercise broadcast_at_epoch precedes request" in rotation["errors"]
 
 
 def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:

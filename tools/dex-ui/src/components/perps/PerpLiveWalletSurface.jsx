@@ -439,6 +439,7 @@ function PerpLiveWalletSurface() {
   const stateDeltaWitness = proofReceipt?.state_delta_witness || result?.post_submit?.state_delta_witness || null;
   const walletAuthority = status?.wallet_authority || null;
   const walletRecoveryExercise = walletAuthority?.recovery_exercise || null;
+  const walletRotationExercise = walletAuthority?.rotation_exercise || null;
   const oracleAuthority = status?.oracle_authority || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
@@ -768,6 +769,12 @@ function PerpLiveWalletSurface() {
             <>
               <span>recovery exercise {walletRecoveryExercise.recovery_exercise_ready ? 'ready' : 'blocked'}</span>
               <span>recovery receipt {compactId(walletRecoveryExercise.status_hash)}</span>
+            </>
+          ) : null}
+          {walletRotationExercise ? (
+            <>
+              <span>rotation exercise {walletRotationExercise.rotation_exercise_ready ? 'ready' : 'blocked'}</span>
+              <span>rotation receipt {compactId(walletRotationExercise.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
