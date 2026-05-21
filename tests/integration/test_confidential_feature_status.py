@@ -3,6 +3,11 @@ from __future__ import annotations
 import json
 
 
+NITRO_PCR0 = "a" * 96
+NITRO_PCR8 = "b" * 96
+AZURE_HOSTDATA = "c" * 64
+
+
 def test_load_confidential_feature_status_from_env_defaults(monkeypatch) -> None:
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
 
@@ -25,9 +30,19 @@ def test_load_confidential_feature_status_merges_env_and_file(monkeypatch, tmp_p
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
 
     path = tmp_path / "measurements.json"
-    path.write_text(json.dumps({"approved_measurements": ["nitro:pcr0:aa:pcr8:bb", "azure-sevsnp:hostdata:cc"]}), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "approved_measurements": [
+                    f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
+                    f"azure-sevsnp:hostdata:{AZURE_HOSTDATA}",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS_FILE", str(path))
-    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", "nitro:pcr0:aa:pcr8:bb, custom:edge")
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}, custom:edge")
     monkeypatch.setenv("CONFIDENTIAL_OPERATOR_CONTACT", "confidential@zenodex.test")
     monkeypatch.setenv("CONFIDENTIAL_FHE_ALPHA_ENABLED", "true")
 
@@ -37,7 +52,8 @@ def test_load_confidential_feature_status_merges_env_and_file(monkeypatch, tmp_p
     assert public["approved_measurements_count"] == 3
     assert public["beta_ready"] is False
     assert public["fhe_alpha_enabled"] is True
-    assert public["readiness_gaps"] == ["fhe alpha must stay disabled for beta posture"]
+    assert "fhe alpha must stay disabled for beta posture" in public["readiness_gaps"]
+    assert "cryptographic attestation verification remains external-only" in public["readiness_gaps"]
     assert sorted(public["providers"]) == ["azure-sevsnp", "custom", "nitro"]
 
 
@@ -56,7 +72,7 @@ def test_load_confidential_feature_status_unreadable_measurement_file_fails_clos
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
 
     path = tmp_path / "measurements.json"
-    path.write_text('["nitro:pcr0:aa:pcr8:bb"]', encoding="utf-8")
+    path.write_text(json.dumps([f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}"]), encoding="utf-8")
     path.chmod(0)
     try:
         monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS_FILE", str(path))
@@ -90,22 +106,22 @@ def test_confidential_feature_status_helpers_cover_env_and_file_edges(monkeypatc
 
     csv_path = tmp_path / "measurements.csv"
     csv_path.write_text("nitro:a,,custom:x\nazure-sevsnp:y", encoding="utf-8")
-    assert mod._measurements_from_file(str(csv_path)) == ("azure-sevsnp:y", "custom:x", "nitro:a")
+    assert mod._measurements_from_file(str(csv_path)) == ("custom:x",)
 
     list_path = tmp_path / "measurements.json"
     list_path.write_text(json.dumps(["nitro:a", "custom:x", "nitro:a"]), encoding="utf-8")
-    assert mod._measurements_from_file(str(list_path)) == ("custom:x", "nitro:a")
+    assert mod._measurements_from_file(str(list_path)) == ("custom:x",)
 
     dict_path = tmp_path / "bad-dict.json"
     dict_path.write_text(json.dumps({"approved_measurements": "nitro:a"}), encoding="utf-8")
-    assert mod._measurements_from_file(str(dict_path)) == ('{"approved_measurements": "nitro:a"}',)
+    assert mod._measurements_from_file(str(dict_path)) == ()
 
     assert mod._has_real_operator_contact("") is False
     assert mod._has_real_operator_contact("ops@example.invalid") is False
     assert mod._has_real_operator_contact("https://status.zenodex.test") is True
 
 
-def test_confidential_feature_status_reports_beta_ready_when_all_requirements_hold(monkeypatch) -> None:
+def test_confidential_feature_status_reports_runtime_gaps_even_when_env_requirements_hold(monkeypatch) -> None:
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
 
     monkeypatch.setenv("CONFIDENTIAL_FEATURE_STAGE", "ga")
@@ -114,11 +130,15 @@ def test_confidential_feature_status_reports_beta_ready_when_all_requirements_ho
     monkeypatch.setenv("CONFIDENTIAL_SEALED_BID_DEFAULT", "true")
     monkeypatch.setenv("CONFIDENTIAL_FHE_ALPHA_ENABLED", "false")
     monkeypatch.setenv("CONFIDENTIAL_OPERATOR_CONTACT", "https://ops.zenodex.test")
-    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", "nitro:pcr0:aa")
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}")
 
     status = load_confidential_feature_status_from_env()
     public = status.to_public_dict()
 
-    assert public["default_enabled"] is True
-    assert public["beta_ready"] is True
-    assert public["readiness_gaps"] == []
+    assert public["default_enabled"] is False
+    assert public["beta_ready"] is False
+    assert "cryptographic attestation verification remains external-only" in public["readiness_gaps"]
+    assert "confidential workload execution remains external to the live API path" in public["readiness_gaps"]
+    assert "confidential execution runtime admission is not wired on the live API path" not in public["readiness_gaps"]
+    assert "replay-safe request nonce reservation is not enforced by a local verifier boundary" not in public["readiness_gaps"]
+    assert "sealed-bid beta runtime/API integration is not wired beyond core/tests/tools" in public["readiness_gaps"]

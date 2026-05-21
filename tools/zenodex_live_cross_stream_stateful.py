@@ -6,6 +6,7 @@ The campaign exercises the mounted live transaction lanes used by the browser:
 - stream 11: collateralized zUSD monetary actions;
 - stream 9: transferable zUSD token transport;
 - stream 8: clearinghouse perps collateral and settlement actions.
+- AutoTrader explicit local/testnet execute-once request consumption.
 - confidential extension attestation live-admission request consumption.
 
 It is intentionally bounded and deterministic. Passing this tool is a receipt
@@ -30,6 +31,7 @@ if str(ROOT) not in sys.path:
 from src.core.zusd import E8  # noqa: E402
 from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission  # noqa: E402
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt  # noqa: E402
+from src.integration import autotrader_live_api  # noqa: E402
 from src.integration import tau_testnet_dex_plugin as plugin  # noqa: E402
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine  # noqa: E402
 from src.integration.zusd_monetary_bridge import stability_pool_pubkey  # noqa: E402
@@ -604,6 +606,102 @@ def _scenario_confidential_admission_replay() -> dict[str, Any]:
     }
 
 
+def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+        sequence = 9
+        fail_next_send = True
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return type(self).sequence
+
+        def sendtx(self, payload: object) -> str:
+            if type(self).fail_next_send:
+                type(self).fail_next_send = False
+                return "ERROR: temporary mempool outage"
+            if not isinstance(payload, dict):
+                raise AssertionError("AutoTrader sent non-object Tau payload")
+            type(self).sent.append(dict(payload))
+            type(self).sequence += 1
+            return "SUCCESS: Transaction queued."
+
+    body = {
+        "execution_id": "stateful-exec-1",
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": CHAIN_ID,
+        "tx_sequence_number": 9,
+        "tx_expiration_time": DEADLINE,
+        "last_used_nonce": 0,
+    }
+    execution_keys: set[str] = set()
+    old_client = autotrader_live_api.TauNetTcpClient
+    _FakeTauClient.sent = []
+    _FakeTauClient.sequence = 9
+    _FakeTauClient.fail_next_send = True
+
+    with _patched_env(
+        {
+            "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING": "true",
+            "AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION": "true",
+            "AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED": "true",
+            "AUTOTRADER_LIVE_CHAIN_ID": CHAIN_ID,
+        }
+    ):
+        autotrader_live_api.TauNetTcpClient = _FakeTauClient  # type: ignore[assignment]
+        try:
+            failed_status, failed = autotrader_live_api.handle_autotrader_live_request(
+                "POST",
+                "/api/strategy/autotrader/execute-once",
+                json.dumps(body).encode("utf-8"),
+                execution_keys=execution_keys,
+            )
+            if failed_status != 400 or failed.get("error") != "sendtx_failed":
+                raise AssertionError(f"unexpected AutoTrader first failure: {failed_status} {failed!r}")
+            if execution_keys:
+                raise AssertionError("AutoTrader execute-once key was consumed after failed send")
+            if _FakeTauClient.sent:
+                raise AssertionError("AutoTrader failed send recorded a queued payload")
+
+            accepted_status, accepted = autotrader_live_api.handle_autotrader_live_request(
+                "POST",
+                "/api/strategy/autotrader/execute-once",
+                json.dumps(body).encode("utf-8"),
+                execution_keys=execution_keys,
+            )
+            if accepted_status != 200 or accepted.get("ok") is not True:
+                raise AssertionError(f"unexpected AutoTrader acceptance: {accepted_status} {accepted!r}")
+            if execution_keys != {"stateful-exec-1"}:
+                raise AssertionError("AutoTrader execute-once key was not consumed after success")
+            if len(_FakeTauClient.sent) != 1:
+                raise AssertionError("AutoTrader successful execute-once did not send exactly once")
+
+            replay_body = {**body, "tx_sequence_number": 10}
+            replay_status, replay = autotrader_live_api.handle_autotrader_live_request(
+                "POST",
+                "/api/strategy/autotrader/execute-once",
+                json.dumps(replay_body).encode("utf-8"),
+                execution_keys=execution_keys,
+            )
+            if replay_status != 400 or replay.get("error") != "execution_replay":
+                raise AssertionError(f"unexpected AutoTrader replay response: {replay_status} {replay!r}")
+            if len(_FakeTauClient.sent) != 1:
+                raise AssertionError("AutoTrader replay sent a second transaction")
+        finally:
+            autotrader_live_api.TauNetTcpClient = old_client  # type: ignore[assignment]
+
+    return {
+        "first_failure": failed["error"],
+        "key_count_after_failed_send": 0,
+        "success_status": accepted["status"],
+        "replay_rejection": replay["error"],
+        "sent_count": len(_FakeTauClient.sent),
+    }
+
+
 SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
     (
         "happy_path_zusd_to_perps_collateral_conserves",
@@ -645,6 +743,12 @@ SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
         "confidential_live_admission_replay_rejected_without_double_consume",
         "duplicate_confidential_admission_after_replay",
         _scenario_confidential_admission_replay,
+        False,
+    ),
+    (
+        "autotrader_execute_once_replay_rejected_without_second_send",
+        "autotrader_execute_once_replay_or_failure_key_burn",
+        _scenario_autotrader_execute_once_replay,
         False,
     ),
 )
@@ -935,7 +1039,10 @@ def run_campaign() -> dict[str, Any]:
         "schema": SCHEMA,
         "ok": accepted == len(scenarios) and bool(fuzz["ok"]),
         "chain_id": CHAIN_ID,
-        "surface": "stream11_zusd_monetary__stream9_zusd_token__stream8_clearinghouse_perps__confidential_live_admission",
+        "surface": (
+            "stream11_zusd_monetary__stream9_zusd_token__stream8_clearinghouse_perps__"
+            "autotrader_execute_once__confidential_live_admission"
+        ),
         "scenario_count": len(scenarios),
         "accepted_scenario_count": accepted,
         "disaster_states": [scenario["disaster_state"] for scenario in scenarios],

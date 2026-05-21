@@ -22,7 +22,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["schema"] == "zenodex.live_cross_stream_stateful_replay.v1"
     assert receipt["ok"] is True
-    assert receipt["scenario_count"] == 7
+    assert receipt["scenario_count"] == 8
     assert receipt["accepted_scenario_count"] == receipt["scenario_count"]
     assert receipt["fuzz_campaign"]["ok"] is True
     assert receipt["fuzz_campaign"]["seed_count"] == 4
@@ -37,6 +37,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
         "perps_overdeposit_materializes",
         "stale_or_missing_oracle_evidence_settles",
         "duplicate_confidential_admission_after_replay",
+        "autotrader_execute_once_replay_or_failure_key_burn",
     }
 
 
@@ -73,6 +74,19 @@ def test_live_cross_stream_stateful_replay_writes_receipt(tmp_path: Path) -> Non
         ]
         == "policy_digest_mismatch"
     )
+    assert (
+        by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["first_failure"]
+        == "sendtx_failed"
+    )
+    assert (
+        by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["success_status"]
+        == "executed_once"
+    )
+    assert (
+        by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["replay_rejection"]
+        == "execution_replay"
+    )
+    assert by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["sent_count"] == 1
     assert receipt["fuzz_campaign"]["errors"] == []
     assert set(receipt["fuzz_campaign"]["disaster_states"]) == {
         "long_horizon_balance_drift",
