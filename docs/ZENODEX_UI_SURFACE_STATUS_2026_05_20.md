@@ -473,6 +473,24 @@ AutoTrader execute-once lane: failed `sendtx` does not consume the execution key
 successful execution consumes it, and execution-key replay cannot send a second
 Tau transaction. Long-horizon fuzz still covers balance/nonce/atomicity drift.
 
+Latest Tau transaction canonicalization and RPC redaction pass on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/tau_net_client.py tests/integration/test_tau_net_client.py
+python3 -m pytest -q tests/integration/test_tau_net_client.py -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py -s
+```
+
+Results: py_compile passed; Tau client checks `6 passed`; zUSD monetary wallet
+API checks `10 passed`; perps wallet API checks `29 passed`. Tau transaction
+signing and nested operation wire encoding now use the repo canonical JSON
+encoder, so noncanonical values such as floats are rejected before signing. Tau
+RPC connect, send, receive-reset, and receive-timeout failures are normalized to
+`TauNetRpcError` so mounted zUSD/perps APIs return `502` fail-closed responses
+instead of uncaught socket errors. The socket tests also assert Tau RPC error
+details do not echo private command text or partial response bytes.
+
 ## Economic-security status
 
 Algorithmic game theory is required for value-moving actor surfaces before

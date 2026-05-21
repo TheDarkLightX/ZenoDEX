@@ -624,6 +624,26 @@ restart, and proves the same signed stream `8` payload is rejected after restart
 before state mutation. Packet-level network partition/latency chaos remains
 open.
 
+Additional Tau transaction canonicalization and RPC redaction evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/tau_net_client.py tests/integration/test_tau_net_client.py
+python3 -m pytest -q tests/integration/test_tau_net_client.py -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py -s
+```
+
+Results: py_compile passed; Tau client checks `6 passed`; zUSD monetary wallet
+API checks `10 passed`; perps wallet API checks `29 passed`. Tau transaction
+signing and nested operation wire encoding now use the canonical JSON encoder,
+rejecting noncanonical operation values before signing. Tau RPC connect, send,
+receive-reset, and receive-timeout failures are converted to `TauNetRpcError`,
+and the socket regressions assert error details do not echo private command text
+or partial response bytes. This keeps the mounted stream `8` and stream `11`
+submit APIs on the existing `502 tau_rpc_error` fail-closed path when Tau is
+unreachable, slow, or resets the connection.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker is local/devnet

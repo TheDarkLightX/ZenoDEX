@@ -18,6 +18,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from ..core.dex_intent_auth_message import hash_dex_intent_auth_message_v1
 from ..core.perp_submission_auth_message import hash_perp_op_auth_message_v1
+from ..state.canonical import canonical_json_bytes
 
 try:
     from py_ecc.bls import G2Basic
@@ -139,7 +140,7 @@ def _tx_signing_message_bytes(payload: Mapping[str, Any]) -> bytes:
         "operations": payload["operations"],
         "fee_limit": payload["fee_limit"],
     }
-    return json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return canonical_json_bytes(signing_dict)
 
 
 def sign_tau_transaction_payload(payload_wo_sig: Dict[str, Any], *, privkey: str | int | bytes | bytearray) -> str:
@@ -168,7 +169,7 @@ def encode_tau_operations_for_wire(operations: Mapping[str, Any]) -> Dict[str, A
         if isinstance(v, (str, int)):
             encoded_ops[k] = v
             continue
-        encoded_ops[k] = json.dumps(v, sort_keys=True, separators=(",", ":"))
+        encoded_ops[k] = canonical_json_bytes(v).decode("utf-8")
     return encoded_ops
 
 
@@ -293,18 +294,24 @@ class TauNetTcpClient:
         wire = cmd.strip().removesuffix("\r\n") + "\r\n"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(self._cfg.timeout_s)
-            sock.connect((self._cfg.host, self._cfg.port))
-            sock.sendall(wire.encode("utf-8"))
+            try:
+                sock.connect((self._cfg.host, self._cfg.port))
+                sock.sendall(wire.encode("utf-8"))
+            except socket.timeout as exc:
+                raise TauNetRpcError(
+                    f"rpc timed out after {self._cfg.timeout_s}s connecting or sending request"
+                ) from exc
+            except OSError as exc:
+                raise TauNetRpcError(f"rpc connection failed: {exc}") from exc
             buf = bytearray()
             remaining = self._cfg.recv_max_bytes
             while remaining > 0:
                 try:
                     chunk = sock.recv(min(65536, remaining))
                 except socket.timeout as exc:
-                    partial = bytes(buf).decode("utf-8", errors="replace")
-                    raise TauNetRpcError(
-                        f"rpc timed out after {self._cfg.timeout_s}s waiting for response to {cmd!r}; partial={partial!r}"
-                    ) from exc
+                    raise TauNetRpcError(f"rpc timed out after {self._cfg.timeout_s}s waiting for response") from exc
+                except OSError as exc:
+                    raise TauNetRpcError(f"rpc connection failed while waiting for response: {exc}") from exc
                 if not chunk:
                     break
                 buf += chunk

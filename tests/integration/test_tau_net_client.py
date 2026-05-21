@@ -99,6 +99,17 @@ def test_tau_net_client_signing_and_encoding_edges() -> None:
     assert tau_net_client.verify_tau_transaction_payload_signature(bad_sig) is False
 
 
+def test_tau_net_transaction_signing_rejects_noncanonical_json_values() -> None:
+    with pytest.raises(TypeError, match="floats are not allowed"):
+        tau_net_client.build_signed_tau_transaction(
+            privkey=1,
+            sequence_number=2,
+            expiration_time=3,
+            operations={"9": {"x": 1.5}},
+            fee_limit=0,
+        )
+
+
 def test_sign_perp_op_for_engine_validates_inputs() -> None:
     op = {
         "module": "TauPerp",
@@ -139,8 +150,16 @@ def test_sign_perp_op_for_engine_validates_inputs() -> None:
 
 
 class _FakeSocket:
-    def __init__(self, chunks: list[object]) -> None:
+    def __init__(
+        self,
+        chunks: list[object],
+        *,
+        connect_error: Exception | None = None,
+        send_error: Exception | None = None,
+    ) -> None:
         self._chunks = list(chunks)
+        self._connect_error = connect_error
+        self._send_error = send_error
         self.timeout = None
         self.connected = None
         self.sent = []
@@ -155,9 +174,13 @@ class _FakeSocket:
         self.timeout = timeout
 
     def connect(self, addr: tuple[str, int]) -> None:
+        if self._connect_error is not None:
+            raise self._connect_error
         self.connected = addr
 
     def sendall(self, data: bytes) -> None:
+        if self._send_error is not None:
+            raise self._send_error
         self.sent.append(data)
 
     def recv(self, _size: int) -> bytes:
@@ -193,10 +216,31 @@ def test_tau_net_tcp_client_rpc_socket_paths(monkeypatch: pytest.MonkeyPatch) ->
     )
     assert limited_client.rpc("limited") == "A"
 
-    timeout_sock = _FakeSocket([socket.timeout("slow")])
+    connect_fail_sock = _FakeSocket([], connect_error=ConnectionRefusedError("refused"))
+    monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: connect_fail_sock)
+    with pytest.raises(tau_net_client.TauNetRpcError, match="rpc connection failed") as connect_err:
+        client.rpc("sendtx private_payload")
+    assert "sendtx private_payload" not in str(connect_err.value)
+
+    send_fail_sock = _FakeSocket([], send_error=BrokenPipeError("broken"))
+    monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: send_fail_sock)
+    with pytest.raises(tau_net_client.TauNetRpcError, match="rpc connection failed") as send_err:
+        client.rpc("sendtx private_payload")
+    assert "sendtx private_payload" not in str(send_err.value)
+
+    recv_reset_sock = _FakeSocket([ConnectionResetError("reset")])
+    monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: recv_reset_sock)
+    with pytest.raises(tau_net_client.TauNetRpcError, match="waiting for response") as recv_err:
+        client.rpc("sendtx private_payload")
+    assert "sendtx private_payload" not in str(recv_err.value)
+
+    timeout_sock = _FakeSocket([b"PARTIAL_PRIVATE_RESPONSE", socket.timeout("slow")])
     monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: timeout_sock)
-    with pytest.raises(tau_net_client.TauNetRpcError, match="rpc timed out"):
-        client.rpc("slow")
+    with pytest.raises(tau_net_client.TauNetRpcError, match="rpc timed out") as timeout_err:
+        client.rpc("sendtx private_payload")
+    assert "sendtx private_payload" not in str(timeout_err.value)
+    assert "PARTIAL_PRIVATE_RESPONSE" not in str(timeout_err.value)
+
     with pytest.raises(ValueError, match="cmd must be a non-empty string"):
         client.rpc(" ")
 
