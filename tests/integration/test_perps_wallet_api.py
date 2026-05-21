@@ -11,6 +11,10 @@ from src.integration.perps_wallet_authority import (
     build_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_authority_profile_v1,
 )
+from src.integration.zeno_oracle_authority import (
+    ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_profile_v1,
+)
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
@@ -104,6 +108,62 @@ def _perps_wallet_authority_profile(**overrides: object) -> dict[str, object]:
     }
     base.update(overrides)
     return build_perps_wallet_authority_profile_v1(**base)
+
+
+def _oracle_authority_key_manager(*, second_pubkey: str = OPERATOR) -> dict[str, object]:
+    return ZenoKeyManager(
+        key_refs=(
+            KeyRef(key_id="oracle-authority-a", public_key=ORACLE),
+            KeyRef(key_id="oracle-authority-b", public_key=second_pubkey),
+        )
+    ).public_dict()
+
+
+def _oracle_authority_signer_registry(*, second_pubkey: str = OPERATOR, threshold: int = 2) -> dict[str, object]:
+    return build_signer_registry_v0(
+        registry_id="oracle-production-authority-v1",
+        payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+        threshold=threshold,
+        signers=(
+            {
+                "signer_id": "oracle-a",
+                "key_id": "oracle-authority-a",
+                "public_key": ORACLE,
+                "weight": 1,
+                "status": "active",
+            },
+            {
+                "signer_id": "oracle-b",
+                "key_id": "oracle-authority-b",
+                "public_key": second_pubkey,
+                "weight": 1,
+                "status": "active",
+            },
+        ),
+    )
+
+
+def _oracle_authority_profile(**overrides: object) -> dict[str, object]:
+    base = {
+        "authority_id": "oracle-production-authority-v1",
+        "chain_id": CHAIN_ID,
+        "stage": "production",
+        "enabled": True,
+        "key_manager": _oracle_authority_key_manager(),
+        "signer_registry": _oracle_authority_signer_registry(),
+        "wallet_ux": {
+            "external_signer_required": True,
+            "key_manager_required": True,
+            "device_approval_required": True,
+        },
+        "proof_profile": {
+            "zk_or_proof_required": True,
+            "oracle_receipt_replay_required": True,
+            "runtime_proof_profile": "zenooracle-o3-replay-zk-profile-v1",
+        },
+    }
+    base.update(overrides)
+    return build_oracle_authority_profile_v1(**base)
 
 
 def _wrapped_app_state(state: DexState) -> dict[str, object]:
@@ -1012,6 +1072,14 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
     monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", raising=False)
     monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    for name in (
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON",
+        "PERPS_ORACLE_AUTHORITY_PROFILE_FILE",
+        "ZENO_ORACLE_AUTHORITY_PROFILE_JSON",
+        "ZENO_ORACLE_AUTHORITY_PROFILE_FILE",
+        "ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
@@ -1027,6 +1095,10 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     assert payload["status"]["production_wallet_authority"] is False
     assert wallet_authority["status"] == "blocked"
     assert wallet_authority["readiness_gaps"] == ["perps wallet authority profile is missing"]
+    oracle_authority = payload["status"]["oracle_authority"]
+    assert payload["status"]["production_oracle_authority"] is False
+    assert oracle_authority["status"] == "blocked"
+    assert oracle_authority["readiness_gaps"] == ["oracle production authority profile is missing"]
     markets = payload["status"]["markets"]
     assert len(markets) == 1
     market = markets[0]
@@ -1066,6 +1138,59 @@ def test_status_loads_ready_perps_wallet_authority_profile(monkeypatch) -> None:
     encoded = json.dumps(wallet_authority, sort_keys=True)
     assert "private_key" not in encoded
     assert "secret_hex" not in encoded
+
+
+def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON",
+        json.dumps(_oracle_authority_profile(), sort_keys=True),
+    )
+    for name in (
+        "PERPS_ORACLE_AUTHORITY_PROFILE_FILE",
+        "ZENO_ORACLE_AUTHORITY_PROFILE_JSON",
+        "ZENO_ORACLE_AUTHORITY_PROFILE_FILE",
+        "ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["production_oracle_authority"] is True
+    oracle_authority = payload["status"]["oracle_authority"]
+    assert oracle_authority["status"] == "ready"
+    assert oracle_authority["readiness_gaps"] == []
+    assert oracle_authority["active_signer_count"] == 2
+    assert oracle_authority["threshold"] == 2
+    assert oracle_authority["proof_profile"]["runtime_proof_profile"] == "zenooracle-o3-replay-zk-profile-v1"
+    encoded = json.dumps(oracle_authority, sort_keys=True)
+    assert "private_key" not in encoded
+    assert "secret_hex" not in encoded
+
+
+def test_status_blocks_oracle_authority_profile_chain_mismatch(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON",
+        json.dumps(_oracle_authority_profile(chain_id="wrong-chain"), sort_keys=True),
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["production_oracle_authority"] is False
+    assert "oracle production authority profile chain_id mismatch" in payload["status"]["oracle_authority"]["readiness_gaps"]
 
 
 def test_prepare_partial_liquidate_is_opt_in_for_isolated_markets(monkeypatch) -> None:

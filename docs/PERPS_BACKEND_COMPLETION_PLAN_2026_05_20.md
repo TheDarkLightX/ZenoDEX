@@ -277,10 +277,17 @@ The UI now exposes:
   supplied evidence
 - action-aware live Oracle candidate picker/viewer for `settle_epoch` and
   `liquidate_account` authorizations from the mounted Oracle service URL
+- perps-side Oracle authority preflight via
+  `PERPS_ORACLE_AUTHORITY_PROFILE_JSON`, `PERPS_ORACLE_AUTHORITY_PROFILE_FILE`,
+  `ZENO_ORACLE_AUTHORITY_PROFILE_JSON`, `ZENO_ORACLE_AUTHORITY_PROFILE_FILE`,
+  or `ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE`; the mounted status route
+  blocks the production Oracle authority claim unless the profile validates and
+  its chain id matches the perps wallet chain
 
 Still missing from the mounted perps UI:
 
-- production Oracle network authority behind the evidence picker/viewer
+- actual public-testnet production Oracle profile provisioning and live network
+  authority evidence behind the local/devnet picker/viewer
 - richer liquidation history
 - hardware/OS wallet UX, recovery flows, and live signer-device integration
   behind the public wallet-authority profile
@@ -529,10 +536,27 @@ This is a public profile and readiness-gate check. It does not custody keys,
 prove hardware wallet approval, prove perps ZK execution, or claim production
 Oracle truth.
 
+Additional perps Oracle-authority binding evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_status_exposes_clearinghouse_liquidation_summary_fields tests/integration/test_perps_wallet_api.py::test_status_loads_ready_oracle_authority_profile tests/integration/test_perps_wallet_api.py::test_status_blocks_oracle_authority_profile_chain_mismatch
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; focused Oracle-authority status checks `3 passed`;
+mounted settle/browser smoke `1 passed`; full mounted perps wallet browser bridge
+suite `6 passed`. The perps wallet status now exposes `oracle_authority` and
+`production_oracle_authority`, rejects a chain-mismatched Oracle profile, and the
+mounted perps UI renders `oracle authority ready` plus the active signer
+threshold next to the Oracle evidence picker.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker is local/devnet
-  mounted evidence, not production Oracle network authority;
+  mounted evidence until a public-testnet Oracle authority profile is provisioned
+  and exercised live;
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
   approval, and recovery flows remain outside the mounted DEX UI;

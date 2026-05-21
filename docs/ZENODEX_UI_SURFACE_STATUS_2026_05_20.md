@@ -43,21 +43,27 @@ now emits a deterministic `perps_stream8_live_wallet_v0` proof-intent receipt
 that binds chain id, stream key, operation hash, operation-stream hash,
 pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
 result, sender, sequence, fee limit, signing mode, and a public state-delta
-witness for changed perps markets after submit. The mounted UI renders that
-proof profile, receipt hash, delta-witness count, and the perps wallet-authority
-preflight status. `/api/perps/wallet/status` can load a public wallet-authority
-profile from `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
-`PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
-key-manager refs, a matching signer registry, external signer and device
-approval controls, stream `8` scope, state-delta witness requirements, and an
-explicit proof/ZK runtime profile. The UI reports the authority as blocked when
-that profile is absent or invalid, while keeping `zk_proof_verified=false` until
-a real RISC Zero or equivalent verifier is present. The completion plan is
-recorded in
-`docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
-production Oracle network authority, hardware/OS wallet UX and recovery flows
-behind the public wallet-authority profile, and a real proof/ZK wrapper for
-stream `8`.
+    witness for changed perps markets after submit. The mounted UI renders that
+    proof profile, receipt hash, delta-witness count, the perps wallet-authority
+    preflight status, and the perps-side Oracle authority preflight status.
+    `/api/perps/wallet/status` can load a public wallet-authority profile from
+    `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
+    `PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
+    key-manager refs, a matching signer registry, external signer and device
+    approval controls, stream `8` scope, state-delta witness requirements, and an
+    explicit proof/ZK runtime profile. The same status route can load an Oracle
+    production-authority profile from `PERPS_ORACLE_AUTHORITY_PROFILE_JSON`,
+    `PERPS_ORACLE_AUTHORITY_PROFILE_FILE`, `ZENO_ORACLE_AUTHORITY_PROFILE_JSON`,
+    `ZENO_ORACLE_AUTHORITY_PROFILE_FILE`, or
+    `ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE`; that claim is blocked unless
+    the Oracle profile validates and its chain id matches the perps wallet chain.
+    The UI reports both authorities as blocked when profiles are absent or invalid,
+    while keeping `zk_proof_verified=false` until a real RISC Zero or equivalent
+    verifier is present. The completion plan is recorded in
+    `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
+    actual public-testnet production Oracle profile provisioning, hardware/OS
+    wallet UX and recovery flows behind the public wallet-authority profile, and a
+    real proof/ZK wrapper for stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -301,6 +307,23 @@ local ZenoOracle service, seed canonical perps index authorizations for
 `settle_epoch` and `liquidate_account`, load the service dashboard through
 `VITE_ZENO_ORACLE_API_URL`, and render live candidate counts plus the
 action-matching selected authorization beside the perps submit flow.
+
+Latest perps Oracle-authority binding pass on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_status_exposes_clearinghouse_liquidation_summary_fields tests/integration/test_perps_wallet_api.py::test_status_loads_ready_oracle_authority_profile tests/integration/test_perps_wallet_api.py::test_status_blocks_oracle_authority_profile_chain_mismatch
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; focused perps Oracle-authority status checks `3
+passed`; mounted settle/browser smoke `1 passed`; full mounted perps wallet
+browser bridge suite `6 passed`. The perps wallet status now renders
+`production_oracle_authority=false` when the profile is absent, accepts a ready
+profile only when the chain id matches, rejects a chain-mismatched profile, and
+the mounted perps UI renders `oracle authority ready` plus the active signer
+threshold in the live settle flow.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt

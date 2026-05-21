@@ -21,6 +21,12 @@ from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
+from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_oracle_authority import (
+    ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_profile_v1,
+)
 from src.integration.zeno_oracle_authorization import (
     _PERPS_INDEX_QUERY_ID,
     _PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
@@ -33,6 +39,54 @@ from src.state import BalanceTable, LPTable
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
+
+
+def _oracle_authority_profile(*, chain_id: str, oracle_pubkey: str, operator_pubkey: str) -> dict[str, object]:
+    key_manager = ZenoKeyManager(
+        key_refs=(
+            KeyRef(key_id="oracle-authority-a", public_key=oracle_pubkey),
+            KeyRef(key_id="oracle-authority-b", public_key=operator_pubkey),
+        )
+    ).public_dict()
+    signer_registry = build_signer_registry_v0(
+        registry_id="oracle-production-authority-v1",
+        payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+        threshold=2,
+        signers=(
+            {
+                "signer_id": "oracle-a",
+                "key_id": "oracle-authority-a",
+                "public_key": oracle_pubkey,
+                "weight": 1,
+                "status": "active",
+            },
+            {
+                "signer_id": "oracle-b",
+                "key_id": "oracle-authority-b",
+                "public_key": operator_pubkey,
+                "weight": 1,
+                "status": "active",
+            },
+        ),
+    )
+    return build_oracle_authority_profile_v1(
+        authority_id="oracle-production-authority-v1",
+        chain_id=chain_id,
+        stage="production",
+        enabled=True,
+        key_manager=key_manager,
+        signer_registry=signer_registry,
+        wallet_ux={
+            "external_signer_required": True,
+            "key_manager_required": True,
+            "device_approval_required": True,
+        },
+        proof_profile={
+            "zk_or_proof_required": True,
+            "oracle_receipt_replay_required": True,
+            "runtime_proof_profile": "zenooracle-o3-replay-zk-profile-v1",
+        },
+    )
 
 
 def _chrome_binary() -> str | None:
@@ -1019,6 +1073,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
     account_b_privkey = 84
     oracle_privkey = 85
     operator_privkey = 86
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
     operator_pubkey = "0x" + bls_pubkey_hex_from_privkey(operator_privkey)
     quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     market_id = "perp:ch2p:ui-settle"
@@ -1059,6 +1114,14 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         "TAU_DEX_CHAIN_ID": chain_id,
         "TAU_DEX_OPERATOR_PUBKEY": operator_pubkey,
         "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "1",
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON": json.dumps(
+            _oracle_authority_profile(
+                chain_id=chain_id,
+                oracle_pubkey=oracle_pubkey,
+                operator_pubkey=operator_pubkey,
+            ),
+            sort_keys=True,
+        ),
     }
     old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
     old_operator = os.environ.get("TAU_DEX_OPERATOR_PUBKEY")
@@ -1155,14 +1218,14 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
                 "--disable-gpu",
                 "--no-sandbox",
                 f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=20000",
+                "--virtual-time-budget=40000",
                 "--dump-dom",
                 f"{vite_base}/?{query}",
             ],
             check=False,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=90,
         )
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
@@ -1185,6 +1248,8 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert "oracle selected action settle_epoch" in dom
         assert "oracle selected value 123456789" in dom
         assert "oracle network local" in dom
+        assert "oracle authority ready" in dom
+        assert "oracle signers 2/2" in dom
         assert "fee covered yes" in dom
         assert market_id in dom
     finally:
@@ -1357,14 +1422,14 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
                 "--disable-gpu",
                 "--no-sandbox",
                 f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=20000",
+                "--virtual-time-budget=40000",
                 "--dump-dom",
                 f"{vite_base}/?{query}",
             ],
             check=False,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=90,
         )
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout

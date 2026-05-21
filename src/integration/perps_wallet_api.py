@@ -30,6 +30,7 @@ from .tau_net_client import (
     sign_perp_op_for_engine,
     verify_tau_transaction_payload_signature,
 )
+from .zeno_oracle_authority import evaluate_oracle_authority_profile_v1
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
 
@@ -150,6 +151,75 @@ def _wallet_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str 
         return obj, None
 
     return None, None
+
+
+def _json_profile_from_env(
+    *,
+    json_names: tuple[str, ...],
+    file_names: tuple[str, ...],
+    label: str,
+) -> tuple[Mapping[str, Any] | None, str | None]:
+    for name in json_names:
+        raw = _env_str(name, "")
+        if not raw:
+            continue
+        try:
+            obj = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return None, f"{label} JSON invalid from {name}: {exc}"
+        if not isinstance(obj, Mapping):
+            return None, f"{label} JSON from {name} must be an object"
+        return obj, None
+
+    for name in file_names:
+        path_raw = _env_str(name, "")
+        if not path_raw:
+            continue
+        try:
+            obj = json.loads(Path(path_raw).read_text(encoding="utf-8"))
+        except Exception as exc:
+            return None, f"{label} file invalid from {name}: {exc}"
+        if not isinstance(obj, Mapping):
+            return None, f"{label} file from {name} must contain an object"
+        return obj, None
+
+    return None, None
+
+
+def _oracle_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=(
+            "PERPS_ORACLE_AUTHORITY_PROFILE_JSON",
+            "ZENO_ORACLE_AUTHORITY_PROFILE_JSON",
+        ),
+        file_names=(
+            "PERPS_ORACLE_AUTHORITY_PROFILE_FILE",
+            "ZENO_ORACLE_AUTHORITY_PROFILE_FILE",
+            "ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE",
+        ),
+        label="oracle production authority profile",
+    )
+
+
+def _bind_oracle_authority_status(
+    status: dict[str, Any],
+    *,
+    profile: Mapping[str, Any] | None,
+    profile_error: str | None,
+    expected_chain_id: str,
+) -> dict[str, Any]:
+    if profile_error is not None:
+        status["ok"] = False
+        status["production_authority"] = False
+        status["status"] = "blocked"
+        status.setdefault("readiness_gaps", []).append(profile_error)
+
+    if profile is not None and profile.get("chain_id") != expected_chain_id:
+        status["ok"] = False
+        status["production_authority"] = False
+        status["status"] = "blocked"
+        status.setdefault("readiness_gaps", []).append("oracle production authority profile chain_id mismatch")
+    return status
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -1425,6 +1495,13 @@ def _status_payload() -> Dict[str, Any]:
         wallet_authority["production_wallet_authority"] = False
         wallet_authority["status"] = "blocked"
         wallet_authority.setdefault("readiness_gaps", []).append(wallet_authority_error)
+    oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
+    oracle_authority = _bind_oracle_authority_status(
+        evaluate_oracle_authority_profile_v1(oracle_authority_profile),
+        profile=oracle_authority_profile,
+        profile_error=oracle_authority_error,
+        expected_chain_id=chain_id,
+    )
     status: Dict[str, Any] = {
         "enabled": True,
         "chain_id": chain_id,
@@ -1452,6 +1529,8 @@ def _status_payload() -> Dict[str, Any]:
         "proof_profile": _perps_proof_profile(),
         "wallet_authority": wallet_authority,
         "production_wallet_authority": wallet_authority["production_wallet_authority"],
+        "oracle_authority": oracle_authority,
+        "production_oracle_authority": oracle_authority["production_authority"],
     }
     try:
         client = _tau_client()
