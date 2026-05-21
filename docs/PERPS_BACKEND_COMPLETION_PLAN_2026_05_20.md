@@ -61,12 +61,13 @@ posted into signed clearinghouse perps collateral.
 
 ## What Is Still Missing
 
-The remaining blockers are host-level chaos assurance, hardware/OS wallet UX and
-recovery flows behind the public wallet-authority profile, production Oracle
-network authority, proof/ZK wrapping, and final branch/PR cleanup. Docker
-browser evidence, typed Oracle bridge fixtures, action-aware local Oracle
-evidence selection, clearinghouse liquidation UI evidence, wallet-authority
-profile preflight, and bounded stream `8` replay/freshness checks exist for the
+The remaining blockers are full node restart/network chaos assurance,
+hardware/OS wallet UX and recovery flows behind the public wallet-authority
+profile, production Oracle network authority, proof/ZK wrapping, and final
+branch/PR cleanup. Docker browser evidence, typed Oracle bridge fixtures,
+action-aware local Oracle evidence selection, clearinghouse liquidation UI
+evidence, wallet-authority profile preflight, bounded stream `8`
+replay/freshness checks, and Tau RPC send-failure retry evidence exist for the
 current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
@@ -570,6 +571,21 @@ scenarios plus `4` deterministic fuzz seeds of `32` steps each. The new stream
 must reject without changing the app state, and
 `stale_oracle_adapter_bridge_settles`, where a stale aggregate-adapter bridge
 must reject before `settle_epoch` mutates the market.
+
+Additional perps wallet Tau RPC send-failure retry evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_external_signed_payload_can_retry_after_tau_send_failure_without_state_drift
+```
+
+Results: py_compile passed; focused failure/retry regression `1 passed`. This
+covers `tau_rpc_send_failure_state_drift`: an externally signed stream `8`
+submit that hits a transient Tau RPC send failure returns `502`, leaves app
+state unchanged, does not record a queued transaction, and accepts the same
+signed payload after the node recovers while the account sequence is unchanged.
+Full node restart and network partition chaos remain open.
 
 Remaining limits:
 

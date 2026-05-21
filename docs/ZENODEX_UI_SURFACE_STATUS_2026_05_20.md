@@ -340,6 +340,20 @@ coverage rejects out-of-order signed position nonces without app-state mutation
 and rejects stale aggregate-adapter Oracle bridges before `settle_epoch`
 mutates the market. Host-level node restart and network chaos remain open.
 
+Latest perps wallet Tau RPC send-failure retry pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_external_signed_payload_can_retry_after_tau_send_failure_without_state_drift
+```
+
+Results: py_compile passed and the focused failure/retry regression `1 passed`.
+The mounted perps wallet backend returns `502` for a transient Tau RPC send
+failure, preserves app state, avoids recording a queued transaction, and accepts
+the same externally signed stream `8` payload after the node recovers while the
+sequence is unchanged. Full node restart and network partition chaos remain
+open.
+
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt
 flow from the mounted Oracle tab. The write smoke creates an identity,
