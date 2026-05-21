@@ -1039,6 +1039,27 @@ Results: focused submit-path checks `2 passed`. These checks name
 required proof on stream `8` perps deposit or stream `11` zUSD mint returns a
 400 error before any Tau `sendtx` call is made.
 
+Additional bounded AutoTrader supervisor evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/autotrader_supervisor_profile.py src/integration/autotrader_live_api.py tests/integration/test_autotrader_live_api.py tests/integration/test_autotrader_live_ui_bridge.py tools/check_dex_live_product_goal.py
+python3 -m pytest -q tests/integration/test_autotrader_live_api.py
+python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
+python3 tools/check_dex_live_product_goal.py --json
+```
+
+Results: py_compile passed; the AutoTrader API suite `14 passed`; the mounted
+browser suite `4 passed`; and the live-product goal audit still returned
+`goal_complete: false`. The Strategy surface now exposes a bounded
+local/testnet supervisor profile with deterministic preflight and execute
+routes. The supervisor lane requires a ready public profile, explicit risk
+acknowledgement, an externally signed Tau envelope, release and stage
+certificates from the prepared bundle, and a replay-guarded execution key that
+is consumed only after successful local/testnet submit. This is stronger
+mounted evidence for supervised local/testnet automation. It still does not
+claim unattended production execution, production wallet custody, or production
+chain submission.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle

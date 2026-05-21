@@ -190,9 +190,11 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="autotrader_live_api_and_ui_are_mounted",
         path="src/integration/autotrader_live_api.py",
-        description="The Strategy surface has gated AutoTrader prepare, submit, and execute-once endpoints.",
+        description="The Strategy surface has gated AutoTrader prepare, submit, execute-once, and bounded supervisor endpoints.",
         anchors=(
             "/api/strategy/autotrader/execute-once",
+            "/api/strategy/autotrader/supervisor/preflight",
+            "/api/strategy/autotrader/supervisor/execute",
             "external_signed_payload",
             "_build_prepare_response",
             "_build_submit_response",
@@ -203,12 +205,15 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="strategy_ui_has_submit_and_execute_smokes",
         path="tools/dex-ui/src/components/StrategyWorkbench.jsx",
-        description="The Strategy tab can run mounted browser smokes for prepare, submit, and execute-once.",
+        description="The Strategy tab can run mounted browser smokes for prepare, submit, execute-once, and supervised local/testnet ticks.",
         anchors=(
             "AutoTrader Live Prepare",
             "zenodexUiSmokeStrategyLive",
             "zenodexUiSmokeStrategyLiveSubmit",
             "zenodexUiSmokeStrategyLiveExecute",
+            "zenodexUiSmokeStrategySupervisor",
+            "Supervisor Preflight",
+            "Run Supervisor Tick",
         ),
     ),
     AnchorCheck(
@@ -248,10 +253,12 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="autotrader_browser_tests_cover_execute_once",
         path="tests/integration/test_autotrader_live_ui_bridge.py",
-        description="AutoTrader browser tests cover the mounted execute-once flow and replay guard surface.",
+        description="AutoTrader browser tests cover mounted execute-once plus bounded supervisor replay-guard flows.",
         anchors=(
             "test_autotrader_live_execute_once_ui_smoke_through_browser",
+            "test_autotrader_live_supervisor_ui_smoke_through_browser",
             "zenodexUiSmokeStrategyLiveExecute",
+            "zenodexUiSmokeStrategySupervisor",
             "AutoTrader Live Prepare",
         ),
     ),
@@ -391,7 +398,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "production_autotrader",
-        "description": "AutoTrader evidence covers explicit local/testnet execute-once, not unattended production execution.",
+        "description": "AutoTrader evidence covers explicit local/testnet execute-once plus bounded supervisor ticks, not unattended production execution.",
     },
     {
         "id": "confidential_runtime",

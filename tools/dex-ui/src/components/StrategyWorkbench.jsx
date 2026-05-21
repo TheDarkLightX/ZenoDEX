@@ -4,6 +4,8 @@ import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import {
   apiGetAutotraderStatus,
   apiExecuteAutotraderLiveOnce,
+  apiExecuteAutotraderSupervisor,
+  apiPreflightAutotraderSupervisor,
   apiPrepareAutotraderLive,
   apiSubmitAutotraderLive,
 } from '../lib/api.js';
@@ -23,6 +25,7 @@ function isAutoTraderSmokeEnabled() {
     params.get('zenodexUiSmokeStrategyLive') === '1'
     || params.get('zenodexUiSmokeStrategyLiveSubmit') === '1'
     || params.get('zenodexUiSmokeStrategyLiveExecute') === '1'
+    || params.get('zenodexUiSmokeStrategySupervisor') === '1'
   );
 }
 
@@ -38,6 +41,13 @@ function isAutoTraderExecuteSmokeEnabled() {
     return false;
   }
   return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLiveExecute') === '1';
+}
+
+function isAutoTraderSupervisorSmokeEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategySupervisor') === '1';
 }
 
 function readAutoTraderSignedPayload() {
@@ -187,6 +197,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const smokeEnabled = isAutoTraderSmokeEnabled();
   const submitSmokeEnabled = isAutoTraderSubmitSmokeEnabled();
   const executeSmokeEnabled = isAutoTraderExecuteSmokeEnabled();
+  const supervisorSmokeEnabled = isAutoTraderSupervisorSmokeEnabled();
   const [status, setStatus] = useState(null);
   const [acknowledged, setAcknowledged] = useState(smokeEnabled);
   const [result, setResult] = useState(null);
@@ -207,6 +218,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     Array.isArray(values) ? total + values.length : total
   ), 0);
   const nonClaims = result?.not_claimed || status?.not_claimed || [];
+  const supervisorStatus = result?.supervisor || status?.supervisor || null;
+  const supervisorMode = result?.execution?.mode || 'manual_tick';
+  const supervisorReadiness = supervisorStatus?.supervisor_ready ? 'ready' : 'blocked';
+  const preflightHash = result?.preflight?.preflight_hash || null;
 
   async function refreshStatus() {
     try {
@@ -234,6 +249,13 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
       body.signed_tau_tx_payload = signedTauTxPayload.trim();
     }
     return body;
+  }
+
+  function supervisorRequestBody() {
+    return {
+      ...liveRequestBody({ forSubmit: true }),
+      execution_id: 'strategy-ui-supervisor-1',
+    };
   }
 
   async function prepareLiveStrategy() {
@@ -278,6 +300,34 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     }
   }
 
+  async function preflightSupervisorStrategy() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiPreflightAutotraderSupervisor(supervisorRequestBody(), { timeoutMs: 20000 });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'supervisor_preflight_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function executeSupervisorStrategy() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiExecuteAutotraderSupervisor(supervisorRequestBody(), { timeoutMs: 20000 });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'supervisor_execute_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     refreshStatus();
   }, []);
@@ -288,7 +338,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         return;
       }
       smokeRunRef.current = true;
-      if (executeSmokeEnabled) {
+      if (supervisorSmokeEnabled) {
+        executeSupervisorStrategy();
+      } else if (executeSmokeEnabled) {
         executeLiveStrategyOnce();
       } else if (submitSmokeEnabled) {
         submitLiveStrategy();
@@ -298,7 +350,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     }
     // The smoke path intentionally runs once from the URL trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode, smokeEnabled, submitSmokeEnabled, executeSmokeEnabled]);
+  }, [demoMode, smokeEnabled, submitSmokeEnabled, executeSmokeEnabled, supervisorSmokeEnabled]);
 
   return (
     <div className="panel strat-section-card strat-live-panel animate-fade-in" aria-label="AutoTrader live prepare">
@@ -340,6 +392,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         <div className="strat-live-metric">
           <span>Execution guard</span>
           <strong>{executionGuard}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Supervisor</span>
+          <strong>{supervisorReadiness}</strong>
         </div>
         <div className="strat-live-metric">
           <span>Operations</span>
@@ -387,6 +443,14 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         <button
           className="btn btn-secondary"
           type="button"
+          onClick={preflightSupervisorStrategy}
+          disabled={busy || demoMode || !acknowledged || !status?.supervisor_enabled}
+        >
+          Supervisor Preflight
+        </button>
+        <button
+          className="btn btn-secondary"
+          type="button"
           onClick={submitLiveStrategy}
           disabled={busy || demoMode || !acknowledged || !status?.testnet_submission_enabled}
         >
@@ -399,6 +463,21 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           disabled={busy || demoMode || !acknowledged || !status?.execute_once_enabled}
         >
           Execute Once
+        </button>
+        <button
+          className="btn btn-secondary"
+          type="button"
+          onClick={executeSupervisorStrategy}
+          disabled={
+            busy
+            || demoMode
+            || !acknowledged
+            || !status?.supervisor_enabled
+            || !status?.testnet_submission_enabled
+            || !supervisorStatus?.supervisor_ready
+          }
+        >
+          Run Supervisor Tick
         </button>
       </div>
 
@@ -422,6 +501,12 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           )}
           {result?.execution?.execution_id && (
             <div className="strat-kv"><span>Execution key</span><span>{result.execution.execution_id}</span></div>
+          )}
+          {preflightHash && (
+            <div className="strat-kv"><span>Supervisor preflight</span><span className="strat-mono">{preflightHash}</span></div>
+          )}
+          {result?.execution?.mode && (
+            <div className="strat-kv"><span>Supervisor mode</span><span>{supervisorMode}</span></div>
           )}
           {report?.tau_tx_payload && (
             <div className="strat-live-code strat-mono">

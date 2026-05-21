@@ -18,6 +18,7 @@ from ..core.liquidity import create_pool
 from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
 from ..state.pools import PoolState, PoolStatus
+from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
@@ -28,11 +29,18 @@ from .tau_net_client import (
     encode_tau_operations_for_wire,
     verify_tau_transaction_payload_signature,
 )
+from .zeno_ledger_v0 import hash_v0
 
 
 MAX_POST_BODY = 96_000
 ResponseT = Tuple[int, Dict[str, Any]]
 _RISK_ACK_ERROR = "autotrader_live_requires_risk_acknowledgement"
+_AUTOTRADER_LIVE_NOT_CLAIMED = [
+    "unattended_production_strategy_execution",
+    "production_wallet_key_management",
+    "production_chain_submission",
+]
+_AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA = "zenodex/autotrader-supervisor-preflight/v1"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -82,6 +90,10 @@ def _allow_testnet_submission() -> bool:
 
 def _allow_execute_once() -> bool:
     return _env_bool("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", False)
+
+
+def _allow_supervisor() -> bool:
+    return _env_bool("AUTOTRADER_LIVE_SUPERVISOR_ENABLED", False)
 
 
 def _auto_mine() -> bool:
@@ -167,6 +179,24 @@ def _request_execution_id(body: Mapping[str, Any]) -> str:
     if any(ch.isspace() for ch in value):
         raise ValueError("execution_id must not contain whitespace")
     return value
+
+
+def _risk_acknowledged(body: Mapping[str, Any]) -> bool:
+    return bool(
+        body.get("acknowledge_experimental_live_risk")
+        or body.get("risk_acknowledged")
+        or body.get("acknowledge_live_risk")
+    )
+
+
+def _operation_count(operations: object) -> int:
+    if not isinstance(operations, Mapping):
+        return 0
+    count = 0
+    for value in operations.values():
+        if isinstance(value, list):
+            count += len(value)
+    return count
 
 
 def _validate_external_tau_tx_payload(
@@ -390,12 +420,89 @@ def _report_to_obj(report: AutoTraderLiveReport, *, risk_acknowledged: bool) -> 
     }
 
 
-def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
-    risk_ack = bool(
-        body.get("acknowledge_experimental_live_risk")
-        or body.get("risk_acknowledged")
-        or body.get("acknowledge_live_risk")
+def _load_json_profile_from_env(
+    *,
+    json_var: str,
+    file_var: str,
+    label: str,
+) -> tuple[Mapping[str, Any] | None, str | None]:
+    raw_json = os.environ.get(json_var)
+    if raw_json is not None and raw_json.strip():
+        try:
+            parsed = json.loads(raw_json)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return None, f"{label} JSON invalid: {exc}"
+        if not isinstance(parsed, Mapping):
+            return None, f"{label} JSON must decode to an object"
+        return parsed, None
+    raw_file = os.environ.get(file_var)
+    if raw_file is None or not raw_file.strip():
+        return None, None
+    try:
+        with open(raw_file.strip(), "r", encoding="utf-8") as fh:
+            parsed = json.load(fh)
+    except OSError as exc:
+        return None, f"{label} file unreadable: {exc}"
+    except json.JSONDecodeError as exc:
+        return None, f"{label} file JSON invalid: {exc}"
+    if not isinstance(parsed, Mapping):
+        return None, f"{label} file must decode to an object"
+    return parsed, None
+
+
+def _supervisor_profile_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _load_json_profile_from_env(
+        json_var="AUTOTRADER_LIVE_SUPERVISOR_PROFILE_JSON",
+        file_var="AUTOTRADER_LIVE_SUPERVISOR_PROFILE_FILE",
+        label="autotrader supervisor profile",
     )
+
+
+def _supervisor_status_payload(*, chain_id: str | None = None) -> dict[str, Any]:
+    profile, profile_error = _supervisor_profile_from_env()
+    status = evaluate_autotrader_supervisor_profile_v1(profile, expected_chain_id=chain_id)
+    if profile_error:
+        status["ok"] = False
+        status["supervisor_ready"] = False
+        status["status"] = "blocked"
+        status.setdefault("readiness_gaps", []).append(profile_error)
+    return status
+
+
+def _build_supervisor_preflight(
+    *,
+    supervisor_status: Mapping[str, Any],
+    execution_id: str,
+    report: Mapping[str, Any],
+) -> dict[str, Any]:
+    stage_certificate = report.get("stage_certificate")
+    live_release_certificate = report.get("live_release_certificate")
+    operations = report.get("operations")
+    body = {
+        "schema": _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA,
+        "supervisor_hash": supervisor_status.get("supervisor_hash"),
+        "supervisor_id": supervisor_status.get("supervisor_id"),
+        "chain_id": report.get("signing", {}).get("chain_id") if isinstance(report.get("signing"), Mapping) else None,
+        "execution_id": execution_id,
+        "required_signing_mode": "external_signed_payload",
+        "external_signed_payload_required": True,
+        "decision_tag": report.get("decision", {}).get("tag") if isinstance(report.get("decision"), Mapping) else None,
+        "operation_count": _operation_count(operations),
+        "max_actions_per_tick": int(supervisor_status.get("max_actions_per_tick") or 0),
+        "stage_hash": stage_certificate.get("stage_hash") if isinstance(stage_certificate, Mapping) else None,
+        "release_hash": live_release_certificate.get("release_hash") if isinstance(live_release_certificate, Mapping) else None,
+        "release_ok": (
+            live_release_certificate.get("release_ok")
+            if isinstance(live_release_certificate, Mapping)
+            else None
+        ),
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+    }
+    return {**body, "preflight_hash": hash_v0("autotrader_supervisor_preflight_v1", body)}
+
+
+def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
+    risk_ack = _risk_acknowledged(body)
     if not risk_ack:
         return {
             "ok": False,
@@ -456,11 +563,7 @@ def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
         "status": "prepared",
         "surface": "autotrader_live_prepare",
         "report": _report_to_obj(report, risk_acknowledged=risk_ack),
-        "not_claimed": [
-            "unattended_production_strategy_execution",
-            "production_wallet_key_management",
-            "production_chain_submission",
-        ],
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
 
 
@@ -483,11 +586,7 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
                     or body.get("acknowledge_live_risk")
                 ),
             ),
-            "not_claimed": [
-                "unattended_production_strategy_execution",
-                "production_wallet_key_management",
-                "production_chain_submission",
-            ],
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
 
     submit_body: dict[str, Any] = dict(body)
@@ -583,10 +682,122 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
         "surface": "autotrader_live_local_testnet_submit",
         "submission": submission,
         "not_claimed": [
-            "unattended_production_strategy_execution",
-            "production_wallet_key_management",
-            "production_chain_submission",
+            *_AUTOTRADER_LIVE_NOT_CLAIMED,
         ],
+    }
+
+
+def _build_supervisor_preflight_response(body: Mapping[str, Any]) -> dict[str, Any]:
+    if not _allow_supervisor():
+        return {
+            "ok": False,
+            "error": "supervisor_disabled",
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    supervisor = _supervisor_status_payload(
+        chain_id=str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
+    )
+    if supervisor.get("supervisor_ready") is not True:
+        return {
+            "ok": False,
+            "error": "supervisor_profile_not_ready",
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    execution_id = _request_execution_id(body)
+    prepared = _build_prepare_response(body)
+    if prepared.get("ok") is not True:
+        return prepared
+    report = prepared.get("report")
+    if not isinstance(report, Mapping):
+        return {"ok": False, "error": "prepared_report_missing"}
+    operations = report.get("operations")
+    operation_count = _operation_count(operations)
+    max_actions_per_tick = int(supervisor.get("max_actions_per_tick") or 0)
+    if operation_count > max_actions_per_tick:
+        return {
+            "ok": False,
+            "error": f"supervisor_max_actions_per_tick_exceeded:{operation_count}>{max_actions_per_tick}",
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    if supervisor.get("stage_certificate_required") is True and not isinstance(report.get("stage_certificate"), Mapping):
+        return {
+            "ok": False,
+            "error": "supervisor_stage_certificate_missing",
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    if supervisor.get("release_certificate_required") is True and not isinstance(
+        report.get("live_release_certificate"),
+        Mapping,
+    ):
+        return {
+            "ok": False,
+            "error": "supervisor_release_certificate_missing",
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    preflight = _build_supervisor_preflight(
+        supervisor_status=supervisor,
+        execution_id=execution_id,
+        report=report,
+    )
+    return {
+        **prepared,
+        "status": "supervisor_preflight_ready",
+        "surface": "autotrader_live_supervisor_preflight",
+        "supervisor": supervisor,
+        "preflight": preflight,
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+    }
+
+
+def _build_supervisor_execute_response(
+    body: Mapping[str, Any],
+    *,
+    execution_keys: set[str] | None,
+) -> dict[str, Any]:
+    if execution_keys is None:
+        return {"ok": False, "error": "execution_key_table_unavailable"}
+    if _request_signed_tau_tx_payload(body) is None:
+        return {
+            "ok": False,
+            "error": "external_signed_tau_tx_payload_required",
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    preflight_payload = _build_supervisor_preflight_response(body)
+    if preflight_payload.get("ok") is not True:
+        return preflight_payload
+    execution_id = _request_execution_id(body)
+    if execution_id in execution_keys:
+        return {
+            "ok": False,
+            "error": "execution_replay",
+            "execution": {
+                "execution_id": execution_id,
+                "replay_guard": "already_consumed",
+                "mode": "supervised_manual_tick",
+            },
+            "supervisor": preflight_payload.get("supervisor"),
+            "preflight": preflight_payload.get("preflight"),
+        }
+    submitted = _build_submit_response(body)
+    if submitted.get("ok") is not True:
+        return submitted
+    execution_keys.add(execution_id)
+    return {
+        **submitted,
+        "status": "supervisor_executed",
+        "surface": "autotrader_live_supervisor_execute",
+        "supervisor": preflight_payload.get("supervisor"),
+        "preflight": preflight_payload.get("preflight"),
+        "execution": {
+            "execution_id": execution_id,
+            "replay_guard": "consumed",
+            "mode": "supervised_manual_tick",
+        },
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
 
 
@@ -599,11 +810,7 @@ def _build_execute_once_response(
         return {
             "ok": False,
             "error": "execute_once_disabled",
-            "not_claimed": [
-                "unattended_production_strategy_execution",
-                "production_wallet_key_management",
-                "production_chain_submission",
-            ],
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
         }
     if execution_keys is None:
         return {"ok": False, "error": "execution_key_table_unavailable"}
@@ -633,9 +840,7 @@ def _build_execute_once_response(
             "replay_guard": "consumed",
         },
         "not_claimed": [
-            "unattended_production_strategy_execution",
-            "production_wallet_key_management",
-            "production_chain_submission",
+            *_AUTOTRADER_LIVE_NOT_CLAIMED,
         ],
     }
 
@@ -649,25 +854,27 @@ def _status_payload() -> dict[str, Any]:
         "allow_local_signing": _allow_signing(),
         "testnet_submission_enabled": _allow_testnet_submission(),
         "execute_once_enabled": _allow_execute_once(),
+        "supervisor_enabled": _allow_supervisor(),
         "auto_mine": _auto_mine(),
         "tau_host": _env_str("AUTOTRADER_LIVE_TAU_HOST", "127.0.0.1"),
         "tau_port": _env_int("AUTOTRADER_LIVE_TAU_PORT", 65432, lo=1, hi=65535),
+        "supervisor": _supervisor_status_payload(
+            chain_id=_env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local")
+        ),
         "endpoints": [
             "GET /api/strategy/autotrader/status",
             "POST /api/strategy/autotrader/prepare",
             "POST /api/strategy/autotrader/submit",
             "POST /api/strategy/autotrader/execute-once",
+            "POST /api/strategy/autotrader/supervisor/preflight",
+            "POST /api/strategy/autotrader/supervisor/execute",
         ],
         "risk_disclosure": build_autotrader_risk_disclosure(
             mode="live_prepare",
             requires_explicit_acknowledgement=True,
             user_acknowledged=False,
         ),
-        "not_claimed": [
-            "unattended_production_strategy_execution",
-            "production_wallet_key_management",
-            "production_chain_submission",
-        ],
+        "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
 
 
@@ -704,6 +911,14 @@ def handle_autotrader_live_request(
             return status, payload
         if rest == ["execute-once"]:
             payload = _build_execute_once_response(parsed, execution_keys=execution_keys)
+            status = 200 if payload.get("ok") is True else 400
+            return status, payload
+        if rest == ["supervisor", "preflight"]:
+            payload = _build_supervisor_preflight_response(parsed)
+            status = 200 if payload.get("ok") is True else 400
+            return status, payload
+        if rest == ["supervisor", "execute"]:
+            payload = _build_supervisor_execute_response(parsed, execution_keys=execution_keys)
             status = 200 if payload.get("ok") is True else 400
             return status, payload
         return 404, {"ok": False, "error": "not_found"}

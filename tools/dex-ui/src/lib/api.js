@@ -277,6 +277,22 @@ export function apiExecuteAutotraderLiveOnce(body, options = {}) {
   });
 }
 
+export function apiPreflightAutotraderSupervisor(body, options = {}) {
+  return apiFetchJson('/api/strategy/autotrader/supervisor/preflight', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiExecuteAutotraderSupervisor(body, options = {}) {
+  return apiFetchJson('/api/strategy/autotrader/supervisor/execute', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetPools(options = {}) {
   return apiFetchJson('/api/pools', { method: 'GET', ...(options || {}) });
 }

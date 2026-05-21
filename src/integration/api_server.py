@@ -1095,7 +1095,10 @@ class _Handler(BaseHTTPRequestHandler):
 
         execution_keys = getattr(self.server, "autotrader_execution_keys", None)  # type: ignore[attr-defined]
         execution_lock = getattr(self.server, "autotrader_execution_lock", None)  # type: ignore[attr-defined]
-        if path == "/api/strategy/autotrader/execute-once" and execution_lock is not None:
+        if path in {
+            "/api/strategy/autotrader/execute-once",
+            "/api/strategy/autotrader/supervisor/execute",
+        } and execution_lock is not None:
             with execution_lock:
                 status, resp = handle_autotrader_live_request(
                     method,
