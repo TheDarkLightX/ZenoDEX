@@ -123,6 +123,14 @@ def _runtime_enforcement_readiness_gaps() -> tuple[str, ...]:
     )
 
 
+def _confidentiality_non_claims() -> tuple[str, ...]:
+    return (
+        "no in-repo proof of TEE hardware confidentiality",
+        "no fully encrypted on-chain state",
+        "no production FHE confidentiality claim",
+    )
+
+
 @dataclass(frozen=True)
 class ConfidentialFeatureStatus:
     stage: str
@@ -189,6 +197,11 @@ class ConfidentialFeatureStatus:
                 "Private execution assistance for large trades and hidden-bid batch auctions, "
                 "with TEE receipts and anti-griefing bond rules."
             ),
+            "claim_scope": (
+                "attested receipt admission, replay protection, response redaction, "
+                "and local accounting/conservation checks"
+            ),
+            "non_claims": list(_confidentiality_non_claims()),
             "use_cases": [
                 "large trades that would leak too much intent on the public path",
                 "batch auctions or token sales where bids should stay hidden until reveal",

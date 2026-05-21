@@ -3,14 +3,16 @@ export const CONFIDENTIAL_SURFACE = {
     title: 'Confidential Extensions',
     subtitle: 'Private execution help for large trades, fairer hidden-bid auctions, and auditable payments to strategy providers.',
     verifiedAt: '2026-03-07',
+    claimScope: 'Evidence covers admission, replay, response redaction, and local accounting checks.',
+    nonClaim: 'No in-repo proof of TEE hardware confidentiality or fully encrypted on-chain state.',
   },
   checks: [
     {
       id: 'tee-gate',
       label: 'TEE Gate',
-      status: 'verified',
+      status: 'bounded',
       detail: 'Nitro / Azure attestation receipts are measured, freshness-bounded, replay-checked, and fee-conserved.',
-      proof: 'ESSO verify-multi',
+      proof: 'receipt tests + Tau gate',
     },
     {
       id: 'sealed-bid-gate',
@@ -32,6 +34,13 @@ export const CONFIDENTIAL_SURFACE = {
       status: 'green',
       detail: 'Named deadlock predecessor states collapse to a single terminating action.',
       proof: 'Exported ref replay',
+    },
+    {
+      id: 'fhe-alpha',
+      label: 'FHE Alpha',
+      status: 'alpha',
+      detail: 'Experimental 8-bid encrypted-comparison lane with explicit HCU/depth caps and fallback to commit-reveal.',
+      proof: 'ESSO gate + Tau guard',
     },
   ],
   phases: [
@@ -61,6 +70,7 @@ export const CONFIDENTIAL_SURFACE = {
     'Token sales or batch auctions where users should not expose bids early',
     'Private RFQ and institutional flow that needs better execution quality',
     'Strategy providers who want to monetize private routing or risk logic',
+    'Very small hidden-bid pilots where encrypted comparison is acceptable despite slower UX',
   ],
   notDefaultFor: [
     'Normal retail swaps where the public path is simpler and faster',

@@ -132,6 +132,9 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         assert "Confidential Extensions" in dom
         assert "BETA" in dom
         assert "Current support contact: https://ops.zenodex.test" in dom
+        assert "Assurance Surface" in dom
+        assert "Bounded evidence" in dom
+        assert "no in-repo proof of TEE hardware confidentiality" in dom
         assert "Approved Measurements" in dom
         assert "attestation accepted" in dom
         assert "measurement nitro" in dom

@@ -153,9 +153,28 @@
   color: var(--accent-green);
 }
 
+.confidential-status-bounded {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+}
+
+.confidential-status-alpha {
+  background: rgba(76, 201, 240, 0.14);
+  color: var(--accent-blue);
+}
+
 .confidential-proof {
   color: var(--text-muted);
   font-size: var(--font-size-xs);
+}
+
+.confidential-claim-scope {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
 }
 
 .confidential-action-button {

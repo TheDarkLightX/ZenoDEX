@@ -113,6 +113,10 @@ function ConfidentialWorkbench() {
     : 0;
   const betaReady = liveStatus?.beta_ready === true;
   const readinessGaps = Array.isArray(liveStatus?.readiness_gaps) ? liveStatus.readiness_gaps : [];
+  const claimScope = String(liveStatus?.claim_scope || CONFIDENTIAL_SURFACE.summary.claimScope);
+  const nonClaims = Array.isArray(liveStatus?.non_claims) && liveStatus.non_claims.length > 0
+    ? liveStatus.non_claims
+    : [CONFIDENTIAL_SURFACE.summary.nonClaim];
   const receiptHash = String(attestationResult?.receipt_hash || '');
   const measurement = String(attestationResult?.measurement || '');
   const executionAdmitted = attestationResult?.execution_admitted === true;
@@ -229,8 +233,19 @@ function ConfidentialWorkbench() {
 
         <div className="panel confidential-card">
           <div className="confidential-card-header">
-            <h2>Formal Surface</h2>
-            <span className="confidential-section-badge">Proof-backed</span>
+            <h2>Assurance Surface</h2>
+            <span className="confidential-section-badge">Bounded evidence</span>
+          </div>
+          <div className="confidential-claim-scope">
+            <div>
+              <div className="confidential-check-title">Confidentiality Claim Scope</div>
+              <p className="confidential-check-detail">{claimScope}</p>
+            </div>
+            <ul className="confidential-bullet-list">
+              {nonClaims.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
           <div className="confidential-check-list">
             {CONFIDENTIAL_SURFACE.checks.map((check) => (

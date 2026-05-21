@@ -135,6 +135,8 @@ def test_api_server_confidential_status_endpoint(monkeypatch) -> None:
         assert status["beta_ready"] is False
         assert status["approved_measurements_count"] == 2
         assert status["operator_contact"] == "confidential@zenodex.test"
+        assert "response redaction" in status["claim_scope"]
+        assert "no in-repo proof of TEE hardware confidentiality" in status["non_claims"]
         assert "cryptographic attestation verification remains external-only" in status["readiness_gaps"]
     finally:
         _stop_test_server(httpd, t)
