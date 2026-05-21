@@ -93,6 +93,12 @@ function actionSupportsOracleFixture(action) {
   return action === 'settle_epoch' || action === 'partial_liquidate';
 }
 
+function expectedOracleActionKind(action) {
+  if (action === 'settle_epoch') return 'settle_epoch';
+  if (action === 'partial_liquidate') return 'liquidate_account';
+  return '';
+}
+
 function compactId(value) {
   if (!value) return 'none';
   const text = String(value);
@@ -100,11 +106,11 @@ function compactId(value) {
   return `${text.slice(0, 10)}...${text.slice(-6)}`;
 }
 
-function oracleDashboardCandidates(snapshot) {
+function oracleDashboardCandidates(snapshot, targetAction = '') {
   const authorizations = Array.isArray(snapshot?.recent_authorizations) ? snapshot.recent_authorizations : [];
   const reads = Array.isArray(snapshot?.recent_accepted_reads) ? snapshot.recent_accepted_reads : [];
   const aggregates = Array.isArray(snapshot?.recent_aggregates) ? snapshot.recent_aggregates : [];
-  return [
+  const candidates = [
     ...authorizations.map((bundle) => {
       const auth = bundle?.authorization || {};
       return {
@@ -139,6 +145,14 @@ function oracleDashboardCandidates(snapshot) {
       epoch: aggregate?.observed_epoch,
     })),
   ].filter((candidate) => candidate.id);
+  if (!targetAction) {
+    return candidates;
+  }
+  return [...candidates].sort((left, right) => {
+    const leftMatch = left.action === targetAction ? 1 : 0;
+    const rightMatch = right.action === targetAction ? 1 : 0;
+    return rightMatch - leftMatch;
+  });
 }
 
 function buildPayload(form) {
@@ -304,9 +318,11 @@ function PerpLiveWalletSurface() {
     return inspection;
   }
 
-  async function loadOracleEvidenceCandidates() {
+  async function loadOracleEvidenceCandidates(sourceForm = form) {
     const snapshot = await apiGetZenoOracleDashboard({ timeoutMs: 10000 });
-    const candidates = oracleDashboardCandidates(snapshot);
+    const targetAction = expectedOracleActionKind(sourceForm.action);
+    const candidates = oracleDashboardCandidates(snapshot, targetAction);
+    const selected = candidates.find((candidate) => candidate.action === targetAction) || candidates[0] || null;
     const payload = {
       ok: snapshot?.ok === true,
       production_authority: snapshot?.production_authority === true,
@@ -314,10 +330,11 @@ function PerpLiveWalletSurface() {
       accepted_read_count: snapshot?.summary?.accepted_read_count ?? 0,
       authorization_count: snapshot?.summary?.authorization_count ?? 0,
       aggregate_count: snapshot?.summary?.aggregate_count ?? candidates.filter((candidate) => candidate.kind === 'aggregate').length,
+      target_action: targetAction,
       candidates,
     };
     setOracleEvidence(payload);
-    setSelectedOracleEvidence(candidates[0] || null);
+    setSelectedOracleEvidence(selected);
     return payload;
   }
 
@@ -351,7 +368,7 @@ function PerpLiveWalletSurface() {
     setBusy(true);
     setError('');
     try {
-      await loadOracleEvidenceCandidates();
+      await loadOracleEvidenceCandidates(form);
     } catch (err) {
       setOracleEvidence(null);
       setSelectedOracleEvidence(null);
@@ -374,7 +391,7 @@ function PerpLiveWalletSurface() {
     async function runSmoke() {
       let nextForm = { ...EMPTY_FORM, ...smoke };
       if (nextForm.load_oracle_evidence) {
-        await loadOracleEvidenceCandidates();
+        await loadOracleEvidenceCandidates(nextForm);
       }
       if (actionSupportsOracleFixture(nextForm.action) && nextForm.use_oracle_fixture) {
         nextForm = await buildOracleFixturePayload(nextForm);
@@ -416,6 +433,16 @@ function PerpLiveWalletSurface() {
     return accounts[0];
   }, [selectedMarket, form.account_pubkey]);
   const feeCovered = result?.transport?.fee_limit_native_balance_ok;
+  const oracleBridgePosture = (
+    status?.require_oracle_adapter_for_clearinghouse_settle_epoch
+    && status?.require_oracle_adapter_for_isolated_partial_liquidate
+  )
+    ? 'settle+partial required'
+    : status?.require_oracle_adapter_for_clearinghouse_settle_epoch
+      ? 'settle required'
+      : status?.require_oracle_adapter_for_isolated_partial_liquidate
+        ? 'partial required'
+        : 'optional';
 
   return (
     <section className="perp-live-wallet panel" aria-label="Live perps wallet">
@@ -435,7 +462,7 @@ function PerpLiveWalletSurface() {
           <div><span>Stream</span><span>{result?.transport?.stream_key || '8'}</span></div>
           <div><span>Markets</span><span>{status?.market_count ?? markets.length ?? 0}</span></div>
           <div><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
-          <div><span>Oracle Bridge</span><span>{status?.require_oracle_adapter_for_clearinghouse_settle_epoch ? 'required' : 'optional'}</span></div>
+          <div><span>Oracle Bridge</span><span>{oracleBridgePosture}</span></div>
           <div><span>Isolated</span><span>{status?.allow_isolated_markets ? 'enabled' : 'disabled'}</span></div>
         </div>
 
@@ -747,6 +774,7 @@ function PerpLiveWalletSurface() {
           <span>oracle accepted reads {oracleEvidence.accepted_read_count}</span>
           <span>oracle authorizations {oracleEvidence.authorization_count}</span>
           <span>oracle candidates {oracleEvidence.candidates.length}</span>
+          <span>oracle target {oracleEvidence.target_action || 'any'}</span>
           <span>oracle network {oracleEvidence.production_authority ? 'production' : 'local'}</span>
           {selectedOracleEvidence ? (
             <>

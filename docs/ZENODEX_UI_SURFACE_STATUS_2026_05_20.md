@@ -33,14 +33,15 @@ fixtures cover both `settle_epoch` and isolated `partial_liquidate` browser
 tests. The perps wallet UI now has a verifier-backed Oracle evidence inspector
 for pasted or locally built aggregate-adapter bridges, plus a live ZenoOracle
 candidate picker/viewer that loads accepted reads, authorizations, and
-aggregates from the mounted Oracle service URL. The perps wallet submit path
-also accepts externally signed Tau transaction envelopes and validates their
-sender, sequence, expiry, fee, operations, and BLS signature before `sendtx`, so
-an external signer or key-manager can drive the live stream `8` lane without
-enabling local raw-key signing in the API. The completion plan is recorded in
-`docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
-production Oracle network authority, full production wallet/key-manager
-registry and device UX, and proof/ZK promotion.
+aggregates from the mounted Oracle service URL and prefers action-matching
+authorizations for `settle_epoch` and `liquidate_account`. The perps wallet
+submit path also accepts externally signed Tau transaction envelopes and
+validates their sender, sequence, expiry, fee, operations, and BLS signature
+before `sendtx`, so an external signer or key-manager can drive the live stream
+`8` lane without enabling local raw-key signing in the API. The completion plan
+is recorded in `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main
+blockers are now production Oracle network authority, full production
+wallet/key-manager registry and device UX, and proof/ZK promotion.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -224,16 +225,20 @@ Latest perps Oracle evidence inspector pass on 2026-05-21:
 
 ```bash
 python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_oracle_bridge_inspector_summarizes_verified_settle_bridge tests/integration/test_perps_wallet_api.py::test_oracle_bridge_inspector_rejects_tampered_action_id
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_oracle_bridge_template_preflights_required_partial_liquidate tests/integration/test_perps_wallet_api.py::test_oracle_bridge_template_preflights_required_settle_epoch
 python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge -s
 ```
 
-Results: `2 passed` and `1 passed`. The API inspector accepts a valid
-settle-time aggregate-adapter bridge, rejects an action-ID tamper with
-`adapter_action_id_mismatch`, and the mounted UI renders accepted Oracle
-evidence fields before submit. The browser check now also starts a local
-ZenoOracle service, seeds a canonical perps index authorization, loads the
-service dashboard through `VITE_ZENO_ORACLE_API_URL`, and renders the live
-candidate counts and selected authorization beside the perps submit flow.
+Results: inspector checks `2 passed`, bridge-template checks `2 passed`, settle
+browser `1 passed`, and partial-liquidation browser `1 passed`. The API
+inspector accepts a valid settle-time aggregate-adapter bridge, rejects an
+action-ID tamper with `adapter_action_id_mismatch`, and the mounted UI renders
+accepted Oracle evidence fields before submit. The browser checks now start a
+local ZenoOracle service, seed canonical perps index authorizations for
+`settle_epoch` and `liquidate_account`, load the service dashboard through
+`VITE_ZENO_ORACLE_API_URL`, and render live candidate counts plus the
+action-matching selected authorization beside the perps submit flow.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt

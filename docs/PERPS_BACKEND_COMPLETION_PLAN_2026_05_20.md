@@ -62,10 +62,10 @@ posted into signed clearinghouse perps collateral.
 ## What Is Still Missing
 
 The remaining blockers are broader stateful/chaos assurance, production wallet
-and key-manager integration, production Oracle evidence selection, proof/ZK
+and key-manager integration, production Oracle network authority, proof/ZK
 wrapping, and final branch/PR cleanup. Docker browser evidence, typed
-settle-time Oracle bridge fixtures, and clearinghouse liquidation UI evidence
-exist for the current local/testnet lane.
+Oracle bridge fixtures, action-aware local Oracle evidence selection, and
+clearinghouse liquidation UI evidence exist for the current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -195,8 +195,9 @@ semantics remain a Tau host responsibility until pinned by live Tau evidence.
 Remaining live-transport operation scope:
 
 - clearinghouse pair liquidation is exercised through `settle_epoch`;
-- isolated partial liquidation is mounted as an opt-in wallet action and still
-  needs production Oracle-evidence picker UX before any production promotion.
+- isolated partial liquidation is mounted as an opt-in wallet action with local
+  typed Oracle bridge construction and action-aware live Oracle evidence
+  picker/viewer evidence.
 
 Pinned live-transport evidence:
 
@@ -259,12 +260,13 @@ The UI now exposes:
 - first-class local typed Oracle adapter bridge fixtures for settle and opt-in
   isolated partial-liquidation testing, plus a JSON bridge field for externally
   supplied evidence
+- action-aware live Oracle candidate picker/viewer for `settle_epoch` and
+  `liquidate_account` authorizations from the mounted Oracle service URL
 
 Still missing from the mounted perps UI:
 
-- production typed Oracle evidence picker/viewer
-- richer liquidation history and a production Oracle-evidence picker for
-  isolated partial liquidation
+- production Oracle network authority behind the evidence picker/viewer
+- richer liquidation history
 - full production wallet/key-manager UX and backend registry integration
 
 ### Phase 4: Assurance
@@ -347,7 +349,7 @@ It also proves the mounted zUSD tab can submit a stream `11` monetary mint
 through the Tau-node-backed API and observe post-submit state. It is enough for
 the current local/testnet zUSD-to-perps browser lane, but it is not enough to
 claim full perps product completion because broader stateful/chaos assurance,
-production wallet/key-manager integration, production Oracle evidence selection,
+production wallet/key-manager integration, production Oracle network authority,
 and proof/ZK wrapping remain open.
 
 Perps live wallet checks added on 2026-05-20:
@@ -468,6 +470,21 @@ opt-in gate, typed O3 aggregate-adapter bridge generation for
 fraction, `0` auto-sizing pass-through, and persisted under-maintenance isolated
 accounts reaching the liquidation path.
 
+Additional action-aware Oracle evidence picker evidence added on 2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge tests/integration/test_perps_wallet_api.py::test_oracle_bridge_template_preflights_required_partial_liquidate tests/integration/test_perps_wallet_api.py::test_oracle_bridge_template_preflights_required_settle_epoch -s
+cd tools/dex-ui && npm run build
+```
+
+Results: partial-liquidation browser `1 passed`; settle plus bridge-template
+checks `3 passed`; UI production build passed. The mounted perps wallet now
+loads accepted reads, aggregates, and authorizations from a live local
+ZenoOracle service URL and prefers the authorization matching the current wallet
+action: `settle_epoch` for clearinghouse settlement and `liquidate_account` for
+isolated partial liquidation.
+
 Additional production-wallet compatibility evidence added on 2026-05-21:
 
 ```bash
@@ -483,8 +500,8 @@ and BLS signature before `sendtx`, without enabling local private-key signing.
 
 Remaining limits:
 
-- isolated partial liquidation is opt-in and does not yet have a production
-  Oracle-evidence picker;
+- isolated partial liquidation is opt-in; its evidence picker is local/devnet
+  mounted evidence, not production Oracle network authority;
 - the perps wallet has external signed-envelope submit support, but full
   production key registry, hardware/OS keychain UX, and recovery flows remain
   outside the mounted DEX UI;

@@ -21,7 +21,11 @@ from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
-from src.integration.zeno_oracle_authorization import _PERPS_INDEX_QUERY_ID
+from src.integration.zeno_oracle_authorization import (
+    _PERPS_INDEX_QUERY_ID,
+    _PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+    _PERPS_SETTLE_EPOCH_PROFILE_ID,
+)
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 
@@ -74,9 +78,15 @@ def _post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
         raise AssertionError(f"POST {url} failed with HTTP {exc.code}: {detail}") from exc
 
 
-def _seed_oracle_authorization(base: str) -> dict[str, object]:
+def _seed_oracle_authorization(base: str, *, action_kind: str = "settle_epoch") -> dict[str, object]:
     query_id = _PERPS_INDEX_QUERY_ID
-    action_id = "sha256:" + "8" * 64
+    action_marker = "8" if action_kind == "settle_epoch" else "7"
+    action_id = "sha256:" + action_marker * 64
+    profile_id = (
+        _PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID
+        if action_kind == "liquidate_account"
+        else _PERPS_SETTLE_EPOCH_PROFILE_ID
+    )
     action_facts_hash = "sha256:" + "9" * 64
     pre_state_hash = "sha256:" + "a" * 64
     identity = _post_json(f"{base}/api/oracle/identity/create", {"force": True})
@@ -125,14 +135,14 @@ def _seed_oracle_authorization(base: str) -> dict[str, object]:
         {
             "aggregate_id": aggregate["aggregate_id"],
             "consumer_module": "zenodex.perps",
-            "profile_id": "critical-perps-v1",
+            "profile_id": profile_id,
         },
     )
     authorization = _post_json(
         f"{base}/api/oracle/authorization/build",
         {
             "read_id": read["read_id"],
-            "action_kind": "settle_epoch",
+            "action_kind": action_kind,
             "action_id": action_id,
             "action_facts_hash": action_facts_hash,
             "pre_state_hash": pre_state_hash,
@@ -1252,6 +1262,39 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
     os.environ["TAU_DEX_CHAIN_ID"] = chain_id
     os.environ["TAU_DEX_ALLOW_ISOLATED_PERPS"] = "1"
     os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE"] = "1"
+
+    oracle_home = tmp_path / "oracle-home-partial-picker"
+    init_oracle = subprocess.run(
+        ["python3", str(ORACLE_CLI), "--json", "init", "--home", str(oracle_home)],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert init_oracle.returncode == 0, init_oracle.stderr
+    oracle_port = _free_port()
+    oracle_base = f"http://127.0.0.1:{oracle_port}"
+    oracle_proc = subprocess.Popen(
+        [
+            "python3",
+            str(ORACLE_CLI),
+            "serve",
+            "--home",
+            str(oracle_home),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(oracle_port),
+            "--quiet",
+            "--allow-writes",
+            "--now-epoch",
+            "12",
+        ],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
     api_proc = subprocess.Popen(
         ["python3", "-m", "src.integration.api_server"],
         cwd=ROOT,
@@ -1265,12 +1308,24 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={
+            **os.environ,
+            "API_PROXY_TARGET": api_base,
+            "VITE_DEMO_MODE": "false",
+            "VITE_ZENO_ORACLE_API_URL": oracle_base,
+        },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
     try:
+        assert oracle_proc.stdout is not None
+        oracle_ready = json.loads(oracle_proc.stdout.readline())
+        assert oracle_ready["ok"] is True
+        assert oracle_ready["write_paths_enabled"] is True
+        _wait_for_http(oracle_base + "/api/oracle/health", timeout_s=30)
+        seeded_oracle = _seed_oracle_authorization(oracle_base, action_kind="liquidate_account")
+        assert str(seeded_oracle["authorization"]["authorization_id"]).startswith("sha256:")
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
         query = urlencode(
@@ -1283,6 +1338,7 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
                 "accountPrivkey": str(account_privkey),
                 "fractionBps": "0",
                 "perpsUseOracleFixture": "1",
+                "perpsLoadOracleEvidence": "1",
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
             }
@@ -1311,6 +1367,18 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
         assert "submit accepted" in dom
         assert "preflight ok" in dom
         assert "oracle bridge sha256:" in dom
+        assert "oracle evidence accepted" in dom
+        assert "oracle action liquidate_account" in dom
+        assert "oracle service connected" in dom
+        assert "oracle replay ok" in dom
+        assert "oracle accepted reads 1" in dom
+        assert "oracle authorizations 1" in dom
+        assert "oracle candidates 3" in dom
+        assert "oracle target liquidate_account" in dom
+        assert "oracle selected authorization" in dom
+        assert "oracle selected action liquidate_account" in dom
+        assert "oracle selected value 123456789" in dom
+        assert "oracle network local" in dom
         assert "partial liquidation fraction 0 bps" in dom
         assert "isolated liquidated yes" in dom
         assert market_id in dom
@@ -1329,9 +1397,10 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
             os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE"] = old_require
         vite_proc.terminate()
         api_proc.terminate()
+        oracle_proc.terminate()
         tau_server.shutdown()
         tau_server.server_close()
-        for proc in (vite_proc, api_proc):
+        for proc in (vite_proc, api_proc, oracle_proc):
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
