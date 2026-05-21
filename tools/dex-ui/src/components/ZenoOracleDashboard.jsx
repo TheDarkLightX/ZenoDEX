@@ -1458,12 +1458,16 @@ function AuthorityProfilePanel({ authorityStatus }) {
   const gaps = Array.isArray(status.readiness_gaps) ? status.readiness_gaps : [];
   const walletUx = status.wallet_ux || {};
   const proofProfile = status.proof_profile || {};
+  const signatureQuorum = status.signature_quorum || {};
+  const signedWeight = signatureQuorum.accepted_weight || 0;
+  const signedThreshold = signatureQuorum.threshold || status.threshold || 0;
   const controls = [
     ['External signer', walletUx.external_signer_required],
     ['Key manager', walletUx.key_manager_required],
     ['Device approval', walletUx.device_approval_required],
     ['Proof required', proofProfile.zk_or_proof_required],
     ['Receipt replay', proofProfile.oracle_receipt_replay_required],
+    ['Signed quorum', signedThreshold > 0 && signedWeight >= signedThreshold],
   ];
   const ready = status.production_authority === true;
 
@@ -1490,6 +1494,10 @@ function AuthorityProfilePanel({ authorityStatus }) {
         <div>
           <small>Signer quorum</small>
           <strong>{status.active_signer_count || 0}/{status.threshold || 0}</strong>
+        </div>
+        <div>
+          <small>Signed quorum</small>
+          <strong>{signedWeight}/{signedThreshold}</strong>
         </div>
         <div>
           <small>Key refs</small>

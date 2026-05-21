@@ -23,7 +23,7 @@ from src.integration.tau_net_client import (
     sign_perp_op_for_engine,
 )
 from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
-from src.integration.zeno_ledger_signature import infer_artifact_hash_v0
+from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0, infer_artifact_hash_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
@@ -42,6 +42,10 @@ ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 MARKET_ID = "perp:ch2p:test"
 ISOLATED_MARKET_ID = "perp:isolated:test"
+
+
+def _privkey_hex(value: int) -> str:
+    return "0x" + int(value).to_bytes(32, byteorder="big", signed=False).hex()
 
 
 def _perps_wallet_key_manager(*, second_pubkey: str = BOB) -> dict[str, object]:
@@ -191,7 +195,24 @@ def _oracle_authority_profile(**overrides: object) -> dict[str, object]:
         },
     }
     base.update(overrides)
-    return build_oracle_authority_profile_v1(**base)
+    profile = build_oracle_authority_profile_v1(**base)
+    profile["signature_envelopes"] = [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=str(profile["authority_hash"]),
+            signer_id="oracle-a",
+            key_id="oracle-authority-a",
+            private_key_hex=_privkey_hex(ORACLE_PRIVKEY),
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=str(profile["authority_hash"]),
+            signer_id="oracle-b",
+            key_id="oracle-authority-b",
+            private_key_hex=_privkey_hex(OPERATOR_PRIVKEY),
+        ),
+    ]
+    return profile
 
 
 def _wrapped_app_state(state: DexState) -> dict[str, object]:
@@ -1399,6 +1420,8 @@ def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:
     assert oracle_authority["readiness_gaps"] == []
     assert oracle_authority["active_signer_count"] == 2
     assert oracle_authority["threshold"] == 2
+    assert oracle_authority["signature_count"] == 2
+    assert oracle_authority["signature_quorum"]["accepted_weight"] == 2
     assert oracle_authority["proof_profile"]["runtime_proof_profile"] == "zenooracle-o3-replay-zk-profile-v1"
     encoded = json.dumps(oracle_authority, sort_keys=True)
     assert "private_key" not in encoded

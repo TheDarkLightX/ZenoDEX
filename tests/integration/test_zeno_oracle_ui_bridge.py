@@ -12,6 +12,7 @@ from urllib.request import urlopen
 import pytest
 
 from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
+from src.integration.zeno_ledger_signature import bls_public_key_hex_from_private_key_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_oracle_authority import ORACLE_AUTHORITY_PAYLOAD_KIND
 
@@ -19,8 +20,14 @@ from src.integration.zeno_oracle_authority import ORACLE_AUTHORITY_PAYLOAD_KIND
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
-PUBKEY_A = "0x" + "11" * 48
-PUBKEY_B = "0x" + "22" * 48
+def _privkey_hex(value: int) -> str:
+    return "0x" + int(value).to_bytes(32, byteorder="big", signed=False).hex()
+
+
+PRIVKEY_A = _privkey_hex(101)
+PRIVKEY_B = _privkey_hex(102)
+PUBKEY_A = bls_public_key_hex_from_private_key_v0(PRIVKEY_A)
+PUBKEY_B = bls_public_key_hex_from_private_key_v0(PRIVKEY_B)
 
 
 def _chrome_binary() -> str | None:
@@ -104,6 +111,10 @@ def _provision_ready_authority_profile(home: Path, tmp_path: Path) -> None:
             str(signer_registry_path),
             "--runtime-proof-profile",
             "zenooracle-o3-replay-zk-profile-v1",
+            "--signer-private-key",
+            f"operator-a:oracle-authority-a:{PRIVKEY_A}",
+            "--signer-private-key",
+            f"operator-b:oracle-authority-b:{PRIVKEY_B}",
         ],
         cwd=ROOT,
         check=False,
@@ -364,6 +375,8 @@ def test_oracle_ui_smoke_reports_ready_authority_profile(tmp_path: Path) -> None
         assert "Production authority ready" in dom
         assert "Authority Profile" in dom
         assert "Key Manager" in dom
+        assert "Signed quorum" in dom
+        assert "2/2" in dom
         assert "oracle-authority-a" in dom
         assert "External signer" in dom
         assert "zenooracle-o3-replay-zk-profile-v1" in dom

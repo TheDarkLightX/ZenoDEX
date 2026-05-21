@@ -8,7 +8,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | --- | --- | --- | --- | --- |
 | Swap / Pools | Yes | Live local/testnet spot lane | Yes, mounted spot path through local API and Tau-ledger flow | `tests/integration/test_dex_ui_live_bridge.py` |
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
-| Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, and `/api/oracle/authority` production-authority preflight. Production authority remains blocked unless a local authority profile validates. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
+| Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, and `/api/oracle/authority` production-authority preflight. Production authority remains blocked unless a local authority profile validates with a signer-registry BLS quorum over the authority hash. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
 | Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit and execute-once panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, and stateful execute-once through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, and an in-process execution-key replay guard. Unattended production execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status plus local/testnet attestation receipt/admission surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, and stateful live-admission request consumption via `POST /api/confidential/attestation/admit`. Runtime confidential execution remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py` |
@@ -20,7 +20,7 @@ selection.
 
 The next product-complete backend promotions still required are:
 
-1. production Oracle authority profile provisioning, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
+1. public-testnet exercise of a signed production Oracle authority profile, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
 2. production-grade unattended strategy execution beyond explicit local/testnet execute-once;
 3. confidential runtime execution beyond the external-verifier attestation receipt and live-admission gate.
 
@@ -43,28 +43,28 @@ now emits a deterministic `perps_stream8_live_wallet_v0` proof-intent receipt
 that binds chain id, stream key, operation hash, operation-stream hash,
 pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
 result, sender, sequence, fee limit, signing mode, and a public state-delta
-    witness for changed perps markets after submit. The mounted UI renders that
-    proof profile, receipt hash, delta-witness count, the perps wallet-authority
-    preflight status, and the perps-side Oracle authority preflight status.
-    `/api/perps/wallet/status` can load a public wallet-authority profile from
-    `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
-    `PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
-    key-manager refs, a matching signer registry, external signer and device
-    approval controls, recovery policies for active signer keys, stream `8`
-    scope, state-delta witness requirements, and an explicit proof/ZK runtime
-    profile. The same status route can load an Oracle
-    production-authority profile from `PERPS_ORACLE_AUTHORITY_PROFILE_JSON`,
-    `PERPS_ORACLE_AUTHORITY_PROFILE_FILE`, `ZENO_ORACLE_AUTHORITY_PROFILE_JSON`,
-    `ZENO_ORACLE_AUTHORITY_PROFILE_FILE`, or
-    `ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE`; that claim is blocked unless
-    the Oracle profile validates and its chain id matches the perps wallet chain.
-    The UI reports both authorities as blocked when profiles are absent or invalid,
-    while keeping `zk_proof_verified=false` until a real RISC Zero or equivalent
-    verifier is present. The completion plan is recorded in
-    `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
-    actual public-testnet production Oracle profile provisioning, hardware/OS
-    wallet UX and runtime signer-device integration behind the public
-    wallet-authority profile, and a real proof/ZK wrapper for stream `8`.
+witness for changed perps markets after submit. The mounted UI renders that
+proof profile, receipt hash, delta-witness count, the perps wallet-authority
+preflight status, and the perps-side Oracle authority preflight status.
+`/api/perps/wallet/status` can load a public wallet-authority profile from
+`PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
+`PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
+key-manager refs, a matching signer registry, external signer and device
+approval controls, recovery policies for active signer keys, stream `8` scope,
+state-delta witness requirements, and an explicit proof/ZK runtime profile. The
+same status route can load an Oracle production-authority profile from
+`PERPS_ORACLE_AUTHORITY_PROFILE_JSON`, `PERPS_ORACLE_AUTHORITY_PROFILE_FILE`,
+`ZENO_ORACLE_AUTHORITY_PROFILE_JSON`, `ZENO_ORACLE_AUTHORITY_PROFILE_FILE`, or
+`ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE`; that claim is blocked unless the
+Oracle profile validates and its chain id matches the perps wallet chain. The UI
+reports both authorities as blocked when profiles are absent, invalid, or missing
+a signer-registry BLS signature quorum over the authority profile hash, while
+keeping `zk_proof_verified=false` until a real RISC Zero or equivalent verifier
+is present. The completion plan is recorded in
+`docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
+public-testnet signed Oracle authority exercise, hardware/OS wallet UX and
+runtime signer-device integration behind the public wallet-authority profile,
+and a real proof/ZK wrapper for stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -454,12 +454,14 @@ mounted receipt flow by surfacing `write_api_disabled` instead of accepting a
 receipt write when `--allow-writes` is absent. The local service now exposes
 `/api/oracle/authority`; `tools/zenodex-oracle authority provision-profile`
 writes `authority/production_authority_profile.json` from public key-manager and
-signer-registry JSON, and the mounted Oracle tab renders `Authority blocked` or
-`Production authority ready` according to that profile. The mounted Governance
-view now includes an authority profile panel with public key-manager refs,
-active signer mappings, wallet approval controls, and proof/replay posture. A
-ready profile requires key-manager refs, an Oracle authority signer registry,
-required wallet approval controls, and a proof/replay profile.
+signer-registry JSON plus signer-supplied BLS envelopes, and the mounted Oracle
+tab renders `Authority blocked` or `Production authority ready` according to
+that profile. The mounted Governance view now includes an authority profile
+panel with public key-manager refs, active signer mappings, signed-quorum
+posture, wallet approval controls, and proof/replay posture. A ready profile
+requires key-manager refs, an Oracle authority signer registry, a BLS signature
+quorum over the authority profile hash, required wallet approval controls, and a
+proof/replay profile.
 
 Latest Oracle browser pass on 2026-05-21:
 
@@ -471,6 +473,31 @@ npm run build
 
 Result: authority/API/signature checks `10 passed`, Oracle browser checks `4
 passed`, and Vite production build passed.
+
+Latest Oracle signed-authority quorum pass on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/zeno_oracle_authority.py tools/zenodex_oracle.py tests/integration/test_zeno_oracle_authority.py tests/integration/test_zeno_oracle_ui_bridge.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_authority.py tests/integration/test_perps_wallet_api.py::test_status_loads_ready_oracle_authority_profile tests/integration/test_perps_wallet_api.py::test_status_blocks_oracle_authority_profile_chain_mismatch -s
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_reports_ready_authority_profile -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+cd tools/dex-ui && npm run build
+```
+
+Results: Python compile passed; focused Oracle authority/API checks `12
+passed`; focused Oracle browser ready-authority check `1 passed`; focused perps
+settle browser check `1 passed`; focused perps partial-liquidation browser check
+`1 passed`; Oracle browser suite `5 passed`; full perps wallet API `30 passed`;
+full mounted perps wallet browser bridge `7 passed`; Vite production build
+passed. Production Oracle authority now fails closed unless
+`signature_envelopes` verify as a signer-registry BLS quorum over the
+`authority_hash`. The Oracle Governance UI renders `Signed quorum 2/2`, and the
+perps live wallet UI renders `oracle signed quorum 2/2` for both settle and
+partial-liquidation Oracle authority paths.
 
 Latest confidential attestation receipt pass on 2026-05-21:
 

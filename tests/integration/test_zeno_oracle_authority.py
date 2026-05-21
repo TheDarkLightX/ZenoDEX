@@ -6,7 +6,11 @@ import sys
 from pathlib import Path
 
 from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
-from src.integration.zeno_ledger_signature import infer_artifact_hash_v0
+from src.integration.zeno_ledger_signature import (
+    bls_public_key_hex_from_private_key_v0,
+    build_bls_signed_artifact_envelope_v0,
+    infer_artifact_hash_v0,
+)
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -17,9 +21,16 @@ from src.integration.zeno_oracle_authority import (
 
 ROOT = Path(__file__).resolve().parents[2]
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
-PUBKEY_A = "0x" + "11" * 48
-PUBKEY_B = "0x" + "22" * 48
-PUBKEY_C = "0x" + "33" * 48
+def _privkey_hex(value: int) -> str:
+    return "0x" + int(value).to_bytes(32, byteorder="big", signed=False).hex()
+
+
+PRIVKEY_A = _privkey_hex(101)
+PRIVKEY_B = _privkey_hex(102)
+PRIVKEY_C = _privkey_hex(103)
+PUBKEY_A = bls_public_key_hex_from_private_key_v0(PRIVKEY_A)
+PUBKEY_B = bls_public_key_hex_from_private_key_v0(PRIVKEY_B)
+PUBKEY_C = bls_public_key_hex_from_private_key_v0(PRIVKEY_C)
 
 
 def _key_manager(*, second_pubkey: str = PUBKEY_B) -> dict[str, object]:
@@ -55,7 +66,26 @@ def _signer_registry(*, second_pubkey: str = PUBKEY_B, threshold: int = 2) -> di
     )
 
 
-def _profile(**overrides: object) -> dict[str, object]:
+def _signature_envelopes(profile: dict[str, object]) -> list[dict[str, object]]:
+    return [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=str(profile["authority_hash"]),
+            signer_id="operator-a",
+            key_id="oracle-authority-a",
+            private_key_hex=PRIVKEY_A,
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=str(profile["authority_hash"]),
+            signer_id="operator-b",
+            key_id="oracle-authority-b",
+            private_key_hex=PRIVKEY_B,
+        ),
+    ]
+
+
+def _profile(*, signed: bool = True, **overrides: object) -> dict[str, object]:
     base = {
         "authority_id": "zenooracle-mainnet-authority-v1",
         "chain_id": "zeno-ledger-mainnet",
@@ -75,7 +105,10 @@ def _profile(**overrides: object) -> dict[str, object]:
         },
     }
     base.update(overrides)
-    return build_oracle_authority_profile_v1(**base)
+    profile = build_oracle_authority_profile_v1(**base)
+    if signed:
+        profile["signature_envelopes"] = _signature_envelopes(profile)
+    return profile
 
 
 def test_oracle_authority_missing_profile_is_blocked() -> None:
@@ -98,6 +131,9 @@ def test_oracle_authority_complete_profile_is_ready() -> None:
     assert status["threshold"] == 2
     assert status["active_signer_count"] == 2
     assert status["key_ref_count"] == 2
+    assert status["signature_count"] == 2
+    assert status["signature_quorum"]["accepted_weight"] == 2
+    assert status["signature_quorum"]["threshold"] == 2
     assert [entry["key_id"] for entry in status["key_refs"]] == [
         "oracle-authority-a",
         "oracle-authority-b",
@@ -114,6 +150,29 @@ def test_oracle_authority_complete_profile_is_ready() -> None:
         artifact=profile,
         payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
     ) == profile["authority_hash"]
+
+
+def test_oracle_authority_blocks_unsigned_profile() -> None:
+    profile = _profile(signed=False)
+    status = evaluate_oracle_authority_profile_v1(profile)
+
+    assert status["production_authority"] is False
+    assert status["signature_count"] == 0
+    assert "oracle production authority signature_envelopes must be a non-empty list" in status["readiness_gaps"]
+
+
+def test_oracle_authority_blocks_bad_signature_quorum() -> None:
+    profile = _profile()
+    profile["signature_envelopes"] = list(profile["signature_envelopes"])  # type: ignore[arg-type]
+    profile["signature_envelopes"][0] = {  # type: ignore[index]
+        **profile["signature_envelopes"][0],  # type: ignore[index]
+        "payload_hash": "0x" + "00" * 32,
+    }
+
+    status = evaluate_oracle_authority_profile_v1(profile)
+
+    assert status["production_authority"] is False
+    assert any("signature quorum invalid" in gap for gap in status["readiness_gaps"])
 
 
 def test_oracle_authority_blocks_devnet_and_missing_required_controls() -> None:
@@ -222,6 +281,10 @@ def test_oracle_authority_cli_provisions_profile_and_status(tmp_path: Path) -> N
             str(signer_registry_path),
             "--runtime-proof-profile",
             "zenooracle-o3-replay-zk-profile-v1",
+            "--signer-private-key",
+            f"operator-a:oracle-authority-a:{PRIVKEY_A}",
+            "--signer-private-key",
+            f"operator-b:oracle-authority-b:{PRIVKEY_B}",
         ],
         cwd=ROOT,
         check=False,

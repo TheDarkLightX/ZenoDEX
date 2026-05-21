@@ -63,13 +63,14 @@ posted into signed clearinghouse perps collateral.
 
 The remaining blockers are packet-level network partition/latency chaos,
 hardware/OS wallet UX and recovery flows behind the public wallet-authority
-profile, production Oracle network authority, proof/ZK wrapping, and final
-branch/PR cleanup. Docker browser evidence, typed Oracle bridge fixtures,
-action-aware local Oracle evidence selection, clearinghouse liquidation UI
-evidence, wallet-authority profile preflight, bounded stream `8`
-replay/freshness checks, Tau RPC send-failure retry evidence, API-level
-node-restart replay evidence, and Docker Tau-node restart plus pause/retry
-evidence exist for the current local/testnet lane.
+profile, public-testnet live exercise of signed production Oracle authority,
+proof/ZK wrapping, and final branch/PR cleanup. Docker browser evidence, typed
+Oracle bridge fixtures, action-aware local Oracle evidence selection,
+clearinghouse liquidation UI evidence, wallet-authority profile preflight,
+signed Oracle authority profile preflight, bounded stream `8` replay/freshness
+checks, Tau RPC send-failure retry evidence, API-level node-restart replay
+evidence, and Docker Tau-node restart plus pause/retry evidence exist for the
+current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -284,13 +285,14 @@ The UI now exposes:
   `PERPS_ORACLE_AUTHORITY_PROFILE_JSON`, `PERPS_ORACLE_AUTHORITY_PROFILE_FILE`,
   `ZENO_ORACLE_AUTHORITY_PROFILE_JSON`, `ZENO_ORACLE_AUTHORITY_PROFILE_FILE`,
   or `ZENO_ORACLE_PRODUCTION_AUTHORITY_PROFILE_FILE`; the mounted status route
-  blocks the production Oracle authority claim unless the profile validates and
-  its chain id matches the perps wallet chain
+  blocks the production Oracle authority claim unless the profile validates, its
+  chain id matches the perps wallet chain, and signer-registry BLS envelopes form
+  a quorum over the authority profile hash
 
 Still missing from the mounted perps UI:
 
-- actual public-testnet production Oracle profile provisioning and live network
-  authority evidence behind the local/devnet picker/viewer
+- actual public-testnet exercise of the signed production Oracle authority
+  profile behind the local/devnet picker/viewer
 - richer liquidation history
 - hardware/OS wallet UX and live signer-device integration behind the public
   wallet-authority profile
@@ -594,6 +596,26 @@ before loading the local ZenoOracle picker. The mounted UI renders `oracle
 authority ready` and `oracle signers 2/2` for the `liquidate_account` path while
 still reporting the evidence service network as local.
 
+Additional signed Oracle authority quorum evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/zeno_oracle_authority.py tools/zenodex_oracle.py tests/integration/test_zeno_oracle_authority.py tests/integration/test_zeno_oracle_ui_bridge.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_authority.py tests/integration/test_perps_wallet_api.py::test_status_loads_ready_oracle_authority_profile tests/integration/test_perps_wallet_api.py::test_status_blocks_oracle_authority_profile_chain_mismatch -s
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+cd tools/dex-ui && npm run build
+```
+
+Results: py_compile passed; focused signed Oracle authority/API checks `12
+passed`; full Oracle browser suite `5 passed`; full perps wallet API suite `30
+passed`; full mounted perps wallet browser bridge `7 passed`; UI production
+build passed. Production Oracle authority now fails closed unless
+`signature_envelopes` verify as a signer-registry BLS quorum over the
+`authority_hash`. The Oracle Governance UI renders `Signed quorum 2/2`, and the
+perps live wallet UI renders `oracle signed quorum 2/2` for settle and
+partial-liquidation Oracle authority paths.
+
 Additional stream `8` stateful resilience evidence added on 2026-05-21:
 
 ```bash
@@ -759,9 +781,9 @@ remain open.
 
 Remaining limits:
 
-- isolated partial liquidation is opt-in; its evidence picker is local/devnet
-  mounted evidence until a public-testnet Oracle authority profile is provisioned
-  and exercised live;
+- isolated partial liquidation is opt-in; its evidence picker and signed Oracle
+  authority profile are local/devnet mounted evidence until the signed production
+  Oracle authority profile is exercised on public testnet;
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
   approval, and actual key recovery execution remain outside the mounted DEX UI;

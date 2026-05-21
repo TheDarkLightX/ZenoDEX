@@ -106,6 +106,7 @@ from src.integration.zeno_oracle_authority import (  # noqa: E402
     build_oracle_authority_profile_v1,
     evaluate_oracle_authority_profile_v1,
 )
+from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0  # noqa: E402
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -3957,6 +3958,13 @@ def _load_json_mapping(path: Path, *, name: str) -> Mapping[str, Any]:
     return payload
 
 
+def _parse_authority_signer_private_key(raw: str) -> tuple[str, str, str]:
+    parts = str(raw).split(":", 2)
+    if len(parts) != 3 or not all(parts):
+        raise ValueError("--signer-private-key must be signer_id:key_id:0x32-byte-hex")
+    return parts[0], parts[1], parts[2]
+
+
 def cmd_authority_status(args: argparse.Namespace) -> int:
     home = _home(args)
     status = _oracle_authority_status(home)
@@ -3988,6 +3996,22 @@ def cmd_authority_provision_profile(args: argparse.Namespace) -> int:
             "runtime_proof_profile": str(args.runtime_proof_profile),
         },
     )
+    signature_envelopes: list[Mapping[str, Any]] = []
+    for index, envelope_path in enumerate(args.signature_envelope or []):
+        signature_envelopes.append(_load_json_mapping(Path(envelope_path), name=f"signature_envelope[{index}]"))
+    for raw_key in args.signer_private_key or []:
+        signer_id, key_id, private_key_hex = _parse_authority_signer_private_key(str(raw_key))
+        signature_envelopes.append(
+            build_bls_signed_artifact_envelope_v0(
+                payload_kind="oracle_authority_profile",
+                payload_hash=str(profile["authority_hash"]),
+                signer_id=signer_id,
+                key_id=key_id,
+                private_key_hex=private_key_hex,
+            )
+        )
+    if signature_envelopes:
+        profile = {**profile, "signature_envelopes": [dict(envelope) for envelope in signature_envelopes]}
     status = evaluate_oracle_authority_profile_v1(profile)
     out_path = Path(args.out) if args.out else _authority_profile_path(home)
     if out_path.exists() and not args.force:
@@ -5072,6 +5096,16 @@ def build_parser() -> argparse.ArgumentParser:
     authority_provision.add_argument("--skip-device-approval-required", action="store_true")
     authority_provision.add_argument("--skip-zk-or-proof-required", action="store_true")
     authority_provision.add_argument("--skip-oracle-receipt-replay-required", action="store_true")
+    authority_provision.add_argument(
+        "--signature-envelope",
+        action="append",
+        help="prebuilt BLS signed-artifact envelope JSON over the authority profile hash",
+    )
+    authority_provision.add_argument(
+        "--signer-private-key",
+        action="append",
+        help="build a BLS signature envelope as signer_id:key_id:0x32-byte-hex",
+    )
     authority_provision.add_argument("--out")
     authority_provision.add_argument("--force", action="store_true")
     authority_provision.set_defaults(func=cmd_authority_provision_profile)

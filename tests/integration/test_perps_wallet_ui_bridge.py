@@ -26,6 +26,7 @@ from src.integration.perps_wallet_authority import (
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
+from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -45,7 +46,18 @@ DEX_UI = ROOT / "tools" / "dex-ui"
 ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
 
 
-def _oracle_authority_profile(*, chain_id: str, oracle_pubkey: str, operator_pubkey: str) -> dict[str, object]:
+def _privkey_hex(value: int) -> str:
+    return "0x" + int(value).to_bytes(32, byteorder="big", signed=False).hex()
+
+
+def _oracle_authority_profile(
+    *,
+    chain_id: str,
+    oracle_pubkey: str,
+    operator_pubkey: str,
+    oracle_privkey: int,
+    operator_privkey: int,
+) -> dict[str, object]:
     key_manager = ZenoKeyManager(
         key_refs=(
             KeyRef(key_id="oracle-authority-a", public_key=oracle_pubkey),
@@ -73,7 +85,7 @@ def _oracle_authority_profile(*, chain_id: str, oracle_pubkey: str, operator_pub
             },
         ),
     )
-    return build_oracle_authority_profile_v1(
+    profile = build_oracle_authority_profile_v1(
         authority_id="oracle-production-authority-v1",
         chain_id=chain_id,
         stage="production",
@@ -91,6 +103,23 @@ def _oracle_authority_profile(*, chain_id: str, oracle_pubkey: str, operator_pub
             "runtime_proof_profile": "zenooracle-o3-replay-zk-profile-v1",
         },
     )
+    profile["signature_envelopes"] = [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=str(profile["authority_hash"]),
+            signer_id="oracle-a",
+            key_id="oracle-authority-a",
+            private_key_hex=_privkey_hex(oracle_privkey),
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=str(profile["authority_hash"]),
+            signer_id="oracle-b",
+            key_id="oracle-authority-b",
+            private_key_hex=_privkey_hex(operator_privkey),
+        ),
+    ]
+    return profile
 
 
 def _perps_wallet_authority_profile(
@@ -1434,6 +1463,8 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
                 chain_id=chain_id,
                 oracle_pubkey=oracle_pubkey,
                 operator_pubkey=operator_pubkey,
+                oracle_privkey=oracle_privkey,
+                operator_privkey=operator_privkey,
             ),
             sort_keys=True,
         ),
@@ -1565,6 +1596,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert "oracle network local" in dom
         assert "oracle authority ready" in dom
         assert "oracle signers 2/2" in dom
+        assert "oracle signed quorum 2/2" in dom
         assert "fee covered yes" in dom
         assert market_id in dom
     finally:
@@ -1650,6 +1682,8 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
                 chain_id=chain_id,
                 oracle_pubkey=oracle_pubkey,
                 operator_pubkey=operator_pubkey,
+                oracle_privkey=oracle_privkey,
+                operator_privkey=operator_privkey,
             ),
             sort_keys=True,
         ),
@@ -1779,6 +1813,7 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
         assert "oracle network local" in dom
         assert "oracle authority ready" in dom
         assert "oracle signers 2/2" in dom
+        assert "oracle signed quorum 2/2" in dom
         assert "partial liquidation fraction 0 bps" in dom
         assert "isolated liquidated yes" in dom
         assert market_id in dom

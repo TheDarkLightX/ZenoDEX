@@ -476,6 +476,7 @@ function PerpLiveWalletSurface() {
           <div><span>Wallet Recovery</span><span>{walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span></div>
           <div><span>Oracle Authority</span><span>{oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Oracle Signers</span><span>{oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span></div>
+          <div><span>Oracle Signed Quorum</span><span>{oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span></div>
         </div>
 
         <div className="perp-live-wallet-form">
@@ -762,6 +763,7 @@ function PerpLiveWalletSurface() {
           <span>wallet recovery {walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span>
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
           <span>oracle signers {oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span>
+          <span>oracle signed quorum {oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {selectedMarket?.liquidated_this_step != null ? (
             <span>liquidated {selectedMarket.liquidated_this_step ? 'yes' : 'no'}</span>

@@ -8,10 +8,10 @@ Oracle surface.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from src.integration.zeno_key_manager import KEY_MANAGER_SCHEMA_V0, KEY_STATUS_ACTIVE, KeyRef
-from src.integration.zeno_ledger_signer_registry import validate_signer_registry_v0
+from src.integration.zeno_ledger_signer_registry import validate_signer_registry_v0, verify_signature_quorum_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 
 
@@ -33,6 +33,7 @@ _NOT_CLAIMED = (
     "does_not_claim_source_honesty",
     "does_not_claim_tau_consensus_finality",
 )
+_NON_HASH_PROFILE_FIELDS = frozenset({"authority_hash", "signature_envelopes", "signature_quorum"})
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -48,7 +49,7 @@ def _require_nonempty_str(value: object, *, name: str) -> str:
 
 
 def _body(profile: Mapping[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in dict(profile).items() if key != "authority_hash"}
+    return {key: value for key, value in dict(profile).items() if key not in _NON_HASH_PROFILE_FIELDS}
 
 
 def oracle_authority_profile_hash_v1(profile: Mapping[str, Any]) -> str:
@@ -65,6 +66,7 @@ def build_oracle_authority_profile_v1(
     signer_registry: Mapping[str, Any],
     wallet_ux: Mapping[str, Any],
     proof_profile: Mapping[str, Any],
+    signature_envelopes: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     body = {
         "schema": ORACLE_AUTHORITY_PROFILE_SCHEMA_V1,
@@ -77,7 +79,13 @@ def build_oracle_authority_profile_v1(
         "wallet_ux": dict(_require_mapping(wallet_ux, name="wallet_ux")),
         "proof_profile": dict(_require_mapping(proof_profile, name="proof_profile")),
     }
-    return {**body, "authority_hash": oracle_authority_profile_hash_v1(body)}
+    profile = {**body, "authority_hash": oracle_authority_profile_hash_v1(body)}
+    if signature_envelopes is not None:
+        profile["signature_envelopes"] = [
+            dict(_require_mapping(envelope, name=f"signature_envelopes[{index}]"))
+            for index, envelope in enumerate(signature_envelopes)
+        ]
+    return profile
 
 
 def _validate_key_manager_public(key_manager: Mapping[str, Any], gaps: list[str]) -> dict[str, KeyRef]:
@@ -208,6 +216,61 @@ def _active_signer_summaries(active_signers: list[Mapping[str, Any]]) -> list[di
     ]
 
 
+def _signature_quorum_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    accepted = report.get("accepted_signatures")
+    accepted_signatures = accepted if isinstance(accepted, list) else []
+    return {
+        "registry_hash": report.get("registry_hash"),
+        "payload_kind": report.get("payload_kind"),
+        "payload_hash": report.get("payload_hash"),
+        "threshold": int(report.get("threshold", 0)) if isinstance(report.get("threshold"), int) else 0,
+        "accepted_weight": int(report.get("accepted_weight", 0)) if isinstance(report.get("accepted_weight"), int) else 0,
+        "accepted_signature_count": len(accepted_signatures),
+        "accepted_signatures": [
+            {
+                "signer_id": str(item.get("signer_id", "")) if isinstance(item, Mapping) else "",
+                "key_id": str(item.get("key_id", "")) if isinstance(item, Mapping) else "",
+                "weight": int(item.get("weight", 0)) if isinstance(item, Mapping) and isinstance(item.get("weight"), int) else 0,
+                "envelope_hash": item.get("envelope_hash") if isinstance(item, Mapping) else None,
+            }
+            for item in accepted_signatures
+        ],
+        "quorum_report_hash": report.get("quorum_report_hash"),
+    }
+
+
+def _validate_signature_quorum(
+    *,
+    profile: Mapping[str, Any],
+    signer_registry: Mapping[str, Any],
+    expected_authority_hash: str,
+    gaps: list[str],
+) -> dict[str, Any] | None:
+    raw_envelopes = profile.get("signature_envelopes")
+    if not isinstance(raw_envelopes, list) or not raw_envelopes:
+        gaps.append("oracle production authority signature_envelopes must be a non-empty list")
+        return None
+    envelopes: list[Mapping[str, Any]] = []
+    for index, raw_envelope in enumerate(raw_envelopes):
+        try:
+            envelopes.append(_require_mapping(raw_envelope, name=f"signature_envelopes[{index}]"))
+        except Exception as exc:
+            gaps.append(f"oracle production authority signature envelope {index} invalid: {exc}")
+    if not envelopes:
+        return None
+    try:
+        report = verify_signature_quorum_v0(
+            registry=signer_registry,
+            payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,
+            payload_hash=expected_authority_hash,
+            envelopes=envelopes,
+        )
+    except Exception as exc:
+        gaps.append(f"oracle production authority signature quorum invalid: {exc}")
+        return None
+    return _signature_quorum_summary(report)
+
+
 def _public_flag_profile(profile: Mapping[str, Any], flags: tuple[str, ...]) -> dict[str, bool]:
     return {flag: profile.get(flag) is True for flag in flags}
 
@@ -224,8 +287,10 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
             active_signer_count=0,
             threshold=0,
             key_ref_count=0,
+            signature_count=0,
             key_refs=[],
             active_signers=[],
+            signature_quorum=None,
             wallet_ux={},
             proof_profile={},
         )
@@ -242,8 +307,10 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
             active_signer_count=0,
             threshold=0,
             key_ref_count=0,
+            signature_count=0,
             key_refs=[],
             active_signers=[],
+            signature_quorum=None,
             wallet_ux={},
             proof_profile={},
         )
@@ -277,6 +344,7 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
 
     active_signers: list[Mapping[str, Any]] = []
     threshold = 0
+    signer_registry: Mapping[str, Any] | None = None
     try:
         signer_registry = _require_mapping(obj.get("signer_registry"), name="signer_registry")
         active_signers, threshold = _signer_entries(signer_registry, gaps)
@@ -315,6 +383,15 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
     except Exception as exc:
         gaps.append(f"proof_profile invalid: {exc}")
 
+    signature_quorum: dict[str, Any] | None = None
+    if signer_registry is not None:
+        signature_quorum = _validate_signature_quorum(
+            profile=obj,
+            signer_registry=signer_registry,
+            expected_authority_hash=expected_hash,
+            gaps=gaps,
+        )
+
     production_authority = not gaps
     return _status(
         ok=production_authority,
@@ -324,9 +401,11 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
         active_signer_count=len(active_signers),
         threshold=threshold,
         key_ref_count=len(key_refs),
+        signature_count=0 if signature_quorum is None else int(signature_quorum["accepted_signature_count"]),
         expected_authority_hash=expected_hash,
         key_refs=_key_ref_summaries(key_refs),
         active_signers=_active_signer_summaries(active_signers),
+        signature_quorum=signature_quorum,
         wallet_ux=wallet_ux_summary,
         proof_profile=proof_profile_summary,
     )
@@ -341,9 +420,11 @@ def _status(
     active_signer_count: int,
     threshold: int,
     key_ref_count: int,
+    signature_count: int,
     expected_authority_hash: str | None = None,
     key_refs: list[dict[str, Any]] | None = None,
     active_signers: list[dict[str, Any]] | None = None,
+    signature_quorum: Mapping[str, Any] | None = None,
     wallet_ux: Mapping[str, Any] | None = None,
     proof_profile: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -368,8 +449,10 @@ def _status(
         "active_signer_count": int(active_signer_count),
         "threshold": int(threshold),
         "key_ref_count": int(key_ref_count),
+        "signature_count": int(signature_count),
         "key_refs": list(key_refs or []),
         "active_signers": list(active_signers or []),
+        "signature_quorum": dict(signature_quorum or {}),
         "wallet_ux": dict(wallet_ux or {}),
         "proof_profile": dict(proof_profile or {}),
         "not_claimed": list(_NOT_CLAIMED),
