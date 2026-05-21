@@ -563,6 +563,23 @@ renders `wallet recovery 2/2` beside the stream `8` submit result. This reduces
 the mounted recovery-posture gap, while hardware/OS signer approval and actual
 key recovery execution remain outside the current UI.
 
+Additional signer-device integration evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_authority.py src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_signer_device_integration_ready_receipt tests/integration/test_perps_wallet_api.py::test_perps_wallet_signer_device_integration_blocks_missing_user_presence tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_signer_device_integration tests/integration/test_perps_wallet_api.py::test_signer_device_evaluate_endpoint_blocks_missing_user_presence tests/integration/test_perps_wallet_api.py::test_signer_device_evaluate_endpoint_blocks_missing_provider
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+```
+
+Results: the mounted perps wallet can now load a separate signer-device
+integration report through `PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON|FILE`
+and `POST /api/perps/wallet/signer-device/evaluate`. That report binds a public
+backend descriptor, runtime environment evidence, environment policy, device
+label, and approval reference into a deterministic status hash, then exposes
+backend kind plus environment posture in the UI. This is stronger than the
+synthetic device-approval exercise alone, but it still does not prove live OS
+prompt capture, hardware custody, or hardware-wallet execution.
+
 Additional perps wallet recovery-exercise evidence added on 2026-05-21:
 
 ```bash
@@ -1129,12 +1146,10 @@ Remaining limits:
   authority profile are local/devnet mounted evidence until the signed production
   Oracle authority profile is exercised on public testnet;
 - the perps wallet has external signed-envelope submit support and a public
-  wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
-  integration remain outside the mounted DEX UI; public device-approval
-  exercises now produce bounded sign-admission receipts, and public recovery
-  plus rotation-broadcast exercises have guardian signature quorum checks plus
-  receipts, but they still do not prove device custody, live OS prompt
-  execution, or chain finality;
+  wallet-authority profile preflight, plus mounted signer-device integration
+  reports and public device-approval, recovery, and rotation receipts; live OS
+  prompt capture, device custody, and hardware-wallet execution still remain
+  outside the mounted DEX UI claim;
 - confidential execution is bounded to attested admission, bounded runtime
   receipts, replay protection, redaction, and local accounting evidence; TEE
   hardware confidentiality and fully encrypted on-chain state remain unproved

@@ -30,6 +30,7 @@ from .perps_wallet_authority import (
     evaluate_perps_wallet_device_approval_exercise_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
     evaluate_perps_wallet_rotation_exercise_v1,
+    evaluate_perps_wallet_signer_device_integration_v1,
 )
 from .tau_net_client import (
     TauNetRpcError,
@@ -190,6 +191,14 @@ def _wallet_device_approval_exercise_from_env() -> tuple[Mapping[str, Any] | Non
         json_names=("PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_JSON",),
         file_names=("PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_FILE",),
         label="perps wallet device approval exercise",
+    )
+
+
+def _wallet_signer_device_integration_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON",),
+        file_names=("PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_FILE",),
+        label="perps wallet signer-device integration",
     )
 
 
@@ -1722,6 +1731,26 @@ def _status_payload() -> Dict[str, Any]:
             "sign_admission_receipt": None,
             "sign_admission_receipt_hash": None,
         }
+    signer_device_integration, signer_device_integration_error = _wallet_signer_device_integration_from_env()
+    if signer_device_integration is not None:
+        wallet_authority["signer_device_integration"] = evaluate_perps_wallet_signer_device_integration_v1(
+            wallet_authority_profile,
+            signer_device_integration,
+            expected_chain_id=chain_id,
+        )
+    elif signer_device_integration_error is not None:
+        wallet_authority["signer_device_integration"] = {
+            "schema": "zenodex/perps-wallet-signer-device-integration-status/v1",
+            "ok": False,
+            "signer_device_ready": False,
+            "status": "blocked",
+            "errors": [signer_device_integration_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "integration_hash": None,
+            "backend_hash": None,
+            "environment_hash": None,
+            "environment_policy_hash": None,
+        }
     oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
     oracle_authority = _bind_oracle_authority_status(
         evaluate_oracle_authority_profile_v1(oracle_authority_profile),
@@ -1864,6 +1893,20 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 device_approval["status"] = "blocked"
                 device_approval.setdefault("errors", []).append(profile_error)
             return 200, {"ok": device_approval.get("device_approval_ready") is True, "device_approval_exercise": device_approval}
+        if rest == ["signer-device", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            signer_device = evaluate_perps_wallet_signer_device_integration_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                signer_device["ok"] = False
+                signer_device["signer_device_ready"] = False
+                signer_device["status"] = "blocked"
+                signer_device.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": signer_device.get("signer_device_ready") is True, "signer_device_integration": signer_device}
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}

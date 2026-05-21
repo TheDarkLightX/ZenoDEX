@@ -29,11 +29,13 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
+    build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_device_approval_use_policy_v1,
     build_perps_wallet_authority_profile_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
+    perps_wallet_signer_device_integration_hash_v1,
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zeno_key_manager import (
@@ -453,6 +455,54 @@ def _perps_wallet_device_approval_exercise(*, chain_id: str) -> dict[str, object
         **exercise,
         "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
         "exercise_hash": perps_wallet_device_approval_exercise_hash_v1(exercise),
+    }
+
+
+def _perps_wallet_signer_device_integration(*, chain_id: str) -> dict[str, object]:
+    backend = KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_OS_KEYCHAIN,
+        backend_id="macbook-keychain-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "macos-keychain",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+    environment = KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-session-1",
+        environment_kind=KEY_ENVIRONMENT_LOCAL_PROCESS,
+        chain_id=chain_id,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+    environment_policy = build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_LOCAL_PROCESS],
+        expected_chain_id=chain_id,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+    integration = build_perps_wallet_signer_device_integration_v1(
+        authority_id="perps-wallet-authority-v1",
+        chain_id=chain_id,
+        key_id="perps-wallet-a",
+        current_epoch=13,
+        backend_descriptor=backend,
+        environment=environment,
+        environment_policy=environment_policy,
+        device_label="MacBook Keychain Wallet A",
+        approval_reference="os-prompt:wallet-a:epoch-13",
+    )
+    return {
+        **integration,
+        "schema": "zenodex/perps-wallet-signer-device-integration/v1",
+        "integration_hash": perps_wallet_signer_device_integration_hash_v1(integration),
     }
 
 
@@ -1154,6 +1204,10 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
             _perps_wallet_device_approval_exercise(chain_id=chain_id),
             sort_keys=True,
         ),
+        "PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON": json.dumps(
+            _perps_wallet_signer_device_integration(chain_id=chain_id),
+            sort_keys=True,
+        ),
     }
     old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
     os.environ["TAU_DEX_CHAIN_ID"] = chain_id
@@ -1233,6 +1287,9 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "device approval ready" in dom
         assert "device sign admission ok" in dom
         assert "device approval receipt 0x" in dom
+        assert "signer device ready" in dom
+        assert "signer backend os-keychain" in dom
+        assert "signer device receipt 0x" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

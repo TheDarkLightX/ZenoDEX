@@ -16,15 +16,18 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
+    build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_device_approval_use_policy_v1,
     build_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_device_approval_exercise_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
     evaluate_perps_wallet_rotation_exercise_v1,
+    evaluate_perps_wallet_signer_device_integration_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
+    perps_wallet_signer_device_integration_hash_v1,
 )
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -386,6 +389,57 @@ def _perps_wallet_device_approval_exercise(**overrides: object) -> dict[str, obj
         **base,
         "schema": PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
         "exercise_hash": perps_wallet_device_approval_exercise_hash_v1(base),
+    }
+
+
+def _perps_wallet_signer_device_integration(**overrides: object) -> dict[str, object]:
+    backend = KeyBackendDescriptor(
+        key_id="perps-wallet-a",
+        backend_kind=BACKEND_OS_KEYCHAIN,
+        backend_id="macbook-keychain-wallet-a",
+        policy_hash=ROOT_A,
+        metadata={
+            "provider": "macos-keychain",
+            "device_approval_mode": "local_user_presence",
+        },
+    ).public_dict()
+    environment = KeyExecutionEnvironment(
+        environment_id="perps-wallet-a-session-1",
+        environment_kind=KEY_ENVIRONMENT_LOCAL_PROCESS,
+        chain_id=CHAIN_ID,
+        policy_hash=ROOT_A,
+        challenge_hash=ROOT_B,
+        issued_at_epoch=10,
+        expires_at_epoch=20,
+        local_user_presence_confirmed=True,
+        rollback_protection_confirmed=True,
+    ).public_dict()
+    environment_policy = build_perps_wallet_device_approval_environment_policy_v1(
+        allowed_environment_kinds=[KEY_ENVIRONMENT_LOCAL_PROCESS],
+        expected_chain_id=CHAIN_ID,
+        expected_policy_hash=ROOT_A,
+        expected_challenge_hash=ROOT_B,
+        require_user_presence=True,
+        require_rollback_protection=True,
+    )
+    base = build_perps_wallet_signer_device_integration_v1(
+        authority_id="perps-wallet-mainnet-authority-v1",
+        chain_id=CHAIN_ID,
+        key_id="perps-wallet-a",
+        current_epoch=13,
+        backend_descriptor=backend,
+        environment=environment,
+        environment_policy=environment_policy,
+        device_label="MacBook Keychain Wallet A",
+        approval_reference="os-prompt:wallet-a:epoch-13",
+    )
+    base.update(overrides)
+    if "integration_hash" in base:
+        del base["integration_hash"]
+    return {
+        **base,
+        "schema": "zenodex/perps-wallet-signer-device-integration/v1",
+        "integration_hash": perps_wallet_signer_device_integration_hash_v1(base),
     }
 
 
@@ -1006,6 +1060,60 @@ def test_perps_wallet_device_approval_exercise_blocks_reused_nonce() -> None:
     assert status["device_approval_ready"] is False
     assert "device_approval_sign_admission_rejected" in status["errors"]
     assert "payload_nonce_reused" in status["errors"]
+
+
+def test_perps_wallet_signer_device_integration_ready_receipt() -> None:
+    profile = _perps_wallet_authority_profile()
+    integration = _perps_wallet_signer_device_integration()
+
+    status = evaluate_perps_wallet_signer_device_integration_v1(
+        profile,
+        integration,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is True
+    assert status["signer_device_ready"] is True
+    assert status["status"] == "ready"
+    assert status["wallet_authority_hash"] == profile["wallet_authority_hash"]
+    assert status["integration_hash"] == perps_wallet_signer_device_integration_hash_v1(integration)
+    assert status["backend_kind"] == BACKEND_OS_KEYCHAIN
+    assert status["provider"] == "macos-keychain"
+    assert status["device_approval_mode"] == "local_user_presence"
+    assert status["local_user_presence_confirmed"] is True
+    assert status["rollback_protection_confirmed"] is True
+    assert status["backend_hash"] == integration["backend_descriptor"]["backend_hash"]
+    assert status["environment_hash"] == integration["environment"]["environment_hash"]
+
+
+def test_perps_wallet_signer_device_integration_blocks_missing_user_presence() -> None:
+    integration = _perps_wallet_signer_device_integration()
+    integration["environment"] = {
+        **integration["environment"],
+        "local_user_presence_confirmed": False,
+    }
+    integration["environment"]["environment_hash"] = KeyExecutionEnvironment(
+        environment_id=integration["environment"]["environment_id"],
+        environment_kind=integration["environment"]["environment_kind"],
+        chain_id=integration["environment"]["chain_id"],
+        policy_hash=integration["environment"]["policy_hash"],
+        challenge_hash=integration["environment"]["challenge_hash"],
+        issued_at_epoch=integration["environment"]["issued_at_epoch"],
+        expires_at_epoch=integration["environment"]["expires_at_epoch"],
+        local_user_presence_confirmed=False,
+        rollback_protection_confirmed=integration["environment"]["rollback_protection_confirmed"],
+    ).public_dict()["environment_hash"]
+
+    status = evaluate_perps_wallet_signer_device_integration_v1(
+        _perps_wallet_authority_profile(),
+        integration,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["signer_device_ready"] is False
+    assert "signer_device_environment_rejected" in status["errors"]
+    assert "local_user_presence_missing" in status["errors"]
 
 
 def test_perps_wallet_rotation_exercise_ready_receipt() -> None:
@@ -2194,6 +2302,34 @@ def test_status_loads_ready_perps_wallet_device_approval_exercise(monkeypatch) -
     assert device_approval["sign_admission_receipt"]["payload_nonce"] == 14
 
 
+def test_status_loads_ready_perps_wallet_signer_device_integration(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.setenv(
+        "PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON",
+        json.dumps(_perps_wallet_signer_device_integration(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.delenv("PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    signer_device = payload["status"]["wallet_authority"]["signer_device_integration"]
+    assert signer_device["signer_device_ready"] is True
+    assert signer_device["status"] == "ready"
+    assert signer_device["backend_kind"] == BACKEND_OS_KEYCHAIN
+    assert signer_device["provider"] == "macos-keychain"
+    assert signer_device["approval_reference"] == "os-prompt:wallet-a:epoch-13"
+
+
 def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
@@ -2358,6 +2494,87 @@ def test_device_approval_evaluate_endpoint_blocks_reused_nonce(monkeypatch) -> N
     device_approval = payload["device_approval_exercise"]
     assert device_approval["device_approval_ready"] is False
     assert "payload_nonce_reused" in device_approval["errors"]
+
+
+def test_signer_device_evaluate_endpoint_blocks_missing_user_presence(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    integration = _perps_wallet_signer_device_integration()
+    integration["environment"] = {
+        **integration["environment"],
+        "local_user_presence_confirmed": False,
+    }
+    integration["environment"]["environment_hash"] = KeyExecutionEnvironment(
+        environment_id=integration["environment"]["environment_id"],
+        environment_kind=integration["environment"]["environment_kind"],
+        chain_id=integration["environment"]["chain_id"],
+        policy_hash=integration["environment"]["policy_hash"],
+        challenge_hash=integration["environment"]["challenge_hash"],
+        issued_at_epoch=integration["environment"]["issued_at_epoch"],
+        expires_at_epoch=integration["environment"]["expires_at_epoch"],
+        local_user_presence_confirmed=False,
+        rollback_protection_confirmed=integration["environment"]["rollback_protection_confirmed"],
+    ).public_dict()["environment_hash"]
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/signer-device/evaluate",
+        json.dumps(integration).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is False
+    signer_device = payload["signer_device_integration"]
+    assert signer_device["signer_device_ready"] is False
+    assert "local_user_presence_missing" in signer_device["errors"]
+
+
+def test_signer_device_evaluate_endpoint_blocks_missing_provider(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    integration = _perps_wallet_signer_device_integration()
+    integration["backend_descriptor"] = {
+        **integration["backend_descriptor"],
+        "metadata": {
+            **integration["backend_descriptor"]["metadata"],
+            "provider": "",
+        },
+    }
+    integration["backend_descriptor"]["backend_hash"] = KeyBackendDescriptor(
+        key_id=integration["backend_descriptor"]["key_id"],
+        backend_kind=integration["backend_descriptor"]["backend_kind"],
+        backend_id=integration["backend_descriptor"]["backend_id"],
+        policy_hash=integration["backend_descriptor"]["policy_hash"],
+        active=integration["backend_descriptor"]["active"],
+        no_raw_private_key_exposure=integration["backend_descriptor"]["no_raw_private_key_exposure"],
+        metadata=integration["backend_descriptor"]["metadata"],
+    ).public_dict()["backend_hash"]
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/signer-device/evaluate",
+        json.dumps(integration).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is False
+    signer_device = payload["signer_device_integration"]
+    assert signer_device["signer_device_ready"] is False
+    assert "signer-device backend provider missing" in signer_device["errors"]
 
 
 def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:

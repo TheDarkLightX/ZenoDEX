@@ -306,6 +306,15 @@ is present. This is a bounded sign-admission receipt over declared backend,
 policy, environment, nonce, and chain binding. It still does not prove live
 hardware custody, a real OS prompt, or chain finality.
 
+The mounted perps wallet can now also load
+`PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_JSON` or
+`PERPS_WALLET_SIGNER_DEVICE_INTEGRATION_FILE` and render a separate signer-device
+integration report with backend kind, provider, device-approval mode,
+environment posture, and a public status hash. This narrows the signer-device
+claim from generic metadata to a concrete local backend plus environment report.
+It still does not prove live OS prompt capture, hardware custody, or hardware
+wallet execution.
+
 Follow-on perps live-wallet pass on 2026-05-20:
 
 ```bash
