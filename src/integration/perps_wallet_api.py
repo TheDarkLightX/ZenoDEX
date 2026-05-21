@@ -205,6 +205,13 @@ def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: s
     return 0
 
 
+def _safe_native_balance(client: TauNetTcpClient, pubkey: str) -> int | None:
+    try:
+        return int(client.get_balance(_pubkey_for_rpc(pubkey)))
+    except Exception:
+        return None
+
+
 def _last_used_perp_nonce(app_state: Mapping[str, Any], *, signer_pubkey: str) -> int:
     state_view = _dex_state_view(app_state)
     raw = state_view.get("nonces") or []
@@ -261,6 +268,41 @@ def _request_positive_int(body: Mapping[str, Any], *, name: str) -> int:
     if value <= 0:
         raise ValueError(f"bad_{name}")
     return int(value)
+
+
+def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
+    raw = body.get("tx_fee_limit", 0)
+    if isinstance(raw, bool):
+        raise ValueError("bad_tx_fee_limit")
+    if isinstance(raw, int):
+        value = raw
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return 0
+        if not text.isdigit():
+            raise ValueError("bad_tx_fee_limit")
+        value = int(text, 10)
+    else:
+        raise ValueError("bad_tx_fee_limit")
+    if value < 0 or value > 10**30:
+        raise ValueError("bad_tx_fee_limit")
+    return int(value)
+
+
+def _fee_limit_posture(*, tx_fee_limit: int, native_balance: int | None) -> dict[str, Any]:
+    ok = None if native_balance is None else bool(int(native_balance) >= int(tx_fee_limit))
+    warning = None
+    if ok is None and tx_fee_limit > 0:
+        warning = "native balance unavailable; Tau fee-limit coverage could not be checked"
+    elif ok is False:
+        warning = "native balance is below requested Tau fee limit"
+    return {
+        "tx_fee_limit": str(int(tx_fee_limit)),
+        "native_balance": native_balance,
+        "native_balance_covers_fee_limit": ok,
+        "warning": warning,
+    }
 
 
 def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
@@ -606,6 +648,9 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         chain_id=chain_id,
         deadline=deadline,
     )
+    native_balance = _safe_native_balance(client, tx_sender_pubkey)
+    tx_fee_limit = _request_tx_fee_limit(body)
+    fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
     operations = {_STREAM_KEY: [operation]}
     tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
     block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
@@ -635,7 +680,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             sequence_number=tx_sequence_number,
             expiration_time=deadline,
             operations=operations,
-            fee_limit=body.get("tx_fee_limit", "0"),
+            fee_limit=tx_fee_limit,
         )
 
     payload: Dict[str, Any] = {
@@ -647,6 +692,10 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "engine_stream_key": _ENGINE_STREAM_KEY,
             "tx_sender_pubkey": tx_sender_pubkey,
             "tx_sequence_number": tx_sequence_number,
+            "native_balance_e8": native_balance,
+            "tx_fee_limit": str(tx_fee_limit),
+            "fee_limit_native_balance_ok": fee_limit_posture["native_balance_covers_fee_limit"],
+            "fee_limit_warning": fee_limit_posture["warning"],
             "tau_host": _env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
             "tau_port": _env_int(
                 "PERPS_WALLET_TAU_PORT",
@@ -663,6 +712,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "operation": operation,
             "operations": operations,
             "preflight": preflight,
+            "fee_limit": fee_limit_posture,
             "tau_tx_payload": tau_tx_payload,
             "nonce_a": meta.get("nonce_a"),
             "nonce_b": meta.get("nonce_b"),

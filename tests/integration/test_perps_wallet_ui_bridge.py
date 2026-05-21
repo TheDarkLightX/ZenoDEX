@@ -175,6 +175,10 @@ class _TauRpcHandler(socketserver.StreamRequestHandler):
             pubkey = line.split(" ", 1)[1].strip().lower()
             self.wfile.write(f"SEQUENCE: {state.sequences.get(pubkey, 0)}\n".encode("utf-8"))
             return
+        if line.startswith("getbalance "):
+            pubkey = line.split(" ", 1)[1].strip().lower()
+            self.wfile.write(f"BALANCE: {state.native_balances.get(pubkey, 0)}\n".encode("utf-8"))
+            return
         if line == "getappstate full":
             self.wfile.write((json.dumps(state.app_state_payload(), sort_keys=True) + "\n").encode("utf-8"))
             return
@@ -212,6 +216,7 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     tau_server.allow_reuse_address = True
     tau_server.state = _TauRpcState()  # type: ignore[attr-defined]
     tau_server.state.sequences[account_a_pubkey[2:].lower()] = 4  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_a_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
     tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
     tau_thread.start()
 
@@ -264,6 +269,7 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
                 "quoteAsset": quote_asset,
                 "accountAPrivkey": str(account_a_privkey),
                 "accountBPrivkey": str(account_b_privkey),
+                "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
             }
         )
@@ -290,6 +296,8 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "Stream" in dom
         assert "submit accepted" in dom
         assert "preflight ok" in dom
+        assert "fee limit 2" in dom
+        assert "fee covered yes" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:
@@ -340,6 +348,7 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
     tau_server.allow_reuse_address = True
     tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
     tau_server.state.sequences[oracle_pubkey[2:].lower()] = 6  # type: ignore[attr-defined]
+    tau_server.state.native_balances[oracle_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
     tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
     tau_thread.start()
 
@@ -394,6 +403,7 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
                 "marketId": market_id,
                 "oraclePrivkey": str(oracle_privkey),
                 "priceE8": "100000000",
+                "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
             }
         )
@@ -420,6 +430,8 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
         assert "Publish Price" in dom
         assert "submit accepted" in dom
         assert "preflight ok" in dom
+        assert "fee limit 2" in dom
+        assert "fee covered yes" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

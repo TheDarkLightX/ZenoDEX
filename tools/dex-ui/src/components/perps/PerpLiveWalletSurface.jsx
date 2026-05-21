@@ -20,6 +20,7 @@ const EMPTY_FORM = {
   oracle_adapter_bridge: '',
   new_position_base_a: '1',
   new_position_base_b: '-1',
+  tx_fee_limit: '0',
   deadline: '',
 };
 
@@ -60,6 +61,7 @@ function readSmokeConfig() {
     oracle_adapter_bridge: params.get('oracleAdapterBridge') || params.get('oracle_adapter_bridge') || '',
     new_position_base_a: params.get('positionA') || params.get('new_position_base_a') || '1',
     new_position_base_b: params.get('positionB') || params.get('new_position_base_b') || '-1',
+    tx_fee_limit: params.get('perpsTxFeeLimit') || params.get('txFeeLimit') || params.get('tx_fee_limit') || '0',
     deadline: params.get('perpsDeadline') || params.get('deadline') || '',
   };
 }
@@ -78,6 +80,9 @@ function buildPayload(form) {
   const deadline = parseIntOrNull(form.deadline);
   if (deadline != null && deadline >= 0) {
     payload.deadline = deadline;
+  }
+  if (String(form.tx_fee_limit || '').trim()) {
+    payload.tx_fee_limit = String(form.tx_fee_limit).trim();
   }
   if (action === 'init_market_2p' || action === 'set_position_pair') {
     if (form.account_a_pubkey.trim()) payload.account_a_pubkey = form.account_a_pubkey.trim();
@@ -198,6 +203,7 @@ function PerpLiveWalletSurface() {
 
   const preflight = result?.report?.preflight;
   const markets = useMemo(() => status?.markets || result?.post_submit?.markets || [], [status, result]);
+  const feeCovered = result?.transport?.fee_limit_native_balance_ok;
 
   return (
     <section className="perp-live-wallet panel" aria-label="Live perps wallet">
@@ -240,6 +246,16 @@ function PerpLiveWalletSurface() {
             value={form.market_id}
             onChange={(event) => setForm((current) => ({ ...current, market_id: event.target.value }))}
             placeholder="perp:ch2p:..."
+          />
+
+          <label className="label" htmlFor="perps-wallet-fee-limit">Tau Fee Limit</label>
+          <input
+            id="perps-wallet-fee-limit"
+            className="input"
+            inputMode="numeric"
+            value={form.tx_fee_limit}
+            onChange={(event) => setForm((current) => ({ ...current, tx_fee_limit: event.target.value }))}
+            placeholder="native units"
           />
 
           {form.action === 'init_market_2p' ? (
@@ -398,7 +414,10 @@ function PerpLiveWalletSurface() {
         <div className="perp-live-wallet-result" role="status">
           <span>{result.submission ? 'submit accepted' : 'prepare ready'}</span>
           <span>{preflight?.ok ? 'preflight ok' : `preflight failed: ${preflight?.error || 'unknown'}`}</span>
+          <span>fee limit {result.transport?.tx_fee_limit ?? '0'}</span>
+          <span>fee covered {feeCovered == null ? 'unknown' : feeCovered ? 'yes' : 'no'}</span>
           <span>{result.transport?.app_hash || 'no app hash'}</span>
+          {result.transport?.fee_limit_warning ? <span>{result.transport.fee_limit_warning}</span> : null}
         </div>
       ) : null}
     </section>
