@@ -145,7 +145,7 @@ export const ZUSD_GUARDS = [
 export const ZUSD_RISK_PARAMS = [
   { param: 'Minimum Collateral Ratio', value: '110%', note: 'Below triggers liquidation' },
   { param: 'Critical Collateral Ratio', value: '150%', note: 'Below triggers recovery mode' },
-  { param: 'Liquidation Reserve', value: '200 zUSD', note: 'Gas compensation for liquidators' },
+  { param: 'Keeper Compensation', value: 'Configurable', note: 'Tau gas and liquidation incentives are live parameters' },
   { param: 'Borrow Fee Range', value: '0.5% - 5%', note: 'Dynamic based on base rate' },
   { param: 'Redemption Fee Range', value: '0.5% - 5%', note: 'Dynamic based on base rate' },
   { param: 'Oracle Staleness Limit', value: '4 epochs', note: 'Fail-closed on stale price' },

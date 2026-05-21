@@ -26,7 +26,7 @@ Current mounted posture:
   plus static proof and disaster-surface context. It is not the default swap
   path or a generally enabled execution lane.
 
-The Confidential tab is not just a status page. It explains:
+The Confidential tab combines operator status with feature context. It explains:
 - who the feature is for,
 - why a user would choose it,
 - when the normal public path is better,
@@ -42,6 +42,11 @@ through the same deterministic CLI-backed endpoints. The receipt builder can
 also build local aggregates, accept reads, and emit typed OracleAuthorization
 bundles for local replay testing. Quick Verify calls the local read-only
 receipt verifier for stored receipt IDs.
+
+The browser smoke `zenodexUiSmokeOracleWrites=1` drives the local
+write-enabled Oracle API from the mounted tab and verifies the identity, query,
+reporter, source, report, aggregate, accepted-read, authorization, and reward
+receipt flow.
 
 Oracle sub-views are addressable with `oracleView`, for example:
 

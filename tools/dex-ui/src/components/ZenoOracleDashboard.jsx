@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ORACLE_CONSUMER_PROFILES,
   ORACLE_DISPUTES,
@@ -1568,6 +1568,8 @@ function ZenoOracleDashboard() {
   const [verifyReceiptId, setVerifyReceiptId] = useState('');
   const [remoteData, setRemoteData] = useState(null);
   const [apiState, setApiState] = useState('Static preview');
+  const [oracleSmokeStatus, setOracleSmokeStatus] = useState('');
+  const oracleSmokeRan = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1594,6 +1596,96 @@ function ZenoOracleDashboard() {
       controller.abort();
       window.clearInterval(timer);
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('zenodexUiSmokeOracleWrites') !== '1' || oracleSmokeRan.current) {
+      return;
+    }
+    oracleSmokeRan.current = true;
+    const storageKey = 'zenodex.uiSmokeOracleWrites.submitted';
+    if (window.sessionStorage.getItem(storageKey) === '1') {
+      return;
+    }
+    window.sessionStorage.setItem(storageKey, '1');
+
+    async function post(path, payload) {
+      const response = await fetch(zenoOracleApiUrl(path), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json();
+      if (!response.ok || body.ok === false) {
+        throw new Error(body.error || `HTTP ${response.status}`);
+      }
+      return body;
+    }
+
+    async function runSmoke() {
+      setOracleSmokeStatus('oracle write smoke running');
+      const queryId = 'sha256:' + '1'.repeat(64);
+      const actionId = 'sha256:' + '2'.repeat(64);
+      const actionFactsHash = 'sha256:' + '3'.repeat(64);
+      const preStateHash = 'sha256:' + '4'.repeat(64);
+      const identity = await post('/api/oracle/identity/create', { force: true });
+      await post('/api/oracle/query/register', {
+        base_asset: 'AGRS',
+        quote_asset: 'ZDEX',
+        query_id: queryId,
+        source_policy_id: 'source-policy:registered-diverse-v1',
+        min_reporters: 1,
+        report_reward_e8: 17,
+        force: true,
+      });
+      await post('/api/oracle/query/fund', { query_id: queryId, amount_e8: 20 });
+      await post('/api/oracle/reporter/register', { query_id: queryId, required_bond_e8: 1, force: true });
+      await post('/api/oracle/reporter/bond', { amount_e8: 1 });
+      await post('/api/oracle/source/register', {
+        source_id: 'source:ui-smoke',
+        source_kind: 'cex',
+        control_group_id: 'control:ui-smoke',
+        venue_id: 'venue:ui-smoke',
+        data_family_id: 'price:cex-last-trade',
+        transport_id: 'api:https:ui-smoke',
+        asset_class: 'crypto',
+        query_id: queryId,
+        assurance_class: 'S3',
+        force: true,
+      });
+      const submitted = await post('/api/oracle/report/submit', {
+        query_id: queryId,
+        price_e8: 123456789,
+        source_observed_epoch: 12,
+        source_id: 'source:ui-smoke',
+      });
+      const aggregate = await post('/api/oracle/aggregate/build', { query_id: queryId, epoch: 12 });
+      const read = await post('/api/oracle/read/accept', {
+        aggregate_id: aggregate.aggregate_id,
+        consumer_module: 'zenodex.zusd',
+        profile_id: 'critical-zusd-v1',
+      });
+      const authorization = await post('/api/oracle/authorization/build', {
+        read_id: read.read_id,
+        action_kind: 'mint',
+        action_id: actionId,
+        action_facts_hash: actionFactsHash,
+        pre_state_hash: preStateHash,
+        now_epoch: 12,
+      });
+      await post('/api/oracle/rewards/pay', { amount_e8: 5 });
+      setOracleSmokeStatus(
+        `oracle write smoke accepted ${identity.reporter_id} ${submitted.report_id} ${authorization.authorization_id}`,
+      );
+    }
+
+    void runSmoke().catch((error) => {
+      setOracleSmokeStatus(`oracle write smoke failed ${error?.message || 'unknown'}`);
+    });
   }, []);
 
   const feeds = remoteData?.feeds?.length ? remoteData.feeds : ORACLE_FEEDS;
@@ -1788,6 +1880,7 @@ function ZenoOracleDashboard() {
               <span />
               {apiState}
             </span>
+            {oracleSmokeStatus ? <span className="zor-subtle-chip">{oracleSmokeStatus}</span> : null}
             <button className="zor-icon-button" type="button" aria-label="Toggle dark mode">
               D
             </button>

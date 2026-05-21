@@ -8,7 +8,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | --- | --- | --- | --- | --- |
 | Swap / Pools | Yes | Live local/testnet spot lane | Yes, mounted spot path through local API and Tau-ledger flow | `tests/integration/test_dex_ui_live_bridge.py` |
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
-| Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and direct API evidence for writes. Browser write clicks remain unproven. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
+| Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and a write-enabled receipt flow. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
 | Strategy | Yes | Preview-only planning workbench | No | none yet |
 | Confidential | Yes | Live operator-status and proof-context surface | Status-only via `GET /api/confidential/status` | `tests/integration/test_confidential_ui_bridge.py` |
@@ -55,7 +55,9 @@ pytest -q \
 
 These checks prove:
 
-- the mounted Oracle tab can bind to a real local Oracle service;
+- the mounted Oracle tab can bind to a real local Oracle service and execute a
+  write-enabled local receipt flow when the service is started with
+  `--allow-writes`;
 - the mounted zUSD tab can submit through the Tau wallet bridge, including the local Docker Tau node lane;
 - the mounted zUSD tab can submit stream `11` monetary-vault actions through the Tau-node-backed API, including the local Docker Tau node lane;
 - the mounted perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
@@ -104,7 +106,17 @@ pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
 Results: `8 passed`, `5 passed`, and `2 passed`.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
-proves the browser can load the live dashboard read path. Direct API write tests
-cover local write endpoints when explicitly enabled. Browser click-through for
-feed creation, reporter onboarding, disputes, and rewards is still missing, and
-the local Oracle server currently advertises CORS methods for `GET, OPTIONS`.
+now proves both the live dashboard read path and a write-enabled local receipt
+flow from the mounted Oracle tab. The write smoke creates an identity,
+registers and funds a query, registers and bonds a reporter, registers a
+source, submits a report, builds aggregate/read/authorization receipts, and
+pays rewards against a local `tools/zenodex-oracle serve --allow-writes`
+instance.
+
+Latest Oracle write-browser pass on 2026-05-21:
+
+```bash
+pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_runs_write_enabled_receipt_flow -s
+```
+
+Result: `1 passed`.
