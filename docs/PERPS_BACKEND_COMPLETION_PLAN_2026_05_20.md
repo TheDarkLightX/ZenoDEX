@@ -208,7 +208,8 @@ Pinned live-transport evidence:
 - `tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge`
   runs the mounted browser UI with settle-time Oracle evidence required,
   builds a local typed O3 aggregate-adapter bridge for the current clearinghouse
-  market, submits `settle_epoch`, and verifies the live preflight accepts the
+  market, inspects the bridge through the mounted verifier-backed evidence
+  panel, submits `settle_epoch`, and verifies the live preflight accepts the
   typed bridge.
 - `tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence`
   starts from a live clearinghouse market where a price move makes the short
@@ -220,6 +221,12 @@ Pinned live-transport evidence:
   signed Tau transaction envelope into the live wallet panel, submits stream `8`
   collateral, and verifies the rendered `external_signed_payload` signing mode
   plus the post-submit collateral and quote-balance deltas.
+
+The live wallet API now also exposes
+`POST /api/perps/wallet/oracle-bridge/inspect`, which verifies a pasted or
+locally built aggregate-adapter bridge, returns the verifier result, and
+summarizes the bridge ID, action kind, action ID, query ID, profile ID,
+evidence floor, value, observed epoch, and report count for the mounted UI.
 
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.

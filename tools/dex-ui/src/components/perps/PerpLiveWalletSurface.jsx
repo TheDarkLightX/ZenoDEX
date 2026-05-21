@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   apiBuildPerpsOracleBridge,
   apiGetPerpsWalletStatus,
+  apiInspectPerpsOracleBridge,
   apiPreparePerpsWallet,
   apiSubmitPerpsWallet,
 } from '../../lib/api.js';
@@ -156,6 +157,7 @@ function PerpLiveWalletSurface() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [oracleFixture, setOracleFixture] = useState(null);
+  const [oracleInspection, setOracleInspection] = useState(null);
   const [busy, setBusy] = useState(false);
   const smokeRan = useRef(false);
 
@@ -228,7 +230,25 @@ function PerpLiveWalletSurface() {
     const bridgeText = JSON.stringify(payload.bridge, null, 2);
     setOracleFixture(payload);
     setForm((current) => ({ ...current, ...sourceForm, oracle_adapter_bridge: bridgeText }));
+    const inspection = await apiInspectPerpsOracleBridge(
+      { oracle_adapter_bridge: payload.bridge },
+      { timeoutMs: 15000 },
+    );
+    setOracleInspection(inspection);
     return { ...sourceForm, oracle_adapter_bridge: bridgeText };
+  }
+
+  async function inspectOracleBridgePayload(sourceForm) {
+    const bridgeText = sourceForm.oracle_adapter_bridge.trim();
+    if (!bridgeText) {
+      throw new Error('oracle_adapter_bridge_required');
+    }
+    const inspection = await apiInspectPerpsOracleBridge(
+      { oracle_adapter_bridge: bridgeText },
+      { timeoutMs: 15000 },
+    );
+    setOracleInspection(inspection);
+    return inspection;
   }
 
   async function handleUseOracleFixture() {
@@ -239,6 +259,19 @@ function PerpLiveWalletSurface() {
     } catch (err) {
       setOracleFixture(null);
       setError(err?.message || 'oracle_fixture_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleInspectOracleBridge() {
+    setBusy(true);
+    setError('');
+    try {
+      await inspectOracleBridgePayload(form);
+    } catch (err) {
+      setOracleInspection(null);
+      setError(err?.message || 'oracle_bridge_inspect_failed');
     } finally {
       setBusy(false);
     }
@@ -258,6 +291,8 @@ function PerpLiveWalletSurface() {
       let nextForm = { ...EMPTY_FORM, ...smoke };
       if (actionSupportsOracleFixture(nextForm.action) && nextForm.use_oracle_fixture) {
         nextForm = await buildOracleFixturePayload(nextForm);
+      } else if (nextForm.oracle_adapter_bridge.trim()) {
+        await inspectOracleBridgePayload(nextForm);
       }
       const payload = await apiSubmitPerpsWallet(buildPayload(nextForm), { timeoutMs: 20000 });
       setResult(payload);
@@ -440,6 +475,14 @@ function PerpLiveWalletSurface() {
                   >
                     Build Oracle Bridge
                   </button>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={handleInspectOracleBridge}
+                    disabled={busy || !form.oracle_adapter_bridge.trim()}
+                  >
+                    Inspect Oracle Bridge
+                  </button>
                 </>
               ) : null}
             </>
@@ -509,6 +552,14 @@ function PerpLiveWalletSurface() {
                 disabled={busy || !form.market_id.trim()}
               >
                 Build Oracle Bridge
+              </button>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handleInspectOracleBridge}
+                disabled={busy || !form.oracle_adapter_bridge.trim()}
+              >
+                Inspect Oracle Bridge
               </button>
             </>
           ) : null}
@@ -585,6 +636,18 @@ function PerpLiveWalletSurface() {
             <span>partial liquidation fraction {result.report.operation.fraction_bps} bps</span>
           ) : null}
           {result.transport?.fee_limit_warning ? <span>{result.transport.fee_limit_warning}</span> : null}
+        </div>
+      ) : null}
+      {oracleInspection ? (
+        <div className="perp-live-wallet-result" aria-label="Oracle bridge inspection">
+          <span>oracle evidence {oracleInspection.ok ? 'accepted' : 'rejected'}</span>
+          <span>oracle action {oracleInspection.summary?.action_kind || 'unknown'}</span>
+          <span>oracle profile {oracleInspection.summary?.profile_id || 'unknown'}</span>
+          <span>oracle query {oracleInspection.summary?.query_id || 'unknown'}</span>
+          <span>oracle value {oracleInspection.summary?.value_e8 ?? 'unknown'}</span>
+          <span>oracle epoch {oracleInspection.summary?.observed_epoch ?? 'unknown'}</span>
+          <span>oracle reports {oracleInspection.summary?.report_count ?? 'unknown'}</span>
+          <span>oracle production {oracleInspection.production_authority ? 'yes' : 'local'}</span>
         </div>
       ) : null}
     </section>

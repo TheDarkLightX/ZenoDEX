@@ -1016,6 +1016,11 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert "submit accepted" in dom
         assert "preflight ok" in dom
         assert "oracle bridge sha256:" in dom
+        assert "oracle evidence accepted" in dom
+        assert "oracle action settle_epoch" in dom
+        assert "oracle value 100000000" in dom
+        assert "oracle reports 3" in dom
+        assert "oracle production local" in dom
         assert "fee covered yes" in dom
         assert market_id in dom
     finally:

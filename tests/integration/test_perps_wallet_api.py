@@ -731,6 +731,72 @@ def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) ->
     assert payload["report"]["operation"]["oracle_adapter_bridge"]["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
 
 
+def test_oracle_bridge_inspector_summarizes_verified_settle_bridge(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+    assert status_code == 200
+
+    status_code, inspection = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge/inspect",
+        json.dumps({"oracle_adapter_bridge": bridge_payload["bridge"]}).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert inspection["ok"] is True
+    assert inspection["status"] == "accepted"
+    assert inspection["production_authority"] is False
+    summary = inspection["summary"]
+    assert summary["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
+    assert summary["consumer_module"] == "zenodex.perps"
+    assert summary["action_kind"] == "settle_epoch"
+    assert summary["query_id"] == bridge_payload["target"]["query_id"]
+    assert summary["profile_id"] == bridge_payload["target"]["profile_id"]
+    assert summary["required_evidence_floor"] == "O3"
+    assert summary["value_e8"] == 100_000_000
+    assert summary["report_count"] == 3
+
+
+def test_oracle_bridge_inspector_rejects_tampered_action_id(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+    assert status_code == 200
+    tampered = json.loads(json.dumps(bridge_payload["bridge"]))
+    tampered["action"]["action_id"] = "sha256:" + "0" * 64
+
+    status_code, inspection = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge/inspect",
+        json.dumps({"oracle_adapter_bridge": tampered}).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert inspection["ok"] is False
+    assert inspection["status"] == "rejected"
+    assert "adapter:adapter_action_id_mismatch" in inspection["verify_result"]["errors"]
+
+
 def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))

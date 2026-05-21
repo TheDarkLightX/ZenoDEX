@@ -204,6 +204,14 @@ export function apiBuildPerpsOracleBridge(body, options = {}) {
   });
 }
 
+export function apiInspectPerpsOracleBridge(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/oracle-bridge/inspect', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetAutotraderStatus(options = {}) {
   return apiFetchJson('/api/strategy/autotrader/status', { method: 'GET', ...(options || {}) });
 }

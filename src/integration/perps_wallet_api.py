@@ -945,6 +945,77 @@ def _local_perps_oracle_bridge_fixture(
     }
 
 
+def _oracle_adapter_bridge_from_body(body: Mapping[str, Any]) -> Mapping[str, Any]:
+    bridge = _request_mapping(body, name="oracle_adapter_bridge")
+    if bridge is None:
+        bridge = _request_mapping(body, name="bridge")
+    if bridge is None and str(body.get("schema", "")).strip() == "zenodex.oracle.aggregate_adapter_bridge.v1":
+        bridge = body
+    if bridge is None:
+        raise ValueError("missing_oracle_adapter_bridge")
+    return bridge
+
+
+def _inspect_oracle_adapter_bridge(body: Mapping[str, Any]) -> dict[str, Any]:
+    from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
+        verify_aggregate_adapter_bridge,
+    )
+
+    bridge = _oracle_adapter_bridge_from_body(body)
+    verify_result = verify_aggregate_adapter_bridge(bridge).to_json_obj()
+    aggregate_read = bridge.get("aggregate_read")
+    if not isinstance(aggregate_read, Mapping):
+        aggregate_read = {}
+    aggregate = aggregate_read.get("aggregate")
+    if not isinstance(aggregate, Mapping):
+        aggregate = {}
+    aggregate_value = aggregate.get("aggregate")
+    if not isinstance(aggregate_value, Mapping):
+        aggregate_value = {}
+    action = bridge.get("action")
+    if not isinstance(action, Mapping):
+        action = {}
+    profile = bridge.get("profile")
+    if not isinstance(profile, Mapping):
+        profile = {}
+    receipt_bundle = aggregate_read.get("receipt_bundle")
+    terminal = receipt_bundle.get("terminal") if isinstance(receipt_bundle, Mapping) else {}
+    if not isinstance(terminal, Mapping):
+        terminal = {}
+
+    summary = {
+        "bridge_id": bridge.get("bridge_id"),
+        "consumer_module": action.get("consumer_module"),
+        "action_kind": action.get("action_kind"),
+        "action_id": action.get("action_id"),
+        "action_epoch": action.get("action_epoch"),
+        "query_id": action.get("query_id") or aggregate.get("query_id"),
+        "profile_id": profile.get("profile_id"),
+        "required_evidence_floor": action.get("required_evidence_floor") or profile.get("required_evidence_floor"),
+        "max_freshness_window_epochs": action.get("max_freshness_window_epochs")
+        or profile.get("max_freshness_window_epochs"),
+        "read_receipt_id": action.get("read_receipt_id") or terminal.get("read_receipt_id"),
+        "consumer_action_receipt_id": action.get("consumer_action_receipt_id")
+        or terminal.get("consumer_action_receipt_id"),
+        "aggregate_id": aggregate.get("aggregate_id"),
+        "value_e8": aggregate_value.get("value_e8"),
+        "confidence_e8": aggregate_value.get("confidence_e8"),
+        "deviation_bps": aggregate_value.get("deviation_bps"),
+        "observed_epoch": aggregate_value.get("observed_epoch"),
+        "report_count": aggregate_value.get("report_count"),
+        "evidence_class": aggregate.get("evidence_class") or aggregate.get("evidence_floor"),
+        "production_authority": False,
+    }
+    return {
+        "schema": "zenodex.perps_wallet.oracle_bridge_inspection.v1",
+        "ok": verify_result.get("status") == "accepted",
+        "status": verify_result.get("status"),
+        "summary": summary,
+        "verify_result": verify_result,
+        "production_authority": False,
+    }
+
+
 def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     privkey = body.get("tx_signer_privkey")
     if privkey is not None:
@@ -1162,6 +1233,8 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 account_pubkey=account_pubkey,
                 fraction_bps=fraction_bps,
             )
+        if rest == ["oracle-bridge", "inspect"]:
+            return 200, _inspect_oracle_adapter_bridge(parsed)
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}
