@@ -175,6 +175,192 @@ def _settle_ready_market_state(
     return res.state
 
 
+def _signed_set_position_pair(
+    *,
+    chain_id: str,
+    market_id: str,
+    account_a_privkey: int,
+    account_b_privkey: int,
+    new_a: int,
+    new_b: int,
+    nonce_a: int,
+    nonce_b: int,
+) -> dict[str, object]:
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
+    op: dict[str, object] = {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": market_id,
+        "action": "set_position_pair",
+        "account_a_pubkey": account_a_pubkey,
+        "account_b_pubkey": account_b_pubkey,
+        "new_position_base_a": int(new_a),
+        "new_position_base_b": int(new_b),
+        "deadline": 999_999_999,
+        "nonce_a": int(nonce_a),
+        "nonce_b": int(nonce_b),
+    }
+    op["sig_a"] = sign_perp_op_for_engine(
+        op,
+        privkey=account_a_privkey,
+        chain_id=chain_id,
+        signer_pubkey=account_a_pubkey,
+        nonce=nonce_a,
+    )
+    op["sig_b"] = sign_perp_op_for_engine(
+        op,
+        privkey=account_b_privkey,
+        chain_id=chain_id,
+        signer_pubkey=account_b_pubkey,
+        nonce=nonce_b,
+    )
+    return op
+
+
+def _signed_publish_price(
+    *,
+    chain_id: str,
+    market_id: str,
+    oracle_privkey: int,
+    price_e8: int,
+    oracle_nonce: int,
+) -> dict[str, object]:
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
+    op: dict[str, object] = {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": market_id,
+        "action": "publish_clearing_price",
+        "price_e8": int(price_e8),
+        "deadline": 999_999_999,
+        "oracle_nonce": int(oracle_nonce),
+    }
+    op["oracle_sig"] = sign_perp_op_for_engine(
+        op,
+        privkey=oracle_privkey,
+        chain_id=chain_id,
+        signer_pubkey=oracle_pubkey,
+        nonce=oracle_nonce,
+    )
+    return op
+
+
+def _liquidation_ready_market_state(
+    *,
+    chain_id: str,
+    market_id: str,
+    quote_asset: str,
+    account_a_privkey: int,
+    account_b_privkey: int,
+    oracle_privkey: int,
+) -> DexState:
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
+    cfg = PerpEngineConfig(chain_id=chain_id, oracle_pubkey=oracle_pubkey)
+    state = _settle_ready_market_state(
+        chain_id=chain_id,
+        market_id=market_id,
+        quote_asset=quote_asset,
+        account_a_privkey=account_a_privkey,
+        account_b_privkey=account_b_privkey,
+        oracle_privkey=oracle_privkey,
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}]},
+        tx_sender_pubkey=account_a_pubkey,
+        block_timestamp=4,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    state = res.state
+    state.balances.set(account_a_pubkey, quote_asset, 1000)
+    state.balances.set(account_b_pubkey, quote_asset, 1000)
+    for sender, op in (
+        (
+            account_a_pubkey,
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": market_id,
+                "action": "deposit_collateral",
+                "account_pubkey": account_a_pubkey,
+                "amount": 100,
+            },
+        ),
+        (
+            account_b_pubkey,
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": market_id,
+                "action": "deposit_collateral",
+                "account_pubkey": account_b_pubkey,
+                "amount": 100,
+            },
+        ),
+    ):
+        res = apply_perp_ops(config=cfg, state=state, operations={"5": [op]}, tx_sender_pubkey=sender, block_timestamp=5)
+        assert res.ok, res.error
+        assert res.state is not None
+        state = res.state
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _signed_set_position_pair(
+                    chain_id=chain_id,
+                    market_id=market_id,
+                    account_a_privkey=account_a_privkey,
+                    account_b_privkey=account_b_privkey,
+                    new_a=1000,
+                    new_b=-1000,
+                    nonce_a=2,
+                    nonce_b=2,
+                )
+            ]
+        },
+        tx_sender_pubkey=account_a_pubkey,
+        block_timestamp=6,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    state = res.state
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [{"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}]},
+        tx_sender_pubkey=account_a_pubkey,
+        block_timestamp=7,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    res = apply_perp_ops(
+        config=cfg,
+        state=res.state,
+        operations={
+            "5": [
+                _signed_publish_price(
+                    chain_id=chain_id,
+                    market_id=market_id,
+                    oracle_privkey=oracle_privkey,
+                    price_e8=105_000_000,
+                    oracle_nonce=2,
+                )
+            ]
+        },
+        tx_sender_pubkey=oracle_pubkey,
+        block_timestamp=8,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    return res.state
+
+
 class _TauRpcState:
     def __init__(self, *, app_state_json: str | None = None) -> None:
         self.app_state_json = app_state_json or _initial_app_state_json()
@@ -621,6 +807,154 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert "preflight ok" in dom
         assert "oracle bridge sha256:" in dom
         assert "fee covered yes" in dom
+        assert market_id in dom
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        if old_operator is None:
+            os.environ.pop("TAU_DEX_OPERATOR_PUBKEY", None)
+        else:
+            os.environ["TAU_DEX_OPERATOR_PUBKEY"] = old_operator
+        if old_require is None:
+            os.environ.pop("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", None)
+        else:
+            os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = old_require
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-liquidation"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    oracle_privkey = 85
+    operator_privkey = 86
+    operator_pubkey = "0x" + bls_pubkey_hex_from_privkey(operator_privkey)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:ui-liquidation"
+    app_state_json = _initial_app_state_json(
+        _liquidation_ready_market_state(
+            chain_id=chain_id,
+            market_id=market_id,
+            quote_asset=quote_asset,
+            account_a_privkey=account_a_privkey,
+            account_b_privkey=account_b_privkey,
+            oracle_privkey=oracle_privkey,
+        )
+    )
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
+    tau_server.state.sequences[operator_pubkey[2:].lower()] = 9  # type: ignore[attr-defined]
+    tau_server.state.native_balances[operator_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "true",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "TAU_DEX_OPERATOR_PUBKEY": operator_pubkey,
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "1",
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    old_operator = os.environ.get("TAU_DEX_OPERATOR_PUBKEY")
+    old_require = os.environ.get("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    os.environ["TAU_DEX_OPERATOR_PUBKEY"] = operator_pubkey
+    os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = "1"
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "settle_epoch",
+                "marketId": market_id,
+                "operatorPrivkey": str(operator_privkey),
+                "perpsUseOracleFixture": "1",
+                "txFeeLimit": "2",
+                "perpsDeadline": str(int(time.time()) + 3600),
+            }
+        )
+        chrome_profile = tmp_path / "chrome-profile-liquidation"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Live Perps Wallet" in dom
+        assert "Settle Epoch" in dom
+        assert "submit accepted" in dom
+        assert "preflight ok" in dom
+        assert "oracle bridge sha256:" in dom
+        assert "liquidated yes" in dom
+        assert "fee pool 525000000" in dom
+        assert "positions 0/0" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

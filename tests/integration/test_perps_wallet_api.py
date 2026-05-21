@@ -111,6 +111,93 @@ def _state_ready_to_settle(*, quote_asset: str) -> DexState:
     return _apply_perps(state, [op], sender=ORACLE)
 
 
+def _signed_set_position_pair(*, new_a: int, new_b: int, nonce_a: int, nonce_b: int) -> dict[str, object]:
+    op: dict[str, object] = {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": MARKET_ID,
+        "action": "set_position_pair",
+        "account_a_pubkey": ALICE,
+        "account_b_pubkey": BOB,
+        "new_position_base_a": int(new_a),
+        "new_position_base_b": int(new_b),
+        "deadline": 123456789,
+        "nonce_a": int(nonce_a),
+        "nonce_b": int(nonce_b),
+    }
+    op["sig_a"] = sign_perp_op_for_engine(op, privkey=ALICE_PRIVKEY, chain_id=CHAIN_ID, signer_pubkey=ALICE, nonce=nonce_a)
+    op["sig_b"] = sign_perp_op_for_engine(op, privkey=BOB_PRIVKEY, chain_id=CHAIN_ID, signer_pubkey=BOB, nonce=nonce_b)
+    return op
+
+
+def _signed_publish_price(*, price_e8: int, oracle_nonce: int) -> dict[str, object]:
+    op: dict[str, object] = {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": MARKET_ID,
+        "action": "publish_clearing_price",
+        "price_e8": int(price_e8),
+        "deadline": 123456789,
+        "oracle_nonce": int(oracle_nonce),
+    }
+    op["oracle_sig"] = sign_perp_op_for_engine(
+        op,
+        privkey=ORACLE_PRIVKEY,
+        chain_id=CHAIN_ID,
+        signer_pubkey=ORACLE,
+        nonce=oracle_nonce,
+    )
+    return op
+
+
+def _state_after_pair_liquidation(*, quote_asset: str) -> DexState:
+    state = _state_ready_to_settle(quote_asset=quote_asset)
+    state = _apply_perps(
+        state,
+        [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "settle_epoch"}],
+    )
+    state.balances.set(ALICE, quote_asset, 1000)
+    state.balances.set(BOB, quote_asset, 1000)
+    state = _apply_perps(
+        state,
+        [
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": MARKET_ID,
+                "action": "deposit_collateral",
+                "account_pubkey": ALICE,
+                "amount": 100,
+            }
+        ],
+        sender=ALICE,
+    )
+    state = _apply_perps(
+        state,
+        [
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": MARKET_ID,
+                "action": "deposit_collateral",
+                "account_pubkey": BOB,
+                "amount": 100,
+            }
+        ],
+        sender=BOB,
+    )
+    state = _apply_perps(state, [_signed_set_position_pair(new_a=1000, new_b=-1000, nonce_a=2, nonce_b=2)])
+    state = _apply_perps(
+        state,
+        [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "advance_epoch", "delta": 1}],
+    )
+    state = _apply_perps(state, [_signed_publish_price(price_e8=105_000_000, oracle_nonce=2)], sender=ORACLE)
+    return _apply_perps(
+        state,
+        [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "settle_epoch"}],
+    )
+
+
 def _state_with_posted_collateral(*, quote_asset: str) -> DexState:
     state = _state_with_market_and_balance(quote_asset=quote_asset)
     return _apply_perps(
@@ -499,6 +586,28 @@ def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) ->
     assert payload["ok"] is True
     assert payload["report"]["preflight"]["ok"] is True
     assert payload["report"]["operation"]["oracle_adapter_bridge"]["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
+
+
+def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    markets = payload["status"]["markets"]
+    assert len(markets) == 1
+    market = markets[0]
+    assert market["market_id"] == MARKET_ID
+    assert market["liquidated_this_step"] is True
+    assert market["fee_pool_e8"] == 525_000_000
+    assert market["position_base_a"] == 0
+    assert market["position_base_b"] == 0
+    assert market["net_deposited_e8"] == 20_000_000_000
 
 
 def test_submit_rejects_preflight_failure_before_sendtx(monkeypatch) -> None:

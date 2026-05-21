@@ -189,7 +189,9 @@ semantics remain a Tau host responsibility until pinned by live Tau evidence.
 
 Remaining live-transport operations:
 
-- perps liquidation actions
+- explicit isolated-market partial-liquidation action, if that opt-in market
+  family is promoted into the mounted wallet. Clearinghouse pair liquidation is
+  exercised through `settle_epoch`.
 
 Pinned live-transport evidence:
 
@@ -203,6 +205,11 @@ Pinned live-transport evidence:
   builds a local typed O3 aggregate-adapter bridge for the current clearinghouse
   market, submits `settle_epoch`, and verifies the live preflight accepts the
   typed bridge.
+- `tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence`
+  starts from a live clearinghouse market where a price move makes the short
+  side under maintenance, submits `settle_epoch` through the mounted browser UI,
+  and verifies the rendered liquidation evidence: `liquidated yes`, fee-pool
+  growth, and closed positions.
 
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.
@@ -334,10 +341,12 @@ pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perp
 cd tools/dex-ui && npm run build
 ```
 
-Results: perps wallet/API/browser/resilience checks `17 passed`; UI production
-build passed. The browser bridge asserts `txFeeLimit` query plumbing, rendered
-fee-limit output, and native-balance coverage for both market-init and
-oracle-price publish flows.
+Results after the 2026-05-21 liquidation-summary patch: perps
+wallet/API/browser/resilience checks `21 passed`; UI production build passed.
+The browser bridge asserts `txFeeLimit` query plumbing, rendered fee-limit
+output, native-balance coverage for both market-init and oracle-price publish
+flows, typed settle Oracle-bridge construction, and clearinghouse liquidation
+evidence after `settle_epoch`.
 
 Additional typed Oracle bridge fixture check added on 2026-05-21:
 
@@ -359,7 +368,16 @@ fixture check proves the browser can build an exact typed aggregate-adapter
 bridge for the current clearinghouse settle action when Oracle evidence is
 required.
 
+Additional clearinghouse liquidation UI evidence added on 2026-05-21:
+
+```bash
+pytest -q tests/integration/test_perps_wallet_api.py::test_status_exposes_clearinghouse_liquidation_summary_fields
+pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence -s
+```
+
+Results: API summary and browser liquidation checks `2 passed`.
+
 Remaining limits:
 
-- no perps liquidation browser flow yet;
+- no explicit isolated-market partial-liquidation wallet action yet;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

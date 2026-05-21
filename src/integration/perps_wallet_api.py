@@ -611,6 +611,11 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "position_base_b": int(market.state.get("position_base_b", 0)),
                     "collateral_e8_a": int(market.state.get("collateral_e8_a", 0)),
                     "collateral_e8_b": int(market.state.get("collateral_e8_b", 0)),
+                    "fee_pool_e8": int(market.state.get("fee_pool_e8", 0)),
+                    "liquidated_this_step": bool(market.state.get("liquidated_this_step", False)),
+                    "net_deposited_e8": int(market.state.get("net_deposited_e8", 0)),
+                    "maintenance_margin_bps": int(market.state.get("maintenance_margin_bps", 0)),
+                    "liquidation_penalty_bps": int(market.state.get("liquidation_penalty_bps", 0)),
                 }
             )
         summaries.append(item)

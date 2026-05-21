@@ -251,6 +251,10 @@ function PerpLiveWalletSurface() {
 
   const preflight = result?.report?.preflight;
   const markets = useMemo(() => status?.markets || result?.post_submit?.markets || [], [status, result]);
+  const selectedMarket = useMemo(
+    () => markets.find((market) => market?.market_id === form.market_id.trim()) || null,
+    [markets, form.market_id],
+  );
   const feeCovered = result?.transport?.fee_limit_native_balance_ok;
 
   return (
@@ -474,6 +478,13 @@ function PerpLiveWalletSurface() {
           <span>fee covered {feeCovered == null ? 'unknown' : feeCovered ? 'yes' : 'no'}</span>
           <span>{result.transport?.app_hash || 'no app hash'}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
+          {selectedMarket?.liquidated_this_step != null ? (
+            <span>liquidated {selectedMarket.liquidated_this_step ? 'yes' : 'no'}</span>
+          ) : null}
+          {selectedMarket?.fee_pool_e8 != null ? <span>fee pool {selectedMarket.fee_pool_e8}</span> : null}
+          {selectedMarket?.position_base_a != null && selectedMarket?.position_base_b != null ? (
+            <span>positions {selectedMarket.position_base_a}/{selectedMarket.position_base_b}</span>
+          ) : null}
           {result.transport?.fee_limit_warning ? <span>{result.transport.fee_limit_warning}</span> : null}
         </div>
       ) : null}
