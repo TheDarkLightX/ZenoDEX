@@ -181,6 +181,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "oracleAuthorityExercise",
             "oracle authority exercised",
             "oracle authority receipt",
+            "walletRecoveryExercise",
+            "recovery exercise",
+            "recovery receipt",
         ),
     ),
     AnchorCheck(
@@ -314,6 +317,31 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="assurance_depth",
+        check_id="perps_wallet_recovery_exercise_receipt",
+        path="tests/integration/test_perps_wallet_api.py",
+        description="Perps wallet recovery tests prove concrete recovery exercises produce threshold/delay receipts.",
+        anchors=(
+            "test_perps_wallet_recovery_exercise_ready_receipt",
+            "test_perps_wallet_recovery_exercise_blocks_early_request",
+            "test_status_loads_ready_perps_wallet_recovery_exercise",
+            "test_recovery_evaluate_endpoint_blocks_threshold_gap",
+            "PERPS_WALLET_RECOVERY_EXERCISE_JSON",
+            "recovery_exercise_ready",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
+        check_id="perps_wallet_recovery_exercise_browser_receipt",
+        path="tests/integration/test_perps_wallet_ui_bridge.py",
+        description="Mounted perps browser smoke renders the recovery exercise receipt when present.",
+        anchors=(
+            "PERPS_WALLET_RECOVERY_EXERCISE_JSON",
+            "recovery exercise ready",
+            "recovery receipt 0x",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
         check_id="completion_plan_records_residual_limits",
         path="docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md",
         description="The completion plan records current evidence and the remaining production-grade limits.",
@@ -324,6 +352,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "Additional daemon-backed mounted browser Toxiproxy evidence",
             "Additional confidential surface claim-scope evidence",
             "Additional perps Oracle-authority exercise receipt evidence",
+            "Additional perps wallet recovery-exercise evidence",
             "Additional stream `8`/`11` proof-wrapper gate evidence",
             "Additional stream `8`/`11` proof-wrapper submit fail-closed evidence",
         ),
@@ -354,7 +383,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "hardware_wallet_ux",
-        "description": "Hardware/OS wallet UX, recovery flows, and runtime signer-device integration remain open.",
+        "description": "Hardware/OS signer-device integration and key-rotation broadcast remain open; public recovery threshold/delay exercises now have receipts.",
     },
     {
         "id": "zk_wrapping",

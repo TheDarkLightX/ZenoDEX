@@ -9,8 +9,11 @@ from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     build_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_authority_profile_v1,
+    evaluate_perps_wallet_recovery_exercise_v1,
+    perps_wallet_recovery_exercise_hash_v1,
 )
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -141,6 +144,21 @@ def _perps_wallet_authority_profile(**overrides: object) -> dict[str, object]:
     }
     base.update(overrides)
     return build_perps_wallet_authority_profile_v1(**base)
+
+
+def _perps_wallet_recovery_exercise(**overrides: object) -> dict[str, object]:
+    base = {
+        "schema": PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
+        "chain_id": CHAIN_ID,
+        "authority_id": "perps-wallet-mainnet-authority-v1",
+        "subject_key_id": "perps-wallet-a",
+        "policy_id": "recovery-perps-wallet-a",
+        "requested_at_epoch": 10,
+        "current_epoch": 13,
+        "approvals": ["guardian-oracle", "guardian-operator"],
+    }
+    base.update(overrides)
+    return base
 
 
 def _oracle_authority_key_manager(*, second_pubkey: str = OPERATOR) -> dict[str, object]:
@@ -634,6 +652,44 @@ def test_perps_wallet_authority_blocks_active_signer_without_recovery_policy() -
     assert status["recovery_policy_count"] == 1
     assert status["recoverable_active_key_count"] == 1
     assert "active signer key_id perps-wallet-a has no recovery_policy_id" in status["readiness_gaps"]
+
+
+def test_perps_wallet_recovery_exercise_ready_receipt() -> None:
+    profile = _perps_wallet_authority_profile()
+    exercise = _perps_wallet_recovery_exercise()
+
+    status = evaluate_perps_wallet_recovery_exercise_v1(profile, exercise, expected_chain_id=CHAIN_ID)
+
+    assert status["ok"] is True
+    assert status["recovery_exercise_ready"] is True
+    assert status["status"] == "ready"
+    assert status["errors"] == []
+    assert status["wallet_authority_hash"] == profile["wallet_authority_hash"]
+    assert status["exercise_hash"] == perps_wallet_recovery_exercise_hash_v1(exercise)
+    assert status["subject_key_id"] == "perps-wallet-a"
+    assert status["evaluation"]["ok"] is True
+    assert status["evaluation"]["delay_ok"] is True
+    assert status["evaluation"]["threshold_ok"] is True
+    assert status["evaluation"]["accepted_weight"] == 2
+    assert status["evaluation_hash"] == status["evaluation"]["evaluation_hash"]
+    encoded = json.dumps(status, sort_keys=True)
+    assert "private_key" not in encoded
+    assert "secret_hex" not in encoded
+
+
+def test_perps_wallet_recovery_exercise_blocks_early_request() -> None:
+    status = evaluate_perps_wallet_recovery_exercise_v1(
+        _perps_wallet_authority_profile(),
+        _perps_wallet_recovery_exercise(current_epoch=12),
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["recovery_exercise_ready"] is False
+    assert status["status"] == "blocked"
+    assert "recovery_policy_not_satisfied" in status["errors"]
+    assert status["evaluation"]["delay_ok"] is False
+    assert status["evaluation"]["threshold_ok"] is True
 
 
 def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatch) -> None:
@@ -1611,6 +1667,59 @@ def test_status_loads_ready_perps_wallet_authority_profile(monkeypatch) -> None:
     encoded = json.dumps(wallet_authority, sort_keys=True)
     assert "private_key" not in encoded
     assert "secret_hex" not in encoded
+
+
+def test_status_loads_ready_perps_wallet_recovery_exercise(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.setenv(
+        "PERPS_WALLET_RECOVERY_EXERCISE_JSON",
+        json.dumps(_perps_wallet_recovery_exercise(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.delenv("PERPS_WALLET_RECOVERY_EXERCISE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    recovery = payload["status"]["wallet_authority"]["recovery_exercise"]
+    assert recovery["recovery_exercise_ready"] is True
+    assert recovery["status"] == "ready"
+    assert recovery["evaluation"]["accepted_weight"] == 2
+    assert recovery["evaluation"]["delay_ok"] is True
+    assert recovery["evaluation"]["threshold_ok"] is True
+
+
+def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/recovery/evaluate",
+        json.dumps(_perps_wallet_recovery_exercise(approvals=["guardian-oracle"])).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is False
+    recovery = payload["recovery_exercise"]
+    assert recovery["recovery_exercise_ready"] is False
+    assert "recovery_policy_not_satisfied" in recovery["errors"]
+    assert recovery["evaluation"]["accepted_weight"] == 1
+    assert recovery["evaluation"]["threshold_ok"] is False
 
 
 def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:

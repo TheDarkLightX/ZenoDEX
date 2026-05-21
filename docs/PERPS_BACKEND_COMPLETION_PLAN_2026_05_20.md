@@ -563,6 +563,35 @@ renders `wallet recovery 2/2` beside the stream `8` submit result. This reduces
 the mounted recovery-posture gap, while hardware/OS signer approval and actual
 key recovery execution remain outside the current UI.
 
+Additional perps wallet recovery-exercise evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_authority.py src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_recovery_exercise_ready_receipt tests/integration/test_perps_wallet_api.py::test_perps_wallet_recovery_exercise_blocks_early_request tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_recovery_exercise tests/integration/test_perps_wallet_api.py::test_recovery_evaluate_endpoint_blocks_threshold_gap
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py -s
+python3 tools/check_dex_live_product_goal.py --json
+python3 tools/check_public_claim_scope.py --json
+cd tools/dex-ui && npm run build
+```
+
+Results: focused recovery-exercise checks `4 passed`; mounted perps wallet
+browser smoke `1 passed`; affected perps wallet API plus browser bridge suites
+`50 passed`; live-product goal audit returned `ok: true`, `goal_complete:
+false`, and `local_testnet_evidence_present_with_open_production_limits`;
+public claim-scope audit returned `ok: true`; Vite production build passed. The
+live wallet authority status can now evaluate a
+concrete public recovery exercise through
+`PERPS_WALLET_RECOVERY_EXERCISE_JSON` or
+`PERPS_WALLET_RECOVERY_EXERCISE_FILE`, and the mounted API exposes
+`POST /api/perps/wallet/recovery/evaluate`. The receipt binds authority id,
+chain id, subject key, recovery policy, request epoch, current epoch, guardian
+approval ids, the underlying social-recovery evaluation hash, and a status hash.
+The mounted UI renders `recovery exercise ready` and a recovery receipt hash
+when that exercise is present. This is a public threshold/delay evaluation
+receipt. It does not verify guardian signatures, custody hardware keys, or
+broadcast a key-rotation transaction.
+
 Additional perps Oracle-authority binding evidence added on 2026-05-21:
 
 ```bash
@@ -1017,7 +1046,8 @@ Remaining limits:
   Oracle authority profile is exercised on public testnet;
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
-  approval, and actual key recovery execution remain outside the mounted DEX UI;
+  approval, guardian signature verification, and key-rotation broadcast remain
+  outside the mounted DEX UI;
 - confidential execution is bounded to attested admission, replay protection,
   redaction, and local accounting evidence; TEE hardware confidentiality and
   fully encrypted on-chain state remain unproved external assumptions;

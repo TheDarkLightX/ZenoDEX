@@ -14,7 +14,10 @@ from src.integration.zeno_key_manager import (
     KEY_STATUS_ACTIVE,
     KEY_STATUS_REVOKED,
     KeyRef,
+    RecoveryGuardian,
+    SECRET_FIELD_NAMES,
     SOCIAL_RECOVERY_POLICY_SCHEMA_V0,
+    SocialRecoveryPolicy,
 )
 from src.integration.zeno_ledger_signer_registry import validate_signer_registry_v0
 from src.integration.zeno_ledger_v0 import hash_v0
@@ -22,6 +25,8 @@ from src.integration.zeno_ledger_v0 import hash_v0
 
 PERPS_WALLET_AUTHORITY_PROFILE_SCHEMA_V1 = "zenodex/perps-wallet-authority-profile/v1"
 PERPS_WALLET_AUTHORITY_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-authority-status/v1"
+PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-recovery-exercise/v1"
+PERPS_WALLET_RECOVERY_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-recovery-exercise-status/v1"
 PERPS_WALLET_AUTHORITY_PAYLOAD_KIND = "perps_wallet_authority_profile"
 
 _REQUIRED_WALLET_UX_FLAGS = (
@@ -41,6 +46,8 @@ _NOT_CLAIMED = (
     "does_not_claim_perps_zk_execution",
     "does_not_claim_production_finality",
     "does_not_claim_oracle_truth",
+    "does_not_claim_guardian_signature_verification",
+    "does_not_claim_recovery_rotation_broadcast",
 )
 
 
@@ -56,12 +63,49 @@ def _require_nonempty_str(value: object, *, name: str) -> str:
     return value
 
 
+def _require_nonnegative_int(value: object, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError(f"{name} must be a non-negative int")
+    return int(value)
+
+
+def _require_string_list(value: object, *, name: str) -> list[str]:
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list")
+    out: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item:
+            raise ValueError(f"{name}[{index}] must be a non-empty string")
+        out.append(item)
+    return out
+
+
+def _reject_secret_fields(value: object, *, name: str = "payload") -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if str(key).lower() in SECRET_FIELD_NAMES:
+                raise ValueError(f"{name} must not contain private key material")
+            _reject_secret_fields(item, name=f"{name}.{key}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_secret_fields(item, name=f"{name}[{index}]")
+
+
 def _body(profile: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in dict(profile).items() if key != "wallet_authority_hash"}
 
 
 def perps_wallet_authority_profile_hash_v1(profile: Mapping[str, Any]) -> str:
     return hash_v0("perps_wallet_authority_profile_v1", _body(profile))
+
+
+def _recovery_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in dict(exercise).items() if key != "exercise_hash"}
+
+
+def perps_wallet_recovery_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
+    return hash_v0("perps_wallet_recovery_exercise_v1", _recovery_exercise_body(exercise))
 
 
 def build_perps_wallet_authority_profile_v1(
@@ -330,6 +374,174 @@ def _key_ref_summaries(key_refs: Mapping[str, KeyRef]) -> list[dict[str, Any]]:
         }
         for ref in sorted(key_refs.values(), key=lambda item: item.key_id)
     ]
+
+
+def _social_recovery_policy_from_public_dict(policy: Mapping[str, Any]) -> SocialRecoveryPolicy:
+    obj = _require_mapping(policy, name="recovery_policy")
+    if obj.get("schema") != SOCIAL_RECOVERY_POLICY_SCHEMA_V0:
+        raise ValueError("recovery policy schema mismatch")
+    guardians_raw = obj.get("guardians")
+    if not isinstance(guardians_raw, list):
+        raise TypeError("recovery policy guardians must be a list")
+    guardians: list[RecoveryGuardian] = []
+    for index, raw in enumerate(guardians_raw):
+        guardian = _require_mapping(raw, name=f"guardians[{index}]")
+        guardians.append(
+            RecoveryGuardian(
+                guardian_id=_require_nonempty_str(guardian.get("guardian_id"), name="guardian_id"),
+                public_key=_require_nonempty_str(guardian.get("public_key"), name="public_key"),
+                weight=_require_nonnegative_int(guardian.get("weight"), name="weight"),
+                status=_require_nonempty_str(guardian.get("status"), name="status"),
+            )
+        )
+    policy_obj = SocialRecoveryPolicy(
+        policy_id=_require_nonempty_str(obj.get("policy_id"), name="policy_id"),
+        subject_key_id=_require_nonempty_str(obj.get("subject_key_id"), name="subject_key_id"),
+        threshold=_require_nonnegative_int(obj.get("threshold"), name="threshold"),
+        delay_epochs=_require_nonnegative_int(obj.get("delay_epochs"), name="delay_epochs"),
+        guardians=tuple(guardians),
+    )
+    if dict(obj) != policy_obj.public_dict():
+        raise ValueError("recovery policy binding mismatch")
+    return policy_obj
+
+
+def _recovery_exercise_status(
+    *,
+    ok: bool,
+    errors: list[str],
+    exercise: Mapping[str, Any] | None,
+    wallet_authority_hash: str | None,
+    evaluation: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    body = {
+        "schema": PERPS_WALLET_RECOVERY_EXERCISE_STATUS_SCHEMA_V1,
+        "ok": bool(ok),
+        "recovery_exercise_ready": bool(ok),
+        "status": "ready" if ok else "blocked",
+        "errors": list(errors),
+        "wallet_authority_hash": wallet_authority_hash,
+        "exercise_hash": None if exercise is None else perps_wallet_recovery_exercise_hash_v1(exercise),
+        "chain_id": None if exercise is None else exercise.get("chain_id"),
+        "authority_id": None if exercise is None else exercise.get("authority_id"),
+        "subject_key_id": None if exercise is None else exercise.get("subject_key_id"),
+        "policy_id": None if exercise is None else exercise.get("policy_id"),
+        "requested_at_epoch": None if exercise is None else exercise.get("requested_at_epoch"),
+        "current_epoch": None if exercise is None else exercise.get("current_epoch"),
+        "evaluation": None if evaluation is None else dict(evaluation),
+        "evaluation_hash": None if evaluation is None else evaluation.get("evaluation_hash"),
+        "not_claimed": [
+            "does_not_claim_guardian_signature_verification",
+            "does_not_claim_hardware_wallet_custody",
+            "does_not_claim_recovery_rotation_broadcast",
+        ],
+    }
+    return {**body, "status_hash": hash_v0("perps_wallet_recovery_exercise_status_v1", body)}
+
+
+def evaluate_perps_wallet_recovery_exercise_v1(
+    profile: Mapping[str, Any] | None,
+    exercise: Mapping[str, Any] | None,
+    *,
+    expected_chain_id: str | None = None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if exercise is None:
+        return _recovery_exercise_status(
+            ok=False,
+            errors=["perps wallet recovery exercise is missing"],
+            exercise=None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            evaluation=None,
+        )
+    try:
+        exercise_obj = _require_mapping(exercise, name="recovery_exercise")
+        _reject_secret_fields(exercise_obj, name="recovery_exercise")
+    except Exception as exc:
+        return _recovery_exercise_status(
+            ok=False,
+            errors=[f"perps wallet recovery exercise invalid: {exc}"],
+            exercise=exercise if isinstance(exercise, Mapping) else None,
+            wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+            evaluation=None,
+        )
+    if profile is None:
+        return _recovery_exercise_status(
+            ok=False,
+            errors=["perps wallet authority profile is missing"],
+            exercise=exercise_obj,
+            wallet_authority_hash=None,
+            evaluation=None,
+        )
+
+    authority_status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=expected_chain_id)
+    if authority_status["production_wallet_authority"] is not True:
+        errors.append("perps wallet authority profile is not ready")
+        errors.extend(str(gap) for gap in authority_status.get("readiness_gaps", []))
+
+    try:
+        if exercise_obj.get("schema") != PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1:
+            errors.append("perps wallet recovery exercise schema mismatch")
+        chain_id = _require_nonempty_str(exercise_obj.get("chain_id"), name="chain_id")
+        authority_id = _require_nonempty_str(exercise_obj.get("authority_id"), name="authority_id")
+        subject_key_id = _require_nonempty_str(exercise_obj.get("subject_key_id"), name="subject_key_id")
+        policy_id = _require_nonempty_str(exercise_obj.get("policy_id"), name="policy_id")
+        requested_at_epoch = _require_nonnegative_int(exercise_obj.get("requested_at_epoch"), name="requested_at_epoch")
+        current_epoch = _require_nonnegative_int(exercise_obj.get("current_epoch"), name="current_epoch")
+        approvals = _require_string_list(exercise_obj.get("approvals"), name="approvals")
+    except Exception as exc:
+        errors.append(str(exc))
+        return _recovery_exercise_status(
+            ok=False,
+            errors=errors,
+            exercise=exercise_obj,
+            wallet_authority_hash=profile.get("wallet_authority_hash"),
+            evaluation=None,
+        )
+    if expected_chain_id is not None and chain_id != expected_chain_id:
+        errors.append("perps wallet recovery exercise chain_id mismatch")
+    if chain_id != profile.get("chain_id"):
+        errors.append("perps wallet recovery exercise profile chain_id mismatch")
+    if authority_id != profile.get("authority_id"):
+        errors.append("perps wallet recovery exercise authority_id mismatch")
+
+    active_key_ids = {str(item.get("key_id")) for item in authority_status.get("active_signers", []) if isinstance(item, Mapping)}
+    if subject_key_id not in active_key_ids:
+        errors.append("perps wallet recovery exercise subject key is not active")
+
+    evaluation: Mapping[str, Any] | None = None
+    try:
+        key_manager = _require_mapping(profile.get("key_manager"), name="key_manager")
+        policies_raw = key_manager.get("recovery_policies")
+        if not isinstance(policies_raw, list):
+            raise TypeError("key manager recovery_policies must be a list")
+        matching = [
+            _social_recovery_policy_from_public_dict(_require_mapping(raw, name="recovery_policy"))
+            for raw in policies_raw
+            if isinstance(raw, Mapping) and raw.get("policy_id") == policy_id
+        ]
+        if len(matching) != 1:
+            raise ValueError("recovery policy not found")
+        policy = matching[0]
+        if policy.subject_key_id != subject_key_id:
+            errors.append("perps wallet recovery exercise policy subject mismatch")
+        evaluation = policy.evaluate(
+            approvals=approvals,
+            requested_at_epoch=requested_at_epoch,
+            current_epoch=current_epoch,
+        )
+        if evaluation.get("ok") is not True:
+            errors.append("recovery_policy_not_satisfied")
+    except Exception as exc:
+        errors.append(f"recovery policy evaluation failed: {exc}")
+
+    return _recovery_exercise_status(
+        ok=not errors and evaluation is not None and evaluation.get("ok") is True,
+        errors=errors,
+        exercise=exercise_obj,
+        wallet_authority_hash=profile.get("wallet_authority_hash"),
+        evaluation=evaluation,
+    )
 
 
 def _active_signer_summaries(active_signers: list[Mapping[str, Any]]) -> list[dict[str, Any]]:

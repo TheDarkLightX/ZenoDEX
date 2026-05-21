@@ -438,6 +438,7 @@ function PerpLiveWalletSurface() {
   const oracleAuthorityExercise = result?.proof?.oracle_authority_exercise || proofReceipt?.oracle_authority_exercise || null;
   const stateDeltaWitness = proofReceipt?.state_delta_witness || result?.post_submit?.state_delta_witness || null;
   const walletAuthority = status?.wallet_authority || null;
+  const walletRecoveryExercise = walletAuthority?.recovery_exercise || null;
   const oracleAuthority = status?.oracle_authority || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
@@ -475,6 +476,7 @@ function PerpLiveWalletSurface() {
           <div><span>Wallet Authority</span><span>{walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Wallet Signers</span><span>{walletAuthority ? `${walletAuthority.active_signer_count}/${walletAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Wallet Recovery</span><span>{walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span></div>
+          <div><span>Recovery Exercise</span><span>{walletRecoveryExercise ? walletRecoveryExercise.status : 'not loaded'}</span></div>
           <div><span>Oracle Authority</span><span>{oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Oracle Signers</span><span>{oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Oracle Signed Quorum</span><span>{oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span></div>
@@ -762,6 +764,12 @@ function PerpLiveWalletSurface() {
           <span>wallet authority {walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span>
           <span>wallet keys {walletAuthority?.key_ref_count ?? 0}</span>
           <span>wallet recovery {walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span>
+          {walletRecoveryExercise ? (
+            <>
+              <span>recovery exercise {walletRecoveryExercise.recovery_exercise_ready ? 'ready' : 'blocked'}</span>
+              <span>recovery receipt {compactId(walletRecoveryExercise.status_hash)}</span>
+            </>
+          ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
           <span>oracle signers {oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span>
           <span>oracle signed quorum {oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span>

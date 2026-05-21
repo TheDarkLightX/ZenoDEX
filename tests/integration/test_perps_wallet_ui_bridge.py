@@ -22,6 +22,7 @@ from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     build_perps_wallet_authority_profile_v1,
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
@@ -216,6 +217,19 @@ def _perps_wallet_authority_profile(
             ],
         },
     )
+
+
+def _perps_wallet_recovery_exercise(*, chain_id: str) -> dict[str, object]:
+    return {
+        "schema": PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
+        "chain_id": chain_id,
+        "authority_id": "perps-wallet-authority-v1",
+        "subject_key_id": "perps-wallet-a",
+        "policy_id": "recovery-perps-wallet-a",
+        "requested_at_epoch": 10,
+        "current_epoch": 13,
+        "approvals": ["guardian-a", "guardian-b"],
+    }
 
 
 def _chrome_binary() -> str | None:
@@ -904,6 +918,10 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
             ),
             sort_keys=True,
         ),
+        "PERPS_WALLET_RECOVERY_EXERCISE_JSON": json.dumps(
+            _perps_wallet_recovery_exercise(chain_id=chain_id),
+            sort_keys=True,
+        ),
     }
     old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
     os.environ["TAU_DEX_CHAIN_ID"] = chain_id
@@ -950,7 +968,7 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
                 "--disable-gpu",
                 "--no-sandbox",
                 f"--user-data-dir={chrome_profile}",
-                "--virtual-time-budget=20000",
+                "--virtual-time-budget=30000",
                 "--dump-dom",
                 f"{vite_base}/?{query}",
             ],
@@ -974,6 +992,8 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "wallet authority ready" in dom
         assert "wallet keys 2" in dom
         assert "wallet recovery 2/2" in dom
+        assert "recovery exercise ready" in dom
+        assert "recovery receipt 0x" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

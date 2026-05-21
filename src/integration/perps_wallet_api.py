@@ -25,7 +25,10 @@ from .live_proof_wrapper import (
     verify_live_proof_wrapper,
 )
 from .perp_engine import PerpEngineConfig, apply_perp_ops
-from .perps_wallet_authority import evaluate_perps_wallet_authority_profile_v1
+from .perps_wallet_authority import (
+    evaluate_perps_wallet_authority_profile_v1,
+    evaluate_perps_wallet_recovery_exercise_v1,
+)
 from .tau_net_client import (
     TauNetRpcError,
     TauNetTcpClient,
@@ -162,6 +165,14 @@ def _wallet_authority_profile_from_env() -> tuple[Mapping[str, Any] | None, str 
         return obj, None
 
     return None, None
+
+
+def _wallet_recovery_exercise_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_RECOVERY_EXERCISE_JSON",),
+        file_names=("PERPS_WALLET_RECOVERY_EXERCISE_FILE",),
+        label="perps wallet recovery exercise",
+    )
 
 
 def _json_profile_from_env(
@@ -1631,6 +1642,25 @@ def _status_payload() -> Dict[str, Any]:
         wallet_authority["production_wallet_authority"] = False
         wallet_authority["status"] = "blocked"
         wallet_authority.setdefault("readiness_gaps", []).append(wallet_authority_error)
+    recovery_exercise, recovery_exercise_error = _wallet_recovery_exercise_from_env()
+    if recovery_exercise is not None:
+        wallet_authority["recovery_exercise"] = evaluate_perps_wallet_recovery_exercise_v1(
+            wallet_authority_profile,
+            recovery_exercise,
+            expected_chain_id=chain_id,
+        )
+    elif recovery_exercise_error is not None:
+        wallet_authority["recovery_exercise"] = {
+            "schema": "zenodex/perps-wallet-recovery-exercise-status/v1",
+            "ok": False,
+            "recovery_exercise_ready": False,
+            "status": "blocked",
+            "errors": [recovery_exercise_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "exercise_hash": None,
+            "evaluation": None,
+            "evaluation_hash": None,
+        }
     oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
     oracle_authority = _bind_oracle_authority_status(
         evaluate_oracle_authority_profile_v1(oracle_authority_profile),
@@ -1731,6 +1761,20 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
             )
         if rest == ["oracle-bridge", "inspect"]:
             return 200, _inspect_oracle_adapter_bridge(parsed)
+        if rest == ["recovery", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            recovery = evaluate_perps_wallet_recovery_exercise_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                recovery["ok"] = False
+                recovery["recovery_exercise_ready"] = False
+                recovery["status"] = "blocked"
+                recovery.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": recovery.get("recovery_exercise_ready") is True, "recovery_exercise": recovery}
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}
