@@ -113,6 +113,15 @@ tools/zenodex-oracle serve --home /tmp/zenodex-oracle --host 127.0.0.1 --port 87
 VITE_ZENO_ORACLE_API_URL=http://127.0.0.1:8787 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
+For a static bundle, set the same Oracle API base at runtime in
+`public/zenodex-config.json` or the deployed `zenodex-config.json`:
+
+```json
+{
+  "zenoOracleApiBase": "http://127.0.0.1:8787"
+}
+```
+
 Local Oracle writes are disabled by default. Use `--allow-writes` only for a
 local operator/demo console:
 
@@ -140,6 +149,7 @@ Supported runtime keys:
 - `apiBase`
 - `demoMode`
 - `perpsPreviewWrites`
+- `zenoOracleApiBase`
 
 This is useful for IPFS/static hosting where one bundle may be reused against
 different operator APIs.

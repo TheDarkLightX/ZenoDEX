@@ -11,10 +11,25 @@ import {
   ORACLE_REWARDS,
   ORACLE_SYSTEM_SERVICES,
 } from './ZenoOracleDashboardData';
+import { getRuntimeConfig } from '../lib/api.js';
 import './ZenoOracleDashboard.css';
 
 const ZENO_ORACLE_ICON = `${import.meta.env.BASE_URL}branding/zeno-oracle/zeno_oracle_icon_256.png`;
-const ZENO_ORACLE_API_BASE = import.meta.env.VITE_ZENO_ORACLE_API_URL || 'http://127.0.0.1:8787';
+const DEFAULT_ZENO_ORACLE_API_BASE = 'http://127.0.0.1:8787';
+
+function normalizeOracleApiBase(raw) {
+  const value = (raw ?? '').toString().trim();
+  if (!value) {
+    return '';
+  }
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+function zenoOracleApiUrl(path) {
+  const runtimeBase = normalizeOracleApiBase(getRuntimeConfig().zenoOracleApiBase);
+  const envBase = normalizeOracleApiBase(import.meta.env.VITE_ZENO_ORACLE_API_URL);
+  return `${runtimeBase || envBase || DEFAULT_ZENO_ORACLE_API_BASE}${path}`;
+}
 
 const STATUS_COPY = {
   fresh: 'Fresh',
@@ -486,7 +501,7 @@ function VerifyPanel({ initialReceiptId = '' }) {
     setStatus('Replaying...');
     try {
       const response = await fetch(
-        `${ZENO_ORACLE_API_BASE}/api/oracle/verify-receipt?id=${encodeURIComponent(id)}`,
+        zenoOracleApiUrl(`/api/oracle/verify-receipt?id=${encodeURIComponent(id)}`),
       );
       const payload = await response.json();
       if (!response.ok || payload.ok === false) {
@@ -548,7 +563,7 @@ function DisputesPanel({ disputes }) {
   const [status, setStatus] = useState('Ready');
 
   async function post(path, payload) {
-    const response = await fetch(`${ZENO_ORACLE_API_BASE}${path}`, {
+    const response = await fetch(zenoOracleApiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -685,7 +700,7 @@ function FeedStatusPanel({ feed }) {
   async function fundSelectedFeed() {
     setFundState('Funding...');
     try {
-      const response = await fetch(`${ZENO_ORACLE_API_BASE}/api/oracle/query/fund`, {
+      const response = await fetch(zenoOracleApiUrl('/api/oracle/query/fund'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -765,7 +780,7 @@ function ReceiptBuilderPanel({ feed }) {
   const [status, setStatus] = useState('Ready');
 
   async function post(path, payload) {
-    const response = await fetch(`${ZENO_ORACLE_API_BASE}${path}`, {
+    const response = await fetch(zenoOracleApiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -906,7 +921,7 @@ function FeedCreationPanel() {
     }
     setSaveState('Saving...');
     try {
-      const response = await fetch(`${ZENO_ORACLE_API_BASE}/api/oracle/query/register`, {
+      const response = await fetch(zenoOracleApiUrl('/api/oracle/query/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1023,7 +1038,7 @@ function ReporterOnboardingPanel({ selectedFeed }) {
   ];
 
   async function post(path, payload) {
-    const response = await fetch(`${ZENO_ORACLE_API_BASE}${path}`, {
+    const response = await fetch(zenoOracleApiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -1173,7 +1188,7 @@ function RewardsPanel({ rewards }) {
       if (payAmount.trim()) {
         payload.amount_e8 = Number(payAmount);
       }
-      const response = await fetch(`${ZENO_ORACLE_API_BASE}/api/oracle/rewards/pay`, {
+      const response = await fetch(zenoOracleApiUrl('/api/oracle/rewards/pay'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1558,7 +1573,7 @@ function ZenoOracleDashboard() {
     const controller = new AbortController();
     async function loadDashboard() {
       try {
-        const response = await fetch(`${ZENO_ORACLE_API_BASE}/api/oracle/dashboard`, {
+        const response = await fetch(zenoOracleApiUrl('/api/oracle/dashboard'), {
           signal: controller.signal,
         });
         if (!response.ok) {
