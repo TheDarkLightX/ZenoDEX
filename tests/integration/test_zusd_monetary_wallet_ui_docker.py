@@ -169,6 +169,27 @@ def _prepare_external_signed_zusd_payload(
     )
 
 
+def _prepare_external_signed_perps_payload(
+    *,
+    api_base: str,
+    privkey: int,
+    body: dict[str, object],
+) -> dict[str, object]:
+    prepared = _http_post_json(f"{api_base}/api/perps/wallet/prepare", body)
+    assert prepared["ok"] is True
+    transport = prepared["transport"]
+    report = prepared["report"]
+    assert isinstance(transport, dict)
+    assert isinstance(report, dict)
+    return build_signed_tau_transaction(
+        privkey=privkey,
+        sequence_number=int(transport["tx_sequence_number"]),
+        expiration_time=int(body["deadline"]),
+        operations=report["operations"],
+        fee_limit=int(str(transport["tx_fee_limit"])),
+    )
+
+
 def _prepare_zusd_monetary_state(
     client: TauNetTcpClient,
     *,
@@ -440,6 +461,20 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         assert "preflight ok" in init_result.stdout, init_result.stdout[-8000:]
         assert market_id in init_result.stdout, init_result.stdout[-8000:]
 
+        perps_deposit_deadline = int(time.time()) + 3600
+        perps_deposit_body = {
+            "action": "deposit_collateral",
+            "market_id": market_id,
+            "account_pubkey": owner_pubkey,
+            "amount": 25,
+            "deadline": perps_deposit_deadline,
+            "tx_fee_limit": "0",
+        }
+        signed_perps_deposit_payload = _prepare_external_signed_perps_payload(
+            api_base=f"http://127.0.0.1:{api_port}",
+            privkey=owner_privkey,
+            body=perps_deposit_body,
+        )
         deposit_query = urlencode(
             {
                 "tab": "perps",
@@ -447,9 +482,14 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
                 "zenodexUiSmokePerpsWallet": "1",
                 "perpsWalletAction": "deposit_collateral",
                 "marketId": market_id,
-                "accountPrivkey": str(owner_privkey),
+                "accountPubkey": owner_pubkey,
                 "amount": "25",
-                "perpsDeadline": str(int(time.time()) + 3600),
+                "perpsDeadline": str(perps_deposit_deadline),
+                "signedTauTxPayload": json.dumps(
+                    signed_perps_deposit_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
             }
         )
         deposit_result = subprocess.run(
@@ -473,6 +513,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         assert "Deposit Collateral" in deposit_result.stdout
         assert "submit accepted" in deposit_result.stdout, deposit_result.stdout[-8000:]
         assert "preflight ok" in deposit_result.stdout, deposit_result.stdout[-8000:]
+        assert "signing external_signed_payload" in deposit_result.stdout, deposit_result.stdout[-8000:]
 
         app_state = _read_app_state(tau_client)
         assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 75
@@ -483,6 +524,16 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         assert isinstance(state, dict)
         assert int(state["collateral_e8_a"]) == 25 * E8
         assert int(state["collateral_e8_b"]) == 0
+        state_after_perps_deposit = app_state
+
+        status, perps_replay_rejected = _http_post_json_status(
+            f"http://127.0.0.1:{api_port}/api/perps/wallet/submit",
+            {**perps_deposit_body, "signed_tau_tx_payload": signed_perps_deposit_payload},
+        )
+        assert status == 400
+        assert perps_replay_rejected["ok"] is False
+        assert perps_replay_rejected["error"] == "signed_tau_tx_payload sequence mismatch"
+        assert _read_app_state(tau_client) == state_after_perps_deposit
     finally:
         for proc in (vite_proc, api_proc):
             if proc is None:

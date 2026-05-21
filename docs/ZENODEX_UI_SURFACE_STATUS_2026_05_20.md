@@ -186,7 +186,10 @@ Tau node. It resubmits the exact same signed zUSD mint envelope after success
 and asserts a `400` rejection with no app-state mutation. In the bounded Docker
 seed the duplicate is rejected during deterministic preflight; the API
 regression suite separately covers the explicit signed-payload sequence-mismatch
-reject path.
+reject path. The same Docker run now submits the follow-on perps collateral
+deposit through an externally signed stream `8` Tau envelope, then replays that
+exact perps envelope and asserts the sequence-mismatch rejection leaves the app
+state unchanged.
 
 Latest perps Oracle evidence inspector pass on 2026-05-21:
 
