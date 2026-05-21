@@ -14,7 +14,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import urlsplit
 
 from ..core.dex import DexState
-from ..core.perps import PerpClearinghouse2pMarketState
+from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from .dex_snapshot import state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
@@ -42,6 +42,7 @@ _ACTIONS = {
     "advance_epoch",
     "publish_clearing_price",
     "settle_epoch",
+    "partial_liquidate",
 }
 
 
@@ -333,11 +334,17 @@ def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]
     return raw
 
 
-def _market_id(body: Mapping[str, Any]) -> str:
+def _market_id(body: Mapping[str, Any], *, action: str | None = None) -> str:
     raw = str(body.get("market_id") or body.get("marketId") or "").strip()
     if not raw:
         raise ValueError("missing_market_id")
-    if len(raw) > 128 or not raw.startswith("perp:ch2p:"):
+    if len(raw) > 128:
+        raise ValueError("bad_market_id")
+    if action == "partial_liquidate":
+        if not raw.startswith("perp:") or raw.startswith("perp:ch2p:"):
+            raise ValueError("isolated market_id must start with perp: and not perp:ch2p:")
+        return raw
+    if not raw.startswith("perp:ch2p:"):
         raise ValueError("market_id must start with perp:ch2p:")
     return raw
 
@@ -396,7 +403,7 @@ def _tx_sender_for_action(body: Mapping[str, Any], *, action: str, account_a_pub
     raw = body.get("sender_pubkey") if "sender_pubkey" in body else body.get("senderPubkey")
     if isinstance(raw, str) and raw.strip():
         return _canonical_pubkey(raw, name="sender_pubkey")
-    if action in {"deposit_collateral", "withdraw_collateral", "publish_clearing_price"} and account_pubkey is not None:
+    if action in {"deposit_collateral", "withdraw_collateral", "publish_clearing_price", "partial_liquidate"} and account_pubkey is not None:
         return account_pubkey
     if account_a_pubkey is not None:
         return account_a_pubkey
@@ -417,7 +424,7 @@ def _build_operation_and_sender(
     chain_id: str,
     deadline: int,
 ) -> tuple[dict[str, Any], str, dict[str, int | str]]:
-    market_id = _market_id(body)
+    market_id = _market_id(body, action=action)
     meta: dict[str, int | str] = {}
 
     if action in {"deposit_collateral", "withdraw_collateral"}:
@@ -455,6 +462,26 @@ def _build_operation_and_sender(
         if bridge is not None:
             operation["oracle_adapter_bridge"] = dict(bridge)
         tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=None)
+        return operation, tx_sender, meta
+
+    if action == "partial_liquidate":
+        account_pubkey = _account_pubkey(body, field="account_pubkey", privkey_field="account_privkey")
+        fraction_bps = _request_u32(body, name="fraction_bps")
+        if fraction_bps > 10_000:
+            raise ValueError("bad_fraction_bps")
+        operation = {
+            "module": "TauPerp",
+            "version": "0.1",
+            "market_id": market_id,
+            "action": action,
+            "account_pubkey": account_pubkey,
+            "fraction_bps": fraction_bps,
+        }
+        bridge = _request_mapping(body, name="oracle_adapter_bridge")
+        if bridge is not None:
+            operation["oracle_adapter_bridge"] = dict(bridge)
+        tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=account_pubkey)
+        meta.update({"account_pubkey": account_pubkey})
         return operation, tx_sender, meta
 
     if action == "publish_clearing_price":
@@ -577,6 +604,10 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             False,
         ),
+        require_oracle_adapter_for_isolated_partial_liquidate=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
     )
 
 
@@ -639,6 +670,28 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "net_deposited_e8": int(market.state.get("net_deposited_e8", 0)),
                     "maintenance_margin_bps": int(market.state.get("maintenance_margin_bps", 0)),
                     "liquidation_penalty_bps": int(market.state.get("liquidation_penalty_bps", 0)),
+                }
+            )
+        elif isinstance(market, PerpMarketState):
+            accounts = []
+            for account_pubkey, account in sorted(market.accounts.items()):
+                accounts.append(
+                    {
+                        "account_pubkey": account_pubkey,
+                        "position_base": int(account.position_base),
+                        "collateral_quote": int(account.collateral_quote),
+                        "liquidated_this_step": bool(account.liquidated_this_step),
+                    }
+                )
+            item.update(
+                {
+                    "quote_asset": market.quote_asset,
+                    "now_epoch": int(market.global_state.get("now_epoch", 0)),
+                    "index_price_e8": int(market.global_state.get("index_price_e8", 0)),
+                    "fee_pool_quote": int(market.global_state.get("fee_pool_quote", 0)),
+                    "insurance_balance": int(market.global_state.get("insurance_balance", 0)),
+                    "account_count": len(accounts),
+                    "accounts": accounts,
                 }
             )
         summaries.append(item)
@@ -813,7 +866,7 @@ def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     privkey = body.get("tx_signer_privkey")
     if privkey is not None:
         return privkey
-    if action in {"deposit_collateral", "withdraw_collateral"} and body.get("account_privkey") is not None:
+    if action in {"deposit_collateral", "withdraw_collateral", "partial_liquidate"} and body.get("account_privkey") is not None:
         return body.get("account_privkey")
     if action == "publish_clearing_price" and body.get("oracle_privkey") is not None:
         return body.get("oracle_privkey")
@@ -857,7 +910,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         raise ValueError(f"preflight_failed: {preflight.get('error') or 'unknown'}")
     quote_asset = str(operation.get("quote_asset") or body.get("quote_asset") or body.get("quoteAsset") or "")
     if not quote_asset:
-        quote_asset = _market_quote_asset(app_state, market_id=_market_id(body))
+        quote_asset = _market_quote_asset(app_state, market_id=_market_id(body, action=action))
     account_pubkey = str(operation.get("account_pubkey") or meta.get("account_a_pubkey") or tx_sender_pubkey)
     quote_balance = _balance_for_asset(app_state, pubkey=account_pubkey, asset_id=quote_asset) if quote_asset else 0
 
@@ -942,6 +995,11 @@ def _status_payload() -> Dict[str, Any]:
         "oracle_pubkey": os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
         "require_oracle_adapter_for_clearinghouse_settle_epoch": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            False,
+        ),
+        "allow_isolated_markets": _env_bool("TAU_DEX_ALLOW_ISOLATED_PERPS", False),
+        "require_oracle_adapter_for_isolated_partial_liquidate": _env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             False,
         ),
     }

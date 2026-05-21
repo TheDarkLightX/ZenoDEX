@@ -25,6 +25,7 @@ const EMPTY_FORM = {
   oracle_adapter_bridge: '',
   new_position_base_a: '1',
   new_position_base_b: '-1',
+  fraction_bps: '2500',
   tx_fee_limit: '0',
   deadline: '',
   use_oracle_fixture: false,
@@ -38,6 +39,7 @@ const ACTIONS = [
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
   ['settle_epoch', 'Settle Epoch'],
+  ['partial_liquidate', 'Partial Liquidate'],
 ];
 
 function readSmokeConfig() {
@@ -67,6 +69,7 @@ function readSmokeConfig() {
     oracle_adapter_bridge: params.get('oracleAdapterBridge') || params.get('oracle_adapter_bridge') || '',
     new_position_base_a: params.get('positionA') || params.get('new_position_base_a') || '1',
     new_position_base_b: params.get('positionB') || params.get('new_position_base_b') || '-1',
+    fraction_bps: params.get('fractionBps') || params.get('fraction_bps') || '2500',
     tx_fee_limit: params.get('perpsTxFeeLimit') || params.get('txFeeLimit') || params.get('tx_fee_limit') || '0',
     deadline: params.get('perpsDeadline') || params.get('deadline') || '',
     use_oracle_fixture: params.get('perpsUseOracleFixture') === '1'
@@ -107,6 +110,14 @@ function buildPayload(form) {
     if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
     payload.amount = parseIntOrNull(form.amount) ?? 0;
   }
+  if (action === 'partial_liquidate') {
+    if (form.account_pubkey.trim()) payload.account_pubkey = form.account_pubkey.trim();
+    if (form.account_privkey.trim()) payload.account_privkey = form.account_privkey.trim();
+    payload.fraction_bps = parseIntOrNull(form.fraction_bps) ?? 0;
+    if (form.oracle_adapter_bridge.trim()) {
+      payload.oracle_adapter_bridge = form.oracle_adapter_bridge.trim();
+    }
+  }
   if (action === 'advance_epoch') {
     payload.delta = parseIntOrNull(form.delta) ?? 1;
     if (form.operator_privkey.trim()) payload.operator_privkey = form.operator_privkey.trim();
@@ -141,6 +152,7 @@ function PerpLiveWalletSurface() {
 
   const needsTwoParty = form.action === 'init_market_2p' || form.action === 'set_position_pair';
   const needsCollateral = form.action === 'deposit_collateral' || form.action === 'withdraw_collateral';
+  const needsAccountBound = needsCollateral || form.action === 'partial_liquidate';
   const needsPosition = form.action === 'set_position_pair';
   const needsOperator = form.action === 'advance_epoch' || form.action === 'settle_epoch';
   const needsOracle = form.action === 'publish_clearing_price';
@@ -276,6 +288,7 @@ function PerpLiveWalletSurface() {
           <div><span>Markets</span><span>{status?.market_count ?? markets.length ?? 0}</span></div>
           <div><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
           <div><span>Oracle Bridge</span><span>{status?.require_oracle_adapter_for_clearinghouse_settle_epoch ? 'required' : 'optional'}</span></div>
+          <div><span>Isolated</span><span>{status?.allow_isolated_markets ? 'enabled' : 'disabled'}</span></div>
         </div>
 
         <div className="perp-live-wallet-form">
@@ -344,7 +357,7 @@ function PerpLiveWalletSurface() {
             </>
           ) : null}
 
-          {needsCollateral ? (
+          {needsAccountBound ? (
             <>
               <label className="label" htmlFor="perps-wallet-account-priv">Account Privkey</label>
               <input
@@ -354,14 +367,38 @@ function PerpLiveWalletSurface() {
                 onChange={(event) => setForm((current) => ({ ...current, account_privkey: event.target.value }))}
                 placeholder="local test key"
               />
-              <label className="label" htmlFor="perps-wallet-amount">Amount</label>
-              <input
-                id="perps-wallet-amount"
-                className="input"
-                inputMode="numeric"
-                value={form.amount}
-                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-              />
+              {needsCollateral ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-amount">Amount</label>
+                  <input
+                    id="perps-wallet-amount"
+                    className="input"
+                    inputMode="numeric"
+                    value={form.amount}
+                    onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                  />
+                </>
+              ) : null}
+              {form.action === 'partial_liquidate' ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-fraction">Liquidation Fraction Bps (0 auto)</label>
+                  <input
+                    id="perps-wallet-fraction"
+                    className="input"
+                    inputMode="numeric"
+                    value={form.fraction_bps}
+                    onChange={(event) => setForm((current) => ({ ...current, fraction_bps: event.target.value }))}
+                  />
+                  <label className="label" htmlFor="perps-wallet-liquidation-oracle-bridge">Oracle Adapter Bridge</label>
+                  <textarea
+                    id="perps-wallet-liquidation-oracle-bridge"
+                    className="input perp-live-wallet-textarea"
+                    value={form.oracle_adapter_bridge}
+                    onChange={(event) => setForm((current) => ({ ...current, oracle_adapter_bridge: event.target.value }))}
+                    placeholder="optional JSON bridge"
+                  />
+                </>
+              ) : null}
             </>
           ) : null}
 
@@ -493,6 +530,9 @@ function PerpLiveWalletSurface() {
           {selectedMarket?.fee_pool_e8 != null ? <span>fee pool {selectedMarket.fee_pool_e8}</span> : null}
           {selectedMarket?.position_base_a != null && selectedMarket?.position_base_b != null ? (
             <span>positions {selectedMarket.position_base_a}/{selectedMarket.position_base_b}</span>
+          ) : null}
+          {result?.report?.operation?.action === 'partial_liquidate' ? (
+            <span>partial liquidation fraction {result.report.operation.fraction_bps} bps</span>
           ) : null}
           {result.transport?.fee_limit_warning ? <span>{result.transport.fee_limit_warning}</span> : null}
         </div>

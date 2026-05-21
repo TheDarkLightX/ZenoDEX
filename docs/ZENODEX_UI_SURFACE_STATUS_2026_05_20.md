@@ -27,11 +27,11 @@ The next product-complete backend promotions still required are:
 Perps now has focused backend and browser evidence for a mounted live wallet
 lane. Collateral-minted zUSD can be transferred and used as the quote collateral
 asset for signed clearinghouse collateral deposits, and the UI can submit signed
-stream `8` market init and oracle price publish actions through
-`/api/perps/wallet/*`. The completion plan is recorded in
+stream `8` market init, oracle price publish, and opt-in isolated partial
+liquidation actions through `/api/perps/wallet/*`. The completion plan is recorded in
 `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
-full Docker zUSD-to-perps browser evidence, first-class typed Oracle adapter
-fixtures, perps liquidation, and proof/ZK promotion.
+production Oracle-evidence picker UX for the advanced perps paths, production
+wallet/key-manager integration, and proof/ZK promotion.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in

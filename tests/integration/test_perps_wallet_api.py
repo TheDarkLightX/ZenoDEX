@@ -6,10 +6,12 @@ import pytest
 
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
+from src.core.perp_epoch import PerpStepResult
+from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 import src.integration.perps_wallet_api as perps_wallet_api
 
 
@@ -23,6 +25,7 @@ BOB = "0x" + bls_pubkey_hex_from_privkey(BOB_PRIVKEY)
 ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 MARKET_ID = "perp:ch2p:test"
+ISOLATED_MARKET_ID = "perp:isolated:test"
 
 
 def _wrapped_app_state(state: DexState) -> dict[str, object]:
@@ -213,6 +216,44 @@ def _state_with_posted_collateral(*, quote_asset: str) -> DexState:
             }
         ],
         sender=ALICE,
+    )
+
+
+def _state_with_isolated_liquidatable_account(*, quote_asset: str) -> DexState:
+    global_state = _kernel_initial_global_state()
+    global_state.update(
+        {
+            "now_epoch": 3,
+            "epoch_phase": 0,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 2,
+            "index_price_e8": 100_000_000,
+            "fee_pool_quote": 100,
+            "fee_income": 100,
+            "initial_insurance": 500,
+            "insurance_balance": 600,
+            "min_notional_for_bounty": 0,
+        }
+    )
+    market = PerpMarketState(
+        quote_asset=quote_asset,
+        global_state=global_state,
+        accounts={
+            ALICE: PerpAccountState(
+                position_base=100_000,
+                entry_price_e8=100_000_000,
+                collateral_quote=20_000,
+                funding_paid_cumulative=0,
+                funding_last_applied_epoch=0,
+                liquidated_this_step=False,
+            )
+        },
+    )
+    return DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(version=PERPS_STATE_VERSION, markets={ISOLATED_MARKET_ID: market}),
     )
 
 
@@ -611,6 +652,124 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     assert market["position_base_a"] == 0
     assert market["position_base_b"] == 0
     assert market["net_deposited_e8"] == 20_000_000_000
+
+
+def test_prepare_partial_liquidate_is_opt_in_for_isolated_markets(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.delenv("TAU_DEX_ALLOW_ISOLATED_PERPS", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "partial_liquidate",
+        "market_id": ISOLATED_MARKET_ID,
+        "account_pubkey": ALICE,
+        "fraction_bps": 2500,
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["operation"]["version"] == "0.1"
+    assert payload["report"]["operation"]["action"] == "partial_liquidate"
+    assert payload["report"]["preflight"]["ok"] is False
+    assert "isolated perps disabled" in payload["report"]["preflight"]["error"]
+
+
+def test_prepare_partial_liquidate_accepts_auto_fraction_zero(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "partial_liquidate",
+        "market_id": ISOLATED_MARKET_ID,
+        "account_pubkey": ALICE,
+        "fraction_bps": 0,
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["operation"]["action"] == "partial_liquidate"
+    assert payload["report"]["operation"]["fraction_bps"] == 0
+
+
+def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) -> None:
+    from src.integration import perp_engine as perp_engine_module
+
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def _fake_default_apply(*, state, action, params):
+        assert action == "partial_liquidate"
+        assert params == {"fraction_bps": 2500, "auth_ok": True}
+        post = dict(state)
+        post["position_base"] = 75_000
+        post["entry_price_e8"] = int(state["index_price_e8"])
+        post["liquidated_this_step"] = True
+        post["fee_pool_quote"] = int(state["fee_pool_quote"]) + 25
+        post["fee_income"] = int(state["fee_income"]) + 25
+        post["insurance_balance"] = int(state["insurance_balance"]) + 25
+        return PerpStepResult(
+            ok=True,
+            state=post,
+            effects={"event": "PartialLiquidationApplied", "liquidated": True},
+        )
+
+    monkeypatch.setattr(perp_engine_module, "perp_epoch_isolated_default_apply", _fake_default_apply)
+
+    body = {
+        "action": "partial_liquidate",
+        "market_id": ISOLATED_MARKET_ID,
+        "account_pubkey": ALICE,
+        "account_privkey": str(ALICE_PRIVKEY),
+        "fraction_bps": 2500,
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["transport"]["stream_key"] == "8"
+    assert payload["transport"]["tx_sender_pubkey"] == ALICE
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["operation"]["version"] == "0.1"
+    assert payload["report"]["operation"]["action"] == "partial_liquidate"
+    assert payload["report"]["operation"]["fraction_bps"] == 2500
+    assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
+    wire_ops = json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])
+    assert wire_ops[0]["action"] == "partial_liquidate"
+    assert wire_ops[0]["account_pubkey"] == ALICE
+    assert wire_ops[0]["fraction_bps"] == 2500
+    assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
 
 
 def test_submit_rejects_preflight_failure_before_sendtx(monkeypatch) -> None:

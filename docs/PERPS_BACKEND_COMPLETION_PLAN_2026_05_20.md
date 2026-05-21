@@ -99,9 +99,9 @@ Perps can be called live only when these are true:
    clearinghouse lane.
 6. Oracle settlement fails closed without typed Oracle evidence when
    `TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH=1`.
-   Clearinghouse liquidation is exercised through `settle_epoch`; an explicit
-   isolated-market partial-liquidation wallet action remains opt-in work if
-   isolated markets are promoted.
+   Clearinghouse liquidation is exercised through `settle_epoch`; isolated
+   partial liquidation is now available as an opt-in account-bound wallet action
+   when `TAU_DEX_ALLOW_ISOLATED_PERPS=1`.
 7. Browser tests and local Tau-node acceptance tests cover the live submission
    path.
 
@@ -192,11 +192,11 @@ reports whether the sender's current native Tau balance appears to cover that
 requested limit. This is a preflight posture check only; exact fee debit
 semantics remain a Tau host responsibility until pinned by live Tau evidence.
 
-Remaining live-transport operations:
+Remaining live-transport operation scope:
 
-- explicit isolated-market partial-liquidation action, if that opt-in market
-  family is promoted into the mounted wallet. Clearinghouse pair liquidation is
-  exercised through `settle_epoch`.
+- clearinghouse pair liquidation is exercised through `settle_epoch`;
+- isolated partial liquidation is mounted as an opt-in wallet action and still
+  needs production Oracle-evidence picker UX before any production promotion.
 
 Pinned live-transport evidence:
 
@@ -232,6 +232,7 @@ The UI now exposes:
 - open clearinghouse market roles
 - signed action status for market init, collateral deposit/withdraw, signed
   position update, epoch advance, clearing-price publish, and settle epoch
+- opt-in isolated partial liquidation with explicit bps or `0` auto-sizing
 - Tau fee-limit input plus native-balance coverage reporting
 - Tau submission receipt
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
@@ -241,8 +242,8 @@ The UI now exposes:
 Still missing from the mounted perps UI:
 
 - production typed Oracle evidence picker/viewer
-- richer liquidation history and a dedicated isolated partial-liquidation
-  control if isolated markets are promoted
+- richer liquidation history and a production Oracle-evidence picker for
+  isolated partial liquidation
 - production wallet/key-manager integration
 
 ### Phase 4: Assurance
@@ -423,7 +424,20 @@ The fuzz lane adds `long_horizon_balance_drift`,
 `long_horizon_cross_stream_partial_mutation`, and
 `long_horizon_nonce_replay_materializes`.
 
+Additional isolated partial-liquidation wallet evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py
+npm run build
+```
+
+Results: perps wallet API tests `15 passed`; the mounted UI production build
+passed. This covers the opt-in gate, account-bound stream `8` transaction
+payload, explicit liquidation fraction, and `0` auto-sizing pass-through.
+
 Remaining limits:
 
-- no explicit isolated-market partial-liquidation wallet action yet;
+- isolated partial liquidation is opt-in and does not yet have a production
+  Oracle-evidence picker;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.
