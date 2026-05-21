@@ -254,7 +254,8 @@ Required evidence before claiming perps live-product coverage:
   collateral deposit, signed position update, and settlement
 - local Docker Tau-node browser smoke for zUSD collateral mint plus follow-on
   zUSD-to-perps deposit through the mounted live perps wallet
-- stateful fuzzing over zUSD monetary actions and perps collateral actions
+- bounded stateful replay/fuzzing over zUSD monetary actions and perps
+  collateral actions
 - chaos tests for node restart, duplicate tx, expired deadline, stale Oracle
   evidence, and out-of-order signed operations
 - gas/fee compensation checks for keeper paths when exact Tau fee debits are
@@ -404,7 +405,23 @@ Result: API and browser balance checks `3 passed`. The mounted wallet now
 shows the selected market's account-A/account-B quote balances and posted
 clearinghouse collateral beside the live transaction result.
 
+Additional cross-stream stateful replay evidence added on 2026-05-21:
+
+```bash
+python3 tools/zenodex_live_cross_stream_stateful.py --format json
+pytest -q tests/integration/test_zenodex_live_cross_stream_stateful.py
+```
+
+Results: replay tool accepted `6` bounded scenarios; receipt tests `2 passed`.
+This covers stream `11` zUSD monetary, stream `9` zUSD token transport, and
+stream `8` clearinghouse perps in one deterministic campaign. The named
+disaster states are `balance_drift_after_cross_stream_success`,
+`duplicate_side_effect_after_replay`, `cross_stream_partial_mutation`,
+`expired_deadline_materializes`, `perps_overdeposit_materializes`, and
+`stale_or_missing_oracle_evidence_settles`.
+
 Remaining limits:
 
 - no explicit isolated-market partial-liquidation wallet action yet;
+- no randomized long-horizon cross-stream fuzz campaign yet;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

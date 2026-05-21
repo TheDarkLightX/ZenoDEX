@@ -73,6 +73,7 @@ pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zu
 pytest -q tests/integration/test_zusd_monetary_wallet_api.py
 pytest -q tests/integration/test_perps_wallet_api.py
 pytest -q tests/integration/test_perps_stream8_resilience.py
+python3 tools/zenodex_live_cross_stream_stateful.py --format json
 ```
 
 Latest local browser pass on 2026-05-20:
@@ -120,3 +121,16 @@ pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_
 ```
 
 Result: `1 passed`.
+
+Latest cross-stream stateful replay pass on 2026-05-21:
+
+```bash
+python3 tools/zenodex_live_cross_stream_stateful.py --format json
+pytest -q tests/integration/test_zenodex_live_cross_stream_stateful.py
+```
+
+Results: replay tool accepted `6` bounded scenarios; receipt tests `2 passed`.
+The covered disaster states are duplicate zUSD replay side effects,
+cross-stream partial mutation, expired zUSD deadline materialization, perps
+overdeposit materialization, missing Oracle bridge settlement, and balance drift
+after a zUSD-to-perps success path.
