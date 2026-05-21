@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './ConfidentialWorkbench.css';
 import { CONFIDENTIAL_SURFACE } from '../lib/confidentialData';
-import { apiGetConfidentialStatus, apiVerifyConfidentialAttestation } from '../lib/api';
+import { apiAdmitConfidentialAttestation, apiGetConfidentialStatus } from '../lib/api';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 
 const SMOKE_NITRO_PCR0 = 'a'.repeat(96);
@@ -13,7 +13,7 @@ function confidentialAttestationSmokeEnabled() {
   return new URLSearchParams(window.location.search).get('zenodexUiSmokeConfidentialVerify') === '1';
 }
 
-function buildAttestationRequest() {
+function buildAttestationRequest({ requestId = 'req-ui' } = {}) {
   return {
     attestation_payload: {
       provider: 'nitro',
@@ -27,7 +27,7 @@ function buildAttestationRequest() {
     },
     extension_id: 'route-premium-v1',
     provider_id: 'provider-1',
-    request_id: 'req-ui',
+    request_id: requestId,
     policy_version: 'tee-policy-v1',
     do_execute: 1,
     policy_ok: 1,
@@ -79,11 +79,15 @@ function ConfidentialWorkbench() {
   }, [demoMode]);
 
   async function runAttestationVerify() {
-    setAttestationStatus('attestation verification running');
+    setAttestationStatus('attestation admission running');
     setAttestationError('');
     setAttestationResult(null);
     try {
-      const payload = await apiVerifyConfidentialAttestation(buildAttestationRequest(), { timeoutMs: 10000 });
+      const requestId = confidentialAttestationSmokeEnabled() ? 'req-ui' : `req-ui-${Date.now()}`;
+      const payload = await apiAdmitConfidentialAttestation(
+        buildAttestationRequest({ requestId }),
+        { timeoutMs: 10000 },
+      );
       setAttestationResult(payload || null);
       setAttestationStatus(payload?.ok ? 'attestation accepted' : 'attestation rejected');
     } catch (err) {
@@ -189,11 +193,11 @@ function ConfidentialWorkbench() {
                   className="confidential-action-button"
                   type="button"
                   onClick={runAttestationVerify}
-                  disabled={demoMode || attestationStatus === 'attestation verification running'}
+                  disabled={demoMode || attestationStatus === 'attestation admission running'}
                 >
-                  Verify Attestation
+                  Admit Attestation
                 </button>
-                <span className="confidential-proof">/api/confidential/attestation/verify</span>
+                <span className="confidential-proof">/api/confidential/attestation/admit</span>
               </div>
             </article>
           </div>
@@ -204,6 +208,7 @@ function ConfidentialWorkbench() {
                   <span>receipt {receiptHash || 'missing'}</span>
                   <span>measurement {measurement.startsWith('nitro:') ? 'nitro' : measurement || 'unknown'}</span>
                   <span>{executionAdmitted ? 'execution admitted' : 'execution withheld'}</span>
+                  <span>{attestationResult?.request_consumed ? 'request consumed' : 'request unconsumed'}</span>
                 </>
               ) : (
                 <span>attestation error {attestationError}</span>

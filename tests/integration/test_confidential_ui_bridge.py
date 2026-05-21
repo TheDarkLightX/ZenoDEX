@@ -136,6 +136,7 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         assert "attestation accepted" in dom
         assert "measurement nitro" in dom
         assert "execution admitted" in dom
+        assert "request consumed" in dom
     finally:
         vite_proc.terminate()
         api_proc.terminate()

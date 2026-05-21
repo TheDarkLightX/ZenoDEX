@@ -10,7 +10,9 @@ import json
 import os
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
+from ..core.confidential_extension_live_admission import validate_confidential_extension_live_admission
 from ..core.confidential_extension_receipts import verify_confidential_extension_receipt
+from ..state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable
 from .confidential_attestation_verifier import (
     ConfidentialAttestationVerifierConfig,
     make_confidential_attestation_verifier,
@@ -156,10 +158,14 @@ def _status_payload() -> dict[str, Any]:
         "providers": status.to_public_dict().get("providers", []),
         "max_attestation_age_epochs": int(status.max_attestation_age_epochs),
         "stage": str(status.stage),
+        "endpoints": [
+            "POST /api/confidential/attestation/verify",
+            "POST /api/confidential/attestation/admit",
+        ],
     }
 
 
-def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
+def _make_receipt_from_body(body: Mapping[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     try:
         attestation_payload = _request_mapping(body, name="attestation_payload")
         receipt, err = verify_and_make_confidential_extension_receipt(
@@ -183,33 +189,124 @@ def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
             provider_balance_after=_request_int(body, name="provider_balance_after"),
         )
     except Exception as exc:
-        return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+        return None, f"bad_request: {exc}"
 
     if err is not None or receipt is None:
-        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+        return None, str(err or "rejected")
+    return receipt, None
 
+
+def _verify_receipt_allowlist(receipt: dict[str, Any]) -> tuple[bool, str]:
     status = load_confidential_feature_status_from_env()
-    ok, gate_error = verify_confidential_extension_receipt(
+    return verify_confidential_extension_receipt(
         receipt,
         approved_measurements=status.approved_measurements,
     )
-    if not ok:
-        return 400, {"ok": False, "error": str(gate_error), "receipt_admissible": False}
 
-    receipt_body = receipt.get("body") if isinstance(receipt, dict) else {}
-    if not isinstance(receipt_body, dict):
-        return 500, {"ok": False, "error": "bad_receipt_shape"}
-    return 200, {
-        "ok": True,
-        "receipt_admissible": True,
-        "receipt": receipt,
+
+def _receipt_body(receipt: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    body = receipt.get("body")
+    return body if isinstance(body, Mapping) else None
+
+
+def _receipt_summary(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    receipt_body = _receipt_body(receipt)
+    if receipt_body is None:
+        return {}
+    host = receipt_body.get("host")
+    host_obj = host if isinstance(host, Mapping) else {}
+    return {
         "receipt_hash": receipt.get("receipt_hash"),
         "measurement": receipt_body.get("measurement"),
         "provider_id": receipt_body.get("provider_id"),
         "request_id": receipt_body.get("request_id"),
         "policy_digest": receipt_body.get("policy_digest"),
-        "execution_admitted": bool(receipt_body.get("host", {}).get("do_execute") == 1),
+        "execution_admitted": bool(host_obj.get("do_execute") == 1),
+    }
+
+
+def _request_key_from_receipt(receipt: Mapping[str, Any]) -> ConfidentialRequestKey:
+    body = _receipt_body(receipt)
+    if body is None:
+        raise ValueError("missing receipt body")
+    return ConfidentialRequestKey(
+        extension_id=str(body["extension_id"]),
+        provider_id=str(body["provider_id"]),
+        request_id=str(body["request_id"]),
+    )
+
+
+def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
+    receipt, err = _make_receipt_from_body(body)
+    if err is not None or receipt is None:
+        if err and err.startswith("bad_request: "):
+            return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
+        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+
+    ok, gate_error = _verify_receipt_allowlist(receipt)
+    if not ok:
+        return 400, {"ok": False, "error": str(gate_error), "receipt_admissible": False}
+
+    summary = _receipt_summary(receipt)
+    if not summary:
+        return 500, {"ok": False, "error": "bad_receipt_shape"}
+    return 200, {
+        "ok": True,
+        "receipt_admissible": True,
+        "receipt": receipt,
+        **summary,
         "claim_scope": "local_testnet_external_verifier_receipt",
+    }
+
+
+def _handle_admit(
+    body: Mapping[str, Any],
+    *,
+    request_table: ConfidentialRequestTable | None,
+) -> ResponseT:
+    if request_table is None:
+        return 503, {"ok": False, "error": "confidential_request_table_unavailable"}
+    try:
+        expected_policy_digest = _request_str(body, name="expected_policy_digest")
+    except Exception as exc:
+        return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+
+    receipt, err = _make_receipt_from_body(body)
+    if err is not None or receipt is None:
+        if err and err.startswith("bad_request: "):
+            return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
+        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+
+    status = load_confidential_feature_status_from_env()
+    admitted, admission_error, _updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=status.approved_measurements,
+        expected_policy_digest=expected_policy_digest,
+        request_table=request_table,
+    )
+    if not admitted:
+        return 400, {
+            "ok": False,
+            "error": str(admission_error or "admission_rejected"),
+            "admission_ok": False,
+            "request_consumed": False,
+        }
+
+    key = _request_key_from_receipt(receipt)
+    request_table.mark_used(key)
+    return 200, {
+        "ok": True,
+        "admission_ok": True,
+        "receipt_admissible": True,
+        "request_consumed": True,
+        "request_key": {
+            "extension_id": key.extension_id,
+            "provider_id": key.provider_id,
+            "request_id": key.request_id,
+        },
+        "receipt": receipt,
+        **_receipt_summary(receipt),
+        "claim_scope": "local_testnet_external_verifier_live_admission",
     }
 
 
@@ -217,6 +314,8 @@ def handle_confidential_attestation_request(
     method: str,
     path: str,
     raw_body: Optional[bytes],
+    *,
+    request_table: ConfidentialRequestTable | None = None,
 ) -> ResponseT:
     if method == "GET" and path == "/api/confidential/attestation/status":
         return 200, {"ok": True, "status": _status_payload()}
@@ -226,5 +325,11 @@ def handle_confidential_attestation_request(
         if err is not None or obj is None:
             return 400, {"ok": False, "error": str(err or "invalid_request")}
         return _handle_verify(obj)
+
+    if method == "POST" and path == "/api/confidential/attestation/admit":
+        obj, err = _parse_json_body(raw_body)
+        if err is not None or obj is None:
+            return 400, {"ok": False, "error": str(err or "invalid_request")}
+        return _handle_admit(obj, request_table=request_table)
 
     return 404, {"ok": False, "error": "not_found"}

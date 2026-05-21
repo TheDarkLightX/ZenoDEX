@@ -1109,7 +1109,23 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.confidential_attestation_api import handle_confidential_attestation_request
 
-        status, resp = handle_confidential_attestation_request(method, path, raw_body)
+        request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
+        request_lock = getattr(self.server, "confidential_request_lock", None)  # type: ignore[attr-defined]
+        if path == "/api/confidential/attestation/admit" and request_lock is not None:
+            with request_lock:
+                status, resp = handle_confidential_attestation_request(
+                    method,
+                    path,
+                    raw_body,
+                    request_table=request_table,
+                )
+        else:
+            status, resp = handle_confidential_attestation_request(
+                method,
+                path,
+                raw_body,
+                request_table=request_table,
+            )
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -6731,6 +6747,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     demo_api_token = _env_str("DEMO_API_TOKEN", "")
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+    from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
 
     sensitive_api_enabled = bool(
         perps_enabled
@@ -6792,6 +6809,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
+    httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
+    httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
 
     print(
         f"zenodex-api listening on http://{host}:{port} "

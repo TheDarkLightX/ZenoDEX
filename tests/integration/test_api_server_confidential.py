@@ -16,6 +16,7 @@ MEASUREMENT = f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}"
 def _start_test_server():
     from src.integration import api_server
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
+    from src.state.confidential_requests import ConfidentialRequestTable
 
     httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
     httpd.cors_origins = set()  # type: ignore[attr-defined]
@@ -30,6 +31,8 @@ def _start_test_server():
     httpd.dex_api_enabled = False  # type: ignore[attr-defined]
     httpd.demo_api_token = ""  # type: ignore[attr-defined]
     httpd.confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()  # type: ignore[attr-defined]
+    httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
+    httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
@@ -150,6 +153,7 @@ def test_api_server_confidential_attestation_status_reports_verifier_posture(mon
         assert status["external_verifier_configured"] is True
         assert status["approved_measurements_count"] == 1
         assert status["providers"] == ["nitro"]
+        assert "POST /api/confidential/attestation/admit" in status["endpoints"]
     finally:
         _stop_test_server(httpd, t)
 
@@ -170,6 +174,59 @@ def test_api_server_confidential_attestation_verify_accepts_allowlisted_external
         assert body["execution_admitted"] is True
         assert str(body["receipt_hash"])
         assert body["claim_scope"] == "local_testnet_external_verifier_receipt"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_admit_consumes_request_and_rejects_replay(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    request = {**_attestation_request(), "expected_policy_digest": POLICY_DIGEST}
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(host, port, "/api/confidential/attestation/admit", request)
+        assert status == 200
+        assert body["ok"] is True
+        assert body["admission_ok"] is True
+        assert body["request_consumed"] is True
+        assert body["request_key"] == {
+            "extension_id": "route-premium-v1",
+            "provider_id": "provider-1",
+            "request_id": "req-api",
+        }
+        assert body["claim_scope"] == "local_testnet_external_verifier_live_admission"
+
+        status, replay = _post_json(host, port, "/api/confidential/attestation/admit", request)
+        assert status == 400
+        assert replay["ok"] is False
+        assert replay["error"] == "request_replay"
+        assert replay["request_consumed"] is False
+        assert "receipt" not in replay
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_admit_policy_mismatch_does_not_consume(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    bad_request = {**_attestation_request(), "expected_policy_digest": "0x" + ("e" * 64)}
+    good_request = {**_attestation_request(), "expected_policy_digest": POLICY_DIGEST}
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, rejected = _post_json(host, port, "/api/confidential/attestation/admit", bad_request)
+        assert status == 400
+        assert rejected["ok"] is False
+        assert rejected["error"] == "policy_digest_mismatch"
+        assert rejected["request_consumed"] is False
+
+        status, accepted = _post_json(host, port, "/api/confidential/attestation/admit", good_request)
+        assert status == 200
+        assert accepted["ok"] is True
+        assert accepted["request_consumed"] is True
     finally:
         _stop_test_server(httpd, t)
 
