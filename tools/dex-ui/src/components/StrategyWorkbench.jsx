@@ -3,6 +3,7 @@ import './StrategyWorkbench.css';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import {
   apiGetAutotraderStatus,
+  apiExecuteAutotraderLiveOnce,
   apiPrepareAutotraderLive,
   apiSubmitAutotraderLive,
 } from '../lib/api.js';
@@ -18,7 +19,11 @@ function isAutoTraderSmokeEnabled() {
     return false;
   }
   const params = new URLSearchParams(window.location.search);
-  return params.get('zenodexUiSmokeStrategyLive') === '1' || params.get('zenodexUiSmokeStrategyLiveSubmit') === '1';
+  return (
+    params.get('zenodexUiSmokeStrategyLive') === '1'
+    || params.get('zenodexUiSmokeStrategyLiveSubmit') === '1'
+    || params.get('zenodexUiSmokeStrategyLiveExecute') === '1'
+  );
 }
 
 function isAutoTraderSubmitSmokeEnabled() {
@@ -26,6 +31,13 @@ function isAutoTraderSubmitSmokeEnabled() {
     return false;
   }
   return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLiveSubmit') === '1';
+}
+
+function isAutoTraderExecuteSmokeEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLiveExecute') === '1';
 }
 
 function readAutoTraderSignedPayload() {
@@ -174,6 +186,7 @@ function StrategyCard({ strategy }) {
 function AutoTraderLivePrepareSurface({ demoMode }) {
   const smokeEnabled = isAutoTraderSmokeEnabled();
   const submitSmokeEnabled = isAutoTraderSubmitSmokeEnabled();
+  const executeSmokeEnabled = isAutoTraderExecuteSmokeEnabled();
   const [status, setStatus] = useState(null);
   const [acknowledged, setAcknowledged] = useState(smokeEnabled);
   const [result, setResult] = useState(null);
@@ -188,6 +201,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const submitBundle = report?.submit_bundle?.ok === true ? 'ready' : 'pending';
   const submissionStatus = result?.submission?.sendtx_response ? 'submitted' : 'pending';
   const txSigningMode = result?.submission?.signing_mode || report?.tau_tx_signing_mode || 'local_test_signing';
+  const executionGuard = result?.execution?.replay_guard || 'pending';
   const operations = report?.operations && typeof report.operations === 'object' ? report.operations : {};
   const operationCount = Object.values(operations).reduce((total, values) => (
     Array.isArray(values) ? total + values.length : total
@@ -209,6 +223,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
       signer_privkey: 7,
       chain_id: 'tau-local',
     };
+    if (forSubmit) {
+      body.execution_id = 'strategy-ui-exec-1';
+    }
     if (!forSubmit) {
       body.tx_sequence_number = 9;
       body.tx_expiration_time = 999;
@@ -247,6 +264,20 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     }
   }
 
+  async function executeLiveStrategyOnce() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiExecuteAutotraderLiveOnce(liveRequestBody({ forSubmit: true }), { timeoutMs: 20000 });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'execute_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     refreshStatus();
   }, []);
@@ -257,7 +288,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         return;
       }
       smokeRunRef.current = true;
-      if (submitSmokeEnabled) {
+      if (executeSmokeEnabled) {
+        executeLiveStrategyOnce();
+      } else if (submitSmokeEnabled) {
         submitLiveStrategy();
       } else {
         prepareLiveStrategy();
@@ -265,7 +298,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     }
     // The smoke path intentionally runs once from the URL trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode, smokeEnabled, submitSmokeEnabled]);
+  }, [demoMode, smokeEnabled, submitSmokeEnabled, executeSmokeEnabled]);
 
   return (
     <div className="panel strat-section-card strat-live-panel animate-fade-in" aria-label="AutoTrader live prepare">
@@ -303,6 +336,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         <div className="strat-live-metric">
           <span>Tx signing</span>
           <strong>{txSigningMode}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Execution guard</span>
+          <strong>{executionGuard}</strong>
         </div>
         <div className="strat-live-metric">
           <span>Operations</span>
@@ -355,6 +392,14 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         >
           Submit Local Testnet
         </button>
+        <button
+          className="btn btn-secondary"
+          type="button"
+          onClick={executeLiveStrategyOnce}
+          disabled={busy || demoMode || !acknowledged || !status?.execute_once_enabled}
+        >
+          Execute Once
+        </button>
       </div>
 
       {error && (
@@ -374,6 +419,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           )}
           {result?.submission?.createblock_response && (
             <div className="strat-kv"><span>Block</span><span>{result.submission.createblock_response}</span></div>
+          )}
+          {result?.execution?.execution_id && (
+            <div className="strat-kv"><span>Execution key</span><span>{result.execution.execution_id}</span></div>
           )}
           {report?.tau_tx_payload && (
             <div className="strat-live-code strat-mono">

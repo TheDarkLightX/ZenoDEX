@@ -80,6 +80,10 @@ def _allow_testnet_submission() -> bool:
     return _env_bool("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", False)
 
 
+def _allow_execute_once() -> bool:
+    return _env_bool("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", False)
+
+
 def _auto_mine() -> bool:
     return _env_bool("AUTOTRADER_LIVE_AUTO_MINE", False)
 
@@ -151,6 +155,18 @@ def _request_signed_tau_tx_payload(body: Mapping[str, Any]) -> Mapping[str, Any]
         if value is not None:
             return value
     return None
+
+
+def _request_execution_id(body: Mapping[str, Any]) -> str:
+    raw = body.get("execution_id", body.get("execution_key"))
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("execution_id must be a non-empty string")
+    value = raw.strip()
+    if len(value) > 128:
+        raise ValueError("execution_id too long")
+    if any(ch.isspace() for ch in value):
+        raise ValueError("execution_id must not contain whitespace")
+    return value
 
 
 def _validate_external_tau_tx_payload(
@@ -574,6 +590,56 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _build_execute_once_response(
+    body: Mapping[str, Any],
+    *,
+    execution_keys: set[str] | None,
+) -> dict[str, Any]:
+    if not _allow_execute_once():
+        return {
+            "ok": False,
+            "error": "execute_once_disabled",
+            "not_claimed": [
+                "unattended_production_strategy_execution",
+                "production_wallet_key_management",
+                "production_chain_submission",
+            ],
+        }
+    if execution_keys is None:
+        return {"ok": False, "error": "execution_key_table_unavailable"}
+
+    execution_id = _request_execution_id(body)
+    if execution_id in execution_keys:
+        return {
+            "ok": False,
+            "error": "execution_replay",
+            "execution": {
+                "execution_id": execution_id,
+                "replay_guard": "already_consumed",
+            },
+        }
+
+    submitted = _build_submit_response(body)
+    if submitted.get("ok") is not True:
+        return submitted
+
+    execution_keys.add(execution_id)
+    return {
+        **submitted,
+        "status": "executed_once",
+        "surface": "autotrader_live_local_testnet_execute_once",
+        "execution": {
+            "execution_id": execution_id,
+            "replay_guard": "consumed",
+        },
+        "not_claimed": [
+            "unattended_production_strategy_execution",
+            "production_wallet_key_management",
+            "production_chain_submission",
+        ],
+    }
+
+
 def _status_payload() -> dict[str, Any]:
     return {
         "enabled": True,
@@ -582,6 +648,7 @@ def _status_payload() -> dict[str, Any]:
         "chain_id": _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"),
         "allow_local_signing": _allow_signing(),
         "testnet_submission_enabled": _allow_testnet_submission(),
+        "execute_once_enabled": _allow_execute_once(),
         "auto_mine": _auto_mine(),
         "tau_host": _env_str("AUTOTRADER_LIVE_TAU_HOST", "127.0.0.1"),
         "tau_port": _env_int("AUTOTRADER_LIVE_TAU_PORT", 65432, lo=1, hi=65535),
@@ -589,6 +656,7 @@ def _status_payload() -> dict[str, Any]:
             "GET /api/strategy/autotrader/status",
             "POST /api/strategy/autotrader/prepare",
             "POST /api/strategy/autotrader/submit",
+            "POST /api/strategy/autotrader/execute-once",
         ],
         "risk_disclosure": build_autotrader_risk_disclosure(
             mode="live_prepare",
@@ -603,7 +671,13 @@ def _status_payload() -> dict[str, Any]:
     }
 
 
-def handle_autotrader_live_request(method: str, path: str, body: Optional[bytes]) -> ResponseT:
+def handle_autotrader_live_request(
+    method: str,
+    path: str,
+    body: Optional[bytes],
+    *,
+    execution_keys: set[str] | None = None,
+) -> ResponseT:
     parsed_path = urlsplit(path)
     segments = [segment for segment in parsed_path.path.split("/") if segment]
     if len(segments) < 4 or segments[0] != "api" or segments[1] != "strategy" or segments[2] != "autotrader":
@@ -626,6 +700,10 @@ def handle_autotrader_live_request(method: str, path: str, body: Optional[bytes]
             return status, payload
         if rest == ["submit"]:
             payload = _build_submit_response(parsed)
+            status = 200 if payload.get("ok") is True else 400
+            return status, payload
+        if rest == ["execute-once"]:
+            payload = _build_execute_once_response(parsed, execution_keys=execution_keys)
             status = 200 if payload.get("ok") is True else 400
             return status, payload
         return 404, {"ok": False, "error": "not_found"}

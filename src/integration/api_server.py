@@ -1093,7 +1093,23 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         from src.integration.autotrader_live_api import handle_autotrader_live_request
 
-        status, resp = handle_autotrader_live_request(method, path, raw_body)
+        execution_keys = getattr(self.server, "autotrader_execution_keys", None)  # type: ignore[attr-defined]
+        execution_lock = getattr(self.server, "autotrader_execution_lock", None)  # type: ignore[attr-defined]
+        if path == "/api/strategy/autotrader/execute-once" and execution_lock is not None:
+            with execution_lock:
+                status, resp = handle_autotrader_live_request(
+                    method,
+                    path,
+                    raw_body,
+                    execution_keys=execution_keys,
+                )
+        else:
+            status, resp = handle_autotrader_live_request(
+                method,
+                path,
+                raw_body,
+                execution_keys=execution_keys,
+            )
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -6805,6 +6821,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
     httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
+    httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
     httpd.confidential_attestation_api_enabled = confidential_attestation_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]

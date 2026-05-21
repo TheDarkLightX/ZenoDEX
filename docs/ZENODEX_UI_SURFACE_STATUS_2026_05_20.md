@@ -10,7 +10,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
 | Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and a write-enabled receipt flow. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
-| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit panel in non-demo mode | Yes for local AutoTrader prepare and gated local/testnet submit through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, and release certificates. Unattended execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
+| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit and execute-once panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, and stateful execute-once through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, and an in-process execution-key replay guard. Unattended production execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status plus local/testnet attestation receipt/admission surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, and stateful live-admission request consumption via `POST /api/confidential/attestation/admit`. Runtime confidential execution remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py` |
 
 ## Interpretation
@@ -21,7 +21,7 @@ selection.
 The next product-complete backend promotions still required are:
 
 1. production Oracle authority, wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
-2. strategy execution beyond the gated local/testnet submit path;
+2. production-grade unattended strategy execution beyond explicit local/testnet execute-once;
 3. confidential runtime execution beyond the external-verifier attestation receipt and live-admission gate.
 
 Perps now has focused backend and browser evidence for a mounted live wallet
@@ -54,14 +54,16 @@ sequence, expiry, fee limit, encoded operations, and BLS signature before
 SP-claim actions can be driven by an external signer or key-manager without
 enabling local raw-key signing in the API.
 
-The AutoTrader local/testnet submit path now accepts an externally signed Tau
-transaction envelope for the prepared strategy operation bundle. The API
-validates the envelope's sender, current sequence, expiry, fee limit, encoded
-operations, and BLS signature before `sendtx`; replaying the same signed
-envelope is rejected before a second `sendtx`. This is Tau-envelope transport
-evidence for the gated local/testnet Strategy panel, while unattended
-production strategy execution and production wallet key management remain
-non-claims.
+The AutoTrader local/testnet path now accepts an externally signed Tau
+transaction envelope for the prepared strategy operation bundle and can execute
+it through an explicit execute-once route. The API validates the envelope's
+sender, current sequence, expiry, fee limit, encoded operations, and BLS
+signature before `sendtx`; replaying the same signed envelope is rejected
+before a second `sendtx`, and the execute-once path consumes a caller-provided
+execution key only after successful local/testnet submission. This is
+Tau-envelope transport and stateful replay-guard evidence for the Strategy
+panel, while unattended production strategy execution and production wallet key
+management remain non-claims.
 
 The confidential tab now has a live local/testnet attestation receipt and
 admission path. The mounted API invokes a configured external verifier command,
@@ -102,7 +104,7 @@ These checks prove:
   and oracle price publish actions through the Tau-node-backed API;
 - the mounted Strategy tab can prepare receipt-backed AutoTrader operations and
   submit them to a local/testnet Tau RPC when explicit risk acknowledgement,
-  local signing, and testnet-submission gates are enabled;
+  local signing, testnet-submission, and execute-once gates are enabled;
 - the mounted confidential tab can load live operator posture from the stdlib API server and run a local/testnet external-verifier attestation admission smoke.
 
 Current backend-only perps bridge check:
@@ -147,15 +149,19 @@ python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
 npm run build
 ```
 
-Results: `9 passed`, `2 passed`, and Vite production build passed. The API
+Results: `11 passed`, `3 passed`, and Vite production build passed. The API
 suite includes a Tau app-bridge application check proving the default prepared
 AutoTrader signed intent payload applies against the same deterministic fixture
 pool that the live-preparation path quotes. It also accepts a valid externally
 signed Tau envelope and rejects duplicate signed-envelope replay before a
-second `sendtx`. The browser submit smoke calls the mounted Strategy tab, sends
-the externally signed prepared Tau transaction to a Tau-compatible local/testnet
-RPC, auto-mines, and renders the `sendtx`, block receipts, and
-`external_signed_payload` signing mode.
+second `sendtx`. It now also exposes `POST
+/api/strategy/autotrader/execute-once`, gated by
+`AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, which consumes an execution key
+after successful local/testnet submit and rejects execution-key replay before a
+second broadcast. The browser submit and execute-once smokes call the mounted
+Strategy tab, send the externally signed prepared Tau transaction to a
+Tau-compatible local/testnet RPC, auto-mine, and render the `sendtx`, block
+receipts, `external_signed_payload` signing mode, and consumed execution key.
 
 Latest local browser pass on 2026-05-20:
 

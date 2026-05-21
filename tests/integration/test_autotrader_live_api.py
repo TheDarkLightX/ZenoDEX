@@ -23,6 +23,7 @@ def _balance(payload: str, *, pubkey: str, asset: str) -> int:
 
 def test_autotrader_live_status_reports_receipt_backed_prepare_surface(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", raising=False)
+    monkeypatch.delenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", raising=False)
 
     status, payload = handle_autotrader_live_request(
         "GET",
@@ -36,7 +37,9 @@ def test_autotrader_live_status_reports_receipt_backed_prepare_surface(monkeypat
     assert payload["status"]["mode"] == "receipt_backed_prepare"
     assert "POST /api/strategy/autotrader/prepare" in payload["status"]["endpoints"]
     assert "POST /api/strategy/autotrader/submit" in payload["status"]["endpoints"]
+    assert "POST /api/strategy/autotrader/execute-once" in payload["status"]["endpoints"]
     assert payload["status"]["testnet_submission_enabled"] is False
+    assert payload["status"]["execute_once_enabled"] is False
     assert "production_chain_submission" in payload["status"]["not_claimed"]
 
 
@@ -337,6 +340,94 @@ def test_autotrader_live_submit_rejects_external_signed_tau_replay_before_sendtx
     assert status == 400
     assert replay_rejected["ok"] is False
     assert replay_rejected["error"] == "signed_tau_tx_payload sequence mismatch"
+    assert len(_FakeTauClient.sent) == 1
+
+
+def test_autotrader_live_execute_once_requires_enablement(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", raising=False)
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(
+            {
+                "execution_id": "exec-disabled",
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+            }
+        ).encode("utf-8"),
+        execution_keys=set(),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "execute_once_disabled"
+
+
+def test_autotrader_live_execute_once_consumes_execution_key_and_rejects_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+        sequence = 9
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return type(self).sequence
+
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
+            type(self).sent.append(dict(payload))
+            type(self).sequence += 1
+            return "SUCCESS: Transaction queued."
+
+    _FakeTauClient.sent = []
+    _FakeTauClient.sequence = 9
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "true")
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+    execution_keys: set[str] = set()
+
+    body = {
+        "execution_id": "strategy-exec-1",
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+    status, accepted = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(body).encode("utf-8"),
+        execution_keys=execution_keys,
+    )
+    assert status == 200
+    assert accepted["ok"] is True
+    assert accepted["status"] == "executed_once"
+    assert accepted["surface"] == "autotrader_live_local_testnet_execute_once"
+    assert accepted["execution"] == {"execution_id": "strategy-exec-1", "replay_guard": "consumed"}
+    assert execution_keys == {"strategy-exec-1"}
+    assert len(_FakeTauClient.sent) == 1
+
+    replay_body = {**body, "tx_sequence_number": 10}
+    status, replay = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(replay_body).encode("utf-8"),
+        execution_keys=execution_keys,
+    )
+    assert status == 400
+    assert replay["ok"] is False
+    assert replay["error"] == "execution_replay"
+    assert replay["execution"]["replay_guard"] == "already_consumed"
     assert len(_FakeTauClient.sent) == 1
 
 
