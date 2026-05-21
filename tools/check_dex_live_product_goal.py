@@ -124,6 +124,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         description="The stream-11 zUSD monetary wallet API is a live local/testnet transaction surface.",
         anchors=(
             "stream-11 zUSD monetary",
+            "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF",
+            "verify_live_proof_wrapper",
+            "zusd_stream11_live_monetary_v0",
             "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
             "_build_prepare_response",
             "external_signed_payload",
@@ -150,7 +153,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "PERPS_WALLET_TAU_HOST",
             "PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY",
+            "PERPS_WALLET_REQUIRE_ZK_PROOF",
             "oracle_authority_exercise",
+            "verify_live_proof_wrapper",
             "_build_prepare_response",
             "external_signed_payload",
             "_status_payload",
@@ -211,6 +216,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "test_zusd_monetary_wallet_ui_smoke_through_browser",
             "test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data",
+            "zusd_stream11_live_monetary_v0",
         ),
     ),
     AnchorCheck(
@@ -294,6 +300,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "Additional daemon-backed mounted browser Toxiproxy evidence",
             "Additional confidential surface claim-scope evidence",
             "Additional perps Oracle-authority exercise receipt evidence",
+            "Additional stream `8`/`11` proof-wrapper gate evidence",
         ),
     ),
 )
@@ -326,7 +333,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "zk_wrapping",
-        "description": "zUSD and perps live paths still need a real proof/ZK wrapper instead of proof-intent receipts.",
+        "description": "zUSD and perps live paths still need production circuit artifacts; the current gate verifies external proofs over proof-intent receipts.",
     },
     {
         "id": "production_autotrader",

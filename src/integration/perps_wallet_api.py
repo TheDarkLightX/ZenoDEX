@@ -18,6 +18,12 @@ from ..core.dex import DexState
 from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .dex_snapshot import state_from_snapshot
+from .live_proof_wrapper import (
+    live_zk_proof_required,
+    proof_from_request,
+    require_live_proof_wrapper,
+    verify_live_proof_wrapper,
+)
 from .perp_engine import PerpEngineConfig, apply_perp_ops
 from .perps_wallet_authority import evaluate_perps_wallet_authority_profile_v1
 from .tau_net_client import (
@@ -53,6 +59,8 @@ _PERPS_PROOF_PROFILE_ID = "perps_stream8_live_wallet_v0"
 _PERPS_PROOF_PROFILE_SCHEMA = "zenodex/perps_wallet/proof_profile/v1"
 _PERPS_PROOF_INTENT_SCHEMA = "zenodex/perps_wallet/proof_intent_receipt/v1"
 _PERPS_PROOF_INTENT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
+_PERPS_ZK_PROOF_ENV_PREFIX = "PERPS_WALLET"
+_PERPS_ZK_PROOF_REQUIRED_ENV = "PERPS_WALLET_REQUIRE_ZK_PROOF"
 _ORACLE_AUTHORITY_EXERCISE_SCHEMA = "zenodex/perps_wallet/oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_EXERCISE_HASH_DOMAIN = "zenodex.perps_wallet.oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_ACTIONS = {"settle_epoch", "partial_liquidate"}
@@ -465,6 +473,34 @@ def _perps_proof_profile() -> dict[str, Any]:
         "zk_wrapper_required_for_production_claim": True,
         "promotion_ready": False,
     }
+
+
+def _bind_live_zk_wrapper(
+    payload: dict[str, Any],
+    *,
+    body: Mapping[str, Any],
+    required: bool,
+) -> dict[str, Any]:
+    proof_section = payload.get("proof")
+    if not isinstance(proof_section, dict):
+        return payload
+    receipt = proof_section.get("intent_receipt")
+    if not isinstance(receipt, Mapping):
+        return payload
+    zk_wrapper = verify_live_proof_wrapper(
+        surface="perps_stream8",
+        env_prefix=_PERPS_ZK_PROOF_ENV_PREFIX,
+        proof_intent_receipt=receipt,
+        proof=proof_from_request(body),
+        required=required,
+    )
+    require_live_proof_wrapper(zk_wrapper)
+    proof_section["zk_wrapper"] = zk_wrapper
+    profile = proof_section.get("profile")
+    if isinstance(profile, dict):
+        profile["zk_proof_verified"] = bool(zk_wrapper.get("zk_proof_verified"))
+        profile["promotion_ready"] = bool(zk_wrapper.get("zk_proof_verified"))
+    return payload
 
 
 def _perps_proof_intent_receipt(
@@ -1541,6 +1577,8 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "oracle_authority_exercise": oracle_authority_exercise,
         },
     }
+    zk_required = live_zk_proof_required(env_prefix=_PERPS_ZK_PROOF_ENV_PREFIX)
+    payload = _bind_live_zk_wrapper(payload, body=body, required=zk_required)
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
         payload["submission"] = {"sendtx_response": send_resp}
@@ -1577,6 +1615,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             state_delta_witness=state_delta_witness,
         )
         payload["proof"]["oracle_authority_exercise"] = oracle_authority_exercise
+        payload = _bind_live_zk_wrapper(payload, body=body, required=False)
     return payload
 
 

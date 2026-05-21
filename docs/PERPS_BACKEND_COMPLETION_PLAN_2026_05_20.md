@@ -970,6 +970,34 @@ fails closed before `sendtx` unless that ready authority profile and typed
 Oracle bridge are both present. The mounted perps wallet UI now renders the
 authority-exercised flag and authority receipt hash from the submit result.
 
+Additional stream `8`/`11` proof-wrapper gate evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/live_proof_wrapper.py src/integration/perps_wallet_api.py src/integration/zusd_monetary_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_zusd_monetary_wallet_api.py tests/integration/test_zusd_monetary_wallet_ui_bridge.py tools/check_dex_live_product_goal.py tests/test_check_dex_live_product_goal.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_prepare_init_market_requires_zk_proof_when_enabled tests/integration/test_perps_wallet_api.py::test_prepare_init_market_accepts_verified_zk_wrapper tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_requires_zk_proof_when_enabled tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_accepts_verified_zk_wrapper
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py tests/integration/test_perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_ui_smoke_through_browser -s
+python3 -m pytest -q tests/test_check_dex_live_product_goal.py
+python3 tools/check_dex_live_product_goal.py --json
+python3 tools/check_public_claim_scope.py --json
+```
+
+Results: py_compile passed; focused proof-wrapper plus goal-audit regression
+checks `8 passed`; affected zUSD monetary wallet and perps wallet API suites
+`46 passed`; focused mounted zUSD browser smoke `1 passed`; the live-product
+goal audit returned `ok: true`, `goal_complete: false`, and
+`local_testnet_evidence_present_with_open_production_limits`; public
+claim-scope audit returned `ok: true`. Stream `8` perps wallet prepares and
+stream `11` zUSD monetary prepares now bind a shared external proof-verifier
+wrapper over their
+proof-intent receipts when `PERPS_WALLET_REQUIRE_ZK_PROOF=1`,
+`ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF=1`, or
+`TAU_DEX_REQUIRE_LIVE_ZK_PROOF=1` is set. If the gate is required, the APIs
+fail closed before signing or `sendtx` unless a caller-supplied proof verifies
+through the configured verifier command. This is an execution-wrapper gate over
+deterministic receipts. It is not yet a production RISC Zero or SP1 circuit
+claim.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle
@@ -981,4 +1009,6 @@ Remaining limits:
 - confidential execution is bounded to attested admission, replay protection,
   redaction, and local accounting evidence; TEE hardware confidentiality and
   fully encrypted on-chain state remain unproved external assumptions;
-- no ZK proof wrapper for stream `8` or `11` transitions yet.
+- stream `8` and stream `11` now have a fail-closed external proof-verifier
+  wrapper gate over proof-intent receipts, but no production RISC Zero, SP1, or
+  equivalent circuit proof artifact is present yet.

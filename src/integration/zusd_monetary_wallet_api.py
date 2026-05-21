@@ -19,7 +19,13 @@ from ..core.dex import DexState
 from ..core.zusd import E8
 from .dex_snapshot import state_from_snapshot
 from ..state.balances import BalanceTable, NATIVE_ASSET
-from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from .live_proof_wrapper import (
+    live_zk_proof_required,
+    proof_from_request,
+    require_live_proof_wrapper,
+    verify_live_proof_wrapper,
+)
 from .tau_net_client import (
     TauNetRpcError,
     TauNetTcpClient,
@@ -44,6 +50,12 @@ MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
 _STREAM_KEY = "11"
 _U32_MAX = 0xFFFFFFFF
+_ZUSD_PROOF_PROFILE_ID = "zusd_stream11_live_monetary_v0"
+_ZUSD_PROOF_PROFILE_SCHEMA = "zenodex/zusd_monetary_wallet/proof_profile/v1"
+_ZUSD_PROOF_INTENT_SCHEMA = "zenodex/zusd_monetary_wallet/proof_intent_receipt/v1"
+_ZUSD_PROOF_INTENT_HASH_DOMAIN = "zenodex.zusd_monetary_wallet.proof_intent_receipt/v1"
+_ZUSD_ZK_PROOF_ENV_PREFIX = "ZUSD_MONETARY_WALLET"
+_ZUSD_ZK_PROOF_REQUIRED_ENV = "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF"
 _ACTIONS = {
     "advance_epoch",
     "bootstrap_oracle",
@@ -102,6 +114,120 @@ def _env_int_alias(primary: str, fallback: str, default: int, *, lo: int, hi: in
     if os.environ.get(primary, "").strip():
         return _env_int(primary, default, lo=lo, hi=hi)
     return _env_int(fallback, default, lo=lo, hi=hi)
+
+
+def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
+    return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
+
+
+def _zusd_proof_profile() -> dict[str, Any]:
+    return {
+        "schema": _ZUSD_PROOF_PROFILE_SCHEMA,
+        "profile_id": _ZUSD_PROOF_PROFILE_ID,
+        "claim_scope": "deterministic_stream11_live_monetary_receipt",
+        "covered": [
+            "stream11_operation_hash_binding",
+            "pre_app_hash_binding",
+            "tau_envelope_signature_binding",
+            "monetary_preflight_replay",
+            "post_submit_app_hash_binding_when_available",
+        ],
+        "not_covered": [
+            "risc0_zkvm_wrapper",
+            "production_finality",
+            "hardware_wallet_key_custody",
+            "exact_liquity_v2_liquidation_parity",
+        ],
+        "non_claims": [
+            "does_not_claim_zusd_zk_execution",
+            "does_not_claim_production_finality",
+            "does_not_claim_wallet_key_custody",
+            "does_not_claim_exact_liquity_v2_parity",
+        ],
+        "zk_proof_verified": False,
+        "zk_wrapper_required_for_production_claim": True,
+        "promotion_ready": False,
+    }
+
+
+def _zusd_proof_intent_receipt(
+    *,
+    chain_id: str,
+    action: str,
+    asset_id: str,
+    operation: Mapping[str, Any],
+    operations: Mapping[str, Any],
+    app_hash_before: str | None,
+    app_hash_after: str | None,
+    preflight: Mapping[str, Any],
+    actor_pubkey: str,
+    nonce_before: int,
+    nonce_after: int,
+    tx_sequence_number: int,
+    tx_fee_limit: int,
+    signing_mode: str,
+    tau_tx_payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    tau_tx_hash = None
+    if tau_tx_payload is not None:
+        tau_tx_hash = _hash_payload("zenodex.zusd_monetary_wallet.tau_tx_payload/v1", tau_tx_payload)
+    body = {
+        "schema": _ZUSD_PROOF_INTENT_SCHEMA,
+        "profile_id": _ZUSD_PROOF_PROFILE_ID,
+        "chain_id": chain_id,
+        "stream_key": _STREAM_KEY,
+        "action": action,
+        "asset_id": asset_id,
+        "app_hash_before": app_hash_before,
+        "app_hash_after": app_hash_after,
+        "operation_hash": _hash_payload("zenodex.zusd_monetary_wallet.operation/v1", operation),
+        "operations_hash": _hash_payload("zenodex.zusd_monetary_wallet.operations/v1", operations),
+        "preflight_ok": bool(preflight.get("ok")),
+        "preflight_error": preflight.get("error"),
+        "actor_pubkey": actor_pubkey,
+        "nonce_before": int(nonce_before),
+        "nonce_after": int(nonce_after),
+        "tx_sequence_number": int(tx_sequence_number),
+        "tx_fee_limit": str(int(tx_fee_limit)),
+        "signing_mode": signing_mode,
+        "tau_tx_payload_hash": tau_tx_hash,
+        "zk_proof_verified": False,
+        "proof_verifier": None,
+    }
+    return {
+        "schema": _ZUSD_PROOF_INTENT_SCHEMA,
+        "profile_id": _ZUSD_PROOF_PROFILE_ID,
+        "body": body,
+        "receipt_hash": _hash_payload(_ZUSD_PROOF_INTENT_HASH_DOMAIN, body),
+    }
+
+
+def _bind_live_zk_wrapper(
+    payload: dict[str, Any],
+    *,
+    body: Mapping[str, Any],
+    required: bool,
+) -> dict[str, Any]:
+    proof_section = payload.get("proof")
+    if not isinstance(proof_section, dict):
+        return payload
+    receipt = proof_section.get("intent_receipt")
+    if not isinstance(receipt, Mapping):
+        return payload
+    zk_wrapper = verify_live_proof_wrapper(
+        surface="zusd_stream11",
+        env_prefix=_ZUSD_ZK_PROOF_ENV_PREFIX,
+        proof_intent_receipt=receipt,
+        proof=proof_from_request(body),
+        required=required,
+    )
+    require_live_proof_wrapper(zk_wrapper)
+    proof_section["zk_wrapper"] = zk_wrapper
+    profile = proof_section.get("profile")
+    if isinstance(profile, dict):
+        profile["zk_proof_verified"] = bool(zk_wrapper.get("zk_proof_verified"))
+        profile["promotion_ready"] = bool(zk_wrapper.get("zk_proof_verified"))
+    return payload
 
 
 def _tau_client() -> TauNetTcpClient:
@@ -609,7 +735,29 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "fee_limit": fee_limit_posture,
             "tau_tx_payload": tau_tx_payload,
         },
+        "proof": {
+            "profile": _zusd_proof_profile(),
+            "intent_receipt": _zusd_proof_intent_receipt(
+                chain_id=chain_id,
+                action=action,
+                asset_id=asset_id,
+                operation=operation,
+                operations=operations,
+                app_hash_before=app_hash,
+                app_hash_after=None,
+                preflight=preflight,
+                actor_pubkey=actor_pubkey,
+                nonce_before=last_used_nonce,
+                nonce_after=nonce,
+                tx_sequence_number=tx_sequence_number,
+                tx_fee_limit=tx_fee_limit,
+                signing_mode=signing_mode,
+                tau_tx_payload=tau_tx_payload,
+            ),
+        },
     }
+    zk_required = live_zk_proof_required(env_prefix=_ZUSD_ZK_PROOF_ENV_PREFIX)
+    payload = _bind_live_zk_wrapper(payload, body=body, required=zk_required)
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
         payload["submission"] = {"sendtx_response": send_resp}
@@ -621,6 +769,24 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "balances": _balances_for_asset(app_state_after, asset_id=asset_id),
             "zusd_monetary": app_state_after.get("zusd_monetary"),
         }
+        payload["proof"]["intent_receipt"] = _zusd_proof_intent_receipt(
+            chain_id=chain_id,
+            action=action,
+            asset_id=asset_id,
+            operation=operation,
+            operations=operations,
+            app_hash_before=app_hash,
+            app_hash_after=app_hash_after,
+            preflight=preflight,
+            actor_pubkey=actor_pubkey,
+            nonce_before=last_used_nonce,
+            nonce_after=nonce,
+            tx_sequence_number=tx_sequence_number,
+            tx_fee_limit=tx_fee_limit,
+            signing_mode=signing_mode,
+            tau_tx_payload=tau_tx_payload,
+        )
+        payload = _bind_live_zk_wrapper(payload, body=body, required=False)
     return payload
 
 
@@ -661,6 +827,7 @@ def _status_payload() -> Dict[str, Any]:
         "liquidation_fee_comp_bps": liquidation_fee_comp_bps,
         "liquidation_gas_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
         "liquidation_gas_comp_bps": liquidation_fee_comp_bps,
+        "proof_profile": _zusd_proof_profile(),
     }
     try:
         client = _tau_client()

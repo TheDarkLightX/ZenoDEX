@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 
@@ -682,6 +683,84 @@ def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatc
     assert receipt["body"]["preflight_ok"] is True
     assert receipt["body"]["tau_tx_payload_hash"] is None
     assert receipt["body"]["zk_proof_verified"] is False
+    assert payload["proof"]["zk_wrapper"]["required"] is False
+    assert payload["proof"]["zk_wrapper"]["proof_provided"] is False
+    assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
+
+
+def test_prepare_init_market_requires_zk_proof_when_enabled(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
+    monkeypatch.setenv(
+        "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
+        json.dumps([sys.executable, "-c", "import json,sys; json.load(sys.stdin); print('{\"ok\": true}')"]),
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "init_market_2p",
+        "market_id": MARKET_ID,
+        "quote_asset": quote_asset,
+        "account_a_privkey": str(ALICE_PRIVKEY),
+        "account_b_privkey": str(BOB_PRIVKEY),
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "zk_proof_required: zk_proof missing"
+
+
+def test_prepare_init_market_accepts_verified_zk_wrapper(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
+    monkeypatch.setenv(
+        "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
+        json.dumps([sys.executable, "-c", "import json,sys; obj=json.load(sys.stdin); assert obj['surface']=='perps_stream8'; print('{\"ok\": true}')"]),
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "init_market_2p",
+        "market_id": MARKET_ID,
+        "quote_asset": quote_asset,
+        "account_a_privkey": str(ALICE_PRIVKEY),
+        "account_b_privkey": str(BOB_PRIVKEY),
+        "deadline": 123456789,
+        "block_timestamp": 1,
+        "zk_proof": {"system": "test-zk", "proof_bytes": "fixture"},
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    wrapper = payload["proof"]["zk_wrapper"]
+    assert wrapper["surface"] == "perps_stream8"
+    assert wrapper["required"] is True
+    assert wrapper["proof_provided"] is True
+    assert wrapper["verifier_configured"] is True
+    assert wrapper["zk_proof_verified"] is True
+    assert wrapper["proof_intent_receipt_hash"] == payload["proof"]["intent_receipt"]["receipt_hash"]
+    assert payload["proof"]["profile"]["zk_proof_verified"] is True
+    assert payload["proof"]["profile"]["promotion_ready"] is True
 
 
 def test_prepare_reports_tau_fee_limit_native_balance_posture(monkeypatch) -> None:

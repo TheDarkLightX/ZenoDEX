@@ -446,6 +446,8 @@ def _run_zusd_browser_submit(
     assert "SUCCESS tx accepted" in dom, dom[-8000:]
     assert "external_signed_payload" in dom, dom[-8000:]
     assert f'"action": "{action}"' in dom, dom[-8000:]
+    assert "zusd_stream11_live_monetary_v0" in dom, dom[-8000:]
+    assert '"zk_proof_verified": false' in dom, dom[-8000:]
     for snippet in expected_snippets:
         assert snippet in dom, dom[-8000:]
     return dom
