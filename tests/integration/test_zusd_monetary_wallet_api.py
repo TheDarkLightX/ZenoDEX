@@ -116,6 +116,7 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
         "amount": 1000,
         "deadline": 123456789,
         "block_timestamp": 10,
+        "tx_fee_limit": "2",
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
         "POST",
@@ -135,7 +136,12 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
     assert report["operation"]["amount_e8"] == 1000 * E8
     assert "11" in report["operations"]
     assert report["preflight"]["ok"] is True
+    assert report["fee_limit"]["tx_fee_limit"] == "2"
+    assert report["fee_limit"]["native_balance_covers_fee_limit"] is False
+    assert report["fee_limit"]["warning"] == "native balance is below requested Tau fee limit"
     assert report["preflight"]["effects"][0]["effects"]["principal_e8"] == 1000 * E8
+    assert payload["transport"]["tx_fee_limit"] == "2"
+    assert payload["transport"]["fee_limit_native_balance_ok"] is False
     assert payload["transport"]["asset_id"] == derive_zusd_tau_asset_id(chain_id=chain_id)
 
 
@@ -152,6 +158,7 @@ def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> N
         "deadline": 123456789,
         "block_timestamp": 10,
         "signer_privkey": str(ALICE_PRIVKEY),
+        "tx_fee_limit": "2",
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
         "POST",
@@ -163,3 +170,27 @@ def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> N
     assert payload["ok"] is True
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
+    assert payload["report"]["tau_tx_payload"]["fee_limit"] == "2"
+
+
+def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+        "tx_fee_limit": "1.5",
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "bad_tx_fee_limit"}

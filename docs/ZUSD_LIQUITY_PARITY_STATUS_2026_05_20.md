@@ -60,8 +60,8 @@ calling it Liquity-exact in docs, UI text, or release notes.
 ## Tau fee and gas posture
 
 Public Tau Net materials describe Agoras (`AGRS`) as the native token and gas
-for Tau Net activity. The exact live fee accounting is still outside this repo's
-current local-node evidence.
+for Tau Net activity. Source checked 2026-05-21: <https://tau.net/>. The exact
+live fee accounting is still outside this repo's current local-node evidence.
 
 The local Tau Testnet path used here carries `fee_limit` in the signed
 transaction payload, but the current `createblock` path does not debit a native
@@ -91,8 +91,15 @@ Both defaults are `0` for deterministic local tests. A live Tau fee model can
 turn them on without changing the action vocabulary or the mounted stream `11`
 transaction lane.
 
+The wallet API also carries a user-supplied `tx_fee_limit` into the signed Tau
+transaction envelope and reports whether the current native balance appears to
+cover that requested limit. This is a preflight posture check only; final fee
+debit semantics remain a Tau Net host responsibility until pinned by live
+testnet evidence.
+
 Pinned app-bridge evidence:
 
 ```bash
 pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper
+pytest -q tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11
 ```

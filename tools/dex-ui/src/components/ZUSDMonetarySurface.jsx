@@ -12,6 +12,7 @@ const EMPTY_FORM = {
   price_e8: String(100 * E8),
   delta: '1',
   deadline: '',
+  tx_fee_limit: '0',
 };
 
 const ACTIONS = [
@@ -47,6 +48,7 @@ function readSmokeConfig() {
     price_e8: params.get('zusdPriceE8') || String(100 * E8),
     delta: params.get('zusdDelta') || '1',
     deadline: params.get('zusdDeadline') || '',
+    tx_fee_limit: params.get('zusdTxFeeLimit') || params.get('txFeeLimit') || '0',
   };
 }
 
@@ -68,6 +70,9 @@ function buildPayload(form) {
   }
   if (form.signer_privkey.trim()) {
     payload.signer_privkey = form.signer_privkey.trim();
+  }
+  if (String(form.tx_fee_limit || '').trim()) {
+    payload.tx_fee_limit = String(form.tx_fee_limit).trim();
   }
 
   if (['deposit_collateral', 'withdraw_collateral', 'mint_zusd', 'repay_zusd'].includes(action)) {
@@ -220,6 +225,8 @@ function ZUSDMonetarySurface() {
             <div className="zusd-wallet-kv"><span>Debt</span><span>{status?.core?.debt_e8 ?? 0} E8</span></div>
             <div className="zusd-wallet-kv"><span>Stability Pool Debt</span><span>{status?.core?.sp_debt_e8 ?? 0} E8</span></div>
             <div className="zusd-wallet-kv"><span>SP Escrow</span><span>{status?.stability_pool_balance ?? 0} zUSD</span></div>
+            <div className="zusd-wallet-kv"><span>Liquidation Comp Fixed</span><span>{status?.liquidation_gas_comp_fixed_collateral_e8 ?? 0} E8</span></div>
+            <div className="zusd-wallet-kv"><span>Liquidation Comp Bps</span><span>{status?.liquidation_gas_comp_bps ?? 0}</span></div>
             <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
@@ -312,6 +319,17 @@ function ZUSDMonetarySurface() {
               placeholder="optional"
             />
 
+            <label className="label" htmlFor="zusd-monetary-fee-limit">Tau Fee Limit (native units)</label>
+            <input
+              id="zusd-monetary-fee-limit"
+              className="input"
+              type="number"
+              min="0"
+              step="1"
+              value={form.tx_fee_limit}
+              onChange={(event) => setForm((current) => ({ ...current, tx_fee_limit: event.target.value }))}
+            />
+
             <label className="label" htmlFor="zusd-monetary-signer">Signer Privkey (local test only)</label>
             <input
               id="zusd-monetary-signer"
@@ -345,9 +363,14 @@ function ZUSDMonetarySurface() {
               <div className="zusd-wallet-kv"><span>App Hash</span><span className="zusd-mono">{liveSummary.app_hash || 'none'}</span></div>
               <div className="zusd-wallet-kv"><span>Actor</span><span className="zusd-mono">{liveSummary.actor_pubkey}</span></div>
               <div className="zusd-wallet-kv"><span>Native Balance</span><span>{liveSummary.native_balance_e8 ?? 'unknown'} E8</span></div>
+              <div className="zusd-wallet-kv"><span>Tau Fee Limit</span><span>{liveSummary.tx_fee_limit ?? '0'}</span></div>
+              <div className="zusd-wallet-kv"><span>Fee Limit Covered</span><span>{liveSummary.fee_limit_native_balance_ok === null ? 'unknown' : liveSummary.fee_limit_native_balance_ok ? 'yes' : 'no'}</span></div>
               <div className="zusd-wallet-kv"><span>zUSD Balance</span><span>{liveSummary.zusd_balance}</span></div>
               <div className="zusd-wallet-kv"><span>Monetary Nonce</span><span>{liveSummary.last_used_nonce}</span></div>
               <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
+              {liveSummary.fee_limit_warning ? (
+                <div className="zusd-wallet-kv"><span>Fee Warning</span><span>{liveSummary.fee_limit_warning}</span></div>
+              ) : null}
             </div>
           ) : (
             <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current Tau-node context.</p>

@@ -258,6 +258,41 @@ def _request_u32(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
+def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
+    raw = body.get("tx_fee_limit", 0)
+    if isinstance(raw, bool):
+        raise ValueError("bad_tx_fee_limit")
+    if isinstance(raw, int):
+        value = raw
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return 0
+        if not text.isdigit():
+            raise ValueError("bad_tx_fee_limit")
+        value = int(text, 10)
+    else:
+        raise ValueError("bad_tx_fee_limit")
+    if value < 0 or value > 10**30:
+        raise ValueError("bad_tx_fee_limit")
+    return int(value)
+
+
+def _fee_limit_posture(*, tx_fee_limit: int, native_balance: int | None) -> dict[str, Any]:
+    ok = None if native_balance is None else bool(int(native_balance) >= int(tx_fee_limit))
+    warning = None
+    if ok is None and tx_fee_limit > 0:
+        warning = "native balance unavailable; Tau fee-limit coverage could not be checked"
+    elif ok is False:
+        warning = "native balance is below requested Tau fee limit"
+    return {
+        "tx_fee_limit": str(int(tx_fee_limit)),
+        "native_balance": native_balance,
+        "native_balance_covers_fee_limit": ok,
+        "warning": warning,
+    }
+
+
 def _request_amount_e8(body: Mapping[str, Any], *, required: bool) -> int | None:
     if "amount_e8" in body:
         value = body.get("amount_e8")
@@ -401,6 +436,8 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     nonce = last_used_nonce + 1
     tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(actor_pubkey)))
     native_balance = _safe_native_balance(client, actor_pubkey)
+    tx_fee_limit = _request_tx_fee_limit(body)
+    fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
     operation = _build_operation(body, action=action, actor_pubkey=actor_pubkey, nonce=nonce, deadline=deadline)
     operations = {_STREAM_KEY: [operation]}
     block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
@@ -429,7 +466,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             sequence_number=tx_sequence_number,
             expiration_time=deadline,
             operations=operations,
-            fee_limit=body.get("tx_fee_limit", "0"),
+            fee_limit=tx_fee_limit,
         )
 
     payload: Dict[str, Any] = {
@@ -440,6 +477,9 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "asset_id": asset_id,
             "actor_pubkey": actor_pubkey,
             "native_balance_e8": native_balance,
+            "tx_fee_limit": str(tx_fee_limit),
+            "fee_limit_native_balance_ok": fee_limit_posture["native_balance_covers_fee_limit"],
+            "fee_limit_warning": fee_limit_posture["warning"],
             "zusd_balance": int(balances.get(actor_pubkey.lower(), 0)),
             "stability_pool_pubkey": sp_pubkey,
             "stability_pool_balance": int(balances.get(sp_pubkey.lower(), 0)),
@@ -464,6 +504,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "operation": operation,
             "operations": operations,
             "preflight": preflight,
+            "fee_limit": fee_limit_posture,
             "tau_tx_payload": tau_tx_payload,
         },
     }

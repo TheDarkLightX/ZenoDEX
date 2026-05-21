@@ -68,7 +68,9 @@ parity map, including the Liquity V2 5% liquidation-penalty gap.
     share to the liquidator before the remaining collateral is assigned to the
     stability pool. The defaults are zero for local deterministic tests. Public
     Tau Net materials describe `AGRS` as native gas, so live deployment should
-    configure these once exact Tau fee accounting is pinned.
+    configure these once exact Tau fee accounting is pinned. The wallet API
+    also passes through `tx_fee_limit` and reports native-balance coverage as a
+    preflight signal for keepers.
 
 ## Implementation in this repo
 
