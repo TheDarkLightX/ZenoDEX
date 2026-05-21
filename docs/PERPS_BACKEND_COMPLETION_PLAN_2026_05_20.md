@@ -797,6 +797,25 @@ preserve app state and sender sequence, leave no pending Tau transaction, and
 assert the API error body does not expose operation, sender, or signature
 material. Browser/Toxiproxy packet-loss and broader jitter campaigns remain open.
 
+Additional mounted stream `8`/`11` Tau bounded-jitter browser evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_bridge.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_succeeds_under_bounded_tau_send_jitter -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_succeeds_under_bounded_tau_send_jitter -s
+```
+
+Results: py_compile passed; focused mounted zUSD and perps bounded-jitter browser
+regressions each `1 passed`. The new handlers support normal status and preflight
+calls, delay successful `sendtx` responses by 150 ms under a 2 s Tau RPC timeout,
+and then let the mounted UI complete the stream `11` zUSD mint and stream `8`
+perps collateral deposit. Both tests assert the app state changes exactly once,
+the pending Tau transaction is cleared after auto-mine, and the sender sequence
+increments by one. This is positive bounded-jitter evidence for the mounted
+submit boundary; browser/Toxiproxy packet-loss, higher-latency jitter, and
+multi-surface network-chaos campaigns remain open.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle
