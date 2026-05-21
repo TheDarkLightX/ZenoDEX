@@ -99,6 +99,19 @@ def _zusd_core(app_state: dict[str, object]) -> dict[str, int]:
     return {str(k): int(v) for k, v in core.items() if isinstance(v, int) and not isinstance(v, bool)}
 
 
+def _perps_market(app_state: dict[str, object], *, market_id: str) -> dict[str, object]:
+    dex_state = app_state.get("dex_state")
+    assert isinstance(dex_state, dict)
+    perps = dex_state.get("perps")
+    assert isinstance(perps, dict)
+    markets = perps.get("markets")
+    assert isinstance(markets, list)
+    for row in markets:
+        if isinstance(row, dict) and row.get("market_id") == market_id:
+            return row
+    raise AssertionError(f"missing perps market {market_id!r}")
+
+
 def _create_block_checked(client: TauNetTcpClient, *, label: str) -> None:
     response = client.createblock()
     assert "ERROR" not in response.upper(), f"{label} createblock failed: {response}"
@@ -168,7 +181,9 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         pytest.skip("external/tau-testnet checkout is required")
 
     owner_privkey = 82
+    counterparty_privkey = 83
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
+    counterparty_pubkey = "0x" + bls_pubkey_hex_from_privkey(counterparty_privkey)
     tau_port = _free_port()
     api_port = _free_port()
     vite_port = _free_port()
@@ -176,6 +191,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
     project_name = f"zenodex-zusd-money-{tau_port}"
     db_volume = f"{project_name}_tau-local-db"
     asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = f"perp:ch2p:zusd-docker-{tau_port}"
     price_e8 = 20_000_000 * E8
 
     compose_env = {
@@ -237,6 +253,12 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
             "ZUSD_MONETARY_WALLET_CHAIN_ID": chain_id,
             "ZUSD_MONETARY_WALLET_TAU_HOST": "127.0.0.1",
             "ZUSD_MONETARY_WALLET_TAU_PORT": str(tau_port),
+            "PERPS_WALLET_API_ENABLED": "true",
+            "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "true",
+            "PERPS_WALLET_AUTO_MINE": "true",
+            "PERPS_WALLET_CHAIN_ID": chain_id,
+            "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+            "PERPS_WALLET_TAU_PORT": str(tau_port),
             "TAU_DEX_ZUSD_ORACLE_PUBKEY": owner_pubkey,
         }
         api_proc = subprocess.Popen(
@@ -302,6 +324,85 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         core = _zusd_core(app_state)
         assert core["debt_e8"] == 100 * E8
         assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 100
+
+        init_query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "init_market_2p",
+                "marketId": market_id,
+                "quoteAsset": asset_id,
+                "accountAPrivkey": str(owner_privkey),
+                "accountBPrivkey": str(counterparty_privkey),
+                "perpsDeadline": str(int(time.time()) + 3600),
+            }
+        )
+        init_result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={tmp_path / 'chrome-profile-perps-init'}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"http://127.0.0.1:{vite_port}/?{init_query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert init_result.returncode == 0, init_result.stderr[-2000:]
+        assert "Live Perps Wallet" in init_result.stdout
+        assert "submit accepted" in init_result.stdout, init_result.stdout[-8000:]
+        assert "preflight ok" in init_result.stdout, init_result.stdout[-8000:]
+        assert market_id in init_result.stdout, init_result.stdout[-8000:]
+
+        deposit_query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "deposit_collateral",
+                "marketId": market_id,
+                "accountPrivkey": str(owner_privkey),
+                "amount": "25",
+                "perpsDeadline": str(int(time.time()) + 3600),
+            }
+        )
+        deposit_result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={tmp_path / 'chrome-profile-perps-deposit'}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"http://127.0.0.1:{vite_port}/?{deposit_query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert deposit_result.returncode == 0, deposit_result.stderr[-2000:]
+        assert "Live Perps Wallet" in deposit_result.stdout
+        assert "Deposit Collateral" in deposit_result.stdout
+        assert "submit accepted" in deposit_result.stdout, deposit_result.stdout[-8000:]
+        assert "preflight ok" in deposit_result.stdout, deposit_result.stdout[-8000:]
+
+        app_state = _read_app_state(tau_client)
+        assert _balance_for_asset(app_state, pubkey=owner_pubkey, asset_id=asset_id) == 75
+        assert _balance_for_asset(app_state, pubkey=counterparty_pubkey, asset_id=asset_id) == 0
+        market = _perps_market(app_state, market_id=market_id)
+        assert market["quote_asset"] == asset_id
+        state = market["state"]
+        assert isinstance(state, dict)
+        assert int(state["collateral_e8_a"]) == 25 * E8
+        assert int(state["collateral_e8_b"]) == 0
     finally:
         for proc in (vite_proc, api_proc):
             if proc is None:

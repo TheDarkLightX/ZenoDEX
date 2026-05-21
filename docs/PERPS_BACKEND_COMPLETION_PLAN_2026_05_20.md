@@ -192,7 +192,14 @@ Remaining live-transport operations:
 - perps liquidation actions
 - a real typed Oracle adapter browser fixture, rather than only an optional JSON
   bridge field in the local test panel
-- full Docker zUSD-mint-to-perps-deposit browser evidence
+
+Pinned live-transport evidence:
+
+- `tests/integration/test_zusd_monetary_wallet_ui_docker.py::test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node`
+  now runs a local Docker Tau node, mints zUSD through the mounted browser UI,
+  initializes a two-party perps clearinghouse market, deposits minted zUSD as
+  perps collateral through the mounted browser UI, mines the submitted Tau
+  transactions, and verifies the app-state balance and perps collateral deltas.
 
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.
@@ -230,8 +237,8 @@ Required evidence before claiming perps live-product coverage:
 - unit and integration tests for the zUSD monetary bridge
 - app-bridge tests proving zUSD mint, transfer, stability-pool deposit, perps
   collateral deposit, signed position update, and settlement
-- local Docker Tau-node browser smoke for zUSD collateral mint and then a
-  follow-on zUSD-to-perps deposit flow once live perps transport exists
+- local Docker Tau-node browser smoke for zUSD collateral mint plus follow-on
+  zUSD-to-perps deposit through the mounted live perps wallet
 - stateful fuzzing over zUSD monetary actions and perps collateral actions
 - chaos tests for node restart, duplicate tx, expired deadline, stale Oracle
   evidence, and out-of-order signed operations

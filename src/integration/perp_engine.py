@@ -1576,7 +1576,7 @@ def _apply_ch2p_op(
         amount_e8 = int(amount) * _E8_SCALE
 
         if action == "deposit_collateral":
-            if balances.get(tx_sender_pubkey, ch2p_market.quote_asset) < amount:
+            if balances.get(account_pubkey, ch2p_market.quote_asset) < amount:
                 return "insufficient balance for deposit"
             tag = "deposit_collateral_a" if role == "a" else "deposit_collateral_b"
             try:
@@ -1587,7 +1587,7 @@ def _apply_ch2p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.subtract(tx_sender_pubkey, ch2p_market.quote_asset, amount)
+            balances.subtract(account_pubkey, ch2p_market.quote_asset, amount)
         else:
             tag = "withdraw_collateral_a" if role == "a" else "withdraw_collateral_b"
             try:
@@ -1598,7 +1598,7 @@ def _apply_ch2p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.add(tx_sender_pubkey, ch2p_market.quote_asset, amount)
+            balances.add(account_pubkey, ch2p_market.quote_asset, amount)
 
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})
@@ -1930,7 +1930,7 @@ def _apply_ch3p_op(
         amount_e8 = int(amount) * _E8_SCALE
 
         if action == "deposit_collateral":
-            if balances.get(tx_sender_pubkey, ch3p_market.quote_asset) < amount:
+            if balances.get(account_pubkey, ch3p_market.quote_asset) < amount:
                 return "insufficient balance for deposit"
             tag = f"deposit_collateral_{role}"
             try:
@@ -1941,7 +1941,7 @@ def _apply_ch3p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.subtract(tx_sender_pubkey, ch3p_market.quote_asset, amount)
+            balances.subtract(account_pubkey, ch3p_market.quote_asset, amount)
         else:
             tag = f"withdraw_collateral_{role}"
             try:
@@ -1952,7 +1952,7 @@ def _apply_ch3p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.add(tx_sender_pubkey, ch3p_market.quote_asset, amount)
+            balances.add(account_pubkey, ch3p_market.quote_asset, amount)
 
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})

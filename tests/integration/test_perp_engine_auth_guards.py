@@ -19,6 +19,7 @@ _ALICE_PUBKEY = bls_pubkey_hex_from_privkey(_ALICE_SK)
 _BOB_PUBKEY = bls_pubkey_hex_from_privkey(_BOB_SK)
 _CAROL_PUBKEY = bls_pubkey_hex_from_privkey(_CAROL_SK)
 _ORACLE_PUBKEY = bls_pubkey_hex_from_privkey(_ORACLE_SK)
+_E8 = 100_000_000
 
 
 def _op(market_id: str, action: str, *, version: str, **kwargs: object) -> dict[str, object]:
@@ -148,6 +149,61 @@ def test_isolated_deposit_collateral_accepts_canonical_equivalent_sender_hex() -
         allow_isolated_markets=True,
     )
     assert res.ok is True, res.error
+
+
+def test_ch2p_deposit_collateral_accepts_canonical_equivalent_sender_hex() -> None:
+    market_id = "perp:ch2p:auth-0x"
+    quote_asset = "0x" + "22" * 32
+    relayer = "ff" * 48
+
+    balances = BalanceTable()
+    balances.set(_ALICE_PUBKEY, quote_asset, 100)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_2p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)],
+    )
+
+    state = _apply(
+        state=state,
+        tx_sender_pubkey="0X" + _ALICE_PUBKEY,
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=_ALICE_PUBKEY, amount=10)],
+    )
+    assert state.balances.get(_ALICE_PUBKEY, quote_asset) == 90
+    assert state.perps is not None
+    market = state.perps.get_market(market_id)
+    assert market is not None
+    assert int(market.state["collateral_e8_a"]) == 10 * _E8
+    assert int(market.state["collateral_e8_b"]) == 0
+
+
+def test_ch3p_deposit_collateral_accepts_canonical_equivalent_sender_hex() -> None:
+    market_id = "perp:ch3p:auth-0x"
+    quote_asset = "0x" + "23" * 32
+    relayer = "ff" * 48
+
+    balances = BalanceTable()
+    balances.set(_ALICE_PUBKEY, quote_asset, 100)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_3p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, nonce_c=1)],
+    )
+
+    state = _apply(
+        state=state,
+        tx_sender_pubkey="0X" + _ALICE_PUBKEY,
+        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=_ALICE_PUBKEY, amount=10)],
+    )
+    assert state.balances.get(_ALICE_PUBKEY, quote_asset) == 90
+    assert state.perps is not None
+    market = state.perps.get_market(market_id)
+    assert market is not None
+    assert int(market.state["collateral_e8_a"]) == 10 * _E8
+    assert int(market.state["collateral_e8_b"]) == 0
+    assert int(market.state["collateral_e8_c"]) == 0
 
 
 def test_ch2p_deposit_collateral_rejects_sender_mismatch() -> None:

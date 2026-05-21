@@ -102,4 +102,11 @@ Pinned app-bridge evidence:
 ```bash
 pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper
 pytest -q tests/integration/test_zusd_monetary_wallet_api.py::test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11
+pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py::test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node -s
 ```
+
+The Docker browser smoke covers zUSD minting and a follow-on perps
+clearinghouse collateral deposit against a local Tau node. It confirms the
+mounted UI and transaction bridge preserve the minted zUSD balance semantics
+when the perps API signs and mines the Tau transactions. It does not prove a
+live Tau Net fee-debit rule.
