@@ -153,6 +153,14 @@ export function apiGetConfidentialStatus(options = {}) {
   return apiFetchJson('/api/confidential/status', { method: 'GET', ...(options || {}) });
 }
 
+export function apiVerifyConfidentialAttestation(body, options = {}) {
+  return apiFetchJson('/api/confidential/attestation/verify', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetZusdWalletStatus(options = {}) {
   return apiFetchJson('/api/zusd/wallet/status', { method: 'GET', ...(options || {}) });
 }

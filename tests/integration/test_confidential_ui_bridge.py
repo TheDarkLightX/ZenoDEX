@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 from urllib.parse import urlencode
@@ -16,6 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
+MEASUREMENT = f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}"
+POLICY_DIGEST = "0x" + ("d" * 64)
 
 
 def _chrome_binary() -> str | None:
@@ -46,6 +50,17 @@ def _wait_for_http(url: str, *, timeout_s: float = 30) -> None:
     raise AssertionError(f"server did not become ready at {url}: {last_error}")
 
 
+def _verifier_cmd_json() -> str:
+    code = (
+        "import json,sys;"
+        "json.load(sys.stdin);"
+        "print(json.dumps({'ok': True, 'result': "
+        f"{{'measurement': {MEASUREMENT!r}, 'policy_digest': {POLICY_DIGEST!r}, 'attestation_epoch': 9}}"
+        "}))"
+    )
+    return json.dumps([sys.executable, "-c", code])
+
+
 def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
     chrome = _chrome_binary()
     if chrome is None:
@@ -64,12 +79,16 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
             **os.environ,
             "API_HOST": "127.0.0.1",
             "API_PORT": str(api_port),
+            "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
             "CONFIDENTIAL_FEATURE_STAGE": "beta",
             "CONFIDENTIAL_OPERATOR_CONTACT": "https://ops.zenodex.test",
-            "CONFIDENTIAL_APPROVED_MEASUREMENTS": f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
+            "CONFIDENTIAL_APPROVED_MEASUREMENTS": MEASUREMENT,
             "CONFIDENTIAL_FHE_ALPHA_ENABLED": "false",
             "CONFIDENTIAL_SEALED_BID_ENABLED": "true",
             "CONFIDENTIAL_TEE_ENABLED": "true",
+            "CONFIDENTIAL_ATTESTATION_API_ENABLED": "true",
+            "CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED": "true",
+            "CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON": _verifier_cmd_json(),
         },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -90,7 +109,7 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         _wait_for_http(f"http://127.0.0.1:{api_port}/health", timeout_s=30)
         _wait_for_http(f"http://127.0.0.1:{vite_port}", timeout_s=30)
 
-        query = urlencode({"tab": "confidential", "demo": "false"})
+        query = urlencode({"tab": "confidential", "demo": "false", "zenodexUiSmokeConfidentialVerify": "1"})
         chrome_profile = tmp_path / "chrome-profile"
         result = subprocess.run(
             [
@@ -114,6 +133,9 @@ def test_confidential_ui_loads_live_status_surface(tmp_path: Path) -> None:
         assert "BETA" in dom
         assert "Current support contact: https://ops.zenodex.test" in dom
         assert "Approved Measurements" in dom
+        assert "attestation accepted" in dom
+        assert "measurement nitro" in dom
+        assert "execution admitted" in dom
     finally:
         vite_proc.terminate()
         api_proc.terminate()

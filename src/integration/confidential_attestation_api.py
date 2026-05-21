@@ -1,0 +1,230 @@
+"""Mounted local/testnet API for confidential attestation receipts.
+
+The API invokes a configured external verifier for cryptographic attestation
+checks, then applies the in-repo deterministic receipt and allowlist gate.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+
+from ..core.confidential_extension_receipts import verify_confidential_extension_receipt
+from .confidential_attestation_verifier import (
+    ConfidentialAttestationVerifierConfig,
+    make_confidential_attestation_verifier,
+    verify_and_make_confidential_extension_receipt,
+)
+from .confidential_feature_status import load_confidential_feature_status_from_env
+
+
+MAX_POST_BODY = 96_000
+ResponseT = Tuple[int, Dict[str, Any]]
+
+
+def _env_str(name: str, default: str) -> str:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip()
+    return value if value else default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return float(default)
+    try:
+        value = float(raw.strip())
+    except Exception:
+        return float(default)
+    return min(max(value, lo), hi)
+
+
+def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return int(default)
+    try:
+        value = int(raw.strip())
+    except Exception:
+        return int(default)
+    return min(max(value, lo), hi)
+
+
+def _parse_json_body(body: Optional[bytes]) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    if body is None or len(body) == 0:
+        return None, "empty_body"
+    if len(body) > MAX_POST_BODY:
+        return None, "body_too_large"
+    try:
+        obj = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None, "invalid_json"
+    if not isinstance(obj, dict):
+        return None, "expected_object"
+    return obj, None
+
+
+def _verifier_cmd_from_env() -> Sequence[str] | None:
+    raw = _env_str("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", "")
+    if not raw:
+        return None
+    try:
+        obj = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(obj, list) or not obj:
+        return None
+    out: list[str] = []
+    for item in obj:
+        if not isinstance(item, str) or not item:
+            return None
+        out.append(item)
+    return tuple(out)
+
+
+def _verifier_config_from_env() -> ConfidentialAttestationVerifierConfig:
+    return ConfidentialAttestationVerifierConfig(
+        enabled=_env_bool("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", False),
+        verifier_cmd=_verifier_cmd_from_env(),
+        allow_path_lookup=_env_bool("CONFIDENTIAL_ATTESTATION_VERIFIER_ALLOW_PATH_LOOKUP", False),
+        timeout_s=_env_float("CONFIDENTIAL_ATTESTATION_VERIFIER_TIMEOUT_S", 10.0, lo=0.05, hi=60.0),
+        max_request_bytes=_env_int(
+            "CONFIDENTIAL_ATTESTATION_VERIFIER_MAX_REQUEST_BYTES",
+            256_000,
+            lo=1,
+            hi=1_000_000,
+        ),
+        max_stdout_bytes=_env_int(
+            "CONFIDENTIAL_ATTESTATION_VERIFIER_MAX_STDOUT_BYTES",
+            32_000,
+            lo=1,
+            hi=256_000,
+        ),
+        max_stderr_bytes=_env_int(
+            "CONFIDENTIAL_ATTESTATION_VERIFIER_MAX_STDERR_BYTES",
+            8_000,
+            lo=1,
+            hi=64_000,
+        ),
+    )
+
+
+def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]:
+    raw = body.get(name)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError(f"bad_{name}") from exc
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{name} must be an object")
+    return raw
+
+
+def _request_str(body: Mapping[str, Any], *, name: str) -> str:
+    value = body.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value.strip()
+
+
+def _request_int(body: Mapping[str, Any], *, name: str) -> int:
+    value = body.get(name)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    return int(value)
+
+
+def _status_payload() -> dict[str, Any]:
+    status = load_confidential_feature_status_from_env()
+    verifier_cfg = _verifier_config_from_env()
+    return {
+        "enabled": True,
+        "external_verifier_enabled": bool(verifier_cfg.enabled),
+        "external_verifier_configured": bool(verifier_cfg.verifier_cmd),
+        "approved_measurements_count": len(status.approved_measurements),
+        "providers": status.to_public_dict().get("providers", []),
+        "max_attestation_age_epochs": int(status.max_attestation_age_epochs),
+        "stage": str(status.stage),
+    }
+
+
+def _handle_verify(body: Mapping[str, Any]) -> ResponseT:
+    try:
+        attestation_payload = _request_mapping(body, name="attestation_payload")
+        receipt, err = verify_and_make_confidential_extension_receipt(
+            verifier=make_confidential_attestation_verifier(_verifier_config_from_env()),
+            attestation_payload=attestation_payload,
+            extension_id=_request_str(body, name="extension_id"),
+            provider_id=_request_str(body, name="provider_id"),
+            request_id=_request_str(body, name="request_id"),
+            policy_version=_request_str(body, name="policy_version"),
+            do_execute=_request_int(body, name="do_execute"),
+            policy_ok=_request_int(body, name="policy_ok"),
+            nonce_unused=_request_int(body, name="nonce_unused"),
+            output_bound_ok=_request_int(body, name="output_bound_ok"),
+            current_epoch=_request_int(body, name="current_epoch"),
+            max_attestation_age=_request_int(body, name="max_attestation_age"),
+            fee_charged=_request_int(body, name="fee_charged"),
+            receipt_fee=_request_int(body, name="receipt_fee"),
+            credit_before=_request_int(body, name="credit_before"),
+            credit_after=_request_int(body, name="credit_after"),
+            provider_balance_before=_request_int(body, name="provider_balance_before"),
+            provider_balance_after=_request_int(body, name="provider_balance_after"),
+        )
+    except Exception as exc:
+        return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+
+    if err is not None or receipt is None:
+        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+
+    status = load_confidential_feature_status_from_env()
+    ok, gate_error = verify_confidential_extension_receipt(
+        receipt,
+        approved_measurements=status.approved_measurements,
+    )
+    if not ok:
+        return 400, {"ok": False, "error": str(gate_error), "receipt_admissible": False}
+
+    receipt_body = receipt.get("body") if isinstance(receipt, dict) else {}
+    if not isinstance(receipt_body, dict):
+        return 500, {"ok": False, "error": "bad_receipt_shape"}
+    return 200, {
+        "ok": True,
+        "receipt_admissible": True,
+        "receipt": receipt,
+        "receipt_hash": receipt.get("receipt_hash"),
+        "measurement": receipt_body.get("measurement"),
+        "provider_id": receipt_body.get("provider_id"),
+        "request_id": receipt_body.get("request_id"),
+        "policy_digest": receipt_body.get("policy_digest"),
+        "execution_admitted": bool(receipt_body.get("host", {}).get("do_execute") == 1),
+        "claim_scope": "local_testnet_external_verifier_receipt",
+    }
+
+
+def handle_confidential_attestation_request(
+    method: str,
+    path: str,
+    raw_body: Optional[bytes],
+) -> ResponseT:
+    if method == "GET" and path == "/api/confidential/attestation/status":
+        return 200, {"ok": True, "status": _status_payload()}
+
+    if method == "POST" and path == "/api/confidential/attestation/verify":
+        obj, err = _parse_json_body(raw_body)
+        if err is not None or obj is None:
+            return 400, {"ok": False, "error": str(err or "invalid_request")}
+        return _handle_verify(obj)
+
+    return 404, {"ok": False, "error": "not_found"}

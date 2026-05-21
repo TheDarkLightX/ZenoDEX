@@ -11,7 +11,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and a write-enabled receipt flow. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
 | Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit panel in non-demo mode | Yes for local AutoTrader prepare and gated local/testnet submit through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, and release certificates. Unattended execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
-| Confidential | Yes | Live operator-status and proof-context surface | Status-only via `GET /api/confidential/status` | `tests/integration/test_confidential_ui_bridge.py` |
+| Confidential | Yes | Live operator-status plus local/testnet attestation receipt surface | Yes for status via `GET /api/confidential/status` and local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`. Runtime confidential execution remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py` |
 
 ## Interpretation
 
@@ -20,9 +20,9 @@ selection.
 
 The next product-complete backend promotions still required are:
 
-1. perps on a mounted live transaction path, using the existing signed app-bridge engine rather than the demo HTTP route;
+1. production Oracle authority, wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
 2. strategy execution beyond the gated local/testnet submit path;
-3. any confidential execution lane beyond operator-status and proof posture.
+3. confidential runtime execution beyond the external-verifier attestation receipt and deterministic admission gate.
 
 Perps now has focused backend and browser evidence for a mounted live wallet
 lane. Collateral-minted zUSD can be transferred and used as the quote collateral
@@ -63,6 +63,15 @@ evidence for the gated local/testnet Strategy panel, while unattended
 production strategy execution and production wallet key management remain
 non-claims.
 
+The confidential tab now has a live local/testnet attestation receipt path. The
+mounted API invokes a configured external verifier command, builds a
+confidential extension receipt from the verifier's measurement, policy digest,
+and attestation epoch, then applies the in-repo receipt hash, freshness,
+accounting, host-guard, and measurement-allowlist gate before returning an
+admissible receipt. This is evidence for the mounted receipt/admission surface;
+it is not a claim that ZenoDEX performs remote-attestation cryptography in
+process or executes confidential workloads in production.
+
 ## Current browser checks
 
 Run these from repo root:
@@ -93,7 +102,7 @@ These checks prove:
 - the mounted Strategy tab can prepare receipt-backed AutoTrader operations and
   submit them to a local/testnet Tau RPC when explicit risk acknowledgement,
   local signing, and testnet-submission gates are enabled;
-- the mounted confidential tab can load live operator posture from the stdlib API server.
+- the mounted confidential tab can load live operator posture from the stdlib API server and run a local/testnet external-verifier attestation receipt smoke.
 
 Current backend-only perps bridge check:
 
@@ -255,6 +264,20 @@ pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_
 ```
 
 Result: `1 passed`.
+
+Latest confidential attestation receipt pass on 2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_api_server_confidential.py
+python3 -m pytest -q tests/integration/test_confidential_ui_bridge.py -s
+```
+
+Results: API checks `4 passed`; mounted browser smoke `1 passed`. The accepted
+path returns an allowlisted Nitro measurement receipt with a deterministic
+receipt hash, and rejection coverage includes unapproved measurements and a
+disabled verifier. The browser smoke renders `attestation accepted`,
+`measurement nitro`, and `execution admitted` through the mounted Confidential
+tab.
 
 Latest cross-stream stateful replay pass on 2026-05-21:
 
