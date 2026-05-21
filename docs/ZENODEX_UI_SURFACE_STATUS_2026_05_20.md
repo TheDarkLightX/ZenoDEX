@@ -166,11 +166,13 @@ python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py
 python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py -s
 ```
 
-Results: `6 passed` and `1 passed`. The mounted zUSD monetary UI submitted a
+Results: `10 passed` and `1 passed`. The mounted zUSD monetary UI submitted a
 stream `11` mint with local signing disabled, using an externally signed Tau
 transaction envelope. The DOM receipt included `external_signed_payload`, the
 accepted `sendtx` response, and the expected zUSD debt after auto-mining
-through the local Tau RPC harness.
+through the local Tau RPC harness. The API regression suite also rejects sender
+mismatch, sequence mismatch, operation mismatch, bad signatures, and preflight
+failures before broadcast.
 
 Latest perps Oracle evidence inspector pass on 2026-05-21:
 
