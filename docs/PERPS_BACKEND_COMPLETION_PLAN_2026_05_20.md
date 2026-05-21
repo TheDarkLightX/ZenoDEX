@@ -181,6 +181,12 @@ Implemented operations:
 - publish clearing price with an oracle signer
 - settle epoch with optional or required typed Oracle adapter bridge evidence
 
+The API also accepts a user-supplied `tx_fee_limit`, validates it as a
+non-negative integer, carries it into the signed Tau transaction envelope, and
+reports whether the sender's current native Tau balance appears to cover that
+requested limit. This is a preflight posture check only; exact fee debit
+semantics remain a Tau host responsibility until pinned by live Tau evidence.
+
 Remaining live-transport operations:
 
 - perps liquidation actions
@@ -204,6 +210,7 @@ The UI now exposes:
 - open clearinghouse market roles
 - signed action status for market init, collateral deposit/withdraw, signed
   position update, epoch advance, clearing-price publish, and settle epoch
+- Tau fee-limit input plus native-balance coverage reporting
 - Tau submission receipt
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
 - optional Oracle adapter bridge JSON for local settle testing
@@ -228,7 +235,9 @@ Required evidence before claiming perps live-product coverage:
 - stateful fuzzing over zUSD monetary actions and perps collateral actions
 - chaos tests for node restart, duplicate tx, expired deadline, stale Oracle
   evidence, and out-of-order signed operations
-- gas/fee compensation checks for keeper paths when Tau fee accounting is pinned
+- gas/fee compensation checks for keeper paths when exact Tau fee debits are
+  pinned; current wallet surfaces provide fee-limit preflight coverage, not
+  host-level fee debit proof
 - docs updating the UI surface matrix from preview to live only after the live
   path passes
 
@@ -306,6 +315,18 @@ cd tools/dex-ui && npm run build
 
 Results: wallet API `8 passed`; stream-8 resilience `5 passed`; browser bridge
 `2 passed`; UI production build passed.
+
+Additional Tau fee-limit posture check added on 2026-05-21:
+
+```bash
+pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py tests/integration/test_perps_stream8_resilience.py
+cd tools/dex-ui && npm run build
+```
+
+Results: perps wallet/API/browser/resilience checks `17 passed`; UI production
+build passed. The browser bridge asserts `txFeeLimit` query plumbing, rendered
+fee-limit output, and native-balance coverage for both market-init and
+oracle-price publish flows.
 
 These checks prove the mounted perps wallet panel can submit a signed stream `8`
 two-party market init and a signed oracle clearing-price publish through the
