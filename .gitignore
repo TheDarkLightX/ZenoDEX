@@ -98,6 +98,17 @@ Thumbs.db
 # Local runs / reports
 runs/
 
+# Large local research corpora. Small checked-in summaries and model manifests
+# live under data/upba_energy; raw JSONL generation outputs stay local.
+data/upba_energy/*.jsonl
+
+# Lean/math tool scratch emitted at repository root by local proof tooling.
+/.nra.cache
+/CrossBatchReplayWithDeadTail
+/ReplayPoolAfterSuccessWithDeadTail
+/Mathlib.*
+/Proofs.*
+
 # Local agent scratch (do not commit)
 .codex_peer_review/
 .rlm_collab/
