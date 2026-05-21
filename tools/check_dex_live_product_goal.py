@@ -290,6 +290,30 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="assurance_depth",
+        check_id="perps_proof_wrapper_submit_blocks_broadcast",
+        path="tests/integration/test_perps_wallet_api.py",
+        description="Perps submit tests prove rejected required proof-wrapper checks block Tau sendtx.",
+        anchors=(
+            "test_submit_deposit_collateral_rejected_zk_proof_blocks_sendtx",
+            "zk_reject_broadcasts_tx",
+            "fixture proof rejected",
+            "PERPS_WALLET_REQUIRE_ZK_PROOF",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
+        check_id="zusd_proof_wrapper_submit_blocks_broadcast",
+        path="tests/integration/test_zusd_monetary_wallet_api.py",
+        description="zUSD monetary submit tests prove rejected required proof-wrapper checks block Tau sendtx.",
+        anchors=(
+            "test_submit_mint_rejected_zk_proof_blocks_sendtx",
+            "zk_reject_broadcasts_tx",
+            "fixture proof rejected",
+            "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
         check_id="completion_plan_records_residual_limits",
         path="docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md",
         description="The completion plan records current evidence and the remaining production-grade limits.",
@@ -301,6 +325,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "Additional confidential surface claim-scope evidence",
             "Additional perps Oracle-authority exercise receipt evidence",
             "Additional stream `8`/`11` proof-wrapper gate evidence",
+            "Additional stream `8`/`11` proof-wrapper submit fail-closed evidence",
         ),
     ),
 )

@@ -763,6 +763,52 @@ def test_prepare_init_market_accepts_verified_zk_wrapper(monkeypatch) -> None:
     assert payload["proof"]["profile"]["promotion_ready"] is True
 
 
+def test_submit_deposit_collateral_rejected_zk_proof_blocks_sendtx(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
+    monkeypatch.setenv(
+        "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
+        json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); print('{\"ok\": false, \"error\": \"fixture proof rejected\"}')",
+            ]
+        ),
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def fail_sendtx(self, payload):  # pragma: no cover - this is a disaster-state sentinel.
+        raise AssertionError("zk_reject_broadcasts_tx")
+
+    monkeypatch.setattr(_FakeClient, "sendtx", fail_sendtx)
+
+    body = {
+        "action": "deposit_collateral",
+        "market_id": MARKET_ID,
+        "account_pubkey": ALICE,
+        "account_privkey": str(ALICE_PRIVKEY),
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 1,
+        "zk_proof": {"system": "test-zk", "proof_bytes": "bad-fixture"},
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "zk_proof_required: fixture proof rejected"
+    assert _FakeClient.sent == []
+
+
 def test_prepare_reports_tau_fee_limit_native_balance_posture(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))

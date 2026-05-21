@@ -993,10 +993,22 @@ wrapper over their
 proof-intent receipts when `PERPS_WALLET_REQUIRE_ZK_PROOF=1`,
 `ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF=1`, or
 `TAU_DEX_REQUIRE_LIVE_ZK_PROOF=1` is set. If the gate is required, the APIs
-fail closed before signing or `sendtx` unless a caller-supplied proof verifies
-through the configured verifier command. This is an execution-wrapper gate over
+fail closed before `sendtx` unless a caller-supplied proof verifies through the
+configured verifier command. This is an execution-wrapper gate over
 deterministic receipts. It is not yet a production RISC Zero or SP1 circuit
 claim.
+
+Additional stream `8`/`11` proof-wrapper submit fail-closed evidence added on
+2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_deposit_collateral_rejected_zk_proof_blocks_sendtx tests/integration/test_zusd_monetary_wallet_api.py::test_submit_mint_rejected_zk_proof_blocks_sendtx
+```
+
+Results: focused submit-path checks `2 passed`. These checks name
+`zk_reject_broadcasts_tx` as the disaster state and prove that a rejected
+required proof on stream `8` perps deposit or stream `11` zUSD mint returns a
+400 error before any Tau `sendtx` call is made.
 
 Remaining limits:
 

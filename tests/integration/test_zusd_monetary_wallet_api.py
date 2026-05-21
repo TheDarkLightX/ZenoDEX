@@ -223,6 +223,47 @@ def test_prepare_mint_accepts_verified_zk_wrapper(monkeypatch) -> None:
     assert payload["proof"]["profile"]["promotion_ready"] is True
 
 
+def test_submit_mint_rejected_zk_proof_blocks_sendtx(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF", "1")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setenv(
+        "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON",
+        json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "import json,sys; json.load(sys.stdin); print('{\"ok\": false, \"error\": \"fixture proof rejected\"}')",
+            ]
+        ),
+    )
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    def fail_sendtx(self, payload):  # pragma: no cover - this is a disaster-state sentinel.
+        raise AssertionError("zk_reject_broadcasts_tx")
+
+    monkeypatch.setattr(_FakeClient, "sendtx", fail_sendtx)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+        "signer_privkey": str(ALICE_PRIVKEY),
+        "zk_proof": {"system": "test-zk", "proof_bytes": "bad-fixture"},
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "zk_proof_required: fixture proof rejected"}
+
+
 def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", "1")
