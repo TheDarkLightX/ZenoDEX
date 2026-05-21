@@ -27,6 +27,7 @@ from src.integration.zusd_monetary_bridge import (
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
+from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -677,6 +678,158 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_respo
     finally:
         vite_proc.terminate()
         api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        tau_thread.join(timeout=2.0)
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_response(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-zusd-monetary-ui-proxy-truncate"
+    owner_privkey = 82
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(owner_pubkey=owner_pubkey, chain_id=chain_id)  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+    proxy = TauRpcFaultProxy(
+        upstream_host="127.0.0.1",
+        upstream_port=tau_port,
+        truncate_sendtx_response_bytes=7,
+    ).start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "ZUSD_MONETARY_WALLET_API_ENABLED": "true",
+        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING": "false",
+        "ZUSD_MONETARY_WALLET_AUTO_MINE": "true",
+        "ZUSD_MONETARY_WALLET_CHAIN_ID": chain_id,
+        "ZUSD_MONETARY_WALLET_TAU_HOST": proxy.host,
+        "ZUSD_MONETARY_WALLET_TAU_PORT": str(proxy.port),
+        "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S": "1.0",
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "TAU_DEX_ZUSD_ORACLE_PUBKEY": owner_pubkey,
+    }
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={
+            **os.environ,
+            "API_PROXY_TARGET": api_base,
+            "VITE_DEMO_MODE": "false",
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+
+        deadline = int(time.time()) + 3600
+        body = {
+            "action": "mint_zusd",
+            "owner_pubkey": owner_pubkey,
+            "sender_pubkey": owner_pubkey,
+            "amount": 100,
+            "deadline": deadline,
+            "tx_fee_limit": "0",
+        }
+        signed_payload = _prepare_external_signed_zusd_payload(
+            api_base=api_base,
+            privkey=owner_privkey,
+            body=body,
+        )
+        state_before = _app_state_from_tau_server(tau_server)
+        status, api_rejected = _http_post_json_status(
+            api_base + "/api/zusd/monetary/submit",
+            {**body, "signed_tau_tx_payload": signed_payload},
+        )
+        assert status == 502
+        assert api_rejected["ok"] is False
+        assert api_rejected["error"] == "tau_rpc_error"
+        assert _app_state_from_tau_server(tau_server) == state_before
+        rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+        assert rpc_state.pending_tx is not None
+        assert rpc_state.sequences[owner_pubkey[2:].lower()] == 7
+        stats = proxy.stats()
+        assert stats.sendtx_requests == 1
+        assert stats.truncated_sendtx_responses == 1
+
+        query = urlencode(
+            {
+                "tab": "zusd",
+                "demo": "false",
+                "zenodexUiSmokeZusdMonetary": "1",
+                "zusdMonetaryAction": "mint_zusd",
+                "actorPubkey": owner_pubkey,
+                "zusdAmount": "100",
+                "zusdDeadline": str(deadline),
+                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+            }
+        )
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={tmp_path / 'chrome-profile-zusd-proxy-truncate'}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "zUSD Monetary Vault" in dom
+        assert "Tau node connected" in dom
+        assert "tau_rpc_error" in dom, dom[-8000:]
+        assert "SUCCESS tx accepted" not in dom
+        assert _app_state_from_tau_server(tau_server) == state_before
+        assert rpc_state.pending_tx is not None
+        assert rpc_state.sequences[owner_pubkey[2:].lower()] == 7
+        stats = proxy.stats()
+        assert stats.sendtx_requests == 2
+        assert stats.truncated_sendtx_responses == 2
+    finally:
+        vite_proc.terminate()
+        api_proc.terminate()
+        proxy.close()
         tau_server.shutdown()
         tau_server.server_close()
         tau_thread.join(timeout=2.0)

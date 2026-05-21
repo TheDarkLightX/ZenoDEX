@@ -832,6 +832,28 @@ increments by one. This is positive bounded-jitter evidence for the mounted
 submit boundary; browser/Toxiproxy packet-loss, higher-latency jitter, and
 multi-surface network-chaos campaigns remain open.
 
+Additional mounted stream `8`/`11` packet-fault proxy evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/tau_rpc_fault_proxy.py tests/integration/test_zusd_monetary_wallet_ui_bridge.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_response -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_on_truncated_proxy_sendtx_response -s
+```
+
+Results: py_compile passed; focused mounted zUSD and perps packet-fault browser
+regressions each `1 passed`. The new deterministic Tau RPC fault proxy forwards
+normal status, balance, sequence, and app-state requests, forwards `sendtx` to
+the upstream Tau-compatible server, then truncates the upstream `SUCCESS tx
+accepted` frame before the terminating newline. This models the ambiguous
+post-commit transport fault `ambiguous_sendtx_commit_materializes_as_success`:
+the upstream has a pending transaction, but the client receives a truncated
+response. The mounted stream `11` mint and stream `8` collateral deposit UIs both
+render `tau_rpc_error`, do not render `SUCCESS tx accepted`, preserve committed
+app state and sender sequence, and record the truncated `sendtx` fault. This
+does not claim mempool cleanup or external Toxiproxy-daemon coverage; it closes a
+deterministic browser packet-fault regression for the submit boundary.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle
