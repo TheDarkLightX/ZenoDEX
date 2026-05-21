@@ -1,12 +1,48 @@
 const DEFAULT_API_BASE = '';
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-function getRuntimeConfig() {
+export function getRuntimeConfig() {
   if (typeof window === 'undefined') {
     return {};
   }
   const cfg = window.__ZENODEX_CONFIG__;
   return cfg && typeof cfg === 'object' ? cfg : {};
+}
+
+function parseBooleanLike(raw) {
+  if (raw === true || raw === 'true' || raw === '1' || raw === 1) {
+    return true;
+  }
+  if (raw === false || raw === 'false' || raw === '0' || raw === 0) {
+    return false;
+  }
+  return undefined;
+}
+
+export function getRuntimeBooleanFlag({ queryKey, runtimeKey, envKey, defaultValue = false }) {
+  if (typeof window !== 'undefined' && queryKey) {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has(queryKey)) {
+      return parseBooleanLike(params.get(queryKey)) ?? Boolean(defaultValue);
+    }
+  }
+
+  if (runtimeKey) {
+    const runtimeValue = getRuntimeConfig()?.[runtimeKey];
+    const parsedRuntime = parseBooleanLike(runtimeValue);
+    if (parsedRuntime !== undefined) {
+      return parsedRuntime;
+    }
+  }
+
+  if (typeof import.meta !== 'undefined' && import.meta.env && envKey && import.meta.env[envKey] !== undefined) {
+    const parsedEnv = parseBooleanLike(import.meta.env[envKey]);
+    if (parsedEnv !== undefined) {
+      return parsedEnv;
+    }
+  }
+
+  return Boolean(defaultValue);
 }
 
 function normalizeApiBase(raw) {
@@ -98,6 +134,66 @@ export async function apiFetchJson(path, options = {}) {
 
 export function apiGetConfidentialStatus(options = {}) {
   return apiFetchJson('/api/confidential/status', { method: 'GET', ...(options || {}) });
+}
+
+export function apiGetZusdWalletStatus(options = {}) {
+  return apiFetchJson('/api/zusd/wallet/status', { method: 'GET', ...(options || {}) });
+}
+
+export function apiPrepareZusdWallet(body, options = {}) {
+  return apiFetchJson('/api/zusd/wallet/prepare', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiSubmitZusdWallet(body, options = {}) {
+  return apiFetchJson('/api/zusd/wallet/submit', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiGetZusdMonetaryStatus(options = {}) {
+  return apiFetchJson('/api/zusd/monetary/status', { method: 'GET', ...(options || {}) });
+}
+
+export function apiPrepareZusdMonetary(body, options = {}) {
+  return apiFetchJson('/api/zusd/monetary/prepare', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiSubmitZusdMonetary(body, options = {}) {
+  return apiFetchJson('/api/zusd/monetary/submit', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiGetPerpsWalletStatus(options = {}) {
+  return apiFetchJson('/api/perps/wallet/status', { method: 'GET', ...(options || {}) });
+}
+
+export function apiPreparePerpsWallet(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/prepare', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
+export function apiSubmitPerpsWallet(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/submit', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
 }
 
 export function apiGetPools(options = {}) {

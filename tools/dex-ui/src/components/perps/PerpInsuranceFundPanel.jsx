@@ -8,7 +8,7 @@ import './PerpInsuranceFundPanel.css';
  * Displays balance, fee income, claims paid for the selected market.
  * Includes a deposit action via PerpContext.
  */
-function PerpInsuranceFundPanel({ market, wallet }) {
+function PerpInsuranceFundPanel({ market, wallet, writeEnabled, writeLockReason }) {
     const [collapsed, setCollapsed] = useState(false);
     const [depositAmount, setDepositAmount] = useState('');
     const { depositInsurance } = usePerps();
@@ -65,7 +65,7 @@ function PerpInsuranceFundPanel({ market, wallet }) {
                     />
                     <button
                         className="btn btn-secondary perp-insurance-deposit-btn"
-                        disabled={!walletConnected || !depositAmount || Number(depositAmount) <= 0}
+                        disabled={!walletConnected || !writeEnabled || !depositAmount || Number(depositAmount) <= 0}
                         onClick={() => {
                             const amt = Math.floor(Number(depositAmount));
                             if (amt > 0) {
@@ -77,6 +77,9 @@ function PerpInsuranceFundPanel({ market, wallet }) {
                         Deposit
                     </button>
                 </div>
+                {!writeEnabled && (
+                    <div className="perp-order-error">{writeLockReason}</div>
+                )}
             </div>
         </div>
     );

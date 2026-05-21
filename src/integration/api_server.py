@@ -981,6 +981,13 @@ class _Handler(BaseHTTPRequestHandler):
     ) -> bool:
         if not path.startswith("/api/perps/"):
             return False
+        if path.startswith("/api/perps/wallet/"):
+            return self._maybe_handle_perps_wallet_api(
+                method=method,
+                path=path,
+                cors_origin=cors_origin,
+                raw_body=raw_body,
+            )
         if not getattr(self.server, "perps_api_enabled", False):
             return False
         if not self._demo_auth_ok():
@@ -992,11 +999,41 @@ class _Handler(BaseHTTPRequestHandler):
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
+    def _maybe_handle_perps_wallet_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/perps/wallet/"):
+            return False
+        if not getattr(self.server, "perps_wallet_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.perps_wallet_api import handle_perps_wallet_request
+
+        status, resp = handle_perps_wallet_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
     def _maybe_handle_zusd_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
     ) -> bool:
         if not path.startswith("/api/zusd/"):
             return False
+        if path.startswith("/api/zusd/monetary/"):
+            return self._maybe_handle_zusd_monetary_wallet_api(
+                method=method,
+                path=path,
+                cors_origin=cors_origin,
+                raw_body=raw_body,
+            )
+        if path.startswith("/api/zusd/wallet/"):
+            return self._maybe_handle_zusd_tau_wallet_api(
+                method=method,
+                path=path,
+                cors_origin=cors_origin,
+                raw_body=raw_body,
+            )
         if not getattr(self.server, "zusd_api_enabled", False):
             return False
         if not self._demo_auth_ok():
@@ -1005,6 +1042,38 @@ class _Handler(BaseHTTPRequestHandler):
         from src.integration.zusd_api import handle_zusd_request
 
         status, resp = handle_zusd_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_zusd_tau_wallet_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/zusd/wallet/"):
+            return False
+        if not getattr(self.server, "zusd_tau_wallet_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
+
+        status, resp = handle_zusd_tau_wallet_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_zusd_monetary_wallet_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/zusd/monetary/"):
+            return False
+        if not getattr(self.server, "zusd_monetary_wallet_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
+
+        status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -6598,13 +6667,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
 
     perps_enabled = _env_str("PERPS_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    perps_wallet_enabled = _env_str("PERPS_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
     zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
     demo_api_token = _env_str("DEMO_API_TOKEN", "")
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
 
-    sensitive_api_enabled = bool(perps_enabled or zusd_enabled or dex_enabled)
+    sensitive_api_enabled = bool(
+        perps_enabled
+        or perps_wallet_enabled
+        or zusd_enabled
+        or zusd_tau_wallet_enabled
+        or zusd_monetary_wallet_enabled
+        or dex_enabled
+    )
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
     production_mode = runtime_env not in ("dev", "development", "test", "local")
     external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
@@ -6613,7 +6692,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if sensitive_api_enabled and not external_auth_enforced and not demo_api_token:
         print(
             "Refusing to start: sensitive APIs enabled without external auth or DEMO_API_TOKEN "
-            f"(host={host!r}, perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled})"
+            f"(host={host!r}, perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, "
+            f"zusd_api={zusd_enabled}, "
+            f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
+            f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, dex_api={dex_enabled})"
         )
         return 2
     if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
@@ -6641,7 +6723,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.cors_origins = cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=rpm, max_buckets=max_buckets)  # type: ignore[attr-defined]
     httpd.perps_api_enabled = perps_enabled  # type: ignore[attr-defined]
+    httpd.perps_wallet_api_enabled = perps_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
+    httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
+    httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
@@ -6649,7 +6734,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
-        f"perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled}, "
+        f"perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, zusd_api={zusd_enabled}, "
+        f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
+        f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
         f"external_auth_enforced={external_auth_enforced}, demo_api_token_set={bool(demo_api_token)}, "
         f"demo_token_auth_allowed={allow_demo_token_auth})"

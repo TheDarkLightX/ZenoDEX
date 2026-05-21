@@ -1,0 +1,562 @@
+"""Tau-node-backed zUSD monetary wallet API.
+
+This module exposes a mounted live surface for stream-11 zUSD monetary
+operations. It follows the same prepare/submit shape as
+``zusd_tau_wallet_api.py`` while targeting collateral, mint, repay, redeem,
+stability-pool, liquidation, and SP collateral-claim actions.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+from dataclasses import replace
+from typing import Any, Dict, Mapping, Optional, Tuple, cast
+from urllib.parse import urlsplit
+
+from ..core.dex import DexState
+from ..core.zusd import E8
+from .dex_snapshot import state_from_snapshot
+from ..state.balances import BalanceTable, NATIVE_ASSET
+from ..state.canonical import canonical_hex_fixed_allow_0x
+from .tau_net_client import (
+    TauNetRpcError,
+    TauNetTcpClient,
+    TauNetTcpConfig,
+    bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
+)
+from .zusd_monetary_bridge import (
+    ZUSDMonetaryConfig,
+    ZUSDMonetaryState,
+    apply_zusd_monetary_ops,
+    stability_pool_pubkey,
+    zusd_monetary_sender_nonce_key,
+    zusd_monetary_state_from_obj,
+)
+from .zusd_tau_token import derive_zusd_tau_asset_id
+
+
+MAX_POST_BODY = 65_536
+ResponseT = Tuple[int, Dict[str, Any]]
+_STREAM_KEY = "11"
+_U32_MAX = 0xFFFFFFFF
+_ACTIONS = {
+    "advance_epoch",
+    "bootstrap_oracle",
+    "oracle_report",
+    "oracle_commit",
+    "deposit_collateral",
+    "withdraw_collateral",
+    "mint_zusd",
+    "repay_zusd",
+    "deposit_sp",
+    "withdraw_sp",
+    "redeem_zusd",
+    "liquidate",
+    "claim_sp_collateral",
+}
+
+
+def _env_str(name: str, default: str) -> str:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip()
+    return value if value else default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return float(default)
+    try:
+        value = float(raw.strip())
+    except Exception:
+        return float(default)
+    return min(max(value, lo), hi)
+
+
+def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return int(default)
+    try:
+        value = int(raw.strip())
+    except Exception:
+        return int(default)
+    return min(max(value, lo), hi)
+
+
+def _tau_client() -> TauNetTcpClient:
+    return TauNetTcpClient(
+        TauNetTcpConfig(
+            host=_env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
+            port=_env_int(
+                "ZUSD_MONETARY_WALLET_TAU_PORT",
+                _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+                lo=1,
+                hi=65535,
+            ),
+            timeout_s=_env_float(
+                "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S",
+                _env_float("ZUSD_TAU_WALLET_TAU_TIMEOUT_S", 3.0, lo=0.1, hi=60.0),
+                lo=0.1,
+                hi=60.0,
+            ),
+        )
+    )
+
+
+def _tau_chain_id() -> str:
+    return _env_str("ZUSD_MONETARY_WALLET_CHAIN_ID", _env_str("TAU_DEX_CHAIN_ID", "tau-local"))
+
+
+def _allow_signing() -> bool:
+    return _env_bool("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False))
+
+
+def _auto_mine() -> bool:
+    return _env_bool("ZUSD_MONETARY_WALLET_AUTO_MINE", _env_bool("ZUSD_TAU_WALLET_AUTO_MINE", False))
+
+
+def _default_deadline() -> int:
+    delta = _env_int("ZUSD_MONETARY_WALLET_DEFAULT_DEADLINE_S", 3600, lo=1, hi=86_400)
+    return int(time.time()) + int(delta)
+
+
+def _canonical_pubkey(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=48, name=name)
+
+
+def _canonical_asset(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+
+
+def _pubkey_for_rpc(value: str) -> str:
+    s = value.strip().lower()
+    return s[2:] if s.startswith("0x") else s
+
+
+def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    if body is None or len(body) == 0:
+        return None, "empty_body"
+    if len(body) > MAX_POST_BODY:
+        return None, "body_too_large"
+    try:
+        obj = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None, "invalid_json"
+    if not isinstance(obj, dict):
+        return None, "expected_object"
+    return obj, None
+
+
+def _load_app_state(client: TauNetTcpClient) -> Tuple[Dict[str, Any], Optional[str]]:
+    raw = client.getappstate(full=True).strip()
+    if not raw:
+        raise TauNetRpcError("empty getappstate response")
+    obj = json.loads(raw)
+    if not isinstance(obj, dict):
+        raise TauNetRpcError("invalid getappstate response")
+    app_state = obj.get("app_state")
+    if app_state is None:
+        app_state = {}
+    if not isinstance(app_state, dict):
+        raise TauNetRpcError("invalid app_state payload")
+    app_hash = obj.get("app_hash")
+    return app_state, str(app_hash) if isinstance(app_hash, str) and app_hash else None
+
+
+def _dex_state_view(app_state: Mapping[str, Any]) -> Mapping[str, Any]:
+    dex_state = app_state.get("dex_state")
+    if isinstance(dex_state, Mapping):
+        return dex_state
+    return app_state
+
+
+def _zusd_state_view(app_state: Mapping[str, Any]) -> ZUSDMonetaryState | None:
+    raw = app_state.get("zusd_monetary")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise TauNetRpcError("app_state.zusd_monetary must be an object")
+    return zusd_monetary_state_from_obj(raw)
+
+
+def _balances_for_asset(app_state: Mapping[str, Any], *, asset_id: str) -> Dict[str, int]:
+    state_view = _dex_state_view(app_state)
+    raw = state_view.get("balances") or []
+    if not isinstance(raw, list):
+        raise TauNetRpcError("app_state balances must be a list")
+    out: Dict[str, int] = {}
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            raise TauNetRpcError(f"app_state.balances[{index}] must be an object")
+        pubkey = entry.get("pubkey")
+        asset = entry.get("asset")
+        amount = entry.get("amount")
+        if not isinstance(pubkey, str) or not isinstance(asset, str):
+            raise TauNetRpcError(f"app_state.balances[{index}] has invalid keys")
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
+            raise TauNetRpcError(f"app_state.balances[{index}] amount invalid")
+        if asset.strip().lower() != asset_id.strip().lower():
+            continue
+        out[pubkey.strip().lower()] = int(amount)
+    return out
+
+
+def _last_used_monetary_nonce(app_state: Mapping[str, Any], *, actor_pubkey: str) -> int:
+    state_view = _dex_state_view(app_state)
+    raw = state_view.get("nonces") or []
+    if not isinstance(raw, list):
+        raise TauNetRpcError("app_state.nonces must be a list")
+    nonce_key = zusd_monetary_sender_nonce_key(actor_pubkey)
+    last_nonce = 0
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, Mapping):
+            raise TauNetRpcError(f"app_state.nonces[{index}] must be an object")
+        pubkey = entry.get("pubkey")
+        if not isinstance(pubkey, str):
+            raise TauNetRpcError(f"app_state.nonces[{index}].pubkey invalid")
+        if pubkey.strip().lower() != nonce_key.strip().lower():
+            continue
+        nonce = entry.get("last_nonce", 0)
+        if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce < 0:
+            raise TauNetRpcError(f"app_state.nonces[{index}].last_nonce invalid")
+        last_nonce = int(nonce)
+    return last_nonce
+
+
+def _request_action(body: Mapping[str, Any]) -> str:
+    action = str(body.get("action", "")).strip().lower()
+    if action not in _ACTIONS:
+        raise ValueError("unsupported_action")
+    return action
+
+
+def _request_u32(body: Mapping[str, Any], *, name: str, default: Optional[int] = None) -> int:
+    if name not in body:
+        if default is None:
+            raise ValueError(f"missing_{name}")
+        return int(default)
+    value = body.get(name)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > _U32_MAX:
+        raise ValueError(f"bad_{name}")
+    return int(value)
+
+
+def _request_amount_e8(body: Mapping[str, Any], *, required: bool) -> int | None:
+    if "amount_e8" in body:
+        value = body.get("amount_e8")
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError("bad_amount_e8")
+        return int(value)
+    if "amount" in body:
+        value = body.get("amount")
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError("bad_amount")
+        return int(value) * E8
+    if required:
+        raise ValueError("missing_amount")
+    return None
+
+
+def _actor_pubkey_for_action(body: Mapping[str, Any], *, action: str) -> str:
+    candidates: list[object] = []
+    if "sender_pubkey" in body:
+        candidates.append(body.get("sender_pubkey"))
+    if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"} and "owner_pubkey" in body:
+        candidates.append(body.get("owner_pubkey"))
+    if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"} and "account_pubkey" in body:
+        candidates.append(body.get("account_pubkey"))
+    if action in {"advance_epoch", "bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"} and "actor_pubkey" in body:
+        candidates.append(body.get("actor_pubkey"))
+    if not candidates:
+        raise ValueError("missing_sender_pubkey")
+    canonical = [_canonical_pubkey(v, name="sender_pubkey") for v in candidates]
+    first = canonical[0]
+    if any(v != first for v in canonical):
+        raise ValueError("sender_pubkey mismatch")
+    return first
+
+
+def _build_operation(body: Mapping[str, Any], *, action: str, actor_pubkey: str, nonce: int, deadline: int) -> dict[str, Any]:
+    op: dict[str, Any] = {
+        "module": "ZUSDFinance",
+        "version": "0.1",
+        "action": action,
+        "nonce": int(nonce),
+        "deadline": int(deadline),
+    }
+    if action == "advance_epoch":
+        op["delta"] = _request_u32(body, name="delta", default=None)
+        return op
+    if action in {"bootstrap_oracle", "oracle_report"}:
+        price_e8 = body.get("price_e8")
+        if not isinstance(price_e8, int) or isinstance(price_e8, bool) or price_e8 <= 0:
+            raise ValueError("bad_price_e8")
+        op["price_e8"] = int(price_e8)
+        return op
+    if action == "oracle_commit" or action == "liquidate":
+        return op
+    if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"}:
+        op["owner_pubkey"] = actor_pubkey
+        op["amount_e8"] = _request_amount_e8(body, required=True)
+        return op
+    if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}:
+        op["account_pubkey"] = actor_pubkey
+        op["amount_e8"] = _request_amount_e8(body, required=True)
+        return op
+    raise ValueError("unsupported_action")
+
+
+def _state_from_app_state(app_state: Mapping[str, Any], *, actor_pubkey: str, native_balance: int | None) -> DexState:
+    state = state_from_snapshot(_dex_state_view(app_state))
+    if native_balance is None:
+        return state
+    balances = BalanceTable()
+    for (pubkey, asset), amount in state.balances.get_all_balances().items():
+        balances.set(pubkey, asset, int(amount))
+    balances.set(actor_pubkey, NATIVE_ASSET, int(native_balance))
+    return replace(state, balances=balances)
+
+
+def _safe_native_balance(client: TauNetTcpClient, actor_pubkey: str) -> int | None:
+    try:
+        return int(client.get_balance(_pubkey_for_rpc(actor_pubkey)))
+    except Exception:
+        return None
+
+
+def _preflight(
+    *,
+    app_state: Mapping[str, Any],
+    config: ZUSDMonetaryConfig,
+    operation: Mapping[str, Any],
+    actor_pubkey: str,
+    block_timestamp: int,
+    native_balance: int | None,
+) -> dict[str, Any]:
+    try:
+        state = _state_from_app_state(app_state, actor_pubkey=actor_pubkey, native_balance=native_balance)
+        res = apply_zusd_monetary_ops(
+            config=config,
+            state=state,
+            zusd_state=_zusd_state_view(app_state),
+            operations=[dict(operation)],
+            tx_sender_pubkey=actor_pubkey,
+            block_timestamp=int(block_timestamp),
+        )
+        return {
+            "ok": bool(res.ok),
+            "error": res.error,
+            "effects": list(res.effects or []),
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "effects": []}
+
+
+def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
+    action = _request_action(body)
+    actor_pubkey = _actor_pubkey_for_action(body, action=action)
+    deadline = _request_u32(body, name="deadline", default=_default_deadline())
+    chain_id = str(body.get("chain_id") or _tau_chain_id())
+    explicit_asset_id = body.get("asset_id")
+    asset_id = (
+        _canonical_asset(explicit_asset_id, name="asset_id")
+        if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
+        else derive_zusd_tau_asset_id(chain_id=chain_id)
+    )
+    config = ZUSDMonetaryConfig(
+        chain_id=chain_id,
+        oracle_pubkey=os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY"),
+        asset_id=asset_id,
+        liquidation_gas_comp_fixed_collateral_e8=_env_int(
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
+            0,
+            lo=0,
+            hi=10**30,
+        ),
+        liquidation_gas_comp_bps=_env_int("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", 0, lo=0, hi=10_000),
+    )
+
+    client = _tau_client()
+    app_state, app_hash = _load_app_state(client)
+    balances = _balances_for_asset(app_state, asset_id=asset_id)
+    sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
+    last_used_nonce = _last_used_monetary_nonce(app_state, actor_pubkey=actor_pubkey)
+    nonce = last_used_nonce + 1
+    tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(actor_pubkey)))
+    native_balance = _safe_native_balance(client, actor_pubkey)
+    operation = _build_operation(body, action=action, actor_pubkey=actor_pubkey, nonce=nonce, deadline=deadline)
+    operations = {_STREAM_KEY: [operation]}
+    block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
+    preflight = _preflight(
+        app_state=app_state,
+        config=config,
+        operation=operation,
+        actor_pubkey=actor_pubkey,
+        block_timestamp=block_timestamp,
+        native_balance=native_balance,
+    )
+
+    signer_privkey = body.get("signer_privkey")
+    if for_submit and not isinstance(signer_privkey, (str, int)):
+        raise ValueError("missing_signer_privkey")
+    if signer_privkey is not None and not _allow_signing():
+        raise ValueError("local_signing_disabled")
+
+    tau_tx_payload: dict[str, Any] | None = None
+    if signer_privkey is not None:
+        signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(cast(Any, signer_privkey))
+        if signer_pubkey.lower() != actor_pubkey.lower():
+            raise ValueError("signer_privkey does not match sender_pubkey")
+        tau_tx_payload = build_signed_tau_transaction(
+            privkey=cast(Any, signer_privkey),
+            sequence_number=tx_sequence_number,
+            expiration_time=deadline,
+            operations=operations,
+            fee_limit=body.get("tx_fee_limit", "0"),
+        )
+
+    payload: Dict[str, Any] = {
+        "ok": True,
+        "transport": {
+            "chain_id": chain_id,
+            "app_hash": app_hash,
+            "asset_id": asset_id,
+            "actor_pubkey": actor_pubkey,
+            "native_balance_e8": native_balance,
+            "zusd_balance": int(balances.get(actor_pubkey.lower(), 0)),
+            "stability_pool_pubkey": sp_pubkey,
+            "stability_pool_balance": int(balances.get(sp_pubkey.lower(), 0)),
+            "last_used_nonce": last_used_nonce,
+            "tx_sequence_number": tx_sequence_number,
+            "liquidation_gas_comp_fixed_collateral_e8": config.liquidation_gas_comp_fixed_collateral_e8,
+            "liquidation_gas_comp_bps": config.liquidation_gas_comp_bps,
+            "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
+            "tau_port": _env_int(
+                "ZUSD_MONETARY_WALLET_TAU_PORT",
+                _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+                lo=1,
+                hi=65535,
+            ),
+        },
+        "report": {
+            "action": action,
+            "asset_id": asset_id,
+            "nonce_key": zusd_monetary_sender_nonce_key(actor_pubkey),
+            "nonce_before": last_used_nonce,
+            "nonce_after": nonce,
+            "operation": operation,
+            "operations": operations,
+            "preflight": preflight,
+            "tau_tx_payload": tau_tx_payload,
+        },
+    }
+    if for_submit:
+        send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
+        payload["submission"] = {"sendtx_response": send_resp}
+        if _auto_mine():
+            payload["submission"]["createblock_response"] = client.createblock()
+        app_state_after, app_hash_after = _load_app_state(client)
+        payload["post_submit"] = {
+            "app_hash": app_hash_after,
+            "balances": _balances_for_asset(app_state_after, asset_id=asset_id),
+            "zusd_monetary": app_state_after.get("zusd_monetary"),
+        }
+    return payload
+
+
+def _status_payload() -> Dict[str, Any]:
+    chain_id = _tau_chain_id()
+    asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
+    status: Dict[str, Any] = {
+        "enabled": True,
+        "chain_id": chain_id,
+        "asset_id": asset_id,
+        "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
+        "tau_port": _env_int(
+            "ZUSD_MONETARY_WALLET_TAU_PORT",
+            _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+            lo=1,
+            hi=65535,
+        ),
+        "allow_local_signing": _allow_signing(),
+        "auto_mine": _auto_mine(),
+        "stability_pool_pubkey": sp_pubkey,
+        "oracle_pubkey": os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
+        "liquidation_gas_comp_fixed_collateral_e8": _env_int(
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
+            0,
+            lo=0,
+            hi=10**30,
+        ),
+        "liquidation_gas_comp_bps": _env_int("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", 0, lo=0, hi=10_000),
+    }
+    try:
+        client = _tau_client()
+        hello = client.rpc("hello version=1").strip()
+        app_state, app_hash = _load_app_state(client)
+        balances = _balances_for_asset(app_state, asset_id=asset_id)
+        zusd_state = _zusd_state_view(app_state)
+        status["node_reachable"] = True
+        status["hello"] = hello
+        status["app_hash"] = app_hash
+        status["app_bridge_available"] = bool(app_state or app_hash)
+        status["holder_count"] = len(balances)
+        status["stability_pool_balance"] = int(balances.get(sp_pubkey.lower(), 0))
+        status["monetary_state_present"] = zusd_state is not None
+        if zusd_state is not None:
+            status["core"] = dict(zusd_state.core.__dict__)
+            status["vault_owner_pubkey"] = zusd_state.vault_owner_pubkey
+            status["sp_deposits_e8"] = dict(zusd_state.sp_deposits_e8 or {})
+            status["sp_collateral_claims_e8"] = dict(zusd_state.sp_collateral_claims_e8 or {})
+    except Exception as exc:
+        status["node_reachable"] = False
+        status["error"] = f"{type(exc).__name__}: {exc}"
+    return status
+
+
+def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[bytes]) -> ResponseT:
+    parsed_path = urlsplit(path)
+    segments = [segment for segment in parsed_path.path.split("/") if segment]
+    if len(segments) < 4 or segments[0] != "api" or segments[1] != "zusd" or segments[2] != "monetary":
+        return 404, {"ok": False, "error": "not_found"}
+
+    rest = segments[3:]
+    try:
+        if method == "GET" and rest == ["status"]:
+            return 200, {"ok": True, "status": _status_payload()}
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        parsed, err = _parse_json_body(body)
+        if err is not None:
+            return 400, {"ok": False, "error": err}
+        if parsed is None:
+            return 400, {"ok": False, "error": "bad_json"}
+        if rest == ["prepare"]:
+            return 200, _build_prepare_response(parsed, for_submit=False)
+        if rest == ["submit"]:
+            return 200, _build_prepare_response(parsed, for_submit=True)
+        return 404, {"ok": False, "error": "not_found"}
+    except (ValueError, TypeError) as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except TauNetRpcError as exc:
+        return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
+    except Exception as exc:
+        return 500, {"ok": False, "error": "internal_error", "detail": f"{type(exc).__name__}: {exc}"}

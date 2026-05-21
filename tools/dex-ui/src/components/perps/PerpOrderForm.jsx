@@ -13,7 +13,7 @@ import './PerpOrderForm.css';
  * - Extreme (>10x): Type "CONFIRM" to proceed
  * - Breaker: Full red banner, reduce-only enforced
  */
-function PerpOrderForm({ market, position, wallet, onSubmit, onShowConfirm }) {
+function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason, onSubmit, onShowConfirm }) {
     const [side, setSide] = useState('long');
     const [sizeInput, setSizeInput] = useState('');
 
@@ -164,13 +164,17 @@ function PerpOrderForm({ market, position, wallet, onSubmit, onShowConfirm }) {
             <button
                 className={`btn btn-large perp-submit-btn perp-submit-${side}`}
                 onClick={handleSubmit}
-                disabled={!wallet || !validation.ok}
+                disabled={!wallet || !writeEnabled || !validation.ok}
             >
                 {!wallet ? 'Connect Wallet'
+                    : !writeEnabled ? 'Preview-only lane'
                     : !sizeInput ? 'Enter Size'
                     : validation.error ? validation.error
                     : `${side === 'long' ? 'Long' : 'Short'} ${market?.id || ''}`}
             </button>
+            {!writeEnabled && (
+                <div className="perp-order-error">{writeLockReason}</div>
+            )}
         </div>
     );
 }

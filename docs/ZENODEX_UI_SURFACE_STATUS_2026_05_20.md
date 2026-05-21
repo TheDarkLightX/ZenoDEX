@@ -1,0 +1,110 @@
+# ZenoDEX UI Surface Status (2026-05-20)
+
+This note records the mounted ZenoDEX UI posture as of 2026-05-20.
+
+## Mounted surfaces
+
+| Surface | Mounted in UI | Default posture | Authoritative backend path | Browser evidence |
+| --- | --- | --- | --- | --- |
+| Swap / Pools | Yes | Live local/testnet spot lane | Yes, mounted spot path through local API and Tau-ledger flow | `tests/integration/test_dex_ui_live_bridge.py` |
+| zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
+| Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and direct API evidence for writes. Browser write clicks remain unproven. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
+| Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
+| Strategy | Yes | Preview-only planning workbench | No | none yet |
+| Confidential | Yes | Live operator-status and proof-context surface | Status-only via `GET /api/confidential/status` | `tests/integration/test_confidential_ui_bridge.py` |
+
+## Interpretation
+
+The mounted app is the intended ZenoDEX shell. The open gap is no longer shell
+selection.
+
+The next product-complete backend promotions still required are:
+
+1. perps on a mounted live transaction path, using the existing signed app-bridge engine rather than the demo HTTP route;
+2. strategy submission on a receipt-backed path;
+3. any confidential execution lane beyond operator-status and proof posture.
+
+Perps now has focused backend and browser evidence for a mounted live wallet
+lane. Collateral-minted zUSD can be transferred and used as the quote collateral
+asset for signed clearinghouse collateral deposits, and the UI can submit signed
+stream `8` market init and oracle price publish actions through
+`/api/perps/wallet/*`. The completion plan is recorded in
+`docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
+full Docker zUSD-to-perps browser evidence, first-class typed Oracle adapter
+fixtures, perps liquidation, and proof/ZK promotion.
+
+The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
+liquidation parity. The current 5% borrower-penalty gap is tracked in
+`docs/ZUSD_LIQUITY_PARITY_STATUS_2026_05_20.md`.
+
+## Current browser checks
+
+Run these from repo root:
+
+```bash
+pytest -q \
+  tests/integration/test_zusd_tau_wallet_ui_bridge.py \
+  tests/integration/test_zusd_tau_wallet_ui_docker.py \
+  tests/integration/test_zusd_monetary_wallet_ui_bridge.py \
+  tests/integration/test_zusd_monetary_wallet_ui_docker.py \
+  tests/integration/test_zeno_oracle_ui_bridge.py \
+  tests/integration/test_perps_wallet_ui_bridge.py \
+  tests/integration/test_perps_ui_preview_lock.py \
+  tests/integration/test_confidential_ui_bridge.py
+```
+
+These checks prove:
+
+- the mounted Oracle tab can bind to a real local Oracle service;
+- the mounted zUSD tab can submit through the Tau wallet bridge, including the local Docker Tau node lane;
+- the mounted zUSD tab can submit stream `11` monetary-vault actions through the Tau-node-backed API, including the local Docker Tau node lane;
+- the mounted perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
+- the mounted perps wallet panel can submit signed stream `8` clearinghouse init
+  and oracle price publish actions through the Tau-node-backed API;
+- the mounted confidential tab can load live operator posture from the stdlib API server.
+
+Current backend-only perps bridge check:
+
+```bash
+pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral
+pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral
+pytest -q tests/integration/test_zusd_monetary_wallet_api.py
+pytest -q tests/integration/test_perps_wallet_api.py
+pytest -q tests/integration/test_perps_stream8_resilience.py
+```
+
+Latest local browser pass on 2026-05-20:
+
+```bash
+pytest -q tests/integration/test_zusd_tau_wallet_ui_bridge.py tests/integration/test_zusd_monetary_wallet_ui_bridge.py tests/integration/test_zeno_oracle_ui_bridge.py tests/integration/test_perps_ui_preview_lock.py tests/integration/test_confidential_ui_bridge.py
+pytest -q tests/integration/test_dex_ui_live_bridge.py
+```
+
+Results: mounted non-spot browser checks `7 passed`; spot/pools browser checks
+`2 passed`.
+
+Latest perps live-wallet pass on 2026-05-20:
+
+```bash
+pytest -q tests/integration/test_perps_wallet_api.py
+pytest -q tests/integration/test_perps_stream8_resilience.py
+pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: `4 passed`, `4 passed`, and `1 passed`.
+
+Follow-on perps live-wallet pass on 2026-05-20:
+
+```bash
+pytest -q tests/integration/test_perps_wallet_api.py
+pytest -q tests/integration/test_perps_stream8_resilience.py
+pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: `8 passed`, `5 passed`, and `2 passed`.
+
+Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
+proves the browser can load the live dashboard read path. Direct API write tests
+cover local write endpoints when explicitly enabled. Browser click-through for
+feed creation, reporter onboarding, disputes, and rewards is still missing, and
+the local Oracle server currently advertises CORS methods for `GET, OPTIONS`.

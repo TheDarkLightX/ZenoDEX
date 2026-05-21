@@ -87,6 +87,10 @@ def _solvent_at_price(*, collateral_e8: int, debt_e8: int, price_e8: int) -> boo
     return (collateral_e8 * price_e8) >= (debt_e8 * E8)
 
 
+def _debt_floor_ok(*, debt_e8: int, min_debt_open_e8: int) -> bool:
+    return debt_e8 == 0 or debt_e8 >= min_debt_open_e8
+
+
 def _mul_div_up(a: int, b: int, den: int) -> int:
     if den <= 0:
         raise ValueError("denominator must be positive")
@@ -134,6 +138,7 @@ class ZUSDState:
     sp_coll_e8: int = 0
     protocol_collateral_e8: int = 0
     protocol_revenue_zusd_cum_e8: int = 0
+    liquidator_compensation_collateral_cum_e8: int = 0
 
     # Parameters
     mcr_bps: int = 11_000  # 110%
@@ -154,6 +159,8 @@ class ZUSDState:
     borrow_fee_max_bps: int = 1_000
     redemption_fee_floor_bps: int = 0
     redemption_fee_max_bps: int = 1_000
+    liquidation_gas_comp_fixed_collateral_e8: int = 0
+    liquidation_gas_comp_bps: int = 0
 
     def __post_init__(self) -> None:
         for name in (
@@ -169,6 +176,7 @@ class ZUSDState:
             "sp_coll_e8",
             "protocol_collateral_e8",
             "protocol_revenue_zusd_cum_e8",
+            "liquidator_compensation_collateral_cum_e8",
             "min_debt_open_e8",
             "max_debt_e8",
             "max_debt_supply_e8",
@@ -183,6 +191,8 @@ class ZUSDState:
             "borrow_fee_max_bps",
             "redemption_fee_floor_bps",
             "redemption_fee_max_bps",
+            "liquidation_gas_comp_fixed_collateral_e8",
+            "liquidation_gas_comp_bps",
         ):
             _check_bounded_nonneg(int(getattr(self, name)), name=name)
         if self.oracle_last_update_epoch > self.now_epoch:
@@ -213,6 +223,8 @@ class ZUSDState:
             raise ValueError("borrow_fee bps bounds invalid")
         if not (0 <= self.redemption_fee_floor_bps <= self.redemption_fee_max_bps <= BPS_SCALE):
             raise ValueError("redemption_fee bps bounds invalid")
+        if not (0 <= self.liquidation_gas_comp_bps <= BPS_SCALE):
+            raise ValueError("liquidation_gas_comp_bps out of bounds")
 
 
 @dataclass(frozen=True)
@@ -258,6 +270,8 @@ def check_invariants(state: ZUSDState) -> list[str]:
         failed.append("inv_oracle_unseen_zeroed")
     if (state.free_debt_e8 + state.sp_debt_e8) != state.debt_e8:
         failed.append("inv_supply_conservation")
+    if not _debt_floor_ok(debt_e8=state.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
+        failed.append("inv_debt_floor")
     if not _solvent_at_price(
         collateral_e8=state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8,
         debt_e8=state.debt_e8,
@@ -420,10 +434,13 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
                 return ZUSDStepResult(ok=False, error="repay exceeds debt")
             if amt > state.free_debt_e8:
                 return ZUSDStepResult(ok=False, error="repay exceeds free debt balance")
+            post_debt = state.debt_e8 - amt
+            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+                return ZUSDStepResult(ok=False, error="repay would leave debt below min_debt_open_e8")
             ns = ZUSDState(
                 **{
                     **state.__dict__,
-                    "debt_e8": state.debt_e8 - amt,
+                    "debt_e8": post_debt,
                     "free_debt_e8": state.free_debt_e8 - amt,
                 }
             )
@@ -510,6 +527,8 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
             collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
             post_debt = state.debt_e8 - amt
             post_collateral = state.collateral_e8 - gross_collateral_e8
+            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+                return ZUSDStepResult(ok=False, error="redemption would leave debt below min_debt_open_e8")
             if not _mcr_ok(
                 collateral_e8=post_collateral,
                 debt_e8=post_debt,
@@ -553,24 +572,34 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
                 return ZUSDStepResult(ok=False, error="vault not under MCR at pending price")
             if state.debt_e8 > state.sp_debt_e8:
                 return ZUSDStepResult(ok=False, error="stability pool cannot absorb debt")
-            if (state.sp_coll_e8 + state.collateral_e8) > state.max_sp_coll_e8:
-                return ZUSDStepResult(ok=False, error="stability pool collateral cap exceeded")
-
             liquidated_debt = state.debt_e8
             liquidated_coll = state.collateral_e8
+            variable_comp = _mul_div_up(liquidated_coll, state.liquidation_gas_comp_bps, BPS_SCALE)
+            requested_comp = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp
+            liquidator_comp = min(liquidated_coll, requested_comp)
+            sp_collateral_gain = liquidated_coll - liquidator_comp
+            if (state.sp_coll_e8 + sp_collateral_gain) > state.max_sp_coll_e8:
+                return ZUSDStepResult(ok=False, error="stability pool collateral cap exceeded")
             ns = ZUSDState(
                 **{
                     **state.__dict__,
                     "debt_e8": 0,
                     "collateral_e8": 0,
                     "sp_debt_e8": state.sp_debt_e8 - liquidated_debt,
-                    "sp_coll_e8": state.sp_coll_e8 + liquidated_coll,
+                    "sp_coll_e8": state.sp_coll_e8 + sp_collateral_gain,
+                    "liquidator_compensation_collateral_cum_e8": (
+                        state.liquidator_compensation_collateral_cum_e8 + liquidator_comp
+                    ),
                 }
             )
             eff = {
                 "event": "liquidated",
                 "liquidated_debt_e8": liquidated_debt,
                 "liquidated_collateral_e8": liquidated_coll,
+                "sp_collateral_gain_e8": sp_collateral_gain,
+                "liquidator_compensation_collateral_e8": liquidator_comp,
+                "liquidation_gas_comp_fixed_collateral_e8": state.liquidation_gas_comp_fixed_collateral_e8,
+                "liquidation_gas_comp_bps": state.liquidation_gas_comp_bps,
             }
 
         else:
@@ -771,6 +800,10 @@ def check_multi_invariants(state: ZUSDMultiState) -> list[str]:
     td = _total_debt(state)
     if (state.free_debt_e8 + state.sp_debt_e8) != td:
         failed.append("inv_supply_conservation")
+    if not _debt_floor_ok(debt_e8=state.vault_a.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
+        failed.append("inv_debt_floor_a")
+    if not _debt_floor_ok(debt_e8=state.vault_b.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
+        failed.append("inv_debt_floor_b")
 
     if not _solvent_at_price(
         collateral_e8=state.vault_a.collateral_e8,
@@ -960,7 +993,10 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
                 return ZUSDMultiStepResult(ok=False, error="repay exceeds vault debt")
             if amt > state.free_debt_e8:
                 return ZUSDMultiStepResult(ok=False, error="repay exceeds free debt balance")
-            ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=v.debt_e8 - amt))
+            post_debt = v.debt_e8 - amt
+            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+                return ZUSDMultiStepResult(ok=False, error="repay would leave vault debt below min_debt_open_e8")
+            ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=post_debt))
             ns = ZUSDMultiState(**{**ns0.__dict__, "free_debt_e8": state.free_debt_e8 - amt})
             eff = {"event": "zusd_repaid", "vault": vid, "amount_e8": amt}
 
@@ -1072,6 +1108,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
                     vault_a_debt_e8=state.vault_a.debt_e8,
                     vault_b_collateral_e8=state.vault_b.collateral_e8,
                     vault_b_debt_e8=state.vault_b.debt_e8,
+                    min_debt_open_e8=state.min_debt_open_e8,
                 )
                 if selection.selected_vault is None:
                     return ZUSDMultiStepResult(ok=False, error="no redeemable vault for amount under policy")
@@ -1082,6 +1119,9 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
                 post_debt = int(selection.selected_post_debt_e8)
             else:
                 return ZUSDMultiStepResult(ok=False, error="vault must be 'a' or 'b'")
+
+            if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
+                return ZUSDMultiStepResult(ok=False, error="redemption would leave vault debt below min_debt_open_e8")
 
             collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
 

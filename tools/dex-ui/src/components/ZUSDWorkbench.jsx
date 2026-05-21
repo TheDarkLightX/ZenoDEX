@@ -7,6 +7,9 @@ import {
   ZUSD_GUARDS,
   ZUSD_RISK_PARAMS,
 } from '../lib/zusdData';
+import { useDemoMode } from '../lib/DemoModeContext.jsx';
+import ZUSDTauWalletSurface from './ZUSDTauWalletSurface.jsx';
+import ZUSDMonetarySurface from './ZUSDMonetarySurface.jsx';
 
 function MintPanel({ onClose }) {
   const [collateral, setCollateral] = useState('');
@@ -132,7 +135,17 @@ function StabilityPoolPanel({ onClose }) {
 }
 
 function ZUSDWorkbench() {
+  const { demoMode } = useDemoMode();
   const [activePanel, setActivePanel] = useState(null);
+
+  if (!demoMode) {
+    return (
+      <section className="zusd-workbench">
+        <ZUSDMonetarySurface />
+        <ZUSDTauWalletSurface />
+      </section>
+    );
+  }
 
   return (
     <section className="zusd-workbench">

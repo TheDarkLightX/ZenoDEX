@@ -11,6 +11,8 @@ import PerpAccountSummary from './PerpAccountSummary.jsx';
 import PerpCircuitBreakerBanner from './PerpCircuitBreakerBanner.jsx';
 import PerpInsuranceFundPanel from './PerpInsuranceFundPanel.jsx';
 import PerpTradeHistory from './PerpTradeHistory.jsx';
+import PerpLiveWalletSurface from './PerpLiveWalletSurface.jsx';
+import { useDemoMode } from '../../lib/DemoModeContext.jsx';
 import './PerpTradingView.css';
 
 /**
@@ -23,6 +25,7 @@ import './PerpTradingView.css';
  * Wires all perps components via PerpContext.
  */
 function PerpTradingView({ wallet }) {
+    const { demoMode } = useDemoMode();
     const {
         markets,
         selectedMarket,
@@ -33,6 +36,9 @@ function PerpTradingView({ wallet }) {
         history,
         loading,
         error,
+        writeEnabled,
+        writeLockReason,
+        perpsPreviewWritesRequested,
         loadMarkets,
         selectMarket,
         setPosition,
@@ -61,6 +67,17 @@ function PerpTradingView({ wallet }) {
         setShowConfirmOrder(null);
     }, [setPosition]);
 
+    const postureLabel = demoMode
+        ? 'Demo market replay'
+        : writeEnabled
+            ? 'Local preview writes'
+            : 'Read-only preview';
+    const postureDetail = demoMode
+        ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
+        : writeEnabled
+            ? 'Uses the mounted /api/perps surface for local preview writes. This lane is still a development surface and not an authoritative settlement path.'
+            : 'Uses the mounted /api/perps surface for market data preview only. Write actions stay locked until an authoritative perps transaction path is mounted.';
+
     if (loading && markets.length === 0) {
         return (
             <div className="perp-trading-view">
@@ -86,13 +103,39 @@ function PerpTradingView({ wallet }) {
 
             {/* Market Selector */}
             <div className="perp-market-bar">
-                <h2 className="perp-title">Perpetuals</h2>
+                <div className="perp-market-header">
+                    <div>
+                        <h2 className="perp-title">Perpetuals</h2>
+                        <p className="perp-subtitle">{postureDetail}</p>
+                    </div>
+                    <span className="perp-posture-chip">{postureLabel}</span>
+                </div>
                 <PerpMarketSelector
                     markets={markets}
                     selectedMarketId={selectedMarketId}
                     onSelect={selectMarket}
                 />
             </div>
+
+            {!demoMode && !writeEnabled && (
+                <div className="perp-preview-lock" role="status">
+                    <div className="perp-preview-lock-title">Preview writes disabled</div>
+                    <p className="perp-preview-lock-text">{writeLockReason}</p>
+                </div>
+            )}
+
+            {!demoMode && writeEnabled && perpsPreviewWritesRequested && (
+                <div className="perp-preview-lock perp-preview-lock-open" role="status">
+                    <div className="perp-preview-lock-title">Local preview writes enabled</div>
+                    <p className="perp-preview-lock-text">
+                        This lane is for controlled local UI development. It does not prove authoritative perps settlement.
+                    </p>
+                </div>
+            )}
+
+            {!demoMode && (
+                <PerpLiveWalletSurface />
+            )}
 
             {/* Account Summary */}
             {wallet && (
@@ -112,6 +155,8 @@ function PerpTradingView({ wallet }) {
                             market={selectedMarket}
                             position={currentPosition}
                             wallet={wallet}
+                            writeEnabled={writeEnabled}
+                            writeLockReason={writeLockReason}
                             onSubmit={handleOrderSubmit}
                             onShowConfirm={handleShowConfirm}
                         />
@@ -121,7 +166,7 @@ function PerpTradingView({ wallet }) {
                     <button
                         className="btn btn-secondary perp-collateral-btn"
                         onClick={() => setShowCollateralModal(true)}
-                        disabled={!wallet}
+                        disabled={!wallet || !writeEnabled}
                     >
                         Manage Collateral
                     </button>
@@ -134,7 +179,12 @@ function PerpTradingView({ wallet }) {
                         <PerpPriceTicker market={selectedMarket} />
                     </div>
                     <PerpEpochIndicator market={selectedMarket} />
-                    <PerpInsuranceFundPanel market={selectedMarket} wallet={wallet} />
+                    <PerpInsuranceFundPanel
+                        market={selectedMarket}
+                        wallet={wallet}
+                        writeEnabled={writeEnabled}
+                        writeLockReason={writeLockReason}
+                    />
                 </div>
 
                 {/* Right: Account */}

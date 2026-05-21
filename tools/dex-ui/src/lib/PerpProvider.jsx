@@ -2,7 +2,7 @@ import { useReducer, useCallback, useEffect, useLayoutEffect, useMemo, useRef } 
 import { useDemoMode } from './DemoModeContext.jsx';
 import { PerpContext } from './PerpContext.jsx';
 import { PERP_DEMO_MARKETS, PERP_DEMO_POSITIONS, PERP_DEMO_HISTORY } from './perpMockData.js';
-import { apiFetchJson } from './api.js';
+import { apiFetchJson, getRuntimeBooleanFlag } from './api.js';
 import {
     toBigInt,
     pnlQuote,
@@ -225,6 +225,16 @@ function reducer(state, action) {
 export function PerpProvider({ children, wallet, onTransaction }) {
     const { demoMode } = useDemoMode();
     const [state, dispatch] = useReducer(reducer, initialState);
+    const perpsPreviewWritesRequested = useMemo(() => getRuntimeBooleanFlag({
+        queryKey: 'perpsPreviewWrites',
+        runtimeKey: 'perpsPreviewWrites',
+        envKey: 'VITE_PERPS_PREVIEW_WRITES',
+        defaultValue: false,
+    }), []);
+    const writeEnabled = demoMode || perpsPreviewWritesRequested;
+    const writeLockReason = !writeEnabled
+        ? 'Perps write actions stay locked until an authoritative settlement-backed path is mounted. Enable local preview writes only for controlled UI development.'
+        : '';
     const pubkey = wallet?.address ?? null;
     // Monotonic request counter to discard responses from stale loadMarkets calls.
     const loadSeqRef = useRef(0);
@@ -392,6 +402,10 @@ export function PerpProvider({ children, wallet, onTransaction }) {
     // On success, update local state so the UI reflects the change immediately.
     // Guards against stale dispatches if the wallet changed mid-flight.
     const submitAction = useCallback(async (endpoint, body) => {
+        if (!writeEnabled) {
+            dispatch({ type: ACTIONS.SET_ERROR, payload: 'perps_preview_only' });
+            return { ok: false, error: 'perps_preview_only' };
+        }
         const callerPubkey = pubkeyRef.current;
         const actionLabel = actionLabelFromRequest(endpoint, body);
         const txId = createLocalTxId('perp');
@@ -468,7 +482,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
             });
             return { ok: false, error: err.message };
         }
-    }, [demoMode, onTransaction]);
+    }, [demoMode, onTransaction, writeEnabled]);
 
     const depositCollateral = useCallback((marketId, amount) => {
         return submitAction('/api/perps/collateral', {
@@ -509,13 +523,16 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         selectedMarket,
         currentPosition,
         positionDerived,
+        writeEnabled,
+        writeLockReason,
+        perpsPreviewWritesRequested,
         loadMarkets,
         selectMarket,
         depositCollateral,
         withdrawCollateral,
         setPosition,
         depositInsurance,
-    }), [state, selectedMarket, currentPosition, positionDerived, loadMarkets, selectMarket, depositCollateral, withdrawCollateral, setPosition, depositInsurance]);
+    }), [state, selectedMarket, currentPosition, positionDerived, writeEnabled, writeLockReason, perpsPreviewWritesRequested, loadMarkets, selectMarket, depositCollateral, withdrawCollateral, setPosition, depositInsurance]);
 
     return (
         <PerpContext.Provider value={value}>

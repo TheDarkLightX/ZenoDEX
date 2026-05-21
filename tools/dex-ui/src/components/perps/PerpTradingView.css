@@ -7,16 +7,43 @@
 
 .perp-market-bar {
   display: flex;
-  align-items: center;
-  gap: var(--space-lg);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
   margin-bottom: var(--space-lg);
   padding-bottom: var(--space-md);
   border-bottom: 1px solid var(--border-primary);
 }
 
+.perp-market-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
 .perp-title {
   font-size: var(--font-size-xl);
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.perp-subtitle {
+  margin-top: 6px;
+  max-width: 72ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.perp-posture-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 
@@ -47,6 +74,122 @@
   color: var(--accent-cyan);
   border-color: var(--accent-cyan);
   background: rgba(76, 201, 240, 0.08);
+}
+
+.perp-preview-lock {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  border: 1px solid rgba(255, 184, 107, 0.4);
+  background: rgba(255, 184, 107, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.perp-preview-lock-open {
+  border-color: rgba(76, 201, 240, 0.35);
+  background: rgba(76, 201, 240, 0.07);
+}
+
+.perp-preview-lock-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.perp-preview-lock-text {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 72ch;
+}
+
+.perp-live-wallet {
+  margin-bottom: var(--space-lg);
+  border: 1px solid rgba(76, 201, 240, 0.24);
+}
+
+.perp-live-wallet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.perp-live-wallet-copy {
+  margin-top: -8px;
+  max-width: 72ch;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.perp-live-wallet-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.perp-live-wallet-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.perp-live-wallet-meta > div,
+.perp-live-wallet-result {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.perp-live-wallet-meta span:last-child,
+.perp-live-wallet-result span {
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.perp-live-wallet-form {
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.perp-live-wallet-two {
+  display: contents;
+}
+
+.perp-live-wallet-textarea {
+  min-height: 88px;
+  resize: vertical;
+  font-family: var(--font-mono);
+}
+
+.perp-live-wallet-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.perp-live-wallet-error {
+  margin-top: var(--space-sm);
+  color: var(--accent-red);
+  font-size: var(--font-size-sm);
+}
+
+.perp-live-wallet-result {
+  margin-top: var(--space-md);
+  flex-wrap: wrap;
+  border: 1px solid rgba(76, 201, 240, 0.22);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(76, 201, 240, 0.06);
 }
 
 /* 3-Column Grid */
@@ -104,11 +247,18 @@
   .perp-grid {
     grid-template-columns: 1fr;
   }
-  .perp-market-bar {
+  .perp-market-header {
     flex-direction: column;
     align-items: flex-start;
   }
   .perp-price-display {
     grid-template-columns: 1fr;
+  }
+  .perp-live-wallet-grid,
+  .perp-live-wallet-form {
+    grid-template-columns: 1fr;
+  }
+  .perp-live-wallet-header {
+    flex-direction: column;
   }
 }

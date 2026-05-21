@@ -1,6 +1,16 @@
+---
+title: ZUSD_V1
+type: note
+permalink: autonomous-tau-dex-review/docs/derivatives/zusd-v1
+---
+
 # zUSD v1 (SimplexBorrow-Aligned)
 
 `zUSD` is the protocol dollar for ZenoDex derivatives.
+
+This module is Liquity-like, but it is not an exact Liquity V1 or Liquity V2
+clone. See `docs/ZUSD_LIQUITY_PARITY_STATUS_2026_05_20.md` for the current
+parity map, including the Liquity V2 5% liquidation-penalty gap.
 
 ## What a participant does
 
@@ -54,6 +64,11 @@
 - **Liquidation path:**
   - uses pending oracle price for under-MCR checks.
   - consumes `sp_debt_e8`, transfers collateral to `sp_coll_e8`, zeroes vault.
+  - optional liquidation compensation can pay fixed collateral and/or a bps
+    share to the liquidator before the remaining collateral is assigned to the
+    stability pool. The defaults are zero for local deterministic tests. Public
+    Tau Net materials describe `AGRS` as native gas, so live deployment should
+    configure these once exact Tau fee accounting is pinned.
 
 ## Implementation in this repo
 
