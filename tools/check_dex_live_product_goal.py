@@ -209,12 +209,15 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="autotrader_live_api_and_ui_are_mounted",
         path="src/integration/autotrader_live_api.py",
-        description="The Strategy surface has gated AutoTrader prepare, submit, execute-once, and bounded supervisor endpoints.",
+        description="The Strategy surface has gated AutoTrader prepare, submit, execute-once, and bounded supervisor endpoints with template and action binding.",
         anchors=(
             "/api/strategy/autotrader/execute-once",
             "/api/strategy/autotrader/supervisor/preflight",
             "/api/strategy/autotrader/supervisor/execute",
             "external_signed_payload",
+            "user_rule_summary",
+            "supervisor_template_not_allowed",
+            "supervisor_action_not_allowed",
             "_build_prepare_response",
             "_build_submit_response",
             "_status_payload",
@@ -233,6 +236,8 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "zenodexUiSmokeStrategySupervisor",
             "Supervisor Preflight",
             "Run Supervisor Tick",
+            "Supervisor template",
+            "Supervisor actions",
         ),
     ),
     AnchorCheck(
@@ -503,7 +508,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "production_autotrader",
-        "description": "AutoTrader evidence covers explicit local/testnet execute-once plus bounded supervisor ticks with replay guard and per-process run budget, not unattended production execution.",
+        "description": "AutoTrader evidence covers explicit local/testnet execute-once plus bounded supervisor ticks with replay guard, per-process run budget, and template/action binding, not unattended production execution.",
     },
     {
         "id": "confidential_runtime",

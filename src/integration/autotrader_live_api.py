@@ -409,6 +409,7 @@ def _report_to_obj(report: AutoTraderLiveReport, *, risk_acknowledged: bool) -> 
             "ok": None if report.emit_finalize_ok is None else bool(report.emit_finalize_ok),
             "error": report.emit_finalize_error,
         },
+        "user_rule_summary": report.user_rule_summary,
         "actionability_summary": report.actionability_summary,
         "operations": dict(report.operations),
         "tau_tx_payload": report.tau_tx_payload,
@@ -520,6 +521,7 @@ def _build_supervisor_preflight(
     operations = report.get("operations")
     max_runs_per_process = int(supervisor_status.get("max_runs_per_process") or 0)
     remaining_runs_in_process = max(0, max_runs_per_process - int(consumed_runs_in_process))
+    intent_surface = _supervisor_report_intent_surface(report)
     body = {
         "schema": _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA,
         "supervisor_hash": supervisor_status.get("supervisor_hash"),
@@ -534,6 +536,8 @@ def _build_supervisor_preflight(
         "max_runs_per_process": max_runs_per_process,
         "consumed_runs_in_process": int(consumed_runs_in_process),
         "remaining_runs_in_process": remaining_runs_in_process,
+        "template": intent_surface.get("template"),
+        "allowed_actions": list(intent_surface.get("allowed_actions") or []),
         "stage_hash": stage_certificate.get("stage_hash") if isinstance(stage_certificate, Mapping) else None,
         "release_hash": live_release_certificate.get("release_hash") if isinstance(live_release_certificate, Mapping) else None,
         "release_ok": (
@@ -544,6 +548,57 @@ def _build_supervisor_preflight(
         "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
     }
     return {**body, "preflight_hash": hash_v0("autotrader_supervisor_preflight_v1", body)}
+
+
+def _supervisor_report_intent_surface(report: Mapping[str, Any]) -> dict[str, Any]:
+    user_rule_summary = report.get("user_rule_summary")
+    if not isinstance(user_rule_summary, Mapping):
+        raise ValueError("supervisor_user_rule_summary_missing")
+    intent = user_rule_summary.get("intent")
+    if not isinstance(intent, Mapping):
+        raise ValueError("supervisor_user_rule_intent_missing")
+    template = intent.get("template")
+    if not isinstance(template, str) or not template.strip():
+        raise ValueError("supervisor_template_missing")
+    raw_actions = intent.get("allowed_actions")
+    if not isinstance(raw_actions, list) or not raw_actions:
+        raise ValueError("supervisor_allowed_actions_missing")
+    allowed_actions: list[str] = []
+    for item in raw_actions:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError("supervisor_allowed_actions_missing")
+        allowed_actions.append(item.strip().upper().replace("-", "_").replace(" ", "_"))
+    return {
+        "template": template.strip(),
+        "allowed_actions": allowed_actions,
+    }
+
+
+def _check_supervisor_allowed_surface(
+    *,
+    supervisor_status: Mapping[str, Any],
+    report: Mapping[str, Any],
+) -> str | None:
+    intent_surface = _supervisor_report_intent_surface(report)
+    template = str(intent_surface["template"])
+    allowed_templates = {
+        str(item).strip().lower().replace("-", "_").replace(" ", "_")
+        for item in supervisor_status.get("allowed_templates", [])
+        if str(item).strip()
+    }
+    normalized_template = template.lower().replace("-", "_").replace(" ", "_")
+    if allowed_templates and normalized_template not in allowed_templates:
+        return f"supervisor_template_not_allowed:{template}"
+    profile_allowed_actions = {
+        str(item).strip().lower().replace("-", "_").replace(" ", "_")
+        for item in supervisor_status.get("allowed_actions", [])
+        if str(item).strip()
+    }
+    for action in intent_surface["allowed_actions"]:
+        normalized_action = action.lower().replace("-", "_").replace(" ", "_")
+        if profile_allowed_actions and normalized_action not in profile_allowed_actions:
+            return f"supervisor_action_not_allowed:{action}"
+    return None
 
 
 def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
@@ -769,6 +824,25 @@ def _build_supervisor_preflight_response(
     report = prepared.get("report")
     if not isinstance(report, Mapping):
         return {"ok": False, "error": "prepared_report_missing"}
+    try:
+        surface_error = _check_supervisor_allowed_surface(
+            supervisor_status=supervisor,
+            report=report,
+        )
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
+    if surface_error is not None:
+        return {
+            "ok": False,
+            "error": surface_error,
+            "supervisor": supervisor,
+            "not_claimed": list(_AUTOTRADER_LIVE_NOT_CLAIMED),
+        }
     operations = report.get("operations")
     operation_count = _operation_count(operations)
     max_actions_per_tick = int(supervisor.get("max_actions_per_tick") or 0)

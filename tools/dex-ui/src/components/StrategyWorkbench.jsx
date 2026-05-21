@@ -225,6 +225,12 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const supervisorRuntime = supervisorStatus?.runtime || null;
   const supervisorConsumedRuns = result?.execution?.consumed_runs_in_process ?? supervisorRuntime?.consumed_runs_in_process ?? 0;
   const supervisorRemainingRuns = result?.execution?.remaining_runs_in_process ?? supervisorRuntime?.remaining_runs_in_process ?? 0;
+  const supervisorTemplate = result?.preflight?.template || report?.user_rule_summary?.intent?.template || 'pending';
+  const supervisorAllowedActions = Array.isArray(result?.preflight?.allowed_actions)
+    ? result.preflight.allowed_actions
+    : Array.isArray(report?.user_rule_summary?.intent?.allowed_actions)
+      ? report.user_rule_summary.intent.allowed_actions
+      : [];
 
   async function refreshStatus() {
     try {
@@ -409,6 +415,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           <strong>{supervisorRemainingRuns}</strong>
         </div>
         <div className="strat-live-metric">
+          <span>Supervisor template</span>
+          <strong>{supervisorTemplate}</strong>
+        </div>
+        <div className="strat-live-metric">
           <span>Operations</span>
           <strong>{operationCount}</strong>
         </div>
@@ -521,6 +531,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           )}
           {result?.execution?.run_scope_id && (
             <div className="strat-kv"><span>Supervisor scope</span><span>{result.execution.run_scope_id}</span></div>
+          )}
+          {supervisorAllowedActions.length > 0 && (
+            <div className="strat-kv"><span>Supervisor actions</span><span>{supervisorAllowedActions.join(', ')}</span></div>
           )}
           {result?.execution?.consumed_runs_in_process != null && (
             <div className="strat-kv"><span>Supervisor budget</span><span>{`${result.execution.consumed_runs_in_process}/${supervisorStatus?.max_runs_per_process ?? 0}`}</span></div>

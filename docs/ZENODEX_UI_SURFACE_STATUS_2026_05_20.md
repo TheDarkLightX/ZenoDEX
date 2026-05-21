@@ -10,7 +10,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
 | Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, `/api/oracle/authority` production-authority preflight, and a bounded `/api/oracle/authority/exercise/evaluate` receipt lane. Public-testnet authority exercise still requires concrete public broadcast references. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
-| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit, execute-once, and bounded supervisor panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, stateful execute-once, and bounded supervisor preflight/execute through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, `AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, a public supervisor profile, and an in-process execution-key replay guard. Unattended production execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
+| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit, execute-once, and bounded supervisor panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, stateful execute-once, and bounded supervisor preflight/execute through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, `AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, a public supervisor profile, template/action surface binding, and an in-process execution-key replay guard. Unattended production execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status plus local/testnet attestation and bounded runtime-receipt surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, stateful live-admission request consumption via `POST /api/confidential/attestation/admit`, and redacted bounded runtime receipts via `POST /api/confidential/attestation/execute`. Runtime confidential privacy remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py`, `tests/integration/test_zenodex_live_cross_stream_stateful.py` |
 
 ## Interpretation
@@ -198,12 +198,13 @@ second broadcast. It also now exposes `POST
 /api/strategy/autotrader/supervisor/preflight` and `POST
 /api/strategy/autotrader/supervisor/execute`, gated by
 `AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, which require a ready public
-supervisor profile, emit a deterministic preflight receipt, require an
-externally signed Tau envelope, and consume an execution key after successful
-submit. The browser submit, execute-once, and supervisor smokes call the
-mounted Strategy tab, send the externally signed prepared Tau transaction to a
-Tau-compatible local/testnet RPC, and render the `sendtx`, preflight, signing
-mode, and consumed execution key evidence.
+supervisor profile, emit a deterministic preflight receipt, bind the prepared
+template and allowed action set, require an externally signed Tau envelope,
+and consume an execution key after successful submit. The browser submit,
+execute-once, and supervisor smokes call the mounted Strategy tab, send the
+externally signed prepared Tau transaction to a Tau-compatible local/testnet
+RPC, and render the `sendtx`, preflight, signing mode, strategy surface, and
+consumed execution key evidence.
 
 Latest local browser pass on 2026-05-20:
 

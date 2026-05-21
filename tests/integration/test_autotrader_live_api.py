@@ -41,6 +41,32 @@ def _supervisor_profile() -> dict[str, object]:
     )
 
 
+def _mock_supervisor_prepare_payload(
+    *,
+    template: str = "dca",
+    allowed_actions: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "ok": True,
+        "status": "prepared",
+        "surface": "autotrader_live_prepare",
+        "report": {
+            "signing": {"chain_id": "tau-local"},
+            "decision": {"tag": "submit"},
+            "user_rule_summary": {
+                "intent": {
+                    "template": template,
+                    "allowed_actions": list(allowed_actions or ["PLACE_SWAP_EXACT_IN"]),
+                }
+            },
+            "operations": {"2": [{"kind": "PLACE_SWAP_EXACT_IN"}]},
+            "stage_certificate": {"stage_hash": "0xstage"},
+            "live_release_certificate": {"release_hash": "0xrelease", "release_ok": True},
+        },
+        "not_claimed": ["unattended_production_strategy_execution"],
+    }
+
+
 def test_autotrader_live_status_reports_receipt_backed_prepare_surface(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", raising=False)
     monkeypatch.delenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", raising=False)
@@ -513,9 +539,71 @@ def test_autotrader_live_supervisor_preflight_emits_receipt(
     assert payload["preflight"]["operation_count"] == 1
     assert payload["preflight"]["consumed_runs_in_process"] == 0
     assert payload["preflight"]["remaining_runs_in_process"] == 16
+    assert payload["preflight"]["template"] == "dca"
+    assert payload["preflight"]["allowed_actions"] == ["PLACE_SWAP_EXACT_IN"]
     assert payload["preflight"]["stage_hash"]
     assert payload["preflight"]["release_hash"]
     assert payload["preflight"]["preflight_hash"]
+
+
+def test_autotrader_live_supervisor_preflight_rejects_disallowed_template(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_PROFILE_JSON", json.dumps(_supervisor_profile(), sort_keys=True))
+    monkeypatch.setattr(
+        autotrader_live_api,
+        "_build_prepare_response",
+        lambda _body: _mock_supervisor_prepare_payload(template="stop_loss", allowed_actions=["PLACE_SWAP_EXACT_IN"]),
+    )
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/preflight",
+        json.dumps(
+            {
+                "execution_id": "supervisor-preflight-disallowed-template",
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "supervisor_template_not_allowed:stop_loss"
+    assert payload["supervisor"]["supervisor_ready"] is True
+
+
+def test_autotrader_live_supervisor_preflight_rejects_disallowed_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_SUPERVISOR_PROFILE_JSON", json.dumps(_supervisor_profile(), sort_keys=True))
+    monkeypatch.setattr(
+        autotrader_live_api,
+        "_build_prepare_response",
+        lambda _body: _mock_supervisor_prepare_payload(template="dca", allowed_actions=["PLACE_ORDER_INTENT"]),
+    )
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/supervisor/preflight",
+        json.dumps(
+            {
+                "execution_id": "supervisor-preflight-disallowed-action",
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "supervisor_action_not_allowed:PLACE_ORDER_INTENT"
+    assert payload["supervisor"]["supervisor_ready"] is True
 
 
 def test_autotrader_live_supervisor_execute_consumes_execution_key_and_rejects_replay(

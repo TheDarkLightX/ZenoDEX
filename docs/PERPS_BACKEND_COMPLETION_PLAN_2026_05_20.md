@@ -1140,6 +1140,25 @@ supervised local/testnet automation. It still does not claim unattended
 production execution, production wallet custody, or production chain
 submission.
 
+Additional bounded AutoTrader supervisor surface-binding evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/autotrader_live_api.py tests/integration/test_autotrader_live_api.py
+python3 -m pytest -q tests/integration/test_autotrader_live_api.py
+python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py::test_autotrader_live_supervisor_ui_smoke_through_browser -s
+python3 tools/check_dex_live_product_goal.py --json
+```
+
+Results: the supervisor preflight now binds the prepared strategy template and
+allowed action set into the mounted receipt. The live API rejects supervisor
+ticks when the prepared surface drifts outside the public profile's
+`allowed_templates` or `allowed_actions`, and the Strategy tab renders the
+bound template and action set alongside the supervisor budget. This narrows the
+mounted automation claim to a specific public strategy surface. It still does
+not claim unattended production execution, scheduler fairness, production
+wallet custody, or production chain submission.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle
