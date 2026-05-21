@@ -706,6 +706,24 @@ Public-testnet exercise still stays blocked unless the request also carries
 concrete `public_broadcast_reference` and `public_settlement_reference`
 evidence.
 
+Additional Oracle authority exercise binding evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/zeno_oracle_authority.py tests/integration/test_zeno_oracle_authority.py tests/integration/test_zeno_oracle_ui_bridge.py tools/check_dex_live_product_goal.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_authority.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_runs_authority_exercise_flow -s
+python3 tools/check_dex_live_product_goal.py --json
+```
+
+Results: the authority exercise status now carries a deterministic
+`receipt_binding_hash` over the operator-flow receipt ids, and when public
+references are present it also carries a `public_testnet_evidence_binding_hash`
+over the broadcast and settlement references. The mounted Governance view now
+renders both hashes. This narrows the exercise claim to one concrete local or
+testnet receipt bundle and, when present, one concrete public-reference bundle.
+It still does not prove that a real public-testnet broadcast happened unless
+those references are backed by genuine external evidence.
+
 Additional ZenoOracle mounted malformed-dashboard resilience evidence added on
 2026-05-21:
 

@@ -79,6 +79,40 @@ def oracle_authority_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
     return hash_v0("zeno_oracle_authority_exercise_v1", _exercise_body(exercise))
 
 
+def _exercise_receipt_binding_hash(exercise: Mapping[str, Any]) -> str:
+    body = {
+        "chain_id": exercise.get("chain_id"),
+        "authority_id": exercise.get("authority_id"),
+        "target_network": exercise.get("target_network"),
+        "current_epoch": exercise.get("current_epoch"),
+        "operator_service_url": exercise.get("operator_service_url"),
+        "query_id": exercise.get("query_id"),
+        "report_id": exercise.get("report_id"),
+        "aggregate_id": exercise.get("aggregate_id"),
+        "read_id": exercise.get("read_id"),
+        "authorization_id": exercise.get("authorization_id"),
+        "reward_receipt_id": exercise.get("reward_receipt_id"),
+    }
+    return hash_v0("zeno_oracle_authority_exercise_receipt_binding_v1", body)
+
+
+def _public_testnet_evidence_binding_hash(exercise: Mapping[str, Any]) -> str | None:
+    public_broadcast_reference = exercise.get("public_broadcast_reference")
+    public_settlement_reference = exercise.get("public_settlement_reference")
+    if not isinstance(public_broadcast_reference, str) or not public_broadcast_reference:
+        return None
+    if not isinstance(public_settlement_reference, str) or not public_settlement_reference:
+        return None
+    body = {
+        "chain_id": exercise.get("chain_id"),
+        "authority_id": exercise.get("authority_id"),
+        "target_network": exercise.get("target_network"),
+        "public_broadcast_reference": public_broadcast_reference,
+        "public_settlement_reference": public_settlement_reference,
+    }
+    return hash_v0("zeno_oracle_authority_public_testnet_evidence_binding_v1", body)
+
+
 def build_oracle_authority_exercise_v1(
     *,
     chain_id: str,
@@ -546,6 +580,10 @@ def _exercise_status(
         "reward_receipt_id": None if exercise is None else exercise.get("reward_receipt_id"),
         "public_broadcast_reference": None if exercise is None else exercise.get("public_broadcast_reference"),
         "public_settlement_reference": None if exercise is None else exercise.get("public_settlement_reference"),
+        "receipt_binding_hash": None if exercise is None else _exercise_receipt_binding_hash(exercise),
+        "public_testnet_evidence_binding_hash": (
+            None if exercise is None else _public_testnet_evidence_binding_hash(exercise)
+        ),
         "authority_hash": None if authority_status is None else authority_status.get("authority_hash"),
         "authority_status_hash": None if authority_status is None else hash_v0("zeno_oracle_authority_status_ref_v1", dict(authority_status)),
         "not_claimed": list(_EXERCISE_NOT_CLAIMED),

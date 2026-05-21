@@ -119,6 +119,8 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "zenodexUiSmokeOracleAuthorityExercise",
             "/api/oracle/authority/exercise/evaluate",
             "oracle authority exercise accepted",
+            "Receipt binding",
+            "Public evidence binding",
         ),
     ),
     AnchorCheck(
@@ -502,7 +504,7 @@ AREA_TITLES: dict[str, str] = {
 RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     {
         "id": "production_oracle_authority",
-        "description": "Mounted Oracle and perps surfaces now carry bounded signed authority exercise receipts for local or testnet operator flows, but public-testnet exercise of a signed production Oracle authority profile remains open.",
+        "description": "Mounted Oracle and perps surfaces now carry bounded signed authority exercise receipts for local or testnet operator flows, including receipt-binding and public-evidence binding hashes, but public-testnet exercise of a signed production Oracle authority profile remains open.",
     },
     {
         "id": "hardware_wallet_ux",

@@ -718,6 +718,9 @@ def test_oracle_ui_smoke_runs_authority_exercise_flow(tmp_path: Path) -> None:
         assert "Exercise ready" in dom
         assert "oracle authority exercise accepted" in dom
         assert "Public testnet evidence" in dom
+        assert "Receipt binding" in dom
+        assert "Public evidence binding" in dom
+        assert "0x" in dom
         assert "pending" in dom
     finally:
         if vite_proc is not None:

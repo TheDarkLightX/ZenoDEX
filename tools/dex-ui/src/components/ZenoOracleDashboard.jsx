@@ -1665,6 +1665,14 @@ function AuthorityExercisePanel({
           <strong>{compactId(exerciseStatus?.status_hash)}</strong>
         </div>
         <div>
+          <small>Receipt binding</small>
+          <strong>{compactId(exerciseStatus?.receipt_binding_hash)}</strong>
+        </div>
+        <div>
+          <small>Public evidence binding</small>
+          <strong>{compactId(exerciseStatus?.public_testnet_evidence_binding_hash)}</strong>
+        </div>
+        <div>
           <small>Authorization</small>
           <strong>{compactId(exerciseStatus?.authorization_id)}</strong>
         </div>
