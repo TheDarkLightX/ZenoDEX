@@ -50,8 +50,9 @@ result, sender, sequence, fee limit, signing mode, and a public state-delta
     `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
     `PERPS_WALLET_AUTHORITY_PROFILE_FILE`; a ready profile requires public
     key-manager refs, a matching signer registry, external signer and device
-    approval controls, stream `8` scope, state-delta witness requirements, and an
-    explicit proof/ZK runtime profile. The same status route can load an Oracle
+    approval controls, recovery policies for active signer keys, stream `8`
+    scope, state-delta witness requirements, and an explicit proof/ZK runtime
+    profile. The same status route can load an Oracle
     production-authority profile from `PERPS_ORACLE_AUTHORITY_PROFILE_JSON`,
     `PERPS_ORACLE_AUTHORITY_PROFILE_FILE`, `ZENO_ORACLE_AUTHORITY_PROFILE_JSON`,
     `ZENO_ORACLE_AUTHORITY_PROFILE_FILE`, or
@@ -62,8 +63,8 @@ result, sender, sequence, fee limit, signing mode, and a public state-delta
     verifier is present. The completion plan is recorded in
     `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
     actual public-testnet production Oracle profile provisioning, hardware/OS
-    wallet UX and recovery flows behind the public wallet-authority profile, and a
-    real proof/ZK wrapper for stream `8`.
+    wallet UX and runtime signer-device integration behind the public
+    wallet-authority profile, and a real proof/ZK wrapper for stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -250,6 +251,25 @@ wallet-authority profile as `ready` only when public key-manager refs, signer
 registry binding, required external-signing controls, stream `8` scope, and
 proof-profile requirements all validate; otherwise the UI renders the authority
 as blocked.
+
+Latest perps wallet recovery-profile pass on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_authority.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_complete_profile_is_ready tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_bad_controls_and_chain_mismatch tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_signer_key_manager_public_key_mismatch tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_active_signer_without_recovery_policy tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_authority_profile -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+cd tools/dex-ui && npm run build
+```
+
+Results: focused wallet recovery/API checks `5 passed`; mounted wallet browser
+smoke `1 passed`; full perps wallet API `30 passed`; full mounted perps wallet
+browser bridge `7 passed`; Vite production build passed. A ready public
+wallet-authority profile now requires recovery-policy metadata for every active
+wallet signer key and the mounted UI renders `wallet recovery 2/2` alongside
+the signer and authority posture. This is still public recovery-readiness
+metadata, not custody of keys or hardware-wallet approval.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

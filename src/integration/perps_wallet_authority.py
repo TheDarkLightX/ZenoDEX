@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from src.integration.zeno_key_manager import KEY_MANAGER_SCHEMA_V0, KEY_STATUS_ACTIVE, KeyRef
+from src.integration.zeno_key_manager import (
+    KEY_MANAGER_SCHEMA_V0,
+    KEY_STATUS_ACTIVE,
+    KEY_STATUS_REVOKED,
+    KeyRef,
+    SOCIAL_RECOVERY_POLICY_SCHEMA_V0,
+)
 from src.integration.zeno_ledger_signer_registry import validate_signer_registry_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 
@@ -23,6 +29,7 @@ _REQUIRED_WALLET_UX_FLAGS = (
     "key_manager_required",
     "device_approval_required",
     "replay_protection_required",
+    "recovery_policy_required",
 )
 _REQUIRED_PROOF_FLAGS = (
     "stream8_proof_intent_required",
@@ -84,19 +91,22 @@ def build_perps_wallet_authority_profile_v1(
     return {**body, "wallet_authority_hash": perps_wallet_authority_profile_hash_v1(body)}
 
 
-def _validate_key_manager_public(key_manager: Mapping[str, Any], gaps: list[str]) -> dict[str, KeyRef]:
+def _validate_key_manager_public(
+    key_manager: Mapping[str, Any],
+    gaps: list[str],
+) -> tuple[dict[str, KeyRef], list[Mapping[str, Any]]]:
     if key_manager.get("schema") != KEY_MANAGER_SCHEMA_V0:
         gaps.append("key manager schema mismatch")
-        return {}
+        return {}, []
 
     key_refs_raw = key_manager.get("key_refs")
     recovery_policies_raw = key_manager.get("recovery_policies")
     if not isinstance(key_refs_raw, list):
         gaps.append("key manager key_refs must be a list")
-        return {}
+        return {}, []
     if not isinstance(recovery_policies_raw, list):
         gaps.append("key manager recovery_policies must be a list")
-        return {}
+        return {}, []
 
     body = {
         "schema": key_manager.get("schema"),
@@ -120,7 +130,125 @@ def _validate_key_manager_public(key_manager: Mapping[str, Any], gaps: list[str]
         refs[ref.key_id] = ref
     if not refs:
         gaps.append("key manager has no public key refs")
-    return refs
+    return refs, recovery_policies_raw
+
+
+def _validate_recovery_policies_public(
+    *,
+    recovery_policies_raw: list[Mapping[str, Any]],
+    key_refs: Mapping[str, KeyRef],
+    active_signers: list[Mapping[str, Any]],
+    gaps: list[str],
+) -> tuple[list[dict[str, Any]], int]:
+    policies_by_id: dict[str, Mapping[str, Any]] = {}
+    summaries: list[dict[str, Any]] = []
+    for index, raw_policy in enumerate(recovery_policies_raw):
+        policy = _require_mapping(raw_policy, name=f"recovery_policies[{index}]")
+        if policy.get("schema") != SOCIAL_RECOVERY_POLICY_SCHEMA_V0:
+            gaps.append(f"recovery policy {index} schema mismatch")
+            continue
+        policy_id = policy.get("policy_id")
+        subject_key_id = policy.get("subject_key_id")
+        threshold = policy.get("threshold")
+        delay_epochs = policy.get("delay_epochs")
+        guardians = policy.get("guardians")
+        if not isinstance(policy_id, str) or not policy_id:
+            gaps.append(f"recovery policy {index} policy_id must be a non-empty string")
+            continue
+        if policy_id in policies_by_id:
+            gaps.append(f"duplicate recovery policy_id: {policy_id}")
+            continue
+        if not isinstance(subject_key_id, str) or not subject_key_id:
+            gaps.append(f"recovery policy {policy_id} subject_key_id must be a non-empty string")
+        elif subject_key_id not in key_refs:
+            gaps.append(f"recovery policy {policy_id} subject key missing from key manager")
+        if not isinstance(threshold, int) or isinstance(threshold, bool) or threshold <= 0:
+            gaps.append(f"recovery policy {policy_id} threshold must be a positive int")
+            threshold = 0
+        if not isinstance(delay_epochs, int) or isinstance(delay_epochs, bool) or delay_epochs < 0:
+            gaps.append(f"recovery policy {policy_id} delay_epochs must be a non-negative int")
+            delay_epochs = 0
+        if not isinstance(guardians, list) or not guardians:
+            gaps.append(f"recovery policy {policy_id} guardians must be a non-empty list")
+            guardians = []
+        active_guardian_weight = 0
+        guardian_ids: set[str] = set()
+        for guardian_index, guardian_raw in enumerate(guardians):
+            guardian = _require_mapping(guardian_raw, name=f"recovery_policies[{index}].guardians[{guardian_index}]")
+            guardian_id = guardian.get("guardian_id")
+            public_key = guardian.get("public_key")
+            weight = guardian.get("weight")
+            status = guardian.get("status")
+            if not isinstance(guardian_id, str) or not guardian_id:
+                gaps.append(f"recovery policy {policy_id} guardian {guardian_index} guardian_id must be a non-empty string")
+                continue
+            if guardian_id in guardian_ids:
+                gaps.append(f"recovery policy {policy_id} duplicate guardian_id: {guardian_id}")
+            guardian_ids.add(guardian_id)
+            if not isinstance(public_key, str) or not public_key:
+                gaps.append(f"recovery policy {policy_id} guardian {guardian_id} public_key must be a non-empty string")
+            if not isinstance(weight, int) or isinstance(weight, bool) or weight <= 0:
+                gaps.append(f"recovery policy {policy_id} guardian {guardian_id} weight must be a positive int")
+                weight = 0
+            if status not in {KEY_STATUS_ACTIVE, KEY_STATUS_REVOKED}:
+                gaps.append(f"recovery policy {policy_id} guardian {guardian_id} status must be active or revoked")
+            if status == KEY_STATUS_ACTIVE:
+                active_guardian_weight += int(weight)
+            guardian_body = {
+                "guardian_id": guardian.get("guardian_id"),
+                "public_key": guardian.get("public_key"),
+                "weight": guardian.get("weight"),
+                "status": guardian.get("status"),
+            }
+            if guardian.get("guardian_hash") != hash_v0("zeno_recovery_guardian_v0", guardian_body):
+                gaps.append(f"recovery policy {policy_id} guardian {guardian_id} hash mismatch")
+        if isinstance(threshold, int) and threshold > active_guardian_weight:
+            gaps.append(f"recovery policy {policy_id} threshold exceeds active guardian weight")
+        policy_body = {
+            "schema": policy.get("schema"),
+            "policy_id": policy.get("policy_id"),
+            "subject_key_id": policy.get("subject_key_id"),
+            "threshold": policy.get("threshold"),
+            "delay_epochs": policy.get("delay_epochs"),
+            "guardians": guardians,
+        }
+        expected_policy_hash = hash_v0("zeno_social_recovery_policy_v0", policy_body)
+        if policy.get("policy_hash") != expected_policy_hash:
+            gaps.append(f"recovery policy {policy_id} hash mismatch")
+        policies_by_id[policy_id] = policy
+        summaries.append(
+            {
+                "policy_id": policy_id,
+                "subject_key_id": subject_key_id,
+                "threshold": int(threshold) if isinstance(threshold, int) else 0,
+                "delay_epochs": int(delay_epochs) if isinstance(delay_epochs, int) else 0,
+                "guardian_count": len(guardians),
+                "active_guardian_weight": active_guardian_weight,
+                "policy_hash": policy.get("policy_hash"),
+            }
+        )
+
+    recoverable_active_key_ids: set[str] = set()
+    for signer in active_signers:
+        key_id = signer.get("key_id")
+        if not isinstance(key_id, str) or not key_id:
+            continue
+        ref = key_refs.get(key_id)
+        if ref is None:
+            continue
+        if ref.recovery_policy_id is None:
+            gaps.append(f"active signer key_id {key_id} has no recovery_policy_id")
+            continue
+        policy = policies_by_id.get(ref.recovery_policy_id)
+        if policy is None:
+            gaps.append(f"active signer key_id {key_id} recovery policy missing")
+            continue
+        if policy.get("subject_key_id") != key_id:
+            gaps.append(f"active signer key_id {key_id} recovery policy subject mismatch")
+            continue
+        recoverable_active_key_ids.add(key_id)
+
+    return sorted(summaries, key=lambda item: str(item["policy_id"])), len(recoverable_active_key_ids)
 
 
 def _active_signer_entries(signer_registry: Mapping[str, Any], gaps: list[str]) -> tuple[list[Mapping[str, Any]], int]:
@@ -252,8 +380,11 @@ def evaluate_perps_wallet_authority_profile_v1(
             active_signer_count=0,
             threshold=0,
             key_ref_count=0,
+            recovery_policy_count=0,
+            recoverable_active_key_count=0,
             key_refs=[],
             active_signers=[],
+            recovery_policies=[],
             wallet_ux={},
             proof_profile={},
             transaction_scope={},
@@ -271,8 +402,11 @@ def evaluate_perps_wallet_authority_profile_v1(
             active_signer_count=0,
             threshold=0,
             key_ref_count=0,
+            recovery_policy_count=0,
+            recoverable_active_key_count=0,
             key_refs=[],
             active_signers=[],
+            recovery_policies=[],
             wallet_ux={},
             proof_profile={},
             transaction_scope={},
@@ -301,9 +435,10 @@ def evaluate_perps_wallet_authority_profile_v1(
         gaps.append("perps wallet authority profile hash mismatch")
 
     key_refs: dict[str, KeyRef] = {}
+    recovery_policies_raw: list[Mapping[str, Any]] = []
     try:
         key_manager = _require_mapping(obj.get("key_manager"), name="key_manager")
-        key_refs = _validate_key_manager_public(key_manager, gaps)
+        key_refs, recovery_policies_raw = _validate_key_manager_public(key_manager, gaps)
     except Exception as exc:
         gaps.append(f"key manager invalid: {exc}")
 
@@ -315,6 +450,18 @@ def evaluate_perps_wallet_authority_profile_v1(
         _validate_signer_key_bindings(active_signers=active_signers, key_refs=key_refs, gaps=gaps)
     except Exception as exc:
         gaps.append(f"signer registry invalid: {exc}")
+
+    recovery_policy_summaries: list[dict[str, Any]] = []
+    recoverable_active_key_count = 0
+    try:
+        recovery_policy_summaries, recoverable_active_key_count = _validate_recovery_policies_public(
+            recovery_policies_raw=recovery_policies_raw,
+            key_refs=key_refs,
+            active_signers=active_signers,
+            gaps=gaps,
+        )
+    except Exception as exc:
+        gaps.append(f"recovery policies invalid: {exc}")
 
     wallet_ux_summary: dict[str, bool] = {}
     try:
@@ -363,9 +510,12 @@ def evaluate_perps_wallet_authority_profile_v1(
         active_signer_count=len(active_signers),
         threshold=threshold,
         key_ref_count=len(key_refs),
+        recovery_policy_count=len(recovery_policy_summaries),
+        recoverable_active_key_count=recoverable_active_key_count,
         expected_wallet_authority_hash=expected_hash,
         key_refs=_key_ref_summaries(key_refs),
         active_signers=_active_signer_summaries(active_signers),
+        recovery_policies=recovery_policy_summaries,
         wallet_ux=wallet_ux_summary,
         proof_profile=proof_profile_summary,
         transaction_scope=transaction_scope_summary,
@@ -381,9 +531,12 @@ def _status(
     active_signer_count: int,
     threshold: int,
     key_ref_count: int,
+    recovery_policy_count: int,
+    recoverable_active_key_count: int,
     expected_wallet_authority_hash: str | None = None,
     key_refs: list[dict[str, Any]] | None = None,
     active_signers: list[dict[str, Any]] | None = None,
+    recovery_policies: list[dict[str, Any]] | None = None,
     wallet_ux: Mapping[str, Any] | None = None,
     proof_profile: Mapping[str, Any] | None = None,
     transaction_scope: Mapping[str, Any] | None = None,
@@ -409,8 +562,11 @@ def _status(
         "active_signer_count": int(active_signer_count),
         "threshold": int(threshold),
         "key_ref_count": int(key_ref_count),
+        "recovery_policy_count": int(recovery_policy_count),
+        "recoverable_active_key_count": int(recoverable_active_key_count),
         "key_refs": list(key_refs or []),
         "active_signers": list(active_signers or []),
+        "recovery_policies": list(recovery_policies or []),
         "wallet_ux": dict(wallet_ux or {}),
         "proof_profile": dict(proof_profile or {}),
         "transaction_scope": dict(transaction_scope or {}),

@@ -22,7 +22,7 @@ from src.integration.tau_net_client import (
     build_signed_tau_transaction,
     sign_perp_op_for_engine,
 )
-from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
+from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
 from src.integration.zeno_ledger_signature import infer_artifact_hash_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
@@ -47,9 +47,31 @@ ISOLATED_MARKET_ID = "perp:isolated:test"
 def _perps_wallet_key_manager(*, second_pubkey: str = BOB) -> dict[str, object]:
     return ZenoKeyManager(
         key_refs=(
-            KeyRef(key_id="perps-wallet-a", public_key=ALICE),
-            KeyRef(key_id="perps-wallet-b", public_key=second_pubkey),
-        )
+            KeyRef(key_id="perps-wallet-a", public_key=ALICE, recovery_policy_id="recovery-perps-wallet-a"),
+            KeyRef(key_id="perps-wallet-b", public_key=second_pubkey, recovery_policy_id="recovery-perps-wallet-b"),
+        ),
+        recovery_policies=(
+            SocialRecoveryPolicy(
+                policy_id="recovery-perps-wallet-a",
+                subject_key_id="perps-wallet-a",
+                threshold=2,
+                delay_epochs=3,
+                guardians=(
+                    RecoveryGuardian(guardian_id="guardian-oracle", public_key=ORACLE),
+                    RecoveryGuardian(guardian_id="guardian-operator", public_key=OPERATOR),
+                ),
+            ),
+            SocialRecoveryPolicy(
+                policy_id="recovery-perps-wallet-b",
+                subject_key_id="perps-wallet-b",
+                threshold=2,
+                delay_epochs=3,
+                guardians=(
+                    RecoveryGuardian(guardian_id="guardian-oracle", public_key=ORACLE),
+                    RecoveryGuardian(guardian_id="guardian-operator", public_key=OPERATOR),
+                ),
+            ),
+        ),
     ).public_dict()
 
 
@@ -90,6 +112,7 @@ def _perps_wallet_authority_profile(**overrides: object) -> dict[str, object]:
             "key_manager_required": True,
             "device_approval_required": True,
             "replay_protection_required": True,
+            "recovery_policy_required": True,
         },
         "proof_profile": {
             "stream8_proof_intent_required": True,
@@ -493,12 +516,19 @@ def test_perps_wallet_authority_complete_profile_is_ready() -> None:
     assert status["threshold"] == 1
     assert status["active_signer_count"] == 2
     assert status["key_ref_count"] == 2
+    assert status["recovery_policy_count"] == 2
+    assert status["recoverable_active_key_count"] == 2
     assert status["wallet_ux"]["device_approval_required"] is True
     assert status["wallet_ux"]["replay_protection_required"] is True
+    assert status["wallet_ux"]["recovery_policy_required"] is True
     assert status["proof_profile"]["state_delta_witness_required"] is True
     assert status["proof_profile"]["runtime_proof_profile"] == "perps-stream8-risc0-or-equivalent-v1"
     assert status["transaction_scope"]["stream_key"] == "8"
     assert "deposit_collateral" in status["transaction_scope"]["allowed_actions"]
+    assert {policy["subject_key_id"] for policy in status["recovery_policies"]} == {
+        "perps-wallet-a",
+        "perps-wallet-b",
+    }
     assert infer_artifact_hash_v0(
         artifact=profile,
         payload_kind=PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
@@ -515,6 +545,7 @@ def test_perps_wallet_authority_blocks_bad_controls_and_chain_mismatch() -> None
             "key_manager_required": False,
             "device_approval_required": True,
             "replay_protection_required": False,
+            "recovery_policy_required": False,
         },
         proof_profile={
             "stream8_proof_intent_required": True,
@@ -534,6 +565,7 @@ def test_perps_wallet_authority_blocks_bad_controls_and_chain_mismatch() -> None
     assert "perps wallet authority profile chain_id mismatch" in gaps
     assert "wallet_ux.key_manager_required must be true" in gaps
     assert "wallet_ux.replay_protection_required must be true" in gaps
+    assert "wallet_ux.recovery_policy_required must be true" in gaps
     assert "proof_profile.state_delta_witness_required must be true" in gaps
     assert "proof_profile.zk_or_proof_required must be true" in gaps
     assert "proof_profile.runtime_proof_profile must be a non-empty string" in gaps
@@ -551,6 +583,35 @@ def test_perps_wallet_authority_blocks_signer_key_manager_public_key_mismatch() 
 
     assert status["production_wallet_authority"] is False
     assert "active signer key_id perps-wallet-b public key mismatch" in status["readiness_gaps"]
+
+
+def test_perps_wallet_authority_blocks_active_signer_without_recovery_policy() -> None:
+    key_manager = ZenoKeyManager(
+        key_refs=(
+            KeyRef(key_id="perps-wallet-a", public_key=ALICE),
+            KeyRef(key_id="perps-wallet-b", public_key=BOB, recovery_policy_id="recovery-perps-wallet-b"),
+        ),
+        recovery_policies=(
+            SocialRecoveryPolicy(
+                policy_id="recovery-perps-wallet-b",
+                subject_key_id="perps-wallet-b",
+                threshold=2,
+                delay_epochs=3,
+                guardians=(
+                    RecoveryGuardian(guardian_id="guardian-oracle", public_key=ORACLE),
+                    RecoveryGuardian(guardian_id="guardian-operator", public_key=OPERATOR),
+                ),
+            ),
+        ),
+    ).public_dict()
+    profile = _perps_wallet_authority_profile(key_manager=key_manager)
+
+    status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=CHAIN_ID)
+
+    assert status["production_wallet_authority"] is False
+    assert status["recovery_policy_count"] == 1
+    assert status["recoverable_active_key_count"] == 1
+    assert "active signer key_id perps-wallet-a has no recovery_policy_id" in status["readiness_gaps"]
 
 
 def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatch) -> None:
@@ -1301,6 +1362,8 @@ def test_status_loads_ready_perps_wallet_authority_profile(monkeypatch) -> None:
     assert wallet_authority["status"] == "ready"
     assert wallet_authority["readiness_gaps"] == []
     assert wallet_authority["key_ref_count"] == 2
+    assert wallet_authority["recovery_policy_count"] == 2
+    assert wallet_authority["recoverable_active_key_count"] == 2
     assert wallet_authority["active_signer_count"] == 2
     assert wallet_authority["transaction_scope"]["stream_key"] == "8"
     encoded = json.dumps(wallet_authority, sort_keys=True)

@@ -20,8 +20,12 @@ from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketStat
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
+from src.integration.perps_wallet_authority import (
+    PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    build_perps_wallet_authority_profile_v1,
+)
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
-from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
+from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -85,6 +89,99 @@ def _oracle_authority_profile(*, chain_id: str, oracle_pubkey: str, operator_pub
             "zk_or_proof_required": True,
             "oracle_receipt_replay_required": True,
             "runtime_proof_profile": "zenooracle-o3-replay-zk-profile-v1",
+        },
+    )
+
+
+def _perps_wallet_authority_profile(
+    *,
+    chain_id: str,
+    account_a_pubkey: str,
+    account_b_pubkey: str,
+    guardian_a_pubkey: str,
+    guardian_b_pubkey: str,
+) -> dict[str, object]:
+    key_manager = ZenoKeyManager(
+        key_refs=(
+            KeyRef(key_id="perps-wallet-a", public_key=account_a_pubkey, recovery_policy_id="recovery-perps-wallet-a"),
+            KeyRef(key_id="perps-wallet-b", public_key=account_b_pubkey, recovery_policy_id="recovery-perps-wallet-b"),
+        ),
+        recovery_policies=(
+            SocialRecoveryPolicy(
+                policy_id="recovery-perps-wallet-a",
+                subject_key_id="perps-wallet-a",
+                threshold=2,
+                delay_epochs=3,
+                guardians=(
+                    RecoveryGuardian(guardian_id="guardian-a", public_key=guardian_a_pubkey),
+                    RecoveryGuardian(guardian_id="guardian-b", public_key=guardian_b_pubkey),
+                ),
+            ),
+            SocialRecoveryPolicy(
+                policy_id="recovery-perps-wallet-b",
+                subject_key_id="perps-wallet-b",
+                threshold=2,
+                delay_epochs=3,
+                guardians=(
+                    RecoveryGuardian(guardian_id="guardian-a", public_key=guardian_a_pubkey),
+                    RecoveryGuardian(guardian_id="guardian-b", public_key=guardian_b_pubkey),
+                ),
+            ),
+        ),
+    ).public_dict()
+    signer_registry = build_signer_registry_v0(
+        registry_id="perps-wallet-authority-v1",
+        payload_kind=PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+        threshold=1,
+        signers=(
+            {
+                "signer_id": "wallet-a",
+                "key_id": "perps-wallet-a",
+                "public_key": account_a_pubkey,
+                "weight": 1,
+                "status": "active",
+            },
+            {
+                "signer_id": "wallet-b",
+                "key_id": "perps-wallet-b",
+                "public_key": account_b_pubkey,
+                "weight": 1,
+                "status": "active",
+            },
+        ),
+    )
+    return build_perps_wallet_authority_profile_v1(
+        authority_id="perps-wallet-authority-v1",
+        chain_id=chain_id,
+        stage="production",
+        enabled=True,
+        key_manager=key_manager,
+        signer_registry=signer_registry,
+        wallet_ux={
+            "external_signer_required": True,
+            "key_manager_required": True,
+            "device_approval_required": True,
+            "replay_protection_required": True,
+            "recovery_policy_required": True,
+        },
+        proof_profile={
+            "stream8_proof_intent_required": True,
+            "state_delta_witness_required": True,
+            "zk_or_proof_required": True,
+            "runtime_proof_profile": "perps-stream8-risc0-or-equivalent-v1",
+        },
+        transaction_scope={
+            "stream_key": "8",
+            "allowed_actions": [
+                "init_market_2p",
+                "deposit_collateral",
+                "withdraw_collateral",
+                "set_position_pair",
+                "advance_epoch",
+                "publish_clearing_price",
+                "settle_epoch",
+                "partial_liquidate",
+            ],
         },
     )
 
@@ -678,6 +775,9 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     account_a_privkey = 83
     account_b_privkey = 84
     account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
+    recovery_guardian_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(185)
+    recovery_guardian_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(186)
     quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     market_id = "perp:ch2p:ui"
 
@@ -705,6 +805,16 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         "PERPS_WALLET_TAU_HOST": "127.0.0.1",
         "PERPS_WALLET_TAU_PORT": str(tau_port),
         "TAU_DEX_CHAIN_ID": chain_id,
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON": json.dumps(
+            _perps_wallet_authority_profile(
+                chain_id=chain_id,
+                account_a_pubkey=account_a_pubkey,
+                account_b_pubkey=account_b_pubkey,
+                guardian_a_pubkey=recovery_guardian_a_pubkey,
+                guardian_b_pubkey=recovery_guardian_b_pubkey,
+            ),
+            sort_keys=True,
+        ),
     }
     old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
     os.environ["TAU_DEX_CHAIN_ID"] = chain_id
@@ -772,8 +882,9 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "proof receipt 0x" in dom
         assert "zk proof pending" in dom
         assert "delta witness 1" in dom
-        assert "wallet authority blocked" in dom
-        assert "wallet keys 0" in dom
+        assert "wallet authority ready" in dom
+        assert "wallet keys 2" in dom
+        assert "wallet recovery 2/2" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

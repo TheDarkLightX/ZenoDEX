@@ -473,6 +473,7 @@ function PerpLiveWalletSurface() {
           <div><span>ZK proof</span><span>{proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span></div>
           <div><span>Wallet Authority</span><span>{walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Wallet Signers</span><span>{walletAuthority ? `${walletAuthority.active_signer_count}/${walletAuthority.threshold || '?'}` : 'unknown'}</span></div>
+          <div><span>Wallet Recovery</span><span>{walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span></div>
           <div><span>Oracle Authority</span><span>{oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Oracle Signers</span><span>{oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span></div>
         </div>
@@ -758,6 +759,7 @@ function PerpLiveWalletSurface() {
           <span>delta witness {stateDeltaWitness ? stateDeltaWitness.changed_markets?.length ?? 0 : 'pending'}</span>
           <span>wallet authority {walletAuthority?.production_wallet_authority ? 'ready' : 'blocked'}</span>
           <span>wallet keys {walletAuthority?.key_ref_count ?? 0}</span>
+          <span>wallet recovery {walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span>
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
           <span>oracle signers {oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}

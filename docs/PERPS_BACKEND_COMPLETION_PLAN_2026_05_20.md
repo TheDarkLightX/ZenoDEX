@@ -271,9 +271,9 @@ The UI now exposes:
   sending raw private-key material to the wallet API
 - perps wallet-authority preflight via `PERPS_WALLET_AUTHORITY_PROFILE_JSON` or
   `PERPS_WALLET_AUTHORITY_PROFILE_FILE`, with public key-manager refs, a matching
-  signer registry, external signer and device approval controls, stream `8`
-  scope, state-delta witness requirements, and an explicit proof/ZK runtime
-  profile
+  signer registry, external signer and device approval controls, recovery
+  policies for active signer keys, stream `8` scope, state-delta witness
+  requirements, and an explicit proof/ZK runtime profile
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
 - first-class local typed Oracle adapter bridge fixtures for settle and opt-in
   isolated partial-liquidation testing, plus a JSON bridge field for externally
@@ -292,8 +292,8 @@ Still missing from the mounted perps UI:
 - actual public-testnet production Oracle profile provisioning and live network
   authority evidence behind the local/devnet picker/viewer
 - richer liquidation history
-- hardware/OS wallet UX, recovery flows, and live signer-device integration
-  behind the public wallet-authority profile
+- hardware/OS wallet UX and live signer-device integration behind the public
+  wallet-authority profile
 
 ### Phase 4: Assurance
 
@@ -541,6 +541,26 @@ This is a public profile and readiness-gate check. It does not custody keys,
 prove hardware wallet approval, prove perps ZK execution, or claim production
 Oracle truth.
 
+Additional perps wallet recovery-profile evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_authority.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_complete_profile_is_ready tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_bad_controls_and_chain_mismatch tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_signer_key_manager_public_key_mismatch tests/integration/test_perps_wallet_api.py::test_perps_wallet_authority_blocks_active_signer_without_recovery_policy tests/integration/test_perps_wallet_api.py::test_status_loads_ready_perps_wallet_authority_profile -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+cd tools/dex-ui && npm run build
+```
+
+Results: focused wallet recovery/API checks `5 passed`; mounted wallet browser
+smoke `1 passed`; full perps wallet API `30 passed`; full mounted perps wallet
+browser bridge `7 passed`; Vite production build passed. A ready public
+wallet-authority profile now requires `wallet_ux.recovery_policy_required=true`
+and a valid social-recovery policy for every active signer key. The mounted UI
+renders `wallet recovery 2/2` beside the stream `8` submit result. This reduces
+the mounted recovery-posture gap, while hardware/OS signer approval and actual
+key recovery execution remain outside the current UI.
+
 Additional perps Oracle-authority binding evidence added on 2026-05-21:
 
 ```bash
@@ -744,5 +764,5 @@ Remaining limits:
   and exercised live;
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
-  approval, and recovery flows remain outside the mounted DEX UI;
+  approval, and actual key recovery execution remain outside the mounted DEX UI;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.
