@@ -148,6 +148,20 @@
   margin-top: 2px;
 }
 
+.strat-live-ack textarea {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: var(--space-sm);
+}
+
 .strat-live-actions {
   display: flex;
   flex-wrap: wrap;

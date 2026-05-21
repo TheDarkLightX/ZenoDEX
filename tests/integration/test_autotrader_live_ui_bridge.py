@@ -14,6 +14,9 @@ from urllib.request import urlopen
 
 import pytest
 
+from src.integration.autotrader_live_api import handle_autotrader_live_request
+from src.integration.tau_net_client import build_signed_tau_transaction
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -171,7 +174,10 @@ def test_autotrader_live_prepare_ui_smoke_through_browser(tmp_path: Path) -> Non
             api_proc.wait(timeout=5)
 
 
-def test_autotrader_live_submit_ui_smoke_through_browser(tmp_path: Path) -> None:
+def test_autotrader_live_submit_ui_smoke_through_browser(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     chrome = _chrome_binary()
     if chrome is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
@@ -179,6 +185,29 @@ def test_autotrader_live_submit_ui_smoke_through_browser(tmp_path: Path) -> None
         pytest.skip("npm is required for the browser UI smoke test")
     if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
         pytest.skip("tools/dex-ui dependencies are not installed")
+
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    prepare_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+    status, prepared = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(prepare_body).encode("utf-8"),
+    )
+    assert status == 200
+    signed_tau_payload = build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=9,
+        expiration_time=999,
+        operations=prepared["report"]["operations"],
+        fee_limit="0",
+    )
 
     tau_port = _free_port()
     tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
@@ -234,6 +263,7 @@ def test_autotrader_live_submit_ui_smoke_through_browser(tmp_path: Path) -> None
                 "tab": "strategy",
                 "demo": "false",
                 "zenodexUiSmokeStrategyLiveSubmit": "1",
+                "signedTauTxPayload": json.dumps(signed_tau_payload, sort_keys=True, separators=(",", ":")),
             }
         )
         chrome_profile = tmp_path / "chrome-profile-submit"
@@ -259,10 +289,11 @@ def test_autotrader_live_submit_ui_smoke_through_browser(tmp_path: Path) -> None
         assert "submitted" in dom
         assert "SUCCESS: Transaction queued." in dom
         assert "SUCCESS: Block created." in dom
+        assert "external_signed_payload" in dom
         assert "SWAP_EXACT_IN" in dom
         assert len(tau_server.state.sent) == 1  # type: ignore[attr-defined]
         sent = tau_server.state.sent[0]  # type: ignore[attr-defined]
-        assert sent["sequence_number"] == 9
+        assert sent == signed_tau_payload
         assert "2" in sent["operations"]
         assert tau_server.state.blocks == 1  # type: ignore[attr-defined]
     finally:

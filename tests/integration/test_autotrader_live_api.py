@@ -6,7 +6,7 @@ import pytest
 
 import src.integration.autotrader_live_api as autotrader_live_api
 from src.integration.autotrader_live_api import handle_autotrader_live_request
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 
 
 def _balance(payload: str, *, pubkey: str, asset: str) -> int:
@@ -194,10 +194,150 @@ def test_autotrader_live_submit_sends_prepared_payload_and_mines(
     assert payload["report"]["tau_tx_payload"]["sequence_number"] == 9
     assert payload["report"]["tau_tx_payload"]["expiration_time"] == 999
     assert payload["submission"]["sendtx_response"] == "SUCCESS: Transaction queued."
+    assert payload["submission"]["signing_mode"] == "local_test_signing"
     assert payload["submission"]["createblock_response"] == "SUCCESS: Block created."
     assert len(_FakeTauClient.sent) == 1
     assert _FakeTauClient.sent[0] == payload["report"]["tau_tx_payload"]
     assert _FakeTauClient.mined == 1
+
+
+def test_autotrader_live_submit_accepts_external_signed_tau_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return 9
+
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
+            type(self).sent.append(dict(payload))
+            return "SUCCESS: Transaction queued."
+
+    _FakeTauClient.sent = []
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    prepare_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+    status, prepared = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(prepare_body).encode("utf-8"),
+    )
+    assert status == 200
+    external_payload = build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=9,
+        expiration_time=999,
+        operations=prepared["report"]["operations"],
+        fee_limit="0",
+    )
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/submit",
+        json.dumps(
+            {
+                **{
+                    k: v
+                    for k, v in prepare_body.items()
+                    if k not in {"tx_sequence_number", "tx_expiration_time"}
+                },
+                "signed_tau_tx_payload": external_payload,
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 200
+    assert payload["ok"] is True
+    assert payload["submission"]["signing_mode"] == "external_signed_payload"
+    assert payload["report"]["tau_tx_signing_mode"] == "external_signed_payload"
+    assert payload["report"]["tau_tx_payload"] == external_payload
+    assert _FakeTauClient.sent == [external_payload]
+
+
+def test_autotrader_live_submit_rejects_external_signed_tau_replay_before_sendtx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+        sequence = 9
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return type(self).sequence
+
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
+            type(self).sent.append(dict(payload))
+            type(self).sequence += 1
+            return "SUCCESS: Transaction queued."
+
+    _FakeTauClient.sent = []
+    _FakeTauClient.sequence = 9
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    prepare_body = {
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+    status, prepared = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(prepare_body).encode("utf-8"),
+    )
+    assert status == 200
+    external_payload = build_signed_tau_transaction(
+        privkey=7,
+        sequence_number=9,
+        expiration_time=999,
+        operations=prepared["report"]["operations"],
+        fee_limit="0",
+    )
+    submit_body = {
+        **{k: v for k, v in prepare_body.items() if k != "tx_sequence_number"},
+        "signed_tau_tx_payload": external_payload,
+    }
+
+    status, accepted = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/submit",
+        json.dumps(submit_body).encode("utf-8"),
+    )
+    assert status == 200
+    assert accepted["ok"] is True
+    assert len(_FakeTauClient.sent) == 1
+
+    status, replay_rejected = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/submit",
+        json.dumps(submit_body).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert replay_rejected["ok"] is False
+    assert replay_rejected["error"] == "signed_tau_tx_payload sequence mismatch"
+    assert len(_FakeTauClient.sent) == 1
 
 
 def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(

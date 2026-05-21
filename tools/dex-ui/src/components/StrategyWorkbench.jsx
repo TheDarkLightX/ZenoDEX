@@ -28,6 +28,19 @@ function isAutoTraderSubmitSmokeEnabled() {
   return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLiveSubmit') === '1';
 }
 
+function readAutoTraderSignedPayload() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('signedTauTxPayload')
+    || params.get('signed_tau_tx_payload')
+    || params.get('autotraderSignedTauTxPayload')
+    || ''
+  );
+}
+
 function StrategyCard({ strategy }) {
   const [expanded, setExpanded] = useState(false);
   const template = STRATEGY_TEMPLATES.find((t) => t.id === strategy.template);
@@ -166,6 +179,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [signedTauTxPayload, setSignedTauTxPayload] = useState(() => readAutoTraderSignedPayload());
   const smokeRunRef = useRef(false);
 
   const report = result?.report || null;
@@ -173,6 +187,7 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
   const liveAdmission = report?.live_admission?.ok === true ? 'accepted' : 'pending';
   const submitBundle = report?.submit_bundle?.ok === true ? 'ready' : 'pending';
   const submissionStatus = result?.submission?.sendtx_response ? 'submitted' : 'pending';
+  const txSigningMode = result?.submission?.signing_mode || report?.tau_tx_signing_mode || 'local_test_signing';
   const operations = report?.operations && typeof report.operations === 'object' ? report.operations : {};
   const operationCount = Object.values(operations).reduce((total, values) => (
     Array.isArray(values) ? total + values.length : total
@@ -197,6 +212,9 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     if (!forSubmit) {
       body.tx_sequence_number = 9;
       body.tx_expiration_time = 999;
+    }
+    if (forSubmit && signedTauTxPayload.trim()) {
+      body.signed_tau_tx_payload = signedTauTxPayload.trim();
     }
     return body;
   }
@@ -283,6 +301,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           <strong>{submissionStatus}</strong>
         </div>
         <div className="strat-live-metric">
+          <span>Tx signing</span>
+          <strong>{txSigningMode}</strong>
+        </div>
+        <div className="strat-live-metric">
           <span>Operations</span>
           <strong>{operationCount}</strong>
         </div>
@@ -300,6 +322,17 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           disabled={busy || demoMode}
         />
         <span>Acknowledge experimental live risk for local receipt preparation</span>
+      </label>
+
+      <label className="strat-live-ack">
+        <span>Externally signed Tau payload</span>
+        <textarea
+          value={signedTauTxPayload}
+          onChange={(event) => setSignedTauTxPayload(event.target.value)}
+          disabled={busy || demoMode}
+          rows={3}
+          placeholder="Paste a signed Tau transaction envelope for local/testnet submit"
+        />
       </label>
 
       <div className="strat-live-actions">

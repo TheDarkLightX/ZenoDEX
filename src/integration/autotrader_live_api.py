@@ -21,7 +21,13 @@ from ..state.pools import PoolState, PoolStatus
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
-from .tau_net_client import TauNetTcpClient, TauNetTcpConfig, bls_pubkey_hex_from_privkey
+from .tau_net_client import (
+    TauNetTcpClient,
+    TauNetTcpConfig,
+    bls_pubkey_hex_from_privkey,
+    encode_tau_operations_for_wire,
+    verify_tau_transaction_payload_signature,
+)
 
 
 MAX_POST_BODY = 96_000
@@ -93,6 +99,11 @@ def _default_tx_expiration_time() -> int:
     return int(time.time()) + int(delta)
 
 
+def _pubkey_for_rpc(value: str) -> str:
+    s = value.strip().lower()
+    return s[2:] if s.startswith("0x") else s
+
+
 def _parse_json_body(body: Optional[bytes]) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     if body is None or len(body) == 0:
         return None, "empty_body"
@@ -117,6 +128,73 @@ def _int_field(data: Mapping[str, Any], key: str, default: int) -> int:
             raise ValueError(f"{key} must be non-negative")
         return value
     raise ValueError(f"{key} must be int-like")
+
+
+def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
+    if name not in body:
+        return None
+    raw = body.get(name)
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError(f"bad_{name}") from exc
+        raw = parsed
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"bad_{name}")
+    return raw
+
+
+def _request_signed_tau_tx_payload(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    for name in ("signed_tau_tx_payload", "tau_tx_payload"):
+        value = _request_mapping(body, name=name)
+        if value is not None:
+            return value
+    return None
+
+
+def _validate_external_tau_tx_payload(
+    payload: Mapping[str, Any],
+    *,
+    tx_sender_pubkey: str,
+    tx_sequence_number: int,
+    expiration_time: int,
+    operations: Mapping[str, Any],
+    tx_fee_limit: object,
+) -> dict[str, Any]:
+    sender_raw = payload.get("sender_pubkey")
+    if not isinstance(sender_raw, str) or not sender_raw.strip():
+        raise ValueError("signed_tau_tx_payload missing sender_pubkey")
+    if _pubkey_for_rpc(sender_raw) != _pubkey_for_rpc(tx_sender_pubkey):
+        raise ValueError("signed_tau_tx_payload sender mismatch")
+
+    sequence_number = payload.get("sequence_number")
+    if not isinstance(sequence_number, int) or isinstance(sequence_number, bool):
+        raise ValueError("signed_tau_tx_payload bad sequence_number")
+    if int(sequence_number) != int(tx_sequence_number):
+        raise ValueError("signed_tau_tx_payload sequence mismatch")
+
+    payload_expiration = payload.get("expiration_time")
+    if not isinstance(payload_expiration, int) or isinstance(payload_expiration, bool):
+        raise ValueError("signed_tau_tx_payload bad expiration_time")
+    if int(payload_expiration) != int(expiration_time):
+        raise ValueError("signed_tau_tx_payload expiration mismatch")
+
+    if str(payload.get("fee_limit")) != str(tx_fee_limit):
+        raise ValueError("signed_tau_tx_payload fee_limit mismatch")
+
+    raw_operations = payload.get("operations")
+    if not isinstance(raw_operations, Mapping):
+        raise ValueError("signed_tau_tx_payload operations must be an object")
+    if dict(raw_operations) != encode_tau_operations_for_wire(operations):
+        raise ValueError("signed_tau_tx_payload operations mismatch")
+
+    signature = payload.get("signature")
+    if not isinstance(signature, str) or not signature.strip():
+        raise ValueError("signed_tau_tx_payload missing signature")
+    if not verify_tau_transaction_payload_signature(payload):
+        raise ValueError("signed_tau_tx_payload signature invalid")
+    return dict(payload)
 
 
 def _pool_from_obj(data: Mapping[str, Any]) -> PoolState:
@@ -397,11 +475,39 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
         }
 
     submit_body: dict[str, Any] = dict(body)
+    external_payload = _request_signed_tau_tx_payload(body)
+    if external_payload is not None:
+        if submit_body.get("tx_sequence_number") is None and isinstance(external_payload.get("sequence_number"), int):
+            submit_body["tx_sequence_number"] = int(external_payload["sequence_number"])
+        if submit_body.get("tx_expiration_time") is None and isinstance(external_payload.get("expiration_time"), int):
+            submit_body["tx_expiration_time"] = int(external_payload["expiration_time"])
+        if submit_body.get("tx_fee_limit") is None and external_payload.get("fee_limit") is not None:
+            submit_body["tx_fee_limit"] = str(external_payload.get("fee_limit"))
     signer_privkey = _int_field(submit_body, "signer_privkey", 7)
     signer_pubkey_raw = bls_pubkey_hex_from_privkey(signer_privkey)
     client = _tau_client()
+    current_sequence = int(client.get_sequence(signer_pubkey_raw))
     if submit_body.get("tx_sequence_number") is None:
-        submit_body["tx_sequence_number"] = int(client.get_sequence(signer_pubkey_raw))
+        submit_body["tx_sequence_number"] = current_sequence
+    elif _int_field(submit_body, "tx_sequence_number", 0) != current_sequence:
+        error = (
+            "signed_tau_tx_payload sequence mismatch"
+            if external_payload is not None
+            else "tx_sequence_number sequence mismatch"
+        )
+        return {
+            "ok": False,
+            "error": error,
+            "risk_disclosure": build_autotrader_risk_disclosure(
+                mode="live_submit",
+                requires_explicit_acknowledgement=True,
+                user_acknowledged=bool(
+                    body.get("acknowledge_experimental_live_risk")
+                    or body.get("risk_acknowledged")
+                    or body.get("acknowledge_live_risk")
+                ),
+            ),
+        }
     if submit_body.get("tx_expiration_time") is None:
         submit_body["tx_expiration_time"] = _default_tx_expiration_time()
 
@@ -414,9 +520,25 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
     tau_tx_payload = report.get("tau_tx_payload")
     if not isinstance(tau_tx_payload, Mapping):
         return {"ok": False, "error": "tau_tx_payload_missing"}
+    signing_mode = "local_test_signing"
+    if external_payload is not None:
+        signing = report.get("signing")
+        if not isinstance(signing, Mapping):
+            return {"ok": False, "error": "prepared_signing_missing"}
+        tau_tx_payload = _validate_external_tau_tx_payload(
+            external_payload,
+            tx_sender_pubkey=str(signing.get("signer_pubkey") or ""),
+            tx_sequence_number=int(submit_body["tx_sequence_number"]),
+            expiration_time=int(submit_body["tx_expiration_time"]),
+            operations=report["operations"] if isinstance(report.get("operations"), Mapping) else {},
+            tx_fee_limit=tau_tx_payload.get("fee_limit"),
+        )
+        report = {**dict(report), "tau_tx_payload": tau_tx_payload, "tau_tx_signing_mode": "external_signed_payload"}
+        prepared = {**prepared, "report": report}
+        signing_mode = "external_signed_payload"
 
     send_response = client.sendtx(tau_tx_payload)
-    submission: dict[str, Any] = {"sendtx_response": send_response}
+    submission: dict[str, Any] = {"sendtx_response": send_response, "signing_mode": signing_mode}
     if not _tx_send_ok(send_response):
         return {
             **prepared,

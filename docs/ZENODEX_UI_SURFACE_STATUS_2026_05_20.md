@@ -10,7 +10,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
 | Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and a write-enabled receipt flow. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
-| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit panel in non-demo mode | Yes for local AutoTrader prepare and gated local/testnet submit through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction, `sendtx`, optional auto-mining, and release certificates. Unattended execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
+| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit panel in non-demo mode | Yes for local AutoTrader prepare and gated local/testnet submit through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, and release certificates. Unattended execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status and proof-context surface | Status-only via `GET /api/confidential/status` | `tests/integration/test_confidential_ui_bridge.py` |
 
 ## Interpretation
@@ -52,6 +52,15 @@ sequence, expiry, fee limit, encoded operations, and BLS signature before
 `sendtx`, so collateral, mint, repay, redeem, stability-pool, liquidation, and
 SP-claim actions can be driven by an external signer or key-manager without
 enabling local raw-key signing in the API.
+
+The AutoTrader local/testnet submit path now accepts an externally signed Tau
+transaction envelope for the prepared strategy operation bundle. The API
+validates the envelope's sender, current sequence, expiry, fee limit, encoded
+operations, and BLS signature before `sendtx`; replaying the same signed
+envelope is rejected before a second `sendtx`. This is Tau-envelope transport
+evidence for the gated local/testnet Strategy panel, while unattended
+production strategy execution and production wallet key management remain
+non-claims.
 
 ## Current browser checks
 
@@ -127,12 +136,15 @@ python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
 npm run build
 ```
 
-Results: `7 passed`, `2 passed`, and Vite production build passed. The API
+Results: `9 passed`, `2 passed`, and Vite production build passed. The API
 suite includes a Tau app-bridge application check proving the default prepared
 AutoTrader signed intent payload applies against the same deterministic fixture
-pool that the live-preparation path quotes. The browser submit smoke calls the
-mounted Strategy tab, sends the prepared Tau transaction to a Tau-compatible
-local/testnet RPC, auto-mines, and renders the `sendtx` and block receipts.
+pool that the live-preparation path quotes. It also accepts a valid externally
+signed Tau envelope and rejects duplicate signed-envelope replay before a
+second `sendtx`. The browser submit smoke calls the mounted Strategy tab, sends
+the externally signed prepared Tau transaction to a Tau-compatible local/testnet
+RPC, auto-mines, and renders the `sendtx`, block receipts, and
+`external_signed_payload` signing mode.
 
 Latest local browser pass on 2026-05-20:
 
