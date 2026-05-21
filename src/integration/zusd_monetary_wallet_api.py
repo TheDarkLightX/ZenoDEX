@@ -26,6 +26,8 @@ from .tau_net_client import (
     TauNetTcpConfig,
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
+    encode_tau_operations_for_wire,
+    verify_tau_transaction_payload_signature,
 )
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
@@ -284,6 +286,75 @@ def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
     return int(value)
 
 
+def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
+    if name not in body:
+        return None
+    raw = body.get(name)
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValueError(f"bad_{name}") from exc
+        raw = parsed
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"bad_{name}")
+    return raw
+
+
+def _request_signed_tau_tx_payload(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    for name in ("signed_tau_tx_payload", "tau_tx_payload"):
+        value = _request_mapping(body, name=name)
+        if value is not None:
+            return value
+    return None
+
+
+def _validate_external_tau_tx_payload(
+    payload: Mapping[str, Any],
+    *,
+    actor_pubkey: str,
+    tx_sequence_number: int,
+    deadline: int,
+    operations: Mapping[str, Any],
+    tx_fee_limit: int,
+) -> dict[str, Any]:
+    sender_raw = payload.get("sender_pubkey")
+    if not isinstance(sender_raw, str) or not sender_raw.strip():
+        raise ValueError("signed_tau_tx_payload missing sender_pubkey")
+    sender_prefixed = sender_raw if sender_raw.lower().startswith("0x") else "0x" + sender_raw
+    sender_pubkey = _canonical_pubkey(sender_prefixed, name="signed_tau_tx_payload.sender_pubkey")
+    if sender_pubkey.lower() != actor_pubkey.lower():
+        raise ValueError("signed_tau_tx_payload sender mismatch")
+
+    sequence_number = payload.get("sequence_number")
+    if not isinstance(sequence_number, int) or isinstance(sequence_number, bool):
+        raise ValueError("signed_tau_tx_payload bad sequence_number")
+    if int(sequence_number) != int(tx_sequence_number):
+        raise ValueError("signed_tau_tx_payload sequence mismatch")
+
+    expiration_time = payload.get("expiration_time")
+    if not isinstance(expiration_time, int) or isinstance(expiration_time, bool):
+        raise ValueError("signed_tau_tx_payload bad expiration_time")
+    if int(expiration_time) != int(deadline):
+        raise ValueError("signed_tau_tx_payload expiration mismatch")
+
+    if str(payload.get("fee_limit")) != str(tx_fee_limit):
+        raise ValueError("signed_tau_tx_payload fee_limit mismatch")
+
+    raw_operations = payload.get("operations")
+    if not isinstance(raw_operations, Mapping):
+        raise ValueError("signed_tau_tx_payload operations must be an object")
+    if dict(raw_operations) != encode_tau_operations_for_wire(operations):
+        raise ValueError("signed_tau_tx_payload operations mismatch")
+
+    signature = payload.get("signature")
+    if not isinstance(signature, str) or not signature.strip():
+        raise ValueError("signed_tau_tx_payload missing signature")
+    if not verify_tau_transaction_payload_signature(payload):
+        raise ValueError("signed_tau_tx_payload signature invalid")
+    return dict(payload)
+
+
 def _fee_limit_posture(*, tx_fee_limit: int, native_balance: int | None) -> dict[str, Any]:
     ok = None if native_balance is None else bool(int(native_balance) >= int(tx_fee_limit))
     warning = None
@@ -462,15 +533,28 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         block_timestamp=block_timestamp,
         native_balance=native_balance,
     )
-
-    signer_privkey = body.get("signer_privkey")
-    if for_submit and not isinstance(signer_privkey, (str, int)):
-        raise ValueError("missing_signer_privkey")
-    if signer_privkey is not None and not _allow_signing():
-        raise ValueError("local_signing_disabled")
+    if for_submit and not preflight.get("ok"):
+        raise ValueError(f"preflight_failed: {preflight.get('error') or 'unknown'}")
 
     tau_tx_payload: dict[str, Any] | None = None
-    if signer_privkey is not None:
+    signing_mode = "prepare_only"
+    signer_privkey = body.get("signer_privkey")
+    external_payload = _request_signed_tau_tx_payload(body) if for_submit else None
+    if external_payload is not None:
+        tau_tx_payload = _validate_external_tau_tx_payload(
+            external_payload,
+            actor_pubkey=actor_pubkey,
+            tx_sequence_number=tx_sequence_number,
+            deadline=deadline,
+            operations=operations,
+            tx_fee_limit=tx_fee_limit,
+        )
+        signing_mode = "external_signed_payload"
+    elif for_submit or signer_privkey is not None:
+        if not isinstance(signer_privkey, (str, int)):
+            raise ValueError("missing_signer_privkey")
+        if not _allow_signing():
+            raise ValueError("local_signing_disabled")
         signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(cast(Any, signer_privkey))
         if signer_pubkey.lower() != actor_pubkey.lower():
             raise ValueError("signer_privkey does not match sender_pubkey")
@@ -481,6 +565,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             operations=operations,
             fee_limit=tx_fee_limit,
         )
+        signing_mode = "local_test_signing"
 
     payload: Dict[str, Any] = {
         "ok": True,
@@ -498,8 +583,12 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "stability_pool_balance": int(balances.get(sp_pubkey.lower(), 0)),
             "last_used_nonce": last_used_nonce,
             "tx_sequence_number": tx_sequence_number,
+            "stream_key": _STREAM_KEY,
             "liquidation_gas_comp_fixed_collateral_e8": config.liquidation_gas_comp_fixed_collateral_e8,
             "liquidation_gas_comp_bps": config.liquidation_gas_comp_bps,
+            "allow_local_signing": _allow_signing(),
+            "signing_mode": signing_mode,
+            "auto_mine": _auto_mine(),
             "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
             "tau_port": _env_int(
                 "ZUSD_MONETARY_WALLET_TAU_PORT",

@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pytest
 
@@ -18,7 +18,7 @@ from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.integration.zusd_monetary_bridge import (
     ZUSDMonetaryState,
     zusd_monetary_state_to_obj,
@@ -56,6 +56,17 @@ def _wait_for_http(url: str, *, timeout_s: float = 30) -> None:
             last_error = exc
             time.sleep(0.2)
     raise AssertionError(f"server did not become ready at {url}: {last_error}")
+
+
+def _http_post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=8) as response:  # noqa: S310 - local test servers only
+        return json.loads(response.read().decode("utf-8"))
 
 
 def _ok(core, tag: str, **kwargs):
@@ -188,7 +199,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         "API_PORT": str(api_port),
         "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
         "ZUSD_MONETARY_WALLET_API_ENABLED": "true",
-        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING": "true",
+        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING": "false",
         "ZUSD_MONETARY_WALLET_AUTO_MINE": "true",
         "ZUSD_MONETARY_WALLET_CHAIN_ID": chain_id,
         "ZUSD_MONETARY_WALLET_TAU_HOST": "127.0.0.1",
@@ -221,6 +232,23 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
     try:
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
+        deadline = int(time.time()) + 3600
+        prepare_body = {
+            "action": "mint_zusd",
+            "owner_pubkey": owner_pubkey,
+            "amount": 1000,
+            "deadline": deadline,
+            "tx_fee_limit": "0",
+        }
+        prepared = _http_post_json(api_base + "/api/zusd/monetary/prepare", prepare_body)
+        assert prepared["ok"] is True
+        signed_payload = build_signed_tau_transaction(
+            privkey=owner_privkey,
+            sequence_number=int(prepared["transport"]["tx_sequence_number"]),
+            expiration_time=deadline,
+            operations=prepared["report"]["operations"],
+            fee_limit=0,
+        )
         query = urlencode(
             {
                 "tab": "zusd",
@@ -228,9 +256,9 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
                 "zenodexUiSmokeZusdMonetary": "1",
                 "zusdMonetaryAction": "mint_zusd",
                 "actorPubkey": owner_pubkey,
-                "signerPrivkey": str(owner_privkey),
                 "zusdAmount": "1000",
-                "zusdDeadline": str(int(time.time()) + 3600),
+                "zusdDeadline": str(deadline),
+                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
             }
         )
         chrome_profile = tmp_path / "chrome-profile"
@@ -255,6 +283,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "zUSD Monetary Vault" in dom
         assert "Tau node connected" in dom
         assert "SUCCESS tx accepted" in dom
+        assert "external_signed_payload" in dom
         assert '"action": "mint_zusd"' in dom
         assert '"debt_e8": 100000000000' in dom
     finally:

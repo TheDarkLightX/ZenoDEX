@@ -46,6 +46,13 @@ The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
 `docs/ZUSD_LIQUITY_PARITY_STATUS_2026_05_20.md`.
 
+The zUSD monetary submit path now accepts externally signed Tau transaction
+envelopes for stream `11`. The API validates the signed envelope's sender,
+sequence, expiry, fee limit, encoded operations, and BLS signature before
+`sendtx`, so collateral, mint, repay, redeem, stability-pool, liquidation, and
+SP-claim actions can be driven by an external signer or key-manager without
+enabling local raw-key signing in the API.
+
 ## Current browser checks
 
 Run these from repo root:
@@ -151,6 +158,19 @@ collateral deposit with local signing disabled, using an externally signed Tau
 transaction envelope. The DOM receipt included `signing
 external_signed_payload`, fee-limit coverage, and the expected quote/collateral
 deltas after auto-mining through the local Tau RPC harness.
+
+Latest external-signed zUSD monetary browser pass on 2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py -s
+```
+
+Results: `6 passed` and `1 passed`. The mounted zUSD monetary UI submitted a
+stream `11` mint with local signing disabled, using an externally signed Tau
+transaction envelope. The DOM receipt included `external_signed_payload`, the
+accepted `sendtx` response, and the expected zUSD debt after auto-mining
+through the local Tau RPC harness.
 
 Latest perps Oracle evidence inspector pass on 2026-05-21:
 

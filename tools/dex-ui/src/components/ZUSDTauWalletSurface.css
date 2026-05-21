@@ -40,6 +40,13 @@
   gap: 12px;
 }
 
+.zusd-wallet-textarea {
+  min-height: 112px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  line-height: 1.45;
+}
+
 .zusd-wallet-actions {
   display: flex;
   gap: 12px;

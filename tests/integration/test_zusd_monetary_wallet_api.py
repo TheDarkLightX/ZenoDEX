@@ -5,7 +5,7 @@ import json
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, init_state, step
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.integration.zusd_monetary_bridge import (
     ZUSDMonetaryState,
     zusd_monetary_sender_nonce_key,
@@ -177,6 +177,92 @@ def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> N
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
     assert payload["report"]["tau_tx_payload"]["fee_limit"] == "2"
+
+
+def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+        "tx_fee_limit": "2",
+    }
+    status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    assert prepared["ok"] is True
+    assert prepared["report"]["tau_tx_payload"] is None
+
+    external_payload = build_signed_tau_transaction(
+        privkey=ALICE_PRIVKEY,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=123456789,
+        operations=prepared["report"]["operations"],
+        fee_limit=2,
+    )
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/submit",
+        json.dumps({**body, "signed_tau_tx_payload": external_payload}).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["transport"]["allow_local_signing"] is False
+    assert payload["transport"]["signing_mode"] == "external_signed_payload"
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["tau_tx_payload"] == external_payload
+    assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
+    assert json.loads(payload["report"]["tau_tx_payload"]["operations"]["11"])[0]["action"] == "mint_zusd"
+
+
+def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+        "tx_fee_limit": "2",
+    }
+    status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    wrong_operations = json.loads(json.dumps(prepared["report"]["operations"]))
+    wrong_operations["11"][0]["amount_e8"] = 999 * E8
+    external_payload = build_signed_tau_transaction(
+        privkey=ALICE_PRIVKEY,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=123456789,
+        operations=wrong_operations,
+        fee_limit=2,
+    )
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/submit",
+        json.dumps({**body, "signed_tau_tx_payload": external_payload}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "signed_tau_tx_payload operations mismatch"}
 
 
 def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:

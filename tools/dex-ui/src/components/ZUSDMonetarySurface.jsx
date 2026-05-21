@@ -13,6 +13,7 @@ const EMPTY_FORM = {
   delta: '1',
   deadline: '',
   tx_fee_limit: '0',
+  signed_tau_tx_payload: '',
 };
 
 const ACTIONS = [
@@ -49,6 +50,8 @@ function readSmokeConfig() {
     delta: params.get('zusdDelta') || '1',
     deadline: params.get('zusdDeadline') || '',
     tx_fee_limit: params.get('zusdTxFeeLimit') || params.get('txFeeLimit') || '0',
+    signed_tau_tx_payload:
+      params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || params.get('zusdSignedTauTxPayload') || '',
   };
 }
 
@@ -73,6 +76,9 @@ function buildPayload(form) {
   }
   if (String(form.tx_fee_limit || '').trim()) {
     payload.tx_fee_limit = String(form.tx_fee_limit).trim();
+  }
+  if (form.signed_tau_tx_payload.trim()) {
+    payload.signed_tau_tx_payload = form.signed_tau_tx_payload.trim();
   }
 
   if (['deposit_collateral', 'withdraw_collateral', 'mint_zusd', 'repay_zusd'].includes(action)) {
@@ -231,7 +237,10 @@ function ZUSDMonetarySurface() {
             <div className="zusd-wallet-kv"><span>SP Escrow</span><span>{status?.stability_pool_balance ?? 0} zUSD</span></div>
             <div className="zusd-wallet-kv"><span>Keeper Fee Comp Fixed</span><span>{liquidationFeeCompFixedE8} E8</span></div>
             <div className="zusd-wallet-kv"><span>Keeper Fee Comp Bps</span><span>{liquidationFeeCompBps}</span></div>
-            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
+            <div className="zusd-wallet-kv">
+              <span>Signing</span>
+              <span>{status?.allow_local_signing ? 'local test enabled' : 'external payload for submit'}</span>
+            </div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
           <button className="btn btn-secondary zusd-wallet-refresh" type="button" onClick={loadStatus}>
@@ -343,6 +352,16 @@ function ZUSDMonetarySurface() {
               placeholder="32-byte hex or integer"
             />
 
+            <label className="label" htmlFor="zusd-monetary-signed-payload">Signed Tau Tx Payload</label>
+            <textarea
+              id="zusd-monetary-signed-payload"
+              className="input zusd-wallet-textarea"
+              rows={6}
+              value={form.signed_tau_tx_payload}
+              onChange={(event) => setForm((current) => ({ ...current, signed_tau_tx_payload: event.target.value }))}
+              placeholder='{"sender_pubkey":"...","signature":"..."}'
+            />
+
             <div className="zusd-wallet-actions">
               <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy}>
                 {busy ? 'Preparing...' : 'Prepare'}
@@ -372,6 +391,7 @@ function ZUSDMonetarySurface() {
               <div className="zusd-wallet-kv"><span>zUSD Balance</span><span>{liveSummary.zusd_balance}</span></div>
               <div className="zusd-wallet-kv"><span>Monetary Nonce</span><span>{liveSummary.last_used_nonce}</span></div>
               <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
+              <div className="zusd-wallet-kv"><span>Signing Mode</span><span>{liveSummary.signing_mode || 'prepare_only'}</span></div>
               {liveSummary.fee_limit_warning ? (
                 <div className="zusd-wallet-kv"><span>Fee Warning</span><span>{liveSummary.fee_limit_warning}</span></div>
               ) : null}
