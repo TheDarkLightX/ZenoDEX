@@ -355,8 +355,8 @@ Results: py_compile passed and the focused failure/retry regression `1 passed`.
 The mounted perps wallet backend returns `502` for a transient Tau RPC send
 failure, preserves app state, avoids recording a queued transaction, and accepts
 the same externally signed stream `8` payload after the node recovers while the
-sequence is unchanged. Live Docker process restart and network partition chaos
-remain open.
+sequence is unchanged. Live Docker process restart and pause/retry evidence are
+covered below. Packet-level network partition/latency chaos remains open.
 
 Latest perps wallet node-restart replay pass on 2026-05-21:
 
@@ -371,21 +371,24 @@ perps wallet plus stream `8` resilience checks `37 passed`. The mounted perps
 wallet backend accepts an externally signed stream `8` submit, persists the
 post-submit app state and advanced sender sequence into a restarted Tau client,
 then rejects the old signed payload before a second `sendtx`. Live Docker
-process restart is covered by the Docker Tau-node browser lane; network
-partition chaos remains open.
+process restart is covered by the Docker Tau-node browser lane. Packet-level
+network partition/latency chaos remains open.
 
-Latest Docker Tau-node restart pass on 2026-05-21:
+Latest Docker Tau-node restart and pause/retry pass on 2026-05-21:
 
 ```bash
 python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_docker.py
 python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py -s
 ```
 
-Results: py_compile passed; Docker Tau-node browser/restart test `1 passed`.
-The mounted browser lane mints zUSD through stream `11`, posts that zUSD into a
-live perps stream `8` collateral deposit, restarts the `tau-local` container,
-confirms persisted app state, and rejects the same signed perps payload after
-restart before any mutation. Network partition chaos remains open.
+Results: py_compile passed; Docker Tau-node browser/restart/pause test `1
+passed`. The mounted browser lane mints zUSD through stream `11`, prepares a
+signed perps stream `8` collateral deposit, pauses `tau-local`, verifies the
+paused-node submit returns `502` with `tau_rpc_error` and no app-state drift,
+unpauses the node, posts the same signed payload into live perps collateral
+through the mounted UI, restarts the `tau-local` container, confirms persisted
+app state, and rejects the same signed perps payload after restart before any
+mutation. Packet-level network partition/latency chaos remains open.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt

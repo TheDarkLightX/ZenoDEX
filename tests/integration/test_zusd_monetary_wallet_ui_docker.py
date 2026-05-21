@@ -314,6 +314,30 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         "restart",
         "tau-local",
     ]
+    compose_pause_tau = [
+        "docker",
+        "compose",
+        "-p",
+        project_name,
+        "-f",
+        "docker-compose.yml",
+        "-f",
+        "docker-compose.permissionless.yml",
+        "pause",
+        "tau-local",
+    ]
+    compose_unpause_tau = [
+        "docker",
+        "compose",
+        "-p",
+        project_name,
+        "-f",
+        "docker-compose.yml",
+        "-f",
+        "docker-compose.permissionless.yml",
+        "unpause",
+        "tau-local",
+    ]
 
     api_proc = None
     vite_proc = None
@@ -487,6 +511,21 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
             privkey=owner_privkey,
             body=perps_deposit_body,
         )
+        state_before_perps_interruption = _read_app_state(tau_client)
+        subprocess.run(compose_pause_tau, cwd=ROOT, env=compose_env, check=True, capture_output=True, text=True)
+        try:
+            status, perps_outage_rejected = _http_post_json_status(
+                f"http://127.0.0.1:{api_port}/api/perps/wallet/submit",
+                {**perps_deposit_body, "signed_tau_tx_payload": signed_perps_deposit_payload},
+            )
+        finally:
+            subprocess.run(compose_unpause_tau, cwd=ROOT, env=compose_env, check=False, capture_output=True, text=True)
+        assert status == 502
+        assert perps_outage_rejected["ok"] is False
+        assert perps_outage_rejected["error"] == "tau_rpc_error"
+        tau_client = _wait_for_tau_hello(host="127.0.0.1", port=tau_port, timeout_s=240)
+        assert _read_app_state(tau_client) == state_before_perps_interruption
+
         deposit_query = urlencode(
             {
                 "tab": "perps",
