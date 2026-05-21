@@ -132,6 +132,20 @@ def _post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
         raise AssertionError(f"POST {url} failed with HTTP {exc.code}: {detail}") from exc
 
 
+def _post_json_status(url: str, payload: dict[str, object]) -> tuple[int, dict[str, object]]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=10) as response:  # noqa: S310 - local test servers only
+            return int(response.status), json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        return int(exc.code), json.loads(exc.read().decode("utf-8"))
+
+
 def _seed_oracle_authorization(base: str, *, action_kind: str = "settle_epoch") -> dict[str, object]:
     query_id = _PERPS_INDEX_QUERY_ID
     action_marker = "8" if action_kind == "settle_epoch" else "7"
@@ -609,6 +623,9 @@ class _TauRpcState:
 class _TauRpcHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         line = self.rfile.readline().decode("utf-8").strip()
+        self._dispatch_line(line)
+
+    def _dispatch_line(self, line: str) -> None:
         state: _TauRpcState = self.server.state  # type: ignore[attr-defined]
         if line == "hello version=1":
             self.wfile.write(b"HELLO: ok\n")
@@ -635,6 +652,17 @@ class _TauRpcHandler(socketserver.StreamRequestHandler):
             self.wfile.write(b"BLOCK created\n")
             return
         self.wfile.write(b"ERR unsupported\n")
+
+
+class _TauRpcPartialSendTimeoutHandler(_TauRpcHandler):
+    def handle(self) -> None:
+        line = self.rfile.readline().decode("utf-8").strip()
+        if line.startswith("sendtx "):
+            self.wfile.write(b"PARTIAL_PRIVATE_RESPONSE")
+            self.wfile.flush()
+            time.sleep(1.0)
+            return
+        self._dispatch_line(line)
 
 
 def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
@@ -913,6 +941,182 @@ def test_perps_wallet_ui_accepts_external_signed_payload_without_local_signing(t
         api_proc.terminate()
         tau_server.shutdown()
         tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-chaos"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(85)
+    account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:ui-chaos"
+    deadline = int(time.time()) + 3600
+    sequence_number = 7
+    deposit_amount = 125
+
+    dex_state = _advanced_market_state(
+        chain_id=chain_id,
+        market_id=market_id,
+        quote_asset=quote_asset,
+        account_a_privkey=account_a_privkey,
+        account_b_privkey=account_b_privkey,
+        oracle_pubkey=oracle_pubkey,
+    )
+    dex_state.balances.set(account_a_pubkey, quote_asset, 1000)
+    app_state_json = _initial_app_state_json(dex_state)
+    operations = {
+        "8": [
+            {
+                "module": "TauPerp",
+                "version": "1.0",
+                "market_id": market_id,
+                "action": "deposit_collateral",
+                "account_pubkey": account_a_pubkey,
+                "amount": deposit_amount,
+            }
+        ]
+    }
+    signed_payload = build_signed_tau_transaction(
+        privkey=account_a_privkey,
+        sequence_number=sequence_number,
+        expiration_time=deadline,
+        operations=operations,
+        fee_limit=2,
+    )
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcPartialSendTimeoutHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
+    tau_server.state.sequences[account_a_pubkey[2:].lower()] = sequence_number  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_a_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "false",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "PERPS_WALLET_TAU_TIMEOUT_S": "0.2",
+        "TAU_DEX_CHAIN_ID": chain_id,
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+
+        submit_body = {
+            "action": "deposit_collateral",
+            "market_id": market_id,
+            "account_pubkey": account_a_pubkey,
+            "amount": deposit_amount,
+            "tx_fee_limit": "2",
+            "deadline": deadline,
+            "signed_tau_tx_payload": signed_payload,
+        }
+        status, api_rejected = _post_json_status(api_base + "/api/perps/wallet/submit", submit_body)
+        assert status == 502
+        assert api_rejected["ok"] is False
+        assert api_rejected["error"] == "tau_rpc_error"
+        assert "PARTIAL_PRIVATE_RESPONSE" not in json.dumps(api_rejected, sort_keys=True)
+        rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+        assert json.loads(rpc_state.app_state_json) == json.loads(app_state_json)
+        assert rpc_state.pending_tx is None
+        assert rpc_state.sequences[account_a_pubkey[2:].lower()] == sequence_number
+
+        query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "deposit_collateral",
+                "marketId": market_id,
+                "accountPubkey": account_a_pubkey,
+                "amount": str(deposit_amount),
+                "txFeeLimit": "2",
+                "perpsDeadline": str(deadline),
+                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+            }
+        )
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={tmp_path / 'chrome-profile-perps-chaos'}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Live Perps Wallet" in dom
+        assert "Tau node connected" in dom
+        assert "tau_rpc_error" in dom, dom[-8000:]
+        assert "PARTIAL_PRIVATE_RESPONSE" not in dom
+        assert json.loads(rpc_state.app_state_json) == json.loads(app_state_json)
+        assert rpc_state.pending_tx is None
+        assert rpc_state.sequences[account_a_pubkey[2:].lower()] == sequence_number
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        tau_thread.join(timeout=2.0)
         for proc in (vite_proc, api_proc):
             try:
                 proc.wait(timeout=5)

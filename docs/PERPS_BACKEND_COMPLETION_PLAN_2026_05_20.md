@@ -663,6 +663,26 @@ unchanged, no pending Tau transaction is recorded, and the sender sequence stays
 at its pre-submit value. Broader packet-loss, jitter, and multi-surface network
 chaos campaigns remain open.
 
+Additional mounted perps Tau RPC partial-response chaos evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; focused stream `8` browser chaos regression `1
+passed`; full perps wallet browser bridge `7 passed`. The mounted stream `8`
+test uses a Tau-compatible TCP server that supports normal status and preflight
+calls, then sends partial private response bytes on `sendtx` and stalls past the
+configured Tau RPC timeout. The live API returns `502 tau_rpc_error`, the mounted
+UI renders that fail-closed error without exposing the partial response, the app
+state is unchanged, no pending Tau transaction is recorded, and the sender
+sequence stays at its pre-submit value. Mounted stream `8` and stream `11` now
+both have partial-response timeout coverage at the submit boundary. Broader
+packet-loss, jitter, and multi-surface network-chaos campaigns remain open.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker is local/devnet

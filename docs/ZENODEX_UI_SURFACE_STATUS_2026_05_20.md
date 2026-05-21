@@ -509,6 +509,26 @@ leaking the partial response, the Tau app state is unchanged, no pending
 transaction is recorded, and the sender sequence remains unchanged. Broader
 packet-loss, jitter, and multi-surface network-chaos campaigns remain open.
 
+Latest mounted perps Tau RPC partial-response chaos pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
+```
+
+Results: py_compile passed; focused stream `8` browser chaos regression `1
+passed`; full perps wallet browser bridge `7 passed`. The new harness runs the
+mounted perps tab, live API server, and a Tau-compatible TCP server that accepts
+normal status and preflight calls, then sends partial private response bytes on
+`sendtx` and stalls past the configured Tau RPC timeout. The API returns `502`
+with `tau_rpc_error`, the mounted UI renders that fail-closed error without
+leaking the partial response, the app state is unchanged, no pending transaction
+is recorded, and the sender sequence remains unchanged. Together with the
+stream `11` zUSD chaos pass, mounted stream `8` and stream `11` now both cover
+partial-response timeout at the submit boundary. Broader packet-loss, jitter,
+and multi-surface network-chaos campaigns remain open.
+
 ## Economic-security status
 
 Algorithmic game theory is required for value-moving actor surfaces before
