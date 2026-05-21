@@ -38,10 +38,16 @@ authorizations for `settle_epoch` and `liquidate_account`. The perps wallet
 submit path also accepts externally signed Tau transaction envelopes and
 validates their sender, sequence, expiry, fee, operations, and BLS signature
 before `sendtx`, so an external signer or key-manager can drive the live stream
-`8` lane without enabling local raw-key signing in the API. The completion plan
-is recorded in `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main
-blockers are now production Oracle network authority, full production
-wallet/key-manager registry and device UX, and proof/ZK promotion.
+`8` lane without enabling local raw-key signing in the API. The perps wallet API
+now emits a deterministic `perps_stream8_live_wallet_v0` proof-intent receipt
+that binds chain id, stream key, operation hash, operation-stream hash,
+pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
+result, sender, sequence, fee limit, and signing mode. The mounted UI renders
+that proof profile and receipt hash while keeping `zk_proof_verified=false`
+until a real RISC Zero or equivalent verifier is present. The completion plan is
+recorded in `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers
+are now production Oracle network authority, full production wallet/key-manager
+registry and device UX, and a real proof/ZK wrapper for stream `8`.
 
 The zUSD monetary lane is Liquity-like but does not claim exact Liquity V2
 liquidation parity. The current 5% borrower-penalty gap is tracked in
@@ -182,6 +188,18 @@ pytest -q tests/integration/test_perps_wallet_ui_bridge.py -s
 ```
 
 Results: `4 passed`, `4 passed`, and `1 passed`.
+
+Latest perps proof-intent receipt pass on 2026-05-21:
+
+```bash
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_prepare_init_market_2p_builds_signed_stream_8_and_preflights tests/integration/test_perps_wallet_api.py::test_submit_accepts_external_signed_tau_payload_without_local_signing tests/integration/test_perps_wallet_api.py::test_status_exposes_clearinghouse_liquidation_summary_fields
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_smoke_through_browser -s
+npm run build
+```
+
+Results: API proof-profile checks `3 passed`, browser proof-profile smoke `1
+passed`, and Vite production build passed. This is deterministic proof-intent
+evidence for stream `8`; it does not claim real zkVM execution.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

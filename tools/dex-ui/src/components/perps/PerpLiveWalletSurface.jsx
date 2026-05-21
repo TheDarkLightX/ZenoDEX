@@ -433,6 +433,8 @@ function PerpLiveWalletSurface() {
     return accounts[0];
   }, [selectedMarket, form.account_pubkey]);
   const feeCovered = result?.transport?.fee_limit_native_balance_ok;
+  const proofProfile = result?.proof?.profile || status?.proof_profile || null;
+  const proofReceipt = result?.proof?.intent_receipt || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
     && status?.require_oracle_adapter_for_isolated_partial_liquidate
@@ -464,6 +466,8 @@ function PerpLiveWalletSurface() {
           <div><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
           <div><span>Oracle Bridge</span><span>{oracleBridgePosture}</span></div>
           <div><span>Isolated</span><span>{status?.allow_isolated_markets ? 'enabled' : 'disabled'}</span></div>
+          <div><span>Proof profile</span><span>{proofProfile?.profile_id || 'unassigned'}</span></div>
+          <div><span>ZK proof</span><span>{proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span></div>
         </div>
 
         <div className="perp-live-wallet-form">
@@ -741,6 +745,9 @@ function PerpLiveWalletSurface() {
           <span>fee covered {feeCovered == null ? 'unknown' : feeCovered ? 'yes' : 'no'}</span>
           <span>signing {result.transport?.signing_mode || 'prepare_only'}</span>
           <span>{result.transport?.app_hash || 'no app hash'}</span>
+          <span>proof profile {proofProfile?.profile_id || 'unassigned'}</span>
+          <span>proof receipt {compactId(proofReceipt?.receipt_hash)}</span>
+          <span>zk proof {proofProfile?.zk_proof_verified ? 'verified' : 'pending'}</span>
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {selectedMarket?.liquidated_this_step != null ? (
             <span>liquidated {selectedMarket.liquidated_this_step ? 'yes' : 'no'}</span>

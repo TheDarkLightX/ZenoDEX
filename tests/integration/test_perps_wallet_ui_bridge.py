@@ -686,6 +686,9 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "preflight ok" in dom
         assert "fee limit 2" in dom
         assert "fee covered yes" in dom
+        assert "proof profile perps_stream8_live_wallet_v0" in dom
+        assert "proof receipt 0x" in dom
+        assert "zk proof pending" in dom
         assert market_id in dom
     finally:
         if old_chain_id is None:

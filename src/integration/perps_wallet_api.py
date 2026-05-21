@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 from ..core.dex import DexState
 from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
-from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .dex_snapshot import state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
 from .tau_net_client import (
@@ -46,6 +46,10 @@ _ACTIONS = {
     "settle_epoch",
     "partial_liquidate",
 }
+_PERPS_PROOF_PROFILE_ID = "perps_stream8_live_wallet_v0"
+_PERPS_PROOF_PROFILE_SCHEMA = "zenodex/perps_wallet/proof_profile/v1"
+_PERPS_PROOF_INTENT_SCHEMA = "zenodex/perps_wallet/proof_intent_receipt/v1"
+_PERPS_PROOF_INTENT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -318,6 +322,89 @@ def _fee_limit_posture(*, tx_fee_limit: int, native_balance: int | None) -> dict
         "native_balance": native_balance,
         "native_balance_covers_fee_limit": ok,
         "warning": warning,
+    }
+
+
+def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
+    return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
+
+
+def _perps_proof_profile() -> dict[str, Any]:
+    return {
+        "schema": _PERPS_PROOF_PROFILE_SCHEMA,
+        "profile_id": _PERPS_PROOF_PROFILE_ID,
+        "claim_scope": "deterministic_stream8_live_wallet_receipt",
+        "covered": [
+            "stream8_operation_hash_binding",
+            "pre_app_hash_binding",
+            "tau_envelope_signature_binding",
+            "engine_preflight_replay",
+            "post_submit_app_hash_binding_when_available",
+        ],
+        "not_covered": [
+            "risc0_zkvm_wrapper",
+            "production_oracle_truth",
+            "production_finality",
+            "hardware_wallet_key_custody",
+            "stream11_zusd_zk_wrapper",
+        ],
+        "non_claims": [
+            "does_not_claim_perps_zk_execution",
+            "does_not_claim_oracle_truth_or_governance",
+            "does_not_claim_production_finality",
+            "does_not_claim_wallet_key_custody",
+        ],
+        "zk_proof_verified": False,
+        "zk_wrapper_required_for_production_claim": True,
+        "promotion_ready": False,
+    }
+
+
+def _perps_proof_intent_receipt(
+    *,
+    chain_id: str,
+    action: str,
+    operation: Mapping[str, Any],
+    operations: Mapping[str, Any],
+    app_hash_before: str | None,
+    app_hash_after: str | None,
+    preflight: Mapping[str, Any],
+    tx_sender_pubkey: str,
+    tx_sequence_number: int,
+    tx_fee_limit: int,
+    signing_mode: str,
+    tau_tx_payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    tau_tx_hash = None
+    if tau_tx_payload is not None:
+        tau_tx_hash = _hash_payload("zenodex.perps_wallet.tau_tx_payload/v1", tau_tx_payload)
+    body: dict[str, Any] = {
+        "schema": _PERPS_PROOF_INTENT_SCHEMA,
+        "profile_id": _PERPS_PROOF_PROFILE_ID,
+        "chain_id": str(chain_id),
+        "stream_key": _STREAM_KEY,
+        "engine_stream_key": _ENGINE_STREAM_KEY,
+        "action": str(action),
+        "market_id": operation.get("market_id"),
+        "app_hash_before": app_hash_before,
+        "app_hash_after": app_hash_after,
+        "operation_hash": _hash_payload("zenodex.perps_wallet.operation/v1", operation),
+        "operations_hash": _hash_payload("zenodex.perps_wallet.operations/v1", operations),
+        "preflight_ok": bool(preflight.get("ok")),
+        "preflight_error": preflight.get("error"),
+        "tx_sender_pubkey": tx_sender_pubkey,
+        "tx_sequence_number": int(tx_sequence_number),
+        "tx_fee_limit": str(int(tx_fee_limit)),
+        "signing_mode": str(signing_mode),
+        "tau_tx_payload_hash": tau_tx_hash,
+        "zk_proof_verified": False,
+        "proof_verifier": None,
+    }
+    return {
+        "schema": _PERPS_PROOF_INTENT_SCHEMA,
+        "profile_id": _PERPS_PROOF_PROFILE_ID,
+        "body": body,
+        "receipt_hash": _hash_payload(_PERPS_PROOF_INTENT_HASH_DOMAIN, body),
     }
 
 
@@ -1134,6 +1221,23 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "nonce_b": meta.get("nonce_b"),
             "oracle_nonce": meta.get("oracle_nonce"),
         },
+        "proof": {
+            "profile": _perps_proof_profile(),
+            "intent_receipt": _perps_proof_intent_receipt(
+                chain_id=chain_id,
+                action=action,
+                operation=operation,
+                operations=operations,
+                app_hash_before=app_hash,
+                app_hash_after=None,
+                preflight=preflight,
+                tx_sender_pubkey=tx_sender_pubkey,
+                tx_sequence_number=tx_sequence_number,
+                tx_fee_limit=tx_fee_limit,
+                signing_mode=signing_mode,
+                tau_tx_payload=tau_tx_payload,
+            ),
+        },
     }
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
@@ -1142,6 +1246,20 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             payload["submission"]["createblock_response"] = client.createblock()
         app_state_after, app_hash_after = _load_app_state(client)
         payload["post_submit"] = {"app_hash": app_hash_after, "markets": _market_summaries(app_state_after)}
+        payload["proof"]["intent_receipt"] = _perps_proof_intent_receipt(
+            chain_id=chain_id,
+            action=action,
+            operation=operation,
+            operations=operations,
+            app_hash_before=app_hash,
+            app_hash_after=app_hash_after,
+            preflight=preflight,
+            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sequence_number=tx_sequence_number,
+            tx_fee_limit=tx_fee_limit,
+            signing_mode=signing_mode,
+            tau_tx_payload=tau_tx_payload,
+        )
     return payload
 
 
@@ -1171,6 +1289,7 @@ def _status_payload() -> Dict[str, Any]:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             False,
         ),
+        "proof_profile": _perps_proof_profile(),
     }
     try:
         client = _tau_client()

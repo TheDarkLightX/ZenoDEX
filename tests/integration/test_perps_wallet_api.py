@@ -343,6 +343,20 @@ def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatc
     assert payload["transport"]["fee_limit_native_balance_ok"] is True
     assert payload["report"]["operations"]["8"][0]["action"] == "init_market_2p"
     assert payload["report"]["preflight"]["ok"] is True
+    assert payload["proof"]["profile"]["profile_id"] == "perps_stream8_live_wallet_v0"
+    assert payload["proof"]["profile"]["zk_proof_verified"] is False
+    assert "risc0_zkvm_wrapper" in payload["proof"]["profile"]["not_covered"]
+    receipt = payload["proof"]["intent_receipt"]
+    assert receipt["profile_id"] == "perps_stream8_live_wallet_v0"
+    assert receipt["receipt_hash"].startswith("0x")
+    assert receipt["body"]["stream_key"] == "8"
+    assert receipt["body"]["engine_stream_key"] == "5"
+    assert receipt["body"]["app_hash_before"] == "sha256:" + "cd" * 32
+    assert receipt["body"]["app_hash_after"] is None
+    assert receipt["body"]["action"] == "init_market_2p"
+    assert receipt["body"]["preflight_ok"] is True
+    assert receipt["body"]["tau_tx_payload_hash"] is None
+    assert receipt["body"]["zk_proof_verified"] is False
 
 
 def test_prepare_reports_tau_fee_limit_native_balance_posture(monkeypatch) -> None:
@@ -524,6 +538,11 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
     assert _FakeClient.sent == [external_payload]
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
     assert json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])[0]["action"] == "deposit_collateral"
+    proof_body = payload["proof"]["intent_receipt"]["body"]
+    assert proof_body["app_hash_before"] == "sha256:" + "cd" * 32
+    assert proof_body["app_hash_after"] == "sha256:" + "cd" * 32
+    assert proof_body["signing_mode"] == "external_signed_payload"
+    assert proof_body["tau_tx_payload_hash"].startswith("0x")
 
 
 def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:
@@ -808,6 +827,11 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
 
     assert status_code == 200
     assert payload["ok"] is True
+    proof_profile = payload["status"]["proof_profile"]
+    assert proof_profile["profile_id"] == "perps_stream8_live_wallet_v0"
+    assert proof_profile["zk_wrapper_required_for_production_claim"] is True
+    assert proof_profile["promotion_ready"] is False
+    assert "does_not_claim_perps_zk_execution" in proof_profile["non_claims"]
     markets = payload["status"]["markets"]
     assert len(markets) == 1
     market = markets[0]
