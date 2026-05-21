@@ -779,6 +779,24 @@ both have partial-response timeout coverage at the submit boundary. Broader
 browser/Toxiproxy packet-loss, jitter, and multi-surface network-chaos campaigns
 remain open.
 
+Additional mounted stream `8`/`11` Tau send-drop browser chaos evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zusd_monetary_wallet_ui_bridge.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_response -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_on_tau_send_drop_before_response -s
+```
+
+Results: py_compile passed; focused mounted zUSD and perps send-drop browser
+regressions each `1 passed`. The new handlers support normal status, sequence,
+balance, and app-state calls, then drop the `sendtx` connection before returning
+any response and before recording a pending Tau transaction. The mounted stream
+`11` mint and stream `8` deposit paths both return/render `502 tau_rpc_error`,
+preserve app state and sender sequence, leave no pending Tau transaction, and
+assert the API error body does not expose operation, sender, or signature
+material. Browser/Toxiproxy packet-loss and broader jitter campaigns remain open.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle

@@ -283,6 +283,14 @@ class _TauRpcPartialSendTimeoutHandler(_TauRpcHandler):
         self.wfile.write(b"ERR unsupported\n")
 
 
+class _TauRpcSendDropBeforeResponseHandler(_TauRpcPartialSendTimeoutHandler):
+    def handle(self) -> None:
+        line = self.rfile.readline().decode("utf-8").strip()
+        if line.startswith("sendtx "):
+            return
+        self._dispatch_line(line)
+
+
 def _prepare_external_signed_zusd_payload(
     *,
     api_base: str,
@@ -506,6 +514,149 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(t
         assert "Tau node connected" in dom
         assert "tau_rpc_error" in dom, dom[-8000:]
         assert "PARTIAL_PRIVATE_RESPONSE" not in dom
+        assert _app_state_from_tau_server(tau_server) == state_before
+        assert rpc_state.pending_tx is None
+        assert rpc_state.sequences[owner_pubkey[2:].lower()] == 7
+    finally:
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        tau_thread.join(timeout=2.0)
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_response(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-zusd-monetary-ui-send-drop"
+    owner_privkey = 82
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcSendDropBeforeResponseHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(owner_pubkey=owner_pubkey, chain_id=chain_id)  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "ZUSD_MONETARY_WALLET_API_ENABLED": "true",
+        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING": "false",
+        "ZUSD_MONETARY_WALLET_AUTO_MINE": "true",
+        "ZUSD_MONETARY_WALLET_CHAIN_ID": chain_id,
+        "ZUSD_MONETARY_WALLET_TAU_HOST": "127.0.0.1",
+        "ZUSD_MONETARY_WALLET_TAU_PORT": str(tau_port),
+        "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S": "0.5",
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "TAU_DEX_ZUSD_ORACLE_PUBKEY": owner_pubkey,
+    }
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={
+            **os.environ,
+            "API_PROXY_TARGET": api_base,
+            "VITE_DEMO_MODE": "false",
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+
+        deadline = int(time.time()) + 3600
+        body = {
+            "action": "mint_zusd",
+            "owner_pubkey": owner_pubkey,
+            "sender_pubkey": owner_pubkey,
+            "amount": 100,
+            "deadline": deadline,
+            "tx_fee_limit": "0",
+        }
+        signed_payload = _prepare_external_signed_zusd_payload(
+            api_base=api_base,
+            privkey=owner_privkey,
+            body=body,
+        )
+        state_before = _app_state_from_tau_server(tau_server)
+        status, api_rejected = _http_post_json_status(
+            api_base + "/api/zusd/monetary/submit",
+            {**body, "signed_tau_tx_payload": signed_payload},
+        )
+        api_error_text = json.dumps(api_rejected, sort_keys=True)
+        assert status == 502
+        assert api_rejected["ok"] is False
+        assert api_rejected["error"] == "tau_rpc_error"
+        assert "mint_zusd" not in api_error_text
+        assert "sender_pubkey" not in api_error_text
+        assert "signature" not in api_error_text
+        assert _app_state_from_tau_server(tau_server) == state_before
+        rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
+        assert rpc_state.pending_tx is None
+        assert rpc_state.sequences[owner_pubkey[2:].lower()] == 7
+
+        query = urlencode(
+            {
+                "tab": "zusd",
+                "demo": "false",
+                "zenodexUiSmokeZusdMonetary": "1",
+                "zusdMonetaryAction": "mint_zusd",
+                "actorPubkey": owner_pubkey,
+                "zusdAmount": "100",
+                "zusdDeadline": str(deadline),
+                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+            }
+        )
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={tmp_path / 'chrome-profile-zusd-send-drop'}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "zUSD Monetary Vault" in dom
+        assert "Tau node connected" in dom
+        assert "tau_rpc_error" in dom, dom[-8000:]
         assert _app_state_from_tau_server(tau_server) == state_before
         assert rpc_state.pending_tx is None
         assert rpc_state.sequences[owner_pubkey[2:].lower()] == 7
