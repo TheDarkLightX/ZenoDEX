@@ -1,5 +1,6 @@
 const DEFAULT_API_BASE = '';
 const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_ZENO_ORACLE_API_BASE = 'http://127.0.0.1:8787';
 
 export function getRuntimeConfig() {
   if (typeof window === 'undefined') {
@@ -53,6 +54,15 @@ function normalizeApiBase(raw) {
   return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
+function getZenoOracleApiBase() {
+  const runtimeBase = normalizeApiBase(getRuntimeConfig().zenoOracleApiBase);
+  if (runtimeBase) {
+    return runtimeBase;
+  }
+  const v = normalizeApiBase(import.meta?.env?.VITE_ZENO_ORACLE_API_URL ?? '');
+  return v || DEFAULT_ZENO_ORACLE_API_BASE;
+}
+
 export function getApiBase() {
   const runtimeBase = normalizeApiBase(getRuntimeConfig().apiBase);
   if (runtimeBase) {
@@ -63,6 +73,12 @@ export function getApiBase() {
   return v || DEFAULT_API_BASE;
 }
 
+export async function apiFetchZenoOracleJson(path, options = {}) {
+  const base = getZenoOracleApiBase();
+  const { timeoutMs, ...fetchOptions } = options || {};
+  return apiFetchJson(`${base}${path}`, { timeoutMs, ...fetchOptions });
+}
+
 export function getApiToken() {
   const v = (import.meta?.env?.VITE_API_TOKEN ?? '').toString().trim();
   return v || '';
@@ -70,7 +86,8 @@ export function getApiToken() {
 
 export async function apiFetchJson(path, options = {}) {
   const base = getApiBase();
-  const url = `${base}${path}`;
+  const pathText = String(path || '');
+  const url = /^https?:\/\//i.test(pathText) ? pathText : `${base}${pathText}`;
   const token = getApiToken();
   const { timeoutMs, ...fetchOptions } = options || {};
   const method = (fetchOptions.method || 'GET').toString().toUpperCase();
@@ -210,6 +227,10 @@ export function apiInspectPerpsOracleBridge(body, options = {}) {
     body: JSON.stringify(body || {}),
     ...(options || {}),
   });
+}
+
+export function apiGetZenoOracleDashboard(options = {}) {
+  return apiFetchZenoOracleJson('/api/oracle/dashboard', { method: 'GET', ...(options || {}) });
 }
 
 export function apiGetAutotraderStatus(options = {}) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   apiBuildPerpsOracleBridge,
   apiGetPerpsWalletStatus,
+  apiGetZenoOracleDashboard,
   apiInspectPerpsOracleBridge,
   apiPreparePerpsWallet,
   apiSubmitPerpsWallet,
@@ -78,6 +79,8 @@ function readSmokeConfig() {
     use_oracle_fixture: params.get('perpsUseOracleFixture') === '1'
       || params.get('useOracleFixture') === '1'
       || params.get('oracleFixture') === '1',
+    load_oracle_evidence: params.get('perpsLoadOracleEvidence') === '1'
+      || params.get('loadOracleEvidence') === '1',
   };
 }
 
@@ -88,6 +91,54 @@ function parseIntOrNull(raw) {
 
 function actionSupportsOracleFixture(action) {
   return action === 'settle_epoch' || action === 'partial_liquidate';
+}
+
+function compactId(value) {
+  if (!value) return 'none';
+  const text = String(value);
+  if (text.length <= 18) return text;
+  return `${text.slice(0, 10)}...${text.slice(-6)}`;
+}
+
+function oracleDashboardCandidates(snapshot) {
+  const authorizations = Array.isArray(snapshot?.recent_authorizations) ? snapshot.recent_authorizations : [];
+  const reads = Array.isArray(snapshot?.recent_accepted_reads) ? snapshot.recent_accepted_reads : [];
+  const aggregates = Array.isArray(snapshot?.recent_aggregates) ? snapshot.recent_aggregates : [];
+  return [
+    ...authorizations.map((bundle) => {
+      const auth = bundle?.authorization || {};
+      return {
+        id: bundle?.authorization_id || auth?.authorization_id || auth?.action_id,
+        kind: 'authorization',
+        consumer: auth?.consumer_module || 'consumer',
+        action: auth?.action_kind || 'action',
+        queryId: auth?.query_id || '',
+        valueE8: auth?.value_e8,
+        evidenceClass: auth?.evidence_class || 'O3',
+        epoch: auth?.observed_epoch,
+      };
+    }),
+    ...reads.map((read) => ({
+      id: read?.read_id || read?.aggregate_id,
+      kind: 'accepted read',
+      consumer: read?.consumer_module || 'consumer',
+      action: read?.profile_id || 'read',
+      queryId: read?.query_id || '',
+      valueE8: read?.value_e8,
+      evidenceClass: read?.evidence_class || 'O3',
+      epoch: read?.observed_epoch,
+    })),
+    ...aggregates.map((aggregate) => ({
+      id: aggregate?.aggregate_id,
+      kind: 'aggregate',
+      consumer: 'oracle',
+      action: 'aggregate',
+      queryId: aggregate?.query_id || '',
+      valueE8: aggregate?.value_e8,
+      evidenceClass: aggregate?.evidence_class || 'O3',
+      epoch: aggregate?.observed_epoch,
+    })),
+  ].filter((candidate) => candidate.id);
 }
 
 function buildPayload(form) {
@@ -158,6 +209,8 @@ function PerpLiveWalletSurface() {
   const [error, setError] = useState('');
   const [oracleFixture, setOracleFixture] = useState(null);
   const [oracleInspection, setOracleInspection] = useState(null);
+  const [oracleEvidence, setOracleEvidence] = useState(null);
+  const [selectedOracleEvidence, setSelectedOracleEvidence] = useState(null);
   const [busy, setBusy] = useState(false);
   const smokeRan = useRef(false);
 
@@ -251,6 +304,23 @@ function PerpLiveWalletSurface() {
     return inspection;
   }
 
+  async function loadOracleEvidenceCandidates() {
+    const snapshot = await apiGetZenoOracleDashboard({ timeoutMs: 10000 });
+    const candidates = oracleDashboardCandidates(snapshot);
+    const payload = {
+      ok: snapshot?.ok === true,
+      production_authority: snapshot?.production_authority === true,
+      replay_ok: snapshot?.summary?.replay_ok === true,
+      accepted_read_count: snapshot?.summary?.accepted_read_count ?? 0,
+      authorization_count: snapshot?.summary?.authorization_count ?? 0,
+      aggregate_count: snapshot?.summary?.aggregate_count ?? candidates.filter((candidate) => candidate.kind === 'aggregate').length,
+      candidates,
+    };
+    setOracleEvidence(payload);
+    setSelectedOracleEvidence(candidates[0] || null);
+    return payload;
+  }
+
   async function handleUseOracleFixture() {
     setBusy(true);
     setError('');
@@ -277,6 +347,20 @@ function PerpLiveWalletSurface() {
     }
   }
 
+  async function handleLoadOracleEvidence() {
+    setBusy(true);
+    setError('');
+    try {
+      await loadOracleEvidenceCandidates();
+    } catch (err) {
+      setOracleEvidence(null);
+      setSelectedOracleEvidence(null);
+      setError(err?.message || 'oracle_evidence_load_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     const smoke = readSmokeConfig();
     if (!smoke || smokeRan.current || busy) {
@@ -289,6 +373,9 @@ function PerpLiveWalletSurface() {
     setForm((current) => ({ ...current, ...smoke }));
     async function runSmoke() {
       let nextForm = { ...EMPTY_FORM, ...smoke };
+      if (nextForm.load_oracle_evidence) {
+        await loadOracleEvidenceCandidates();
+      }
       if (actionSupportsOracleFixture(nextForm.action) && nextForm.use_oracle_fixture) {
         nextForm = await buildOracleFixturePayload(nextForm);
       } else if (nextForm.oracle_adapter_bridge.trim()) {
@@ -595,6 +682,9 @@ function PerpLiveWalletSurface() {
             <button className="btn btn-ghost" type="button" onClick={loadStatus} disabled={busy}>
               Refresh
             </button>
+            <button className="btn btn-secondary" type="button" onClick={handleLoadOracleEvidence} disabled={busy}>
+              Load Oracle Evidence
+            </button>
           </div>
         </div>
       </div>
@@ -648,6 +738,34 @@ function PerpLiveWalletSurface() {
           <span>oracle epoch {oracleInspection.summary?.observed_epoch ?? 'unknown'}</span>
           <span>oracle reports {oracleInspection.summary?.report_count ?? 'unknown'}</span>
           <span>oracle production {oracleInspection.production_authority ? 'yes' : 'local'}</span>
+        </div>
+      ) : null}
+      {oracleEvidence ? (
+        <div className="perp-live-wallet-result" aria-label="Live Oracle evidence candidates">
+          <span>oracle service {oracleEvidence.ok ? 'connected' : 'warning'}</span>
+          <span>oracle replay {oracleEvidence.replay_ok ? 'ok' : 'warning'}</span>
+          <span>oracle accepted reads {oracleEvidence.accepted_read_count}</span>
+          <span>oracle authorizations {oracleEvidence.authorization_count}</span>
+          <span>oracle candidates {oracleEvidence.candidates.length}</span>
+          <span>oracle network {oracleEvidence.production_authority ? 'production' : 'local'}</span>
+          {selectedOracleEvidence ? (
+            <>
+              <span>oracle selected {selectedOracleEvidence.kind}</span>
+              <span>oracle selected id {compactId(selectedOracleEvidence.id)}</span>
+              <span>oracle selected action {selectedOracleEvidence.action}</span>
+              <span>oracle selected value {selectedOracleEvidence.valueE8 ?? 'unknown'}</span>
+            </>
+          ) : null}
+          {oracleEvidence.candidates.slice(0, 3).map((candidate) => (
+            <button
+              key={`${candidate.kind}:${candidate.id}`}
+              className="btn btn-ghost"
+              type="button"
+              onClick={() => setSelectedOracleEvidence(candidate)}
+            >
+              {candidate.kind} {compactId(candidate.id)}
+            </button>
+          ))}
         </div>
       ) : null}
     </section>

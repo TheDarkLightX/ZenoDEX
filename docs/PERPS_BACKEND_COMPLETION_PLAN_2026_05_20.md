@@ -209,7 +209,8 @@ Pinned live-transport evidence:
   runs the mounted browser UI with settle-time Oracle evidence required,
   builds a local typed O3 aggregate-adapter bridge for the current clearinghouse
   market, inspects the bridge through the mounted verifier-backed evidence
-  panel, submits `settle_epoch`, and verifies the live preflight accepts the
+  panel, loads live candidate reads/authorizations from a local ZenoOracle
+  service, submits `settle_epoch`, and verifies the live preflight accepts the
   typed bridge.
 - `tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_reports_liquidation_evidence`
   starts from a live clearinghouse market where a price move makes the short
@@ -227,6 +228,10 @@ The live wallet API now also exposes
 locally built aggregate-adapter bridge, returns the verifier result, and
 summarizes the bridge ID, action kind, action ID, query ID, profile ID,
 evidence floor, value, observed epoch, and report count for the mounted UI.
+The mounted UI also loads live ZenoOracle dashboard candidates from
+`VITE_ZENO_ORACLE_API_URL` or the runtime `zenoOracleApiBase`, then displays
+accepted reads, authorizations, aggregates, selected evidence, and
+local-vs-production authority posture beside the stream `8` submit flow.
 
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.

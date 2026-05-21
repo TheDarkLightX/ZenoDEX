@@ -10,7 +10,8 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 import pytest
 
@@ -20,12 +21,14 @@ from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
+from src.integration.zeno_oracle_authorization import _PERPS_INDEX_QUERY_ID
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
+ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
 
 
 def _chrome_binary() -> str | None:
@@ -54,6 +57,95 @@ def _wait_for_http(url: str, *, timeout_s: float = 30) -> None:
             last_error = exc
             time.sleep(0.2)
     raise AssertionError(f"server did not become ready at {url}: {last_error}")
+
+
+def _post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=10) as response:  # noqa: S310 - local test servers only
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise AssertionError(f"POST {url} failed with HTTP {exc.code}: {detail}") from exc
+
+
+def _seed_oracle_authorization(base: str) -> dict[str, object]:
+    query_id = _PERPS_INDEX_QUERY_ID
+    action_id = "sha256:" + "8" * 64
+    action_facts_hash = "sha256:" + "9" * 64
+    pre_state_hash = "sha256:" + "a" * 64
+    identity = _post_json(f"{base}/api/oracle/identity/create", {"force": True})
+    _post_json(
+        f"{base}/api/oracle/query/register",
+        {
+            "base_asset": "AGRS",
+            "quote_asset": "ZDEX",
+            "query_id": query_id,
+            "source_policy_id": "source-policy:registered-diverse-v1",
+            "min_reporters": 1,
+            "report_reward_e8": 17,
+            "force": True,
+        },
+    )
+    _post_json(f"{base}/api/oracle/query/fund", {"query_id": query_id, "amount_e8": 20})
+    _post_json(f"{base}/api/oracle/reporter/register", {"query_id": query_id, "required_bond_e8": 1, "force": True})
+    _post_json(f"{base}/api/oracle/reporter/bond", {"amount_e8": 1})
+    _post_json(
+        f"{base}/api/oracle/source/register",
+        {
+            "source_id": "source:perps-ui-picker",
+            "source_kind": "cex",
+            "control_group_id": "control:perps-ui-picker",
+            "venue_id": "venue:perps-ui-picker",
+            "data_family_id": "price:cex-last-trade",
+            "transport_id": "api:https:perps-ui-picker",
+            "asset_class": "crypto",
+            "query_id": query_id,
+            "assurance_class": "S3",
+            "force": True,
+        },
+    )
+    submitted = _post_json(
+        f"{base}/api/oracle/report/submit",
+        {
+            "query_id": query_id,
+            "price_e8": 123456789,
+            "source_observed_epoch": 12,
+            "source_id": "source:perps-ui-picker",
+        },
+    )
+    aggregate = _post_json(f"{base}/api/oracle/aggregate/build", {"query_id": query_id, "epoch": 12})
+    read = _post_json(
+        f"{base}/api/oracle/read/accept",
+        {
+            "aggregate_id": aggregate["aggregate_id"],
+            "consumer_module": "zenodex.perps",
+            "profile_id": "critical-perps-v1",
+        },
+    )
+    authorization = _post_json(
+        f"{base}/api/oracle/authorization/build",
+        {
+            "read_id": read["read_id"],
+            "action_kind": "settle_epoch",
+            "action_id": action_id,
+            "action_facts_hash": action_facts_hash,
+            "pre_state_hash": pre_state_hash,
+            "now_epoch": 12,
+        },
+    )
+    return {
+        "identity": identity,
+        "submitted": submitted,
+        "aggregate": aggregate,
+        "read": read,
+        "authorization": authorization,
+    }
 
 
 def _initial_app_state_json(dex_state: DexState | None = None) -> str:
@@ -958,6 +1050,40 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
     os.environ["TAU_DEX_CHAIN_ID"] = chain_id
     os.environ["TAU_DEX_OPERATOR_PUBKEY"] = operator_pubkey
     os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = "1"
+
+    oracle_home = tmp_path / "oracle-home-settle-picker"
+    init_oracle = subprocess.run(
+        ["python3", str(ORACLE_CLI), "--json", "init", "--home", str(oracle_home)],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert init_oracle.returncode == 0, init_oracle.stderr
+    oracle_port = _free_port()
+    oracle_base = f"http://127.0.0.1:{oracle_port}"
+    oracle_proc = subprocess.Popen(
+        [
+            "python3",
+            str(ORACLE_CLI),
+            "serve",
+            "--home",
+            str(oracle_home),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(oracle_port),
+            "--quiet",
+            "--allow-writes",
+            "--now-epoch",
+            "12",
+        ],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
     api_proc = subprocess.Popen(
         ["python3", "-m", "src.integration.api_server"],
         cwd=ROOT,
@@ -971,12 +1097,24 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
     vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
         cwd=DEX_UI,
-        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        env={
+            **os.environ,
+            "API_PROXY_TARGET": api_base,
+            "VITE_DEMO_MODE": "false",
+            "VITE_ZENO_ORACLE_API_URL": oracle_base,
+        },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
     try:
+        assert oracle_proc.stdout is not None
+        oracle_ready = json.loads(oracle_proc.stdout.readline())
+        assert oracle_ready["ok"] is True
+        assert oracle_ready["write_paths_enabled"] is True
+        _wait_for_http(oracle_base + "/api/oracle/health", timeout_s=30)
+        seeded_oracle = _seed_oracle_authorization(oracle_base)
+        assert str(seeded_oracle["authorization"]["authorization_id"]).startswith("sha256:")
         _wait_for_http(api_base + "/health", timeout_s=30)
         _wait_for_http(vite_base, timeout_s=30)
         query = urlencode(
@@ -988,6 +1126,7 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
                 "marketId": market_id,
                 "operatorPrivkey": str(operator_privkey),
                 "perpsUseOracleFixture": "1",
+                "perpsLoadOracleEvidence": "1",
                 "txFeeLimit": "2",
                 "perpsDeadline": str(int(time.time()) + 3600),
             }
@@ -1021,6 +1160,15 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert "oracle value 100000000" in dom
         assert "oracle reports 3" in dom
         assert "oracle production local" in dom
+        assert "oracle service connected" in dom
+        assert "oracle replay ok" in dom
+        assert "oracle accepted reads 1" in dom
+        assert "oracle authorizations 1" in dom
+        assert "oracle candidates 3" in dom
+        assert "oracle selected authorization" in dom
+        assert "oracle selected action settle_epoch" in dom
+        assert "oracle selected value 123456789" in dom
+        assert "oracle network local" in dom
         assert "fee covered yes" in dom
         assert market_id in dom
     finally:
@@ -1038,9 +1186,10 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
             os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = old_require
         vite_proc.terminate()
         api_proc.terminate()
+        oracle_proc.terminate()
         tau_server.shutdown()
         tau_server.server_close()
-        for proc in (vite_proc, api_proc):
+        for proc in (vite_proc, api_proc, oracle_proc):
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
