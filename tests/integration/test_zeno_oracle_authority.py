@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from src.integration.zeno_key_manager import KeyRef, ZenoKeyManager
@@ -13,6 +15,8 @@ from src.integration.zeno_oracle_authority import (
 )
 
 
+ROOT = Path(__file__).resolve().parents[2]
+ORACLE_CLI = ROOT / "tools" / "zenodex_oracle.py"
 PUBKEY_A = "0x" + "11" * 48
 PUBKEY_B = "0x" + "22" * 48
 PUBKEY_C = "0x" + "33" * 48
@@ -178,3 +182,66 @@ def test_oracle_dashboard_snapshot_loads_ready_authority_profile(tmp_path: Path)
     assert status_code == 200
     assert payload["production_authority"] is True
     assert payload["authority_status"]["status"] == "ready"
+
+
+def test_oracle_authority_cli_provisions_profile_and_status(tmp_path: Path) -> None:
+    home = tmp_path / "oracle"
+    key_manager_path = tmp_path / "key_manager.json"
+    signer_registry_path = tmp_path / "signer_registry.json"
+    key_manager_path.write_text(json.dumps(_key_manager(), sort_keys=True), encoding="utf-8")
+    signer_registry_path.write_text(json.dumps(_signer_registry(), sort_keys=True), encoding="utf-8")
+
+    provision = subprocess.run(
+        [
+            sys.executable,
+            str(ORACLE_CLI),
+            "--json",
+            "authority",
+            "provision-profile",
+            "--home",
+            str(home),
+            "--authority-id",
+            "zenooracle-mainnet-authority-v1",
+            "--chain-id",
+            "zeno-ledger-mainnet",
+            "--key-manager",
+            str(key_manager_path),
+            "--signer-registry",
+            str(signer_registry_path),
+            "--runtime-proof-profile",
+            "zenooracle-o3-replay-zk-profile-v1",
+        ],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    status = subprocess.run(
+        [
+            sys.executable,
+            str(ORACLE_CLI),
+            "--json",
+            "authority",
+            "status",
+            "--home",
+            str(home),
+        ],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    provision_payload = json.loads(provision.stdout)
+    status_payload = json.loads(status.stdout)
+    profile_path = home / "authority" / "production_authority_profile.json"
+
+    assert provision.returncode == 0, provision.stderr
+    assert provision_payload["production_authority"] is True
+    assert provision_payload["authority_status"]["status"] == "ready"
+    assert profile_path.exists()
+    assert status.returncode == 0, status.stderr
+    assert status_payload["production_authority"] is True
+    assert status_payload["profile_path"] == str(profile_path)

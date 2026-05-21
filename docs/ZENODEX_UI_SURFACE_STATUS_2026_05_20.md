@@ -265,10 +265,12 @@ pays rewards against a local `tools/zenodex-oracle serve --allow-writes`
 instance. It also proves the read-only local service fails closed for the same
 mounted receipt flow by surfacing `write_api_disabled` instead of accepting a
 receipt write when `--allow-writes` is absent. The local service now exposes
-`/api/oracle/authority`; the mounted Oracle tab renders `Authority blocked`
-until `authority/production_authority_profile.json` validates a production
-profile with key-manager refs, an Oracle authority signer registry, required
-wallet approval controls, and a proof/replay profile.
+`/api/oracle/authority`; `tools/zenodex-oracle authority provision-profile`
+writes `authority/production_authority_profile.json` from public key-manager and
+signer-registry JSON, and the mounted Oracle tab renders `Authority blocked` or
+`Production authority ready` according to that profile. A ready profile requires
+key-manager refs, an Oracle authority signer registry, required wallet approval
+controls, and a proof/replay profile.
 
 Latest Oracle browser pass on 2026-05-21:
 
@@ -278,7 +280,7 @@ python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py -s
 npm run build
 ```
 
-Result: authority/API/signature checks `9 passed`, Oracle browser checks `3
+Result: authority/API/signature checks `10 passed`, Oracle browser checks `4
 passed`, and Vite production build passed.
 
 Latest confidential attestation receipt pass on 2026-05-21:

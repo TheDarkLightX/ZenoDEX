@@ -102,7 +102,10 @@ if getattr(sys, "frozen", False):
     ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
 sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_oracle_authority import evaluate_oracle_authority_profile_v1  # noqa: E402
+from src.integration.zeno_oracle_authority import (  # noqa: E402
+    build_oracle_authority_profile_v1,
+    evaluate_oracle_authority_profile_v1,
+)
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -3947,6 +3950,63 @@ def _oracle_authority_status(home: Path) -> dict[str, Any]:
     return status
 
 
+def _load_json_mapping(path: Path, *, name: str) -> Mapping[str, Any]:
+    payload = _load_json(path)
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{name} must decode to a JSON object")
+    return payload
+
+
+def cmd_authority_status(args: argparse.Namespace) -> int:
+    home = _home(args)
+    status = _oracle_authority_status(home)
+    if args.out:
+        _write_json(Path(args.out), status)
+    _emit(status, json_out=args.json)
+    return 0 if status.get("production_authority") is True else 2
+
+
+def cmd_authority_provision_profile(args: argparse.Namespace) -> int:
+    home = _home(args)
+    key_manager = _load_json_mapping(Path(args.key_manager), name="key_manager")
+    signer_registry = _load_json_mapping(Path(args.signer_registry), name="signer_registry")
+    profile = build_oracle_authority_profile_v1(
+        authority_id=str(args.authority_id),
+        chain_id=str(args.chain_id),
+        stage=str(args.stage),
+        enabled=not bool(args.disabled),
+        key_manager=key_manager,
+        signer_registry=signer_registry,
+        wallet_ux={
+            "external_signer_required": not bool(args.skip_external_signer_required),
+            "key_manager_required": not bool(args.skip_key_manager_required),
+            "device_approval_required": not bool(args.skip_device_approval_required),
+        },
+        proof_profile={
+            "zk_or_proof_required": not bool(args.skip_zk_or_proof_required),
+            "oracle_receipt_replay_required": not bool(args.skip_oracle_receipt_replay_required),
+            "runtime_proof_profile": str(args.runtime_proof_profile),
+        },
+    )
+    status = evaluate_oracle_authority_profile_v1(profile)
+    out_path = Path(args.out) if args.out else _authority_profile_path(home)
+    if out_path.exists() and not args.force:
+        raise SystemExit(f"{out_path} already exists; pass --force to overwrite")
+    _write_json(out_path, profile)
+    status["profile_path"] = str(out_path)
+    report = {
+        "schema": SCHEMA,
+        "ok": status.get("production_authority") is True,
+        "status": "accepted" if status.get("production_authority") is True else "blocked",
+        "profile_path": str(out_path),
+        "authority_profile": profile,
+        "authority_status": status,
+        "production_authority": bool(status.get("production_authority") is True),
+    }
+    _emit(report, json_out=args.json)
+    return 0 if report["ok"] else 2
+
+
 def cmd_health(args: argparse.Namespace) -> int:
     home = _home(args)
     authority_status = _oracle_authority_status(home)
@@ -4988,6 +5048,33 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard_snapshot.add_argument("--now-epoch", type=int)
     dashboard_snapshot.add_argument("--out")
     dashboard_snapshot.set_defaults(func=cmd_dashboard_snapshot)
+
+    authority = sub.add_parser("authority", help="inspect or provision Oracle production authority")
+    authority_sub = authority.add_subparsers(dest="authority_cmd", required=True)
+    authority_status = authority_sub.add_parser("status", help="show production-authority preflight status")
+    authority_status.add_argument("--home", default=str(DEFAULT_HOME))
+    authority_status.add_argument("--out")
+    authority_status.set_defaults(func=cmd_authority_status)
+    authority_provision = authority_sub.add_parser(
+        "provision-profile",
+        help="write authority/production_authority_profile.json from public key and signer policy files",
+    )
+    authority_provision.add_argument("--home", default=str(DEFAULT_HOME))
+    authority_provision.add_argument("--authority-id", required=True)
+    authority_provision.add_argument("--chain-id", required=True)
+    authority_provision.add_argument("--stage", choices=("devnet", "testnet", "production"), default="production")
+    authority_provision.add_argument("--disabled", action="store_true")
+    authority_provision.add_argument("--key-manager", required=True)
+    authority_provision.add_argument("--signer-registry", required=True)
+    authority_provision.add_argument("--runtime-proof-profile", required=True)
+    authority_provision.add_argument("--skip-external-signer-required", action="store_true")
+    authority_provision.add_argument("--skip-key-manager-required", action="store_true")
+    authority_provision.add_argument("--skip-device-approval-required", action="store_true")
+    authority_provision.add_argument("--skip-zk-or-proof-required", action="store_true")
+    authority_provision.add_argument("--skip-oracle-receipt-replay-required", action="store_true")
+    authority_provision.add_argument("--out")
+    authority_provision.add_argument("--force", action="store_true")
+    authority_provision.set_defaults(func=cmd_authority_provision_profile)
 
     serve = sub.add_parser("serve", help="serve local ZenoOracle dashboard JSON API")
     serve.add_argument("--home", default=str(DEFAULT_HOME))
