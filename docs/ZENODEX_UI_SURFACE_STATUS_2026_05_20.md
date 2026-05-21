@@ -506,6 +506,23 @@ RPC connect, send, receive-reset, and receive-timeout failures are normalized to
 instead of uncaught socket errors. The socket tests also assert Tau RPC error
 details do not echo private command text or partial response bytes.
 
+Latest Tau RPC packet-framing chaos pass on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/tau_net_client.py tests/integration/test_tau_net_client.py tests/chaos/test_tau_net_client_chaos.py
+python3 -m pytest -q tests/integration/test_tau_net_client.py -s
+python3 -m pytest -q tests/chaos/test_tau_net_client_chaos.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout -s
+```
+
+Results: py_compile passed; Tau client checks `6 passed`; Tau client chaos `7
+passed, 2 skipped`; mounted perps and zUSD partial-response browser regressions
+each `1 passed`. `TauNetTcpClient.rpc()` now rejects peer-close responses that
+arrive without the newline frame terminator, so truncated packet closes cannot
+be mistaken for accepted Tau RPC responses and partial bytes are not exposed in
+error text.
+
 Latest mounted zUSD Tau RPC partial-response chaos pass on 2026-05-21:
 
 ```bash

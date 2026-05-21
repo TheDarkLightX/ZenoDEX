@@ -661,6 +661,25 @@ or partial response bytes. This keeps the mounted stream `8` and stream `11`
 submit APIs on the existing `502 tau_rpc_error` fail-closed path when Tau is
 unreachable, slow, or resets the connection.
 
+Additional Tau RPC packet-framing chaos evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/tau_net_client.py tests/integration/test_tau_net_client.py tests/chaos/test_tau_net_client_chaos.py
+python3 -m pytest -q tests/integration/test_tau_net_client.py -s
+python3 -m pytest -q tests/chaos/test_tau_net_client_chaos.py -s
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_fails_closed_on_partial_tau_send_timeout -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py::test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout -s
+```
+
+Results: py_compile passed; Tau client checks `6 passed`; Tau client chaos `7
+passed, 2 skipped`; mounted perps and zUSD partial-response browser regressions
+each `1 passed`. `TauNetTcpClient.rpc()` now treats a peer close before the
+newline response terminator as a truncated frame and raises `TauNetRpcError`
+without including the command text or partial response bytes. This closes the
+client-level half-close/truncated-frame gap underneath the mounted stream `8`
+and stream `11` submit paths. Broader packet-loss, jitter, and multi-surface
+network chaos campaigns remain open.
+
 Additional mounted zUSD Tau RPC partial-response chaos evidence added on
 2026-05-21:
 

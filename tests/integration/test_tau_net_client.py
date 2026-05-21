@@ -203,18 +203,21 @@ def test_tau_net_tcp_client_rpc_socket_paths(monkeypatch: pytest.MonkeyPatch) ->
 
     raw_sock = _FakeSocket([b"RAW", b""])
     monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: raw_sock)
-    assert client.rpc("raw") == "RAW"
+    with pytest.raises(tau_net_client.TauNetRpcError, match="closed before response terminator"):
+        client.rpc("raw")
 
     blank_sock = _FakeSocket([b""])
     monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: blank_sock)
-    assert client.rpc("ping\r\n") == ""
+    with pytest.raises(tau_net_client.TauNetRpcError, match="closed without response"):
+        client.rpc("ping\r\n")
 
     limited_sock = _FakeSocket([b"A"])
     monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: limited_sock)
     limited_client = tau_net_client.TauNetTcpClient(
         tau_net_client.TauNetTcpConfig(recv_max_bytes=1),
     )
-    assert limited_client.rpc("limited") == "A"
+    with pytest.raises(tau_net_client.TauNetRpcError, match="closed before response terminator"):
+        limited_client.rpc("limited")
 
     connect_fail_sock = _FakeSocket([], connect_error=ConnectionRefusedError("refused"))
     monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: connect_fail_sock)

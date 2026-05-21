@@ -319,14 +319,16 @@ class TauNetTcpClient:
                 if b"\n" in buf:
                     break
 
-        # Tau Testnet's TCP server keeps connections open and terminates each response with a newline.
+        # Tau Testnet's TCP server terminates each response with a newline.
+        # Treat a close before that terminator as a truncated frame, since callers
+        # may otherwise mistake partial `sendtx` bytes for an accepted transaction.
         if b"\n" in buf:
             line, _, _rest = bytes(buf).partition(b"\n")
             line = line.rstrip(b"\r")
             return line.decode("utf-8", errors="replace")
-
-        # Fallback (unexpected): return what we got.
-        return bytes(buf).decode("utf-8", errors="replace")
+        if buf:
+            raise TauNetRpcError("rpc connection closed before response terminator")
+        raise TauNetRpcError("rpc connection closed without response")
 
     def get_sequence(self, sender_pubkey_hex: str) -> int:
         resp = self.rpc(f"getsequence {sender_pubkey_hex}").strip()
