@@ -22,9 +22,13 @@ from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
     build_perps_wallet_authority_profile_v1,
+    perps_wallet_recovery_exercise_hash_v1,
+    perps_wallet_rotation_exercise_hash_v1,
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
 from src.integration.zeno_key_manager import KeyRef, RecoveryGuardian, SocialRecoveryPolicy, ZenoKeyManager
@@ -221,7 +225,7 @@ def _perps_wallet_authority_profile(
 
 
 def _perps_wallet_recovery_exercise(*, chain_id: str) -> dict[str, object]:
-    return {
+    exercise = {
         "schema": PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
         "chain_id": chain_id,
         "authority_id": "perps-wallet-authority-v1",
@@ -231,6 +235,24 @@ def _perps_wallet_recovery_exercise(*, chain_id: str) -> dict[str, object]:
         "current_epoch": 13,
         "approvals": ["guardian-a", "guardian-b"],
     }
+    exercise_hash = perps_wallet_recovery_exercise_hash_v1(exercise)
+    exercise["signature_envelopes"] = [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-a",
+            key_id="guardian-a",
+            private_key_hex=_privkey_hex(185),
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-b",
+            key_id="guardian-b",
+            private_key_hex=_privkey_hex(186),
+        ),
+    ]
+    return exercise
 
 
 def _perps_wallet_rotation_exercise(
@@ -322,17 +344,37 @@ def _perps_wallet_rotation_exercise(
             ],
         },
     )
-    return {
+    exercise = {
         "schema": PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
         "chain_id": chain_id,
         "authority_id": "perps-wallet-authority-v1",
         "rotated_key_id": "perps-wallet-a",
         "replacement_key_id": "perps-wallet-c",
+        "policy_id": "recovery-perps-wallet-a",
         "requested_at_epoch": 10,
-        "broadcast_at_epoch": 12,
+        "broadcast_at_epoch": 13,
         "broadcast_reference": "tau-tx:perps-wallet-rotation-1",
+        "approvals": ["guardian-a", "guardian-b"],
         "next_wallet_authority_profile": next_profile,
     }
+    exercise_hash = perps_wallet_rotation_exercise_hash_v1(exercise)
+    exercise["signature_envelopes"] = [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-a",
+            key_id="guardian-a",
+            private_key_hex=_privkey_hex(185),
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-b",
+            key_id="guardian-b",
+            private_key_hex=_privkey_hex(186),
+        ),
+    ]
+    return exercise
 
 
 def _chrome_binary() -> str | None:
@@ -1100,8 +1142,10 @@ def test_perps_wallet_ui_smoke_through_browser(tmp_path: Path) -> None:
         assert "wallet keys 2" in dom
         assert "wallet recovery 2/2" in dom
         assert "recovery exercise ready" in dom
+        assert "recovery signed quorum 2/2" in dom
         assert "recovery receipt 0x" in dom
         assert "rotation exercise ready" in dom
+        assert "rotation signed quorum 2/2" in dom
         assert "rotation receipt 0x" in dom
         assert market_id in dom
     finally:

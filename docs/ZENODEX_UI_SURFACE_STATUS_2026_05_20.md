@@ -283,8 +283,9 @@ wallet-authority profile now requires recovery-policy metadata for every active
 wallet signer key and the mounted UI renders `wallet recovery 2/2` alongside
 the signer and authority posture. Recovery and rotation exercise receipts are
 separate public lifecycle receipts over threshold/delay satisfaction and
-current-to-next authority transitions. They still do not prove custody of keys,
-device approval, or chain finality.
+current-to-next authority transitions, and they now include guardian BLS
+signature quorum verification over the public exercise hash. They still do not
+prove custody of keys, device approval, or chain finality.
 
 Follow-on perps live-wallet pass on 2026-05-20:
 

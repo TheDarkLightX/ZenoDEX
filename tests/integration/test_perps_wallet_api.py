@@ -9,7 +9,9 @@ from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
+    PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
     build_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_authority_profile_v1,
@@ -163,7 +165,25 @@ def _perps_wallet_recovery_exercise(**overrides: object) -> dict[str, object]:
         "approvals": ["guardian-oracle", "guardian-operator"],
     }
     base.update(overrides)
-    return base
+    exercise = dict(base)
+    exercise_hash = perps_wallet_recovery_exercise_hash_v1(exercise)
+    exercise["signature_envelopes"] = [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-oracle",
+            key_id="guardian-oracle",
+            private_key_hex=_privkey_hex(ORACLE_PRIVKEY),
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-operator",
+            key_id="guardian-operator",
+            private_key_hex=_privkey_hex(OPERATOR_PRIVKEY),
+        ),
+    ]
+    return exercise
 
 
 def _perps_wallet_rotated_profile() -> dict[str, object]:
@@ -257,13 +277,33 @@ def _perps_wallet_rotation_exercise(**overrides: object) -> dict[str, object]:
         "authority_id": "perps-wallet-mainnet-authority-v1",
         "rotated_key_id": "perps-wallet-a",
         "replacement_key_id": "perps-wallet-c",
+        "policy_id": "recovery-perps-wallet-a",
         "requested_at_epoch": 10,
-        "broadcast_at_epoch": 12,
+        "broadcast_at_epoch": 13,
         "broadcast_reference": "tau-tx:perps-wallet-rotation-1",
+        "approvals": ["guardian-oracle", "guardian-operator"],
         "next_wallet_authority_profile": _perps_wallet_rotated_profile(),
     }
     base.update(overrides)
-    return base
+    exercise = dict(base)
+    exercise_hash = perps_wallet_rotation_exercise_hash_v1(exercise)
+    exercise["signature_envelopes"] = [
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-oracle",
+            key_id="guardian-oracle",
+            private_key_hex=_privkey_hex(ORACLE_PRIVKEY),
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
+            payload_hash=exercise_hash,
+            signer_id="guardian-operator",
+            key_id="guardian-operator",
+            private_key_hex=_privkey_hex(OPERATOR_PRIVKEY),
+        ),
+    ]
+    return exercise
 
 
 def _oracle_authority_key_manager(*, second_pubkey: str = OPERATOR) -> dict[str, object]:
@@ -777,6 +817,9 @@ def test_perps_wallet_recovery_exercise_ready_receipt() -> None:
     assert status["evaluation"]["threshold_ok"] is True
     assert status["evaluation"]["accepted_weight"] == 2
     assert status["evaluation_hash"] == status["evaluation"]["evaluation_hash"]
+    assert status["guardian_signature_quorum"]["accepted_weight"] == 2
+    assert status["guardian_signature_quorum"]["threshold"] == 2
+    assert status["guardian_signature_quorum_hash"] == status["guardian_signature_quorum"]["quorum_report_hash"]
     encoded = json.dumps(status, sort_keys=True)
     assert "private_key" not in encoded
     assert "secret_hex" not in encoded
@@ -797,6 +840,25 @@ def test_perps_wallet_recovery_exercise_blocks_early_request() -> None:
     assert status["evaluation"]["threshold_ok"] is True
 
 
+def test_perps_wallet_recovery_exercise_blocks_bad_guardian_signature_quorum() -> None:
+    exercise = _perps_wallet_recovery_exercise()
+    exercise["signature_envelopes"] = list(exercise["signature_envelopes"])  # type: ignore[index]
+    exercise["signature_envelopes"][0] = {  # type: ignore[index]
+        **exercise["signature_envelopes"][0],  # type: ignore[index]
+        "payload_hash": "0x" + "00" * 32,
+    }
+
+    status = evaluate_perps_wallet_recovery_exercise_v1(
+        _perps_wallet_authority_profile(),
+        exercise,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["recovery_exercise_ready"] is False
+    assert any("guardian signature quorum invalid" in error for error in status["errors"])
+
+
 def test_perps_wallet_rotation_exercise_ready_receipt() -> None:
     profile = _perps_wallet_authority_profile()
     exercise = _perps_wallet_rotation_exercise()
@@ -812,6 +874,11 @@ def test_perps_wallet_rotation_exercise_ready_receipt() -> None:
     assert status["rotated_key_id"] == "perps-wallet-a"
     assert status["replacement_key_id"] == "perps-wallet-c"
     assert status["next_wallet_authority_hash"] == exercise["next_wallet_authority_profile"]["wallet_authority_hash"]
+    assert status["evaluation"]["ok"] is True
+    assert status["evaluation"]["accepted_weight"] == 2
+    assert status["guardian_signature_quorum"]["accepted_weight"] == 2
+    assert status["guardian_signature_quorum"]["threshold"] == 2
+    assert status["guardian_signature_quorum_hash"] == status["guardian_signature_quorum"]["quorum_report_hash"]
 
 
 def test_perps_wallet_rotation_exercise_blocks_missing_rotation_transition() -> None:
@@ -825,6 +892,25 @@ def test_perps_wallet_rotation_exercise_blocks_missing_rotation_transition() -> 
     assert status["rotation_exercise_ready"] is False
     assert status["status"] == "blocked"
     assert "replacement key is already active in current wallet authority" in status["errors"]
+
+
+def test_perps_wallet_rotation_exercise_blocks_bad_guardian_signature_quorum() -> None:
+    exercise = _perps_wallet_rotation_exercise()
+    exercise["signature_envelopes"] = list(exercise["signature_envelopes"])  # type: ignore[index]
+    exercise["signature_envelopes"][0] = {  # type: ignore[index]
+        **exercise["signature_envelopes"][0],  # type: ignore[index]
+        "payload_hash": "0x" + "00" * 32,
+    }
+
+    status = evaluate_perps_wallet_rotation_exercise_v1(
+        _perps_wallet_authority_profile(),
+        exercise,
+        expected_chain_id=CHAIN_ID,
+    )
+
+    assert status["ok"] is False
+    assert status["rotation_exercise_ready"] is False
+    assert any("guardian signature quorum invalid" in error for error in status["errors"])
 
 
 def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatch) -> None:
@@ -1830,6 +1916,8 @@ def test_status_loads_ready_perps_wallet_recovery_exercise(monkeypatch) -> None:
     assert recovery["evaluation"]["accepted_weight"] == 2
     assert recovery["evaluation"]["delay_ok"] is True
     assert recovery["evaluation"]["threshold_ok"] is True
+    assert recovery["guardian_signature_quorum"]["accepted_weight"] == 2
+    assert recovery["guardian_signature_quorum"]["threshold"] == 2
 
 
 def test_status_loads_ready_perps_wallet_rotation_exercise(monkeypatch) -> None:
@@ -1858,6 +1946,8 @@ def test_status_loads_ready_perps_wallet_rotation_exercise(monkeypatch) -> None:
     assert rotation["rotated_key_id"] == "perps-wallet-a"
     assert rotation["replacement_key_id"] == "perps-wallet-c"
     assert rotation["broadcast_reference"] == "tau-tx:perps-wallet-rotation-1"
+    assert rotation["guardian_signature_quorum"]["accepted_weight"] == 2
+    assert rotation["guardian_signature_quorum"]["threshold"] == 2
 
 
 def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
@@ -1881,8 +1971,35 @@ def test_recovery_evaluate_endpoint_blocks_threshold_gap(monkeypatch) -> None:
     recovery = payload["recovery_exercise"]
     assert recovery["recovery_exercise_ready"] is False
     assert "recovery_policy_not_satisfied" in recovery["errors"]
-    assert recovery["evaluation"]["accepted_weight"] == 1
-    assert recovery["evaluation"]["threshold_ok"] is False
+
+
+def test_recovery_evaluate_endpoint_blocks_bad_guardian_signature_quorum(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    exercise = _perps_wallet_recovery_exercise()
+    exercise["signature_envelopes"] = list(exercise["signature_envelopes"])  # type: ignore[index]
+    exercise["signature_envelopes"][0] = {  # type: ignore[index]
+        **exercise["signature_envelopes"][0],  # type: ignore[index]
+        "payload_hash": "0x" + "00" * 32,
+    }
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/recovery/evaluate",
+        json.dumps(exercise).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    recovery = payload["recovery_exercise"]
+    assert recovery["recovery_exercise_ready"] is False
+    assert any("guardian signature quorum invalid" in error for error in recovery["errors"])
 
 
 def test_rotation_evaluate_endpoint_blocks_bad_broadcast_epoch(monkeypatch) -> None:
@@ -1906,6 +2023,35 @@ def test_rotation_evaluate_endpoint_blocks_bad_broadcast_epoch(monkeypatch) -> N
     rotation = payload["rotation_exercise"]
     assert rotation["rotation_exercise_ready"] is False
     assert "perps wallet rotation exercise broadcast_at_epoch precedes request" in rotation["errors"]
+
+
+def test_rotation_evaluate_endpoint_blocks_bad_guardian_signature_quorum(monkeypatch) -> None:
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "PERPS_WALLET_AUTHORITY_PROFILE_JSON",
+        json.dumps(_perps_wallet_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.delenv("PERPS_WALLET_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    exercise = _perps_wallet_rotation_exercise()
+    exercise["signature_envelopes"] = list(exercise["signature_envelopes"])  # type: ignore[index]
+    exercise["signature_envelopes"][0] = {  # type: ignore[index]
+        **exercise["signature_envelopes"][0],  # type: ignore[index]
+        "payload_hash": "0x" + "00" * 32,
+    }
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/rotation/evaluate",
+        json.dumps(exercise).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    rotation = payload["rotation_exercise"]
+    assert rotation["rotation_exercise_ready"] is False
+    assert any("guardian signature quorum invalid" in error for error in rotation["errors"])
 
 
 def test_status_loads_ready_oracle_authority_profile(monkeypatch) -> None:

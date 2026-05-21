@@ -19,7 +19,11 @@ from src.integration.zeno_key_manager import (
     SOCIAL_RECOVERY_POLICY_SCHEMA_V0,
     SocialRecoveryPolicy,
 )
-from src.integration.zeno_ledger_signer_registry import validate_signer_registry_v0
+from src.integration.zeno_ledger_signer_registry import (
+    build_signer_registry_v0,
+    validate_signer_registry_v0,
+    verify_signature_quorum_v0,
+)
 from src.integration.zeno_ledger_v0 import hash_v0
 
 
@@ -30,6 +34,10 @@ PERPS_WALLET_RECOVERY_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-recovery
 PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1 = "zenodex/perps-wallet-rotation-exercise/v1"
 PERPS_WALLET_ROTATION_EXERCISE_STATUS_SCHEMA_V1 = "zenodex/perps-wallet-rotation-exercise-status/v1"
 PERPS_WALLET_AUTHORITY_PAYLOAD_KIND = "perps_wallet_authority_profile"
+PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND = "perps_wallet_recovery_exercise"
+PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND = "perps_wallet_rotation_exercise"
+_RECOVERY_NON_HASH_FIELDS = frozenset({"exercise_hash", "signature_envelopes", "guardian_signature_quorum"})
+_ROTATION_NON_HASH_FIELDS = frozenset({"exercise_hash", "signature_envelopes", "guardian_signature_quorum"})
 
 _REQUIRED_WALLET_UX_FLAGS = (
     "external_signer_required",
@@ -48,7 +56,6 @@ _NOT_CLAIMED = (
     "does_not_claim_perps_zk_execution",
     "does_not_claim_production_finality",
     "does_not_claim_oracle_truth",
-    "does_not_claim_guardian_signature_verification",
     "does_not_claim_recovery_rotation_broadcast",
 )
 
@@ -103,7 +110,7 @@ def perps_wallet_authority_profile_hash_v1(profile: Mapping[str, Any]) -> str:
 
 
 def _recovery_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in dict(exercise).items() if key != "exercise_hash"}
+    return {key: value for key, value in dict(exercise).items() if key not in _RECOVERY_NON_HASH_FIELDS}
 
 
 def perps_wallet_recovery_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
@@ -111,7 +118,7 @@ def perps_wallet_recovery_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
 
 
 def _rotation_exercise_body(exercise: Mapping[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in dict(exercise).items() if key != "exercise_hash"}
+    return {key: value for key, value in dict(exercise).items() if key not in _ROTATION_NON_HASH_FIELDS}
 
 
 def perps_wallet_rotation_exercise_hash_v1(exercise: Mapping[str, Any]) -> str:
@@ -416,6 +423,100 @@ def _social_recovery_policy_from_public_dict(policy: Mapping[str, Any]) -> Socia
     return policy_obj
 
 
+def _guardian_signature_quorum_summary(report: Mapping[str, Any]) -> dict[str, Any]:
+    accepted = report.get("accepted_signatures")
+    accepted_signatures = accepted if isinstance(accepted, list) else []
+    return {
+        "registry_hash": report.get("registry_hash"),
+        "payload_kind": report.get("payload_kind"),
+        "payload_hash": report.get("payload_hash"),
+        "threshold": int(report.get("threshold", 0)) if isinstance(report.get("threshold"), int) else 0,
+        "accepted_weight": int(report.get("accepted_weight", 0)) if isinstance(report.get("accepted_weight"), int) else 0,
+        "accepted_signature_count": len(accepted_signatures),
+        "accepted_signatures": [
+            {
+                "guardian_id": str(item.get("signer_id", "")) if isinstance(item, Mapping) else "",
+                "key_id": str(item.get("key_id", "")) if isinstance(item, Mapping) else "",
+                "weight": int(item.get("weight", 0)) if isinstance(item, Mapping) and isinstance(item.get("weight"), int) else 0,
+                "envelope_hash": item.get("envelope_hash") if isinstance(item, Mapping) else None,
+            }
+            for item in accepted_signatures
+        ],
+        "quorum_report_hash": report.get("quorum_report_hash"),
+    }
+
+
+def _guardian_registry_for_policy(*, policy: SocialRecoveryPolicy, payload_kind: str) -> Mapping[str, Any]:
+    return build_signer_registry_v0(
+        registry_id=f"{policy.policy_id}:guardian-signers",
+        payload_kind=payload_kind,
+        threshold=int(policy.threshold),
+        signers=tuple(
+            {
+                "signer_id": guardian.guardian_id,
+                "key_id": guardian.guardian_id,
+                "public_key": guardian.public_key,
+                "weight": int(guardian.weight),
+                "status": guardian.status,
+            }
+            for guardian in sorted(policy.guardians, key=lambda item: item.guardian_id)
+        ),
+    )
+
+
+def _validate_guardian_signature_quorum(
+    *,
+    exercise: Mapping[str, Any],
+    policy: SocialRecoveryPolicy,
+    payload_kind: str,
+    payload_hash: str,
+    accepted_approvals: list[dict[str, Any]] | None,
+    errors: list[str],
+    label: str,
+) -> dict[str, Any] | None:
+    raw_envelopes = exercise.get("signature_envelopes")
+    if not isinstance(raw_envelopes, list) or not raw_envelopes:
+        errors.append(f"{label} guardian signature_envelopes must be a non-empty list")
+        return None
+    envelopes: list[Mapping[str, Any]] = []
+    for index, raw_envelope in enumerate(raw_envelopes):
+        try:
+            envelopes.append(_require_mapping(raw_envelope, name=f"signature_envelopes[{index}]"))
+        except Exception as exc:
+            errors.append(f"{label} guardian signature envelope {index} invalid: {exc}")
+    if not envelopes:
+        return None
+    try:
+        registry = _guardian_registry_for_policy(policy=policy, payload_kind=payload_kind)
+        report = verify_signature_quorum_v0(
+            registry=registry,
+            payload_kind=payload_kind,
+            payload_hash=payload_hash,
+            envelopes=envelopes,
+        )
+    except Exception as exc:
+        errors.append(f"{label} guardian signature quorum invalid: {exc}")
+        return None
+    summary = _guardian_signature_quorum_summary(report)
+    accepted_guardian_ids = sorted(
+        {
+            str(item.get("guardian_id"))
+            for item in summary.get("accepted_signatures", [])
+            if isinstance(item, Mapping) and isinstance(item.get("guardian_id"), str) and item.get("guardian_id")
+        }
+    )
+    expected_guardian_ids = sorted(
+        {
+            str(item.get("guardian_id"))
+            for item in (accepted_approvals or [])
+            if isinstance(item, Mapping) and isinstance(item.get("guardian_id"), str) and item.get("guardian_id")
+        }
+    )
+    if accepted_guardian_ids != expected_guardian_ids:
+        errors.append(f"{label} guardian signatures do not match accepted approvals")
+    return summary
+
+
 def _recovery_exercise_status(
     *,
     ok: bool,
@@ -423,6 +524,7 @@ def _recovery_exercise_status(
     exercise: Mapping[str, Any] | None,
     wallet_authority_hash: str | None,
     evaluation: Mapping[str, Any] | None,
+    guardian_signature_quorum: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     body = {
         "schema": PERPS_WALLET_RECOVERY_EXERCISE_STATUS_SCHEMA_V1,
@@ -440,8 +542,9 @@ def _recovery_exercise_status(
         "current_epoch": None if exercise is None else exercise.get("current_epoch"),
         "evaluation": None if evaluation is None else dict(evaluation),
         "evaluation_hash": None if evaluation is None else evaluation.get("evaluation_hash"),
+        "guardian_signature_quorum": None if guardian_signature_quorum is None else dict(guardian_signature_quorum),
+        "guardian_signature_quorum_hash": None if guardian_signature_quorum is None else guardian_signature_quorum.get("quorum_report_hash"),
         "not_claimed": [
-            "does_not_claim_guardian_signature_verification",
             "does_not_claim_hardware_wallet_custody",
             "does_not_claim_recovery_rotation_broadcast",
         ],
@@ -463,6 +566,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
             exercise=None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             evaluation=None,
+            guardian_signature_quorum=None,
         )
     try:
         exercise_obj = _require_mapping(exercise, name="recovery_exercise")
@@ -474,6 +578,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
             exercise=exercise if isinstance(exercise, Mapping) else None,
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             evaluation=None,
+            guardian_signature_quorum=None,
         )
     if profile is None:
         return _recovery_exercise_status(
@@ -482,6 +587,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
             exercise=exercise_obj,
             wallet_authority_hash=None,
             evaluation=None,
+            guardian_signature_quorum=None,
         )
 
     authority_status = evaluate_perps_wallet_authority_profile_v1(profile, expected_chain_id=expected_chain_id)
@@ -507,6 +613,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
             exercise=exercise_obj,
             wallet_authority_hash=profile.get("wallet_authority_hash"),
             evaluation=None,
+            guardian_signature_quorum=None,
         )
     if expected_chain_id is not None and chain_id != expected_chain_id:
         errors.append("perps wallet recovery exercise chain_id mismatch")
@@ -520,6 +627,7 @@ def evaluate_perps_wallet_recovery_exercise_v1(
         errors.append("perps wallet recovery exercise subject key is not active")
 
     evaluation: Mapping[str, Any] | None = None
+    guardian_signature_quorum: Mapping[str, Any] | None = None
     try:
         key_manager = _require_mapping(profile.get("key_manager"), name="key_manager")
         policies_raw = key_manager.get("recovery_policies")
@@ -542,15 +650,30 @@ def evaluate_perps_wallet_recovery_exercise_v1(
         )
         if evaluation.get("ok") is not True:
             errors.append("recovery_policy_not_satisfied")
+        guardian_signature_quorum = _validate_guardian_signature_quorum(
+            exercise=exercise_obj,
+            policy=policy,
+            payload_kind=PERPS_WALLET_RECOVERY_EXERCISE_PAYLOAD_KIND,
+            payload_hash=perps_wallet_recovery_exercise_hash_v1(exercise_obj),
+            accepted_approvals=evaluation.get("accepted_approvals") if isinstance(evaluation.get("accepted_approvals"), list) else None,
+            errors=errors,
+            label="recovery exercise",
+        )
     except Exception as exc:
         errors.append(f"recovery policy evaluation failed: {exc}")
 
     return _recovery_exercise_status(
-        ok=not errors and evaluation is not None and evaluation.get("ok") is True,
+        ok=(
+            not errors
+            and evaluation is not None
+            and evaluation.get("ok") is True
+            and guardian_signature_quorum is not None
+        ),
         errors=errors,
         exercise=exercise_obj,
         wallet_authority_hash=profile.get("wallet_authority_hash"),
         evaluation=evaluation,
+        guardian_signature_quorum=guardian_signature_quorum,
     )
 
 
@@ -562,6 +685,9 @@ def _rotation_exercise_status(
     wallet_authority_hash: str | None,
     current_authority_status: Mapping[str, Any] | None,
     next_authority_status: Mapping[str, Any] | None,
+    policy_id: str | None,
+    evaluation: Mapping[str, Any] | None,
+    guardian_signature_quorum: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     body = {
         "schema": PERPS_WALLET_ROTATION_EXERCISE_STATUS_SCHEMA_V1,
@@ -575,6 +701,7 @@ def _rotation_exercise_status(
         "authority_id": None if exercise is None else exercise.get("authority_id"),
         "rotated_key_id": None if exercise is None else exercise.get("rotated_key_id"),
         "replacement_key_id": None if exercise is None else exercise.get("replacement_key_id"),
+        "policy_id": policy_id,
         "requested_at_epoch": None if exercise is None else exercise.get("requested_at_epoch"),
         "broadcast_at_epoch": None if exercise is None else exercise.get("broadcast_at_epoch"),
         "broadcast_reference": None if exercise is None else exercise.get("broadcast_reference"),
@@ -584,10 +711,13 @@ def _rotation_exercise_status(
         "next_signer_registry_hash": None if next_authority_status is None else next_authority_status.get("signer_registry_hash"),
         "current_key_manager_hash": None if current_authority_status is None else current_authority_status.get("key_manager_hash"),
         "next_key_manager_hash": None if next_authority_status is None else next_authority_status.get("key_manager_hash"),
+        "evaluation": None if evaluation is None else dict(evaluation),
+        "evaluation_hash": None if evaluation is None else evaluation.get("evaluation_hash"),
+        "guardian_signature_quorum": None if guardian_signature_quorum is None else dict(guardian_signature_quorum),
+        "guardian_signature_quorum_hash": None if guardian_signature_quorum is None else guardian_signature_quorum.get("quorum_report_hash"),
         "not_claimed": [
             "does_not_claim_hardware_wallet_custody",
             "does_not_claim_recovery_rotation_chain_finality",
-            "does_not_claim_guardian_signature_verification",
             "does_not_claim_device_approval_verification",
         ],
     }
@@ -609,6 +739,9 @@ def evaluate_perps_wallet_rotation_exercise_v1(
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             current_authority_status=None,
             next_authority_status=None,
+            policy_id=None,
+            evaluation=None,
+            guardian_signature_quorum=None,
         )
     try:
         exercise_obj = _require_mapping(exercise, name="rotation_exercise")
@@ -621,6 +754,9 @@ def evaluate_perps_wallet_rotation_exercise_v1(
             wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
             current_authority_status=None,
             next_authority_status=None,
+            policy_id=None,
+            evaluation=None,
+            guardian_signature_quorum=None,
         )
     if profile is None:
         return _rotation_exercise_status(
@@ -630,6 +766,9 @@ def evaluate_perps_wallet_rotation_exercise_v1(
             wallet_authority_hash=None,
             current_authority_status=None,
             next_authority_status=None,
+            policy_id=None,
+            evaluation=None,
+            guardian_signature_quorum=None,
         )
 
     current_authority_status = evaluate_perps_wallet_authority_profile_v1(
@@ -647,9 +786,11 @@ def evaluate_perps_wallet_rotation_exercise_v1(
         authority_id = _require_nonempty_str(exercise_obj.get("authority_id"), name="authority_id")
         rotated_key_id = _require_nonempty_str(exercise_obj.get("rotated_key_id"), name="rotated_key_id")
         replacement_key_id = _require_nonempty_str(exercise_obj.get("replacement_key_id"), name="replacement_key_id")
+        policy_id = _require_nonempty_str(exercise_obj.get("policy_id"), name="policy_id")
         requested_at_epoch = _require_nonnegative_int(exercise_obj.get("requested_at_epoch"), name="requested_at_epoch")
         broadcast_at_epoch = _require_nonnegative_int(exercise_obj.get("broadcast_at_epoch"), name="broadcast_at_epoch")
         broadcast_reference = _require_nonempty_str(exercise_obj.get("broadcast_reference"), name="broadcast_reference")
+        approvals = _require_string_list(exercise_obj.get("approvals"), name="approvals")
         next_profile = _require_mapping(
             exercise_obj.get("next_wallet_authority_profile"),
             name="next_wallet_authority_profile",
@@ -663,6 +804,9 @@ def evaluate_perps_wallet_rotation_exercise_v1(
             wallet_authority_hash=profile.get("wallet_authority_hash"),
             current_authority_status=current_authority_status,
             next_authority_status=None,
+            policy_id=None,
+            evaluation=None,
+            guardian_signature_quorum=None,
         )
 
     if expected_chain_id is not None and chain_id != expected_chain_id:
@@ -712,14 +856,53 @@ def evaluate_perps_wallet_rotation_exercise_v1(
     ):
         errors.append("rotation exercise does not change key manager or signer registry")
 
+    evaluation: Mapping[str, Any] | None = None
+    guardian_signature_quorum: Mapping[str, Any] | None = None
+    try:
+        key_manager = _require_mapping(profile.get("key_manager"), name="key_manager")
+        policies_raw = key_manager.get("recovery_policies")
+        if not isinstance(policies_raw, list):
+            raise TypeError("key manager recovery_policies must be a list")
+        matching = [
+            _social_recovery_policy_from_public_dict(_require_mapping(raw, name="recovery_policy"))
+            for raw in policies_raw
+            if isinstance(raw, Mapping) and raw.get("policy_id") == policy_id
+        ]
+        if len(matching) != 1:
+            raise ValueError("recovery policy not found")
+        policy = matching[0]
+        if policy.subject_key_id != rotated_key_id:
+            errors.append("perps wallet rotation exercise policy subject mismatch")
+        evaluation = policy.evaluate(
+            approvals=approvals,
+            requested_at_epoch=requested_at_epoch,
+            current_epoch=broadcast_at_epoch,
+        )
+        if evaluation.get("ok") is not True:
+            errors.append("rotation_recovery_policy_not_satisfied")
+        guardian_signature_quorum = _validate_guardian_signature_quorum(
+            exercise=exercise_obj,
+            policy=policy,
+            payload_kind=PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
+            payload_hash=perps_wallet_rotation_exercise_hash_v1(exercise_obj),
+            accepted_approvals=evaluation.get("accepted_approvals") if isinstance(evaluation.get("accepted_approvals"), list) else None,
+            errors=errors,
+            label="rotation exercise",
+        )
+    except Exception as exc:
+        errors.append(f"rotation recovery policy evaluation failed: {exc}")
+
     _ = broadcast_reference
     return _rotation_exercise_status(
-        ok=not errors,
+        ok=not errors and guardian_signature_quorum is not None and evaluation is not None and evaluation.get("ok") is True,
         errors=errors,
         exercise=exercise_obj,
         wallet_authority_hash=profile.get("wallet_authority_hash"),
         current_authority_status=current_authority_status,
         next_authority_status=next_authority_status,
+        policy_id=policy_id,
+        evaluation=evaluation,
+        guardian_signature_quorum=guardian_signature_quorum,
     )
 
 

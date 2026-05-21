@@ -478,6 +478,8 @@ function PerpLiveWalletSurface() {
           <div><span>Wallet Signers</span><span>{walletAuthority ? `${walletAuthority.active_signer_count}/${walletAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Wallet Recovery</span><span>{walletAuthority ? `${walletAuthority.recoverable_active_key_count ?? 0}/${walletAuthority.active_signer_count ?? 0}` : 'unknown'}</span></div>
           <div><span>Recovery Exercise</span><span>{walletRecoveryExercise ? walletRecoveryExercise.status : 'not loaded'}</span></div>
+          <div><span>Recovery Signed Quorum</span><span>{walletRecoveryExercise?.guardian_signature_quorum ? `${walletRecoveryExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRecoveryExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span></div>
+          <div><span>Rotation Signed Quorum</span><span>{walletRotationExercise?.guardian_signature_quorum ? `${walletRotationExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRotationExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span></div>
           <div><span>Oracle Authority</span><span>{oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Oracle Signers</span><span>{oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Oracle Signed Quorum</span><span>{oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span></div>
@@ -768,12 +770,14 @@ function PerpLiveWalletSurface() {
           {walletRecoveryExercise ? (
             <>
               <span>recovery exercise {walletRecoveryExercise.recovery_exercise_ready ? 'ready' : 'blocked'}</span>
+              <span>recovery signed quorum {walletRecoveryExercise.guardian_signature_quorum ? `${walletRecoveryExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRecoveryExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span>
               <span>recovery receipt {compactId(walletRecoveryExercise.status_hash)}</span>
             </>
           ) : null}
           {walletRotationExercise ? (
             <>
               <span>rotation exercise {walletRotationExercise.rotation_exercise_ready ? 'ready' : 'blocked'}</span>
+              <span>rotation signed quorum {walletRotationExercise.guardian_signature_quorum ? `${walletRotationExercise.guardian_signature_quorum.accepted_weight ?? 0}/${walletRotationExercise.guardian_signature_quorum.threshold ?? 0}` : 'unknown'}</span>
               <span>rotation receipt {compactId(walletRotationExercise.status_hash)}</span>
             </>
           ) : null}
