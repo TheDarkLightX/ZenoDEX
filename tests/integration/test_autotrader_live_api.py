@@ -4,10 +4,26 @@ import json
 
 import pytest
 
+import src.integration.autotrader_live_api as autotrader_live_api
 from src.integration.autotrader_live_api import handle_autotrader_live_request
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 
 
-def test_autotrader_live_status_reports_receipt_backed_prepare_surface() -> None:
+def _balance(payload: str, *, pubkey: str, asset: str) -> int:
+    state = json.loads(payload)
+    balances = state.get("balances")
+    assert isinstance(balances, list)
+    for row in balances:
+        if not isinstance(row, dict):
+            continue
+        if row.get("pubkey") == pubkey and row.get("asset") == asset:
+            return int(row.get("amount", 0))
+    return 0
+
+
+def test_autotrader_live_status_reports_receipt_backed_prepare_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", raising=False)
+
     status, payload = handle_autotrader_live_request(
         "GET",
         "/api/strategy/autotrader/status",
@@ -19,6 +35,8 @@ def test_autotrader_live_status_reports_receipt_backed_prepare_surface() -> None
     assert payload["status"]["surface"] == "autotrader_live_prepare"
     assert payload["status"]["mode"] == "receipt_backed_prepare"
     assert "POST /api/strategy/autotrader/prepare" in payload["status"]["endpoints"]
+    assert "POST /api/strategy/autotrader/submit" in payload["status"]["endpoints"]
+    assert payload["status"]["testnet_submission_enabled"] is False
     assert "production_chain_submission" in payload["status"]["not_claimed"]
 
 
@@ -99,3 +117,153 @@ def test_autotrader_live_prepare_fixture_builds_signed_receipt_backed_ops(
     assert report["tau_tx_payload"]["expiration_time"] == 999
     assert report["stage_certificate"] is not None
     assert report["live_release_certificate"] is not None
+
+
+def test_autotrader_live_submit_requires_testnet_submission_enablement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.delenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", raising=False)
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/submit",
+        json.dumps(
+            {
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert payload["error"] == "testnet_submission_disabled"
+    assert payload["risk_disclosure"]["user_acknowledged"] is True
+    assert "production_chain_submission" in payload["not_claimed"]
+
+
+def test_autotrader_live_submit_sends_prepared_payload_and_mines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+        mined = 0
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return 9
+
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
+            type(self).sent.append(dict(payload))
+            return "SUCCESS: Transaction queued."
+
+        def createblock(self) -> str:
+            type(self).mined += 1
+            return "SUCCESS: Block created."
+
+    _FakeTauClient.sent = []
+    _FakeTauClient.mined = 0
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_AUTO_MINE", "true")
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/submit",
+        json.dumps(
+            {
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+                "tx_expiration_time": 999,
+                "last_used_nonce": 0,
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 200
+    assert payload["ok"] is True
+    assert payload["status"] == "submitted"
+    assert payload["surface"] == "autotrader_live_local_testnet_submit"
+    assert payload["report"]["tau_tx_payload"]["sequence_number"] == 9
+    assert payload["report"]["tau_tx_payload"]["expiration_time"] == 999
+    assert payload["submission"]["sendtx_response"] == "SUCCESS: Transaction queued."
+    assert payload["submission"]["createblock_response"] == "SUCCESS: Block created."
+    assert len(_FakeTauClient.sent) == 1
+    assert _FakeTauClient.sent[0] == payload["report"]["tau_tx_payload"]
+    assert _FakeTauClient.mined == 1
+
+
+def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    signer_privkey = 7
+    signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(signer_privkey)
+    signer_raw = signer_pubkey[2:]
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    create_pool_intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "aa" * 32,
+        "sender_pubkey": signer_pubkey,
+        "deadline": 9999999999,
+        "nonce": 1,
+        "asset0": "A",
+        "asset1": "B",
+        "fee_bps": 10,
+        "amount0": 1000,
+        "amount1": 2000,
+    }
+    ok, app_state_json, _app_hash, _balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={signer_raw: 1},
+        operations={
+            "7": {"mint": [[signer_pubkey, "A", 10_000], [signer_pubkey, "B", 10_000]]},
+            "5": [create_pool_intent],
+        },
+        tx_sender_pubkey=signer_raw,
+        block_timestamp=1,
+    )
+    assert ok is True
+    assert err is None
+    assert _balance(app_state_json, pubkey=signer_pubkey, asset="A") == 9000
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(
+            {
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": signer_privkey,
+                "chain_id": "tau-local",
+                "tx_sequence_number": 1,
+                "tx_expiration_time": 999,
+                "last_used_nonce": 1,
+            }
+        ).encode("utf-8"),
+    )
+    assert status == 200
+    assert payload["ok"] is True
+
+    ok, next_app_state_json, _app_hash, _balances_patch, err = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances={signer_raw: 1},
+        operations=payload["report"]["operations"],
+        tx_sender_pubkey=signer_raw,
+        block_timestamp=10,
+    )
+    assert ok is True
+    assert err is None
+    assert _balance(next_app_state_json, pubkey=signer_pubkey, asset="A") == 8900

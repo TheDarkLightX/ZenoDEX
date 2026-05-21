@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './StrategyWorkbench.css';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import {
   apiGetAutotraderStatus,
   apiPrepareAutotraderLive,
+  apiSubmitAutotraderLive,
 } from '../lib/api.js';
 import {
   STRATEGY_TEMPLATES,
@@ -16,7 +17,15 @@ function isAutoTraderSmokeEnabled() {
   if (typeof window === 'undefined') {
     return false;
   }
-  return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLive') === '1';
+  const params = new URLSearchParams(window.location.search);
+  return params.get('zenodexUiSmokeStrategyLive') === '1' || params.get('zenodexUiSmokeStrategyLiveSubmit') === '1';
+}
+
+function isAutoTraderSubmitSmokeEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return new URLSearchParams(window.location.search).get('zenodexUiSmokeStrategyLiveSubmit') === '1';
 }
 
 function StrategyCard({ strategy }) {
@@ -151,16 +160,19 @@ function StrategyCard({ strategy }) {
 
 function AutoTraderLivePrepareSurface({ demoMode }) {
   const smokeEnabled = isAutoTraderSmokeEnabled();
+  const submitSmokeEnabled = isAutoTraderSubmitSmokeEnabled();
   const [status, setStatus] = useState(null);
   const [acknowledged, setAcknowledged] = useState(smokeEnabled);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const smokeRunRef = useRef(false);
 
   const report = result?.report || null;
   const decisionTag = report?.decision?.tag || 'pending';
   const liveAdmission = report?.live_admission?.ok === true ? 'accepted' : 'pending';
   const submitBundle = report?.submit_bundle?.ok === true ? 'ready' : 'pending';
+  const submissionStatus = result?.submission?.sendtx_response ? 'submitted' : 'pending';
   const operations = report?.operations && typeof report.operations === 'object' ? report.operations : {};
   const operationCount = Object.values(operations).reduce((total, values) => (
     Array.isArray(values) ? total + values.length : total
@@ -176,21 +188,42 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
     }
   }
 
+  function liveRequestBody({ forSubmit = false } = {}) {
+    const body = {
+      acknowledge_experimental_live_risk: acknowledged,
+      signer_privkey: 7,
+      chain_id: 'tau-local',
+    };
+    if (!forSubmit) {
+      body.tx_sequence_number = 9;
+      body.tx_expiration_time = 999;
+    }
+    return body;
+  }
+
   async function prepareLiveStrategy() {
     setBusy(true);
     setError('');
     try {
-      const payload = await apiPrepareAutotraderLive({
-        acknowledge_experimental_live_risk: acknowledged,
-        signer_privkey: 7,
-        chain_id: 'tau-local',
-        tx_sequence_number: 9,
-        tx_expiration_time: 999,
-      });
+      const payload = await apiPrepareAutotraderLive(liveRequestBody(), { timeoutMs: 15000 });
       setResult(payload);
     } catch (err) {
       setResult(null);
       setError(err?.message || 'prepare_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitLiveStrategy() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiSubmitAutotraderLive(liveRequestBody({ forSubmit: true }), { timeoutMs: 20000 });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'submit_failed');
     } finally {
       setBusy(false);
     }
@@ -202,11 +235,19 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
 
   useEffect(() => {
     if (!demoMode && smokeEnabled) {
-      prepareLiveStrategy();
+      if (smokeRunRef.current) {
+        return;
+      }
+      smokeRunRef.current = true;
+      if (submitSmokeEnabled) {
+        submitLiveStrategy();
+      } else {
+        prepareLiveStrategy();
+      }
     }
     // The smoke path intentionally runs once from the URL trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode, smokeEnabled]);
+  }, [demoMode, smokeEnabled, submitSmokeEnabled]);
 
   return (
     <div className="panel strat-section-card strat-live-panel animate-fade-in" aria-label="AutoTrader live prepare">
@@ -236,6 +277,10 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         <div className="strat-live-metric">
           <span>Submit bundle</span>
           <strong>{submitBundle}</strong>
+        </div>
+        <div className="strat-live-metric">
+          <span>Submission</span>
+          <strong>{submissionStatus}</strong>
         </div>
         <div className="strat-live-metric">
           <span>Operations</span>
@@ -269,6 +314,14 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
         <button className="btn btn-secondary" type="button" onClick={refreshStatus} disabled={busy}>
           Refresh Status
         </button>
+        <button
+          className="btn btn-secondary"
+          type="button"
+          onClick={submitLiveStrategy}
+          disabled={busy || demoMode || !acknowledged || !status?.testnet_submission_enabled}
+        >
+          Submit Local Testnet
+        </button>
       </div>
 
       {error && (
@@ -283,6 +336,12 @@ function AutoTraderLivePrepareSurface({ demoMode }) {
           <div className="strat-kv"><span>Signer</span><span className="strat-mono">{report?.signing?.signer_pubkey}</span></div>
           <div className="strat-kv"><span>Intent count</span><span>{report?.decision?.intents?.length || 0}</span></div>
           <div className="strat-kv"><span>Risk acknowledgement</span><span>{report?.risk_disclosure?.user_acknowledged ? 'recorded' : 'missing'}</span></div>
+          {result?.submission?.sendtx_response && (
+            <div className="strat-kv"><span>Sendtx</span><span>{result.submission.sendtx_response}</span></div>
+          )}
+          {result?.submission?.createblock_response && (
+            <div className="strat-kv"><span>Block</span><span>{result.submission.createblock_response}</span></div>
+          )}
           {report?.tau_tx_payload && (
             <div className="strat-live-code strat-mono">
               {JSON.stringify({ action: 'SWAP_EXACT_IN', decision: decisionTag, operations: operationCount })}

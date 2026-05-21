@@ -9,17 +9,19 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Dict, Mapping, Optional, Tuple
 from urllib.parse import urlsplit
 
 from ..agents.policy_compiler import compile_policy_candidate
+from ..core.liquidity import create_pool
 from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
 from ..state.pools import PoolState, PoolStatus
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
-from .tau_net_client import bls_pubkey_hex_from_privkey
+from .tau_net_client import TauNetTcpClient, TauNetTcpConfig, bls_pubkey_hex_from_privkey
 
 
 MAX_POST_BODY = 96_000
@@ -42,8 +44,53 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return float(default)
+    try:
+        value = float(raw.strip())
+    except Exception:
+        return float(default)
+    return min(max(value, lo), hi)
+
+
+def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return int(default)
+    try:
+        value = int(raw.strip())
+    except Exception:
+        return int(default)
+    return min(max(value, lo), hi)
+
+
 def _allow_signing() -> bool:
     return _env_bool("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", False)
+
+
+def _allow_testnet_submission() -> bool:
+    return _env_bool("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", False)
+
+
+def _auto_mine() -> bool:
+    return _env_bool("AUTOTRADER_LIVE_AUTO_MINE", False)
+
+
+def _tau_client() -> TauNetTcpClient:
+    return TauNetTcpClient(
+        TauNetTcpConfig(
+            host=_env_str("AUTOTRADER_LIVE_TAU_HOST", "127.0.0.1"),
+            port=_env_int("AUTOTRADER_LIVE_TAU_PORT", 65432, lo=1, hi=65535),
+            timeout_s=_env_float("AUTOTRADER_LIVE_TAU_TIMEOUT_S", 3.0, lo=0.1, hi=60.0),
+        )
+    )
+
+
+def _default_tx_expiration_time() -> int:
+    delta = _env_int("AUTOTRADER_LIVE_DEFAULT_DEADLINE_S", 3600, lo=1, hi=86_400)
+    return int(time.time()) + int(delta)
 
 
 def _parse_json_body(body: Optional[bytes]) -> tuple[Optional[dict[str, Any]], Optional[str]]:
@@ -144,18 +191,16 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
             "asset_out": "B",
         },
     }
-    pool = PoolState(
-        pool_id="p_ab",
+    _pool_id, pool, _lp_minted = create_pool(
         asset0="A",
         asset1="B",
-        reserve0=1_000,
-        reserve1=2_000,
+        amount0=1_000,
+        amount1=2_000,
         fee_bps=10,
-        lp_supply=1,
-        status=PoolStatus.ACTIVE,
+        creator_pubkey=owner,
         created_at=0,
     )
-    pools = {"p_ab": pool}
+    pools = {pool.pool_id: pool}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
     if quote is None:
         raise ValueError("fixture quote unavailable")
@@ -325,6 +370,88 @@ def _build_prepare_response(body: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _tx_send_ok(response: object) -> bool:
+    text = str(response)
+    return bool(text.strip()) and "ERROR" not in text.upper()
+
+
+def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
+    if not _allow_testnet_submission():
+        return {
+            "ok": False,
+            "error": "testnet_submission_disabled",
+            "risk_disclosure": build_autotrader_risk_disclosure(
+                mode="live_submit",
+                requires_explicit_acknowledgement=True,
+                user_acknowledged=bool(
+                    body.get("acknowledge_experimental_live_risk")
+                    or body.get("risk_acknowledged")
+                    or body.get("acknowledge_live_risk")
+                ),
+            ),
+            "not_claimed": [
+                "unattended_production_strategy_execution",
+                "production_wallet_key_management",
+                "production_chain_submission",
+            ],
+        }
+
+    submit_body: dict[str, Any] = dict(body)
+    signer_privkey = _int_field(submit_body, "signer_privkey", 7)
+    signer_pubkey_raw = bls_pubkey_hex_from_privkey(signer_privkey)
+    client = _tau_client()
+    if submit_body.get("tx_sequence_number") is None:
+        submit_body["tx_sequence_number"] = int(client.get_sequence(signer_pubkey_raw))
+    if submit_body.get("tx_expiration_time") is None:
+        submit_body["tx_expiration_time"] = _default_tx_expiration_time()
+
+    prepared = _build_prepare_response(submit_body)
+    if prepared.get("ok") is not True:
+        return prepared
+    report = prepared.get("report")
+    if not isinstance(report, Mapping):
+        return {"ok": False, "error": "prepared_report_missing"}
+    tau_tx_payload = report.get("tau_tx_payload")
+    if not isinstance(tau_tx_payload, Mapping):
+        return {"ok": False, "error": "tau_tx_payload_missing"}
+
+    send_response = client.sendtx(tau_tx_payload)
+    submission: dict[str, Any] = {"sendtx_response": send_response}
+    if not _tx_send_ok(send_response):
+        return {
+            **prepared,
+            "ok": False,
+            "status": "submit_rejected",
+            "surface": "autotrader_live_local_testnet_submit",
+            "error": "sendtx_failed",
+            "submission": submission,
+        }
+    if _auto_mine():
+        createblock_response = client.createblock()
+        submission["createblock_response"] = createblock_response
+        if not _tx_send_ok(createblock_response):
+            return {
+                **prepared,
+                "ok": False,
+                "status": "submit_rejected",
+                "surface": "autotrader_live_local_testnet_submit",
+                "error": "createblock_failed",
+                "submission": submission,
+            }
+
+    return {
+        **prepared,
+        "status": "submitted",
+        "surface": "autotrader_live_local_testnet_submit",
+        "submission": submission,
+        "not_claimed": [
+            "unattended_production_strategy_execution",
+            "production_wallet_key_management",
+            "production_chain_submission",
+        ],
+    }
+
+
 def _status_payload() -> dict[str, Any]:
     return {
         "enabled": True,
@@ -332,9 +459,14 @@ def _status_payload() -> dict[str, Any]:
         "mode": "receipt_backed_prepare",
         "chain_id": _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"),
         "allow_local_signing": _allow_signing(),
+        "testnet_submission_enabled": _allow_testnet_submission(),
+        "auto_mine": _auto_mine(),
+        "tau_host": _env_str("AUTOTRADER_LIVE_TAU_HOST", "127.0.0.1"),
+        "tau_port": _env_int("AUTOTRADER_LIVE_TAU_PORT", 65432, lo=1, hi=65535),
         "endpoints": [
             "GET /api/strategy/autotrader/status",
             "POST /api/strategy/autotrader/prepare",
+            "POST /api/strategy/autotrader/submit",
         ],
         "risk_disclosure": build_autotrader_risk_disclosure(
             mode="live_prepare",
@@ -368,6 +500,10 @@ def handle_autotrader_live_request(method: str, path: str, body: Optional[bytes]
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["prepare"]:
             payload = _build_prepare_response(parsed)
+            status = 200 if payload.get("ok") is True else 400
+            return status, payload
+        if rest == ["submit"]:
+            payload = _build_submit_response(parsed)
             status = 200 if payload.get("ok") is True else 400
             return status, payload
         return 404, {"ok": False, "error": "not_found"}

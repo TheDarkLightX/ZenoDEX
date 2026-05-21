@@ -245,6 +245,14 @@ export function apiPrepareAutotraderLive(body, options = {}) {
   });
 }
 
+export function apiSubmitAutotraderLive(body, options = {}) {
+  return apiFetchJson('/api/strategy/autotrader/submit', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetPools(options = {}) {
   return apiFetchJson('/api/pools', { method: 'GET', ...(options || {}) });
 }
