@@ -4,7 +4,10 @@ import json
 import os
 import shutil
 import socket
+import socketserver
 import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -58,6 +61,44 @@ def _wait_for_http(url: str, *, timeout_s: float = 30) -> None:
             last_error = exc
             time.sleep(0.2)
     raise AssertionError(f"server did not become ready at {url}: {last_error}")
+
+
+class _FakeMalformedOracleHandler(BaseHTTPRequestHandler):
+    def log_message(self, _format: str, *_args: object) -> None:
+        return
+
+    def end_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        super().end_headers()
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self.end_headers()
+
+    def do_GET(self) -> None:
+        path = self.path.split("?", 1)[0]
+        if path == "/api/oracle/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
+        if path == "/api/oracle/dashboard":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"summary":')
+            return
+        self.send_response(404)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"ok":false,"error":"not_found"}')
+
+
+class _ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
 
 
 def _provision_ready_authority_profile(home: Path, tmp_path: Path) -> None:
@@ -279,6 +320,73 @@ def test_oracle_ui_smoke_fails_closed_when_local_service_unreachable(tmp_path: P
         assert "Production authority ready" not in dom
     finally:
         vite_proc.terminate()
+        try:
+            vite_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            vite_proc.kill()
+            vite_proc.wait(timeout=5)
+
+
+def test_oracle_ui_smoke_fails_closed_on_malformed_dashboard_response(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    fake_oracle_port = _free_port()
+    fake_oracle = _ReusableThreadingTCPServer(("127.0.0.1", fake_oracle_port), _FakeMalformedOracleHandler)
+    fake_thread = threading.Thread(target=fake_oracle.serve_forever, daemon=True)
+    fake_thread.start()
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={
+            **os.environ,
+            "VITE_DEMO_MODE": "false",
+            "VITE_ZENO_ORACLE_API_URL": f"http://127.0.0.1:{fake_oracle_port}",
+        },
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(f"http://127.0.0.1:{fake_oracle_port}/api/oracle/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode({"tab": "oracle", "oracleView": "Governance", "demo": "false"})
+        chrome_profile = tmp_path / "chrome-profile-malformed"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=15000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "ZenoOracle" in dom
+        assert "Local API offline" in dom
+        assert "Production authority ready" not in dom
+        assert "oracle write smoke accepted" not in dom
+    finally:
+        vite_proc.terminate()
+        fake_oracle.shutdown()
+        fake_oracle.server_close()
+        fake_thread.join(timeout=2.0)
         try:
             vite_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:

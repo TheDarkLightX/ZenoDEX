@@ -616,6 +616,22 @@ build passed. Production Oracle authority now fails closed unless
 perps live wallet UI renders `oracle signed quorum 2/2` for settle and
 partial-liquidation Oracle authority paths.
 
+Additional ZenoOracle mounted malformed-dashboard resilience evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_zeno_oracle_ui_bridge.py
+python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py::test_oracle_ui_smoke_fails_closed_on_malformed_dashboard_response -s
+```
+
+Results: py_compile passed; focused mounted Oracle browser resilience regression
+`1 passed`. The test points the mounted ZenoOracle UI at a reachable local
+Oracle-like server whose health endpoint succeeds but whose dashboard endpoint
+returns malformed JSON. The browser renders `Local API offline`, does not render
+`Production authority ready`, and does not report an accepted write-smoke flow.
+This covers malformed reachable dashboard data separately from the existing
+unreachable-service and read-only/write-enabled service cases.
+
 Additional stream `8` stateful resilience evidence added on 2026-05-21:
 
 ```bash
