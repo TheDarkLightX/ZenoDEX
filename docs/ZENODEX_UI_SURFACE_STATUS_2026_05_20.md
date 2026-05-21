@@ -8,7 +8,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | --- | --- | --- | --- | --- |
 | Swap / Pools | Yes | Live local/testnet spot lane | Yes, mounted spot path through local API and Tau-ledger flow | `tests/integration/test_dex_ui_live_bridge.py` |
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
-| Oracle | Yes | Live local operator console | Yes for local read/write API routes, with browser evidence for dashboard reads and a write-enabled receipt flow. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py` |
+| Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, and `/api/oracle/authority` production-authority preflight. Production authority remains blocked unless a local authority profile validates. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
 | Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit and execute-once panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, and stateful execute-once through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, and an in-process execution-key replay guard. Unattended production execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status plus local/testnet attestation receipt/admission surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, and stateful live-admission request consumption via `POST /api/confidential/attestation/admit`. Runtime confidential execution remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py` |
@@ -20,7 +20,7 @@ selection.
 
 The next product-complete backend promotions still required are:
 
-1. production Oracle authority, wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
+1. production Oracle authority profile provisioning, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
 2. production-grade unattended strategy execution beyond explicit local/testnet execute-once;
 3. confidential runtime execution beyond the external-verifier attestation receipt and live-admission gate.
 
@@ -264,15 +264,22 @@ source, submits a report, builds aggregate/read/authorization receipts, and
 pays rewards against a local `tools/zenodex-oracle serve --allow-writes`
 instance. It also proves the read-only local service fails closed for the same
 mounted receipt flow by surfacing `write_api_disabled` instead of accepting a
-receipt write when `--allow-writes` is absent.
+receipt write when `--allow-writes` is absent. The local service now exposes
+`/api/oracle/authority`; the mounted Oracle tab renders `Authority blocked`
+until `authority/production_authority_profile.json` validates a production
+profile with key-manager refs, an Oracle authority signer registry, required
+wallet approval controls, and a proof/replay profile.
 
 Latest Oracle browser pass on 2026-05-21:
 
 ```bash
+python3 -m pytest -q tests/integration/test_zeno_oracle_authority.py tests/integration/test_zenodex_oracle_cli.py::test_dashboard_snapshot_and_local_api_server tests/integration/test_zeno_ledger_verify_cli.py::test_bls_signer_registry_enforces_signature_quorum
 python3 -m pytest -q tests/integration/test_zeno_oracle_ui_bridge.py -s
+npm run build
 ```
 
-Result: `3 passed`.
+Result: authority/API/signature checks `9 passed`, Oracle browser checks `3
+passed`, and Vite production build passed.
 
 Latest confidential attestation receipt pass on 2026-05-21:
 

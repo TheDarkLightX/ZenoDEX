@@ -154,8 +154,14 @@ function snapshotToDashboardData(snapshot) {
   const authorizations = Array.isArray(snapshot.recent_authorizations) ? snapshot.recent_authorizations : [];
   const rewardReceipts = Array.isArray(snapshot.recent_reward_receipts) ? snapshot.recent_reward_receipts : [];
   const slashReceipts = Array.isArray(snapshot.recent_slash_receipts) ? snapshot.recent_slash_receipts : [];
+  const authorityStatus = snapshot.authority_status || {
+    production_authority: snapshot.production_authority === true,
+    status: snapshot.production_authority === true ? 'ready' : 'blocked',
+    readiness_gaps: [],
+  };
 
   return {
+    authorityStatus,
     feeds: feedStatuses.map((feed) => {
       const pair = `${feed.base_asset || 'UNKNOWN'}/${feed.quote_asset || 'UNKNOWN'}`;
       const status = primaryStatus(feed.status || []);
@@ -1695,6 +1701,17 @@ function ZenoOracleDashboard() {
   const sources = remoteData?.sources || [];
   const rewards = remoteData?.rewards || ORACLE_REWARDS;
   const authorizationTrail = remoteData?.authorizationTrail || [];
+  const authorityStatus = remoteData?.authorityStatus || null;
+  const authorityReady = authorityStatus?.production_authority === true;
+  const authorityGaps = Array.isArray(authorityStatus?.readiness_gaps)
+    ? authorityStatus.readiness_gaps
+    : [];
+  const authorityLabel = authorityStatus
+    ? authorityReady
+      ? 'Production authority ready'
+      : 'Authority blocked'
+    : 'Authority unverified';
+  const authorityTitle = authorityGaps.length ? authorityGaps.join('; ') : authorityLabel;
 
   const visibleFeeds = useMemo(() => {
     if (feedFilter === 'all') {
@@ -1879,6 +1896,12 @@ function ZenoOracleDashboard() {
             <span className="zor-env">
               <span />
               {apiState}
+            </span>
+            <span
+              className={`zor-authority-chip ${authorityReady ? 'zor-authority-ready' : 'zor-authority-blocked'}`}
+              title={authorityTitle}
+            >
+              {authorityLabel}
             </span>
             {oracleSmokeStatus ? <span className="zor-subtle-chip">{oracleSmokeStatus}</span> : null}
             <button className="zor-icon-button" type="button" aria-label="Toggle dark mode">

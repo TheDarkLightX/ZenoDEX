@@ -965,6 +965,7 @@ def test_dashboard_snapshot_and_local_api_server(tmp_path: Path) -> None:
         ready = json.loads(proc.stdout.readline())
         assert ready["ok"] is True
         assert "/api/oracle/dashboard" in ready["paths"]
+        assert "/api/oracle/authority" in ready["paths"]
         base = f"http://127.0.0.1:{port}"
         health = None
         for _attempt in range(20):
@@ -974,11 +975,15 @@ def test_dashboard_snapshot_and_local_api_server(tmp_path: Path) -> None:
             except OSError:
                 time.sleep(0.05)
         assert health is not None
+        authority = _http_json(f"{base}/api/oracle/authority")
         feeds = _http_json(f"{base}/api/oracle/feeds")
         replay = _http_json(f"{base}/api/oracle/replay")
         dashboard = _http_json(f"{base}/api/oracle/dashboard")
 
         assert health["ok"] is True
+        assert health["production_authority"] is False
+        assert authority["status"] == "blocked"
+        assert dashboard["authority_status"]["status"] == "blocked"
         assert feeds["count"] == 1
         assert feeds["feed_statuses"][0]["query_id"] == query_id
         assert replay["ok"] is True

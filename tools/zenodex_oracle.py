@@ -102,6 +102,8 @@ if getattr(sys, "frozen", False):
     ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
 sys.path.insert(0, str(ROOT))
 
+from src.integration.zeno_oracle_authority import evaluate_oracle_authority_profile_v1  # noqa: E402
+
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
@@ -3925,8 +3927,29 @@ def cmd_verify_evidence(args: argparse.Namespace) -> int:
     return proc.returncode
 
 
+def _authority_profile_path(home: Path) -> Path:
+    return home / "authority" / "production_authority_profile.json"
+
+
+def _oracle_authority_status(home: Path) -> dict[str, Any]:
+    profile_path = _authority_profile_path(home)
+    if not profile_path.exists():
+        status = evaluate_oracle_authority_profile_v1(None)
+    else:
+        try:
+            payload = _load_json(profile_path)
+        except Exception as exc:
+            status = evaluate_oracle_authority_profile_v1(None)
+            status["readiness_gaps"] = [f"oracle production authority profile unreadable: {exc}"]
+        else:
+            status = evaluate_oracle_authority_profile_v1(payload if isinstance(payload, Mapping) else None)
+    status["profile_path"] = str(profile_path)
+    return status
+
+
 def cmd_health(args: argparse.Namespace) -> int:
     home = _home(args)
+    authority_status = _oracle_authority_status(home)
     checks = {
         "home_exists": home.exists(),
         "config_exists": (home / "config.toml").exists(),
@@ -3941,7 +3964,8 @@ def cmd_health(args: argparse.Namespace) -> int:
             "ok": all(checks.values()),
             "home": str(home),
             "checks": checks,
-            "production_authority": False,
+            "authority_status": authority_status,
+            "production_authority": bool(authority_status.get("production_authority") is True),
         },
         json_out=args.json,
     )
@@ -3989,6 +4013,7 @@ def _iter_receipt_dir(home: Path, kind: str) -> list[dict[str, Any]]:
 
 
 def _dashboard_snapshot(home: Path, *, now_epoch: int, recent_limit: int = 50) -> dict[str, Any]:
+    authority_status = _oracle_authority_status(home)
     query_registry = _load_query_registry(home)
     queries = _registry_queries(query_registry)
     reporters = [
@@ -4068,7 +4093,8 @@ def _dashboard_snapshot(home: Path, *, now_epoch: int, recent_limit: int = 50) -
         "recent_reward_receipts": reward_receipts[-recent_limit:],
         "recent_slash_receipts": slash_receipts[-recent_limit:],
         "replay": replay,
-        "production_authority": False,
+        "authority_status": authority_status,
+        "production_authority": bool(authority_status.get("production_authority") is True),
     }
 
 
@@ -4108,6 +4134,8 @@ def _dashboard_endpoint_payload(
     query_params: Mapping[str, list[str]] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     if path == "/api/oracle/verify-receipt":
+        authority_status = _oracle_authority_status(home)
+        production_authority = bool(authority_status.get("production_authority") is True)
         params = query_params or {}
         receipt_id = params.get("id", [""])[0]
         found = _stored_receipt_by_id(home, receipt_id)
@@ -4119,7 +4147,8 @@ def _dashboard_endpoint_payload(
                     "ok": False,
                     "error": "receipt_not_found",
                     "receipt_id": receipt_id,
-                    "production_authority": False,
+                    "authority_status": authority_status,
+                    "production_authority": production_authority,
                 },
             )
         receipt_kind, receipt = found
@@ -4133,18 +4162,25 @@ def _dashboard_endpoint_payload(
                 "stored_receipt_kind": receipt_kind,
                 "receipt_check": check,
                 "receipt": receipt,
-                "production_authority": False,
+                "authority_status": authority_status,
+                "production_authority": production_authority,
             },
         )
 
+    if path == "/api/oracle/authority":
+        return 200, _oracle_authority_status(home)
+
     snapshot = _dashboard_snapshot(home, now_epoch=now_epoch)
+    authority_status = snapshot["authority_status"]
+    production_authority = bool(snapshot.get("production_authority") is True)
     routes: dict[str, Any] = {
         "/api/oracle/health": {
             "schema": "zeno_oracle.api_health.v1",
             "ok": True,
             "home": str(home),
             "replay_ok": snapshot["replay"]["ok"],
-            "production_authority": False,
+            "authority_status": authority_status,
+            "production_authority": production_authority,
         },
         "/api/oracle/dashboard": snapshot,
         "/api/oracle/feeds": {
@@ -4152,69 +4188,69 @@ def _dashboard_endpoint_payload(
             "ok": True,
             "count": len(snapshot["feed_statuses"]),
             "feed_statuses": snapshot["feed_statuses"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/queries": {
             "schema": "zeno_oracle.api_queries.v1",
             "ok": True,
             "count": len(snapshot["queries"]),
             "queries": snapshot["queries"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/reporters": {
             "schema": "zeno_oracle.api_reporters.v1",
             "ok": True,
             "count": len(snapshot["reporters"]),
             "reporters": snapshot["reporters"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/sources": {
             "schema": "zeno_oracle.api_sources.v1",
             "ok": True,
             "count": len(snapshot["sources"]),
             "sources": snapshot["sources"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/disputes": {
             "schema": "zeno_oracle.api_disputes.v1",
             "ok": True,
             "count": len(snapshot["disputes"]),
             "disputes": snapshot["disputes"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/rewards": {
             "schema": "zeno_oracle.api_rewards.v1",
             "ok": True,
             "count": len(snapshot["rewards"]),
             "rewards": snapshot["rewards"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/aggregates": {
             "schema": "zeno_oracle.api_aggregates.v1",
             "ok": True,
             "count": len(snapshot["recent_aggregates"]),
             "aggregates": snapshot["recent_aggregates"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/accepted-reads": {
             "schema": "zeno_oracle.api_accepted_reads.v1",
             "ok": True,
             "count": len(snapshot["recent_accepted_reads"]),
             "accepted_reads": snapshot["recent_accepted_reads"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/authorizations": {
             "schema": "zeno_oracle.api_authorizations.v1",
             "ok": True,
             "count": len(snapshot["recent_authorizations"]),
             "authorizations": snapshot["recent_authorizations"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/replay": {
             "schema": "zeno_oracle.api_replay.v1",
             "ok": snapshot["replay"]["ok"],
             **snapshot["replay"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
     }
     if path in routes:
@@ -4226,7 +4262,7 @@ def _dashboard_endpoint_payload(
             "ok": False,
             "error": "not_found",
             "path": path,
-            "available_paths": sorted([*routes, "/api/oracle/verify-receipt"]),
+            "available_paths": sorted([*routes, "/api/oracle/authority", "/api/oracle/verify-receipt"]),
             "production_authority": False,
         },
     )
@@ -4611,6 +4647,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     server = ThreadingHTTPServer((host, port), OracleHandler)
     actual_port = int(server.server_address[1])
+    authority_status = _oracle_authority_status(home)
     ready = {
         "schema": SCHEMA,
         "ok": True,
@@ -4618,6 +4655,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         "url": f"http://{host}:{actual_port}",
         "paths": [
             "/api/oracle/health",
+            "/api/oracle/authority",
             "/api/oracle/dashboard",
             "/api/oracle/feeds",
             "/api/oracle/reporters",
@@ -4645,7 +4683,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "/api/oracle/authorization/build",
             "/api/oracle/report/submit",
         ] if args.allow_writes else [],
-        "production_authority": False,
+        "authority_status": authority_status,
+        "production_authority": bool(authority_status.get("production_authority") is True),
     }
     print(json.dumps(ready, sort_keys=True), flush=True)
     try:

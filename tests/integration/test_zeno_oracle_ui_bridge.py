@@ -132,6 +132,7 @@ def test_oracle_ui_smoke_loads_local_service(tmp_path: Path) -> None:
         dom = result.stdout
         assert "ZenoOracle" in dom
         assert ("Local API connected" in dom) or ("Local API replay warning" in dom)
+        assert "Authority blocked" in dom
         assert "Verify" in dom
     finally:
         if vite_proc is not None:
