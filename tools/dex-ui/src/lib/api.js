@@ -196,6 +196,14 @@ export function apiSubmitPerpsWallet(body, options = {}) {
   });
 }
 
+export function apiBuildPerpsOracleBridge(body, options = {}) {
+  return apiFetchJson('/api/perps/wallet/oracle-bridge-template', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetPools(options = {}) {
   return apiFetchJson('/api/pools', { method: 'GET', ...(options || {}) });
 }

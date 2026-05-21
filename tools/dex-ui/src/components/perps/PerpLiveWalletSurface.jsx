@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiGetPerpsWalletStatus, apiPreparePerpsWallet, apiSubmitPerpsWallet } from '../../lib/api.js';
+import {
+  apiBuildPerpsOracleBridge,
+  apiGetPerpsWalletStatus,
+  apiPreparePerpsWallet,
+  apiSubmitPerpsWallet,
+} from '../../lib/api.js';
 
 const EMPTY_FORM = {
   action: 'init_market_2p',
@@ -22,6 +27,7 @@ const EMPTY_FORM = {
   new_position_base_b: '-1',
   tx_fee_limit: '0',
   deadline: '',
+  use_oracle_fixture: false,
 };
 
 const ACTIONS = [
@@ -63,6 +69,9 @@ function readSmokeConfig() {
     new_position_base_b: params.get('positionB') || params.get('new_position_base_b') || '-1',
     tx_fee_limit: params.get('perpsTxFeeLimit') || params.get('txFeeLimit') || params.get('tx_fee_limit') || '0',
     deadline: params.get('perpsDeadline') || params.get('deadline') || '',
+    use_oracle_fixture: params.get('perpsUseOracleFixture') === '1'
+      || params.get('useOracleFixture') === '1'
+      || params.get('oracleFixture') === '1',
   };
 }
 
@@ -126,6 +135,7 @@ function PerpLiveWalletSurface() {
   const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [oracleFixture, setOracleFixture] = useState(null);
   const [busy, setBusy] = useState(false);
   const smokeRan = useRef(false);
 
@@ -179,6 +189,33 @@ function PerpLiveWalletSurface() {
     }
   }
 
+  async function buildOracleFixturePayload(sourceForm) {
+    const payload = await apiBuildPerpsOracleBridge(
+      {
+        action: 'settle_epoch',
+        market_id: sourceForm.market_id.trim(),
+      },
+      { timeoutMs: 15000 },
+    );
+    const bridgeText = JSON.stringify(payload.bridge, null, 2);
+    setOracleFixture(payload);
+    setForm((current) => ({ ...current, ...sourceForm, oracle_adapter_bridge: bridgeText }));
+    return { ...sourceForm, oracle_adapter_bridge: bridgeText };
+  }
+
+  async function handleUseOracleFixture() {
+    setBusy(true);
+    setError('');
+    try {
+      await buildOracleFixturePayload(form);
+    } catch (err) {
+      setOracleFixture(null);
+      setError(err?.message || 'oracle_fixture_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     const smoke = readSmokeConfig();
     if (!smoke || smokeRan.current || busy) {
@@ -189,11 +226,22 @@ function PerpLiveWalletSurface() {
     }
     smokeRan.current = true;
     setForm((current) => ({ ...current, ...smoke }));
-    void apiSubmitPerpsWallet(buildPayload({ ...EMPTY_FORM, ...smoke }), { timeoutMs: 20000 })
+    async function runSmoke() {
+      let nextForm = { ...EMPTY_FORM, ...smoke };
+      if (nextForm.action === 'settle_epoch' && nextForm.use_oracle_fixture) {
+        nextForm = await buildOracleFixturePayload(nextForm);
+      }
+      const payload = await apiSubmitPerpsWallet(buildPayload(nextForm), { timeoutMs: 20000 });
+      setResult(payload);
+      setError('');
+      await loadStatus();
+      return payload;
+    }
+    void runSmoke()
       .then((payload) => {
-        setResult(payload);
-        setError('');
-        return loadStatus();
+        if (payload) {
+          setResult(payload);
+        }
       })
       .catch((err) => {
         setResult(null);
@@ -370,6 +418,14 @@ function PerpLiveWalletSurface() {
                 onChange={(event) => setForm((current) => ({ ...current, oracle_adapter_bridge: event.target.value }))}
                 placeholder="optional JSON bridge"
               />
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handleUseOracleFixture}
+                disabled={busy || !form.market_id.trim()}
+              >
+                Build Oracle Bridge
+              </button>
             </>
           ) : null}
 
@@ -417,6 +473,7 @@ function PerpLiveWalletSurface() {
           <span>fee limit {result.transport?.tx_fee_limit ?? '0'}</span>
           <span>fee covered {feeCovered == null ? 'unknown' : feeCovered ? 'yes' : 'no'}</span>
           <span>{result.transport?.app_hash || 'no app hash'}</span>
+          {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {result.transport?.fee_limit_warning ? <span>{result.transport.fee_limit_warning}</span> : null}
         </div>
       ) : null}

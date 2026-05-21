@@ -90,6 +90,27 @@ def _state_with_advanced_market(*, quote_asset: str) -> DexState:
     )
 
 
+def _state_ready_to_settle(*, quote_asset: str) -> DexState:
+    state = _state_with_advanced_market(quote_asset=quote_asset)
+    op: dict[str, object] = {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": MARKET_ID,
+        "action": "publish_clearing_price",
+        "price_e8": 100_000_000,
+        "deadline": 123456789,
+        "oracle_nonce": 1,
+    }
+    op["oracle_sig"] = sign_perp_op_for_engine(
+        op,
+        privkey=ORACLE_PRIVKEY,
+        chain_id=CHAIN_ID,
+        signer_pubkey=ORACLE,
+        nonce=1,
+    )
+    return _apply_perps(state, [op], sender=ORACLE)
+
+
 def _state_with_posted_collateral(*, quote_asset: str) -> DexState:
     state = _state_with_market_and_balance(quote_asset=quote_asset)
     return _apply_perps(
@@ -435,6 +456,49 @@ def test_prepare_settle_epoch_can_fail_closed_on_missing_oracle_bridge(monkeypat
     assert payload["ok"] is True
     assert payload["report"]["preflight"]["ok"] is False
     assert payload["report"]["preflight"]["error"] == "settle_epoch requires oracle_adapter_bridge"
+
+
+def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert bridge_payload["ok"] is True
+    assert bridge_payload["fixture_kind"] == "local_o3_aggregate_adapter"
+    assert bridge_payload["production_authority"] is False
+    assert bridge_payload["verify_result"]["status"] == "accepted"
+    assert bridge_payload["target"]["consumer_module"] == "zenodex.perps"
+    assert bridge_payload["target"]["action_kind"] == "settle_epoch"
+
+    body = {
+        "action": "settle_epoch",
+        "market_id": MARKET_ID,
+        "operator_privkey": str(OPERATOR_PRIVKEY),
+        "oracle_adapter_bridge": bridge_payload["bridge"],
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["operation"]["oracle_adapter_bridge"]["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
 
 
 def test_submit_rejects_preflight_failure_before_sendtx(monkeypatch) -> None:

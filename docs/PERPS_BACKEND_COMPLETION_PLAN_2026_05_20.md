@@ -190,8 +190,6 @@ semantics remain a Tau host responsibility until pinned by live Tau evidence.
 Remaining live-transport operations:
 
 - perps liquidation actions
-- a real typed Oracle adapter browser fixture, rather than only an optional JSON
-  bridge field in the local test panel
 
 Pinned live-transport evidence:
 
@@ -200,6 +198,11 @@ Pinned live-transport evidence:
   initializes a two-party perps clearinghouse market, deposits minted zUSD as
   perps collateral through the mounted browser UI, mines the submitted Tau
   transactions, and verifies the app-state balance and perps collateral deltas.
+- `tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge`
+  runs the mounted browser UI with settle-time Oracle evidence required,
+  builds a local typed O3 aggregate-adapter bridge for the current clearinghouse
+  market, submits `settle_epoch`, and verifies the live preflight accepts the
+  typed bridge.
 
 Default to clearinghouse perps. Isolated markets should remain opt-in because
 they require a protocol-counterparty balance-sheet design.
@@ -220,13 +223,14 @@ The UI now exposes:
 - Tau fee-limit input plus native-balance coverage reporting
 - Tau submission receipt
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
-- optional Oracle adapter bridge JSON for local settle testing
+- first-class local typed Oracle adapter bridge fixture for settle testing, plus
+  a JSON bridge field for externally supplied evidence
 
 Still missing from the mounted perps UI:
 
 - zUSD wallet balance summaries for both clearinghouse accounts
 - posted perps collateral by role in the form
-- a first-class typed Oracle evidence picker/viewer
+- production typed Oracle evidence picker/viewer
 - liquidation controls and evidence display
 - production wallet/key-manager integration
 
@@ -335,17 +339,27 @@ build passed. The browser bridge asserts `txFeeLimit` query plumbing, rendered
 fee-limit output, and native-balance coverage for both market-init and
 oracle-price publish flows.
 
+Additional typed Oracle bridge fixture check added on 2026-05-21:
+
+```bash
+pytest -q tests/integration/test_perps_wallet_api.py::test_oracle_bridge_template_preflights_required_settle_epoch
+pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge -s
+```
+
+Results: API fixture and browser settle bridge checks `2 passed`.
+
 These checks prove the mounted perps wallet panel can submit a signed stream `8`
 two-party market init and a signed oracle clearing-price publish through the
 Tau-node-backed API. They also prove app-bridge stream `8` rejects replayed
 nonces, expired signatures, missing required settle Oracle adapter evidence, and
 cross-stream partial mutation when a valid zUSD monetary operation is followed
 by a bad perps operation. They also prove signed stream `8` position updates
-through the Tau app bridge after zUSD collateral deposits.
+through the Tau app bridge after zUSD collateral deposits. The new bridge
+fixture check proves the browser can build an exact typed aggregate-adapter
+bridge for the current clearinghouse settle action when Oracle evidence is
+required.
 
 Remaining limits:
 
-- no full Docker zUSD-mint-to-perps-deposit browser scenario yet;
-- no first-class typed Oracle adapter browser fixture yet;
 - no perps liquidation browser flow yet;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

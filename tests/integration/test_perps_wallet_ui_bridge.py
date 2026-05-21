@@ -128,6 +128,53 @@ def _advanced_market_state(
     return res2.state
 
 
+def _settle_ready_market_state(
+    *,
+    chain_id: str,
+    market_id: str,
+    quote_asset: str,
+    account_a_privkey: int,
+    account_b_privkey: int,
+    oracle_privkey: int,
+) -> DexState:
+    oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
+    state = _advanced_market_state(
+        chain_id=chain_id,
+        market_id=market_id,
+        quote_asset=quote_asset,
+        account_a_privkey=account_a_privkey,
+        account_b_privkey=account_b_privkey,
+        oracle_pubkey=oracle_pubkey,
+    )
+    op: dict[str, object] = {
+        "module": "TauPerp",
+        "version": "1.0",
+        "market_id": market_id,
+        "action": "publish_clearing_price",
+        "price_e8": 100_000_000,
+        "deadline": 999_999_999,
+        "oracle_nonce": 1,
+    }
+    op["oracle_sig"] = sign_perp_op_for_engine(
+        op,
+        privkey=oracle_privkey,
+        chain_id=chain_id,
+        signer_pubkey=oracle_pubkey,
+        nonce=1,
+    )
+    cfg = PerpEngineConfig(chain_id=chain_id, oracle_pubkey=oracle_pubkey)
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [op]},
+        tx_sender_pubkey=oracle_pubkey,
+        block_timestamp=3,
+    )
+    assert res.ok, res.error
+    assert res.state is not None
+    return res.state
+
+
 class _TauRpcState:
     def __init__(self, *, app_state_json: str | None = None) -> None:
         self.app_state_json = app_state_json or _initial_app_state_json()
@@ -442,6 +489,152 @@ def test_perps_wallet_ui_publish_price_smoke_through_browser(tmp_path: Path) -> 
             os.environ.pop("TAU_DEX_PERP_ORACLE_PUBKEY", None)
         else:
             os.environ["TAU_DEX_PERP_ORACLE_PUBKEY"] = old_oracle
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-settle"
+    account_a_privkey = 83
+    account_b_privkey = 84
+    oracle_privkey = 85
+    operator_privkey = 86
+    operator_pubkey = "0x" + bls_pubkey_hex_from_privkey(operator_privkey)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:ch2p:ui-settle"
+    app_state_json = _initial_app_state_json(
+        _settle_ready_market_state(
+            chain_id=chain_id,
+            market_id=market_id,
+            quote_asset=quote_asset,
+            account_a_privkey=account_a_privkey,
+            account_b_privkey=account_b_privkey,
+            oracle_privkey=oracle_privkey,
+        )
+    )
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
+    tau_server.state.sequences[operator_pubkey[2:].lower()] = 8  # type: ignore[attr-defined]
+    tau_server.state.native_balances[operator_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "true",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "TAU_DEX_OPERATOR_PUBKEY": operator_pubkey,
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "1",
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    old_operator = os.environ.get("TAU_DEX_OPERATOR_PUBKEY")
+    old_require = os.environ.get("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    os.environ["TAU_DEX_OPERATOR_PUBKEY"] = operator_pubkey
+    os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = "1"
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "settle_epoch",
+                "marketId": market_id,
+                "operatorPrivkey": str(operator_privkey),
+                "perpsUseOracleFixture": "1",
+                "txFeeLimit": "2",
+                "perpsDeadline": str(int(time.time()) + 3600),
+            }
+        )
+        chrome_profile = tmp_path / "chrome-profile-settle"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Live Perps Wallet" in dom
+        assert "Settle Epoch" in dom
+        assert "submit accepted" in dom
+        assert "preflight ok" in dom
+        assert "oracle bridge sha256:" in dom
+        assert "fee covered yes" in dom
+        assert market_id in dom
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        if old_operator is None:
+            os.environ.pop("TAU_DEX_OPERATOR_PUBKEY", None)
+        else:
+            os.environ["TAU_DEX_OPERATOR_PUBKEY"] = old_operator
+        if old_require is None:
+            os.environ.pop("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", None)
+        else:
+            os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = old_require
         vite_proc.terminate()
         api_proc.terminate()
         tau_server.shutdown()
