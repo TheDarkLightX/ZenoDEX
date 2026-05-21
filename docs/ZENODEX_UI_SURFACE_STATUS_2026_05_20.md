@@ -164,9 +164,10 @@ Latest external-signed zUSD monetary browser pass on 2026-05-21:
 ```bash
 python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py
 python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_bridge.py -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py -s
 ```
 
-Results: `10 passed` and `1 passed`. The mounted zUSD monetary UI submitted a
+Results: `10 passed`, `1 passed`, and `1 passed`. The mounted zUSD monetary UI submitted a
 stream `11` sequence with local signing disabled, using externally signed Tau
 transaction envelopes for collateral deposit, collateral withdrawal, mint,
 repay, redemption, stability-pool deposit, stability-pool withdrawal, oracle
@@ -177,6 +178,11 @@ collateral payout, liquidation debt absorption, and collateral claim settlement
 after auto-mining through the local Tau RPC harness. The API regression suite
 also rejects sender mismatch, sequence mismatch, operation mismatch, bad
 signatures, and preflight failures before broadcast.
+
+The Docker lane now also mints zUSD through the mounted browser UI using an
+externally signed stream `11` Tau envelope with local zUSD API signing disabled,
+then feeds that minted zUSD into the live perps wallet flow on the same local
+Tau node.
 
 Latest perps Oracle evidence inspector pass on 2026-05-21:
 

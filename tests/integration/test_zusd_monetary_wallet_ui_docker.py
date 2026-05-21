@@ -8,12 +8,17 @@ import subprocess
 import time
 from pathlib import Path
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pytest
 
 from src.core.zusd import E8
-from src.integration.tau_net_client import TauNetTcpClient, TauNetTcpConfig, bls_pubkey_hex_from_privkey
+from src.integration.tau_net_client import (
+    TauNetTcpClient,
+    TauNetTcpConfig,
+    bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
+)
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 
 
@@ -47,6 +52,17 @@ def _wait_for_http(url: str, *, timeout_s: float = 30) -> None:
             last_error = exc
             time.sleep(0.2)
     raise AssertionError(f"server did not become ready at {url}: {last_error}")
+
+
+def _http_post_json(url: str, payload: dict[str, object]) -> dict[str, object]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=8) as response:  # noqa: S310 - local test servers
+        return json.loads(response.read().decode("utf-8"))
 
 
 def _wait_for_tau_hello(*, host: str, port: int, timeout_s: float = 240) -> TauNetTcpClient:
@@ -115,6 +131,27 @@ def _perps_market(app_state: dict[str, object], *, market_id: str) -> dict[str, 
 def _create_block_checked(client: TauNetTcpClient, *, label: str) -> None:
     response = client.createblock()
     assert "ERROR" not in response.upper(), f"{label} createblock failed: {response}"
+
+
+def _prepare_external_signed_zusd_payload(
+    *,
+    api_base: str,
+    privkey: int,
+    body: dict[str, object],
+) -> dict[str, object]:
+    prepared = _http_post_json(f"{api_base}/api/zusd/monetary/prepare", body)
+    assert prepared["ok"] is True
+    transport = prepared["transport"]
+    report = prepared["report"]
+    assert isinstance(transport, dict)
+    assert isinstance(report, dict)
+    return build_signed_tau_transaction(
+        privkey=privkey,
+        sequence_number=int(transport["tx_sequence_number"]),
+        expiration_time=int(body["deadline"]),
+        operations=report["operations"],
+        fee_limit=0,
+    )
 
 
 def _prepare_zusd_monetary_state(
@@ -248,7 +285,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
             "API_PORT": str(api_port),
             "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
             "ZUSD_MONETARY_WALLET_API_ENABLED": "true",
-            "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING": "true",
+            "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING": "false",
             "ZUSD_MONETARY_WALLET_AUTO_MINE": "true",
             "ZUSD_MONETARY_WALLET_CHAIN_ID": chain_id,
             "ZUSD_MONETARY_WALLET_TAU_HOST": "127.0.0.1",
@@ -284,6 +321,20 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         )
         _wait_for_http(f"http://127.0.0.1:{vite_port}", timeout_s=30)
 
+        zusd_deadline = int(time.time()) + 3600
+        zusd_body = {
+            "action": "mint_zusd",
+            "owner_pubkey": owner_pubkey,
+            "sender_pubkey": owner_pubkey,
+            "amount": 100,
+            "deadline": zusd_deadline,
+            "tx_fee_limit": "0",
+        }
+        signed_zusd_payload = _prepare_external_signed_zusd_payload(
+            api_base=f"http://127.0.0.1:{api_port}",
+            privkey=owner_privkey,
+            body=zusd_body,
+        )
         query = urlencode(
             {
                 "tab": "zusd",
@@ -291,9 +342,9 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
                 "zenodexUiSmokeZusdMonetary": "1",
                 "zusdMonetaryAction": "mint_zusd",
                 "actorPubkey": owner_pubkey,
-                "signerPrivkey": str(owner_privkey),
                 "zusdAmount": "100",
-                "zusdDeadline": str(int(time.time()) + 3600),
+                "zusdDeadline": str(zusd_deadline),
+                "signedTauTxPayload": json.dumps(signed_zusd_payload, sort_keys=True, separators=(",", ":")),
             }
         )
         chrome_profile = tmp_path / "chrome-profile"
@@ -318,6 +369,7 @@ def test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node(tmp_path: Path) -
         assert "Tau node connected" in result.stdout
         assert "SUCCESS: Transaction queued." in result.stdout, result.stdout[-8000:]
         assert "SUCCESS: Block" in result.stdout, result.stdout[-8000:]
+        assert "external_signed_payload" in result.stdout, result.stdout[-8000:]
         assert '"action": "mint_zusd"' in result.stdout, result.stdout[-8000:]
 
         app_state = _read_app_state(tau_client)
