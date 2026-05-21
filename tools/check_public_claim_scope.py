@@ -26,6 +26,9 @@ DEFAULT_PUBLIC_CLAIM_PATHS: tuple[str, ...] = (
     "docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md",
     "docs/CONFIDENTIAL_FEATURES_USE_CASES.md",
     "docs/SPECIFICATION.md",
+    "tools/dex-ui/README.md",
+    "tools/dex-ui/src/lib/confidentialData.js",
+    "src/integration/confidential_feature_status.py",
 )
 
 OPTIONAL_PUBLIC_CLAIM_PATHS: tuple[str, ...] = (
@@ -64,6 +67,16 @@ REQUIRED_ANCHORS: dict[str, tuple[str, ...]] = {
         "What this does not promise",
         "It does not make everything private on-chain.",
         "It does not eliminate all trust.",
+    ),
+    "tools/dex-ui/README.md": (
+        "Confidential exposes live operator posture through `GET /api/confidential/status`",
+        "It is not the default swap path",
+    ),
+    "tools/dex-ui/src/lib/confidentialData.js": (
+        "No in-repo proof of TEE hardware confidentiality",
+    ),
+    "src/integration/confidential_feature_status.py": (
+        "no in-repo proof of TEE hardware confidentiality",
     ),
     "docs/ZENOCOVER_LP_LOSS_COVER_V1.md": (
         "Legal and Regulatory Boundary",
@@ -178,6 +191,33 @@ FORBIDDEN_PATTERNS: tuple[ClaimPattern, ...] = (
             re.IGNORECASE,
         ),
         message="TEE claims must describe advisory/attestation boundaries.",
+    ),
+    ClaimPattern(
+        rule_id="confidential_verifiable_overclaim",
+        pattern=re.compile(
+            r"\b(?:verifiably|provably|formally|cryptographically)\s+confidential\b",
+            re.IGNORECASE,
+        ),
+        message="Confidentiality claims must stay scoped to attested admission and redaction evidence.",
+    ),
+    ClaimPattern(
+        rule_id="tee_hardware_confidentiality_proof_overclaim",
+        pattern=re.compile(
+            r"\b(?:TEE|attestation|attested|receipt)\b.*"
+            r"\b(?:proves|proved|proven|guarantees|guaranteed)\b.*"
+            r"\b(?:hardware\s+confidentiality|hardware\s+privacy|confidentiality|privacy)\b",
+            re.IGNORECASE,
+        ),
+        message="TEE evidence must not be described as a proof of hardware confidentiality.",
+    ),
+    ClaimPattern(
+        rule_id="hardware_confidentiality_proven_overclaim",
+        pattern=re.compile(
+            r"\bhardware\s+(?:confidentiality|privacy)\b.*"
+            r"\b(?:is\s+)?(?:proved|proven|guaranteed)\b",
+            re.IGNORECASE,
+        ),
+        message="Hardware confidentiality remains an external assumption unless a real hardware proof is supplied.",
     ),
     ClaimPattern(
         rule_id="zenocover_insurance_product_overclaim",

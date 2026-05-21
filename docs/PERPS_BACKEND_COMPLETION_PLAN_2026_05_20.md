@@ -897,6 +897,32 @@ post-commit response-truncation fault. Broader mounted browser chaos campaigns,
 multi-node public-testnet behavior, mempool cleanup policy, and stream `8`/`11`
 ZK execution remain open.
 
+Additional confidential surface claim-scope evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tools/check_public_claim_scope.py tests/test_check_public_claim_scope.py
+python3 -m pytest -q tests/test_check_public_claim_scope.py
+python3 tools/check_public_claim_scope.py --json
+python3 -m pytest -q tests/integration/test_api_server_confidential.py
+python3 -m pytest -q tests/integration/test_confidential_ui_bridge.py -s
+python3 -m pytest -q tests/integration/test_zenodex_live_cross_stream_stateful.py
+python3 tools/zenodex_live_cross_stream_stateful.py --format json
+```
+
+Results: py_compile passed; public claim-scope checks `15 passed`; the public
+claim-scope report returned `ok: true` across docs, the DEX UI README, the
+confidential UI copy source, and the API status string source; confidential API
+tests `9 passed`; mounted confidential browser smoke `1 passed`; cross-stream
+stateful tests `2 passed`; the stateful replay tool returned `ok: true` for `8`
+bounded scenarios plus `4` deterministic fuzz seeds of `32` steps each. The
+claim-scope gate now rejects positive claims such as `verifiably confidential`
+or TEE receipt proof of hardware confidentiality, while allowing explicit
+negative scope lines. The mounted confidential tab still proves only live
+operator posture, external-verifier admission, replay rejection, response
+redaction, and request consumption. It does not prove TEE hardware
+confidentiality, vendor attestation soundness, fully encrypted on-chain state,
+or production FHE confidentiality.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle
@@ -905,4 +931,7 @@ Remaining limits:
 - the perps wallet has external signed-envelope submit support and a public
   wallet-authority profile preflight, but hardware/OS keychain UX, signer-device
   approval, and actual key recovery execution remain outside the mounted DEX UI;
+- confidential execution is bounded to attested admission, replay protection,
+  redaction, and local accounting evidence; TEE hardware confidentiality and
+  fully encrypted on-chain state remain unproved external assumptions;
 - no ZK proof wrapper for stream `8` or `11` transitions yet.

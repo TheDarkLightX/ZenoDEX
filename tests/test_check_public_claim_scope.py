@@ -86,6 +86,37 @@ def test_allows_explicit_negative_tee_scope_line() -> None:
     assert violations == []
 
 
+def test_rejects_verifiably_confidential_overclaim() -> None:
+    violations = scan_forbidden_claims(
+        "tools/dex-ui/README.md",
+        "The TEE lane is verifiably confidential for all private routing.",
+    )
+
+    assert [violation.rule_id for violation in violations] == [
+        "confidential_verifiable_overclaim"
+    ]
+
+
+def test_rejects_tee_hardware_confidentiality_proof_overclaim() -> None:
+    violations = scan_forbidden_claims(
+        "docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md",
+        "The TEE receipt proves hardware confidentiality for private routing.",
+    )
+
+    assert [violation.rule_id for violation in violations] == [
+        "tee_hardware_confidentiality_proof_overclaim"
+    ]
+
+
+def test_allows_explicit_negative_hardware_confidentiality_scope_line() -> None:
+    violations = scan_forbidden_claims(
+        "docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md",
+        "It does not prove TEE hardware confidentiality or hide on-chain execution.",
+    )
+
+    assert violations == []
+
+
 def test_rejects_zenocover_insurance_product_overclaim() -> None:
     violations = scan_forbidden_claims(
         "docs/ZENOCOVER_LP_LOSS_COVER_V1.md",
