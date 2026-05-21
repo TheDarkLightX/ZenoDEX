@@ -874,6 +874,94 @@ def test_submit_external_signed_payload_can_retry_after_tau_send_failure_without
     assert witness["changed_markets"][0]["deltas"]["collateral_e8_a"] == 1000 * 100_000_000
 
 
+def test_submit_external_signed_payload_replay_after_node_restart_rejected_before_sendtx(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    _FakeClient.native_balances = {ALICE[2:]: 5}
+    _FakeClient.sequence_by_sender = {ALICE[2:]: 9}
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.delenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def sequence_from_persisted_node(self, sender_pubkey_hex: str) -> int:
+        return int(type(self).sequence_by_sender.get(sender_pubkey_hex, 0))
+
+    def sendtx_apply_and_advance(self, payload):
+        _fake_client_apply_stream8_payload(self, payload)
+        sender = str(payload["sender_pubkey"])
+        type(self).sequence_by_sender[sender] = int(type(self).sequence_by_sender.get(sender, 0)) + 1
+        type(self).app_state = json.loads(json.dumps(self.app_state))
+        return "SUCCESS tx accepted before restart"
+
+    monkeypatch.setattr(_FakeClient, "get_sequence", sequence_from_persisted_node)
+    monkeypatch.setattr(_FakeClient, "sendtx", sendtx_apply_and_advance)
+
+    body = {
+        "action": "deposit_collateral",
+        "market_id": MARKET_ID,
+        "account_pubkey": ALICE,
+        "amount": 1000,
+        "tx_fee_limit": "2",
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, prepared = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert status_code == 200
+    assert prepared["transport"]["tx_sequence_number"] == 9
+    external_payload = build_signed_tau_transaction(
+        privkey=ALICE_PRIVKEY,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=123456789,
+        operations=prepared["report"]["operations"],
+        fee_limit=2,
+    )
+    submit_body = {**body, "signed_tau_tx_payload": external_payload}
+
+    status_code, accepted = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(submit_body).encode("utf-8"),
+    )
+    assert status_code == 200
+    assert accepted["ok"] is True
+    assert accepted["submission"]["sendtx_response"] == "SUCCESS tx accepted before restart"
+    assert len(_FakeClient.sent) == 1
+    assert _FakeClient.sequence_by_sender[ALICE[2:]] == 10
+    persisted_after_submit = json.loads(json.dumps(_FakeClient.app_state))
+
+    class _RestartedFakeClient(_FakeClient):
+        app_state = persisted_after_submit
+        sent = _FakeClient.sent
+        native_balances = _FakeClient.native_balances
+        sequence_by_sender = dict(_FakeClient.sequence_by_sender)
+
+    def restarted_sequence(self, sender_pubkey_hex: str) -> int:
+        return int(type(self).sequence_by_sender.get(sender_pubkey_hex, 0))
+
+    def restarted_sendtx(self, payload):
+        raise AssertionError("replay should be rejected before sendtx after restart")
+
+    monkeypatch.setattr(_RestartedFakeClient, "get_sequence", restarted_sequence)
+    monkeypatch.setattr(_RestartedFakeClient, "sendtx", restarted_sendtx)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _RestartedFakeClient)
+
+    status_code, replay = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(submit_body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert replay == {"ok": False, "error": "signed_tau_tx_payload sequence mismatch"}
+    assert _RestartedFakeClient.sent == [external_payload]
+    assert _RestartedFakeClient.app_state == persisted_after_submit
+
+
 def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))

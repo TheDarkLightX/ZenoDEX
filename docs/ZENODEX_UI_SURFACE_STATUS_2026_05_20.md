@@ -351,8 +351,23 @@ Results: py_compile passed and the focused failure/retry regression `1 passed`.
 The mounted perps wallet backend returns `502` for a transient Tau RPC send
 failure, preserves app state, avoids recording a queued transaction, and accepts
 the same externally signed stream `8` payload after the node recovers while the
-sequence is unchanged. Full node restart and network partition chaos remain
-open.
+sequence is unchanged. Live Docker process restart and network partition chaos
+remain open.
+
+Latest perps wallet node-restart replay pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_external_signed_payload_replay_after_node_restart_rejected_before_sendtx
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_stream8_resilience.py
+```
+
+Results: py_compile passed; the focused restart replay regression `1 passed`;
+perps wallet plus stream `8` resilience checks `37 passed`. The mounted perps
+wallet backend accepts an externally signed stream `8` submit, persists the
+post-submit app state and advanced sender sequence into a restarted Tau client,
+then rejects the old signed payload before a second `sendtx`. Live Docker
+process restart and network partition chaos remain open.
 
 Oracle live-surface note: `tests/integration/test_zeno_oracle_ui_bridge.py`
 now proves both the live dashboard read path and a write-enabled local receipt

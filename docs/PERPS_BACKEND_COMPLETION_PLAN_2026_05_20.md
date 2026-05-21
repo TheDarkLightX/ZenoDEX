@@ -61,14 +61,14 @@ posted into signed clearinghouse perps collateral.
 
 ## What Is Still Missing
 
-The remaining blockers are full node restart/network chaos assurance,
+The remaining blockers are live Docker node restart/network partition chaos,
 hardware/OS wallet UX and recovery flows behind the public wallet-authority
 profile, production Oracle network authority, proof/ZK wrapping, and final
 branch/PR cleanup. Docker browser evidence, typed Oracle bridge fixtures,
 action-aware local Oracle evidence selection, clearinghouse liquidation UI
 evidence, wallet-authority profile preflight, bounded stream `8`
-replay/freshness checks, and Tau RPC send-failure retry evidence exist for the
-current local/testnet lane.
+replay/freshness checks, Tau RPC send-failure retry evidence, and API-level
+node-restart replay evidence exist for the current local/testnet lane.
 
 The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
 transport path and the stream `11` monetary-vault path. The monetary path is
@@ -585,7 +585,23 @@ covers `tau_rpc_send_failure_state_drift`: an externally signed stream `8`
 submit that hits a transient Tau RPC send failure returns `502`, leaves app
 state unchanged, does not record a queued transaction, and accepts the same
 signed payload after the node recovers while the account sequence is unchanged.
-Full node restart and network partition chaos remain open.
+Live Docker process restart and network partition chaos remain open.
+
+Additional perps wallet node-restart replay evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/integration/test_perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_external_signed_payload_replay_after_node_restart_rejected_before_sendtx
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py tests/integration/test_perps_stream8_resilience.py
+```
+
+Results: py_compile passed; focused restart replay regression `1 passed`; perps
+wallet plus stream `8` resilience checks `37 passed`. This covers
+`restart_replay_materializes`: after a successful externally signed stream `8`
+submit, a restarted Tau client with persisted app state and the advanced sender
+sequence rejects the old signed payload with `signed_tau_tx_payload sequence
+mismatch` before a second `sendtx`. Live Docker process restart and network
+partition chaos remain open.
 
 Remaining limits:
 
