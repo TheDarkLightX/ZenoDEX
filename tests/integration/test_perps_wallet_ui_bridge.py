@@ -2350,6 +2350,8 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
         assert "oracle authority ready" in dom
         assert "oracle signers 2/2" in dom
         assert "oracle signed quorum 2/2" in dom
+        assert "oracle authority exercised yes" in dom
+        assert "oracle authority receipt 0x" in dom
         assert "fee covered yes" in dom
         assert market_id in dom
     finally:
@@ -2567,6 +2569,8 @@ def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: 
         assert "oracle authority ready" in dom
         assert "oracle signers 2/2" in dom
         assert "oracle signed quorum 2/2" in dom
+        assert "oracle authority exercised yes" in dom
+        assert "oracle authority receipt 0x" in dom
         assert "partial liquidation fraction 0 bps" in dom
         assert "isolated liquidated yes" in dom
         assert market_id in dom

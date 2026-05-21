@@ -53,6 +53,9 @@ _PERPS_PROOF_PROFILE_ID = "perps_stream8_live_wallet_v0"
 _PERPS_PROOF_PROFILE_SCHEMA = "zenodex/perps_wallet/proof_profile/v1"
 _PERPS_PROOF_INTENT_SCHEMA = "zenodex/perps_wallet/proof_intent_receipt/v1"
 _PERPS_PROOF_INTENT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
+_ORACLE_AUTHORITY_EXERCISE_SCHEMA = "zenodex/perps_wallet/oracle_authority_exercise/v1"
+_ORACLE_AUTHORITY_EXERCISE_HASH_DOMAIN = "zenodex.perps_wallet.oracle_authority_exercise/v1"
+_ORACLE_AUTHORITY_ACTIONS = {"settle_epoch", "partial_liquidate"}
 
 
 def _env_str(name: str, default: str) -> str:
@@ -220,6 +223,12 @@ def _bind_oracle_authority_status(
         status["status"] = "blocked"
         status.setdefault("readiness_gaps", []).append("oracle production authority profile chain_id mismatch")
     return status
+
+
+def _require_production_oracle_authority_for_action(action: str) -> bool:
+    if action not in _ORACLE_AUTHORITY_ACTIONS:
+        return False
+    return _env_bool("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", False)
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -437,6 +446,7 @@ def _perps_proof_profile() -> dict[str, Any]:
             "engine_preflight_replay",
             "post_submit_app_hash_binding_when_available",
             "public_state_delta_witness_binding",
+            "oracle_authority_quorum_binding_when_exercised",
         ],
         "not_covered": [
             "risc0_zkvm_wrapper",
@@ -472,10 +482,16 @@ def _perps_proof_intent_receipt(
     signing_mode: str,
     tau_tx_payload: Mapping[str, Any] | None,
     state_delta_witness: Mapping[str, Any] | None = None,
+    oracle_authority_exercise: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     tau_tx_hash = None
     if tau_tx_payload is not None:
         tau_tx_hash = _hash_payload("zenodex.perps_wallet.tau_tx_payload/v1", tau_tx_payload)
+    oracle_authority_exercise_hash = None
+    oracle_authority_exercised = False
+    if oracle_authority_exercise is not None:
+        oracle_authority_exercise_hash = str(oracle_authority_exercise.get("exercise_hash") or "")
+        oracle_authority_exercised = bool(oracle_authority_exercise.get("authority_exercised"))
     body: dict[str, Any] = {
         "schema": _PERPS_PROOF_INTENT_SCHEMA,
         "profile_id": _PERPS_PROOF_PROFILE_ID,
@@ -495,6 +511,8 @@ def _perps_proof_intent_receipt(
         "tx_fee_limit": str(int(tx_fee_limit)),
         "signing_mode": str(signing_mode),
         "tau_tx_payload_hash": tau_tx_hash,
+        "oracle_authority_exercised": oracle_authority_exercised,
+        "oracle_authority_exercise_hash": oracle_authority_exercise_hash or None,
         "state_delta_witness_hash": (
             None
             if state_delta_witness is None
@@ -507,8 +525,71 @@ def _perps_proof_intent_receipt(
         "schema": _PERPS_PROOF_INTENT_SCHEMA,
         "profile_id": _PERPS_PROOF_PROFILE_ID,
         "body": body,
+        "oracle_authority_exercise": None if oracle_authority_exercise is None else dict(oracle_authority_exercise),
         "state_delta_witness": None if state_delta_witness is None else dict(state_delta_witness),
         "receipt_hash": _hash_payload(_PERPS_PROOF_INTENT_HASH_DOMAIN, body),
+    }
+
+
+def _oracle_authority_exercise_for_action(
+    *,
+    action: str,
+    chain_id: str,
+    operation: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if action not in _ORACLE_AUTHORITY_ACTIONS:
+        return None
+
+    oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
+    oracle_authority = _bind_oracle_authority_status(
+        evaluate_oracle_authority_profile_v1(oracle_authority_profile),
+        profile=oracle_authority_profile,
+        profile_error=oracle_authority_error,
+        expected_chain_id=chain_id,
+    )
+    bridge = operation.get("oracle_adapter_bridge")
+    bridge_present = isinstance(bridge, Mapping)
+    readiness_gaps = list(oracle_authority.get("readiness_gaps") or [])
+    if not bridge_present:
+        readiness_gaps.append("oracle adapter bridge is missing from operation")
+
+    signature_quorum = oracle_authority.get("signature_quorum")
+    if not isinstance(signature_quorum, Mapping):
+        signature_quorum = {}
+    authority_ready = bool(oracle_authority.get("production_authority"))
+    authority_exercised = bool(authority_ready and bridge_present)
+    body: dict[str, Any] = {
+        "schema": _ORACLE_AUTHORITY_EXERCISE_SCHEMA,
+        "action": action,
+        "chain_id": chain_id,
+        "market_id": operation.get("market_id"),
+        "required_for_action": _require_production_oracle_authority_for_action(action),
+        "authority_exercised": authority_exercised,
+        "production_authority": authority_ready,
+        "status": "exercised" if authority_exercised else "blocked",
+        "readiness_gaps": readiness_gaps,
+        "authority_id": oracle_authority.get("authority_id"),
+        "authority_hash": oracle_authority.get("authority_hash"),
+        "expected_authority_hash": oracle_authority.get("expected_authority_hash"),
+        "signer_registry_hash": oracle_authority.get("signer_registry_hash"),
+        "key_manager_hash": oracle_authority.get("key_manager_hash"),
+        "active_signer_count": int(oracle_authority.get("active_signer_count") or 0),
+        "threshold": int(oracle_authority.get("threshold") or 0),
+        "signature_count": int(oracle_authority.get("signature_count") or 0),
+        "signature_quorum_report_hash": signature_quorum.get("quorum_report_hash"),
+        "signature_quorum_accepted_weight": int(signature_quorum.get("accepted_weight") or 0),
+        "signature_quorum_threshold": int(signature_quorum.get("threshold") or 0),
+        "oracle_adapter_bridge_present": bridge_present,
+        "oracle_adapter_bridge_id": bridge.get("bridge_id") if isinstance(bridge, Mapping) else None,
+        "oracle_adapter_bridge_hash": (
+            _hash_payload("zenodex.perps_wallet.oracle_adapter_bridge/v1", bridge)
+            if isinstance(bridge, Mapping)
+            else None
+        ),
+    }
+    return {
+        **body,
+        "exercise_hash": _hash_payload(_ORACLE_AUTHORITY_EXERCISE_HASH_DOMAIN, body),
     }
 
 
@@ -1355,6 +1436,18 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     )
     if for_submit and not preflight.get("ok"):
         raise ValueError(f"preflight_failed: {preflight.get('error') or 'unknown'}")
+    oracle_authority_exercise = _oracle_authority_exercise_for_action(
+        action=action,
+        chain_id=chain_id,
+        operation=operation,
+    )
+    if (
+        oracle_authority_exercise is not None
+        and oracle_authority_exercise.get("required_for_action") is True
+        and oracle_authority_exercise.get("authority_exercised") is not True
+    ):
+        gaps = ", ".join(str(gap) for gap in oracle_authority_exercise.get("readiness_gaps", []))
+        raise ValueError(f"production_oracle_authority_required: {gaps or 'authority not exercised'}")
     quote_asset = str(operation.get("quote_asset") or body.get("quote_asset") or body.get("quoteAsset") or "")
     if not quote_asset:
         quote_asset = _market_quote_asset(app_state, market_id=_market_id(body, action=action))
@@ -1442,8 +1535,10 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
                 tx_fee_limit=tx_fee_limit,
                 signing_mode=signing_mode,
                 tau_tx_payload=tau_tx_payload,
+                oracle_authority_exercise=oracle_authority_exercise,
                 state_delta_witness=None,
             ),
+            "oracle_authority_exercise": oracle_authority_exercise,
         },
     }
     if for_submit:
@@ -1478,8 +1573,10 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             tx_fee_limit=tx_fee_limit,
             signing_mode=signing_mode,
             tau_tx_payload=tau_tx_payload,
+            oracle_authority_exercise=oracle_authority_exercise,
             state_delta_witness=state_delta_witness,
         )
+        payload["proof"]["oracle_authority_exercise"] = oracle_authority_exercise
     return payload
 
 

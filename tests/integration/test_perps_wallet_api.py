@@ -1249,6 +1249,102 @@ def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) ->
     assert payload["report"]["operation"]["oracle_adapter_bridge"]["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
 
 
+def test_submit_settle_epoch_binds_ready_oracle_authority_exercise(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    monkeypatch.setenv(
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON",
+        json.dumps(_oracle_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+    assert status_code == 200
+
+    body = {
+        "action": "settle_epoch",
+        "market_id": MARKET_ID,
+        "operator_privkey": str(OPERATOR_PRIVKEY),
+        "oracle_adapter_bridge": bridge_payload["bridge"],
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
+    exercise = payload["proof"]["oracle_authority_exercise"]
+    assert exercise["schema"] == "zenodex/perps_wallet/oracle_authority_exercise/v1"
+    assert exercise["authority_exercised"] is True
+    assert exercise["production_authority"] is True
+    assert exercise["status"] == "exercised"
+    assert exercise["readiness_gaps"] == []
+    assert exercise["authority_hash"] == _oracle_authority_profile()["authority_hash"]
+    assert exercise["signature_quorum_accepted_weight"] == 2
+    assert exercise["signature_quorum_threshold"] == 2
+    assert exercise["oracle_adapter_bridge_id"] == bridge_payload["bridge"]["bridge_id"]
+    assert str(exercise["oracle_adapter_bridge_hash"]).startswith("0x")
+    receipt = payload["proof"]["intent_receipt"]
+    assert receipt["body"]["oracle_authority_exercised"] is True
+    assert receipt["body"]["oracle_authority_exercise_hash"] == exercise["exercise_hash"]
+    assert receipt["oracle_authority_exercise"]["exercise_hash"] == exercise["exercise_hash"]
+
+
+def test_submit_settle_epoch_requires_ready_oracle_authority_when_enabled(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", "1")
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    monkeypatch.delenv("PERPS_ORACLE_AUTHORITY_PROFILE_JSON", raising=False)
+    monkeypatch.delenv("PERPS_ORACLE_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+    assert status_code == 200
+
+    body = {
+        "action": "settle_epoch",
+        "market_id": MARKET_ID,
+        "operator_privkey": str(OPERATOR_PRIVKEY),
+        "oracle_adapter_bridge": bridge_payload["bridge"],
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "production_oracle_authority_required" in payload["error"]
+    assert "oracle production authority profile is missing" in payload["error"]
+    assert _FakeClient.sent == []
+
+
 def test_oracle_bridge_inspector_summarizes_verified_settle_bridge(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))

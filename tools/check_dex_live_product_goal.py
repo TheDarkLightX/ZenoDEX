@@ -149,6 +149,8 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         description="The stream-8 perps wallet API exposes signed local/testnet clearinghouse transactions.",
         anchors=(
             "PERPS_WALLET_TAU_HOST",
+            "PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY",
+            "oracle_authority_exercise",
             "_build_prepare_response",
             "external_signed_payload",
             "_status_payload",
@@ -163,6 +165,17 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "PerpLiveWalletSurface",
             "<PerpLiveWalletSurface />",
+        ),
+    ),
+    AnchorCheck(
+        area_id="transaction_surfaces_beyond_spot",
+        check_id="perps_ui_renders_oracle_authority_exercise_receipt",
+        path="tools/dex-ui/src/components/perps/PerpLiveWalletSurface.jsx",
+        description="The mounted perps wallet renders the authority-exercise receipt when signed Oracle authority is bound to a submit.",
+        anchors=(
+            "oracleAuthorityExercise",
+            "oracle authority exercised",
+            "oracle authority receipt",
         ),
     ),
     AnchorCheck(
@@ -219,6 +232,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         anchors=(
             "test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge",
             "test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data",
+            "oracle authority exercised yes",
         ),
     ),
     AnchorCheck(
@@ -279,6 +293,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "proof/ZK wrapping",
             "Additional daemon-backed mounted browser Toxiproxy evidence",
             "Additional confidential surface claim-scope evidence",
+            "Additional perps Oracle-authority exercise receipt evidence",
         ),
     ),
 )

@@ -950,6 +950,26 @@ the stale Strategy wording that said the mounted Strategy tab does not submit
 local/testnet strategies. The README now records the current gated AutoTrader
 local/testnet prepare, submit, and execute-once posture.
 
+Additional perps Oracle-authority exercise receipt evidence added on
+2026-05-21:
+
+```bash
+python3 -m py_compile src/integration/perps_wallet_api.py tests/integration/test_perps_wallet_api.py tests/integration/test_perps_wallet_ui_bridge.py
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_submit_settle_epoch_binds_ready_oracle_authority_exercise tests/integration/test_perps_wallet_api.py::test_submit_settle_epoch_requires_ready_oracle_authority_when_enabled
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py
+```
+
+Results: py_compile passed; focused perps Oracle-authority exercise checks `2
+passed`; full perps wallet API checks `32 passed`. The stream `8` proof-intent
+receipt now binds a separate `oracle_authority_exercise` hash for
+`settle_epoch` and `partial_liquidate` actions. A ready exercise requires both
+a ready signed Oracle production-authority profile and an Oracle adapter bridge
+inside the submitted operation. When
+`PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY=1`, the perps wallet API
+fails closed before `sendtx` unless that ready authority profile and typed
+Oracle bridge are both present. The mounted perps wallet UI now renders the
+authority-exercised flag and authority receipt hash from the submit result.
+
 Remaining limits:
 
 - isolated partial liquidation is opt-in; its evidence picker and signed Oracle

@@ -435,6 +435,7 @@ function PerpLiveWalletSurface() {
   const feeCovered = result?.transport?.fee_limit_native_balance_ok;
   const proofProfile = result?.proof?.profile || status?.proof_profile || null;
   const proofReceipt = result?.proof?.intent_receipt || null;
+  const oracleAuthorityExercise = result?.proof?.oracle_authority_exercise || proofReceipt?.oracle_authority_exercise || null;
   const stateDeltaWitness = proofReceipt?.state_delta_witness || result?.post_submit?.state_delta_witness || null;
   const walletAuthority = status?.wallet_authority || null;
   const oracleAuthority = status?.oracle_authority || null;
@@ -764,6 +765,12 @@ function PerpLiveWalletSurface() {
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
           <span>oracle signers {oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span>
           <span>oracle signed quorum {oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span>
+          {oracleAuthorityExercise ? (
+            <>
+              <span>oracle authority exercised {oracleAuthorityExercise.authority_exercised ? 'yes' : 'no'}</span>
+              <span>oracle authority receipt {compactId(oracleAuthorityExercise.exercise_hash)}</span>
+            </>
+          ) : null}
           {oracleFixture?.target?.profile_id ? <span>oracle bridge {oracleFixture.target.profile_id}</span> : null}
           {selectedMarket?.liquidated_this_step != null ? (
             <span>liquidated {selectedMarket.liquidated_this_step ? 'yes' : 'no'}</span>
