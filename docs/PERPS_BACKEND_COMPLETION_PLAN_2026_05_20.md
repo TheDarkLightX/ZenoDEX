@@ -677,8 +677,25 @@ each `1 passed`. `TauNetTcpClient.rpc()` now treats a peer close before the
 newline response terminator as a truncated frame and raises `TauNetRpcError`
 without including the command text or partial response bytes. This closes the
 client-level half-close/truncated-frame gap underneath the mounted stream `8`
-and stream `11` submit paths. Broader packet-loss, jitter, and multi-surface
-network chaos campaigns remain open.
+and stream `11` submit paths. Broader browser/Toxiproxy packet-loss, jitter, and
+multi-surface network chaos campaigns remain open.
+
+Additional multi-surface Tau network-chaos evidence added on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/chaos/test_live_surface_tau_network_chaos.py tests/chaos/test_tau_net_client_chaos.py src/integration/tau_net_client.py
+python3 -m pytest -q tests/chaos/test_live_surface_tau_network_chaos.py tests/chaos/test_tau_net_client_chaos.py -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py tests/integration/test_perps_wallet_api.py -s
+```
+
+Results: py_compile passed; combined Tau client plus live-surface chaos `8
+passed, 2 skipped`; adjacent zUSD/perps wallet API suites `39 passed`. The new
+campaign drives both stream `11` zUSD monetary submit and stream `8` perps
+wallet submit through externally signed Tau payloads. It injects packet loss
+before commit on the zUSD path and jitter/timeout before response on the perps
+path, then asserts both APIs return `502 tau_rpc_error`, record no accepted Tau
+transaction, leave app state unchanged, and do not expose operation, sender, or
+signature material in the error detail.
 
 Additional mounted zUSD Tau RPC partial-response chaos evidence added on
 2026-05-21:
@@ -696,8 +713,8 @@ sends partial private response bytes on `sendtx` and stalls past the configured
 Tau RPC timeout. The live API returns `502 tau_rpc_error`, the mounted UI renders
 that fail-closed error without exposing the partial response, the app state is
 unchanged, no pending Tau transaction is recorded, and the sender sequence stays
-at its pre-submit value. Broader packet-loss, jitter, and multi-surface network
-chaos campaigns remain open.
+at its pre-submit value. Broader browser/Toxiproxy packet-loss, jitter, and
+multi-surface network chaos campaigns remain open.
 
 Additional mounted perps Tau RPC partial-response chaos evidence added on
 2026-05-21:
@@ -717,7 +734,8 @@ UI renders that fail-closed error without exposing the partial response, the app
 state is unchanged, no pending Tau transaction is recorded, and the sender
 sequence stays at its pre-submit value. Mounted stream `8` and stream `11` now
 both have partial-response timeout coverage at the submit boundary. Broader
-packet-loss, jitter, and multi-surface network-chaos campaigns remain open.
+browser/Toxiproxy packet-loss, jitter, and multi-surface network-chaos campaigns
+remain open.
 
 Remaining limits:
 

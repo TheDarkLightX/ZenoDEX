@@ -523,6 +523,22 @@ arrive without the newline frame terminator, so truncated packet closes cannot
 be mistaken for accepted Tau RPC responses and partial bytes are not exposed in
 error text.
 
+Latest multi-surface Tau network-chaos pass on 2026-05-21:
+
+```bash
+python3 -m py_compile tests/chaos/test_live_surface_tau_network_chaos.py tests/chaos/test_tau_net_client_chaos.py src/integration/tau_net_client.py
+python3 -m pytest -q tests/chaos/test_live_surface_tau_network_chaos.py tests/chaos/test_tau_net_client_chaos.py -s
+python3 -m pytest -q tests/integration/test_zusd_monetary_wallet_api.py tests/integration/test_perps_wallet_api.py -s
+```
+
+Results: py_compile passed; combined Tau client plus live-surface chaos `8
+passed, 2 skipped`; adjacent zUSD/perps wallet API suites `39 passed`. The new
+campaign drives both stream `11` zUSD monetary submit and stream `8` perps
+wallet submit through externally signed payloads, injects packet loss before
+commit for zUSD and jitter/timeout before response for perps, and asserts both
+routes return `502 tau_rpc_error` with no accepted Tau transaction, unchanged
+app state, and no operation, sender, or signature material in the error detail.
+
 Latest mounted zUSD Tau RPC partial-response chaos pass on 2026-05-21:
 
 ```bash
@@ -539,7 +555,8 @@ a newline and stalls past the configured Tau RPC timeout. The API returns `502`
 with `tau_rpc_error`, the mounted UI renders that fail-closed error without
 leaking the partial response, the Tau app state is unchanged, no pending
 transaction is recorded, and the sender sequence remains unchanged. Broader
-packet-loss, jitter, and multi-surface network-chaos campaigns remain open.
+browser/Toxiproxy packet-loss, jitter, and multi-surface network-chaos campaigns
+remain open.
 
 Latest mounted perps Tau RPC partial-response chaos pass on 2026-05-21:
 
@@ -558,8 +575,8 @@ with `tau_rpc_error`, the mounted UI renders that fail-closed error without
 leaking the partial response, the app state is unchanged, no pending transaction
 is recorded, and the sender sequence remains unchanged. Together with the
 stream `11` zUSD chaos pass, mounted stream `8` and stream `11` now both cover
-partial-response timeout at the submit boundary. Broader packet-loss, jitter,
-and multi-surface network-chaos campaigns remain open.
+partial-response timeout at the submit boundary. Broader browser/Toxiproxy
+packet-loss, jitter, and multi-surface chaos campaigns remain open.
 
 ## Economic-security status
 
