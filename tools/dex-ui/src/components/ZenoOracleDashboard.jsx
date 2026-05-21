@@ -164,6 +164,7 @@ function snapshotToDashboardData(snapshot) {
           : `+/-${formatE8(feed.confidence_e8)}`,
         deviationBps: feed.deviation_bps ?? 0,
         receiptId: compactId(feed.latest_read_id || feed.latest_aggregate_id),
+        receiptFullId: feed.latest_read_id || feed.latest_aggregate_id || '',
         actionUse: feed.source_policy_id || 'source policy pending',
       };
     }),
@@ -409,7 +410,7 @@ function HealthPanel() {
   );
 }
 
-function LatestRead({ feed }) {
+function LatestRead({ feed, onVerifyReceipt }) {
   return (
     <section className="panel zor-panel">
       <div className="zor-section-header">
@@ -451,16 +452,30 @@ function LatestRead({ feed }) {
           <strong>{feed.actionUse}</strong>
         </span>
       </div>
-      <button className="btn btn-primary zor-wide-btn" type="button">
+      <button
+        className="btn btn-primary zor-wide-btn"
+        type="button"
+        onClick={() => onVerifyReceipt?.(feed.receiptFullId || feed.receiptId)}
+        disabled={!feed.receiptFullId && !feed.receiptId}
+      >
         Verify Receipt
       </button>
     </section>
   );
 }
 
-function VerifyPanel() {
-  const [receiptId, setReceiptId] = useState('');
-  const [status, setStatus] = useState('Waiting for receipt ID');
+function VerifyPanel({ initialReceiptId = '' }) {
+  const [receiptId, setReceiptId] = useState(initialReceiptId);
+  const [status, setStatus] = useState(initialReceiptId ? 'Ready to replay' : 'Waiting for receipt ID');
+
+  useEffect(() => {
+    const nextId = String(initialReceiptId || '').trim();
+    if (!nextId || nextId === receiptId) {
+      return;
+    }
+    setReceiptId(nextId);
+    setStatus('Ready to replay');
+  }, [initialReceiptId, receiptId]);
 
   async function verifyReceipt() {
     const id = receiptId.trim();
@@ -1535,6 +1550,7 @@ function ZenoOracleDashboard() {
   const [feedFilter, setFeedFilter] = useState('all');
   const [timeRange, setTimeRange] = useState('24h');
   const [activeSection, setActiveSection] = useState(getInitialOracleSection);
+  const [verifyReceiptId, setVerifyReceiptId] = useState('');
   const [remoteData, setRemoteData] = useState(null);
   const [apiState, setApiState] = useState('Static preview');
 
@@ -1582,6 +1598,14 @@ function ZenoOracleDashboard() {
 
   const selectedFeed = feeds.find((feed) => feed.id === selectedFeedId) || feeds[0] || ORACLE_FEEDS[0];
   const sectionCopy = ORACLE_SECTION_COPY[activeSection] || ORACLE_SECTION_COPY.Overview;
+  const handleVerifyReceipt = (receiptId) => {
+    const id = String(receiptId || '').trim();
+    if (!id) {
+      return;
+    }
+    setVerifyReceiptId(id);
+    setActiveSection('Verify');
+  };
 
   const coreContent = (() => {
     if (activeSection === 'Feeds') {
@@ -1615,7 +1639,7 @@ function ZenoOracleDashboard() {
         <>
           <div className="zor-two-up">
             <ReporterOnboardingPanel selectedFeed={selectedFeed} />
-            <LatestRead feed={selectedFeed} />
+            <LatestRead feed={selectedFeed} onVerifyReceipt={handleVerifyReceipt} />
           </div>
           <AuthorizationTrailPanel items={authorizationTrail} />
           <SourceDiversityPanel sources={sources} />
@@ -1646,7 +1670,7 @@ function ZenoOracleDashboard() {
         <>
           <div className="zor-two-up">
             <ReceiptBuilderPanel feed={selectedFeed} />
-            <LatestRead feed={selectedFeed} />
+            <LatestRead feed={selectedFeed} onVerifyReceipt={handleVerifyReceipt} />
           </div>
           <AuthorizationTrailPanel items={authorizationTrail} />
           <EvidencePanel />
@@ -1657,7 +1681,7 @@ function ZenoOracleDashboard() {
       return (
         <>
           <div className="zor-two-up">
-            <VerifyPanel />
+            <VerifyPanel initialReceiptId={verifyReceiptId} />
             <ServicesPanel />
           </div>
           <AuthorizationTrailPanel items={authorizationTrail} />
@@ -1795,11 +1819,11 @@ function ZenoOracleDashboard() {
           </div>
 
           <aside className="zor-side-rail" aria-label="Oracle action rail">
-            <LatestRead feed={selectedFeed} />
+            <LatestRead feed={selectedFeed} onVerifyReceipt={handleVerifyReceipt} />
             <FeedStatusPanel feed={selectedFeed} />
             <ReceiptBuilderPanel feed={selectedFeed} />
             <DisputesPanel disputes={disputes} />
-            <VerifyPanel />
+            <VerifyPanel initialReceiptId={verifyReceiptId} />
             <ServicesPanel />
           </aside>
         </div>

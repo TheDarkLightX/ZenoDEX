@@ -2188,6 +2188,20 @@ def _accepted_read_from_aggregate(
 ) -> dict[str, Any]:
     observed_epoch = int(aggregate["observed_epoch"])
     value_e8 = int(aggregate["value_e8"])
+    query_freshness_window = int(query.get("freshness_window_epochs", 0))
+    try:
+        from src.integration.zeno_oracle_authorization import (
+            CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS,
+        )
+    except Exception:  # pragma: no cover - CLI packaging fallback
+        profile_freshness_window = None
+    else:
+        profile_freshness_window = CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS.get(profile_id)
+    effective_freshness_window = (
+        query_freshness_window
+        if profile_freshness_window is None
+        else min(query_freshness_window, int(profile_freshness_window))
+    )
     body = {
         "schema": "zeno_oracle.accepted_read.v1",
         "aggregate_id": aggregate["aggregate_id"],
@@ -2203,7 +2217,7 @@ def _accepted_read_from_aggregate(
         "confidence_e8": int(aggregate["confidence_e8"]),
         "deviation_bps": int(aggregate["deviation_bps"]),
         "observed_epoch": observed_epoch,
-        "expires_at_epoch": observed_epoch + int(query.get("freshness_window_epochs", 0)),
+        "expires_at_epoch": observed_epoch + effective_freshness_window,
         "evidence_class": aggregate.get("evidence_class", query.get("evidence_floor", "O3")),
         "production_authority": False,
     }
@@ -4498,7 +4512,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("Access-Control-Allow-Origin", args.cors_origin)
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.end_headers()
             self.wfile.write(body)

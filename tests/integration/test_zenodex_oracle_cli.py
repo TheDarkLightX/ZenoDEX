@@ -64,6 +64,13 @@ def _http_post_json(url: str, payload: dict[str, object]) -> tuple[int, dict[str
         return exc.code, json.loads(exc.read().decode("utf-8"))
 
 
+def _http_options_json(url: str) -> tuple[int, dict[str, str], dict[str, object]]:
+    request = urllib.request.Request(url, method="OPTIONS")
+    with urllib.request.urlopen(request, timeout=5) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+        return response.status, dict(response.headers.items()), payload
+
+
 def test_version_reports_non_authoritative_pre_mvp_cli() -> None:
     proc = _run("--json", "version")
     data = json.loads(proc.stdout)
@@ -1061,6 +1068,11 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert "/api/oracle/report/submit" in ready["write_paths"]
         assert "/api/oracle/rewards/pay" in ready["write_paths"]
         base = f"http://127.0.0.1:{port}"
+        status, headers, options = _http_options_json(f"{base}/api/oracle/report/submit")
+        assert status == 200
+        assert options["ok"] is True
+        assert "POST" in headers["Access-Control-Allow-Methods"]
+
         status, identity = _http_post_json(f"{base}/api/oracle/identity/create", {"force": True})
         assert status == 200
         assert identity["reporter_id"].startswith("sha256:")
@@ -1161,6 +1173,7 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         )
         assert status == 200
         assert read["read"]["value_e8"] == 123456789
+        assert read["read"]["expires_at_epoch"] == 14
         status, authorization = _http_post_json(
             f"{base}/api/oracle/authorization/build",
             {
