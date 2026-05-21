@@ -84,6 +84,17 @@ def _attestation_request() -> dict[str, object]:
     }
 
 
+def _runtime_request(*, request_id: str = "req-runtime", execution_id: str = "exec-runtime") -> dict[str, object]:
+    return {
+        **_attestation_request(),
+        "request_id": request_id,
+        "expected_policy_digest": POLICY_DIGEST,
+        "execution_id": execution_id,
+        "execution_kind": "private_route_quote",
+        "result_code": "bounded_route_selected",
+    }
+
+
 def _post_json(host: str, port: int, path: str, body: dict[str, object]) -> tuple[int, dict[str, object]]:
     conn = HTTPConnection(host, port, timeout=3.0)
     conn.request("POST", path, body=json.dumps(body), headers={"Content-Type": "application/json"})
@@ -161,6 +172,7 @@ def test_api_server_confidential_attestation_status_reports_verifier_posture(mon
         assert status["approved_measurements_count"] == 1
         assert status["providers"] == ["nitro"]
         assert "POST /api/confidential/attestation/admit" in status["endpoints"]
+        assert "POST /api/confidential/attestation/execute" in status["endpoints"]
     finally:
         _stop_test_server(httpd, t)
 
@@ -241,6 +253,88 @@ def test_api_server_confidential_attestation_admit_policy_mismatch_does_not_cons
         assert rejected["request_consumed"] is False
 
         status, accepted = _post_json(host, port, "/api/confidential/attestation/admit", good_request)
+        assert status == 200
+        assert accepted["ok"] is True
+        assert accepted["request_consumed"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_execute_returns_bounded_runtime_receipt(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(host, port, "/api/confidential/attestation/execute", _runtime_request())
+        assert status == 200
+        assert body["ok"] is True
+        assert body["admission_ok"] is True
+        assert body["execution_ok"] is True
+        assert body["request_consumed"] is True
+        assert body["result_redacted"] is True
+        assert body["claim_scope"] == "local_testnet_external_verifier_bounded_runtime_receipt"
+        assert body["execution_kind"] == "private_route_quote"
+        assert body["result_code"] == "bounded_route_selected"
+        runtime_receipt = body["runtime_receipt"]
+        assert runtime_receipt["body"]["measurement_provider"] == "nitro"
+        assert runtime_receipt["body"]["result_redacted"] is True
+        assert runtime_receipt["body"]["public_summary"]["execution_admitted"] is True
+        assert body["runtime_receipt_hash"] == runtime_receipt["receipt_hash"]
+        response_text = json.dumps(body, sort_keys=True)
+        assert "attestation_payload" not in body
+        assert "attestation_payload" not in response_text
+        assert "private_route_hint" not in response_text
+        assert PRIVATE_ROUTE_HINT not in response_text
+        assert POLICY_DIGEST not in response_text
+        assert NITRO_PCR0 not in response_text
+        assert NITRO_PCR8 not in response_text
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_execute_rejects_replay_without_second_receipt(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    request = _runtime_request()
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, first = _post_json(host, port, "/api/confidential/attestation/execute", request)
+        assert status == 200
+        assert first["ok"] is True
+        assert first["request_consumed"] is True
+
+        status, replay = _post_json(host, port, "/api/confidential/attestation/execute", request)
+        assert status == 400
+        assert replay["ok"] is False
+        assert replay["error"] == "request_replay"
+        assert replay["request_consumed"] is False
+        assert replay["execution_ok"] is False
+        assert "runtime_receipt" not in replay
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_execute_bad_runtime_request_does_not_consume(monkeypatch) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    bad_request = _runtime_request(execution_id="exec runtime")
+    good_request = _runtime_request(request_id="req-runtime-good", execution_id="exec-runtime-good")
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, rejected = _post_json(host, port, "/api/confidential/attestation/execute", bad_request)
+        assert status == 400
+        assert rejected["ok"] is False
+        assert rejected["error"] == "bad_runtime_request"
+        assert rejected["admission_ok"] is True
+        assert rejected["request_consumed"] is False
+
+        status, accepted = _post_json(host, port, "/api/confidential/attestation/execute", good_request)
         assert status == 200
         assert accepted["ok"] is True
         assert accepted["request_consumed"] is True

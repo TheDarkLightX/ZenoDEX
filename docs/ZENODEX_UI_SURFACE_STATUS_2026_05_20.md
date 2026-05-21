@@ -11,7 +11,7 @@ This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 | Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, and `/api/oracle/authority` production-authority preflight. Production authority remains blocked unless a local authority profile validates with a signer-registry BLS quorum over the authority hash. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
 | Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit, execute-once, and bounded supervisor panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, stateful execute-once, and bounded supervisor preflight/execute through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, `AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, a public supervisor profile, and an in-process execution-key replay guard. Unattended production execution and production chain submission remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
-| Confidential | Yes | Live operator-status plus local/testnet attestation receipt/admission surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, and stateful live-admission request consumption via `POST /api/confidential/attestation/admit`. Runtime confidential execution remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py` |
+| Confidential | Yes | Live operator-status plus local/testnet attestation and bounded runtime-receipt surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, stateful live-admission request consumption via `POST /api/confidential/attestation/admit`, and redacted bounded runtime receipts via `POST /api/confidential/attestation/execute`. Runtime confidential privacy remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py`, `tests/integration/test_zenodex_live_cross_stream_stateful.py` |
 
 ## Interpretation
 
@@ -22,7 +22,7 @@ The next product-complete backend promotions still required are:
 
 1. public-testnet exercise of a signed production Oracle authority profile, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
 2. production-grade unattended strategy execution beyond explicit local/testnet execute-once and bounded supervisor ticks;
-3. confidential runtime execution beyond the external-verifier attestation receipt and live-admission gate.
+3. confidential runtime privacy beyond the external-verifier attestation receipt, live-admission gate, and bounded redacted runtime receipt path.
 
 Perps now has focused backend and browser evidence for a mounted live wallet
 lane. Collateral-minted zUSD can be transferred and used as the quote collateral
@@ -91,15 +91,16 @@ Tau-envelope transport, stateful replay-guard, and bounded supervisor evidence
 for the Strategy panel, while unattended production strategy execution and
 production wallet key management remain non-claims.
 
-The confidential tab now has a live local/testnet attestation receipt and
-admission path. The mounted API invokes a configured external verifier command,
-builds a confidential extension receipt from the verifier's measurement, policy
-digest, and attestation epoch, then applies the in-repo receipt hash,
-freshness, accounting, host-guard, measurement-allowlist, expected-policy, and
-stateful request-replay gates before returning an admitted receipt. This is
-evidence for the mounted receipt/admission surface only. Runtime confidential
-workload execution and in-process remote-attestation cryptography remain out of
-scope.
+The confidential tab now has a live local/testnet attestation receipt,
+admission path, and bounded runtime-receipt path. The mounted API invokes a
+configured external verifier command, builds a confidential extension receipt
+from the verifier's measurement, policy digest, and attestation epoch, then
+applies the in-repo receipt hash, freshness, accounting, host-guard,
+measurement-allowlist, expected-policy, and stateful request-replay gates
+before returning either an admitted receipt or a redacted bounded runtime
+receipt. The runtime path exposes only provider family, request binding, public
+effect digest, and receipt hashes. Runtime confidential privacy and in-process
+remote-attestation cryptography remain out of scope.
 
 ## Current browser checks
 
@@ -513,24 +514,28 @@ passed. Production Oracle authority now fails closed unless
 perps live wallet UI renders `oracle signed quorum 2/2` for both settle and
 partial-liquidation Oracle authority paths.
 
-Latest confidential attestation receipt pass on 2026-05-21:
+Latest confidential attestation and bounded runtime-receipt pass on 2026-05-21:
 
 ```bash
 python3 -m pytest -q tests/integration/test_api_server_confidential.py
 python3 -m pytest -q tests/integration/test_confidential_ui_bridge.py -s
 ```
 
-Results: API checks `9 passed`; mounted browser smoke `1 passed`. The accepted
-path returns an allowlisted Nitro measurement receipt with a deterministic
-receipt hash, consumes the request in the live-admission table, and rejection
-coverage includes sensitive startup gating, unapproved measurements, stale
-attestations, host-guard failure, accounting mismatch, policy-digest mismatch
-without request consumption, request replay, and a disabled verifier. The
-browser smoke renders `attestation accepted`, `measurement nitro`, `execution
-admitted`, and `request consumed` through the mounted Confidential tab. The API
-checks also assert that raw attestation payload fields are not echoed in accepted
-responses, and the browser smoke asserts that raw Nitro PCR values and the policy
-digest are not rendered in the mounted DOM.
+Results: API checks `12 passed`; mounted browser smoke `1 passed`. The accepted
+paths now cover both live admission and bounded runtime execution: the execute
+route returns a deterministic redacted runtime receipt, exposes only provider
+family plus a public effect digest, and consumes the request only after the
+runtime receipt is built successfully. Rejection coverage includes sensitive
+startup gating, unapproved measurements, stale attestations, host-guard
+failure, accounting mismatch, policy-digest mismatch without request
+consumption, request replay, bad runtime metadata without request consumption,
+and a disabled verifier. The browser smoke renders `attestation accepted`,
+`measurement nitro`, `execution admitted`, `request consumed`, `runtime receipt
+ready`, and `result redacted` through the mounted Confidential tab. The API
+checks also assert that raw attestation payload fields, policy digests, and raw
+PCR values are not echoed in accepted execute responses, and the browser smoke
+asserts that raw Nitro PCR values and the policy digest are not rendered in the
+mounted DOM.
 
 Latest cross-stream stateful replay pass on 2026-05-21:
 

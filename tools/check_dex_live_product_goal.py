@@ -66,6 +66,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "live stream-8 wallet panel",
             "Strategy includes a receipt-backed AutoTrader local/testnet panel",
             "Confidential exposes live operator posture through `GET /api/confidential/status`",
+            "/api/confidential/attestation/*",
         ),
     ),
     AnchorCheck(
@@ -289,6 +290,29 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="assurance_depth",
+        check_id="confidential_runtime_execute_api_and_ui_are_mounted",
+        path="src/integration/confidential_attestation_api.py",
+        description="The confidential API exposes a bounded runtime execute route with redacted public receipts.",
+        anchors=(
+            "POST /api/confidential/attestation/execute",
+            "local_testnet_external_verifier_bounded_runtime_receipt",
+            "bad_runtime_request",
+            "result_redacted",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
+        check_id="confidential_runtime_browser_smoke_renders_redacted_receipt",
+        path="tests/integration/test_confidential_ui_bridge.py",
+        description="Mounted confidential browser smoke renders the bounded runtime receipt and its redaction markers.",
+        anchors=(
+            "runtime receipt ready",
+            "result redacted",
+            "effect digest 0x",
+        ),
+    ),
+    AnchorCheck(
+        area_id="assurance_depth",
         check_id="confidential_claim_scope_gate_remains_present",
         path="tools/check_public_claim_scope.py",
         description="The public claim-scope checker rejects confidentiality overclaims for the mounted Confidential surface.",
@@ -411,7 +435,7 @@ RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "confidential_runtime",
-        "description": "Confidential evidence covers attestation receipt/admission and redaction posture, not runtime private execution.",
+        "description": "Confidential evidence covers attestation receipt/admission, bounded redacted runtime receipts, replay protection, and redaction posture, not runtime private execution privacy.",
     },
 )
 

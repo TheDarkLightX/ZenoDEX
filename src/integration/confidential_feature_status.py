@@ -118,7 +118,7 @@ def _has_real_operator_contact(value: str) -> bool:
 def _runtime_enforcement_readiness_gaps() -> tuple[str, ...]:
     return (
         "cryptographic attestation verification remains external-only",
-        "confidential workload execution remains external to the live API path",
+        "confidential runtime privacy remains external to the live API path",
         "sealed-bid beta runtime/API integration is not wired beyond core/tests/tools",
     )
 
@@ -198,8 +198,8 @@ class ConfidentialFeatureStatus:
                 "with TEE receipts and anti-griefing bond rules."
             ),
             "claim_scope": (
-                "attested receipt admission, replay protection, response redaction, "
-                "and local accounting/conservation checks"
+                "attested receipt admission, bounded runtime receipts, replay protection, "
+                "response redaction, and local accounting/conservation checks"
             ),
             "non_claims": list(_confidentiality_non_claims()),
             "use_cases": [

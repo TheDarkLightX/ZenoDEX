@@ -1130,7 +1130,10 @@ class _Handler(BaseHTTPRequestHandler):
 
         request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
         request_lock = getattr(self.server, "confidential_request_lock", None)  # type: ignore[attr-defined]
-        if path == "/api/confidential/attestation/admit" and request_lock is not None:
+        if path in {
+            "/api/confidential/attestation/admit",
+            "/api/confidential/attestation/execute",
+        } and request_lock is not None:
             with request_lock:
                 status, resp = handle_confidential_attestation_request(
                     method,

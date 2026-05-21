@@ -965,16 +965,16 @@ python3 tools/zenodex_live_cross_stream_stateful.py --format json
 Results: py_compile passed; public claim-scope checks `15 passed`; the public
 claim-scope report returned `ok: true` across docs, the DEX UI README, the
 confidential UI copy source, and the API status string source; confidential API
-tests `9 passed`; mounted confidential browser smoke `1 passed`; cross-stream
-stateful tests `2 passed`; the stateful replay tool returned `ok: true` for `8`
+tests `12 passed`; mounted confidential browser smoke `1 passed`; cross-stream
+stateful tests `2 passed`; the stateful replay tool returned `ok: true` for `9`
 bounded scenarios plus `4` deterministic fuzz seeds of `32` steps each. The
 claim-scope gate now rejects positive claims such as `verifiably confidential`
 or TEE receipt proof of hardware confidentiality, while allowing explicit
-negative scope lines. The mounted confidential tab still proves only live
-operator posture, external-verifier admission, replay rejection, response
-redaction, and request consumption. It does not prove TEE hardware
-confidentiality, vendor attestation soundness, fully encrypted on-chain state,
-or production FHE confidentiality.
+negative scope lines. The mounted confidential tab now proves live operator
+posture, external-verifier admission, replay rejection, response redaction,
+request consumption, and bounded redacted runtime receipts. It does not prove
+TEE hardware confidentiality, vendor attestation soundness, fully encrypted
+on-chain state, or production FHE confidentiality.
 
 Additional live-product goal audit evidence added on 2026-05-21:
 
@@ -1094,9 +1094,10 @@ Remaining limits:
   approval and guardian signature verification remain outside the mounted DEX
   UI; public rotation-broadcast exercises now have receipts, but they still do
   not prove device custody or chain finality;
-- confidential execution is bounded to attested admission, replay protection,
-  redaction, and local accounting evidence; TEE hardware confidentiality and
-  fully encrypted on-chain state remain unproved external assumptions;
+- confidential execution is bounded to attested admission, bounded runtime
+  receipts, replay protection, redaction, and local accounting evidence; TEE
+  hardware confidentiality and fully encrypted on-chain state remain unproved
+  external assumptions;
 - stream `8` and stream `11` now have a fail-closed external proof-verifier
   wrapper gate over proof-intent receipts, but no production RISC Zero, SP1, or
   equivalent circuit proof artifact is present yet.

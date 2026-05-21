@@ -8,6 +8,7 @@ The campaign exercises the mounted live transaction lanes used by the browser:
 - stream 8: clearinghouse perps collateral and settlement actions.
 - AutoTrader explicit local/testnet execute-once request consumption.
 - confidential extension attestation live-admission request consumption.
+- confidential bounded runtime-receipt execution request consumption.
 
 It is intentionally bounded and deterministic. Passing this tool is a receipt
 for the named disaster states under these scenarios, not a broad safety proof.
@@ -32,11 +33,12 @@ from src.core.zusd import E8  # noqa: E402
 from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission  # noqa: E402
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt  # noqa: E402
 from src.integration import autotrader_live_api  # noqa: E402
+from src.integration.confidential_runtime_receipts import build_confidential_runtime_execution_receipt_v1  # noqa: E402
 from src.integration import tau_testnet_dex_plugin as plugin  # noqa: E402
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine  # noqa: E402
 from src.integration.zusd_monetary_bridge import stability_pool_pubkey  # noqa: E402
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id  # noqa: E402
-from src.state.confidential_requests import ConfidentialRequestTable  # noqa: E402
+from src.state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable  # noqa: E402
 
 
 SCHEMA = "zenodex.live_cross_stream_stateful_replay.v1"
@@ -606,6 +608,74 @@ def _scenario_confidential_admission_replay() -> dict[str, Any]:
     }
 
 
+def _scenario_confidential_runtime_execute_replay() -> dict[str, Any]:
+    receipt = _confidential_receipt(request_id="req-conf-runtime-1")
+    request_table = ConfidentialRequestTable()
+
+    ok, err, _updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=CONF_APPROVED_MEASUREMENTS,
+        expected_policy_digest=CONF_POLICY_DIGEST,
+        request_table=request_table,
+    )
+    if not ok:
+        raise AssertionError(err or "confidential runtime admission rejected")
+
+    try:
+        build_confidential_runtime_execution_receipt_v1(
+            receipt=receipt,
+            execution_id="exec runtime bad",
+            execution_kind="private_route_quote",
+            result_code="bounded_route_selected",
+        )
+    except ValueError as exc:
+        bad_runtime_error = str(exc)
+    else:
+        raise AssertionError("bad confidential runtime execution unexpectedly accepted")
+
+    retry_ok, retry_err, _retry_updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=CONF_APPROVED_MEASUREMENTS,
+        expected_policy_digest=CONF_POLICY_DIGEST,
+        request_table=request_table,
+    )
+    if not retry_ok:
+        raise AssertionError(retry_err or "confidential runtime request was consumed before execution")
+
+    runtime_receipt = build_confidential_runtime_execution_receipt_v1(
+        receipt=receipt,
+        execution_id="exec-conf-runtime-1",
+        execution_kind="private_route_quote",
+        result_code="bounded_route_selected",
+    )
+    request_table.mark_used(
+        ConfidentialRequestKey(
+            extension_id="route-premium-v1",
+            provider_id="provider-1",
+            request_id="req-conf-runtime-1",
+        )
+    )
+
+    replay_ok, replay_err, replay_table = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=CONF_APPROVED_MEASUREMENTS,
+        expected_policy_digest=CONF_POLICY_DIGEST,
+        request_table=request_table,
+    )
+    if replay_ok or replay_table is not None:
+        raise AssertionError("confidential runtime replay unexpectedly admitted")
+    if replay_err != "request_replay":
+        raise AssertionError(f"unexpected confidential runtime replay error: {replay_err!r}")
+
+    return {
+        "bad_runtime_error": bad_runtime_error,
+        "retry_after_bad_runtime": "accepted",
+        "runtime_receipt_hash": runtime_receipt["receipt_hash"],
+        "replay_rejection": replay_err,
+        "used_request_count": len(request_table.get_all()),
+    }
+
+
 def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
     class _FakeTauClient:
         sent: list[dict[str, object]] = []
@@ -743,6 +813,12 @@ SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
         "confidential_live_admission_replay_rejected_without_double_consume",
         "duplicate_confidential_admission_after_replay",
         _scenario_confidential_admission_replay,
+        False,
+    ),
+    (
+        "confidential_runtime_execute_replay_rejected_without_double_consume",
+        "duplicate_confidential_runtime_after_replay",
+        _scenario_confidential_runtime_execute_replay,
         False,
     ),
     (
@@ -1041,7 +1117,7 @@ def run_campaign() -> dict[str, Any]:
         "chain_id": CHAIN_ID,
         "surface": (
             "stream11_zusd_monetary__stream9_zusd_token__stream8_clearinghouse_perps__"
-            "autotrader_execute_once__confidential_live_admission"
+            "autotrader_execute_once__confidential_live_admission__confidential_runtime_execute"
         ),
         "scenario_count": len(scenarios),
         "accepted_scenario_count": accepted,

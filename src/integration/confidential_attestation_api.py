@@ -19,6 +19,7 @@ from .confidential_attestation_verifier import (
     verify_and_make_confidential_extension_receipt,
 )
 from .confidential_feature_status import load_confidential_feature_status_from_env
+from .confidential_runtime_receipts import build_confidential_runtime_execution_receipt_v1
 
 
 MAX_POST_BODY = 96_000
@@ -161,6 +162,7 @@ def _status_payload() -> dict[str, Any]:
         "endpoints": [
             "POST /api/confidential/attestation/verify",
             "POST /api/confidential/attestation/admit",
+            "POST /api/confidential/attestation/execute",
         ],
     }
 
@@ -222,6 +224,24 @@ def _receipt_summary(receipt: Mapping[str, Any]) -> dict[str, Any]:
         "request_id": receipt_body.get("request_id"),
         "policy_digest": receipt_body.get("policy_digest"),
         "execution_admitted": bool(host_obj.get("do_execute") == 1),
+    }
+
+
+def _execute_public_summary(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    summary = _receipt_summary(receipt)
+    measurement = summary.get("measurement")
+    measurement_provider = "custom"
+    if isinstance(measurement, str):
+        if measurement.startswith("nitro:"):
+            measurement_provider = "nitro"
+        elif measurement.startswith("azure-sevsnp:"):
+            measurement_provider = "azure-sevsnp"
+    return {
+        "receipt_hash": summary.get("receipt_hash"),
+        "measurement_provider": measurement_provider,
+        "provider_id": summary.get("provider_id"),
+        "request_id": summary.get("request_id"),
+        "execution_admitted": summary.get("execution_admitted"),
     }
 
 
@@ -310,6 +330,86 @@ def _handle_admit(
     }
 
 
+def _handle_execute(
+    body: Mapping[str, Any],
+    *,
+    request_table: ConfidentialRequestTable | None,
+) -> ResponseT:
+    if request_table is None:
+        return 503, {"ok": False, "error": "confidential_request_table_unavailable"}
+    try:
+        expected_policy_digest = _request_str(body, name="expected_policy_digest")
+        execution_id = _request_str(body, name="execution_id")
+        execution_kind = _request_str(body, name="execution_kind")
+        result_code = _request_str(body, name="result_code")
+    except Exception as exc:
+        return 400, {"ok": False, "error": "bad_request", "details": str(exc)}
+
+    receipt, err = _make_receipt_from_body(body)
+    if err is not None or receipt is None:
+        if err and err.startswith("bad_request: "):
+            return 400, {"ok": False, "error": "bad_request", "details": err.removeprefix("bad_request: ")}
+        return 502, {"ok": False, "error": "attestation_verifier_rejected", "details": str(err or "rejected")}
+
+    status = load_confidential_feature_status_from_env()
+    admitted, admission_error, _updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=status.approved_measurements,
+        expected_policy_digest=expected_policy_digest,
+        request_table=request_table,
+    )
+    if not admitted:
+        return 400, {
+            "ok": False,
+            "error": str(admission_error or "admission_rejected"),
+            "admission_ok": False,
+            "execution_ok": False,
+            "request_consumed": False,
+        }
+
+    try:
+        runtime_receipt = build_confidential_runtime_execution_receipt_v1(
+            receipt=receipt,
+            execution_id=execution_id,
+            execution_kind=execution_kind,
+            result_code=result_code,
+        )
+    except Exception as exc:
+        return 400, {
+            "ok": False,
+            "error": "bad_runtime_request",
+            "details": str(exc),
+            "admission_ok": True,
+            "execution_ok": False,
+            "request_consumed": False,
+        }
+
+    key = _request_key_from_receipt(receipt)
+    request_table.mark_used(key)
+    runtime_body = _receipt_body(runtime_receipt) or {}
+    return 200, {
+        "ok": True,
+        "admission_ok": True,
+        "execution_ok": True,
+        "receipt_admissible": True,
+        "request_consumed": True,
+        "request_key": {
+            "extension_id": key.extension_id,
+            "provider_id": key.provider_id,
+            "request_id": key.request_id,
+        },
+        **_execute_public_summary(receipt),
+        "runtime_receipt": runtime_receipt,
+        "runtime_receipt_hash": runtime_receipt.get("receipt_hash"),
+        "execution_id": runtime_body.get("execution_id"),
+        "execution_kind": runtime_body.get("execution_kind"),
+        "result_code": runtime_body.get("result_code"),
+        "public_effect_digest": runtime_body.get("public_effect_digest"),
+        "result_redacted": bool(runtime_body.get("result_redacted") is True),
+        "claim_scope": "local_testnet_external_verifier_bounded_runtime_receipt",
+    }
+
+
 def handle_confidential_attestation_request(
     method: str,
     path: str,
@@ -331,5 +431,11 @@ def handle_confidential_attestation_request(
         if err is not None or obj is None:
             return 400, {"ok": False, "error": str(err or "invalid_request")}
         return _handle_admit(obj, request_table=request_table)
+
+    if method == "POST" and path == "/api/confidential/attestation/execute":
+        obj, err = _parse_json_body(raw_body)
+        if err is not None or obj is None:
+            return 400, {"ok": False, "error": str(err or "invalid_request")}
+        return _handle_execute(obj, request_table=request_table)
 
     return 404, {"ok": False, "error": "not_found"}

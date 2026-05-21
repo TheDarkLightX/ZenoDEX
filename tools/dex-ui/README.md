@@ -28,7 +28,8 @@ Current mounted posture:
   an execution key only after successful submit. Unattended production
   execution and production chain submission remain outside the current claim.
 - Confidential exposes live operator posture through `GET /api/confidential/status`
-  plus static proof and disaster-surface context. It is not the default swap
+  plus bounded local/testnet attestation admission and redacted runtime receipt
+  flows through `/api/confidential/attestation/*`. It is not the default swap
   path or a generally enabled execution lane.
 
 The Confidential tab combines operator status with feature context. It explains:

@@ -3,7 +3,7 @@ export const CONFIDENTIAL_SURFACE = {
     title: 'Confidential Extensions',
     subtitle: 'Private execution help for large trades, fairer hidden-bid auctions, and auditable payments to strategy providers.',
     verifiedAt: '2026-03-07',
-    claimScope: 'Evidence covers admission, replay, response redaction, and local accounting checks.',
+    claimScope: 'Evidence covers admission, bounded runtime receipts, replay, response redaction, and local accounting checks.',
     nonClaim: 'No in-repo proof of TEE hardware confidentiality or fully encrypted on-chain state.',
   },
   checks: [

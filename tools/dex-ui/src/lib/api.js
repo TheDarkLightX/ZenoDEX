@@ -169,6 +169,14 @@ export function apiAdmitConfidentialAttestation(body, options = {}) {
   });
 }
 
+export function apiExecuteConfidentialAttestation(body, options = {}) {
+  return apiFetchJson('/api/confidential/attestation/execute', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+    ...(options || {}),
+  });
+}
+
 export function apiGetZusdWalletStatus(options = {}) {
   return apiFetchJson('/api/zusd/wallet/status', { method: 'GET', ...(options || {}) });
 }

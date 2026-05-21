@@ -22,7 +22,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["schema"] == "zenodex.live_cross_stream_stateful_replay.v1"
     assert receipt["ok"] is True
-    assert receipt["scenario_count"] == 8
+    assert receipt["scenario_count"] == 9
     assert receipt["accepted_scenario_count"] == receipt["scenario_count"]
     assert receipt["fuzz_campaign"]["ok"] is True
     assert receipt["fuzz_campaign"]["seed_count"] == 4
@@ -37,6 +37,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
         "perps_overdeposit_materializes",
         "stale_or_missing_oracle_evidence_settles",
         "duplicate_confidential_admission_after_replay",
+        "duplicate_confidential_runtime_after_replay",
         "autotrader_execute_once_replay_or_failure_key_burn",
     }
 
@@ -73,6 +74,22 @@ def test_live_cross_stream_stateful_replay_writes_receipt(tmp_path: Path) -> Non
             "policy_mismatch_rejection"
         ]
         == "policy_digest_mismatch"
+    )
+    assert (
+        by_id["confidential_runtime_execute_replay_rejected_without_double_consume"]["evidence"]["bad_runtime_error"]
+        == "execution_id must be a safe token"
+    )
+    assert (
+        by_id["confidential_runtime_execute_replay_rejected_without_double_consume"]["evidence"][
+            "retry_after_bad_runtime"
+        ]
+        == "accepted"
+    )
+    assert (
+        by_id["confidential_runtime_execute_replay_rejected_without_double_consume"]["evidence"][
+            "replay_rejection"
+        ]
+        == "request_replay"
     )
     assert (
         by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["first_failure"]
