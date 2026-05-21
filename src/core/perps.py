@@ -309,8 +309,6 @@ class PerpMarketState:
         This prevents malformed snapshots from bypassing phase gates or corrupting
         derived accounting.
         """
-        from .perp_v2.math import maint_margin_req
-
         gs = self.global_state
 
         now_epoch = int(gs["now_epoch"])
@@ -413,10 +411,6 @@ class PerpMarketState:
                 raise ValueError("entry_price_e8 must be 0 when position_base is 0")
             if pos != 0 and entry != index_price_e8:
                 raise ValueError("entry_price_e8 must equal index_price_e8 when position_base is non-zero")
-            if pos != 0:
-                mreq = maint_margin_req(pos, index_price_e8, maintenance_margin_bps, depeg_buffer_bps)
-                if int(acct.collateral_quote) < mreq:
-                    raise ValueError("account collateral below maintenance margin requirement")
 
     def kernel_state_for_account(self, account: PerpAccountState) -> dict[str, Value]:
         # Merge global + account state into a single kernel state dict.

@@ -15,9 +15,10 @@ from urllib.request import urlopen
 import pytest
 
 from src.core.dex import DexState
+from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
@@ -359,6 +360,58 @@ def _liquidation_ready_market_state(
     assert res.ok, res.error
     assert res.state is not None
     return res.state
+
+
+def _isolated_liquidation_ready_market_state(
+    *,
+    market_id: str,
+    quote_asset: str,
+    account_privkey: int,
+) -> DexState:
+    account_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_privkey)
+    global_state = _kernel_initial_global_state()
+    global_state.update(
+        {
+            "now_epoch": 5,
+            "epoch_phase": 0,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 4,
+            "index_price_e8": 10_000_000_000,
+            "max_oracle_staleness_epochs": 100,
+            "max_oracle_move_bps": 500,
+            "initial_margin_bps": 1000,
+            "maintenance_margin_bps": 500,
+            "depeg_buffer_bps": 100,
+            "liquidation_penalty_bps": 50,
+            "max_position_abs": 1_000_000,
+            "fee_pool_quote": 0,
+            "fee_income": 0,
+            "insurance_balance": 100_000,
+            "initial_insurance": 100_000,
+            "claims_paid": 0,
+            "min_notional_for_bounty": 100_000_000,
+        }
+    )
+    market = PerpMarketState(
+        quote_asset=quote_asset,
+        global_state=global_state,
+        accounts={
+            account_pubkey: PerpAccountState(
+                position_base=100,
+                entry_price_e8=10_000_000_000,
+                collateral_quote=300,
+                funding_paid_cumulative=0,
+                funding_last_applied_epoch=0,
+                liquidated_this_step=False,
+            )
+        },
+    )
+    return DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(version=PERPS_STATE_VERSION, markets={market_id: market}),
+    )
 
 
 class _TauRpcState:
@@ -821,6 +874,148 @@ def test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge(tmp_path: Path)
             os.environ.pop("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", None)
         else:
             os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH"] = old_require
+        vite_proc.terminate()
+        api_proc.terminate()
+        tau_server.shutdown()
+        tau_server.server_close()
+        for proc in (vite_proc, api_proc):
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+
+def test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge(tmp_path: Path) -> None:
+    chrome = _chrome_binary()
+    if chrome is None:
+        pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    if shutil.which("npm") is None:
+        pytest.skip("npm is required for the browser UI smoke test")
+    if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
+        pytest.skip("tools/dex-ui dependencies are not installed")
+
+    chain_id = "tau-test-perps-wallet-ui-partial-liquidate"
+    account_privkey = 87
+    account_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_privkey)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    market_id = "perp:isolated:ui-liquidation"
+    app_state_json = _initial_app_state_json(
+        _isolated_liquidation_ready_market_state(
+            market_id=market_id,
+            quote_asset=quote_asset,
+            account_privkey=account_privkey,
+        )
+    )
+
+    tau_port = _free_port()
+    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcHandler)
+    tau_server.allow_reuse_address = True
+    tau_server.state = _TauRpcState(app_state_json=app_state_json)  # type: ignore[attr-defined]
+    tau_server.state.sequences[account_pubkey[2:].lower()] = 6  # type: ignore[attr-defined]
+    tau_server.state.native_balances[account_pubkey[2:].lower()] = 50  # type: ignore[attr-defined]
+    tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
+    tau_thread.start()
+
+    api_port = _free_port()
+    api_base = f"http://127.0.0.1:{api_port}"
+    api_env = {
+        **os.environ,
+        "API_HOST": "127.0.0.1",
+        "API_PORT": str(api_port),
+        "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
+        "PERPS_API_ENABLED": "true",
+        "PERPS_WALLET_API_ENABLED": "true",
+        "PERPS_WALLET_ALLOW_LOCAL_SIGNING": "true",
+        "PERPS_WALLET_AUTO_MINE": "true",
+        "PERPS_WALLET_CHAIN_ID": chain_id,
+        "PERPS_WALLET_TAU_HOST": "127.0.0.1",
+        "PERPS_WALLET_TAU_PORT": str(tau_port),
+        "TAU_DEX_CHAIN_ID": chain_id,
+        "TAU_DEX_ALLOW_ISOLATED_PERPS": "1",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE": "1",
+    }
+    old_chain_id = os.environ.get("TAU_DEX_CHAIN_ID")
+    old_allow_isolated = os.environ.get("TAU_DEX_ALLOW_ISOLATED_PERPS")
+    old_require = os.environ.get("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE")
+    os.environ["TAU_DEX_CHAIN_ID"] = chain_id
+    os.environ["TAU_DEX_ALLOW_ISOLATED_PERPS"] = "1"
+    os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE"] = "1"
+    api_proc = subprocess.Popen(
+        ["python3", "-m", "src.integration.api_server"],
+        cwd=ROOT,
+        env=api_env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    vite_port = _free_port()
+    vite_base = f"http://127.0.0.1:{vite_port}"
+    vite_proc = subprocess.Popen(
+        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(vite_port)],
+        cwd=DEX_UI,
+        env={**os.environ, "API_PROXY_TARGET": api_base, "VITE_DEMO_MODE": "false"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        _wait_for_http(api_base + "/health", timeout_s=30)
+        _wait_for_http(vite_base, timeout_s=30)
+        query = urlencode(
+            {
+                "tab": "perps",
+                "demo": "false",
+                "zenodexUiSmokePerpsWallet": "1",
+                "perpsWalletAction": "partial_liquidate",
+                "marketId": market_id,
+                "accountPrivkey": str(account_privkey),
+                "fractionBps": "0",
+                "perpsUseOracleFixture": "1",
+                "txFeeLimit": "2",
+                "perpsDeadline": str(int(time.time()) + 3600),
+            }
+        )
+        chrome_profile = tmp_path / "chrome-profile-partial-liquidation"
+        result = subprocess.run(
+            [
+                chrome,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                f"--user-data-dir={chrome_profile}",
+                "--virtual-time-budget=20000",
+                "--dump-dom",
+                f"{vite_base}/?{query}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        dom = result.stdout
+        assert "Live Perps Wallet" in dom
+        assert "Partial Liquidate" in dom
+        assert "submit accepted" in dom
+        assert "preflight ok" in dom
+        assert "oracle bridge sha256:" in dom
+        assert "partial liquidation fraction 0 bps" in dom
+        assert "isolated liquidated yes" in dom
+        assert market_id in dom
+    finally:
+        if old_chain_id is None:
+            os.environ.pop("TAU_DEX_CHAIN_ID", None)
+        else:
+            os.environ["TAU_DEX_CHAIN_ID"] = old_chain_id
+        if old_allow_isolated is None:
+            os.environ.pop("TAU_DEX_ALLOW_ISOLATED_PERPS", None)
+        else:
+            os.environ["TAU_DEX_ALLOW_ISOLATED_PERPS"] = old_allow_isolated
+        if old_require is None:
+            os.environ.pop("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", None)
+        else:
+            os.environ["TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE"] = old_require
         vite_proc.terminate()
         api_proc.terminate()
         tau_server.shutdown()

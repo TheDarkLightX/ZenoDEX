@@ -236,8 +236,9 @@ The UI now exposes:
 - Tau fee-limit input plus native-balance coverage reporting
 - Tau submission receipt
 - rejection reason for missing signatures, bad nonce, or insufficient zUSD
-- first-class local typed Oracle adapter bridge fixture for settle testing, plus
-  a JSON bridge field for externally supplied evidence
+- first-class local typed Oracle adapter bridge fixtures for settle and opt-in
+  isolated partial-liquidation testing, plus a JSON bridge field for externally
+  supplied evidence
 
 Still missing from the mounted perps UI:
 
@@ -427,14 +428,25 @@ The fuzz lane adds `long_horizon_balance_drift`,
 Additional isolated partial-liquidation wallet evidence added on 2026-05-21:
 
 ```bash
-python3 -m py_compile src/integration/perps_wallet_api.py
+python3 -m py_compile src/core/perps.py src/core/perp_epoch.py src/integration/perps_wallet_api.py src/integration/tau_testnet_dex_plugin.py
 python3 -m pytest -q tests/integration/test_perps_wallet_api.py
+python3 -m pytest -q tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_partial_liquidate_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_perps_wallet_api.py::test_oracle_bridge_template_preflights_required_settle_epoch tests/integration/test_perps_wallet_ui_bridge.py::test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge -s
+python3 -m pytest -q tests/integration/test_dex_snapshot.py tests/integration/test_perps_stream8_resilience.py
+python3 -m pytest -q tests/integration/test_perp_engine_partial_liquidate.py tests/core/test_perp_v2/test_partial_liquidate.py tests/core/test_perp_epoch_default_adapter.py
+python3 -m pytest -q tests/core/test_perp_liquidation_eligibility_gate.py tests/kernels/test_perp_liquidation_eligibility_v1_native_adapter.py
 npm run build
 ```
 
-Results: perps wallet API tests `15 passed`; the mounted UI production build
-passed. This covers the opt-in gate, account-bound stream `8` transaction
-payload, explicit liquidation fraction, and `0` auto-sizing pass-through.
+Results: perps wallet API tests `16 passed`; the new mounted browser
+partial-liquidation smoke `1 passed`; existing settle-time bridge browser/API
+checks `2 passed`; snapshot plus stream-8 resilience checks `18 passed`;
+partial-liquidation engine/core checks `48 passed`; liquidation eligibility
+checks `10 passed`; the mounted UI production build passed. This covers the
+opt-in gate, typed O3 aggregate-adapter bridge generation for
+`liquidate_account`, account-bound stream `8` submission, explicit liquidation
+fraction, `0` auto-sizing pass-through, and persisted under-maintenance isolated
+accounts reaching the liquidation path.
 
 Remaining limits:
 

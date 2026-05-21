@@ -698,12 +698,16 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
     return summaries
 
 
-def _local_settle_oracle_bridge_fixture(
+def _local_perps_oracle_bridge_fixture(
     *,
     app_state: Mapping[str, Any],
     config: PerpEngineConfig,
     market_id: str,
+    action: str,
+    account_pubkey: str | None = None,
+    fraction_bps: int = 0,
 ) -> dict[str, Any]:
+    wallet_action = action
     from tools.zenodex_oracle import ACTION_TYPE, receipt_content_hash  # pylint: disable=import-outside-toplevel
     from tools.zenodex_oracle_adapter import (  # pylint: disable=import-outside-toplevel
         ACTION_SCHEMA,
@@ -727,27 +731,49 @@ def _local_settle_oracle_bridge_fixture(
     )
     from .perp_engine import (  # pylint: disable=import-outside-toplevel
         _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         _perps_clearinghouse_runtime_oracle_action_id,
+        _perps_liquidate_account_runtime_oracle_action_id,
     )
 
     state = _state_from_app_state(app_state)
     if state.perps is None:
         raise ValueError("missing_perps_state")
     market = state.perps.get_market(market_id)
-    if not isinstance(market, PerpClearinghouse2pMarketState):
-        raise ValueError("oracle bridge fixture supports clearinghouse_2p markets only")
+    if wallet_action == "settle_epoch":
+        if not isinstance(market, PerpClearinghouse2pMarketState):
+            raise ValueError("settle_epoch oracle bridge fixture supports clearinghouse_2p markets only")
+        action_kind = "settle_epoch"
+        profile_id = _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID
+        freshness_window_epochs = 2
+        action_id = _perps_clearinghouse_runtime_oracle_action_id(
+            config,
+            market_id=market_id,
+            action_kind=action_kind,
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=market.quote_asset,
+            state=market.state,
+            participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+        )
+    elif wallet_action == "partial_liquidate":
+        if not isinstance(market, PerpMarketState):
+            raise ValueError("partial_liquidate oracle bridge fixture supports isolated markets only")
+        if account_pubkey is None:
+            raise ValueError("missing_account_pubkey")
+        action_kind = "liquidate_account"
+        profile_id = _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID
+        freshness_window_epochs = 1
+        action_id = _perps_liquidate_account_runtime_oracle_action_id(
+            config,
+            market_id=market_id,
+            market=market,
+            account_pubkey=account_pubkey,
+            fraction_bps=fraction_bps,
+        )
+    else:
+        raise ValueError("unsupported_oracle_bridge_action")
 
-    action_id = _perps_clearinghouse_runtime_oracle_action_id(
-        config,
-        market_id=market_id,
-        action_kind="settle_epoch",
-        market_kind="clearinghouse_2p_v1",
-        quote_asset=market.quote_asset,
-        state=market.state,
-        participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
-    )
-    freshness_window_epochs = 2
     aggregate = sample_admitted_median3_aggregate()
     aggregate_result = verify_admitted_median3_aggregate(aggregate)
     if aggregate_result.status != "accepted":
@@ -783,7 +809,7 @@ def _local_settle_oracle_bridge_fixture(
         "type": ACTION_TYPE,
         "status": "accepted",
         "consumer_module": "zenodex.perps",
-        "action_kind": "settle_epoch",
+        "action_kind": action_kind,
         "action_id": action_id,
         "action_epoch": action_epoch,
         "freshness_window_epochs": freshness_window_epochs,
@@ -806,10 +832,10 @@ def _local_settle_oracle_bridge_fixture(
     }
     aggregate_read["bridge_id"] = aggregate_read_content_hash(aggregate_read)
 
-    action = {
+    adapter_action = {
         "schema": ACTION_SCHEMA,
         "consumer_module": "zenodex.perps",
-        "action_kind": "settle_epoch",
+        "action_kind": action_kind,
         "action_id": action_id,
         "action_epoch": action_epoch,
         "query_id": str(aggregate_result.query_id),
@@ -823,20 +849,20 @@ def _local_settle_oracle_bridge_fixture(
     profile = {
         "schema": PROFILE_SCHEMA,
         "consumer_module": "zenodex.perps",
-        "action_kind": "settle_epoch",
+        "action_kind": action_kind,
         "query_id": str(aggregate_result.query_id),
         "required_evidence_floor": "O3",
         "max_freshness_window_epochs": freshness_window_epochs,
         "critical": True,
     }
     profile["profile_id"] = profile_content_hash(profile)
-    if profile["profile_id"] != _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID:
+    if profile["profile_id"] != profile_id:
         raise ValueError("local oracle profile fixture mismatch")
 
     bridge = {
         "schema": AGGREGATE_ADAPTER_SCHEMA,
         "aggregate_read": aggregate_read,
-        "action": action,
+        "action": adapter_action,
         "profile": profile,
     }
     bridge["bridge_id"] = aggregate_adapter_content_hash(bridge)
@@ -849,13 +875,14 @@ def _local_settle_oracle_bridge_fixture(
         "fixture_kind": "local_o3_aggregate_adapter",
         "production_authority": False,
         "market_id": market_id,
-        "action": "settle_epoch",
+        "action": wallet_action,
         "target": {
             "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
-            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "profile_id": profile_id,
             "action_id": action_id,
             "consumer_module": "zenodex.perps",
-            "action_kind": "settle_epoch",
+            "action_kind": action_kind,
+            "wallet_action": wallet_action,
         },
         "bridge": bridge,
         "verify_result": verify_result,
@@ -1043,16 +1070,26 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
             return 200, _build_prepare_response(parsed, for_submit=True)
         if rest == ["oracle-bridge-template"]:
             action = str(parsed.get("action", "settle_epoch")).strip().lower()
-            if action != "settle_epoch":
+            if action not in {"settle_epoch", "partial_liquidate"}:
                 return 400, {"ok": False, "error": "unsupported_oracle_bridge_action"}
             chain_id = str(parsed.get("chain_id") or _tau_chain_id())
             client = _tau_client()
             app_state, _app_hash = _load_app_state(client)
             config = _build_perp_config(chain_id=chain_id)
-            return 200, _local_settle_oracle_bridge_fixture(
+            account_pubkey: str | None = None
+            fraction_bps = 0
+            if action == "partial_liquidate":
+                account_pubkey = _account_pubkey(parsed, field="account_pubkey", privkey_field="account_privkey")
+                fraction_bps = _request_u32(parsed, name="fraction_bps")
+                if fraction_bps > 10_000:
+                    raise ValueError("bad_fraction_bps")
+            return 200, _local_perps_oracle_bridge_fixture(
                 app_state=app_state,
                 config=config,
-                market_id=_market_id(parsed),
+                market_id=_market_id(parsed, action=action),
+                action=action,
+                account_pubkey=account_pubkey,
+                fraction_bps=fraction_bps,
             )
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:

@@ -83,6 +83,10 @@ function parseIntOrNull(raw) {
   return Number.isFinite(value) ? value : null;
 }
 
+function actionSupportsOracleFixture(action) {
+  return action === 'settle_epoch' || action === 'partial_liquidate';
+}
+
 function buildPayload(form) {
   const action = form.action;
   const payload = {
@@ -202,11 +206,18 @@ function PerpLiveWalletSurface() {
   }
 
   async function buildOracleFixturePayload(sourceForm) {
+    const action = sourceForm.action === 'partial_liquidate' ? 'partial_liquidate' : 'settle_epoch';
+    const request = {
+      action,
+      market_id: sourceForm.market_id.trim(),
+    };
+    if (action === 'partial_liquidate') {
+      if (sourceForm.account_pubkey.trim()) request.account_pubkey = sourceForm.account_pubkey.trim();
+      if (sourceForm.account_privkey.trim()) request.account_privkey = sourceForm.account_privkey.trim();
+      request.fraction_bps = parseIntOrNull(sourceForm.fraction_bps) ?? 0;
+    }
     const payload = await apiBuildPerpsOracleBridge(
-      {
-        action: 'settle_epoch',
-        market_id: sourceForm.market_id.trim(),
-      },
+      request,
       { timeoutMs: 15000 },
     );
     const bridgeText = JSON.stringify(payload.bridge, null, 2);
@@ -240,7 +251,7 @@ function PerpLiveWalletSurface() {
     setForm((current) => ({ ...current, ...smoke }));
     async function runSmoke() {
       let nextForm = { ...EMPTY_FORM, ...smoke };
-      if (nextForm.action === 'settle_epoch' && nextForm.use_oracle_fixture) {
+      if (actionSupportsOracleFixture(nextForm.action) && nextForm.use_oracle_fixture) {
         nextForm = await buildOracleFixturePayload(nextForm);
       }
       const payload = await apiSubmitPerpsWallet(buildPayload(nextForm), { timeoutMs: 20000 });
@@ -267,6 +278,16 @@ function PerpLiveWalletSurface() {
     () => markets.find((market) => market?.market_id === form.market_id.trim()) || null,
     [markets, form.market_id],
   );
+  const selectedAccount = useMemo(() => {
+    const accounts = Array.isArray(selectedMarket?.accounts) ? selectedMarket.accounts : [];
+    if (!accounts.length) return null;
+    const accountPubkey = form.account_pubkey.trim().toLowerCase();
+    if (accountPubkey) {
+      const match = accounts.find((account) => String(account?.account_pubkey || '').toLowerCase() === accountPubkey);
+      if (match) return match;
+    }
+    return accounts[0];
+  }, [selectedMarket, form.account_pubkey]);
   const feeCovered = result?.transport?.fee_limit_native_balance_ok;
 
   return (
@@ -397,6 +418,14 @@ function PerpLiveWalletSurface() {
                     onChange={(event) => setForm((current) => ({ ...current, oracle_adapter_bridge: event.target.value }))}
                     placeholder="optional JSON bridge"
                   />
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={handleUseOracleFixture}
+                    disabled={busy || !form.market_id.trim() || (!form.account_pubkey.trim() && !form.account_privkey.trim())}
+                  >
+                    Build Oracle Bridge
+                  </button>
                 </>
               ) : null}
             </>
@@ -514,6 +543,12 @@ function PerpLiveWalletSurface() {
           <span>quote B {selectedMarket.account_b_quote_balance ?? 0}</span>
           <span>posted A {selectedMarket.collateral_e8_a ?? 0}</span>
           <span>posted B {selectedMarket.collateral_e8_b ?? 0}</span>
+          {selectedMarket.account_count != null ? <span>accounts {selectedMarket.account_count}</span> : null}
+          {selectedAccount?.position_base != null ? <span>position {selectedAccount.position_base}</span> : null}
+          {selectedAccount?.collateral_quote != null ? <span>collateral {selectedAccount.collateral_quote}</span> : null}
+          {selectedAccount?.liquidated_this_step != null ? (
+            <span>isolated liquidated {selectedAccount.liquidated_this_step ? 'yes' : 'no'}</span>
+          ) : null}
         </div>
       ) : null}
       {result ? (

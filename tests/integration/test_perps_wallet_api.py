@@ -10,7 +10,6 @@ from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-from src.core.perp_epoch import PerpStepResult
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 import src.integration.perps_wallet_api as perps_wallet_api
 
@@ -223,16 +222,24 @@ def _state_with_isolated_liquidatable_account(*, quote_asset: str) -> DexState:
     global_state = _kernel_initial_global_state()
     global_state.update(
         {
-            "now_epoch": 3,
+            "now_epoch": 5,
             "epoch_phase": 0,
             "oracle_seen": True,
-            "oracle_last_update_epoch": 2,
-            "index_price_e8": 100_000_000,
-            "fee_pool_quote": 100,
-            "fee_income": 100,
-            "initial_insurance": 500,
-            "insurance_balance": 600,
-            "min_notional_for_bounty": 0,
+            "oracle_last_update_epoch": 4,
+            "index_price_e8": 10_000_000_000,
+            "max_oracle_staleness_epochs": 100,
+            "max_oracle_move_bps": 500,
+            "initial_margin_bps": 1000,
+            "maintenance_margin_bps": 500,
+            "depeg_buffer_bps": 100,
+            "liquidation_penalty_bps": 50,
+            "max_position_abs": 1_000_000,
+            "fee_pool_quote": 0,
+            "fee_income": 0,
+            "initial_insurance": 100_000,
+            "insurance_balance": 100_000,
+            "claims_paid": 0,
+            "min_notional_for_bounty": 100_000_000,
         }
     )
     market = PerpMarketState(
@@ -240,9 +247,9 @@ def _state_with_isolated_liquidatable_account(*, quote_asset: str) -> DexState:
         global_state=global_state,
         accounts={
             ALICE: PerpAccountState(
-                position_base=100_000,
-                entry_price_e8=100_000_000,
-                collateral_quote=20_000,
+                position_base=100,
+                entry_price_e8=10_000_000_000,
+                collateral_quote=300,
                 funding_paid_cumulative=0,
                 funding_last_applied_epoch=0,
                 liquidated_this_step=False,
@@ -712,9 +719,57 @@ def test_prepare_partial_liquidate_accepts_auto_fraction_zero(monkeypatch) -> No
     assert payload["report"]["operation"]["fraction_bps"] == 0
 
 
-def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) -> None:
-    from src.integration import perp_engine as perp_engine_module
+def test_oracle_bridge_template_preflights_required_partial_liquidate(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps(
+            {
+                "action": "partial_liquidate",
+                "market_id": ISOLATED_MARKET_ID,
+                "account_pubkey": ALICE,
+                "fraction_bps": 0,
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert bridge_payload["ok"] is True
+    assert bridge_payload["action"] == "partial_liquidate"
+    assert bridge_payload["target"]["action_kind"] == "liquidate_account"
+    assert bridge_payload["target"]["wallet_action"] == "partial_liquidate"
+    assert bridge_payload["verify_result"]["status"] == "accepted"
+
+    body = {
+        "action": "partial_liquidate",
+        "market_id": ISOLATED_MARKET_ID,
+        "account_pubkey": ALICE,
+        "fraction_bps": 0,
+        "oracle_adapter_bridge": bridge_payload["bridge"],
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["operation"]["oracle_adapter_bridge"]["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
+
+
+def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
     _FakeClient.sent = []
@@ -723,30 +778,12 @@ def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) 
     monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    def _fake_default_apply(*, state, action, params):
-        assert action == "partial_liquidate"
-        assert params == {"fraction_bps": 2500, "auth_ok": True}
-        post = dict(state)
-        post["position_base"] = 75_000
-        post["entry_price_e8"] = int(state["index_price_e8"])
-        post["liquidated_this_step"] = True
-        post["fee_pool_quote"] = int(state["fee_pool_quote"]) + 25
-        post["fee_income"] = int(state["fee_income"]) + 25
-        post["insurance_balance"] = int(state["insurance_balance"]) + 25
-        return PerpStepResult(
-            ok=True,
-            state=post,
-            effects={"event": "PartialLiquidationApplied", "liquidated": True},
-        )
-
-    monkeypatch.setattr(perp_engine_module, "perp_epoch_isolated_default_apply", _fake_default_apply)
-
     body = {
         "action": "partial_liquidate",
         "market_id": ISOLATED_MARKET_ID,
         "account_pubkey": ALICE,
         "account_privkey": str(ALICE_PRIVKEY),
-        "fraction_bps": 2500,
+        "fraction_bps": 5000,
         "deadline": 123456789,
         "block_timestamp": 1,
     }
@@ -763,12 +800,12 @@ def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) 
     assert payload["report"]["preflight"]["ok"] is True
     assert payload["report"]["operation"]["version"] == "0.1"
     assert payload["report"]["operation"]["action"] == "partial_liquidate"
-    assert payload["report"]["operation"]["fraction_bps"] == 2500
+    assert payload["report"]["operation"]["fraction_bps"] == 5000
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
     wire_ops = json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])
     assert wire_ops[0]["action"] == "partial_liquidate"
     assert wire_ops[0]["account_pubkey"] == ALICE
-    assert wire_ops[0]["fraction_bps"] == 2500
+    assert wire_ops[0]["fraction_bps"] == 5000
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
 
 

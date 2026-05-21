@@ -399,11 +399,13 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
         Action.APPLY_FUNDING: [("new_rate_bps", "new_rate_bps")],
         Action.DEPOSIT_INSURANCE: [("amount", "amount")],
         Action.APPLY_INSURANCE_CLAIM: [("claim_amount", "claim_amount")],
+        Action.PARTIAL_LIQUIDATE: [("fraction_bps", "fraction_bps")],
     }
     _auth_actions = frozenset({
         Action.DEPOSIT_COLLATERAL, Action.WITHDRAW_COLLATERAL,
         Action.SET_POSITION, Action.CLEAR_BREAKER,
         Action.APPLY_FUNDING, Action.APPLY_INSURANCE_CLAIM,
+        Action.PARTIAL_LIQUIDATE,
     })
 
     p = dict(params or {})
@@ -414,7 +416,10 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
 
     kwargs: dict[str, Any] = {"action": act}
     for field_name, dict_key in fields:
-        kwargs[field_name] = int(p[dict_key])
+        if act is Action.PARTIAL_LIQUIDATE and dict_key not in p:
+            kwargs[field_name] = 0
+        else:
+            kwargs[field_name] = int(p[dict_key])
     if act in _auth_actions:
         kwargs["auth_ok"] = bool(p.get("auth_ok", False))
     return ActionParams(**kwargs)
