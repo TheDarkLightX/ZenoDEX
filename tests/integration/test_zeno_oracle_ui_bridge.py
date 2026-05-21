@@ -281,7 +281,7 @@ def test_oracle_ui_smoke_reports_ready_authority_profile(tmp_path: Path) -> None
         )
         _wait_for_http(vite_base, timeout_s=30)
 
-        query = urlencode({"tab": "oracle", "oracleView": "Verify", "demo": "false"})
+        query = urlencode({"tab": "oracle", "oracleView": "Governance", "demo": "false"})
         chrome_profile = tmp_path / "chrome-profile-authority"
         result = subprocess.run(
             [
@@ -303,7 +303,11 @@ def test_oracle_ui_smoke_reports_ready_authority_profile(tmp_path: Path) -> None
         dom = result.stdout
         assert "ZenoOracle" in dom
         assert "Production authority ready" in dom
-        assert "Verify" in dom
+        assert "Authority Profile" in dom
+        assert "Key Manager" in dom
+        assert "oracle-authority-a" in dom
+        assert "External signer" in dom
+        assert "zenooracle-o3-replay-zk-profile-v1" in dom
     finally:
         if vite_proc is not None:
             vite_proc.terminate()

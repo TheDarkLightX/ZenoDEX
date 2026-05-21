@@ -1450,6 +1450,106 @@ function ServicesPanel() {
   );
 }
 
+function AuthorityProfilePanel({ authorityStatus }) {
+  const status = authorityStatus || {};
+  const keyRefs = Array.isArray(status.key_refs) ? status.key_refs : [];
+  const activeSigners = Array.isArray(status.active_signers) ? status.active_signers : [];
+  const signerByKey = new Map(activeSigners.map((signer) => [signer.key_id, signer]));
+  const gaps = Array.isArray(status.readiness_gaps) ? status.readiness_gaps : [];
+  const walletUx = status.wallet_ux || {};
+  const proofProfile = status.proof_profile || {};
+  const controls = [
+    ['External signer', walletUx.external_signer_required],
+    ['Key manager', walletUx.key_manager_required],
+    ['Device approval', walletUx.device_approval_required],
+    ['Proof required', proofProfile.zk_or_proof_required],
+    ['Receipt replay', proofProfile.oracle_receipt_replay_required],
+  ];
+  const ready = status.production_authority === true;
+
+  return (
+    <section className="panel zor-panel zor-authority-panel">
+      <div className="zor-section-header">
+        <div>
+          <h2>Authority Profile</h2>
+          <p>Public key-manager, signer quorum, wallet approval, and proof posture.</p>
+        </div>
+        <span className={`zor-authority-chip ${ready ? 'zor-authority-ready' : 'zor-authority-blocked'}`}>
+          {ready ? 'Production authority ready' : 'Authority blocked'}
+        </span>
+      </div>
+      <div className="zor-authority-summary">
+        <div>
+          <small>Authority</small>
+          <strong>{status.authority_id || 'missing profile'}</strong>
+        </div>
+        <div>
+          <small>Chain</small>
+          <strong>{status.chain_id || 'unbound'}</strong>
+        </div>
+        <div>
+          <small>Signer quorum</small>
+          <strong>{status.active_signer_count || 0}/{status.threshold || 0}</strong>
+        </div>
+        <div>
+          <small>Key refs</small>
+          <strong>{status.key_ref_count || keyRefs.length}</strong>
+        </div>
+        <div>
+          <small>Runtime proof</small>
+          <strong>{proofProfile.runtime_proof_profile || 'missing'}</strong>
+        </div>
+        <div>
+          <small>Authority hash</small>
+          <strong>{compactId(status.authority_hash)}</strong>
+        </div>
+      </div>
+      <div className="zor-authority-controls">
+        {controls.map(([label, ok]) => (
+          <span key={label} className={ok ? 'zor-control-ok' : 'zor-control-missing'}>
+            {label}
+          </span>
+        ))}
+      </div>
+      <div className="zor-key-manager-table">
+        <div className="zor-key-manager-head">
+          <span>Key Manager</span>
+          <span>Status</span>
+          <span>Signer</span>
+          <span>Public key</span>
+        </div>
+        {keyRefs.length ? (
+          keyRefs.map((keyRef) => {
+            const signer = signerByKey.get(keyRef.key_id);
+            return (
+              <div key={keyRef.key_id} className="zor-key-manager-row">
+                <span>
+                  <strong>{keyRef.key_id}</strong>
+                  <small>{keyRef.origin || 'unknown origin'}</small>
+                </span>
+                <span className={keyRef.status === 'active' ? 'zor-status zor-reporter-active' : 'zor-status zor-stale'}>
+                  {keyRef.status || 'unknown'}
+                </span>
+                <span>{signer ? `${signer.signer_id} / weight ${signer.weight}` : 'unmapped'}</span>
+                <span>{compactId(keyRef.public_key)}</span>
+              </div>
+            );
+          })
+        ) : (
+          <div className="zor-empty-state">No key-manager refs loaded</div>
+        )}
+      </div>
+      {gaps.length ? (
+        <div className="zor-authority-gaps">
+          {gaps.slice(0, 5).map((gap) => (
+            <span key={gap}>{gap}</span>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function FeatureStrip() {
   return (
     <div className="zor-feature-strip" aria-label="ZenoOracle properties">
@@ -1816,6 +1916,7 @@ function ZenoOracleDashboard() {
     if (activeSection === 'Governance') {
       return (
         <>
+          <AuthorityProfilePanel authorityStatus={authorityStatus} />
           <ConsumerProfilePanel />
           <div className="zor-two-up">
             <FeedCreationPanel />

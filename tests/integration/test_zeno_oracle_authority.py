@@ -98,6 +98,18 @@ def test_oracle_authority_complete_profile_is_ready() -> None:
     assert status["threshold"] == 2
     assert status["active_signer_count"] == 2
     assert status["key_ref_count"] == 2
+    assert [entry["key_id"] for entry in status["key_refs"]] == [
+        "oracle-authority-a",
+        "oracle-authority-b",
+    ]
+    assert [entry["signer_id"] for entry in status["active_signers"]] == ["operator-a", "operator-b"]
+    assert status["wallet_ux"] == {
+        "external_signer_required": True,
+        "key_manager_required": True,
+        "device_approval_required": True,
+    }
+    assert status["proof_profile"]["oracle_receipt_replay_required"] is True
+    assert status["proof_profile"]["runtime_proof_profile"] == "zenooracle-o3-replay-zk-profile-v1"
     assert infer_artifact_hash_v0(
         artifact=profile,
         payload_kind=ORACLE_AUTHORITY_PAYLOAD_KIND,

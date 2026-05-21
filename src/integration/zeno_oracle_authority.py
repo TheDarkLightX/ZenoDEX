@@ -181,6 +181,37 @@ def _validate_flag_profile(
             gaps.append(f"{profile_name}.{flag} must be true")
 
 
+def _key_ref_summaries(key_refs: Mapping[str, KeyRef]) -> list[dict[str, Any]]:
+    return [
+        {
+            "key_id": ref.key_id,
+            "status": ref.status,
+            "origin": ref.origin,
+            "algorithm": ref.algorithm,
+            "public_key": ref.public_key,
+            "key_ref_hash": ref.public_dict()["key_ref_hash"],
+            "recovery_policy_id": ref.recovery_policy_id,
+        }
+        for ref in sorted(key_refs.values(), key=lambda item: item.key_id)
+    ]
+
+
+def _active_signer_summaries(active_signers: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "signer_id": str(signer.get("signer_id", "")),
+            "key_id": str(signer.get("key_id", "")),
+            "weight": int(signer.get("weight", 0)) if isinstance(signer.get("weight"), int) else 0,
+            "signer_hash": signer.get("signer_hash"),
+        }
+        for signer in sorted(active_signers, key=lambda item: (str(item.get("signer_id")), str(item.get("key_id"))))
+    ]
+
+
+def _public_flag_profile(profile: Mapping[str, Any], flags: tuple[str, ...]) -> dict[str, bool]:
+    return {flag: profile.get(flag) is True for flag in flags}
+
+
 def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> dict[str, Any]:
     gaps: list[str] = []
     if profile is None:
@@ -193,6 +224,10 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
             active_signer_count=0,
             threshold=0,
             key_ref_count=0,
+            key_refs=[],
+            active_signers=[],
+            wallet_ux={},
+            proof_profile={},
         )
 
     try:
@@ -207,6 +242,10 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
             active_signer_count=0,
             threshold=0,
             key_ref_count=0,
+            key_refs=[],
+            active_signers=[],
+            wallet_ux={},
+            proof_profile={},
         )
 
     if obj.get("schema") != ORACLE_AUTHORITY_PROFILE_SCHEMA_V1:
@@ -245,8 +284,10 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
     except Exception as exc:
         gaps.append(f"signer registry invalid: {exc}")
 
+    wallet_ux_summary: dict[str, bool] = {}
     try:
         wallet_ux = _require_mapping(obj.get("wallet_ux"), name="wallet_ux")
+        wallet_ux_summary = _public_flag_profile(wallet_ux, _REQUIRED_WALLET_UX_FLAGS)
         _validate_flag_profile(
             profile=wallet_ux,
             required_flags=_REQUIRED_WALLET_UX_FLAGS,
@@ -256,8 +297,13 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
     except Exception as exc:
         gaps.append(f"wallet_ux invalid: {exc}")
 
+    proof_profile_summary: dict[str, Any] = {}
     try:
         proof_profile = _require_mapping(obj.get("proof_profile"), name="proof_profile")
+        proof_profile_summary = {
+            **_public_flag_profile(proof_profile, _REQUIRED_PROOF_FLAGS),
+            "runtime_proof_profile": proof_profile.get("runtime_proof_profile"),
+        }
         _validate_flag_profile(
             profile=proof_profile,
             required_flags=_REQUIRED_PROOF_FLAGS,
@@ -279,6 +325,10 @@ def evaluate_oracle_authority_profile_v1(profile: Mapping[str, Any] | None) -> d
         threshold=threshold,
         key_ref_count=len(key_refs),
         expected_authority_hash=expected_hash,
+        key_refs=_key_ref_summaries(key_refs),
+        active_signers=_active_signer_summaries(active_signers),
+        wallet_ux=wallet_ux_summary,
+        proof_profile=proof_profile_summary,
     )
 
 
@@ -292,6 +342,10 @@ def _status(
     threshold: int,
     key_ref_count: int,
     expected_authority_hash: str | None = None,
+    key_refs: list[dict[str, Any]] | None = None,
+    active_signers: list[dict[str, Any]] | None = None,
+    wallet_ux: Mapping[str, Any] | None = None,
+    proof_profile: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema": ORACLE_AUTHORITY_STATUS_SCHEMA_V1,
@@ -314,5 +368,9 @@ def _status(
         "active_signer_count": int(active_signer_count),
         "threshold": int(threshold),
         "key_ref_count": int(key_ref_count),
+        "key_refs": list(key_refs or []),
+        "active_signers": list(active_signers or []),
+        "wallet_ux": dict(wallet_ux or {}),
+        "proof_profile": dict(proof_profile or {}),
         "not_claimed": list(_NOT_CLAIMED),
     }

@@ -268,9 +268,11 @@ receipt write when `--allow-writes` is absent. The local service now exposes
 `/api/oracle/authority`; `tools/zenodex-oracle authority provision-profile`
 writes `authority/production_authority_profile.json` from public key-manager and
 signer-registry JSON, and the mounted Oracle tab renders `Authority blocked` or
-`Production authority ready` according to that profile. A ready profile requires
-key-manager refs, an Oracle authority signer registry, required wallet approval
-controls, and a proof/replay profile.
+`Production authority ready` according to that profile. The mounted Governance
+view now includes an authority profile panel with public key-manager refs,
+active signer mappings, wallet approval controls, and proof/replay posture. A
+ready profile requires key-manager refs, an Oracle authority signer registry,
+required wallet approval controls, and a proof/replay profile.
 
 Latest Oracle browser pass on 2026-05-21:
 
