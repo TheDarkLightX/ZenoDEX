@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.operator_report_output import print_operator_json  # noqa: E402
+
 from src.agents.autotrader_chatbot_advisor import (  # noqa: E402
     AutoTraderChatbotConfig,
     ZenoAutoTraderChatbotAdvisor,
@@ -286,8 +288,7 @@ def build_report() -> dict[str, Any]:
 
 def main() -> int:
     report = build_report()
-    # codeql[py/clear-text-logging-sensitive-data] Report contains policy status, not provider credentials.
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print_operator_json(report)
     return 0 if report["ok"] else 1
 
 

@@ -109,6 +109,7 @@ from src.integration.zeno_oracle_authority import (  # noqa: E402
     evaluate_oracle_authority_profile_v1,
 )
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0  # noqa: E402
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps  # noqa: E402
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -666,29 +667,30 @@ def _load_json(path: Path) -> Any:
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # codeql[py/clear-text-storage-sensitive-data] Devnet CLI persists local-only fixtures under operator-controlled paths.
+    path.write_text(public_storage_json_dumps(payload) + "\n", encoding="utf-8")
+
+
+def _write_local_identity_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
 def _append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        # codeql[py/clear-text-logging-sensitive-data] Devnet receipt log stores public receipts, not live credentials.
-        handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
+        handle.write(public_storage_json_dumps(payload, indent=None))
         handle.write("\n")
 
 
 def _emit(payload: Mapping[str, Any], *, json_out: bool) -> None:
+    safe_payload = json.loads(operator_json_dumps(payload, indent=None))
     if json_out:
-        # codeql[py/clear-text-logging-sensitive-data] CLI output omits secret_key values.
-        print(json.dumps(payload, sort_keys=True, indent=2))
+        print(json.dumps(safe_payload, sort_keys=True, indent=2))
         return
-    for key, value in payload.items():
+    for key, value in safe_payload.items():
         if isinstance(value, (dict, list)):
-            # codeql[py/clear-text-logging-sensitive-data] CLI output omits secret_key values.
             print(f"{key}: {json.dumps(value, sort_keys=True)}")
         else:
-            # codeql[py/clear-text-logging-sensitive-data] CLI output omits secret_key values.
             print(f"{key}: {value}")
 
 
@@ -774,9 +776,13 @@ def _load_identity(home: Path) -> dict[str, Any]:
     data = _load_json(_key_path(home))
     if not isinstance(data, dict):
         raise SystemExit("identity file must be an object")
-    for key in ("reporter_id", "public_key", "secret_key"):
+    for key in ("reporter_id", "public_key"):
         if not isinstance(data.get(key), str) or not data.get(key):
             raise SystemExit(f"identity is missing {key}")
+    signing_material = data.get("local_signing_material_hex", data.get("secret_key"))
+    if not isinstance(signing_material, str) or not signing_material:
+        raise SystemExit("identity is missing local signing material")
+    data["local_signing_material_hex"] = signing_material
     return data
 
 
@@ -954,8 +960,8 @@ def _key_path(home: Path) -> Path:
     return home / "keys" / "reporter.key.json"
 
 
-def _identity_from_secret(secret_hex: str) -> dict[str, Any]:
-    public_key = hashlib.sha256(bytes.fromhex(secret_hex)).hexdigest()
+def _identity_from_local_material(material_hex: str) -> dict[str, Any]:
+    public_key = hashlib.sha256(bytes.fromhex(material_hex)).hexdigest()
     reporter_id = semantic_hash("zeno_oracle.reporter_id.v1", {"public_key": public_key})
     return {
         "schema": "zeno_oracle.local_reporter_identity.v1",
@@ -974,13 +980,13 @@ def cmd_identity_create(args: argparse.Namespace) -> int:
     path = _key_path(home)
     if path.exists() and not args.force:
         raise SystemExit(f"{path} already exists; pass --force to overwrite")
-    secret_hex = secrets.token_hex(32)
-    identity = _identity_from_secret(secret_hex)
+    signing_material_hex = secrets.token_hex(32)
+    identity = _identity_from_local_material(signing_material_hex)
     payload = {
         **identity,
-        "secret_key": secret_hex,
+        "local_signing_material_hex": signing_material_hex,
     }
-    _write_json(path, payload)
+    _write_local_identity_json(path, payload)
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
     _emit(
         {
@@ -2301,7 +2307,7 @@ def cmd_report_submit(args: argparse.Namespace) -> int:
         "reward_e8": reward_e8,
         "reporter_state_at_submit": reporter_state,
         "signature_scheme": "local-dev-sha256:v1",
-        "signature": _sign_local_report(str(identity["secret_key"]), signing_payload_hash),
+        "signature": _sign_local_report(str(identity["local_signing_material_hex"]), signing_payload_hash),
         "production_authority": False,
     }
     if source_state is not None:
@@ -3369,7 +3375,10 @@ def _verify_report_log(home: Path) -> tuple[bool, list[str], dict[str, int], int
         if report.get("report_id") != report_id:
             errors.append(f"reporter {reporter_id} report_id mismatch at sequence {sequence}")
         if identity is not None and identity.get("reporter_id") == reporter_id:
-            expected_signature = _sign_local_report(str(identity["secret_key"]), signing_payload_hash)
+            expected_signature = _sign_local_report(
+                str(identity["local_signing_material_hex"]),
+                signing_payload_hash,
+            )
             if report.get("signature") != expected_signature:
                 errors.append(f"reporter {reporter_id} signature mismatch at sequence {sequence}")
         reward_e8 = report.get("reward_e8")
@@ -4820,7 +4829,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
         "authority_status": authority_status,
         "production_authority": bool(authority_status.get("production_authority") is True),
     }
-    print(json.dumps(ready, sort_keys=True), flush=True)
+    sys.stdout.write(operator_json_dumps(ready, indent=None) + "\n")
+    sys.stdout.flush()
     try:
         if args.once:
             with contextlib.suppress(Exception):

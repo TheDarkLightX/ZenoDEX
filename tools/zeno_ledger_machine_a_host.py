@@ -28,6 +28,7 @@ from tools.zeno_ledger_node import (
     make_node_http_server_v0,
     run_node_once_v0,
 )
+from tools.operator_report_output import print_operator_json
 
 
 MACHINE_A_HOST_SCHEMA = "zenodex.zeno_ledger.machine_a_host.v0"
@@ -253,8 +254,8 @@ def run_machine_a_host_v0(
         machine_b_token_symbol=machine_b_token_symbol,
         enable_testnet_writes=validated_testnet_writes,
     )
-    # codeql[py/clear-text-logging-sensitive-data] Readiness report omits auth tokens and private keys.
-    print(json.dumps(ready_report, indent=2, sort_keys=True), flush=True)
+    print_operator_json(ready_report)
+    sys.stdout.flush()
 
     try:
         while mirror_thread.is_alive() and writer_thread.is_alive():

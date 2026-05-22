@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.operator_report_output import print_operator_json  # noqa: E402
+
 from src.core.confidential_extension_receipts import (  # noqa: E402
     confidential_measurement_registry_hash,
     confidential_measurement_registry_approves_receipt,
@@ -272,8 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     report = validate_confidential_route_quote_bundle_v0(_load_json(args.bundle))
-    # codeql[py/clear-text-logging-sensitive-data] Bundle validation report contains hashes and gap labels.
-    print(json.dumps(report, sort_keys=True, indent=2 if args.pretty else None))
+    print_operator_json(report, indent=2 if args.pretty else None)
     return 0 if report["ok"] else 1
 
 

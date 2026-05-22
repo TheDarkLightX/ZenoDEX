@@ -37,6 +37,7 @@ from tools.zeno_ledger_node import (
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
 )
+from tools.operator_report_output import print_operator_json, write_public_json
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.public_network_smoke_report.v0"
@@ -434,11 +435,8 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         report = {"schema": REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
     if args.report_out is not None:
-        args.report_out.parent.mkdir(parents=True, exist_ok=True)
-        # codeql[py/clear-text-storage-sensitive-data] Smoke report stores public loopback-test artifacts only.
-        args.report_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    # codeql[py/clear-text-logging-sensitive-data] Smoke report contains public loopback-test artifacts only.
-    print(json.dumps(report, indent=2, sort_keys=True))
+        write_public_json(args.report_out, report)
+    print_operator_json(report)
     return 0 if report.get("ok") is True else 1
 
 

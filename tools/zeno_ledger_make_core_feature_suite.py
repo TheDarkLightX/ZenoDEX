@@ -25,14 +25,14 @@ from tools.zeno_ledger_make_testnet_bundle import (
     build_testnet_bundle_v0,
 )
 from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
+from tools.operator_report_output import print_operator_json, write_public_json
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_public_json(path, value)
 
 
 def _resolve_manifest_path(manifest_path: Path, path_text: object, *, name: str) -> Path:
@@ -1341,8 +1341,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    # codeql[py/clear-text-logging-sensitive-data] Feature suite report contains deterministic public artifacts.
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print_operator_json(report)
     return 0 if report["ok"] else 1
 
 
