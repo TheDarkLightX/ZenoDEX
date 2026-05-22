@@ -41,7 +41,7 @@ from src.integration.zeno_ledger_v0 import (
     validate_proof_metadata_header_binding_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x
-from tools.operator_report_output import print_operator_json, write_public_json
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
@@ -55,7 +55,8 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 
 
 def _write_json(path: Path, value: object) -> None:
-    write_public_json(path, value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(public_storage_json_dumps(value) + "\n", encoding="utf-8")
 
 
 def _write_text(path: Path, value: str) -> None:
@@ -1785,7 +1786,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print_operator_json(result)
+    print(operator_json_dumps(result))
     return 0 if result["ok"] else 1
 
 

@@ -44,7 +44,7 @@ from tools.zeno_ledger_node import (
     run_node_once_v0,
     serve_node_v0,
 )
-from tools.operator_report_output import print_operator_json, write_public_json
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.multidocker_scenario_report.v0"
@@ -56,7 +56,8 @@ MAX_BUNDLE_ARCHIVE_BYTES = 32 * 1024 * 1024
 
 
 def _write_json(path: Path, value: object) -> None:
-    write_public_json(path, value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(public_storage_json_dumps(value) + "\n", encoding="utf-8")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -809,7 +810,7 @@ def run_controller_v0(
 
 def _cmd_plan(args: argparse.Namespace) -> int:
     plan = build_multidocker_plan_v0(machine_count=args.machine_count, network_id=args.network_id, chain_id=args.chain_id)
-    print_operator_json(plan)
+    print(operator_json_dumps(plan))
     return 0
 
 
@@ -821,7 +822,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         report_out=args.report_out,
         bundle_tar_out=args.bundle_tar_out,
     )
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     sys.stdout.flush()
     if args.stay_alive and report["ok"]:
         while True:
@@ -833,7 +834,7 @@ def _cmd_fetch_bundle(args: argparse.Namespace) -> int:
     report = fetch_bundle_archive_v0(bundle_url=args.bundle_url, bundle_root=args.bundle_root)
     if args.report_out is not None:
         _write_json(args.report_out, report)
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report["ok"] else 1
 
 
@@ -871,7 +872,7 @@ def _cmd_controller(args: argparse.Namespace) -> int:
         report_out=args.report_out,
         timeout_seconds=args.timeout_seconds,
     )
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report["ok"] else 1
 
 

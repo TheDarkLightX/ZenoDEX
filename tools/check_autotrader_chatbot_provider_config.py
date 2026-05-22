@@ -19,7 +19,7 @@ from src.agents.autotrader_llm_provider import (  # noqa: E402
     load_autotrader_llm_provider_config_file,
 )
 from tools.evaluate_autotrader_chatbot_providers import build_report as build_eval_report  # noqa: E402
-from tools.operator_report_output import print_operator_json  # noqa: E402
+from tools.operator_report_output import operator_json_dumps  # noqa: E402
 
 SCHEMA = "zenodex/agents/autotrader_chatbot_provider_config_check/v1"
 _FORBIDDEN_SECRET_KEYS = {
@@ -167,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evaluate", action="store_true")
     args = parser.parse_args(argv)
     report = build_report(args.config, evaluate=args.evaluate)
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report["ok"] else 1
 
 

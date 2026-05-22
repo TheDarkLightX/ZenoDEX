@@ -27,7 +27,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TIME_MS,
     build_testnet_bundle_v0,
 )
-from tools.operator_report_output import print_operator_json, write_public_json
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_public_testnet_bundle_report.v0"
@@ -37,7 +37,8 @@ RUN_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_run_feature_suite.py"
 
 
 def _write_json(path: Path, value: object) -> None:
-    write_public_json(path, value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(public_storage_json_dumps(value) + "\n", encoding="utf-8")
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -293,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report["ok"] else 1
 
 
