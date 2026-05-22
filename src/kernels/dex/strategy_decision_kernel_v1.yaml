@@ -1,0 +1,56 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_decision_kernel_v1"
+  created_by: "zenodex"
+  notes: |
+    Binary decision kernel for the formalized auto-trader v1.
+    Candidate 0 is NO_OP and candidate 1 is EMIT_COMPILED_INTENT.
+    Exact ties prefer NO_OP.
+
+observables:
+  state_vars: []
+  effects: ["emit_key", "winner_index", "winner_key", "decision_ok"]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "choose_binary_decision"
+    params:
+      - id: "emit_requested"
+        type: { kind: "bool" }
+      - id: "emit_admissible"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      emit_key:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { param: "emit_requested" }
+            - { param: "emit_admissible" }
+        then: { const: 1 }
+        else: { const: 0 }
+      winner_index:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { param: "emit_requested" }
+            - { param: "emit_admissible" }
+        then: { const: 1 }
+        else: { const: 0 }
+      winner_key:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { param: "emit_requested" }
+            - { param: "emit_admissible" }
+        then: { const: 1 }
+        else: { const: 0 }
+      decision_ok: { bool: true }

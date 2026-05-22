@@ -44,7 +44,7 @@ def _intent_signing_dict(intent: Any) -> Dict[str, Any]:
     d: Dict[str, Any] = {
         "module": intent.module,
         "version": intent.version,
-        "kind": intent.kind.value.lower(),
+        "kind": intent.kind.value,
         "intent_id": intent.intent_id,
         "sender_pubkey": intent.sender_pubkey,
         "deadline": intent.deadline,

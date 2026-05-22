@@ -1,7 +1,7 @@
 # Tau Semantic View
 
 Execution census: `formal/tau/recommended_execution_census_best.json`
-Spec count: `162`
+Spec count: `174`
 
 ## add_liquidity_apply_v1
 
@@ -62,6 +62,88 @@ Spec count: `162`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && le_pair(i1[t]:bv[64], i2[t]:bv[32], i3[t]:bv[64], i4[t]:bv[32])))`
 
+## autotrader_budget_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0`
+- Control surface: sbf inputs `i6`, bv inputs `i1, i2, i3, i4, i5`, always clauses `1`
+- Data helpers: `add_no_wrap, budget_step_valid, is_positive_32`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> budget_step_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf))`
+
+## autotrader_compilation_witness_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:...`
+
+## autotrader_compile_contract_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:...`
+
+## autotrader_emit_finalize_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `1`
+- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 0:sbf) || ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)) ) )`
+
+## autotrader_execution_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `1`
+- Control surface: sbf inputs `i4`, bv inputs `i1, i2, i3, i5, i6, i7, i8, i9`, always clauses `1`
+- Control helpers: `execution_guard_ok`
+- Data helpers: `cadence_ok, live_orders_ok, monotone_epoch_ok, within_window_ok`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> execution_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf, i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32]))`
+
+## autotrader_external_signal_source_registry_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0`
+- Control surface: sbf inputs `i1, i2, i5, i6, i7, i9, i10, i11, i12, i13, i14, i15`, bv inputs `i3, i4, i8`, always clauses `1`
+- Control helpers: `advisory_mode_allowed, auth_requirement_ok, freshness_requirement_ok, registry_enabled_ok, registry_entry_found, source_kind_matches, source_registry_ok`
+- Data helpers: `trust_tier_allowed`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o8`
+- Always: `(o8[t]:sbf = 1:sbf <-> source_registry_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:bv[32], i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:...`
+
+## autotrader_live_admission_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `00000000000`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `11`, covered outputs `o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && (o5[t]:sbf = 1:sbf <-> (i5[t]...`
+
 ## autotrader_nonce_guard_v1
 
 - Profile: `bundle_or_composition`
@@ -73,6 +155,85 @@ Spec count: `162`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = (i2[t]:bv[32] + { #x00000001 }:bv[32]))) && (o2[t]:sbf = 1:sbf <-> (i1[t]:bv[32] > i2[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[32] = i3[t]:bv[32])) && (o4[t]:sbf = 1:sbf <...`
 
+## autotrader_observation_packet_contract_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `error` via ``
+- Execution errors: `tau failed (rc=-1): tau timed out`
+- Control surface: sbf inputs `i3, i4, i5, i6, i7, i8`, bv inputs `i1, i2, i9, i10, i11`, always clauses `1`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( ( (i1[t]:bv[32] = { #x00000001 }:bv[32]) && ( (i2[t]:bv[32] = { #x00000002 }:bv[32]) || (i2[t]:bv[32] = { #x00000003 }:bv[32]) ) ) || ( (i1[t]:bv[32] = { #x00000002 }:bv[32]) && (i2[t]:bv[32]...`
+
+## autotrader_oracle_freshness_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `1`
+- Control surface: sbf inputs `(none)`, bv inputs `i1, i2, i3`, always clauses `1`
+- Control helpers: `oracle_freshness_guard_ok`
+- Data helpers: `freshness_ok, quote_epoch_not_future`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> oracle_freshness_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))`
+
+## autotrader_session_capability_binding_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0000010`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5`, bv inputs `i6, i7, i8, i9`, always clauses `1`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && (o5[t]:sbf = 1:sbf <-> (i5[t]...`
+
+## autotrader_session_state_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `000010`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5`, bv inputs `i6, i7`, always clauses `1`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && ( o5[t]:sbf = 1:sbf <-> ( (i5...`
+
+## autotrader_signal_provenance_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0010`
+- Control surface: sbf inputs `i3, i4, i5, i6, i7, i8, i9`, bv inputs `i1, i2`, always clauses `1`
+- Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:bv[32] = { #x00000001 }:bv[32])) && (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[32] >= { #x00000002 }:bv[32])) && ( o3[t]:sbf = 1:sbf <-> ( (i9[t]:sbf = 0:sbf) || ( (i3[t]:sbf = 1:sbf) && (i4[t]:sbf...`
+
+## autotrader_submit_bundle_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `00011`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) ) ) && ( o2[t]:sbf = 1:sbf <-> ( (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) ) ) && ( o3[t]:sbf = 1:sbf <-> (i7[t]:sbf = 1:sbf...`
+
+## autotrader_system_compose_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `ok` via `spec`
+- Observed output signatures: `001`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15, i16, i17, i18`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `3`, covered outputs `o1, o2, o3`
+- Always: `( o1[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]...`
+
 ## autotrader_tx_envelope_guard_v1
 
 - Profile: `bundle_or_composition`
@@ -83,6 +244,28 @@ Spec count: `162`
 - Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9`, bv inputs `(none)`, always clauses `1`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 0:sbf) || ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)) ) ) && ( o2[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 0:sbf) || ((i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf))...`
+
+## autotrader_wallet_capability_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `00110`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6`, bv inputs `i7, i8, i9, i10, i11`, always clauses `1`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && ( o2[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) ) ) && (o3[t]:sbf = 1:sbf <-> ((...`
+
+## autotrader_wallet_outbound_guard_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `autotrader_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `01101`
+- Control surface: sbf inputs `i5, i6, i7, i8`, bv inputs `i1, i2, i3, i4`, always clauses `1`
+- Equation surface: extractable `True`, equations `5`, covered outputs `o1, o2, o3, o4, o5`
+- Always: `(o1[t]:sbf = 1:sbf <-> (i8[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = i4[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[32] <= i2[t]:bv[32])) && (o4[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && (i6[t]:s...`
 
 ## balance_safety_v1
 
@@ -340,6 +523,17 @@ Spec count: `162`
 - Data helpers: `conservation_ok, lp_expected, monotonicity_ok, no_wrap_add2, no_wrap_mul60, split_math_ok, treasury_expected`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `((o1[t]:sbf = 1:sbf <-> split_math_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> conservation_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o3[t]:sbf = 1:sbf <...`
+
+## fhe_sealed_bid_alpha_guard_v1
+
+- Profile: `exact_combinational_guard`
+- Rule: `amm_and_orderflow_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `011000`
+- Control surface: sbf inputs `i5, i6, i7, i8`, bv inputs `i1, i2, i3, i4`, always clauses `1`
+- Equation surface: extractable `True`, equations `6`, covered outputs `o1, o2, o3, o4, o5, o6`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i1[t]:bv[32] <= { #x00000008 }:bv[32]))) && (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[32] <= { #x01312D00 }:bv[32])) && (o3[t]:sbf = 1:sbf <-> (i3[t]:bv[32] <=...`
 
 ## flash_loan_guard_v1
 
@@ -1210,26 +1404,6 @@ Spec count: `162`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[16] < i2[t]:bv[16]) && (i2[t]:bv[16] < i3[t]:bv[16]) && (i3[t]:bv[16] < i4[t]:bv[16])))`
 
-## settlement_core_module_bundle_v1
-
-- Profile: `bundle_or_composition`
-- Rule: `bundles_and_compositions`
-- Temporal: `False`
-- Execution: `missing` via ``
-- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
-- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)))`
-
-## settlement_feature_extension_bundle_v1
-
-- Profile: `bundle_or_composition`
-- Rule: `bundles_and_compositions`
-- Temporal: `False`
-- Execution: `missing` via ``
-- Control surface: sbf inputs `i1, i2, i3, i4`, bv inputs `(none)`, always clauses `1`
-- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf)))`
-
 ## settlement_module_flag_bundle_v1
 
 - Profile: `bundle_or_composition`
@@ -1273,27 +1447,6 @@ Spec count: `162`
 - Control surface: sbf inputs `(none)`, bv inputs `i1, i2`, always clauses `1`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> (((i2[t]:bv[16] >= i1[t]:bv[16]) && (i2[t]:bv[16] - i1[t]:bv[16] < { #x0032 }:bv[16])) || ((i2[t]:bv[16] < i1[t]:bv[16]) && (i1[t]:bv[16] - i2[t]:bv[16] < { #x0032 }:bv[16]))))`
-
-## settlement_proof_binding_bundle_v1
-
-- Profile: `bundle_or_composition`
-- Rule: `bundles_and_compositions`
-- Temporal: `False`
-- Execution: `missing` via ``
-- Control surface: sbf inputs `i1, i2`, bv inputs `(none)`, always clauses `1`
-- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf)))`
-
-## settlement_signer_registry_anchor_gate_v1
-
-- Profile: `bundle_or_composition`
-- Rule: `batching_and_settlement_suite`
-- Temporal: `False`
-- Execution: `ok` via `repl`
-- Observed output signatures: `0000000`
-- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `i8, i9, i10, i11`, always clauses `1`
-- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
-- Always: `(o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) && (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) && (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) && (o4[t]:bv[16] = ...`
 
 ## settlement_v1_proof_gate
 
@@ -1800,17 +1953,6 @@ Spec count: `162`
 - Data helpers: `duration_ok, lock_capped, lock_max_ok, lock_zero_ok, max_safe_32, max_safe_32_mult, multiplier_ok, safe_range_ok, tokens_ok, weight_max_ok, weight_min_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i4[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> multiplier_ok(i3[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> weight_math_ok(i1[t]:bv[32], i4[t]:bv[32], i3[...`
-
-## zusd_cross_module_oracle_sync_gate_v1
-
-- Profile: `stateful_policy_guard`
-- Rule: `zusd_suite`
-- Temporal: `False`
-- Execution: `missing` via ``
-- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
-- Control helpers: `env_ok, sync_gate_ok`
-- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
-- Always: `(o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> sync_gate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))`
 
 ## zusd_deposit_sp_guard_v1
 

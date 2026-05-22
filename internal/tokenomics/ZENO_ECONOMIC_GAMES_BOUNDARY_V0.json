@@ -1,0 +1,304 @@
+{
+  "counsel_review_required": true,
+  "games": [
+    {
+      "activation_allowed": false,
+      "budgeted": false,
+      "category": "non_economic_status",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "xp_level_og_status",
+      "legal_posture": "allowed_internal",
+      "participant_action": "verified self-directed DEX use, proof work, watcher work, LP duration receipts, and non-wash trading receipts",
+      "requires_counsel_review": false,
+      "requires_separate_tokenomics_gate": false,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "non-transferable account status only",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "counsel_gated_economic_benefit",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "league_fee_discount",
+      "legal_posture": "counsel_gated",
+      "participant_action": "high league status from verified non-wash use",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "capped protocol-fee discount budget",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "counsel_gated_economic_benefit",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "feature_waiver",
+      "legal_posture": "counsel_gated",
+      "participant_action": "high league status from verified account history",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "capped paid-feature waiver budget",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "counsel_gated_token_distribution",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "activity_mined_token_distribution",
+      "legal_posture": "counsel_gated",
+      "participant_action": "eligible non-wash DEX activity receipts within a capped campaign",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": true,
+      "user_terms_disclosed": true,
+      "value_source": "preallocated community or ecosystem token bucket",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "bonded_work_reward",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "proof_mining_rewards",
+      "legal_posture": "counsel_gated",
+      "participant_action": "accepted proof submission with duplicate rejection and verifier acceptance",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": true,
+      "user_terms_disclosed": true,
+      "value_source": "proof incentive bucket or funded proof reward budget",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "bonded_work_reward",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "oracle_reporter_rewards",
+      "legal_posture": "counsel_gated",
+      "participant_action": "bonded accepted oracle report or watcher attestation",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": true,
+      "user_terms_disclosed": true,
+      "value_source": "oracle reward budget with slashable downside",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "high_risk_separate_gate",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "lp_duration_incentives",
+      "legal_posture": "counsel_gated",
+      "participant_action": "completed LP-duration receipts that pass non-wash and age gates",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": true,
+      "user_terms_disclosed": true,
+      "value_source": "capped ecosystem or liquidity-incentive bucket",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "counsel_gated_token_distribution",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "retroactive_activity_airdrop",
+      "legal_posture": "counsel_gated",
+      "participant_action": "historical eligible receipts under a published snapshot rule",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": true,
+      "user_terms_disclosed": true,
+      "value_source": "preallocated community airdrop budget",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "high_risk_separate_gate",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "lock_weighted_governance",
+      "legal_posture": "counsel_gated",
+      "participant_action": "voluntary lock commitment under a published governance-weight formula",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "governance influence, not token payout",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "high_risk_separate_gate",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "referral_rewards",
+      "legal_posture": "counsel_gated",
+      "participant_action": "eligible referral receipt with anti-self-referral and anti-wash gates",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": true,
+      "user_terms_disclosed": true,
+      "value_source": "capped referral budget",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": true,
+      "category": "high_risk_separate_gate",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "burn_indexed_unlock_accelerator",
+      "legal_posture": "counsel_gated",
+      "participant_action": "lagged eligible protocol-fee burns can accelerate insider unlocks under a capped formula",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "capped burn-indexed unlock schedule, not a new token reward",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": false,
+      "category": "forbidden",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "route_or_token_specific_boost",
+      "legal_posture": "forbidden",
+      "participant_action": "use a named token, route, pool, venue, or counterparty to earn extra rewards",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "none; excluded from admitted game set",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    },
+    {
+      "activation_allowed": false,
+      "budgeted": false,
+      "category": "forbidden",
+      "controls": [
+        "objective_rules",
+        "abuse_gate",
+        "covered_user_interface_boundary"
+      ],
+      "id": "revenue_share_or_yield_boost",
+      "legal_posture": "forbidden",
+      "participant_action": "hold XP, level, league, or OG status to receive passive revenue share or yield boost",
+      "requires_counsel_review": true,
+      "requires_separate_tokenomics_gate": true,
+      "specific_transaction_inducement": false,
+      "transferable_reward": false,
+      "user_terms_disclosed": true,
+      "value_source": "none; excluded from low-risk internal game set",
+      "xp_entitlement": false,
+      "xp_transferable": false
+    }
+  ],
+  "global_controls": [
+    "covered_user_interface_boundary_gate",
+    "non_transferable_xp_boundary",
+    "token_distribution_separate_program",
+    "counsel_review_required",
+    "benefit_value_accounting",
+    "anti_wash_sybil_controls",
+    "no_specific_transaction_solicitation",
+    "no_investment_advice",
+    "no_passive_yield_marketing"
+  ],
+  "promotion_boundary": {
+    "claim_registry_entry_allowed": false,
+    "non_claims": [
+      "no_legal_clearance",
+      "no_public_launch_readiness",
+      "no_broker_dealer_registration_clearance",
+      "no_exchange_registration_clearance",
+      "no_investment_return",
+      "no_specific_transaction_solicitation"
+    ],
+    "public_claim_allowed": false
+  },
+  "public_claims_allowed": false,
+  "schema": "zenodex.economic_games_boundary.v0",
+  "status": "internal_research_only"
+}

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from tests.integration._attestation_policy_helper import build_policy_bound_attestation, make_attestation_policy
-
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.liquidity import create_pool
@@ -10,11 +8,14 @@ from src.integration.operations import parse_intents
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from src.integration.settlement_price_attestation import (
+    SettlementSpotPriceAttestation,
     build_settlement_spot_price_attestation,
-    build_settlement_spot_price_attestation_bundle,
-    settlement_spot_price_attestation_signer_pubkey_from_privkey,
 )
-from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    SettlementSpotPricePacket,
+    build_settlement_spot_price_packet,
+)
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.integration.validation import validate_operations
 from src.state import BalanceTable, LPTable
@@ -227,7 +228,7 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
     intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
     intents = parse_intents({"2": intent_dicts})
     settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
-    attestation, _policy = build_policy_bound_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
 
     ok, err = validate_operations(
         intents=intents,
@@ -245,52 +246,25 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
             price_attestation=attestation,
             consumer_now_epoch=103,
             max_attestation_age_epochs=5,
-            attestation_policy=make_attestation_policy(attestation),
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
         ),
     )
     assert ok is True
     assert err is None
 
 
-def test_settlement_end_to_end_certificate_inputs_require_policy_or_snapshot_in_attestation_mode() -> None:
-    _intent_dicts, _balances, _pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
-    attestation, _policy = build_policy_bound_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
-
-    try:
-        SettlementEndToEndCertificateInputs(
-            proof_flags=SettlementProofFlags.all_true(),
-            price_history=(100, 110, 120),
-            feature_extension_inputs=_feature_extension_inputs(),
-            price_attestation=attestation,
-            consumer_now_epoch=103,
-            max_attestation_age_epochs=5,
-            attestation_policy=None,
-        )
-    except ValueError as exc:
-        assert str(exc) == "attestation mode requires attestation_policy or attestation_registry_snapshot"
-    else:
-        raise AssertionError("expected attestation-mode inputs without policy or snapshot to fail")
-
-
-def test_validate_operations_accepts_when_end_to_end_certificate_required_from_attestation_bundle() -> None:
+def test_validate_operations_rejects_attested_certificate_with_packet_hash_snapshot_mismatch() -> None:
     intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
     intents = parse_intents({"2": intent_dicts})
     settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
-    price_packet = _spot_price_packet(asset0, asset1)
-    attestation_policy = make_attestation_policy(
-        {
-            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
-            "signed_at_epoch": int(price_packet.now_epoch),
-            "packet": price_packet.to_dict(),
-        },
-        min_distinct_signers=2,
-        additional_allowed_signers={
-            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
-        },
+    built = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+    attestation = SettlementSpotPriceAttestation(
+        packet=built.packet,
+        signer_pubkey=built.signer_pubkey,
+        signed_at_epoch=built.signed_at_epoch,
+        packet_hash="0x" + "00" * 32,
+        signature=built.signature,
     )
-    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7, attestation_policy=attestation_policy)
-    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8, attestation_policy=attestation_policy)
-    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
 
     ok, err = validate_operations(
         intents=intents,
@@ -305,14 +279,155 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
             proof_flags=SettlementProofFlags.all_true(),
             price_history=(100, 110, 120),
             feature_extension_inputs=_feature_extension_inputs(),
-            price_attestation_bundle=bundle,
+            price_attestation=attestation,
             consumer_now_epoch=103,
             max_attestation_age_epochs=5,
-            attestation_policy=attestation_policy,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
         ),
     )
-    assert ok is True
-    assert err is None
+    assert ok is False
+    assert err == "invalid settlement spot price attestation: packet_hash mismatch"
+
+
+def test_validate_operations_rejects_attestation_with_reordered_price_packet_entries() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
+    built = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+    packet = built.packet
+    reordered_packet = SettlementSpotPricePacket(
+        entries=tuple(reversed(packet.entries)),
+        now_epoch=packet.now_epoch,
+        max_staleness_epochs=packet.max_staleness_epochs,
+        cross_module_sync_required=packet.cross_module_sync_required,
+        cross_module_sync_ok=packet.cross_module_sync_ok,
+        price_vector_sha256=packet.price_vector_sha256,
+        provenance_vector_sha256=packet.provenance_vector_sha256,
+        unique_assets=packet.unique_assets,
+        all_positive=packet.all_positive,
+        all_fresh=packet.all_fresh,
+        provenance_ok=packet.provenance_ok,
+        cross_module_sync_contract=packet.cross_module_sync_contract,
+    )
+    attestation = SettlementSpotPriceAttestation(
+        packet=reordered_packet,
+        signer_pubkey=built.signer_pubkey,
+        signed_at_epoch=built.signed_at_epoch,
+        packet_hash=built.packet_hash,
+        signature=built.signature,
+    )
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        ),
+    )
+    assert ok is False
+    assert err == (
+        "invalid settlement spot price attestation: invalid settlement spot price packet: "
+        "settlement spot price packet mismatch"
+    )
+
+
+def test_validate_operations_rejects_attested_certificate_with_source_allowlist_gap() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
+    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a"]},
+        ),
+    )
+    assert ok is False
+    assert err == "invalid settlement spot price attestation: source_id not allowlisted for signer: oracle:b"
+
+
+def test_validate_operations_rejects_stale_attested_certificate_at_runtime_gate() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
+    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=107,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        ),
+    )
+    assert ok is False
+    assert err == "invalid settlement spot price attestation: settlement spot price attestation is stale"
+
+
+def test_validate_operations_rejects_future_attestation_epoch_at_runtime_gate() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
+    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=99,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        ),
+    )
+    assert ok is False
+    assert err == "invalid settlement spot price attestation: attestation signed_at_epoch is in the future"
 
 
 def test_validate_operations_rejects_when_end_to_end_certificate_required_but_inputs_missing() -> None:

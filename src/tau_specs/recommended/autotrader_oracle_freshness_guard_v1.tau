@@ -1,0 +1,27 @@
+# Auto-trader oracle freshness guard v1
+#
+# Purpose: validate that a quote/receipt snapshot is fresh enough to use under
+# a bounded auto-trader policy.
+#
+# Stream mapping:
+# i1 = current_epoch                 (bv[32])
+# i2 = quote_epoch                   (bv[32])
+# i3 = max_oracle_staleness_epochs   (bv[32])
+#
+# o1 = oracle_freshness_guard_ok
+
+set charvar off
+
+quote_epoch_not_future(current_epoch : bv[32], quote_epoch : bv[32]) :=
+  quote_epoch <= current_epoch.
+
+freshness_ok(current_epoch : bv[32], quote_epoch : bv[32], max_oracle_staleness_epochs : bv[32]) :=
+  (quote_epoch <= current_epoch) &&
+  ((current_epoch - quote_epoch) <= max_oracle_staleness_epochs).
+
+oracle_freshness_guard_ok(current_epoch : bv[32], quote_epoch : bv[32], max_oracle_staleness_epochs : bv[32]) :=
+  quote_epoch_not_future(current_epoch, quote_epoch) &&
+  freshness_ok(current_epoch, quote_epoch, max_oracle_staleness_epochs).
+
+always
+  (o1[t]:sbf = 1:sbf <-> oracle_freshness_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).

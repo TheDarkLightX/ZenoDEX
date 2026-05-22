@@ -5,9 +5,10 @@ edition = "2021"
 description = "Risc0 guest methods (ELF + image IDs) for Tau state proof receipts"
 
 [build-dependencies]
-risc0-build = "2.3.2"
+risc0-build = "1.2"
 
 [dependencies]
 
 [package.metadata.risc0]
 methods = ["guest"]
+

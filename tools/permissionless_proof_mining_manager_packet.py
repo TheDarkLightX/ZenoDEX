@@ -52,15 +52,6 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return _require_mapping(obj, name=str(path))
 
 
-def _verification_flags_from_args(args: argparse.Namespace) -> dict[str, bool]:
-    return {
-        "proof_ok": bool(args.proof_ok),
-        "binding_ok": bool(args.binding_ok),
-        "policy_ok": bool(args.policy_ok),
-        "nonce_ok": bool(args.nonce_ok),
-    }
-
-
 def _snapshot_from_obj(obj: Mapping[str, Any]) -> ProofMiningManagerSnapshot:
     claimed_raw = _require_mapping(obj.get("claimed_slots", {}), name="snapshot.claimed_slots")
     claimed_slots: dict[int, str] = {}
@@ -88,21 +79,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--snapshot", required=True, help="Manager snapshot JSON path")
     parser.add_argument("--output", required=True, help="Output JSON path")
     parser.add_argument("--apply", action="store_true", help="Execute the kernel step and emit the apply result")
-    parser.add_argument("--proof-ok", type=int, choices=(0, 1), default=1)
-    parser.add_argument("--binding-ok", type=int, choices=(0, 1), default=1)
-    parser.add_argument("--policy-ok", type=int, choices=(0, 1), default=1)
-    parser.add_argument("--nonce-ok", type=int, choices=(0, 1), default=1)
     args = parser.parse_args(argv)
 
     claim = _load_json(Path(args.claim))
     snapshot_obj = _load_json(Path(args.snapshot))
     snapshot = _snapshot_from_obj(snapshot_obj)
-    verification_flags = _verification_flags_from_args(args)
-    packet = build_submit_proof_packet(
-        claim_artifact=claim,
-        snapshot=snapshot,
-        verification_flags=verification_flags,
-    )
+    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
 
     if not bool(args.apply):
         out = {
@@ -117,11 +99,7 @@ def main(argv: list[str] | None = None) -> int:
             },
         }
     else:
-        res = apply_submit_proof_packet(
-            packet=packet,
-            snapshot=snapshot,
-            verification_flags=verification_flags,
-        )
+        res = apply_submit_proof_packet(packet=packet, snapshot=snapshot)
         out = {
             "schema": "zenodex/proof_mining_manager_apply_result/v1",
             "ok": bool(res.ok),

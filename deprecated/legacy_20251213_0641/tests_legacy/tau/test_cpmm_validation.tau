@@ -1,0 +1,42 @@
+// Test CPMM Validation
+// Simple test to verify CPMM constraints work correctly
+
+// Input streams
+i1_lo : bv[16] = in console  // reserve_in lower
+i1_hi : bv[16] = in console  // reserve_in upper
+i2_lo : bv[16] = in console  // reserve_out lower
+i2_hi : bv[16] = in console  // reserve_out upper
+i3_lo : bv[16] = in console  // amount_in lower
+i3_hi : bv[16] = in console  // amount_in upper
+i4 : bv[16] = in console      // fee_bps
+i5_lo : bv[16] = in console  // amount_out lower
+i5_hi : bv[16] = in console  // amount_out upper
+
+// Output
+o1 : sbf = out console  // swap_valid
+
+// Constants
+ZERO_16 : bv[16] = { #x0000 }:bv[16]
+MAX_FEE_BPS : bv[16] = { #x2710 }:bv[16]
+
+// Helper: is non-negative
+is_non_negative(hi : bv[16], lo : bv[16]) := 
+  (hi > ZERO_16) | (hi = ZERO_16 & lo >= ZERO_16)
+
+// Helper: is positive
+is_positive(hi : bv[16], lo : bv[16]) :=
+  (hi > ZERO_16) | (hi = ZERO_16 & lo > ZERO_16)
+
+// Helper: greater than or equal
+gte(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) :=
+  (hi1 > hi2) | (hi1 = hi2 & lo1 >= lo2)
+
+// Validation
+o1[t] = 
+  is_non_negative(i1_hi[t], i1_lo[t]) &
+  is_non_negative(i2_hi[t], i2_lo[t]) &
+  is_positive(i3_hi[t], i3_lo[t]) &
+  (i4[t] >= ZERO_16) & (i4[t] <= MAX_FEE_BPS) &
+  is_positive(i5_hi[t], i5_lo[t]) &
+  gte(i2_hi[t], i2_lo[t], i5_hi[t], i5_lo[t])
+

@@ -61,11 +61,9 @@ def test_dex_engine_sequence_grammar_fuzz_cli_emits_expected_schema() -> None:
 
 
 def test_dex_engine_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
-    original = minimize_case("dex_engine_sequence", "DexSeq->ReplayPoolAfterSuccessWithDeadTail", max_rounds=0)
     witness = minimize_case("dex_engine_sequence", "DexSeq->ReplayPoolAfterSuccessWithDeadTail")
     assert witness.outcome_label == "reject:step=1:nonce sequence invalid"
-    assert len(witness.path_id) == 16
-    assert witness.path_id == original.path_id
+    assert witness.path_id == "f29068190e69dacf"
     assert witness.original_size > witness.minimized_size
     assert witness.original_size == 1601
     assert witness.minimized_size == 1076
@@ -97,6 +95,6 @@ def test_dex_engine_sequence_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "dex_engine_sequence"
     assert witness["derivation"] == "DexSeq->ReplayPoolAfterSuccessWithDeadTail"
     assert witness["outcome_label"] == "reject:step=1:nonce sequence invalid"
-    assert len(witness["path_id"]) == 16
+    assert witness["path_id"] == "f29068190e69dacf"
     assert witness["original_size"] == 1601
     assert witness["minimized_size"] == 1076

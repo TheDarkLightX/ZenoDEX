@@ -1,29 +1,16 @@
 from __future__ import annotations
 
-import importlib
 import random
 
 import pytest
 
-
-def _import_or_skip_if_top_level_missing(module_name: str):
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        if exc.name == module_name:
-            pytest.skip(f"{module_name} is not promoted on clean main", allow_module_level=True)
-        raise
-
-
-cpmm_u256_safety = _import_or_skip_if_top_level_missing("src.core.cpmm_u256_safety")
-fixed_width = _import_or_skip_if_top_level_missing("src.core.fixed_width")
-
-analyze_cpmm_exact_in_u256_overflows = cpmm_u256_safety.analyze_cpmm_exact_in_u256_overflows
-fee_total_ceil_bigint = cpmm_u256_safety.fee_total_ceil_bigint
-fee_total_ceil_decomposed = cpmm_u256_safety.fee_total_ceil_decomposed
-mul_div_floor_gcd_reduced_u256 = cpmm_u256_safety.mul_div_floor_gcd_reduced_u256
-U256_MAX = fixed_width.U256_MAX
-will_mul_overflow = fixed_width.will_mul_overflow
+from src.core.cpmm_u256_safety import (
+    analyze_cpmm_exact_in_u256_overflows,
+    fee_total_ceil_bigint,
+    fee_total_ceil_decomposed,
+    mul_div_floor_gcd_reduced_u256,
+)
+from src.core.fixed_width import U256_MAX, will_mul_overflow
 
 
 def test_fee_total_decomposed_matches_bigint_reference_randomized() -> None:
@@ -120,7 +107,7 @@ def test_mul_div_floor_gcd_reduction_rejects_invalid_inputs_and_reports_intracta
 
 def test_cpmm_exact_in_u256_overflow_report_rejects_bad_types_and_u256_bounds() -> None:
     with pytest.raises(TypeError, match="reserve_in must be an int"):
-        analyze_cpmm_exact_in_u256_overflows(reserve_in=1.5, reserve_out=1, amount_in=1, fee_bps=0)
+        analyze_cpmm_exact_in_u256_overflows(reserve_in=1.5, reserve_out=1, amount_in=1, fee_bps=0)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="inputs must fit in u256"):
         analyze_cpmm_exact_in_u256_overflows(reserve_in=U256_MAX + 1, reserve_out=1, amount_in=1, fee_bps=0)

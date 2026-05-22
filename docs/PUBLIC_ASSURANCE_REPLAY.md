@@ -13,15 +13,15 @@ This repo exposes a narrow, replayable public assurance surface. The goal is:
 - keep the publishable surface fail-closed
 
 <!-- BEGIN GENERATED:PUBLIC_ASSURANCE_RELEASE_SNAPSHOT -->
-Pinned release snapshot for this tree (as of 2026-05-16):
+Pinned release snapshot for this tree (as of 2026-04-06):
 
-- acceptance TCB: `373 passed`, `93%` branch coverage
-- critical gate: `745 passed, 1 skipped`, `99%` branch coverage
+- acceptance TCB: `385 passed`, `98.8%` branch coverage
+- critical gate: `1424 passed`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `7 killed, 0 survived, 0 inconclusive`
-- fuzz gate: `11 passed`
-- snapshot recovery: `19 passed`
-- Tau syntax: `62/62`
+- mutation gate: `5 killed, 2 inconclusive`
+- fuzz gate: `58 passed`
+- snapshot recovery: `17 passed`
+- Tau syntax: `60/60`
 - Tau traces: `1/1`
 
 This is historical release evidence for the pinned release tree, not a live status board for the current checkout.
@@ -57,34 +57,11 @@ What is intentionally **not** shipped:
 Clean checkout workflow (with documented external toolchains available):
 
 ```bash
-PYTHON=python3 tools/install_python_hash_locked_deps.sh dev
-python3 tools/check_release_external_toolchains.py
 python3 tools/permissionless_assurance.py status
 python3 tools/permissionless_assurance.py replay public
 python3 tools/permissionless_assurance.py replay critical
 python3 tools/permissionless_assurance.py replay full
 ```
-
-External toolchain preflight:
-
-- `tools/run_release_gate.sh` fails fast through
-  `tools/check_release_external_toolchains.py` before long-running release
-  lanes start.
-- The release gate requires ESSO for the snapshot recovery lane. Provide it by
-  placing a matching ESSO checkout at `external/ESSO` or by using a Python
-  environment where `import ESSO` exposes the LTLf multi-property API used by
-  the perps evidence lane.
-- The Tau syntax lane requires a Tau compiler. Provide it with
-  `TAU_BIN=/path/to/tau` or by building
-  `external/tau-lang/build-Release/tau`.
-- The bounded TLA/TLC lane requires `tla2tools.jar`. Provide it with
-  `TLA_JAR=/path/to/tla2tools.jar` or by running
-  `bash tools/install_tla_tools.sh`.
-- Lean release lanes require `external/mathlib4` because
-  `lean-mathlib/lakefile.lean` pins mathlib through that relative checkout.
-  A local symlink to a reviewed mathlib4 checkout is sufficient.
-- `external/` remains git-ignored by design. The public replay contract is the
-  tracked checker plus the documented external toolchain requirement.
 
 Acceptance fuzz tiers:
 
@@ -99,35 +76,6 @@ python3 tools/acceptance_tcb_fuzz_campaign.py
 - `acceptance_tcb_fuzz_campaign.py` defaults to the deep lane and records minimized witnesses plus a shared cross-run index under `internal/fuzz_campaigns/deep/`.
 
 Notes:
-
-## What The Stateful Lane Means
-
-The stateful lane records whether named dangerous semantic states can be
-produced and whether the system rejects them with replayable minimized
-witnesses. This is stronger than ordinary branch or line coverage because it
-keeps a negative-evidence corpus for multi-step protocol failure modes.
-
-Examples of the kinds of states covered by the deep lane:
-- stale settlement replay after valid state movement
-- tamper then rehash against route-certificate binding
-- repaired receipt reuse against drifted pool snapshots
-- candidate-set drift against canonical route certificates
-- future-dated or stale settlement attestations
-
-Current deep-lane snapshot as of `2026-04-08`:
-- dangerous surfaces: `10/10 witnessed`
-- reached-but-unwitnessed surfaces: `0`
-- unique ranked witnesses: `18`
-- hotspot count: `10`
-
-A witnessed reject state proves that a dangerous state can be constructed and
-is currently rejected. It does not by itself prove that the same state was
-previously accepted in production. Public reporting should say these receipts
-strengthen fail-closed assurance, not that they prove a past live exploit.
-
-More detail:
-- [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](STATEFUL_DISASTER_STATE_WITNESSES.md)
-- [docs/STATEFUL_RELEASE_GUARDRAILS.md](STATEFUL_RELEASE_GUARDRAILS.md)
 
 - `status` is the fast proofboard. It reports whether the publishable lanes and exported refs are present and tracked.
 - `replay public` is the public proof surface: manifest-backed kernel assurance plus the spot/derivatives proof lanes.

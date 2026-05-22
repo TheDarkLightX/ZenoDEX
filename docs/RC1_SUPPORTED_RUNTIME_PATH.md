@@ -12,7 +12,7 @@ permalink: autonomous-tau-dex-review/docs/rc1-supported-runtime-path
 RuntimePathOK := ReadOnlyHTTPBounded ∧ SpotAdmissionPinned
 ```
 
-Plain English: the conservative RC1 runtime claim is only about a narrow HTTP subset and one pinned spot admission/signing path.
+Standard reading: the conservative RC1 runtime claim is only about a narrow HTTP subset and one pinned spot admission/signing path.
 
 Practical consequence: this document does not promote the entire integration shell into RC1 authority, and it does not advertise unpublished wallet transport lanes as RC1-backed.
 
@@ -41,7 +41,7 @@ Practical consequence: this document does not promote the entire integration she
 IntentAccepted -> CanonicalSigningPayloadVerified ∧ NonceBatchAccepted ∧ PreconditionsHold
 ```
 
-Plain English: spot admission accepts an intent batch only after canonical signing payload verification, nonce-batch validation, and ordinary precondition checks succeed.
+Standard reading: spot admission accepts an intent batch only after canonical signing payload verification, nonce-batch validation, and ordinary precondition checks succeed.
 
 Practical consequence: RC1 should describe one exact signing and nonce path, not a mix of alternative ingress behaviors.
 

@@ -216,27 +216,22 @@ def test_fast_v1_amount_in_int64_fee_boundary_values() -> None:
     pytest.importorskip("numpy")
     # BVA for SAFE_GROSS_FOR_INT64_FEE (routing ranking switches int64-exact fee => float approximation).
     from src.integration.fast_quote_router_v1 import SAFE_GROSS_FOR_INT64_FEE
-    from src.core.domain_limits import DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX
 
     asset_in = "A_IN"
     asset_out = "A_OUT"
     mid = "M0"
-    feasible_boundary = min(int(SAFE_GROSS_FOR_INT64_FEE), int(DEX_SWAP_AMOUNT_MAX), int(DEX_POOL_RESERVE_MAX) - 1)
 
     # Minimal market with a direct option and a 2-hop option (both CPMM).
-    # Use the largest feasible boundary value under the current repo-wide domain caps so the
-    # test still exercises the ranking path even when the int64 fee boundary itself is unreachable.
     pools = [
-        _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1, r1=3_000_000_000, fee_bps=30),
-        _mk_pool(pool_id="P1", a0=asset_in, a1=mid, r0=1, r1=3_000_000_000, fee_bps=10),
-        _mk_pool(pool_id="P2", a0=mid, a1=asset_out, r0=1, r1=3_000_000_000, fee_bps=10),
+        _mk_pool(pool_id="P0", a0=asset_in, a1=asset_out, r0=1_000_000, r1=1_000_000, fee_bps=30),
+        _mk_pool(pool_id="P1", a0=asset_in, a1=mid, r0=1_000_000, r1=2_000_000, fee_bps=10),
+        _mk_pool(pool_id="P2", a0=mid, a1=asset_out, r0=2_000_000, r1=1_000_000, fee_bps=10),
     ]
     pools_by_id = {p.pool_id: p for p in pools}
 
     router = FastQuoteRouterV1(max_cache_pairs=8)
-    # just below / exactly at / just above. The +1 case may cross the repo-wide feasibility cap and
-    # should then fail closed with no quote.
-    for amount_in in [int(feasible_boundary) - 1, int(feasible_boundary), int(feasible_boundary) + 1]:
+    # just below / exactly at / just above
+    for amount_in in [int(SAFE_GROSS_FOR_INT64_FEE) - 1, int(SAFE_GROSS_FOR_INT64_FEE), int(SAFE_GROSS_FOR_INT64_FEE) + 1]:
         q = router.quote_exact_in_2hop_fast_v1(
             pools_by_id=pools_by_id,
             asset_in=asset_in,
@@ -244,9 +239,6 @@ def test_fast_v1_amount_in_int64_fee_boundary_values() -> None:
             amount_in=int(amount_in),
             topk_max=8,
         )
-        if int(amount_in) > int(feasible_boundary):
-            assert q is None
-            continue
         assert q is not None
         receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools_by_id)
         ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)

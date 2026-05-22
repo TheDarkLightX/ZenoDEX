@@ -103,21 +103,28 @@ production mainnet readiness gated by validator-network hardening and live-value
 ## Assurance Snapshot
 
 <!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
-The pinned release replay for the release tree dated `2026-05-16` was green:
+The pinned release replay for the release tree dated `2026-04-06` was green:
 
-- acceptance TCB: `373 passed`, `93%` branch coverage
-- critical gate: `745 passed, 1 skipped`, `99%` branch coverage
+- acceptance TCB: `385 passed`, `98.8%` branch coverage
+- critical gate: `1424 passed`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `7 killed, 0 survived, 0 inconclusive`
-- fuzz gate: `11 passed`
-- snapshot recovery: `19 passed`
-- Tau syntax: `62/62`
+- mutation gate: `5 killed, 2 inconclusive`
+- fuzz gate: `58 passed`
+- snapshot recovery: `17 passed`
+- Tau syntax: `60/60`
 - Tau traces: `1/1`
 
 This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
 For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.
-The production traceability matrix is checked by the release gate and can be
-replayed directly with `python3 tools/check_production_traceability_matrix.py`.
+
+Current Tau runtime contract:
+- `SupportedTauRuntime := SpecModeStable ∨ (REPLStarts ∧ SpecFallbackWorks)`.
+- The public Tau runtime lane replays `6` smoke contracts from `src/tau_specs/recommended/semantic_contracts.json`.
+- Supported execution lanes: `repl_with_spec_fallback`, `spec_mode_stable`.
+- Supported trace posture: `90s`.
+- Replay with `python3 tools/check_tau_supported_runtime_subset.py`.
+- Machine-readable summary: `docs/tau_supported_runtime_contract.json`.
+- This is current-checkout runtime metadata, not historical release evidence.
 
 Important derivatives note:
 
@@ -207,6 +214,87 @@ catches invalid submissions, honest solving strictly dominates idling or
 submitting a bad solution. The bound is conditional on those assumptions and
 does not claim that every production actor game is solved.
 
+### ZenoEnergy Advisory Ranking Research
+
+ZenoEnergy is an isolated research scorer for UPBA v2 candidate search. It uses
+a tiny energy/ranking model to order candidate settlements before deterministic
+verification. The verifier remains the settlement authority:
+
+```text
+Model proposes; verifier decides.
+```
+
+Current bounded synthetic evidence is strong: the preferred 97-parameter
+gap-weighted ranker reaches 100% top-10 recall on committed holdout and
+cross-seed synthetic receipts, reduces mean verifier-winner position versus
+hand energy, and records zero invalid accepts. Production ranking remains gated
+by real or production-shadow replay. The latest research adds a runtime
+dominance-cover certificate prototype and a WES bridge that ranks
+dominance-cover checker work while deterministic UPBA verification remains
+authoritative. A follow-up dominance-prefix audit shows the current learned and
+hybrid rankers reaching a finite-list dominance-cover certificate after the
+first checked candidate on the committed bounded run. The latest suffix-bound
+early-stop certificate adds a deterministic unchecked-suffix objective bound,
+with learned and hybrid orderings averaging 1.008 verifier calls on the
+bounded synthetic run and 1.013 verifier calls across a 3-seed by
+3-candidate-count bounded synthetic stress grid. The adversarial suffix stress
+shows declared-output-only bounds fail on injected high-output invalid suffixes,
+while deterministic disqualifiers preserve the certificate.
+The multi-family adversarial suffix stress extends this to 944 verifier-invalid
+cases across 8 invalidity families with zero invalid accepts.
+A Julia negative-curriculum lane now converts those hard negatives into
+sampling weights and a bounded epiplexity proxy, so training can prioritize
+rare deterministic disqualifiers while preserving verifier authority.
+The epiplexity literature note adds the task-relevance gate: the proxy can
+guide data selection only after heldout ranking metrics prove it helps. The
+first bounded rare-disqualifier curriculum ranker did not beat the
+gap-weighted default, so the default stays promoted for research.
+The energy-order-alone Lean boundary now records the formal counterexample:
+ranking by low energy alone is not an optimality certificate.
+The data-scaling probe shows raw same-generator synthetic volume helps from
+small budgets but saturates below the current gap-weighted checkpoint, so the
+next data work should target coverage quality and rare hard families.
+The quality-selection probe sharpens this: winner-bearing hard-batch selection
+beats raw winner-bearing sampling at medium budgets, while tiny hard-only
+budgets can overfocus on rare current-model misses.
+The best-model registry now pins the preferred UPBA checkpoint and the three
+deterministically regenerated AutoTrader hard synthetic models with sha256
+hashes, so future experiments have stable advisory baselines.
+
+Primary entry points:
+
+- [docs/ZENO_ENERGY_V0.md](docs/ZENO_ENERGY_V0.md)
+- [docs/ZENO_ENERGY_RESULTS.md](docs/ZENO_ENERGY_RESULTS.md)
+- [docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
+- [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
+- [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
+- [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
+- [docs/ZENO_ENERGY_CURRICULUM_RANKER.md](docs/ZENO_ENERGY_CURRICULUM_RANKER.md)
+- [docs/ZENO_ENERGY_DATA_SCALING.md](docs/ZENO_ENERGY_DATA_SCALING.md)
+- [docs/ZENO_ENERGY_QUALITY_SELECTION.md](docs/ZENO_ENERGY_QUALITY_SELECTION.md)
+- [docs/ZENO_ENERGY_BEST_MODELS.md](docs/ZENO_ENERGY_BEST_MODELS.md)
+- [docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
+- [docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)
+- [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
+- [docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
+- [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
+- [docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md](docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md)
+- [docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
+- [docs/ZENO_ENERGY_DOMINANCE_COVER.md](docs/ZENO_ENERGY_DOMINANCE_COVER.md)
+- [docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
+- [docs/ZENO_ENERGY_DOMINANCE_PREFIX.md](docs/ZENO_ENERGY_DOMINANCE_PREFIX.md)
+- [docs/ZENO_ENERGY_SUFFIX_BOUND.md](docs/ZENO_ENERGY_SUFFIX_BOUND.md)
+- [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
+
+The replay secret scanner catches obvious key material before packaging. The
+source manifest builder packages real replay reports with canonical hashes and
+secret-scan attestations. The replay coverage profile checker rejects narrow
+real replay evidence before promotion. The production evidence bundle then
+assembles source-manifested, coverage-profiled UPBA and AutoTrader real replay
+reports and runs the fail-closed advisory ranking promotion gate. These tools
+cannot authorize settlement, change policy predicates, or turn synthetic
+fixtures into production evidence.
+
 ### ZenoProof, FIRE, And Certified Financial Math Objects
 
 ZenoProof is the internal evidence registry and verifier layer. Its public
@@ -267,7 +355,13 @@ settlement replay.
 Install Python dependencies:
 
 ```bash
-pip install -r requirements.txt
+python3 -m pip install --require-hashes -r requirements-dev.lock.txt
+```
+
+Production/container runtime installs use the smaller runtime lock:
+
+```bash
+python3 -m pip install --require-hashes -r requirements-core.lock.txt
 ```
 
 Clone optional Tau dependencies under `external/`:
@@ -314,34 +408,31 @@ python3 tools/zeno_ledger_make_public_testnet_bundle.py \
   --chain-id zeno-ledger-devnet-0
 ```
 
-Run the public-testnet candidate gate:
+## ZenoLedger Node Operations
+
+Before starting a node, run the lightweight local preflight. These commands do
+not need external network access and catch the common setup mistakes before an
+operator opens ports or mirrors a bundle:
 
 ```bash
-tools/run_public_testnet_candidate_gate.sh
+python3 tools/zeno_ledger_node.py --help
+python3 tools/permissionless_assurance.py status
+python3 tools/check_tau_supported_runtime_subset.py
+pytest -q tests/tau/test_tau_spec_assurance.py
 ```
 
-This gate covers the ZenoLedger integration suite, proof-mining suite, UPBA
-suite, deployment-profile checks, public bundle builder, dual-operator
-rehearsal, and local public-network smoke test with signed DEX transaction
-intake.
+For a same-machine network rehearsal, run:
 
-## ZenoLedger Node Operations
+```bash
+python3 tools/zeno_ledger_public_network_smoke.py \
+  --out-dir /tmp/zeno-ledger-public-network-smoke \
+  --network-id zeno-ledger-devnet-0 \
+  --chain-id zeno-ledger-devnet-0
+```
 
 The node entrypoint wraps the same bundle and replay logic. Use it to build a
 bootstrap bundle, run a follower/watcher node, and optionally serve node status
 over HTTP:
-
-```bash
-python3 tools/zeno_ledger_machine_a_host.py \
-  --public-host <MACHINE_A_IP>
-```
-
-The Machine A host runner builds the public-testnet bundle, starts the static
-mirror, starts a read-only writer API by default, writes
-`public_network_config.json`, and prints the exact Machine B acceptance command
-with the config hash. Unsigned `POST /tx` and `POST /faucet` are disabled on
-public bindings; use `--bind-host 127.0.0.1 --enable-local-testnet-writes` only
-for local development.
 
 ```bash
 python3 tools/zeno_ledger_node.py bootstrap \
@@ -365,12 +456,7 @@ python3 tools/zeno_ledger_node.py join-network \
   --node-id operator-b \
   --bundle-root /tmp/zeno-ledger-public-testnet-synced \
   --data-dir /tmp/zeno-ledger-node-b \
-  --expected-network-config-hash <NETWORK_CONFIG_HASH> \
   --serve
-
-python3 tools/zeno_ledger_node.py doctor \
-  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
-  --expected-network-config-hash <NETWORK_CONFIG_HASH>
 ```
 
 For a remote operator, use a join config to combine sync, replay, peer checking,
@@ -414,6 +500,18 @@ python3 tools/zeno_ledger_node.py run \
   --port 8787
 ```
 
+ZenoLedger also has opt-in Risc0 proof-of-execution coverage for the current
+ZenoDEX spot v1 guest subset. The real-proof smoke builds the guest with
+`RISC0_FORCE_BUILD=1`, generates non-empty receipts, and verifies them through
+the host CLI for an empty transition, faucet mint, create-pool, and
+swap-exact-in. The receipt journal binds the state hash, transaction
+commitment, pre-app hash, post-app hash, and block timestamp.
+
+This is current local evidence for the restricted guest path. It does not yet
+prove the full Python ZenoDEX runtime, multi-intent batches, exact-out,
+multi-hop routing, production prover performance, or validator-network
+readiness.
+
 After the node has verified its bootstrap bundle, a local operator can append
 testnet DEX transactions into the node-local live ledger:
 
@@ -431,11 +529,6 @@ python3 tools/zeno_ledger_node.py check-peers \
   --data-dir /tmp/zeno-ledger-node-b \
   --peer-url http://127.0.0.1:8787
 
-python3 tools/zeno_ledger_node.py evidence \
-  --data-dir /tmp/zeno-ledger-node-b \
-  --peer-url http://127.0.0.1:8787 \
-  --out /tmp/zeno-ledger-node-b/evidence_report.json
-
 python3 tools/zeno_ledger_node.py serve \
   --data-dir /tmp/zeno-ledger-node-b \
   --host 127.0.0.1 \
@@ -451,59 +544,7 @@ python3 tools/zeno_ledger_node.py faucet \
   --to-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --asset 0x1111111111111111111111111111111111111111111111111111111111111111 \
   --amount 100000
-
-python3 tools/zeno_ledger_node.py create-token \
-  --data-dir /tmp/zeno-ledger-node-a \
-  --symbol tMANGO \
-  --name "Test Mango Credit" \
-  --decimals 8 \
-  --creator-pubkey 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ```
-
-For execution scaling analysis, build a conservative conflict graph and
-deterministic parallel schedule from a ZenoLedger body or transaction list:
-
-```bash
-python3 tools/zeno_ledger_conflict_graph.py \
-  --transactions /path/to/transactions.json \
-  --max-parallel-components 8 \
-  --out /tmp/zeno-ledger-conflict-schedule.json
-```
-
-The scheduler treats each connected component as one task. Independent tasks can
-run in the same wave; transactions inside a conflicted component retain their
-deterministic order.
-
-That schedule hash can be bound into a transition receipt for deterministic
-replay, ZK, TEE, or recursive proof backends:
-
-```bash
-python3 tools/zeno_ledger_make_transition_receipt.py \
-  --header /path/to/header.json \
-  --out /tmp/zeno-ledger-transition-receipt.json \
-  --conflict-schedule-hash <CONFLICT_SCHEDULE_HASH> \
-  --verifier-kind risc0_zkvm_v0 \
-  --verifier-version risc0-zkvm-0 \
-  --proof-commitment <PROOF_COMMITMENT> \
-  --proof-metadata /path/to/proof_metadata.json
-```
-
-The receipt journal binds the pre-state root, ordered body root, conflict
-schedule hash, post-state root, app hash, data-availability root, feature-suite
-hash, token-registry hash, and rejection-receipt root. ZK and TEE adapters use
-the same journal hash as their public input.
-
-ZenoLedger also has opt-in Risc0 proof-of-execution coverage for the current
-ZenoDEX spot v1 guest subset. The real-proof smoke builds the guest with
-`RISC0_FORCE_BUILD=1`, generates non-empty receipts, and verifies them through
-the host CLI for an empty transition, faucet mint, create-pool, and
-swap-exact-in. The receipt journal binds the state hash, transaction
-commitment, pre-app hash, post-app hash, and block timestamp.
-
-This is current local evidence for the restricted guest path. It does not yet
-prove the full Python ZenoDEX runtime, multi-intent batches, exact-out,
-multi-hop routing, production prover performance, or validator-network
-readiness.
 
 This is the first public-node layer for ZenoLedger. The node bootstraps from a
 bundle, verifies the ledger, emits a watcher attestation, and serves
@@ -515,15 +556,8 @@ mirror and verifies every mirror hash before the node runs.
 
 The public bundle ships a deterministic test-token catalog (`tZENO`, `tASSET0`,
 and `tASSET1`) plus testnet-only faucet behavior for feature testing. The
-`faucet` command accepts canonical 32-byte test asset IDs, so operators can
-mint throwaway assets for live test pools without touching release token
-policy.
-
-The `create-token` command registers named testnet-only assets in a
-hash-checked live token registry. A served node exposes the same behavior at
-`POST /tokens` when `--enable-testnet-faucet` is enabled. Peers rebuild the
-same registry while pulling live blocks, so named fake assets can be minted,
-pooled, traded, and replayed across operators.
+faucet accepts canonical 32-byte test asset IDs, so operators can mint
+throwaway assets for live test pools without touching release token policy.
 
 The `append` command writes post-bootstrap testnet DEX blocks under the node
 data directory. The `pull-live` command fetches live block bodies from a peer
@@ -532,22 +566,17 @@ header. A served node can also poll peer URLs with `--peer-url` and
 `--poll-seconds`.
 
 Testnet HTTP intake is disabled by default. `--enable-testnet-intake` opens
-`POST /tx`, and `--enable-testnet-faucet` opens `POST /faucet` and
-`POST /tokens` for bounded testnet asset operations. A follower can expose
-these endpoints while forwarding submissions to a designated writer with
-`--submit-peer-url`, then follow the resulting live blocks by deterministic
-replay.
+`POST /tx`, and `--enable-testnet-faucet` opens `POST /faucet` for bounded
+fake-token minting. A follower can expose `POST /tx` and `POST /faucet` while
+forwarding submissions to a designated writer with `--submit-peer-url`, then
+follow the resulting live blocks by deterministic replay.
 
 The `join` command wraps sync, replay, watcher attestation, optional peer
 check, and optional serving into one JSON-configured operator flow. The
 `check-peers` command compares network ID, chain ID, feature-suite hash, peer
 height, and the common header hash before an operator trusts a peer. The
-`evidence` command writes a compact joined-node report with the local tip,
-feature-suite hash, created test-token registry, and optional peer check. The
 `write-network-config` and `join-network` commands let any operator join from
-one published URL. Operators can pin `--expected-network-config-hash` when the
-URL is shared with a fingerprint. The `doctor` command checks the local
-environment and optional public network config before a full sync.
+one published URL.
 
 Live P2P block gossip and validator scheduling remain future network work.
 

@@ -1,0 +1,79 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_live_admission_bundle_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless composition bundle for the imperative-shell auto-trader.
+
+    This kernel intentionally stays small: it does not re-derive the underlying
+    policy semantics. It composes the already-proved guard outputs into a single
+    fail-closed admission bit for the live submit path.
+observables:
+  state_vars: []
+  effects:
+    [
+      "source_registry_ok",
+      "signal_provenance_ok",
+      "execution_ok",
+      "oracle_freshness_ok",
+      "budget_ok",
+      "tx_envelope_ok",
+      "session_state_ok",
+      "session_capability_binding_ok",
+      "wallet_capability_ok",
+      "nonce_ok",
+      "admission_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_live_admission"
+    params:
+      - id: "source_registry_ok"
+        type: { kind: "bool" }
+      - id: "signal_provenance_ok"
+        type: { kind: "bool" }
+      - id: "execution_ok"
+        type: { kind: "bool" }
+      - id: "oracle_freshness_ok"
+        type: { kind: "bool" }
+      - id: "budget_ok"
+        type: { kind: "bool" }
+      - id: "tx_envelope_ok"
+        type: { kind: "bool" }
+      - id: "session_state_ok"
+        type: { kind: "bool" }
+      - id: "session_capability_binding_ok"
+        type: { kind: "bool" }
+      - id: "wallet_capability_ok"
+        type: { kind: "bool" }
+      - id: "nonce_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      source_registry_ok: { param: "source_registry_ok" }
+      signal_provenance_ok: { param: "signal_provenance_ok" }
+      execution_ok: { param: "execution_ok" }
+      oracle_freshness_ok: { param: "oracle_freshness_ok" }
+      budget_ok: { param: "budget_ok" }
+      tx_envelope_ok: { param: "tx_envelope_ok" }
+      session_state_ok: { param: "session_state_ok" }
+      session_capability_binding_ok: { param: "session_capability_binding_ok" }
+      wallet_capability_ok: { param: "wallet_capability_ok" }
+      nonce_ok: { param: "nonce_ok" }
+      admission_ok:
+        op: "and"
+        args:
+          - { param: "source_registry_ok" }
+          - { param: "signal_provenance_ok" }
+          - { param: "execution_ok" }
+          - { param: "oracle_freshness_ok" }
+          - { param: "budget_ok" }
+          - { param: "tx_envelope_ok" }
+          - { param: "session_state_ok" }
+          - { param: "session_capability_binding_ok" }
+          - { param: "wallet_capability_ok" }
+          - { param: "nonce_ok" }

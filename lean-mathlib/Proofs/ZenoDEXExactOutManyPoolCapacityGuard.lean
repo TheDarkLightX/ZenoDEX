@@ -5,7 +5,7 @@ import Mathlib.Data.Fin.VecNotation
 /-!
 # Exact-Out Many-Pool Capacity Guard
 
-**world-model promotion**: `exact_out_capacity` (TESTED_ONLY → PROVED)
+**ShapeForge promotion**: `exact_out_capacity` (TESTED_ONLY → PROVED)
 
 **THEOREM**: For exact-out routing with demand Q and n pools with per-pool
 output capacities cap[i], a feasible allocation exists iff ∑ cap[i] ≥ Q.

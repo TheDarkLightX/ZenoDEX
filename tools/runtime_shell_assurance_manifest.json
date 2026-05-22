@@ -1,0 +1,246 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the runtime shell adapter lane. Update only alongside a successful run of tools/run_runtime_shell_assurance_gate.sh and tools/check_runtime_shell_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/perp_epoch_isolated_v3.yaml",
+      "sha256": "1bf50a8693f7b83a846b9c6bacf918e604be3657e7138691b0a0aaf8fa3a8990"
+    },
+    {
+      "path": "src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml",
+      "sha256": "ee330ff245a05147d6ec3a4c9c58b227c4eea55041118333313d8961aafe4b81"
+    },
+    {
+      "path": "src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml",
+      "sha256": "8bf775e082891d660af5459912ee4bfb105251fcdc924b74a3ccc0033f8b831a"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_manager_v1.yaml",
+      "sha256": "6ce57b03de4493b7c171a32f77d7e1722d3935221d31544febd70d118b9963be"
+    },
+    {
+      "path": "src/kernels/dex/dex_global_conservation_v1.yaml",
+      "sha256": "309c10d5a9ec760beef8e0b4483263a6005f717a0f8506650c28a395747e44aa"
+    },
+    {
+      "path": "src/kernels/python/perp_epoch_isolated_v3_adapter.py",
+      "sha256": "4718618ce824fa968916dd0e138d22a435d1bba2a674ee37a771bf58dc40dbde"
+    },
+    {
+      "path": "src/kernels/python/perp_epoch_clearinghouse_2p_v0_1_adapter.py",
+      "sha256": "19ba62b0dfa202c8b97166bde10bbf2a40dec43081df1c111b618a040fa4a245"
+    },
+    {
+      "path": "src/kernels/python/perp_epoch_clearinghouse_3p_transfer_v0_1_adapter.py",
+      "sha256": "4c45dd4851451de64f47db4699bfe1a1f92b6c64ef719977ee42fcc34320511f"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_manager_v1_adapter.py",
+      "sha256": "f2f67dc2d75e8ba3bf11584ec5bfc100b322798b88de5970f6514633e7768af3"
+    },
+    {
+      "path": "src/kernels/python/dex_global_conservation_v1_adapter.py",
+      "sha256": "0c3f1ccbcb09e045b6b7672e4688724c052446ffc56865115a2db818cecfa68b"
+    },
+    {
+      "path": "tests/kernels/test_python_adapter_wrappers.py",
+      "sha256": "e5ee01ddcf5eebcc4efb777e3ecaae136c54af97801aeec20110f4199fb6a802"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_manager_v1_adapter.py",
+      "sha256": "2244a7d5139fef5fa35fc26e3520e9956ade0debfc050495b392c3b9ee0416ca"
+    },
+    {
+      "path": "tests/kernels/test_runtime_shell_adapters.py",
+      "sha256": "2c0bae9252425aaf413e4d595f30f0c51959fcf3ec02f136ccb946b7ce5c51f5"
+    }
+  ],
+  "shell_lint": [
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/perp_epoch_isolated_v3/shell_lint.json",
+      "adapter_spec": "src.kernels.python.perp_epoch_isolated_v3_adapter:make_adapter",
+      "ir_hash": "sha256:23a9b8ec0233f3514301be3d347c6f3623db0876559efc00d904d5b0786a0cfe",
+      "actions": [
+        "advance_epoch",
+        "apply_funding",
+        "apply_insurance_claim",
+        "clear_breaker",
+        "deposit_collateral",
+        "deposit_insurance",
+        "publish_clearing_price",
+        "set_position",
+        "settle_epoch",
+        "withdraw_collateral"
+      ],
+      "effects": [
+        "collateral_after",
+        "effective_maint_bps",
+        "event",
+        "fee_pool_after",
+        "init_req_quote",
+        "insurance_after",
+        "liquidated",
+        "maint_req_quote",
+        "margin_ok",
+        "notional_quote",
+        "oracle_fresh"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/perp_epoch_clearinghouse_2p_v0_1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.perp_epoch_clearinghouse_2p_v0_1_adapter:make_adapter",
+      "ir_hash": "sha256:9ee41ddd9919f6695fb116f03ba87d802e007bac0f441546513a958bbd8ff38b",
+      "actions": [
+        "advance_epoch",
+        "clear_breaker",
+        "deposit_collateral_a",
+        "deposit_collateral_b",
+        "publish_clearing_price",
+        "set_position_pair",
+        "settle_epoch",
+        "withdraw_collateral_a",
+        "withdraw_collateral_b"
+      ],
+      "effects": [
+        "collateral_after_a",
+        "collateral_after_b",
+        "event",
+        "fee_pool_after",
+        "liquidated",
+        "oracle_fresh"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/perp_epoch_clearinghouse_3p_transfer_v0_1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.perp_epoch_clearinghouse_3p_transfer_v0_1_adapter:make_adapter",
+      "ir_hash": "sha256:255959ed4a949659af69f1f2a8507414d07516773d9dd78f587b941fc957be1c",
+      "actions": [
+        "advance_epoch",
+        "clear_breaker",
+        "deposit_collateral_a",
+        "deposit_collateral_b",
+        "deposit_collateral_c",
+        "publish_clearing_price",
+        "set_position_pair_ab",
+        "set_position_pair_ac",
+        "set_position_pair_bc",
+        "settle_epoch",
+        "withdraw_collateral_a",
+        "withdraw_collateral_b",
+        "withdraw_collateral_c"
+      ],
+      "effects": [
+        "collateral_after_a",
+        "collateral_after_b",
+        "collateral_after_c",
+        "event",
+        "fee_pool_after",
+        "liquidated",
+        "oracle_fresh"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/proof_mining_manager_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
+      "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c",
+      "actions": [
+        "advance_epoch",
+        "submit_proof"
+      ],
+      "effects": [
+        "paid",
+        "proposal_slot",
+        "prover_id",
+        "reward_amount",
+        "reward_kind"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/dex_global_conservation_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.dex_global_conservation_v1_adapter:make_adapter",
+      "ir_hash": "sha256:49e76918030dafba3123c868342afd395e01a7402de7e664ec7763acda1d426d",
+      "actions": [
+        "swap_exact_in"
+      ],
+      "effects": [
+        "total_a",
+        "total_b"
+      ]
+    }
+  ],
+  "verify_shell": [
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/perp_epoch_isolated_v3/verify_shell.json",
+      "kernel_path": "src/kernels/dex/perp_epoch_isolated_v3.yaml",
+      "adapter_spec": "src.kernels.python.perp_epoch_isolated_v3_adapter:make_adapter",
+      "ir_hash": "sha256:23a9b8ec0233f3514301be3d347c6f3623db0876559efc00d904d5b0786a0cfe",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:b4092e7bf12f9339786ebc3ad0c45d8de36ffcbf1b4aef33a46770aab0ddd588"
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/perp_epoch_clearinghouse_2p_v0_1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml",
+      "adapter_spec": "src.kernels.python.perp_epoch_clearinghouse_2p_v0_1_adapter:make_adapter",
+      "ir_hash": "sha256:9ee41ddd9919f6695fb116f03ba87d802e007bac0f441546513a958bbd8ff38b",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:a7b284abdeff59a66474a38a7dd4b0d605aef0d2261a2614bd0daa783ddc3676"
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/perp_epoch_clearinghouse_3p_transfer_v0_1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml",
+      "adapter_spec": "src.kernels.python.perp_epoch_clearinghouse_3p_transfer_v0_1_adapter:make_adapter",
+      "ir_hash": "sha256:255959ed4a949659af69f1f2a8507414d07516773d9dd78f587b941fc957be1c",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:1d9860067987627ca9a9f7f8fd8ba7624f85fdd5b86899a45c7d94660f9f0c4d"
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/proof_mining_manager_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/proof_mining_manager_v1.yaml",
+      "adapter_spec": "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
+      "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:2fbb319b4e931e120c618100cfa40b75f354617749b6d88724741c0555a6b0d9"
+    },
+    {
+      "report_path": "internal/esso_verify/runtime_shell_assurance/dex_global_conservation_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/dex_global_conservation_v1.yaml",
+      "adapter_spec": "src.kernels.python.dex_global_conservation_v1_adapter:make_adapter",
+      "ir_hash": "sha256:49e76918030dafba3123c868342afd395e01a7402de7e664ec7763acda1d426d",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:eadeb9a9c01f1883a6d14e81f89f2b44f881a4c768481e098fe93bb7bed7a079"
+    }
+  ],
+  "adapter_regression_tests": [
+    "tests/kernels/test_python_adapter_wrappers.py",
+    "tests/kernels/test_proof_mining_manager_v1_adapter.py",
+    "tests/kernels/test_runtime_shell_adapters.py"
+  ]
+}

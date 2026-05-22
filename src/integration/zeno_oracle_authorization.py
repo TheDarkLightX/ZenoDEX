@@ -7,9 +7,6 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
-from ..state.canonical import canonical_json_bytes
-
-
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 
@@ -37,35 +34,50 @@ def _consumer_profile_id(
 _CRITICAL_SETTLEMENT_QUERY_ID = (
     "sha256:" + hashlib.sha256(b"zenodex.oracle.query.settlement.price_curr_e8").hexdigest()
 )
+_ZUSD_COLLATERAL_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.zusd.collateral_price_e8").hexdigest()
+)
+_PERPS_INDEX_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.perps.index_price_e8").hexdigest()
+)
+_TRIGGER_REFERENCE_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.trigger.reference_price_e8").hexdigest()
+)
 _CRITICAL_SETTLEMENT_PROFILE_ID = _consumer_profile_id(
     consumer_module="zenodex.settlement",
     action_kind="critical_settlement",
     query_id=_CRITICAL_SETTLEMENT_QUERY_ID,
     max_freshness_window_epochs=1,
 )
-_TRIGGER_REFERENCE_QUERY_ID = (
-    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.trigger.reference_price_e8").hexdigest()
+_ZUSD_MINT_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.zusd",
+    action_kind="mint",
+    query_id=_ZUSD_COLLATERAL_QUERY_ID,
+    max_freshness_window_epochs=2,
+)
+_ZUSD_LIQUIDATE_VAULT_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.zusd",
+    action_kind="liquidate_vault",
+    query_id=_ZUSD_COLLATERAL_QUERY_ID,
+    max_freshness_window_epochs=1,
+)
+_PERPS_SETTLE_EPOCH_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.perps",
+    action_kind="settle_epoch",
+    query_id=_PERPS_INDEX_QUERY_ID,
+    max_freshness_window_epochs=2,
+)
+_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.perps",
+    action_kind="liquidate_account",
+    query_id=_PERPS_INDEX_QUERY_ID,
+    max_freshness_window_epochs=1,
 )
 _TRIGGER_EXECUTE_PROFILE_ID = _consumer_profile_id(
     consumer_module="zenodex.trigger",
     action_kind="execute_trigger",
     query_id=_TRIGGER_REFERENCE_QUERY_ID,
     max_freshness_window_epochs=2,
-)
-ORACLE_PERPS_INDEX_QUERY_ID = (
-    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.perps.index_price_e8").hexdigest()
-)
-ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = _consumer_profile_id(
-    consumer_module="zenodex.perps",
-    action_kind="settle_epoch",
-    query_id=ORACLE_PERPS_INDEX_QUERY_ID,
-    max_freshness_window_epochs=2,
-)
-ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _consumer_profile_id(
-    consumer_module="zenodex.perps",
-    action_kind="liquidate_account",
-    query_id=ORACLE_PERPS_INDEX_QUERY_ID,
-    max_freshness_window_epochs=1,
 )
 
 
@@ -75,11 +87,41 @@ CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
     ("zenodex.zusd", "oracle_commit"): "critical-zusd-v1",
     ("zenodex.zusd", "mint"): "critical-zusd-v1",
     ("zenodex.zusd", "liquidate"): "critical-zusd-v1",
-    ("zenodex.perps", "settle_epoch"): ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-    ("zenodex.perps", "liquidate"): ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+    ("zenodex.perps", "settle_epoch"): "critical-perps-v1",
+    ("zenodex.perps", "liquidate"): "critical-perps-v1",
     ("zenodex.routing", "protected_swap"): "critical-routing-v1",
-    ("zenodex.trigger", "execute_trigger"): _TRIGGER_EXECUTE_PROFILE_ID,
+    ("zenodex.trigger", "execute"): "critical-trigger-v1",
     ("zenodex.settlement", "critical_settlement"): _CRITICAL_SETTLEMENT_PROFILE_ID,
+}
+
+CRITICAL_CONSUMER_MAX_FRESHNESS_WINDOW_EPOCHS: dict[tuple[str, str], int] = {
+    ("zenodex.zusd", "bootstrap_oracle"): 2,
+    ("zenodex.zusd", "oracle_report"): 2,
+    ("zenodex.zusd", "oracle_commit"): 2,
+    ("zenodex.zusd", "mint"): 2,
+    ("zenodex.zusd", "liquidate"): 1,
+    ("zenodex.zusd", "liquidate_vault"): 1,
+    ("zenodex.perps", "settle_epoch"): 2,
+    ("zenodex.perps", "liquidate"): 1,
+    ("zenodex.perps", "liquidate_account"): 1,
+    ("zenodex.routing", "guarded_quote"): 4,
+    ("zenodex.routing", "protected_swap"): 4,
+    ("zenodex.trigger", "execute"): 2,
+    ("zenodex.trigger", "execute_trigger"): 2,
+    ("zenodex.settlement", "critical_settlement"): 1,
+}
+
+CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS: dict[str, int] = {
+    "critical-zusd-v1": 2,
+    "critical-perps-v1": 2,
+    "critical-routing-v1": 4,
+    "critical-trigger-v1": 2,
+    _CRITICAL_SETTLEMENT_PROFILE_ID: 1,
+    _ZUSD_MINT_PROFILE_ID: 2,
+    _ZUSD_LIQUIDATE_VAULT_PROFILE_ID: 1,
+    _PERPS_SETTLE_EPOCH_PROFILE_ID: 2,
+    _PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID: 1,
+    _TRIGGER_EXECUTE_PROFILE_ID: 2,
 }
 
 
@@ -124,7 +166,7 @@ class RuntimeActionFacts:
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
-    return canonical_json_bytes(dict(payload))
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
 def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
@@ -159,6 +201,23 @@ def _is_sha256_ref(value: str) -> bool:
 
 def _rank_at_least(actual: Any, minimum: str) -> bool:
     return EVIDENCE_RANK.get(str(actual), -1) >= EVIDENCE_RANK[minimum]
+
+
+def _expected_max_freshness_window_epochs(
+    *,
+    consumer_module: str,
+    action_kind: str,
+    profile_id: str | None,
+) -> int | None:
+    action_window = CRITICAL_CONSUMER_MAX_FRESHNESS_WINDOW_EPOCHS.get((consumer_module, action_kind))
+    profile_window = None
+    if profile_id is not None:
+        profile_window = CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS.get(profile_id)
+    if action_window is None:
+        return profile_window
+    if profile_window is None:
+        return action_window
+    return min(action_window, profile_window)
 
 
 def _graph_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -445,14 +504,30 @@ def verify_typed_authorization(
         errors.append("observed_epoch after expires_at_epoch")
     if int(authorization.observed_epoch) > int(runtime.now_epoch):
         errors.append("authorization observed in the future")
-    max_freshness = runtime.max_freshness_window_epochs
-    if max_freshness is not None:
-        if isinstance(max_freshness, bool) or not isinstance(max_freshness, int) or int(max_freshness) < 0:
+    expected_max_window = _expected_max_freshness_window_epochs(
+        consumer_module=runtime.consumer_module,
+        action_kind=runtime.action_kind,
+        profile_id=runtime.profile_id,
+    )
+    max_window: int | None = None
+    if runtime.max_freshness_window_epochs is None:
+        max_window = expected_max_window
+    elif isinstance(runtime.max_freshness_window_epochs, bool) or not isinstance(
+        runtime.max_freshness_window_epochs,
+        int,
+    ):
+        errors.append("max_freshness_window_epochs must be a non-negative int")
+    else:
+        max_window = int(runtime.max_freshness_window_epochs)
+        if max_window < 0:
             errors.append("max_freshness_window_epochs must be a non-negative int")
-        elif int(runtime.now_epoch) >= int(authorization.observed_epoch):
-            observed_age = int(runtime.now_epoch) - int(authorization.observed_epoch)
-            if observed_age > int(max_freshness):
-                errors.append("authorization freshness window exceeded")
+        if expected_max_window is not None and max_window > expected_max_window:
+            errors.append("runtime freshness window exceeds critical profile")
+    if max_window is not None and max_window >= 0:
+        if int(authorization.expires_at_epoch) - int(authorization.observed_epoch) > max_window:
+            errors.append("authorization freshness window exceeds runtime profile")
+        if int(runtime.now_epoch) - int(authorization.observed_epoch) > max_window:
+            errors.append("authorization observed_epoch outside runtime freshness window")
     if int(authorization.confidence_e8) < 0:
         errors.append("confidence_e8 must be non-negative")
     if int(authorization.deviation_bps) < 0 or int(authorization.deviation_bps) > 10_000:
@@ -536,23 +611,32 @@ def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
         if isinstance(runtime_notional_value, bool) or not isinstance(runtime_notional_value, int):
             raise ValueError("runtime_notional_value_e8 must be an int when present")
         runtime_notional_value = int(runtime_notional_value)
-    max_freshness = obj.get("max_freshness_window_epochs")
-    if max_freshness is not None:
-        if isinstance(max_freshness, bool) or not isinstance(max_freshness, int):
+    max_freshness_window_epochs = obj.get("max_freshness_window_epochs")
+    if max_freshness_window_epochs is not None:
+        if isinstance(max_freshness_window_epochs, bool) or not isinstance(max_freshness_window_epochs, int):
             raise ValueError("max_freshness_window_epochs must be an int when present")
-        max_freshness = int(max_freshness)
+        max_freshness_window_epochs = int(max_freshness_window_epochs)
+    consumer_module = _require_str(obj, "consumer_module")
+    action_kind = _require_str(obj, "action_kind")
+    profile_id = _require_str(obj, "profile_id")
+    if max_freshness_window_epochs is None:
+        max_freshness_window_epochs = _expected_max_freshness_window_epochs(
+            consumer_module=consumer_module,
+            action_kind=action_kind,
+            profile_id=profile_id,
+        )
     return RuntimeActionFacts(
-        consumer_module=_require_str(obj, "consumer_module"),
-        action_kind=_require_str(obj, "action_kind"),
+        consumer_module=consumer_module,
+        action_kind=action_kind,
         action_id=_require_str(obj, "action_id"),
         action_facts_hash=_require_str(obj, "action_facts_hash"),
         pre_state_hash=_require_str(obj, "pre_state_hash"),
-        profile_id=_require_str(obj, "profile_id"),
+        profile_id=profile_id,
         query_id=_require_str(obj, "query_id"),
         runtime_value_e8=_require_int(obj, "runtime_value_e8"),
         now_epoch=_require_int(obj, "now_epoch"),
         runtime_notional_value_e8=runtime_notional_value,
-        max_freshness_window_epochs=max_freshness,
+        max_freshness_window_epochs=max_freshness_window_epochs,
     )
 
 
@@ -632,11 +716,18 @@ def check_critical_consumer_authorization(
     runtime_value_e8: int,
     now_epoch: int,
     runtime_notional_value_e8: int | None = None,
-    max_freshness_window_epochs: int | None = None,
     profile_id: str | None = None,
+    max_freshness_window_epochs: int | None = None,
     require_receipt_graph: bool = True,
 ) -> dict[str, Any]:
     expected_profile = profile_id or CRITICAL_CONSUMER_PROFILES.get((consumer_module, action_kind))
+    expected_max_freshness_window_epochs = max_freshness_window_epochs
+    if expected_max_freshness_window_epochs is None:
+        expected_max_freshness_window_epochs = _expected_max_freshness_window_epochs(
+            consumer_module=consumer_module,
+            action_kind=action_kind,
+            profile_id=expected_profile,
+        )
     if expected_profile is None:
         return {
             "schema": SCHEMA,
@@ -660,7 +751,7 @@ def check_critical_consumer_authorization(
                 "runtime_value_e8": runtime_value_e8,
                 "now_epoch": now_epoch,
                 "runtime_notional_value_e8": runtime_notional_value_e8,
-                "max_freshness_window_epochs": max_freshness_window_epochs,
+                "max_freshness_window_epochs": expected_max_freshness_window_epochs,
             },
         }
     runtime = RuntimeActionFacts(
@@ -674,7 +765,7 @@ def check_critical_consumer_authorization(
         runtime_value_e8=int(runtime_value_e8),
         now_epoch=int(now_epoch),
         runtime_notional_value_e8=runtime_notional_value_e8,
-        max_freshness_window_epochs=max_freshness_window_epochs,
+        max_freshness_window_epochs=expected_max_freshness_window_epochs,
     )
     result = check_authorization_for_runtime(
         authorization_payload,
@@ -688,4 +779,5 @@ def check_critical_consumer_authorization(
     result["typed_errors"] = typed_errors
     result["typed_ok"] = bool(result["typed_ok"] and not typed_errors)
     result["critical_consumer_profile"] = expected_profile
+    result["critical_consumer_max_freshness_window_epochs"] = expected_max_freshness_window_epochs
     return result

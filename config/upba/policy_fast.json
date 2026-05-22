@@ -1,0 +1,15 @@
+{
+  "schema": "zenodex/upba_policy_profile/v1",
+  "profile_id": "fast",
+  "max_relative_loss_ppm": 100,
+  "max_absolute_loss_atoms": 100000,
+  "fill_quantum_atoms": 1000,
+  "candidate_evaluation_count": 2500,
+  "max_trade_fraction_ppm": 250000,
+  "proof_required": true,
+  "energy_scorer_allowed": true,
+  "energy_may_omit_candidates": false,
+  "energy_omit_requires_certificate": true,
+  "fallback_required": true,
+  "user_warning_required": true
+}

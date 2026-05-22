@@ -10,10 +10,10 @@ Two “sources of truth” coexist:
 
 Backends:
 - Spec interpreter (optional): loads and steps the YAML kernel directly using an
-  optional external verifier/interpreter toolchain (vendored under `external/`
-  and git-ignored). The toolchain is a deterministic verifier + interpreter +
-  code generator for YAML kernels. It is not required at production runtime,
-  but it is used by evidence gates.
+  optional private toolchain (vendored under `external/` and git-ignored). The
+  toolchain is a deterministic verifier + interpreter + code generator for YAML
+  kernels. It is not required at production runtime, but it is used by evidence
+  gates.
 - Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
   YAML kernel via parity tests against a generated, dependency-free Python
   reference model committed under `generated/perp_python/`.
@@ -26,7 +26,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Mapping, Union
+from typing import Any, Mapping
+
 
 try:
     import yaml  # type: ignore
@@ -39,7 +40,7 @@ except Exception:  # pragma: no cover - optional dependency in some environments
 
 # Kernel values are JSON-like scalars used by both the spec interpreter backend
 # and the generated reference models.
-Value = Union[bool, int, str]
+Value = bool | int | str
 
 
 @dataclass(frozen=True)
@@ -398,11 +399,13 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
         Action.APPLY_FUNDING: [("new_rate_bps", "new_rate_bps")],
         Action.DEPOSIT_INSURANCE: [("amount", "amount")],
         Action.APPLY_INSURANCE_CLAIM: [("claim_amount", "claim_amount")],
+        Action.PARTIAL_LIQUIDATE: [("fraction_bps", "fraction_bps")],
     }
     _auth_actions = frozenset({
         Action.DEPOSIT_COLLATERAL, Action.WITHDRAW_COLLATERAL,
         Action.SET_POSITION, Action.CLEAR_BREAKER,
         Action.APPLY_FUNDING, Action.APPLY_INSURANCE_CLAIM,
+        Action.PARTIAL_LIQUIDATE,
     })
 
     p = dict(params or {})
@@ -413,7 +416,10 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
 
     kwargs: dict[str, Any] = {"action": act}
     for field_name, dict_key in fields:
-        kwargs[field_name] = int(p[dict_key])
+        if act is Action.PARTIAL_LIQUIDATE and dict_key not in p:
+            kwargs[field_name] = 0
+        else:
+            kwargs[field_name] = int(p[dict_key])
     if act in _auth_actions:
         kwargs["auth_ok"] = bool(p.get("auth_ok", False))
     return ActionParams(**kwargs)

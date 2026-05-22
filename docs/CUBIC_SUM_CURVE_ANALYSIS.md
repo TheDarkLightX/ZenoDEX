@@ -50,7 +50,7 @@ all trade sizes, all price moves) as an **evidence-backed hypothesis** (not a Le
 
 However, we *do* have a **Lean-proved local tradeoff** for the restricted power-family `K = x*y*(x+y)^α` (which includes
 the symmetric cubic-sum curve as `α=1`). See:
-- `docs/CUBIC_SUM_CURVE_ANALYSIS.md` (this note)
+- `docs/AMM_POWER_FAMILY_LOCAL_TRADEOFF_WHITEPAPER.md`
 - Lean proof: `lean-mathlib/Proofs/ImpossibilityTheorem.lean`
 
 To promote the *global* statement to “THEOREM (formal)”, the next step is to:

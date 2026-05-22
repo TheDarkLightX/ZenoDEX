@@ -1,13 +1,19 @@
+---
+title: SHAPE_V1
+type: note
+permalink: autonomous-tau-dex-review/docs/zenodex/shape-v1
+---
+
 # ZenoDEX `SHAPE_V1`
 
 `SHAPE_V1` is the release contract for the currently achieved audited-domain
-world-model candidate targets.
+ShapeForge candidate targets.
 
 It is intentionally narrower than a universal “the DEX is solved” claim.
 
 ## Scope
 
-`D_v1` means the currently promoted audited domain in the world-model baseline:
+`D_v1` means the currently promoted audited domain in the ShapeForge world model:
 
 - `shape_pp_candidate_v1 = 10/10`, `blocked = 0`
 - `dex_kernel_candidate_v1 = 6/6`, `blocked = 0`
@@ -21,9 +27,9 @@ Important scope limits:
 
 Authoritative machine-readable sources:
 
-- `docs/zenodex/world_model_promoted/zenodex_target_shapes.seed.json`
-- `docs/zenodex/world_model_promoted/zenodex_world_model.seed.json`
-- `docs/zenodex/world_model_promoted/zenodex_negative_knowledge.seed.json`
+- `docs/zenodex/shapeforge_promoted/zenodex_target_shapes.seed.json`
+- `docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json`
+- `docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json`
 
 ## Release Gate
 
@@ -35,18 +41,15 @@ python3 tools/check_shape_v1_ratchet.py
 
 That gate must remain green before widening any public assurance claim.
 
-The operational release decision checklist for this claim is:
+It now subsumes the promoted Cantor-to-ShapeForge shell-evidence lane: the promoted world model is validated, the current deterministic bridge report is rebuilt, and the bridge must verify fail closed against the current Cantor assurance bundle.
 
-- `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
+The current Phase 2 bounded public replay parity ratchet is:
 
-The current frozen release-candidate note for this claim is:
+```bash
+python3 tools/check_parity_v1.py
+```
 
-- `docs/zenodex/SHAPE_V1_RC1.md`
-
-The single-document reviewer audit entry point for the main algorithms and
-assurance boundaries is:
-
-- `docs/zenodex/DEX_ALGORITHM_AUDIT_V1.md`
+That gate is narrower than the full Shape manifest, but it is the concrete replay guard for the promoted bounded liveness carriers.
 
 ## Clause Manifest
 

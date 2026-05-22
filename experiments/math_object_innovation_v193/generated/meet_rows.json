@@ -1,0 +1,288 @@
+[
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v190_fixture": 0,
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v190_fixture": "protocol_surplus_internal_capture",
+      "v191_stress": "protocol_surplus_internal_capture"
+    },
+    "surface": "arbitrage_recapture_auction"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "synthetic_meet_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": 5000,
+    "source_caps": {
+      "v190_fixture": 5000,
+      "v191_stress": 5000
+    },
+    "source_sample_counts": {
+      "v190_fixture": 1,
+      "v191_stress": 3
+    },
+    "source_statuses": {
+      "v190_fixture": "candidate_review_cap",
+      "v191_stress": "candidate_review_cap"
+    },
+    "surface": "cow_batch_solver_surplus"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "execution_backed_meet_cap",
+    "execution_stress_tension_bps": 497,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": 2000,
+    "source_caps": {
+      "v190_fixture": 2500,
+      "v191_stress": 2000,
+      "v192_execution": 2497
+    },
+    "source_sample_counts": {
+      "v190_fixture": 1,
+      "v191_stress": 3,
+      "v192_execution": 9
+    },
+    "source_statuses": {
+      "v190_fixture": "candidate_review_cap",
+      "v191_stress": "candidate_review_cap",
+      "v192_execution": "candidate_review_cap"
+    },
+    "surface": "exact_out_savings_capture"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v192_execution": 0
+    },
+    "source_statuses": {
+      "v192_execution": "rejected_only"
+    },
+    "surface": "execution_exact_out_wash_bad"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v192_execution": 0
+    },
+    "source_statuses": {
+      "v192_execution": "rejected_only"
+    },
+    "surface": "execution_route_overcharge_bad"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v190_fixture": 0,
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v190_fixture": "rejected_only",
+      "v191_stress": "rejected_only"
+    },
+    "surface": "extractive_notional_bad"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "synthetic_meet_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": 3000,
+    "source_caps": {
+      "v190_fixture": 3555,
+      "v191_stress": 3000
+    },
+    "source_sample_counts": {
+      "v190_fixture": 1,
+      "v191_stress": 3
+    },
+    "source_statuses": {
+      "v190_fixture": "candidate_review_cap",
+      "v191_stress": "candidate_review_cap"
+    },
+    "surface": "integrator_router_surface"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "synthetic_meet_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": 5000,
+    "source_caps": {
+      "v190_fixture": 5000,
+      "v191_stress": 5000
+    },
+    "source_sample_counts": {
+      "v190_fixture": 1,
+      "v191_stress": 3
+    },
+    "source_statuses": {
+      "v190_fixture": "candidate_review_cap",
+      "v191_stress": "candidate_review_cap"
+    },
+    "surface": "lp_loss_cover_premium"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v191_stress": "rejected_only"
+    },
+    "surface": "primary_negative_net_bad"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v191_stress": "rejected_only"
+    },
+    "surface": "primary_penalty_bad"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "synthetic_meet_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": 3000,
+    "source_caps": {
+      "v190_fixture": 4000,
+      "v191_stress": 3000
+    },
+    "source_sample_counts": {
+      "v190_fixture": 1,
+      "v191_stress": 3
+    },
+    "source_statuses": {
+      "v190_fixture": "candidate_review_cap",
+      "v191_stress": "candidate_review_cap"
+    },
+    "surface": "pro_certificate_api"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v191_stress": "rejected_only"
+    },
+    "surface": "protocol_surplus_overcapture_bad"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "execution_backed_meet_cap",
+    "execution_stress_tension_bps": 700,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": 1800,
+    "source_caps": {
+      "v190_fixture": 2500,
+      "v191_stress": 1800,
+      "v192_execution": 2500
+    },
+    "source_sample_counts": {
+      "v190_fixture": 1,
+      "v191_stress": 3,
+      "v192_execution": 9
+    },
+    "source_statuses": {
+      "v190_fixture": "candidate_review_cap",
+      "v191_stress": "candidate_review_cap",
+      "v192_execution": "candidate_review_cap"
+    },
+    "surface": "route_surplus_capture"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v190_fixture": 0,
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v190_fixture": "penalty_not_primary_revenue",
+      "v191_stress": "penalty_not_primary_revenue"
+    },
+    "surface": "staking_early_exit_penalty"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v190_fixture": 0,
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v190_fixture": "protocol_surplus_internal_capture",
+      "v191_stress": "protocol_surplus_internal_capture"
+    },
+    "surface": "treasury_market_maker_bot"
+  },
+  {
+    "cap_bound_failures": 0,
+    "classification": "no_user_value_cap",
+    "execution_stress_tension_bps": null,
+    "launch_parameter_claim": false,
+    "meet_cap_bps": null,
+    "source_caps": {},
+    "source_sample_counts": {
+      "v190_fixture": 0,
+      "v191_stress": 0
+    },
+    "source_statuses": {
+      "v190_fixture": "rejected_only",
+      "v191_stress": "rejected_only"
+    },
+    "surface": "wash_rebate_bad"
+  }
+]

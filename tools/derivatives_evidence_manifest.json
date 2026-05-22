@@ -35,28 +35,8 @@
       "sha256": "3ccde42e046bb61b7a4aa238d21eb05c540209a006b54584cc8b4085e27661ed"
     },
     {
-      "path": "src/core/funding_rate_market.py",
-      "sha256": "9fbc84ecca745b13183aac8045b9db76b6be5b9af4c7ac9508b093afd587f2d7"
-    },
-    {
-      "path": "src/kernels/python/funding_rate_settlement_runtime_v1_1.py",
-      "sha256": "d36c13cb939aa17f0bc5ba43174ce1126181700b6a18db1ab1009287ea764ba6"
-    },
-    {
-      "path": "generated/derivatives_python/funding_rate_market_v1_ref.py",
-      "sha256": "c8851d0bf817033f5589b0a86d691678848bd339ee538fcbcadd07d5fcd41027"
-    },
-    {
-      "path": "generated/derivatives_python/funding_rate_market_v1_1_ref.py",
-      "sha256": "c2e0ee4393778fdaf0c9ca1d2cccecddede836356a62ada377dec1fef706153a"
-    },
-    {
       "path": "tests/core/test_derivatives_generated_refs.py",
-      "sha256": "15349cccc363f281156969748a4c8c9e447255a18535ede17c1169525061eda2"
-    },
-    {
-      "path": "tests/core/test_funding_rate_decomposed_parity.py",
-      "sha256": "d114a810b8713c1513414c658a0e987b41deff4e4ee495889e14ce6895917ef2"
+      "sha256": "643da67a7d8709f597469f47ecccb36575a5dafc1869353ffde1947c79c83ad5"
     },
     {
       "path": "tests/core/test_funding_rate_market.py",
@@ -67,8 +47,16 @@
       "sha256": "de2ed28c5453148278e4d146da4594d5cd639bd332015abc43392d9f6ba2e523"
     },
     {
+      "path": "tests/core/test_funding_rate_settlement_runtime_v1_1.py",
+      "sha256": "eb87d3ee0c65bc5a2e81a140ed92e78ad4e7af363b408f29b24346142c51867a"
+    },
+    {
+      "path": "tests/kernels/test_funding_rate_settlement_witness_v1_1_native_adapter.py",
+      "sha256": "ee0ebf8ddd927013effb3e88efbae046e46a0a9a93fdab239b5d71db755dfc0d"
+    },
+    {
       "path": "tests/core/test_il_futures.py",
-      "sha256": "12c6369f9edb8def36a7910bc0c373ab98cd3c99380fc16f6fa1dbb97b66cc50"
+      "sha256": "fd7b6bd909eb16729e892d12602b500802a4097ba9bb6bd14100a232ef7d8316"
     },
     {
       "path": "tests/core/test_curve_selection.py",
@@ -81,14 +69,6 @@
     {
       "path": "tests/core/test_volatility_tier_ref_parity.py",
       "sha256": "4487294056cb30b4c2e6d6bcde472ebcb1ddb74ef91de655b04013b2da5418d8"
-    },
-    {
-      "path": "tests/test_derivatives_evidence_script.py",
-      "sha256": "a0a670c222090122eb72f4aa69b38c19c0b458525635ccd1e352ad790a70093d"
-    },
-    {
-      "path": "tools/run_derivatives_evidence.sh",
-      "sha256": "fdb796beb747292bbf9dca0680072854f445683d09d503b2ac2410d4e4dad027"
     }
   ],
   "verify_multi": [
@@ -125,22 +105,6 @@
         "solvers": {
           "z3": "4.15.4",
           "cvc5": "This is cvc5 version 1.1.2"
-        }
-      }
-    },
-    {
-      "report_path": "internal/esso_verify/derivatives/funding_rate_market_v1_1/verification_report.json",
-      "model_id": "funding_rate_market_v1_1",
-      "ir_hash": "064f53ddd58618b5",
-      "solvers": [
-        "z3"
-      ],
-      "solver_timeout_ms": 60000,
-      "passed_queries": 6,
-      "toolchain": {
-        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
-        "solvers": {
-          "z3": "4.15.4"
         }
       }
     },

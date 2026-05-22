@@ -1,0 +1,67 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "optimizer_audited_bounds_liveness_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless composition kernel for exact-out audited-bounds contracts.
+
+    This kernel does not prove a step-count or throughput theorem.
+    It only composes replayable runtime booleans for:
+    - selected-domain and repaired/full-domain budget facts
+    - budget-parameter binding across packet layers
+    - explicit success/failure public outcomes
+observables:
+  state_vars: []
+  effects:
+    [
+      "budget_facts_ok",
+      "public_outcome_explicit",
+      "contract_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "compose_audited_bounds_contract"
+    params:
+      - id: "selected_domain_budget_respected"
+        type: { kind: "bool" }
+      - id: "repaired_selection_budget_respected"
+        type: { kind: "bool" }
+      - id: "full_domain_pool_budget_respected"
+        type: { kind: "bool" }
+      - id: "full_domain_candidate_budget_respected"
+        type: { kind: "bool" }
+      - id: "budget_parameters_bound"
+        type: { kind: "bool" }
+      - id: "failure_path_explicit"
+        type: { kind: "bool" }
+      - id: "success_path_replayable"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      budget_facts_ok:
+        op: "and"
+        args:
+          - { param: "selected_domain_budget_respected" }
+          - { param: "repaired_selection_budget_respected" }
+          - { param: "full_domain_pool_budget_respected" }
+          - { param: "full_domain_candidate_budget_respected" }
+          - { param: "budget_parameters_bound" }
+      public_outcome_explicit:
+        op: "and"
+        args:
+          - { param: "failure_path_explicit" }
+          - { param: "success_path_replayable" }
+      contract_ok:
+        op: "and"
+        args:
+          - { param: "selected_domain_budget_respected" }
+          - { param: "repaired_selection_budget_respected" }
+          - { param: "full_domain_pool_budget_respected" }
+          - { param: "full_domain_candidate_budget_respected" }
+          - { param: "budget_parameters_bound" }
+          - { param: "failure_path_explicit" }
+          - { param: "success_path_replayable" }

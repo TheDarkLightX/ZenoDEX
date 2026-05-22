@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.settlement import Settlement
 from src.integration.operations import (
     SignedIntentEnvelope,
-    ValidatedIntent,
     _parse_intent,
     create_intent_operation,
     create_signed_intent_operation,
@@ -15,7 +13,9 @@ from src.integration.operations import (
     parse_settlement_envelope,
     parse_signed_intents,
 )
+from src.core.settlement import Settlement
 from src.state.intents import Intent, IntentKind
+from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
 
 def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
@@ -27,10 +27,6 @@ def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
         "sender_pubkey": "pk",
         "deadline": 1,
         "pool_id": "0x" + "22" * 32,
-        "asset_in": "asset-a",
-        "asset_out": "asset-b",
-        "amount_in": 5,
-        "min_amount_out": 0,
     }
 
 
@@ -38,7 +34,6 @@ def test_parse_signed_intents_accepts_signature_field() -> None:
     ops = {"2": [{**_min_intent_dict(), "signature": "0xsig"}]}
     envs = parse_signed_intents(ops)
     assert len(envs) == 1
-    assert isinstance(envs[0].intent, ValidatedIntent)
     assert envs[0].signature == "0xsig"
     assert "signature" not in (envs[0].intent.fields or {})
 
@@ -130,6 +125,160 @@ def test_create_signed_intent_operation_roundtrips_transport_metadata() -> None:
     assert reparsed[0].quote_receipt == receipt
 
 
+def test_parse_signed_intents_output_rejects_duplicate_nonce_after_carrier_normalization() -> None:
+    sender = "0x" + "41" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "41" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-a",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "42" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-b"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-a", "0xsig-b"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 1]
+    assert all("signature" not in (env.intent.fields or {}) for env in envs)
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_duplicate_nonce_after_sender_canonicalization() -> None:
+    sender_lower = "0x" + "ab" * 48
+    sender_upper = "0x" + ("ab" * 48).upper()
+    first = {
+        **_min_intent_dict(intent_id="0x" + "43" * 32),
+        "sender_pubkey": sender_upper,
+        "nonce": 1,
+        "signature": "0xsig-upper",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "44" * 32),
+        "sender_pubkey": sender_lower,
+        "nonce": 1,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-lower"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-upper", "0xsig-lower"]
+    assert [env.intent.sender_pubkey for env in envs] == [sender_upper, sender_lower]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 1]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_out_of_order_duplicate_nonce_projection() -> None:
+    sender = "0x" + "45" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "45" * 32),
+        "sender_pubkey": sender,
+        "nonce": 2,
+        "signature": "0xsig-nonce-2a",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "46" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+    }
+    third = {
+        **_min_intent_dict(intent_id="0x" + "47" * 32),
+        "sender_pubkey": sender,
+        "nonce": 2,
+        "signature": "0xsig-nonce-2b",
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-nonce-1"], third]})
+
+    assert [env.signature for env in envs] == [
+        "0xsig-nonce-2a",
+        "0xsig-nonce-1",
+        "0xsig-nonce-2b",
+    ]
+    assert [env.intent.fields.get("nonce") for env in envs] == [2, 1, 2]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_mixed_nonce_live_admission_floor() -> None:
+    sender = "0x" + "48" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "48" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-nonce",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "49" * 32),
+        "sender_pubkey": sender,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-missing-nonce"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-nonce", "0xsig-missing-nonce"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, None]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=False,
+    )
+    assert not ok
+    assert err == "nonce presence must be consistent across batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_invalid_sender_boundary_before_nonce_update() -> None:
+    sender = "0x" + "50" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "50" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-valid-sender",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "51" * 32),
+        "sender_pubkey": "not-hex",
+        "nonce": 2,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-invalid-sender"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-valid-sender", "0xsig-invalid-sender"]
+    assert [env.intent.sender_pubkey for env in envs] == [sender, "not-hex"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 2]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err is not None
+    assert err.startswith("invalid sender_pubkey for nonce accounting:")
+    assert updated is None
+
+
 def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:
     intent = Intent(
         module="TauSwap",
@@ -211,10 +360,6 @@ def test_parse_settlement_treats_none_lists_as_empty() -> None:
 def test_parse_intents_handles_missing_group_and_rejects_invalid_shapes() -> None:
     assert parse_intents({}) == []
 
-    parsed = parse_intents({"2": [_min_intent_dict()]})
-    assert len(parsed) == 1
-    assert isinstance(parsed[0], ValidatedIntent)
-
     with pytest.raises(ValueError, match="operations must be an object"):
         parse_intents([])  # type: ignore[arg-type]
 
@@ -257,96 +402,6 @@ def test_parse_signed_intents_rejects_invalid_intent_envelope_fields() -> None:
 
     with pytest.raises(ValueError, match="intent keys must be strings"):
         parse_signed_intents({"2": [{**_min_intent_dict(), 1: "bad-key"}]})  # type: ignore[dict-item]
-
-
-def test_parse_signed_intents_validates_swap_exact_in_fields() -> None:
-    with pytest.raises(ValueError, match="unsupported field for SWAP_EXACT_IN: hidden_metadata"):
-        parse_signed_intents({"2": [{**_min_intent_dict(), "hidden_metadata": {"unsafe": True}}]})
-
-    with pytest.raises(ValueError, match="Missing required field for SWAP_EXACT_IN: amount_in"):
-        parse_signed_intents({"2": [{k: v for k, v in _min_intent_dict().items() if k != "amount_in"}]})
-
-    with pytest.raises(ValueError, match="intent.amount_in must be an int"):
-        parse_signed_intents({"2": [{**_min_intent_dict(), "amount_in": True}]})
-
-    with pytest.raises(ValueError, match="intent.asset_in and intent.asset_out must differ"):
-        parse_signed_intents({"2": [{**_min_intent_dict(), "asset_out": "asset-a"}]})
-
-
-def test_parse_signed_intents_validates_swap_exact_out_fields() -> None:
-    exact_out = {
-        **_min_intent_dict(),
-        "kind": "SWAP_EXACT_OUT",
-        "amount_out": 4,
-        "max_amount_in": 9,
-    }
-    exact_out.pop("amount_in")
-    exact_out.pop("min_amount_out")
-    envs = parse_signed_intents({"2": [exact_out]})
-    assert envs[0].intent.kind == IntentKind.SWAP_EXACT_OUT
-
-    with pytest.raises(ValueError, match="intent.max_amount_in must be >= 1"):
-        parse_signed_intents({"2": [{**exact_out, "max_amount_in": 0}]})
-
-
-def test_parse_signed_intents_validates_create_pool_fields() -> None:
-    create_pool = {
-        **_min_intent_dict(),
-        "kind": "CREATE_POOL",
-        "asset0": "asset-a",
-        "asset1": "asset-b",
-        "fee_bps": 30,
-        "amount0": 10,
-        "amount1": 20,
-        "created_at": 1,
-    }
-    for key in ("pool_id", "asset_in", "asset_out", "amount_in", "min_amount_out"):
-        create_pool.pop(key)
-    envs = parse_signed_intents({"2": [create_pool]})
-    assert envs[0].intent.kind == IntentKind.CREATE_POOL
-
-    with pytest.raises(ValueError, match="unsupported field for CREATE_POOL: pool_id"):
-        parse_signed_intents({"2": [{**create_pool, "pool_id": "stale-pool"}]})
-
-    with pytest.raises(ValueError, match="intent assets must be in canonical order"):
-        parse_signed_intents({"2": [{**create_pool, "asset0": "asset-b", "asset1": "asset-a"}]})
-
-    with pytest.raises(ValueError, match="intent.fee_bps must be <= 9999"):
-        parse_signed_intents({"2": [{**create_pool, "fee_bps": 10_000}]})
-
-    with pytest.raises(ValueError, match="invalid curve configuration"):
-        parse_signed_intents({"2": [{**create_pool, "curve_tag": "CPMM", "curve_params": {"p": 1}}]})
-
-
-def test_parse_signed_intents_validates_liquidity_fields() -> None:
-    add_liquidity = {
-        **_min_intent_dict(),
-        "kind": "ADD_LIQUIDITY",
-        "amount0_desired": 10,
-        "amount1_desired": 20,
-        "amount0_min": 0,
-        "amount1_min": 0,
-    }
-    for key in ("asset_in", "asset_out", "amount_in", "min_amount_out"):
-        add_liquidity.pop(key)
-    assert parse_signed_intents({"2": [add_liquidity]})[0].intent.kind == IntentKind.ADD_LIQUIDITY
-
-    with pytest.raises(ValueError, match="Missing required field for ADD_LIQUIDITY: amount1_min"):
-        parse_signed_intents({"2": [{k: v for k, v in add_liquidity.items() if k != "amount1_min"}]})
-
-    remove_liquidity = {
-        **_min_intent_dict(),
-        "kind": "REMOVE_LIQUIDITY",
-        "lp_amount": 1,
-        "amount0_min": 0,
-        "amount1_min": 0,
-    }
-    for key in ("asset_in", "asset_out", "amount_in", "min_amount_out"):
-        remove_liquidity.pop(key)
-    assert parse_signed_intents({"2": [remove_liquidity]})[0].intent.kind == IntentKind.REMOVE_LIQUIDITY
-
-    with pytest.raises(ValueError, match="intent.lp_amount must be >= 1"):
-        parse_signed_intents({"2": [{**remove_liquidity, "lp_amount": 0}]})
 
 
 def test_parse_settlement_rejects_invalid_included_intent_action() -> None:

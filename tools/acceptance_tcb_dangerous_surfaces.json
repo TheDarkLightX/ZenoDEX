@@ -7,7 +7,7 @@
       "invariant_boundary": "unauthorized request envelopes must fail closed before runtime admission",
       "action_grammar": "request envelope -> parse -> auth gate -> reject",
       "harnesses": [
-        "test_api_server_dex_api:resource_budget_caps"
+        "api_server_boundary_concolic:settlement_proof_flags"
       ],
       "trace_tokens": [
         "api_server.py"
@@ -20,7 +20,9 @@
         "api",
         "auth"
       ],
-      "witness_ids": []
+      "witness_ids": [
+        "api_request_unauthorized"
+      ]
     },
     {
       "id": "operations_signature_reuse_boundary",
@@ -75,8 +77,9 @@
       "invariant_boundary": "receipt transport hashes and envelope structure must bind before route execution",
       "action_grammar": "receipt blob -> transport decode -> hash check -> reject",
       "harnesses": [
+        "receipt_boundary_concolic:quote_receipt_verify",
         "quote_receipt_sequence:stale_quote_receipt_sequence",
-        "dex_engine_quote_receipt_sequence:direct_quote_receipt_sequence"
+        "quote_receipt_cross_surface_sequence:quote_receipt_cross_surface_sequence"
       ],
       "trace_tokens": [
         "quote_receipts.py"
@@ -91,7 +94,9 @@
         "receipt",
         "transport"
       ],
-      "witness_ids": []
+      "witness_ids": [
+        "quote_receipt_missing_hash"
+      ]
     },
     {
       "id": "stale_quote_receipt_boundary",
@@ -99,8 +104,9 @@
       "invariant_boundary": "quote receipts must fail once the referenced pool snapshot drifts",
       "action_grammar": "valid quote receipt -> pool mutation -> reuse receipt -> reject",
       "harnesses": [
+        "receipt_boundary_concolic:quote_receipt_verify",
         "quote_receipt_sequence:stale_quote_receipt_sequence",
-        "dex_engine_quote_receipt_sequence:direct_quote_receipt_sequence"
+        "quote_receipt_cross_surface_sequence:quote_receipt_cross_surface_sequence"
       ],
       "trace_tokens": [
         "quote_receipts.py"
@@ -114,7 +120,8 @@
         "stale"
       ],
       "witness_ids": [
-        "dex_engine_quote_receipt_stale_dead_tail"
+        "dex_engine_quote_receipt_stale_dead_tail",
+        "quote_receipt_transport_repair_then_stale_snapshot"
       ]
     },
     {
@@ -146,7 +153,8 @@
       "invariant_boundary": "receipt pool fingerprint maps must cover exactly the pools referenced by the quoted winner path",
       "action_grammar": "quote receipt -> recanonicalize winner/body -> stale pool fingerprint envelope -> reject",
       "harnesses": [
-        "route_certificate_sequence:route_certificate_sequence"
+        "receipt_boundary_concolic:quote_receipt_verify",
+        "quote_receipt_route_canonicalization_sequence:quote_receipt_route_canonicalization_sequence"
       ],
       "trace_tokens": [
         "quote_receipts.py"
@@ -160,7 +168,9 @@
         "pools",
         "envelope"
       ],
-      "witness_ids": []
+      "witness_ids": [
+        "quote_receipt_missing_pool_fingerprint"
+      ]
     },
     {
       "id": "quote_receipt_certificate_boundary",
@@ -168,8 +178,10 @@
       "invariant_boundary": "route certificates must remain bound to the quoted candidate set and quote body",
       "action_grammar": "quote receipt -> certificate payload -> route binding check -> reject",
       "harnesses": [
+        "receipt_boundary_concolic:quote_receipt_verify_exact_in_certificate",
         "route_certificate_sequence:route_certificate_sequence",
-        "dex_engine_quote_receipt_sequence:direct_quote_receipt_sequence"
+        "quote_receipt_cross_surface_sequence:quote_receipt_cross_surface_sequence",
+        "quote_receipt_route_canonicalization_sequence:quote_receipt_route_canonicalization_sequence"
       ],
       "trace_tokens": [
         "exact_in_route_certificate.py",
@@ -187,7 +199,9 @@
         "certificate"
       ],
       "witness_ids": [
-        "route_certificate_candidate_set_hash_mismatch"
+        "route_certificate_candidate_set_hash_mismatch",
+        "quote_receipt_certificate_amount_out_mismatch",
+        "quote_receipt_route_canonicalization_candidate_set_hash_mismatch"
       ]
     },
     {
@@ -196,7 +210,8 @@
       "invariant_boundary": "canonical winner selection must stay stable under quote-set replay and tie-break pressure",
       "action_grammar": "candidate set -> canonical certificate -> reordered or improved candidates -> reject mismatch",
       "harnesses": [
-        "route_certificate_sequence:route_certificate_sequence"
+        "route_certificate_sequence:route_certificate_sequence",
+        "quote_receipt_route_canonicalization_sequence:quote_receipt_route_canonicalization_sequence"
       ],
       "trace_tokens": [
         "exact_in_route_certificate.py"
@@ -211,7 +226,8 @@
         "canonicalization"
       ],
       "witness_ids": [
-        "route_canonicalization_candidate_set_hash_mismatch"
+        "route_canonicalization_candidate_set_hash_mismatch",
+        "quote_receipt_route_canonicalization_candidate_set_hash_mismatch"
       ]
     },
     {

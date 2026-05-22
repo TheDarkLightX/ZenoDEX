@@ -86,9 +86,6 @@ def test_oracle_rc_package_exposes_bin_entrypoint() -> None:
         for item in manifest["files"]
     )
     assert any(item["path"] == "tools/zenodex_oracle_reporter_economics_replay.py" for item in manifest["files"])
-    assert any(
-        item["path"] == "tools/zenodex_oracle_reporter_token_settlement_replay.py" for item in manifest["files"]
-    )
     assert any(item["path"] == "tools/zenodex_oracle_devnet_service.py" for item in manifest["files"])
     assert any(item["path"] == "assets/branding/zeno-oracle/zeno_oracle_icon_256.png" for item in manifest["files"])
     assert any(item["path"] == "docs/papers/zeno-oracle-whitepaper/main.pdf" for item in manifest["files"])

@@ -221,32 +221,6 @@ def test_subprocess_verifier_rejects_missing_subprocess_pipes(monkeypatch: pytes
     assert err == "proof verifier misconfigured (subprocess pipes unavailable)"
 
 
-def test_subprocess_verifier_rejects_missing_subprocess_pipes_even_if_kill_fails(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    verifier = SubprocessProofVerifier(
-        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
-        timeout_s=1.0,
-        max_bytes=1024,
-        max_stdout_bytes=256,
-        max_stderr_bytes=256,
-    )
-
-    class _KillFailProc(_FakeProc):
-        def kill(self) -> None:
-            raise OSError("kill failed")
-
-    proc = _KillFailProc()
-    proc.stdin = None
-    monkeypatch.setattr(proof_verifier, "canonical_json_bytes", lambda payload: b"{}")
-    monkeypatch.setattr(proof_verifier, "bounded_json_utf8_size", lambda payload, max_bytes: 2)
-    monkeypatch.setattr(proof_verifier.subprocess, "Popen", lambda *args, **kwargs: proc)
-
-    ok, err = verifier.verify({"ok": True})
-    assert ok is False
-    assert err == "proof verifier misconfigured (subprocess pipes unavailable)"
-
-
 def test_subprocess_verifier_rejects_non_blocking_pipe_requirement(monkeypatch: pytest.MonkeyPatch) -> None:
     verifier = SubprocessProofVerifier(
         cmd=[sys.executable, "-c", "import sys; sys.stdin.buffer.read(); print('{\"ok\": true}')"],

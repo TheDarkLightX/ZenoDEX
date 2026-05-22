@@ -62,6 +62,20 @@ MINIMIZED_WITNESS_SPECS: tuple[dict[str, Any], ...] = (
         "lanes": ("fast", "deep"),
     },
     {
+        "id": "quote_receipt_missing_hash",
+        "tool": "tools/quote_receipt_transport_grammar_fuzz.py",
+        "target": "quote_receipt_transport",
+        "derivation": "QuoteReceipt->ExactOut ; ReceiptHash->MissingWithDeadBlob",
+        "lanes": ("fast", "deep"),
+    },
+    {
+        "id": "api_request_unauthorized",
+        "tool": "tools/api_server_request_grammar_fuzz.py",
+        "target": "dex_request_envelope",
+        "derivation": "DexReq->UnauthorizedWithDeadFields",
+        "lanes": ("fast", "deep"),
+    },
+    {
         "id": "operations_duplicate_signature",
         "tool": "tools/operations_grammar_fuzz.py",
         "target": "signed_intents",
@@ -73,6 +87,34 @@ MINIMIZED_WITNESS_SPECS: tuple[dict[str, Any], ...] = (
         "tool": "tools/route_certificate_sequence_grammar_fuzz.py",
         "target": "route_certificate_sequence",
         "derivation": "add_better_candidate",
+        "lanes": ("deep",),
+    },
+    {
+        "id": "quote_receipt_certificate_amount_out_mismatch",
+        "tool": "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
+        "target": "quote_receipt_cross_surface_sequence",
+        "derivation": "tamper_then_rehash",
+        "lanes": ("deep",),
+    },
+    {
+        "id": "quote_receipt_transport_repair_then_stale_snapshot",
+        "tool": "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
+        "target": "quote_receipt_cross_surface_sequence",
+        "derivation": "drop_hash_then_rehash_then_drift",
+        "lanes": ("deep",),
+    },
+    {
+        "id": "quote_receipt_route_canonicalization_candidate_set_hash_mismatch",
+        "tool": "tools/quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
+        "target": "quote_receipt_route_canonicalization_sequence",
+        "derivation": "reorder_candidates_rehash",
+        "lanes": ("deep",),
+    },
+    {
+        "id": "quote_receipt_missing_pool_fingerprint",
+        "tool": "tools/quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
+        "target": "quote_receipt_route_canonicalization_sequence",
+        "derivation": "drop_winner_rebuild_sync_body",
         "lanes": ("deep",),
     },
     {
@@ -125,6 +167,22 @@ MINIMIZED_WITNESS_SPECS: tuple[dict[str, Any], ...] = (
 )
 STATEFUL_EXPLORER_SPECS: tuple[dict[str, Any], ...] = (
     {
+        "id": "api_server_boundary_concolic",
+        "tool": "tools/api_server_boundary_concolic_stateful.py",
+        "target": "all",
+        "max_depth": 2,
+        "max_frontier": 128,
+        "slow": False,
+    },
+    {
+        "id": "receipt_boundary_concolic",
+        "tool": "tools/receipt_boundary_concolic_stateful.py",
+        "target": "all",
+        "max_depth": 2,
+        "max_frontier": 128,
+        "slow": False,
+    },
+    {
         "id": "state_boundary_concolic",
         "tool": "tools/state_boundary_concolic_stateful.py",
         "target": "all",
@@ -154,6 +212,22 @@ STATEFUL_EXPLORER_SPECS: tuple[dict[str, Any], ...] = (
         "target": "stale_quote_receipt_sequence",
         "max_depth": 1,
         "max_frontier": 32,
+        "slow": False,
+    },
+    {
+        "id": "quote_receipt_cross_surface_sequence",
+        "tool": "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
+        "target": "quote_receipt_cross_surface_sequence",
+        "max_depth": 3,
+        "max_frontier": 32,
+        "slow": False,
+    },
+    {
+        "id": "quote_receipt_route_canonicalization_sequence",
+        "tool": "tools/quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
+        "target": "quote_receipt_route_canonicalization_sequence",
+        "max_depth": 4,
+        "max_frontier": 48,
         "slow": False,
     },
     {

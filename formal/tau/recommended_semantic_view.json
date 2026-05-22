@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/tau/semantic-view/v1",
   "execution_census_ref": "formal/tau/recommended_execution_census_best.json",
-  "spec_count": 162,
+  "spec_count": 174,
   "packets": [
     {
       "spec_id": "add_liquidity_apply_v1",
@@ -490,6 +490,806 @@
       }
     },
     {
+      "spec_id": "autotrader_budget_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_budget_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]",
+        "i4": "bv[32]",
+        "i5": "bv[32]",
+        "i6": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i6"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> budget_step_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "add_no_wrap",
+          "budget_step_valid",
+          "is_positive_32"
+        ],
+        "definitions": [
+          {
+            "name": "add_no_wrap",
+            "kind": "data_predicate",
+            "params": [
+              "a",
+              "b",
+              "sum"
+            ],
+            "body": "(sum = (a + b)) && (sum >= a) && (sum >= b)",
+            "body_short": "(sum = (a + b)) && (sum >= a) && (sum >= b)"
+          },
+          {
+            "name": "budget_step_valid",
+            "kind": "data_predicate",
+            "params": [
+              "spent_before",
+              "order_amount",
+              "per_order_limit",
+              "window_budget",
+              "spent_after",
+              "kill_switch_active"
+            ],
+            "body": "(kill_switch_active = 0:sbf) && is_positive_32(order_amount) && (order_amount <= per_order_limit) && add_no_wrap(spent_before, order_amount, spent_after) && (spent_after <= window_budget)",
+            "body_short": "(kill_switch_active = 0:sbf) && is_positive_32(order_amount) && (order_amount <= per_order_limit) && add_no_wrap(spent_before, order_amount, spent_after) && (spent_after <= window_budget)"
+          },
+          {
+            "name": "is_positive_32",
+            "kind": "data_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "x > { #x00000000 }:bv[32]",
+            "body_short": "x > { #x00000000 }:bv[32]"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((i6[t]:sbf) = 0:sbf) && (((i2[t]:bv[32])) > { #x00000000 }:bv[32]) && ((i2[t]:bv[32]) <= (i3[t]:bv[32])) && ((((i5[t]:bv[32])) = (((i1[t]:bv[32])) + ((i2[t]:bv[32])))) && (((i5[t]:bv[32])) >= ((i1[t]:bv[32]))) && ((..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_compilation_witness_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_compilation_witness_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_compile_contract_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_compile_contract_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_emit_finalize_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_emit_finalize_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "( o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 0:sbf) || ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)) ) )"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 0:sbf) || ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)) )"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "1"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_execution_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_execution_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]",
+        "i4": "sbf",
+        "i5": "bv[32]",
+        "i6": "bv[32]",
+        "i7": "bv[32]",
+        "i8": "bv[32]",
+        "i9": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i4"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> execution_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf, i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32]))"
+        ],
+        "control_helper_names": [
+          "execution_guard_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "cadence_ok",
+          "live_orders_ok",
+          "monotone_epoch_ok",
+          "within_window_ok"
+        ],
+        "definitions": [
+          {
+            "name": "cadence_ok",
+            "kind": "data_predicate",
+            "params": [
+              "last_action_known",
+              "current_epoch",
+              "last_action_epoch",
+              "cadence_epochs",
+              "min_order_spacing_epochs"
+            ],
+            "body": "(last_action_known = 0:sbf) || ( (current_epoch >= last_action_epoch) && ((current_epoch - last_action_epoch) >= cadence_epochs) && ((current_epoch - last_action_epoch) >= min_order_spacing_epochs) )",
+            "body_short": "(last_action_known = 0:sbf) || ( (current_epoch >= last_action_epoch) && ((current_epoch - last_action_epoch) >= cadence_epochs) && ((current_epoch - last_action_epoch) >= min_order_spacing_epochs) )"
+          },
+          {
+            "name": "execution_guard_ok",
+            "kind": "control_predicate",
+            "params": [
+              "current_epoch",
+              "valid_from_epoch",
+              "valid_until_epoch",
+              "last_action_known",
+              "last_action_epoch",
+              "cadence_epochs",
+              "min_order_spacing_epochs",
+              "projected_live_orders",
+              "max_live_orders"
+            ],
+            "body": "within_window_ok(current_epoch, valid_from_epoch, valid_until_epoch) && monotone_epoch_ok(last_action_known, current_epoch, last_action_epoch) && cadence_ok(last_action_known, current_epoch, last_action_epoch, cadence_epochs, min_order_spacing_epochs) && live_orders_ok(projected_live_orders, max_live_orders)",
+            "body_short": "within_window_ok(current_epoch, valid_from_epoch, valid_until_epoch) && monotone_epoch_ok(last_action_known, current_epoch, last_action_epoch) && cadence_ok(last_action_known, current_epoch, last_action_epoch, cadence..."
+          },
+          {
+            "name": "live_orders_ok",
+            "kind": "data_predicate",
+            "params": [
+              "projected_live_orders",
+              "max_live_orders"
+            ],
+            "body": "projected_live_orders <= max_live_orders",
+            "body_short": "projected_live_orders <= max_live_orders"
+          },
+          {
+            "name": "monotone_epoch_ok",
+            "kind": "data_predicate",
+            "params": [
+              "last_action_known",
+              "current_epoch",
+              "last_action_epoch"
+            ],
+            "body": "(last_action_known = 0:sbf) || (current_epoch >= last_action_epoch)",
+            "body_short": "(last_action_known = 0:sbf) || (current_epoch >= last_action_epoch)"
+          },
+          {
+            "name": "within_window_ok",
+            "kind": "data_predicate",
+            "params": [
+              "current_epoch",
+              "valid_from_epoch",
+              "valid_until_epoch"
+            ],
+            "body": "(current_epoch >= valid_from_epoch) && (current_epoch <= valid_until_epoch)",
+            "body_short": "(current_epoch >= valid_from_epoch) && (current_epoch <= valid_until_epoch)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:bv[32])) >= ((i2[t]:bv[32]))) && (((i1[t]:bv[32])) <= ((i3[t]:bv[32])))) && ((((i4[t]:sbf)) = 0:sbf) || (((i1[t]:bv[32])) >= ((i5[t]:bv[32])))) && ((((i4[t]:sbf)) = 0:sbf) || ( (((i1[t]:bv[32])) >= ((i5[t]:..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "1"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_external_signal_source_registry_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_external_signal_source_registry_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "bv[32]",
+        "i4": "bv[32]",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "bv[32]",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf"
+      },
+      "output_streams": {
+        "o8": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i5",
+          "i6",
+          "i7",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15"
+        ],
+        "bv_inputs": [
+          "i3",
+          "i4",
+          "i8"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o8[t]:sbf = 1:sbf <-> source_registry_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:bv[32], i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:..."
+        ],
+        "control_helper_names": [
+          "advisory_mode_allowed",
+          "auth_requirement_ok",
+          "freshness_requirement_ok",
+          "registry_enabled_ok",
+          "registry_entry_found",
+          "source_kind_matches",
+          "source_registry_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "trust_tier_allowed"
+        ],
+        "definitions": [
+          {
+            "name": "advisory_mode_allowed",
+            "kind": "control_predicate",
+            "params": [
+              "require_advisory_only",
+              "advisory_only"
+            ],
+            "body": "(require_advisory_only = 0:sbf) || (advisory_only = 1:sbf)",
+            "body_short": "(require_advisory_only = 0:sbf) || (advisory_only = 1:sbf)"
+          },
+          {
+            "name": "auth_requirement_ok",
+            "kind": "control_predicate",
+            "params": [
+              "require_auth",
+              "auth_ok"
+            ],
+            "body": "(require_auth = 0:sbf) || (auth_ok = 1:sbf)",
+            "body_short": "(require_auth = 0:sbf) || (auth_ok = 1:sbf)"
+          },
+          {
+            "name": "freshness_requirement_ok",
+            "kind": "control_predicate",
+            "params": [
+              "require_freshness",
+              "freshness_ok"
+            ],
+            "body": "(require_freshness = 0:sbf) || (freshness_ok = 1:sbf)",
+            "body_short": "(require_freshness = 0:sbf) || (freshness_ok = 1:sbf)"
+          },
+          {
+            "name": "registry_enabled_ok",
+            "kind": "control_predicate",
+            "params": [
+              "registry_entry_present",
+              "registry_entry_enabled"
+            ],
+            "body": "(registry_entry_present = 1:sbf) && (registry_entry_enabled = 1:sbf)",
+            "body_short": "(registry_entry_present = 1:sbf) && (registry_entry_enabled = 1:sbf)"
+          },
+          {
+            "name": "registry_entry_found",
+            "kind": "control_predicate",
+            "params": [
+              "registry_entry_present"
+            ],
+            "body": "registry_entry_present = 1:sbf",
+            "body_short": "registry_entry_present = 1:sbf"
+          },
+          {
+            "name": "source_kind_matches",
+            "kind": "control_predicate",
+            "params": [
+              "registry_entry_present",
+              "observed_source_kind_code",
+              "registered_source_kind_code"
+            ],
+            "body": "(registry_entry_present = 1:sbf) && (observed_source_kind_code = registered_source_kind_code)",
+            "body_short": "(registry_entry_present = 1:sbf) && (observed_source_kind_code = registered_source_kind_code)"
+          },
+          {
+            "name": "source_registry_ok",
+            "kind": "control_predicate",
+            "params": [
+              "registry_entry_present",
+              "registry_entry_enabled",
+              "observed_source_kind_code",
+              "observed_trust_tier_code",
+              "advisory_only",
+              "auth_ok",
+              "freshness_ok",
+              "registered_source_kind_code",
+              "allow_advisory",
+              "allow_attested",
+              "allow_verified",
+              "allow_protocol",
+              "require_advisory_only",
+              "require_auth",
+              "require_freshness"
+            ],
+            "body": "registry_entry_found(registry_entry_present) && registry_enabled_ok(registry_entry_present, registry_entry_enabled) && source_kind_matches(registry_entry_present, observed_source_kind_code, registered_source_kind_code) && trust_tier_allowed(registry_entry_present, observed_trust_tier_code, allow_advisory, allow_attested, allow_verified, allow_protocol) && advisory_mode_allowed(require_advisory_only, advisory_only) && auth_requirement_ok(require_auth, auth_ok) && freshness_requirement_ok(require_freshness, freshness_ok)",
+            "body_short": "registry_entry_found(registry_entry_present) && registry_enabled_ok(registry_entry_present, registry_entry_enabled) && source_kind_matches(registry_entry_present, observed_source_kind_code, registered_source_kind_code..."
+          },
+          {
+            "name": "trust_tier_allowed",
+            "kind": "data_predicate",
+            "params": [
+              "registry_entry_present",
+              "observed_trust_tier_code",
+              "allow_advisory",
+              "allow_attested",
+              "allow_verified",
+              "allow_protocol"
+            ],
+            "body": "(registry_entry_present = 1:sbf) && ( ((observed_trust_tier_code = { #x00000000 }:bv[32]) && (allow_advisory = 1:sbf)) || ((observed_trust_tier_code = { #x00000001 }:bv[32]) && (allow_attested = 1:sbf)) || ((observed_trust_tier_code = { #x00000002 }:bv[32]) && (allow_verified = 1:sbf)) || ((observed_trust_tier_code = { #x00000003 }:bv[32]) && (allow_protocol = 1:sbf)) )",
+            "body_short": "(registry_entry_present = 1:sbf) && ( ((observed_trust_tier_code = { #x00000000 }:bv[32]) && (allow_advisory = 1:sbf)) || ((observed_trust_tier_code = { #x00000001 }:bv[32]) && (allow_attested = 1:sbf)) || ((observed_..."
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o8"
+        ],
+        "rows": [
+          {
+            "name": "o8",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((i1[t]:sbf)) = 1:sbf) && ((((i1[t]:sbf)) = 1:sbf) && (((i2[t]:sbf)) = 1:sbf)) && ((((i1[t]:sbf)) = 1:sbf) && (((i3[t]:bv[32])) = ((i8[t]:bv[32])))) && ((((i1[t]:sbf)) = 1:sbf) && ( ((((i4[t]:bv[32])) = { #x00000000..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_live_admission_bundle_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_live_admission_bundle_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "bundles_and_compositions",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf",
+        "o7": "sbf",
+        "o8": "sbf",
+        "o9": "sbf",
+        "o10": "sbf",
+        "o11": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && (o5[t]:sbf = 1:sbf <-> (i5[t]..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 11,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6",
+          "o7",
+          "o8",
+          "o9",
+          "o10",
+          "o11"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i1[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i2[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i3[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i4[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i5[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i6[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o7",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i7[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o8",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i8[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o9",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i9[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o10",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i10[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o11",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "00000000000"
+        ],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "autotrader_nonce_guard_v1",
       "spec_path": "src/tau_specs/recommended/autotrader_nonce_guard_v1.tau",
       "profile": "bundle_or_composition",
@@ -568,6 +1368,747 @@
         "runner": "repl",
         "observed_output_signatures": [
           "0010"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_observation_packet_contract_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_observation_packet_contract_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "bv[32]",
+        "i10": "bv[32]",
+        "i11": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "( o1[t]:sbf = 1:sbf <-> ( ( (i1[t]:bv[32] = { #x00000001 }:bv[32]) && ( (i2[t]:bv[32] = { #x00000002 }:bv[32]) || (i2[t]:bv[32] = { #x00000003 }:bv[32]) ) ) || ( (i1[t]:bv[32] = { #x00000002 }:bv[32]) && (i2[t]:bv[32]..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( ( (i1[t]:bv[32] = { #x00000001 }:bv[32]) && ( (i2[t]:bv[32] = { #x00000002 }:bv[32]) || (i2[t]:bv[32] = { #x00000003 }:bv[32]) ) ) || ( (i1[t]:bv[32] = { #x00000002 }:bv[32]) && (i2[t]:bv[32] = { #x00000003 }:bv[32]..."
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( ( (i1[t]:bv[32] = { #x00000001 }:bv[32]) && ( (i2[t]:bv[32] = { #x00000002 }:bv[32]) || (i2[t]:bv[32] = { #x00000003 }:bv[32]) ) ) || ( (i1[t]:bv[32] = { #x00000002 }:bv[32]) && (i2[t]:bv[32] = { #x00000003 }:bv[32]..."
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) )"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i10[t]:bv[32] <= i9[t]:bv[32]) && (i11[t]:bv[32] <= i9[t]:bv[32]) && ((i10[t]:bv[32] + i11[t]:bv[32]) = i9[t]:bv[32]) )"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( ( ( (i1[t]:bv[32] = { #x00000001 }:bv[32]) && ( (i2[t]:bv[32] = { #x00000002 }:bv[32]) || (i2[t]:bv[32] = { #x00000003 }:bv[32]) ) ) || ( (i1[t]:bv[32] = { #x00000002 }:bv[32]) && (i2[t]:bv[32] = { #x00000003 }:bv[3..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "error",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": [
+          "tau failed (rc=-1): tau timed out",
+          "tau failed (rc=-1): tau timed out"
+        ]
+      }
+    },
+    {
+      "spec_id": "autotrader_oracle_freshness_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_oracle_freshness_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> oracle_freshness_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))"
+        ],
+        "control_helper_names": [
+          "oracle_freshness_guard_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "freshness_ok",
+          "quote_epoch_not_future"
+        ],
+        "definitions": [
+          {
+            "name": "freshness_ok",
+            "kind": "data_predicate",
+            "params": [
+              "current_epoch",
+              "quote_epoch",
+              "max_oracle_staleness_epochs"
+            ],
+            "body": "(quote_epoch <= current_epoch) && ((current_epoch - quote_epoch) <= max_oracle_staleness_epochs)",
+            "body_short": "(quote_epoch <= current_epoch) && ((current_epoch - quote_epoch) <= max_oracle_staleness_epochs)"
+          },
+          {
+            "name": "oracle_freshness_guard_ok",
+            "kind": "control_predicate",
+            "params": [
+              "current_epoch",
+              "quote_epoch",
+              "max_oracle_staleness_epochs"
+            ],
+            "body": "quote_epoch_not_future(current_epoch, quote_epoch) && freshness_ok(current_epoch, quote_epoch, max_oracle_staleness_epochs)",
+            "body_short": "quote_epoch_not_future(current_epoch, quote_epoch) && freshness_ok(current_epoch, quote_epoch, max_oracle_staleness_epochs)"
+          },
+          {
+            "name": "quote_epoch_not_future",
+            "kind": "data_predicate",
+            "params": [
+              "current_epoch",
+              "quote_epoch"
+            ],
+            "body": "quote_epoch <= current_epoch",
+            "body_short": "quote_epoch <= current_epoch"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((i2[t]:bv[32])) <= ((i1[t]:bv[32]))) && ((((i2[t]:bv[32])) <= ((i1[t]:bv[32]))) && ((((i1[t]:bv[32])) - ((i2[t]:bv[32]))) <= ((i3[t]:bv[32])))))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "1"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_session_capability_binding_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_session_capability_binding_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "bv[32]",
+        "i7": "bv[32]",
+        "i8": "bv[32]",
+        "i9": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf",
+        "o7": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5"
+        ],
+        "bv_inputs": [
+          "i6",
+          "i7",
+          "i8",
+          "i9"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && (o5[t]:sbf = 1:sbf <-> (i5[t]..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 7,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6",
+          "o7"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i1[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i2[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i3[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i4[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i5[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i6[t]:bv[32] >= i8[t]:bv[32]) && (i7[t]:bv[32] <= i9[t]:bv[32]) )"
+          },
+          {
+            "name": "o7",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:bv[32] >= i8[t]:bv[32]) && (i7[t]:bv[32] <= i9[t]:bv[32]) )"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0000010"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_session_state_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_session_state_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "bv[32]",
+        "i7": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5"
+        ],
+        "bv_inputs": [
+          "i6",
+          "i7"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) && (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) && ( o5[t]:sbf = 1:sbf <-> ( (i5..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 6,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i1[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i2[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i3[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i4[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i5[t]:sbf = 0:sbf) || (i6[t]:bv[32] < i7[t]:bv[32]) )"
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && ( (i5[t]:sbf = 0:sbf) || (i6[t]:bv[32] < i7[t]:bv[32]) ) )"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "000010"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_signal_provenance_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_signal_provenance_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> (i1[t]:bv[32] = { #x00000001 }:bv[32])) && (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[32] >= { #x00000002 }:bv[32])) && ( o3[t]:sbf = 1:sbf <-> ( (i9[t]:sbf = 0:sbf) || ( (i3[t]:sbf = 1:sbf) && (i4[t]:sbf..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 4,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i1[t]:bv[32] = { #x00000001 }:bv[32])"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i2[t]:bv[32] >= { #x00000002 }:bv[32])"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i9[t]:sbf = 0:sbf) || ( (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) ) )"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i8[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i1[t]:bv[32] = { #x00000001 }:bv[32]) && (i2[t]:bv[32] >= { #x00000002 }:bv[32]) && ( (i9[t]:sbf = 0:sbf) || ( (i3[t]:sbf = 1:sbf) && (i4[t]:sbf ..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0010"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_submit_bundle_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_submit_bundle_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "bundles_and_compositions",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "( o1[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) ) ) && ( o2[t]:sbf = 1:sbf <-> ( (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) ) ) && ( o3[t]:sbf = 1:sbf <-> (i7[t]:sbf = 1:sbf..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) )"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) )"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i7[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i8[t]:sbf = 0:sbf) || (i9[t]:sbf = 1:sbf) )"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 0:sbf) || ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && ( (i8[t]:sbf = 0:sbf) || (i9[t]:sbf = 1:sbf) ) ) )"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "00011"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_system_compose_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_system_compose_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "bundles_and_compositions",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf",
+        "i16": "sbf",
+        "i17": "sbf",
+        "i18": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15",
+          "i16",
+          "i17",
+          "i18"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "( o1[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 3,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]..."
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:..."
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 0:sbf) || ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "spec",
+        "observed_output_signatures": [
+          "001"
         ],
         "error_messages": []
       }
@@ -663,6 +2204,218 @@
         "runner": "repl",
         "observed_output_signatures": [
           "1111"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_wallet_capability_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_wallet_capability_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "bv[32]",
+        "i8": "bv[32]",
+        "i9": "bv[32]",
+        "i10": "bv[32]",
+        "i11": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6"
+        ],
+        "bv_inputs": [
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) && ( o2[t]:sbf = 1:sbf <-> ( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) ) ) && (o3[t]:sbf = 1:sbf <-> ((..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i1[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) )"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i7[t]:bv[32] >= i8[t]:bv[32]) && (i7[t]:bv[32] <= i9[t]:bv[32]))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i10[t]:bv[32] <= i11[t]:bv[32])"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:bv[32] >= i8[t]:bv[32]) && (i7[t]:bv[32] <= i9[t]:bv[32]) && (i10[t]:b..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "00110"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "autotrader_wallet_outbound_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_wallet_outbound_guard_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "autotrader_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]",
+        "i4": "bv[32]",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i5",
+          "i6",
+          "i7",
+          "i8"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> (i8[t]:sbf = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = i4[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[32] <= i2[t]:bv[32])) && (o4[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && (i6[t]:s..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i8[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i3[t]:bv[32] = i4[t]:bv[32])"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i1[t]:bv[32] <= i2[t]:bv[32])"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf))"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i8[t]:sbf = 0:sbf) || (!(i3[t]:bv[32] = i4[t]:bv[32])) || ( (i1[t]:bv[32] <= i2[t]:bv[32]) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) ) )"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "01101"
         ],
         "error_messages": []
       }
@@ -3244,6 +4997,118 @@
           "tau failed (rc=-1): tau timed out",
           "tau failed (rc=-1): tau timed out"
         ]
+      }
+    },
+    {
+      "spec_id": "fhe_sealed_bid_alpha_guard_v1",
+      "spec_path": "src/tau_specs/recommended/fhe_sealed_bid_alpha_guard_v1.tau",
+      "profile": "exact_combinational_guard",
+      "rule": "amm_and_orderflow_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]",
+        "i4": "bv[32]",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i5",
+          "i6",
+          "i7",
+          "i8"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i1[t]:bv[32] <= { #x00000008 }:bv[32]))) && (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[32] <= { #x01312D00 }:bv[32])) && (o3[t]:sbf = 1:sbf <-> (i3[t]:bv[32] <=..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 6,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i1[t]:bv[32] <= { #x00000008 }:bv[32]))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i2[t]:bv[32] <= { #x01312D00 }:bv[32])"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i3[t]:bv[32] <= { #x004C4B40 }:bv[32])"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i4[t]:bv[32] > { #x00000000 }:bv[32]) && (i4[t]:bv[32] <= { #x0000000A }:bv[32]))"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf))"
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i1[t]:bv[32] <= { #x00000008 }:bv[32]) && (i2[t]:bv[32] <= { #x01312D00 }:bv[32]) && (i3[t]:bv[32] <= { #x004C4B40 }:bv[32]) && (i4[t]:bv[32] > { #x00000000 }:bv[32]) && (i4..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "011000"
+        ],
+        "error_messages": []
       }
     },
     {
@@ -14324,116 +16189,6 @@
       }
     },
     {
-      "spec_id": "settlement_core_module_bundle_v1",
-      "spec_path": "src/tau_specs/recommended/settlement_core_module_bundle_v1.tau",
-      "profile": "bundle_or_composition",
-      "rule": "bundles_and_compositions",
-      "temporal": false,
-      "input_streams": {
-        "i1": "sbf",
-        "i2": "sbf",
-        "i3": "sbf"
-      },
-      "output_streams": {
-        "o1": "sbf"
-      },
-      "control_surface": {
-        "sbf_inputs": [
-          "i1",
-          "i2",
-          "i3"
-        ],
-        "bv_inputs": [],
-        "always_count": 1,
-        "always_short": [
-          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)))"
-        ],
-        "control_helper_names": []
-      },
-      "data_surface": {
-        "data_helper_names": [],
-        "definitions": []
-      },
-      "equation_surface": {
-        "extractable": true,
-        "equation_count": 1,
-        "covered_outputs": [
-          "o1"
-        ],
-        "rows": [
-          {
-            "name": "o1",
-            "index": "t",
-            "type": "sbf",
-            "style": "iff_true",
-            "expr_short": "((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))"
-          }
-        ]
-      },
-      "execution": {
-        "status": "missing",
-        "runner": "",
-        "observed_output_signatures": [],
-        "error_messages": []
-      }
-    },
-    {
-      "spec_id": "settlement_feature_extension_bundle_v1",
-      "spec_path": "src/tau_specs/recommended/settlement_feature_extension_bundle_v1.tau",
-      "profile": "bundle_or_composition",
-      "rule": "bundles_and_compositions",
-      "temporal": false,
-      "input_streams": {
-        "i1": "sbf",
-        "i2": "sbf",
-        "i3": "sbf",
-        "i4": "sbf"
-      },
-      "output_streams": {
-        "o1": "sbf"
-      },
-      "control_surface": {
-        "sbf_inputs": [
-          "i1",
-          "i2",
-          "i3",
-          "i4"
-        ],
-        "bv_inputs": [],
-        "always_count": 1,
-        "always_short": [
-          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf)))"
-        ],
-        "control_helper_names": []
-      },
-      "data_surface": {
-        "data_helper_names": [],
-        "definitions": []
-      },
-      "equation_surface": {
-        "extractable": true,
-        "equation_count": 1,
-        "covered_outputs": [
-          "o1"
-        ],
-        "rows": [
-          {
-            "name": "o1",
-            "index": "t",
-            "type": "sbf",
-            "style": "iff_true",
-            "expr_short": "((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf))"
-          }
-        ]
-      },
-      "execution": {
-        "status": "missing",
-        "runner": "",
-        "observed_output_signatures": [],
-        "error_messages": []
-      }
-    },
-    {
       "spec_id": "settlement_module_flag_bundle_v1",
       "spec_path": "src/tau_specs/recommended/settlement_module_flag_bundle_v1.tau",
       "profile": "bundle_or_composition",
@@ -14671,185 +16426,6 @@
         "runner": "repl",
         "observed_output_signatures": [
           "1"
-        ],
-        "error_messages": []
-      }
-    },
-    {
-      "spec_id": "settlement_proof_binding_bundle_v1",
-      "spec_path": "src/tau_specs/recommended/settlement_proof_binding_bundle_v1.tau",
-      "profile": "bundle_or_composition",
-      "rule": "bundles_and_compositions",
-      "temporal": false,
-      "input_streams": {
-        "i1": "sbf",
-        "i2": "sbf"
-      },
-      "output_streams": {
-        "o1": "sbf"
-      },
-      "control_surface": {
-        "sbf_inputs": [
-          "i1",
-          "i2"
-        ],
-        "bv_inputs": [],
-        "always_count": 1,
-        "always_short": [
-          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf)))"
-        ],
-        "control_helper_names": []
-      },
-      "data_surface": {
-        "data_helper_names": [],
-        "definitions": []
-      },
-      "equation_surface": {
-        "extractable": true,
-        "equation_count": 1,
-        "covered_outputs": [
-          "o1"
-        ],
-        "rows": [
-          {
-            "name": "o1",
-            "index": "t",
-            "type": "sbf",
-            "style": "iff_true",
-            "expr_short": "((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf))"
-          }
-        ]
-      },
-      "execution": {
-        "status": "missing",
-        "runner": "",
-        "observed_output_signatures": [],
-        "error_messages": []
-      }
-    },
-    {
-      "spec_id": "settlement_signer_registry_anchor_gate_v1",
-      "spec_path": "src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau",
-      "profile": "bundle_or_composition",
-      "rule": "batching_and_settlement_suite",
-      "temporal": false,
-      "input_streams": {
-        "i1": "sbf",
-        "i2": "sbf",
-        "i3": "sbf",
-        "i4": "sbf",
-        "i5": "sbf",
-        "i6": "sbf",
-        "i7": "sbf",
-        "i8": "bv[16]",
-        "i9": "bv[16]",
-        "i10": "bv[16]",
-        "i11": "bv[16]"
-      },
-      "output_streams": {
-        "o1": "sbf",
-        "o2": "sbf",
-        "o3": "sbf",
-        "o4": "bv[16]",
-        "o5": "bv[16]",
-        "o6": "bv[16]",
-        "o7": "bv[16]"
-      },
-      "control_surface": {
-        "sbf_inputs": [
-          "i1",
-          "i2",
-          "i3",
-          "i4",
-          "i5",
-          "i6",
-          "i7"
-        ],
-        "bv_inputs": [
-          "i8",
-          "i9",
-          "i10",
-          "i11"
-        ],
-        "always_count": 1,
-        "always_short": [
-          "(o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) && (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) && (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) && (o4[t]:bv[16] = ..."
-        ],
-        "control_helper_names": []
-      },
-      "data_surface": {
-        "data_helper_names": [],
-        "definitions": []
-      },
-      "equation_surface": {
-        "extractable": true,
-        "equation_count": 7,
-        "covered_outputs": [
-          "o1",
-          "o2",
-          "o3",
-          "o4",
-          "o5",
-          "o6",
-          "o7"
-        ],
-        "rows": [
-          {
-            "name": "o1",
-            "index": "t",
-            "type": "sbf",
-            "style": "direct_assign",
-            "expr_short": "i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf"
-          },
-          {
-            "name": "o2",
-            "index": "t",
-            "type": "sbf",
-            "style": "direct_assign",
-            "expr_short": "i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf"
-          },
-          {
-            "name": "o3",
-            "index": "t",
-            "type": "sbf",
-            "style": "direct_assign",
-            "expr_short": "i6[t]:sbf & i7[t]:sbf"
-          },
-          {
-            "name": "o4",
-            "index": "t",
-            "type": "bv[16]",
-            "style": "direct_assign",
-            "expr_short": "i8[t]:bv[16]"
-          },
-          {
-            "name": "o5",
-            "index": "t",
-            "type": "bv[16]",
-            "style": "direct_assign",
-            "expr_short": "i9[t]:bv[16]"
-          },
-          {
-            "name": "o6",
-            "index": "t",
-            "type": "bv[16]",
-            "style": "direct_assign",
-            "expr_short": "i10[t]:bv[16]"
-          },
-          {
-            "name": "o7",
-            "index": "t",
-            "type": "bv[16]",
-            "style": "direct_assign",
-            "expr_short": "i11[t]:bv[16]"
-          }
-        ]
-      },
-      "execution": {
-        "status": "ok",
-        "runner": "repl",
-        "observed_output_signatures": [
-          "0000000"
         ],
         "error_messages": []
       }
@@ -21516,93 +23092,6 @@
           "tau failed (rc=-1): tau timed out",
           "tau failed (rc=-1): tau timed out"
         ]
-      }
-    },
-    {
-      "spec_id": "zusd_cross_module_oracle_sync_gate_v1",
-      "spec_path": "src/tau_specs/recommended/zusd_cross_module_oracle_sync_gate_v1.tau",
-      "profile": "stateful_policy_guard",
-      "rule": "zusd_suite",
-      "temporal": false,
-      "input_streams": {
-        "i1": "sbf",
-        "i2": "sbf",
-        "i3": "sbf"
-      },
-      "output_streams": {
-        "o1": "sbf",
-        "o2": "sbf"
-      },
-      "control_surface": {
-        "sbf_inputs": [
-          "i1",
-          "i2",
-          "i3"
-        ],
-        "bv_inputs": [],
-        "always_count": 1,
-        "always_short": [
-          "(o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> sync_gate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))"
-        ],
-        "control_helper_names": [
-          "env_ok",
-          "sync_gate_ok"
-        ]
-      },
-      "data_surface": {
-        "data_helper_names": [],
-        "definitions": [
-          {
-            "name": "env_ok",
-            "kind": "control_predicate",
-            "params": [
-              "sync_snapshot_available"
-            ],
-            "body": "(sync_snapshot_available = 1:sbf)",
-            "body_short": "(sync_snapshot_available = 1:sbf)"
-          },
-          {
-            "name": "sync_gate_ok",
-            "kind": "control_predicate",
-            "params": [
-              "sync_snapshot_available",
-              "divergence_bounded",
-              "epoch_lag_bounded"
-            ],
-            "body": "env_ok(sync_snapshot_available) && (divergence_bounded = 1:sbf) && (epoch_lag_bounded = 1:sbf)",
-            "body_short": "env_ok(sync_snapshot_available) && (divergence_bounded = 1:sbf) && (epoch_lag_bounded = 1:sbf)"
-          }
-        ]
-      },
-      "equation_surface": {
-        "extractable": true,
-        "equation_count": 2,
-        "covered_outputs": [
-          "o1",
-          "o2"
-        ],
-        "rows": [
-          {
-            "name": "o1",
-            "index": "t",
-            "type": "sbf",
-            "style": "iff_true",
-            "expr_short": "(((i1[t]:sbf) = 1:sbf))"
-          },
-          {
-            "name": "o2",
-            "index": "t",
-            "type": "sbf",
-            "style": "iff_true",
-            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((i2[t]:sbf) = 1:sbf) && ((i3[t]:sbf) = 1:sbf))"
-          }
-        ]
-      },
-      "execution": {
-        "status": "missing",
-        "runner": "",
-        "observed_output_signatures": [],
-        "error_messages": []
       }
     },
     {

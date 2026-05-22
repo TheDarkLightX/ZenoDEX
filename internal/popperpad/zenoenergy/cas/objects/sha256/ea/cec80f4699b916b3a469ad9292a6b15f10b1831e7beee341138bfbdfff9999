@@ -1,0 +1,322 @@
+{
+  "check_count": 56,
+  "checks": [
+    {
+      "check_id": "set_aware.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_set_aware_comparison/v1', observed 'zenodex/energy/upba_v2_set_aware_comparison/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "set_aware.zero_invalid_accepts",
+      "detail": "all modes have invalid_accept_count = 0",
+      "passed": true
+    },
+    {
+      "check_id": "set_aware.aggregate_top10_recall",
+      "detail": "aggregate learned top_10_recall is 1.0",
+      "passed": true
+    },
+    {
+      "check_id": "set_aware.negative_knowledge_recorded",
+      "detail": "set-aware linear ranker did not beat aggregate learned baseline",
+      "passed": true
+    },
+    {
+      "check_id": "neighborhood.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_neighborhood_benchmark/v1', observed 'zenodex/energy/upba_v2_neighborhood_benchmark/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "neighborhood.safety",
+      "detail": "zero invalid accepts, zero subset violations, verifier authoritative",
+      "passed": true
+    },
+    {
+      "check_id": "neighborhood.regret_reduced",
+      "detail": "neighborhood reduces mean volume regret versus limited",
+      "passed": true
+    },
+    {
+      "check_id": "neighborhood.call_cost_negative",
+      "detail": "neighborhood increases calls until full winner, negative knowledge preserved",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_repair_selector_benchmark/v1', observed 'zenodex/energy/upba_v2_repair_selector_benchmark/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector.safety",
+      "detail": "zero invalid accepts and verifier authoritative",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector.compression",
+      "detail": "learned selector compresses full neighborhood without higher mean volume regret",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector.hand_baseline_negative",
+      "detail": "learned selector does not strictly beat hand-selected subset on this split",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector_cross_seed.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_repair_selector_cross_seed/v1', observed 'zenodex/energy/upba_v2_repair_selector_cross_seed/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector_cross_seed.safety",
+      "detail": "all cross-seed runs have zero invalid accepts and zero subset violations",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector_cross_seed.compression_all_pairs",
+      "detail": "compression passed on every seed pair",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector_cross_seed.aggregate_regret",
+      "detail": "learned selected aggregate mean regret is no worse than full neighborhood",
+      "passed": true
+    },
+    {
+      "check_id": "repair_selector_cross_seed.hand_negative",
+      "detail": "learned selector does not strictly beat hand-selected subset on every seed pair",
+      "passed": true
+    },
+    {
+      "check_id": "formal_boundary.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_repair_selector_formal_boundary_receipt/v1', observed 'zenodex/energy/upba_v2_repair_selector_formal_boundary_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "formal_boundary.commands",
+      "detail": "Lean target and focused formal regression are recorded as passing",
+      "passed": true
+    },
+    {
+      "check_id": "formal_boundary.names",
+      "detail": "selector-specific Lean names are present in receipt",
+      "passed": true
+    },
+    {
+      "check_id": "formal_boundary.scope_limit",
+      "detail": "receipt states base-list scope limit",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_checked_stop_formal.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_fallback_checked_stop_formal_receipt/v1', observed 'zenodex/energy/upba_v2_fallback_checked_stop_formal_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_checked_stop_formal.commands",
+      "detail": "Lean target and focused formal regression are recorded as passing",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_checked_stop_formal.names",
+      "detail": "fallback and checked-stop theorem names are present in receipt and Lean source",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_checked_stop_formal.no_placeholders",
+      "detail": "Lean source has no sorry/admit/axiom/unsafe placeholders",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_checked_stop_formal.scope_limit",
+      "detail": "receipt states online early-stop suffix-bound limit",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_permutation_audit.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_benchmark_report/v1', observed 'zenodex/energy/upba_v2_benchmark_report/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_permutation_audit.zero_invalid_accepts",
+      "detail": "all fallback audit modes have zero invalid accepts",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_permutation_audit.permutation_premise",
+      "detail": "all audit modes preserve the full-fallback permutation premise",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_permutation_audit.learned_recovery",
+      "detail": "learned and hybrid orderings recover every exact winner by top-k or fallback",
+      "passed": true
+    },
+    {
+      "check_id": "fallback_permutation_audit.checked_stop_offline",
+      "detail": "checked-stop audit succeeds for learned top-k and remains nontrivial versus random",
+      "passed": true
+    },
+    {
+      "check_id": "topk_sweep.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_topk_sweep/v1', observed 'zenodex/energy/upba_v2_topk_sweep/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "topk_sweep.permutation_premise",
+      "detail": "all top-k sweep modes preserve hash-permutation ordering",
+      "passed": true
+    },
+    {
+      "check_id": "topk_sweep.learned_checked_stop_k2",
+      "detail": "learned and hybrid checked-stop audits reach 100% by k=2 on holdout",
+      "passed": true
+    },
+    {
+      "check_id": "topk_sweep.checked_stop_at_winner",
+      "detail": "checked-stop certificate holds at the exact winner for every mode",
+      "passed": true
+    },
+    {
+      "check_id": "topk_sweep.random_top10_negative",
+      "detail": "random top-10 misses many winners, so the sweep is not vacuous",
+      "passed": true
+    },
+    {
+      "check_id": "sota_decision_map.schema",
+      "detail": "expected 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1', observed 'zenodex/energy/upba_v2_sota_decision_map_receipt/v1'",
+      "passed": true
+    },
+    {
+      "check_id": "sota_decision_map.sources_and_boundary",
+      "detail": "decision map records all required sources and verifier/fallback boundary",
+      "passed": true
+    },
+    {
+      "check_id": "sota_decision_map.decisions",
+      "detail": "all required model-direction decisions are recorded in receipt and doc",
+      "passed": true
+    },
+    {
+      "check_id": "sota_decision_map.next_experiments",
+      "detail": "all next experiments are recorded in receipt and doc",
+      "passed": true
+    },
+    {
+      "check_id": "sota_decision_map.negative_knowledge",
+      "detail": "negative knowledge and guidance-only limit are preserved",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517",
+      "detail": "H_ZENOENERGY_SET_AWARE_COMPARE_SAFETY_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517",
+      "detail": "H_ZENOENERGY_SET_AWARE_LINEAR_STRICTLY_IMPROVES_AGGREGATE_20260517 is recorded as falsified",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2",
+      "detail": "H_ZENOENERGY_NEIGHBORHOOD_SAFETY_SUBSET_20260517_V2 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_REDUCES_REGRET_20260517_V2",
+      "detail": "H_ZENOENERGY_NEIGHBORHOOD_REDUCES_REGRET_20260517_V2 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_NEIGHBORHOOD_REDUCES_VERIFIER_CALLS_20260517_V2",
+      "detail": "H_ZENOENERGY_NEIGHBORHOOD_REDUCES_VERIFIER_CALLS_20260517_V2 is recorded as falsified",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_SAFETY_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_SAFETY_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_COMPRESSES_FULL_NEIGHBORHOOD_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_COMPRESSES_FULL_NEIGHBORHOOD_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_STRICTLY_BEATS_HAND_SELECTED_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_STRICTLY_BEATS_HAND_SELECTED_20260517 is recorded as falsified",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_SAFETY_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_SAFETY_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_COMPRESSES_FULL_NEIGHBORHOOD_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_CROSS_SEED_STRICTLY_BEATS_HAND_SELECTED_20260517 is recorded as falsified",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517",
+      "detail": "H_ZENOENERGY_REPAIR_SELECTOR_FORMAL_BOUNDARY_RECEIPT_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517",
+      "detail": "H_ZENOENERGY_FALLBACK_CHECKED_STOP_FORMAL_RECEIPT_20260517 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.status.H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518",
+      "detail": "H_ZENOENERGY_SOTA_DECISION_MAP_RECEIPT_20260518 is recorded as supported",
+      "passed": true
+    },
+    {
+      "check_id": "popperpad.doctor",
+      "detail": "PopperPad doctor ok",
+      "passed": true
+    }
+  ],
+  "failed_count": 0,
+  "ok": true,
+  "passed_count": 56,
+  "schema": "zenodex/energy/research_evidence_replay_receipt/v1",
+  "summary": {
+    "fallback_checked_stop_claim": "Full deterministic fallback is order-equivalent when the ranked order is a permutation of the exact finite candidate list. Checked early stop is safe only with a verifier-facing certificate that the checked winner dominates the checked prefix and the unchecked suffix, plus exact coverage of the full candidate list.",
+    "fallback_permutation_audit": {
+      "batches": 198,
+      "invalid_accept_count": 0,
+      "learned_checked_stop_top_k_rate": 1.0,
+      "learned_permutation_violation_count": 0,
+      "learned_top_10_recall": 1.0
+    },
+    "formal_boundary_claim": "The repair selector has a Lean-checked base-preservation boundary: selected repair sets preserve weak optimality over the base list when the deterministic verifier supplies an upper-bound certificate over the selected set.",
+    "neighborhood_regret_delta": -273.6375,
+    "repair_selector_cross_seed": {
+      "compression_pass_count": 3,
+      "invalid_accept_count": 0,
+      "original_subset_violation_count": 0,
+      "run_count": 3,
+      "strict_hand_win_count": 1
+    },
+    "set_aware_negative_knowledge": "Extra set-aware moment features did not improve the linear ranker on this comparison run. Keep the aggregate gap-weighted checkpoint as the measured default until cross-seed evidence supports a change.",
+    "sota_decision_map": {
+      "claim": "Current solver-learning and energy-model guidance supports listwise/set-aware ranker and outcome-level repair-selector experiments while preserving verifier-authoritative fallback or certificates.",
+      "negative_knowledge_count": 3,
+      "next_experiment_count": 4,
+      "required_decision_count": 7,
+      "source_count": 10
+    },
+    "topk_sweep": {
+      "batches": 1983,
+      "learned_k2_checked_stop_rate": 1.0,
+      "learned_k2_false_exclusion_rate": 0.0,
+      "random_k10_false_exclusion_rate": 0.4931921331316188
+    }
+  }
+}

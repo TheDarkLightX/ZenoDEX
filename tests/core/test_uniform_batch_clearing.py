@@ -8,18 +8,21 @@ from src.core.batch_clearing import validate_settlement
 from src.core.cpmm import compute_fee_total
 from src.core.settlement import FillAction
 from src.core.uniform_batch_clearing import (
-    UniformBatchCertificateV1,
-    UniformBatchFillV1,
     UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
+    UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
-    UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_POLICY_V2_ID,
+    UNIFORM_BATCH_POLICY_V3_ID,
+    UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     UNIFORM_BATCH_UNFILLED_REASON,
+    UniformBatchCertificateV1,
+    UniformBatchFillV1,
     build_uniform_batch_settlement_v1,
     uniform_batch_certificate_hash,
+    uniform_batch_exact_out_gross_in_for_price,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
     validate_uniform_batch_settlement_v1,
@@ -82,6 +85,31 @@ def _swap(
             "asset_out": asset_out,
             "amount_in": amount_in,
             "min_amount_out": min_amount_out,
+        },
+    )
+
+
+def _exact_out_swap(
+    label: str,
+    sender: str,
+    asset_in: str,
+    asset_out: str,
+    amount_out: int = 100,
+    max_amount_in: int = 100,
+) -> Intent:
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_intent_id(label),
+        sender_pubkey=sender,
+        deadline=999,
+        fields={
+            "pool_id": "pool_ab",
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_out": amount_out,
+            "max_amount_in": max_amount_in,
         },
     )
 
@@ -158,6 +186,48 @@ def _v2_certificate_for(
         fills=tuple(fills),
         policy_id=UNIFORM_BATCH_POLICY_V2_ID,
         schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
+    )
+
+
+def _v3_exact_out_certificate_for(
+    *,
+    intents: list[Intent],
+    pool: PoolState,
+    executed_in_by_id: dict[str, int],
+) -> UniformBatchCertificateV1:
+    base_to_quote_net = 0
+    quote_to_base_net = 0
+    for intent in intents:
+        executed_in = int(executed_in_by_id[intent.intent_id])
+        net_in = executed_in - compute_fee_total(executed_in, pool.fee_bps)
+        if str(intent.get_field("asset_in")) == pool.asset0:
+            base_to_quote_net += net_in
+        else:
+            quote_to_base_net += net_in
+    if base_to_quote_net > 0 and quote_to_base_net > 0:
+        price_num, price_den = _reduce_ratio(quote_to_base_net, base_to_quote_net)
+    else:
+        price_num, price_den = _reduce_ratio(pool.reserve1, pool.reserve0)
+
+    fills = tuple(
+        UniformBatchFillV1(
+            intent_id=intent.intent_id,
+            executed_in=int(executed_in_by_id[intent.intent_id]),
+            executed_out=int(intent.get_field("amount_out")),
+        )
+        for intent in sorted(intents, key=lambda item: item.intent_id)
+    )
+    return UniformBatchCertificateV1(
+        pool_id=pool.pool_id,
+        base_asset=pool.asset0,
+        quote_asset=pool.asset1,
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=price_num,
+        price_den=price_den,
+        fills=fills,
+        policy_id=UNIFORM_BATCH_POLICY_V3_ID,
+        schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
     )
 
 
@@ -537,6 +607,232 @@ def test_uniform_batch_v2_adapter_property_permutation_invariance_over_partial_f
         assert settlement_a.fills == settlement_b.fills
         assert settlement_a.balance_deltas == settlement_b.balance_deltas
         assert settlement_a.reserve_deltas == settlement_b.reserve_deltas
+
+
+def test_uniform_batch_v3_certificate_accepts_full_exact_out_fills() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _exact_out_swap("alice-a-to-b", "alice", "A", "B", amount_out=100, max_amount_in=100),
+        _exact_out_swap("bob-b-to-a", "bob", "B", "A", amount_out=100, max_amount_in=100),
+    ]
+    certificate = _v3_exact_out_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 100,
+            intents[1].intent_id: 100,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.settlement is not None
+    assert certificate.to_dict()["schema"] == UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3
+    assert certificate.to_dict()["policy_id"] == UNIFORM_BATCH_POLICY_V3_ID
+    assert result.settlement.events == [
+        {
+            "type": "UNIFORM_BATCH_CLEARING_V3",
+            "pool_id": "pool_ab",
+            "policy_id": UNIFORM_BATCH_POLICY_V3_ID,
+            "price_objective_id": UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
+            "certificate_hash": certificate.hash(),
+        }
+    ]
+    assert [fill.action for fill in result.settlement.fills] == [FillAction.FILL, FillAction.FILL]
+    assert [fill.amount_in_filled for fill in result.settlement.fills] == [100, 100]
+    assert [fill.amount_out_filled for fill in result.settlement.fills] == [100, 100]
+    assert result.settlement.reserve_deltas == []
+
+
+def test_uniform_batch_v3_exact_out_accepts_rounding_overdelivery_gap_in_pool() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _exact_out_swap("alice-a-to-b", "alice", "A", "B", amount_out=2, max_amount_in=2),
+        _exact_out_swap("bob-b-to-a", "bob", "B", "A", amount_out=2, max_amount_in=3),
+    ]
+    certificate = _v3_exact_out_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 2,
+            intents[1].intent_id: 3,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.settlement is not None
+    assert (certificate.price_num, certificate.price_den) == (3, 2)
+    fills_by_id = {fill.intent_id: fill for fill in result.settlement.fills}
+    assert fills_by_id[intents[0].intent_id].amount_in_filled == 2
+    assert fills_by_id[intents[0].intent_id].amount_out_filled == 2
+    assert fills_by_id[intents[1].intent_id].amount_in_filled == 3
+    assert fills_by_id[intents[1].intent_id].amount_out_filled == 2
+    assert [(delta.asset, delta.delta_add, delta.delta_sub) for delta in result.settlement.reserve_deltas] == [
+        ("B", 1, 0)
+    ]
+
+
+def test_uniform_batch_v3_certificate_rejects_mixed_exact_in_exact_out_intents() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _swap("alice-a-to-b", "alice", "A", "B", amount_in=100, min_amount_out=90),
+        _exact_out_swap("bob-b-to-a", "bob", "B", "A", amount_out=100, max_amount_in=100),
+    ]
+    certificate = UniformBatchCertificateV1(
+        pool_id=pool.pool_id,
+        base_asset=pool.asset0,
+        quote_asset=pool.asset1,
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=1,
+        price_den=1,
+        fills=tuple(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=100,
+                executed_out=100,
+            )
+            for intent in sorted(intents, key=lambda item: item.intent_id)
+        ),
+        policy_id=UNIFORM_BATCH_POLICY_V3_ID,
+        schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch v3 supports SWAP_EXACT_OUT only"
+
+
+def test_uniform_batch_v3_certificate_rejects_exact_out_max_input_violation() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _exact_out_swap("alice-a-to-b", "alice", "A", "B", amount_out=100, max_amount_in=99),
+        _exact_out_swap("bob-b-to-a", "bob", "B", "A", amount_out=100, max_amount_in=100),
+    ]
+    certificate = _v3_exact_out_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 100,
+            intents[1].intent_id: 100,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate fill exceeds intent max_amount_in"
+
+
+def test_uniform_batch_v3_certificate_rejects_nonminimal_exact_out_input() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _exact_out_swap("alice-a-to-b", "alice", "A", "B", amount_out=100, max_amount_in=200),
+        _exact_out_swap("bob-b-to-a", "bob", "B", "A", amount_out=100, max_amount_in=200),
+    ]
+    certificate = _v3_exact_out_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 101,
+            intents[1].intent_id: 101,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate exact-out input is not minimal at uniform price"
+
+
+def test_uniform_batch_v3_certificate_rejects_underfunded_exact_out_input() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = [
+        _exact_out_swap("alice-a-to-b", "alice", "A", "B", amount_out=100, max_amount_in=200),
+        _exact_out_swap("bob-b-to-a", "bob", "B", "A", amount_out=100, max_amount_in=200),
+    ]
+    certificate = _v3_exact_out_certificate_for(
+        intents=intents,
+        pool=pool,
+        executed_in_by_id={
+            intents[0].intent_id: 99,
+            intents[1].intent_id: 99,
+        },
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate exact-out input does not satisfy uniform price"
+
+
+def test_uniform_batch_exact_out_gross_in_helper_rejects_invalid_boundary_values() -> None:
+    assert (
+        uniform_batch_exact_out_gross_in_for_price(
+            amount_out=1,
+            direction="base_to_quote",
+            price_num=1,
+            price_den=1,
+            fee_bps=9_999,
+        )
+        == 10_000
+    )
+
+    invalid_cases = [
+        {"amount_out": 0, "direction": "base_to_quote", "price_num": 1, "price_den": 1, "fee_bps": 0},
+        {"amount_out": 1, "direction": "base_to_quote", "price_num": 0, "price_den": 1, "fee_bps": 0},
+        {"amount_out": 1, "direction": "base_to_quote", "price_num": 1, "price_den": 0, "fee_bps": 0},
+        {"amount_out": 1, "direction": "base_to_quote", "price_num": 1, "price_den": 1, "fee_bps": 10_000},
+    ]
+    for case in invalid_cases:
+        try:
+            uniform_batch_exact_out_gross_in_for_price(**case)
+        except (TypeError, ValueError):
+            pass
+        else:  # pragma: no cover - explicit failure branch for assertion clarity
+            raise AssertionError(f"expected invalid exact-out boundary case to fail: {case}")
 
 
 def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> None:
@@ -1086,6 +1382,33 @@ def test_uniform_batch_certificate_rejects_invalid_direct_dataclass_shape() -> N
 
     assert result.ok is False
     assert result.error == "certificate.price_num must be positive"
+
+
+def test_uniform_batch_certificate_rejects_zero_price_den() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=certificate.price_num,
+        price_den=0,
+        fills=certificate.fills,
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate.price_den must be positive"
 
 
 def test_uniform_batch_certificate_rejects_intent_set_hash_mismatch() -> None:

@@ -16,9 +16,7 @@ from .settlement_price_provenance import (
 )
 
 if TYPE_CHECKING:
-    from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
-    from .settlement_signer_registry import SettlementSignerRegistrySnapshot
 
 
 SETTLEMENT_SPOT_VALUE_CONTRACT_SCHEMA = "zenodex/settlement-spot-value-contract/v1"
@@ -286,27 +284,15 @@ def build_settlement_spot_value_contract_from_price_attestation(
     price_attestation: SettlementSpotPriceAttestation,
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
+    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
 ) -> SettlementSpotValueContract:
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
-    from .settlement_signer_registry import load_attestation_policy_and_registry_snapshot
-
-    attestation_policy, attestation_registry_snapshot = load_attestation_policy_and_registry_snapshot(
-        attestation_policy=attestation_policy,
-        attestation_registry_snapshot=attestation_registry_snapshot,
-        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
-        consumer_now_epoch=int(consumer_now_epoch),
-    )
 
     ok, err = verify_settlement_spot_price_attestation(
         attestation=price_attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
-        attestation_policy=attestation_policy,
-        attestation_registry_snapshot=attestation_registry_snapshot,
-        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+        allowed_signers=allowed_signers,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
@@ -323,9 +309,7 @@ def verify_settlement_spot_value_contract_from_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     contract: SettlementSpotValueContract,
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
+    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
 ) -> tuple[bool, str | None]:
     try:
         expected = build_settlement_spot_value_contract_from_price_attestation(
@@ -333,9 +317,7 @@ def verify_settlement_spot_value_contract_from_price_attestation(
             price_attestation=price_attestation,
             consumer_now_epoch=consumer_now_epoch,
             max_attestation_age_epochs=max_attestation_age_epochs,
-            attestation_policy=attestation_policy,
-            attestation_registry_snapshot=attestation_registry_snapshot,
-            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+            allowed_signers=allowed_signers,
         )
     except Exception as exc:
         return False, str(exc)
@@ -391,9 +373,7 @@ def verify_settlement_spot_value_contract_payload_from_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     contract_payload: Mapping[str, Any],
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
+    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -411,9 +391,7 @@ def verify_settlement_spot_value_contract_payload_from_price_attestation(
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         contract=contract,
-        attestation_policy=attestation_policy,
-        attestation_registry_snapshot=attestation_registry_snapshot,
-        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+        allowed_signers=allowed_signers,
     )
 
 

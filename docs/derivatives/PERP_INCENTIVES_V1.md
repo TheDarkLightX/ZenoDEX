@@ -7,6 +7,10 @@ This document treats incentive design as hypothesis-driven engineering:
 - We actively look for **counterexamples** (adversarial strategies) under explicit bounds.
 - We only ship mechanisms that remain safe under those bounds.
 
+Current machine-generated scientist spec:
+- `docs/derivatives/PERP_MECHANISM_SCIENTIST_SPEC_V1.md`
+- source artifact: `runs/mech_sci_iter/spec_design/perp_mechanism_scientist_spec_v1.json`
+
 ## 1) System framing
 
 We model the incentive layer as:
@@ -94,6 +98,8 @@ What goes wrong:
 
 Takeaway:
 - Enforce `bounty ≤ penalty_collected` and add minimum-notional / minimum-penalty rules to avoid the “penalty=0” regime.
+- Runtime posture (isolated markets): `set_market_params` now fail-closes when `min_notional_for_bounty` cannot guarantee
+  `min_collectible_liquidation_penalty_quote` at the configured `liquidation_penalty_bps`.
 
 ### R3: Spot-derived perps must assume attacker-as-LP
 
@@ -137,6 +143,25 @@ Before treating v1 incentives as “deployable”, we want all of the following 
 - **Liveness:** at least one actor is economically motivated to advance epochs and execute liquidations.
 - **Determinism:** payouts depend only on on-chain data and deterministic integer math (no discretion, no “oracle committee” payouts).
 - **User safety:** UI/UX surfaces the incentive knobs (fees, caps, bounty rules) so governance changes are reviewable.
+
+### Scientist evidence update (2026-02-07, run_id `6f09caef3cc26c97`)
+
+Mechanical-scientist loop artifact:
+- summary: `runs/mech_sci_iter/loop_summary_reward_subsidy_13000.json`
+- archive: `runs/mech_sci_iter/loop_archive/perp_oracle_manipulation_reward_subsidy/archive.jsonl`
+
+Observed sustained lift for `perp_oracle_manipulation_reward_subsidy`:
+- A/B gate: `has_lift_rate = 1.0`, `solved_rate_delta = 0.0`
+- improve campaigns: `3`
+- promoted hypotheses: `12`
+- archive growth: `4` per campaign (min/avg)
+
+Runtime hardening promoted from this run:
+- fail-closed oracle reward-posture check in `src/integration/perp_engine.py`
+- enforced condition:
+  - `oracle_spot_reward_bps + oracle_spot_reward_safety_margin_bps <= oracle_spot_fee_bps`
+- rationale:
+  - prevents a configuration where spot volume rewards can fully subsidize the friction needed to deter oracle-manipulation round trips.
 
 ## 8) Common pitfall: asymmetric rounding breaks “budget balance”
 

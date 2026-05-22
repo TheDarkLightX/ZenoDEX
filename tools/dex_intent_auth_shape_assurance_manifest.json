@@ -1,0 +1,127 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the DEX intent auth shape-selection micro-kernel. Update only alongside a successful run of tools/run_dex_intent_auth_shape_assurance_gate.sh and tools/check_dex_intent_auth_shape_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/dex_intent_auth_shape_gate.py",
+      "sha256": "6b6e03835a6e73df6cc84f03dcfc15d627fbf75eeda61504eac8a8c92d4bd782"
+    },
+    {
+      "path": "src/core/dex_intent_auth_message.py",
+      "sha256": "5f301ea50476ce202d7714cad3f9e3286924b1fb72cfc248207f83493b1b3a29"
+    },
+    {
+      "path": "src/integration/dex_engine.py",
+      "sha256": "24fef89d1e637057c7b43669895abe5ddb435e5790cca9f2193098d383bb52a9"
+    },
+    {
+      "path": "src/kernels/dex/dex_intent_auth_shape_gate_v1.yaml",
+      "sha256": "46292687dc753bf6df934e62ef8f346fbce9ddafabf0f4fb95cfe323b5a36d8b"
+    },
+    {
+      "path": "src/kernels/python/dex_intent_auth_shape_gate_v1_native_adapter.py",
+      "sha256": "bcabd05ab4537353fec23594720277307d891e941e66db4c3c95f188f9bb79f7"
+    },
+    {
+      "path": "tests/core/test_dex_intent_auth_shape_gate.py",
+      "sha256": "c7867a3af708b1fafbef7129a9ca6f773d0aa880db5985bc6a546e019bbedd78"
+    },
+    {
+      "path": "tests/core/test_dex_intent_auth_message.py",
+      "sha256": "381874fb38554f9e07ea5b4bab18b6a0ba21099edf78a7b2e24a42eba185a36a"
+    },
+    {
+      "path": "tests/integration/test_intent_signatures.py",
+      "sha256": "4590d8336561e370cd899f9676e2980123fcad149c6d51c10e2cf77440240b51"
+    },
+    {
+      "path": "tests/kernels/test_dex_intent_auth_shape_gate_v1_native_adapter.py",
+      "sha256": "629ee8646195d3c40769541e0a5fb228eff1bcb13661a98447c026e341fb7077"
+    },
+    {
+      "path": "tools/run_dex_intent_auth_shape_assurance_gate.sh",
+      "sha256": "5b553dc89930ffd4e3ad351a293dae61b897d92b3254974964f7661107ad8119"
+    },
+    {
+      "path": "tools/check_dex_intent_auth_shape_assurance_manifest.py",
+      "sha256": "1e615ce2381993cb570b90a42cb4ab7014bd30f54da47acc64e900c234ce2037"
+    },
+    {
+      "path": "tools/run_spot_evidence.sh",
+      "sha256": "85d0685aebb24704e9ecd02ddcfd06709ca588febc909fe0c81e588e442434cb"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/dex_intent_auth_shape_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/dex_intent_auth_shape_gate_v1.yaml",
+    "ir_hash": "sha256:884f6280e0b261f6e951d279bb284aa42d32a00423720e577b68964466b3b286"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/dex_intent_auth_shape_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.dex_intent_auth_shape_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:884f6280e0b261f6e951d279bb284aa42d32a00423720e577b68964466b3b286",
+    "actions": [
+      "evaluate_intent_auth_shape_gate"
+    ],
+    "effects": [
+      "include_salt",
+      "mapping_mode",
+      "shape_ok",
+      "use_explicit_mapping_fields",
+      "use_object_fields",
+      "use_transport_flattened_fields"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/dex_intent_auth_shape_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/dex_intent_auth_shape_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.dex_intent_auth_shape_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:884f6280e0b261f6e951d279bb284aa42d32a00423720e577b68964466b3b286",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:78ae092a0f1d6a8305db6d014c057ebda225f50b2d9daeed687b48e416cb5343"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/dex_intent_auth_shape_gate_v1/verification_report.json",
+    "model_id": "dex_intent_auth_shape_gate_v1",
+    "ir_hash_short": "884f6280e0b261f6",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_dex_intent_auth_shape_gate.py",
+    "tests/core/test_dex_intent_auth_message.py",
+    "tests/integration/test_intent_signatures.py",
+    "tests/kernels/test_dex_intent_auth_shape_gate_v1_native_adapter.py"
+  ]
+}

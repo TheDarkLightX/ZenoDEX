@@ -23,16 +23,15 @@ def test_operations_grammar_fuzz_signed_intents_discovers_stable_boundary_paths(
     report = explore_target("signed_intents")
     labels = _labels(report)
     derivations = _derivations(report)
-    assert report.total_cases == 26
-    assert report.unique_outcome_count == 17
-    assert report.unique_path_count == 26
+    assert report.total_cases == 25
+    assert report.unique_outcome_count == 16
+    assert report.unique_path_count == 25
     assert "ok:0" in labels
     assert "ok:1" in labels
     assert "ValueError:operations['2'] must be a list, got <class 'str'>" in labels
     assert "ValueError:Failed to parse signed intent 0: Missing required field: module" in labels
     assert "ValueError:Failed to parse signed intent 0: Invalid module: BadSwap" in labels
     assert "ValueError:Failed to parse signed intent 0: Invalid intent kind: UNKNOWN" in labels
-    assert "ValueError:Failed to parse signed intent 0: unsupported field for SWAP_EXACT_IN: hidden_metadata" in labels
     assert "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)" in labels
     assert "ValueError:Failed to parse signed intent 0: quote_receipt provided twice (envelope + field)" in labels
     assert "ValueError:Failed to parse signed intent 1: Missing required field: module" in labels
@@ -66,7 +65,7 @@ def test_operations_grammar_fuzz_all_targets_are_covered_and_deterministic() -> 
     assert left == right
     by_name = {report.target: report for report in left}
     assert set(by_name) == {"signed_intents", "settlement_envelope"}
-    assert by_name["signed_intents"].total_cases == 26
+    assert by_name["signed_intents"].total_cases == 25
     assert by_name["settlement_envelope"].total_cases == 17
 
 
@@ -83,7 +82,7 @@ def test_operations_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_operations_minimizer_collapses_duplicate_signature_dead_tail() -> None:
     witness = minimize_case("signed_intents", "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail")
     assert witness.outcome_label == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
-    assert witness.path_id == "14d45092e7bcc39f"
+    assert witness.path_id == "ead30224ed217555"
     assert witness.original_size > witness.minimized_size
     assert witness.payload == {
         "2": [
@@ -128,5 +127,5 @@ def test_operations_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "signed_intents"
     assert witness["derivation"] == "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail"
     assert witness["outcome_label"] == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
-    assert witness["path_id"] == "14d45092e7bcc39f"
+    assert witness["path_id"] == "ead30224ed217555"
     assert witness["original_size"] > witness["minimized_size"]

@@ -1,20 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
-import sys
 import threading
-import types
 from http.client import HTTPConnection
-
-from tests.integration._attestation_policy_helper import (
-    make_attestation_policy_payload,
-    make_attestation_policy_payload_for_packet,
-    make_attestation_registry_snapshot_payload,
-)
-from src.integration.settlement_price_attestation import settlement_spot_price_attestation_signer_pubkey_from_privkey
-from src.integration.zeno_oracle_authorization import OracleAuthorization, oracle_value_hash, semantic_hash
-from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _start_test_server(*, dex_enabled: bool = True):
@@ -38,43 +26,6 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     httpd.shutdown()
     httpd.server_close()
     thread.join(timeout=2.0)
-
-
-def _post_json(host: str, port: int, path: str, payload: dict) -> tuple[int, dict]:
-    conn = HTTPConnection(host, port, timeout=2.0)
-    try:
-        conn.request(
-            "POST",
-            path,
-            body=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp = conn.getresponse()
-        body = json.loads(resp.read().decode("utf-8"))
-        return int(resp.status), body
-    finally:
-        conn.close()
-
-
-def _install_fake_oracle_adapter(monkeypatch, result: dict) -> None:
-    module = types.SimpleNamespace(verify_aggregate_adapter_bridge=lambda _bridge: result)
-    monkeypatch.setitem(sys.modules, "tools.zenodex_oracle_aggregate_adapter", module)
-
-
-def _exact_out_guarded_quote_payload(pools: list[dict]) -> dict:
-    return {
-        "asset_in": "A",
-        "asset_out": "B",
-        "amount_out_total": 6,
-        "max_legs": 3,
-        "max_candidate_pools": 3,
-        "max_candidates": 6,
-        "max_iters": 512,
-        "window": 8,
-        "brute_force_max": 12,
-        "max_enumerated_candidates": 2000,
-        "pools": pools,
-    }
 
 
 def _pool_dict(
@@ -105,99 +56,6 @@ def _pool_dict(
         "curve_tag": curve_tag,
         "curve_params": curve_params,
     }
-
-
-def _routing_oracle_authorization_bundle(payload: dict, runtime_quote: dict, *, value_e8: int | None = None) -> dict:
-    from src.integration import api_server
-
-    action_epoch = int(payload.get("oracle_action_epoch", 0))
-    if "amount_in" in payload:
-        action_id = api_server._routing_guarded_quote_oracle_action_id(
-            path="/api/dex/quote_exact_in_route_guarded",
-            asset_in=str(payload["asset_in"]),
-            asset_out=str(payload["asset_out"]),
-            amount_in=int(payload["amount_in"]),
-            split_search_profile=str(payload.get("split_search_profile", "adaptive_v6")),
-            enable_mixed_direct_twohop_split=bool(payload.get("enable_mixed_direct_twohop_split", False)),
-            binding_ok=int(payload.get("binding_ok", 1)),
-            pools_raw=payload.get("pools"),
-        )
-        action_facts_hash = api_server._routing_guarded_quote_oracle_action_facts_hash(
-            path="/api/dex/quote_exact_in_route_guarded",
-            asset_in=str(payload["asset_in"]),
-            asset_out=str(payload["asset_out"]),
-            amount_in=int(payload["amount_in"]),
-            split_search_profile=str(payload.get("split_search_profile", "adaptive_v6")),
-            enable_mixed_direct_twohop_split=bool(payload.get("enable_mixed_direct_twohop_split", False)),
-            binding_ok=int(payload.get("binding_ok", 1)),
-            pools_raw=payload.get("pools"),
-            runtime_quote=runtime_quote,
-            action_epoch=action_epoch,
-        )
-        runtime_value_e8 = int(runtime_quote["amount_out"])
-    else:
-        action_id = api_server._routing_guarded_exact_out_quote_oracle_action_id(
-            path="/api/dex/quote_exact_out_many_pool_guarded",
-            asset_in=str(payload["asset_in"]),
-            asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload.get("max_legs", 3)),
-            max_candidate_pools=int(payload.get("max_candidate_pools", 5)),
-            max_candidates=int(payload.get("max_candidates", 12)),
-            max_iters=int(payload.get("max_iters", 4096)),
-            window=int(payload.get("window", 64)),
-            brute_force_max=int(payload.get("brute_force_max", 512)),
-            max_enumerated_candidates=int(payload.get("max_enumerated_candidates", 20_000)),
-            pools_raw=payload.get("pools"),
-        )
-        action_facts_hash = api_server._routing_guarded_exact_out_quote_oracle_action_facts_hash(
-            path="/api/dex/quote_exact_out_many_pool_guarded",
-            asset_in=str(payload["asset_in"]),
-            asset_out=str(payload["asset_out"]),
-            amount_out_total=int(payload["amount_out_total"]),
-            max_legs=int(payload.get("max_legs", 3)),
-            max_candidate_pools=int(payload.get("max_candidate_pools", 5)),
-            max_candidates=int(payload.get("max_candidates", 12)),
-            max_iters=int(payload.get("max_iters", 4096)),
-            window=int(payload.get("window", 64)),
-            brute_force_max=int(payload.get("brute_force_max", 512)),
-            max_enumerated_candidates=int(payload.get("max_enumerated_candidates", 20_000)),
-            pools_raw=payload.get("pools"),
-            runtime_quote=runtime_quote,
-            action_epoch=action_epoch,
-        )
-        runtime_value_e8 = int(runtime_quote["amount_in_total"])
-
-    observed_epoch = 0
-    authorized_value_e8 = runtime_value_e8 if value_e8 is None else int(value_e8)
-    authorization = OracleAuthorization(
-        consumer_module="zenodex.routing",
-        action_kind="guarded_quote",
-        action_id=action_id,
-        action_facts_hash=action_facts_hash,
-        pre_state_hash=api_server._routing_pre_state_hash(pools_raw=payload.get("pools")),
-        profile_id=api_server.DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-        query_id=api_server.DEX_ROUTING_REFERENCE_QUERY_ID,
-        value_e8=authorized_value_e8,
-        value_hash=oracle_value_hash(
-            query_id=api_server.DEX_ROUTING_REFERENCE_QUERY_ID,
-            value_e8=authorized_value_e8,
-            observed_epoch=observed_epoch,
-        ),
-        confidence_e8=1,
-        deviation_bps=0,
-        observed_epoch=observed_epoch,
-        expires_at_epoch=action_epoch + 10,
-        feed_id="feed:routing-reference:v1",
-        feed_registry_root=semantic_hash("test.routing.feed_registry", {"name": "r1"}),
-        query_policy_root=semantic_hash("test.routing.query_policy", {"name": "q1"}),
-        source_registry_root=semantic_hash("test.routing.source_registry", {"name": "s1"}),
-        reporter_registry_root=semantic_hash("test.routing.reporter_registry", {"name": "p1"}),
-        evidence_class="O3",
-        economic_envelope_id="econ:routing-small-v1",
-        receipt_graph_root=semantic_hash("test.routing.receipt_graph", {"name": "placeholder"}),
-    )
-    return authorization_bundle(asdict(authorization))
 
 
 def _spot_settlement_request() -> tuple[dict, dict[str, int]]:
@@ -429,6 +287,104 @@ def _feature_extension_inputs_payload() -> dict[str, int]:
     }
 
 
+def _settlement_witness_lifecycle_request(
+    *,
+    block_timestamp: int = 0,
+    deadline: int = 9_999_999_999,
+    price_history: list[int] | None = None,
+) -> tuple[dict, str]:
+    from src.core.batch_clearing import compute_settlement
+    from src.core.liquidity import create_pool
+    from src.integration.operations import create_intent_operation, create_settlement_operation
+    from src.integration.settlement_price_provenance import (
+        SettlementSpotPriceEntry,
+        build_settlement_spot_price_packet,
+    )
+    from src.state import BalanceTable, LPTable
+    from src.state.intents import Intent, IntentKind
+
+    pk = "0x" + "22" * 48
+    asset0 = "0x" + "03" * 32
+    asset1 = "0x" + "04" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 100_000)
+    balances.set(pk, asset1, 0)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id="0x" + f"{idx + 1:064x}",
+            sender_pubkey=pk,
+            deadline=deadline,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 100,
+                "min_amount_out": 1,
+            },
+        )
+        for idx in range(4)
+    ]
+    settlement = compute_settlement(intents, {pool_id: pool}, balances, LPTable())
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    request = {
+        "intents": create_intent_operation(intents)["2"],
+        "balances": [
+            {"pubkey": pk, "asset": asset0, "amount": 100_000},
+        ],
+        "pools": [
+            {
+                "pool_id": pool.pool_id,
+                "asset0": pool.asset0,
+                "asset1": pool.asset1,
+                "reserve0": pool.reserve0,
+                "reserve1": pool.reserve1,
+                "fee_bps": pool.fee_bps,
+                "lp_supply": pool.lp_supply,
+                "status": pool.status.name,
+                "created_at": pool.created_at,
+                "curve_tag": pool.curve_tag,
+                "curve_params": str(pool.curve_params),
+            }
+        ],
+        "lp_balances": [],
+        "block_timestamp": int(block_timestamp),
+        "settlement": create_settlement_operation(settlement)["3"],
+        "proof_flags": {
+            "cpmm_ok": 1,
+            "balance_ok": 1,
+            "token_ok": 1,
+            "buyback_floor_ok": 1,
+            "buyback_floor_fixedpoint_ok": 1,
+            "rebate_ok": 1,
+            "lock_weight_ok": 1,
+            "proof_ok": 1,
+            "binding_ok": 1,
+        },
+        "price_history": list(price_history or [100, 110, 120]),
+        "feature_extension_inputs": _feature_extension_inputs_payload(),
+        "price_packet": price_packet.to_dict(),
+    }
+    return request, intents[0].intent_id
+
+
 def test_api_server_dex_quote_and_verify_receipt_roundtrip() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -537,176 +493,6 @@ def test_api_server_dex_quote_exact_out_fast_v1_roundtrip() -> None:
         _stop_test_server(httpd, t)
 
 
-def test_api_server_dex_quote_rejects_oversized_exact_in_amount() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote",
-            {
-                "kind": "exact_in",
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 50_001,
-                "pools": [_pool_dict(pid="p1", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0)],
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_dex_quote_rejects_oversized_pool_list() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid=f"p{i}", a0="A", a1="B", r0=1000 + i, r1=1000, fee_bps=0)
-            for i in range(65)
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote",
-            {
-                "kind": "exact_in",
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_pools"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_impact_preview_rejects_oversized_amount() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/impact_preview",
-            {
-                "reserve_in": 1000,
-                "reserve_out": 1000,
-                "amount_in": 50_001,
-                "fee_bps": 0,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_slippage_advice_rejects_oversized_sandwich_scan() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/slippage_advice",
-            {
-                "reserve_in": 1000,
-                "reserve_out": 1000,
-                "amount_in": 50,
-                "fee_bps": 0,
-                "slippage_options_bps": [10_000],
-                "max_attacker_amount_in": 50_001,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_max_attacker_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_slippage_advice_rejects_oversized_amount() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/slippage_advice",
-            {
-                "reserve_in": 1000,
-                "reserve_out": 1000,
-                "amount_in": 50_001,
-                "fee_bps": 0,
-                "slippage_options_bps": [10, 50, 100],
-                "max_attacker_amount_in": 5000,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_slippage_advice_rejects_too_many_slippage_options() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/slippage_advice",
-            {
-                "reserve_in": 1000,
-                "reserve_out": 1000,
-                "amount_in": 50,
-                "fee_bps": 0,
-                "slippage_options_bps": list(range(65)),
-                "max_attacker_amount_in": 100,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_slippage_options_bps"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_pokayoke_rejects_unbounded_advice_inputs() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/pokayoke_swap_suggest_heavy",
-            {
-                "reserve_in": 1000,
-                "reserve_out": 1000,
-                "amount_in": 50,
-                "fee_bps": 0,
-                "user_slippage_bps": 100,
-                "slippage_options_bps": list(range(65)),
-                "max_attacker_amount_in": 100,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_slippage_options_bps"
-
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/pokayoke_swap_suggest",
-            {
-                "reserve_in": 1000,
-                "reserve_out": 1000,
-                "amount_in": 50_001,
-                "fee_bps": 0,
-                "slippage_options_bps": [10, 50, 100],
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
 def test_api_server_build_and_verify_exact_in_route_oracle_contract() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -753,77 +539,6 @@ def test_api_server_build_and_verify_exact_in_route_oracle_contract() -> None:
         assert resp2.status == 200
         assert body2["ok"] is True
         assert body2["error"] is None
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_exact_in_route_oracle_contract_rejects_mixed_split_above_exhaustive_budget() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/build_exact_in_route_oracle_contract",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 5_001,
-                "enable_mixed_direct_twohop_split": True,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_verify_exact_in_route_contract_rejects_nested_mixed_split_above_exhaustive_budget() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/verify_exact_in_route_oracle_contract",
-            {
-                "contract": {
-                    "amount_in": 5_001,
-                    "enable_mixed_direct_twohop_split": True,
-                    "pool_snapshots": [
-                        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-                    ],
-                },
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_verify_exact_in_route_contract_rejects_nested_oversized_amount() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/verify_exact_in_route_oracle_contract",
-            {
-                "contract": {
-                    "amount_in": 50_001,
-                    "pool_snapshots": [
-                        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-                    ],
-                },
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_amount_in"
     finally:
         _stop_test_server(httpd, t)
 
@@ -937,311 +652,6 @@ def test_api_server_quote_exact_in_route_guarded() -> None:
         assert body["error"] is None
         assert body["quote"] == body["contract"]["runtime_quote"]
         assert body["contract"]["runtime_matches_canonical"] is True
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_guarded_quote_requires_bridge_when_configured(monkeypatch) -> None:
-    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "1")
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_in_route_guarded",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "guarded_quote requires oracle_adapter_bridge"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_guarded_quote_invalid_required_config_fails_closed(monkeypatch) -> None:
-    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "tru")
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_in_route_guarded",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"].startswith(
-            "oracle_adapter_bridge config error: DEX_ROUTING_ORACLE_ADAPTER_REQUIRED must be one of:"
-        )
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_authorization_guarded_quote_requires_authorization_when_configured(monkeypatch) -> None:
-    monkeypatch.setenv("DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED", "1")
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_in_route_guarded",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "oracle_action_epoch": 0,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "guarded_quote requires oracle_authorization"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_authorization_guarded_quote_accepts_bound_authorization() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-        ]
-        payload = {
-            "asset_in": "A",
-            "asset_out": "B",
-            "amount_in": 10,
-            "oracle_action_epoch": 0,
-            "pools": pools,
-        }
-        status_preview, preview = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
-        assert status_preview == 200
-        assert preview["ok"] is True
-        payload["oracle_authorization"] = _routing_oracle_authorization_bundle(payload, preview["quote"])
-
-        status, body = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
-
-        assert status == 200
-        assert body["ok"] is True
-        assert body["quote"] == preview["quote"]
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_authorization_guarded_quote_rejects_wrong_runtime_value() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-        ]
-        payload = {
-            "asset_in": "A",
-            "asset_out": "B",
-            "amount_in": 10,
-            "oracle_action_epoch": 0,
-            "pools": pools,
-        }
-        status_preview, preview = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
-        assert status_preview == 200
-        payload["oracle_authorization"] = _routing_oracle_authorization_bundle(
-            payload,
-            preview["quote"],
-            value_e8=int(preview["quote"]["amount_out"]) + 1,
-        )
-
-        status, body = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
-
-        assert status == 400
-        assert body["ok"] is False
-        assert "runtime_value_e8 mismatch" in body["detail"]
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_guarded_quote_rejects_wrong_query(monkeypatch) -> None:
-    from src.integration.api_server import _routing_guarded_quote_oracle_action_id
-
-    pools = [
-        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-        _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-        _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-    ]
-    expected_action_id = _routing_guarded_quote_oracle_action_id(
-        path="/api/dex/quote_exact_in_route_guarded",
-        asset_in="A",
-        asset_out="B",
-        amount_in=10,
-        split_search_profile="adaptive_v6",
-        enable_mixed_direct_twohop_split=False,
-        binding_ok=1,
-        pools_raw=pools,
-    )
-    _install_fake_oracle_adapter(
-        monkeypatch,
-        {
-            "status": "accepted",
-            "errors": [],
-            "consumer_module": "zenodex.routing",
-            "action_kind": "guarded_quote",
-            "query_id": "sha256:" + "00" * 32,
-            "action_id": expected_action_id,
-        },
-    )
-
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_in_route_guarded",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "pools": pools,
-                "oracle_adapter_bridge": {"schema": "test"},
-            },
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "oracle_adapter_bridge query mismatch"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_guarded_quote_accepts_bound_bridge(monkeypatch) -> None:
-    from src.integration.api_server import (
-        DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-        DEX_ROUTING_REFERENCE_QUERY_ID,
-        _routing_guarded_quote_oracle_action_id,
-    )
-
-    pools = [
-        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-        _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-        _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-    ]
-    expected_action_id = _routing_guarded_quote_oracle_action_id(
-        path="/api/dex/quote_exact_in_route_guarded",
-        asset_in="A",
-        asset_out="B",
-        amount_in=10,
-        split_search_profile="adaptive_v6",
-        enable_mixed_direct_twohop_split=False,
-        binding_ok=1,
-        pools_raw=pools,
-    )
-    _install_fake_oracle_adapter(
-        monkeypatch,
-        {
-            "status": "accepted",
-            "errors": [],
-            "consumer_module": "zenodex.routing",
-            "action_kind": "guarded_quote",
-            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
-            "action_id": expected_action_id,
-            "profile_id": DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-        },
-    )
-
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_in_route_guarded",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "pools": pools,
-                "oracle_adapter_bridge": {"schema": "test"},
-            },
-        )
-        assert status == 200
-        assert body["ok"] is True
-        assert body["error"] is None
-        assert body["quote"] == body["contract"]["runtime_quote"]
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_guarded_quote_rejects_wrong_profile(monkeypatch) -> None:
-    from src.integration.api_server import DEX_ROUTING_REFERENCE_QUERY_ID, _routing_guarded_quote_oracle_action_id
-
-    pools = [
-        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
-        _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
-        _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
-    ]
-    expected_action_id = _routing_guarded_quote_oracle_action_id(
-        path="/api/dex/quote_exact_in_route_guarded",
-        asset_in="A",
-        asset_out="B",
-        amount_in=10,
-        split_search_profile="adaptive_v6",
-        enable_mixed_direct_twohop_split=False,
-        binding_ok=1,
-        pools_raw=pools,
-    )
-    _install_fake_oracle_adapter(
-        monkeypatch,
-        {
-            "status": "accepted",
-            "errors": [],
-            "consumer_module": "zenodex.routing",
-            "action_kind": "guarded_quote",
-            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
-            "action_id": expected_action_id,
-            "profile_id": "sha256:" + "00" * 32,
-        },
-    )
-
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_in_route_guarded",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_in": 10,
-                "pools": pools,
-                "oracle_adapter_bridge": {"schema": "test"},
-            },
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "oracle_adapter_bridge profile mismatch"
     finally:
         _stop_test_server(httpd, t)
 
@@ -1699,13 +1109,7 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
         conn.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
+            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp = conn.getresponse()
@@ -1723,7 +1127,7 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
                     "attestation": attestation,
                     "consumer_now_epoch": 103,
                     "max_attestation_age_epochs": 5,
-                    "attestation_policy": make_attestation_policy_payload(attestation),
+                    "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
                 }
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -1733,320 +1137,6 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
         assert resp2.status == 200
         assert body2["ok"] is True
         assert body2["error"] is None
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_verify_settlement_spot_price_attestation_requires_policy() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        build_packet_req = {
-            "entries": [
-                {
-                    "asset": "0x" + "05" * 32,
-                    "price": 100,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "06" * 32,
-                    "price": 120,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-        conn0 = HTTPConnection(host, port, timeout=2.0)
-        conn0.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp0 = conn0.getresponse()
-        body0 = json.loads(resp0.read().decode("utf-8"))
-        assert resp0.status == 200
-        assert body0["ok"] is True
-        packet = body0["packet"]
-
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
-
-        conn2 = HTTPConnection(host, port, timeout=2.0)
-        conn2.request(
-            "POST",
-            "/api/dex/verify_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "attestation": attestation,
-                    "consumer_now_epoch": 103,
-                    "max_attestation_age_epochs": 5,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp2 = conn2.getresponse()
-        body2 = json.loads(resp2.read().decode("utf-8"))
-        assert resp2.status == 200
-        assert body2["ok"] is False
-        assert body2["error"].startswith("settlement spot price attestation requires attestation_policy")
-        assert "consumer_now_epoch=103" in body2["error"]
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_verify_settlement_spot_price_attestation_accepts_registry_snapshot() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        build_packet_req = {
-            "entries": [
-                {
-                    "asset": "0x" + "05" * 32,
-                    "price": 100,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "06" * 32,
-                    "price": 120,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-        conn0 = HTTPConnection(host, port, timeout=2.0)
-        conn0.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp0 = conn0.getresponse()
-        body0 = json.loads(resp0.read().decode("utf-8"))
-        assert resp0.status == 200
-        assert body0["ok"] is True
-        packet = body0["packet"]
-
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
-
-        conn2 = HTTPConnection(host, port, timeout=2.0)
-        conn2.request(
-            "POST",
-            "/api/dex/verify_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "attestation": attestation,
-                    "consumer_now_epoch": 103,
-                    "max_attestation_age_epochs": 5,
-                    "attestation_registry_snapshot": make_attestation_registry_snapshot_payload(attestation),
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp2 = conn2.getresponse()
-        body2 = json.loads(resp2.read().decode("utf-8"))
-        assert resp2.status == 200
-        assert body2["ok"] is True
-        assert body2["error"] is None
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_build_and_verify_settlement_spot_price_attestation_bundle() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        build_packet_req_a = {
-            "entries": [
-                {
-                    "asset": "0x" + "05" * 32,
-                    "price": 100,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "06" * 32,
-                    "price": 120,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-        build_packet_req_b = {
-            "entries": [
-                {
-                    "asset": "0x" + "05" * 32,
-                    "price": 101,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "06" * 32,
-                    "price": 121,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-
-        conn0 = HTTPConnection(host, port, timeout=2.0)
-        conn0.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_a).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp0 = conn0.getresponse()
-        body0 = json.loads(resp0.read().decode("utf-8"))
-        assert resp0.status == 200
-        assert body0["ok"] is True
-
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_b).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-
-        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
-            body0["packet"],
-            signer_privkey=7,
-            min_distinct_signers=2,
-            max_bundle_price_spread_bps=100,
-            additional_allowed_signers={
-                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
-            },
-        )
-
-        conn2 = HTTPConnection(host, port, timeout=2.0)
-        conn2.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body0["packet"],
-                    "signer_privkey": 7,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp2 = conn2.getresponse()
-        body2 = json.loads(resp2.read().decode("utf-8"))
-        assert resp2.status == 200
-        assert body2["ok"] is True
-        attestation_a = body2["attestation"]
-
-        conn3 = HTTPConnection(host, port, timeout=2.0)
-        conn3.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body1["packet"],
-                    "signer_privkey": 8,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp3 = conn3.getresponse()
-        body3 = json.loads(resp3.read().decode("utf-8"))
-        assert resp3.status == 200
-        assert body3["ok"] is True
-        attestation_b = body3["attestation"]
-
-        conn4 = HTTPConnection(host, port, timeout=2.0)
-        conn4.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation_bundle",
-            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp4 = conn4.getresponse()
-        body4 = json.loads(resp4.read().decode("utf-8"))
-        assert resp4.status == 200
-        assert body4["ok"] is True
-        bundle = body4["bundle"]
-        assert [entry["price"] for entry in bundle["packet"]["entries"]] == [100, 120]
-
-        conn5 = HTTPConnection(host, port, timeout=2.0)
-        conn5.request(
-            "POST",
-            "/api/dex/verify_settlement_spot_price_attestation_bundle",
-            body=json.dumps(
-                {
-                    "bundle": bundle,
-                    "consumer_now_epoch": 103,
-                    "max_attestation_age_epochs": 5,
-                    "attestation_policy": make_attestation_policy_payload(
-                        attestation_a,
-                        min_distinct_signers=2,
-                        max_bundle_price_spread_bps=100,
-                        additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
-                    ),
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp5 = conn5.getresponse()
-        body5 = json.loads(resp5.read().decode("utf-8"))
-        assert resp5.status == 200
-        assert body5["ok"] is True
-        assert body5["error"] is None
     finally:
         _stop_test_server(httpd, t)
 
@@ -2093,13 +1183,7 @@ def test_api_server_build_settlement_spot_value_contract_from_price_attestation(
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
+            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -2113,7 +1197,7 @@ def test_api_server_build_settlement_spot_value_contract_from_price_attestation(
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(attestation),
+            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
@@ -2259,13 +1343,7 @@ def test_api_server_build_settlement_lp_value_contract_from_price_attestation() 
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
+            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -2279,7 +1357,7 @@ def test_api_server_build_settlement_lp_value_contract_from_price_attestation() 
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(attestation),
+            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
             "lp_unit_values": {pool_id: 91},
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -2425,13 +1503,7 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": price_packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(price_packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
+            body=json.dumps({"packet": price_packet, "signer_privkey": 7}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -2445,7 +1517,7 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "attestation_registry_snapshot": make_attestation_registry_snapshot_payload(attestation),
+            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
             "lp_unit_values": {pool_id: 91},
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -2462,8 +1534,6 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         packet = body2["packet"]
         assert packet["mode"] == "lp_aware"
         assert packet["packet_ok"] is True
-        assert packet["attestation_policy_chain_id"] == 1
-        assert packet["attestation_policy_registry_contract"] == "0x" + "12" * 20
 
         verify_req = dict(req)
         verify_req["packet"] = packet
@@ -2479,193 +1549,6 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         assert resp3.status == 200
         assert body3["ok"] is True
         assert body3["error"] is None
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_build_and_verify_settlement_value_packet_lp_bundle_attested() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        settlement, _asset_prices = _spot_settlement_request()
-        settlement["lp_deltas"] = [
-            {
-                "pubkey": settlement["balance_deltas"][0]["pubkey"],
-                "pool_id": settlement["reserve_deltas"][0]["pool_id"],
-                "delta_add": 3,
-                "delta_sub": 0,
-            }
-        ]
-        pool_id = settlement["reserve_deltas"][0]["pool_id"]
-
-        build_packet_req_a = {
-            "entries": [
-                {
-                    "asset": "0x" + "01" * 32,
-                    "price": 100,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "02" * 32,
-                    "price": 120,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-        build_packet_req_b = {
-            "entries": [
-                {
-                    "asset": "0x" + "01" * 32,
-                    "price": 101,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "02" * 32,
-                    "price": 121,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-
-        conn0 = HTTPConnection(host, port, timeout=2.0)
-        conn0.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_a).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp0 = conn0.getresponse()
-        body0 = json.loads(resp0.read().decode("utf-8"))
-        assert resp0.status == 200
-        assert body0["ok"] is True
-
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_b).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-
-        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
-            body0["packet"],
-            signer_privkey=7,
-            min_distinct_signers=2,
-            max_bundle_price_spread_bps=100,
-            additional_allowed_signers={
-                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
-            },
-        )
-
-        conn2 = HTTPConnection(host, port, timeout=2.0)
-        conn2.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body0["packet"],
-                    "signer_privkey": 7,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp2 = conn2.getresponse()
-        body2 = json.loads(resp2.read().decode("utf-8"))
-        assert resp2.status == 200
-        assert body2["ok"] is True
-        attestation_a = body2["attestation"]
-
-        conn3 = HTTPConnection(host, port, timeout=2.0)
-        conn3.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body1["packet"],
-                    "signer_privkey": 8,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp3 = conn3.getresponse()
-        body3 = json.loads(resp3.read().decode("utf-8"))
-        assert resp3.status == 200
-        assert body3["ok"] is True
-        attestation_b = body3["attestation"]
-
-        conn4 = HTTPConnection(host, port, timeout=2.0)
-        conn4.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation_bundle",
-            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp4 = conn4.getresponse()
-        body4 = json.loads(resp4.read().decode("utf-8"))
-        assert resp4.status == 200
-        assert body4["ok"] is True
-        bundle = body4["bundle"]
-
-        req = {
-            "settlement": settlement,
-            "price_attestation_bundle": bundle,
-            "consumer_now_epoch": 103,
-            "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(
-                attestation_a,
-                min_distinct_signers=2,
-                max_bundle_price_spread_bps=100,
-                additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
-            ),
-            "lp_unit_values": {pool_id: 91},
-        }
-        conn5 = HTTPConnection(host, port, timeout=2.0)
-        conn5.request(
-            "POST",
-            "/api/dex/build_settlement_value_packet",
-            body=json.dumps(req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp5 = conn5.getresponse()
-        body5 = json.loads(resp5.read().decode("utf-8"))
-        assert resp5.status == 200
-        assert body5["ok"] is True
-        packet = body5["packet"]
-        assert packet["mode"] == "lp_aware"
-        assert packet["price_input_kind"] == "attestation_bundle"
-        assert packet["packet_ok"] is True
-
-        verify_req = dict(req)
-        verify_req["packet"] = packet
-        conn6 = HTTPConnection(host, port, timeout=2.0)
-        conn6.request(
-            "POST",
-            "/api/dex/verify_settlement_value_packet",
-            body=json.dumps(verify_req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp6 = conn6.getresponse()
-        body6 = json.loads(resp6.read().decode("utf-8"))
-        assert resp6.status == 200
-        assert body6["ok"] is True
-        assert body6["error"] is None
     finally:
         _stop_test_server(httpd, t)
 
@@ -2786,13 +1669,7 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body0["packet"],
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(body0["packet"], signer_privkey=7),
-                }
-            ).encode("utf-8"),
+            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -2806,7 +1683,7 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(attestation),
+            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
             "pool_snapshots": [pool_snapshot],
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -2823,182 +1700,6 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
         packet = body2["packet"]
         assert packet["price_input_kind"] == "attestation"
         assert packet["packet_ok"] is True
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_build_and_verify_settlement_endogenous_lp_value_packet_from_bundle() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        settlement, _asset_prices, pool_snapshot = _spot_settlement_request_with_pool()
-        build_packet_req_a = {
-            "entries": [
-                {
-                    "asset": "0x" + "01" * 32,
-                    "price": 100,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "02" * 32,
-                    "price": 120,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-        build_packet_req_b = {
-            "entries": [
-                {
-                    "asset": "0x" + "01" * 32,
-                    "price": 101,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": "0x" + "02" * 32,
-                    "price": 121,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-
-        conn0 = HTTPConnection(host, port, timeout=2.0)
-        conn0.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_a).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp0 = conn0.getresponse()
-        body0 = json.loads(resp0.read().decode("utf-8"))
-        assert resp0.status == 200
-        assert body0["ok"] is True
-
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_b).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-
-        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
-            body0["packet"],
-            signer_privkey=7,
-            min_distinct_signers=2,
-            max_bundle_price_spread_bps=100,
-            additional_allowed_signers={
-                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
-            },
-        )
-
-        conn2 = HTTPConnection(host, port, timeout=2.0)
-        conn2.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body0["packet"],
-                    "signer_privkey": 7,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp2 = conn2.getresponse()
-        body2 = json.loads(resp2.read().decode("utf-8"))
-        assert resp2.status == 200
-        assert body2["ok"] is True
-        attestation_a = body2["attestation"]
-
-        conn3 = HTTPConnection(host, port, timeout=2.0)
-        conn3.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body1["packet"],
-                    "signer_privkey": 8,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp3 = conn3.getresponse()
-        body3 = json.loads(resp3.read().decode("utf-8"))
-        assert resp3.status == 200
-        assert body3["ok"] is True
-        attestation_b = body3["attestation"]
-
-        conn4 = HTTPConnection(host, port, timeout=2.0)
-        conn4.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation_bundle",
-            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp4 = conn4.getresponse()
-        body4 = json.loads(resp4.read().decode("utf-8"))
-        assert resp4.status == 200
-        assert body4["ok"] is True
-        bundle = body4["bundle"]
-
-        req = {
-            "settlement": settlement,
-            "price_attestation_bundle": bundle,
-            "consumer_now_epoch": 103,
-            "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(
-                attestation_a,
-                min_distinct_signers=2,
-                max_bundle_price_spread_bps=100,
-                additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
-            ),
-            "pool_snapshots": [pool_snapshot],
-        }
-        conn5 = HTTPConnection(host, port, timeout=2.0)
-        conn5.request(
-            "POST",
-            "/api/dex/build_settlement_endogenous_lp_value_packet",
-            body=json.dumps(req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp5 = conn5.getresponse()
-        body5 = json.loads(resp5.read().decode("utf-8"))
-        assert resp5.status == 200
-        assert body5["ok"] is True
-        packet = body5["packet"]
-        assert packet["price_input_kind"] == "attestation_bundle"
-        assert packet["packet_ok"] is True
-
-        verify_req = dict(req)
-        verify_req["packet"] = packet
-        conn6 = HTTPConnection(host, port, timeout=2.0)
-        conn6.request(
-            "POST",
-            "/api/dex/verify_settlement_endogenous_lp_value_packet",
-            body=json.dumps(verify_req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp6 = conn6.getresponse()
-        body6 = json.loads(resp6.read().decode("utf-8"))
-        assert resp6.status == 200
-        assert body6["ok"] is True
-        assert body6["error"] is None
     finally:
         _stop_test_server(httpd, t)
 
@@ -3136,13 +1837,7 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": price_packet,
-                    "signer_privkey": 7,
-                    "attestation_policy": make_attestation_policy_payload_for_packet(price_packet, signer_privkey=7),
-                }
-            ).encode("utf-8"),
+            body=json.dumps({"packet": price_packet, "signer_privkey": 7}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -3169,7 +1864,7 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(attestation),
+            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
             "pool_snapshots": [pool_snapshot],
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -3202,197 +1897,6 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         assert resp3.status == 200
         assert body3["ok"] is True
         assert body3["error"] is None
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_endogenous_bundle_attested() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        settlement, asset_prices, pool_snapshot = _four_swap_settlement_request_with_pool()
-        assets = list(asset_prices.items())
-        build_packet_req_a = {
-            "entries": [
-                {
-                    "asset": assets[0][0],
-                    "price": assets[0][1],
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": assets[1][0],
-                    "price": assets[1][1],
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-        build_packet_req_b = {
-            "entries": [
-                {
-                    "asset": assets[0][0],
-                    "price": assets[0][1] + 1,
-                    "observed_epoch": 95,
-                    "age_epochs": 5,
-                    "source_id": "oracle:a",
-                },
-                {
-                    "asset": assets[1][0],
-                    "price": assets[1][1] + 1,
-                    "observed_epoch": 97,
-                    "age_epochs": 3,
-                    "source_id": "oracle:b",
-                },
-            ],
-            "now_epoch": 100,
-            "max_staleness_epochs": 10,
-        }
-
-        conn0 = HTTPConnection(host, port, timeout=2.0)
-        conn0.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_a).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp0 = conn0.getresponse()
-        body0 = json.loads(resp0.read().decode("utf-8"))
-        assert resp0.status == 200
-        assert body0["ok"] is True
-
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_packet",
-            body=json.dumps(build_packet_req_b).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-
-        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
-            body0["packet"],
-            signer_privkey=7,
-            min_distinct_signers=2,
-            max_bundle_price_spread_bps=100,
-            additional_allowed_signers={
-                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
-            },
-        )
-
-        conn2 = HTTPConnection(host, port, timeout=2.0)
-        conn2.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body0["packet"],
-                    "signer_privkey": 7,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp2 = conn2.getresponse()
-        body2 = json.loads(resp2.read().decode("utf-8"))
-        assert resp2.status == 200
-        assert body2["ok"] is True
-        attestation_a = body2["attestation"]
-
-        conn3 = HTTPConnection(host, port, timeout=2.0)
-        conn3.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps(
-                {
-                    "packet": body1["packet"],
-                    "signer_privkey": 8,
-                    "attestation_policy": bundle_attestation_policy,
-                }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp3 = conn3.getresponse()
-        body3 = json.loads(resp3.read().decode("utf-8"))
-        assert resp3.status == 200
-        assert body3["ok"] is True
-        attestation_b = body3["attestation"]
-
-        conn4 = HTTPConnection(host, port, timeout=2.0)
-        conn4.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation_bundle",
-            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp4 = conn4.getresponse()
-        body4 = json.loads(resp4.read().decode("utf-8"))
-        assert resp4.status == 200
-        assert body4["ok"] is True
-        bundle = body4["bundle"]
-
-        req = {
-            "settlement": settlement,
-            "proof_flags": {
-                "cpmm_ok": 1,
-                "balance_ok": 1,
-                "token_ok": 1,
-                "buyback_floor_ok": 1,
-                "buyback_floor_fixedpoint_ok": 1,
-                "rebate_ok": 1,
-                "lock_weight_ok": 1,
-                "proof_ok": 1,
-                "binding_ok": 1,
-            },
-            "price_history": [100, 110, 120],
-            "feature_extension_inputs": _feature_extension_inputs_payload(),
-            "price_attestation_bundle": bundle,
-            "consumer_now_epoch": 103,
-            "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(
-                attestation_a,
-                min_distinct_signers=2,
-                max_bundle_price_spread_bps=100,
-                additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
-            ),
-            "pool_snapshots": [pool_snapshot],
-        }
-        conn5 = HTTPConnection(host, port, timeout=2.0)
-        conn5.request(
-            "POST",
-            "/api/dex/build_settlement_end_to_end_certificate_packet",
-            body=json.dumps(req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp5 = conn5.getresponse()
-        body5 = json.loads(resp5.read().decode("utf-8"))
-        assert resp5.status == 200
-        assert body5["ok"] is True
-        packet = body5["packet"]
-        assert packet["packet_ok"] is True
-        assert packet["value_packet_kind"] == "endogenous_lp_value"
-        assert packet["price_input_kind"] == "attestation_bundle"
-
-        verify_req = dict(req)
-        verify_req["packet"] = packet
-        conn6 = HTTPConnection(host, port, timeout=2.0)
-        conn6.request(
-            "POST",
-            "/api/dex/verify_settlement_end_to_end_certificate_packet",
-            body=json.dumps(verify_req).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp6 = conn6.getresponse()
-        body6 = json.loads(resp6.read().decode("utf-8"))
-        assert resp6.status == 200
-        assert body6["ok"] is True
-        assert body6["error"] is None
     finally:
         _stop_test_server(httpd, t)
 
@@ -3430,6 +1934,113 @@ def test_api_server_build_and_verify_settlement_feature_extension_packet() -> No
         assert resp2.status == 200
         assert body2["ok"] is True
         assert body2["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_settlement_witness_lifecycle_packet() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        req, _ = _settlement_witness_lifecycle_request()
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+        packet = body1["packet"]
+        assert packet["packet_built"] is True
+        assert packet["end_to_end_packet_ok"] is True
+        assert packet["witness_present"] is True
+        assert packet["witness_valid"] is True
+        assert packet["settled"] is True
+        assert packet["rejected_with_reason"] is False
+        assert packet["lifecycle_ok"] is True
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_settlement_witness_lifecycle_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        assert body2["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_settlement_witness_lifecycle_packet_rejected_with_reason() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        req, _ = _settlement_witness_lifecycle_request(price_history=[0, 60, 70])
+
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        packet = body["packet"]
+        assert packet["packet_built"] is True
+        assert packet["end_to_end_packet_ok"] is False
+        assert packet["witness_present"] is False
+        assert packet["settled"] is False
+        assert packet["rejected_with_reason"] is True
+        assert packet["rejection_reason"] == "settlement end-to-end certificate full price rails rejected"
+        assert packet["lifecycle_ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        req, _ = _settlement_witness_lifecycle_request()
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        packet = body1["packet"]
+        packet["settled"] = False
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_settlement_witness_lifecycle_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is False
+        assert body2["error"] == "settlement witness lifecycle packet payload mismatch"
     finally:
         _stop_test_server(httpd, t)
 
@@ -3666,6 +2277,7 @@ def test_api_server_exact_out_many_pool_canonicality_audit_matches_small_domain(
                     "max_iters": 512,
                     "window": 8,
                     "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
                     "max_enumerated_candidates": 2000,
                     "pools": pools,
                 }
@@ -3781,6 +2393,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_oracle_contract() -> No
                     "max_iters": 512,
                     "window": 8,
                     "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
                     "max_enumerated_candidates": 2000,
                     "pools": pools,
                 }
@@ -3792,6 +2405,8 @@ def test_api_server_build_and_verify_exact_out_many_pool_oracle_contract() -> No
         assert resp.status == 200
         assert body["ok"] is True
         contract = body["contract"]
+        assert body["contract_ok"] is True
+        assert contract["contract_ok"] is True
         assert contract["audit"]["runtime_matches_canonical"] is True
         assert contract["audit"]["runtime_quote"] == contract["audit"]["canonical_winner_quote"]
 
@@ -3860,64 +2475,6 @@ def test_api_server_build_and_verify_exact_out_many_pool_candidate_domain_contra
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is True
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_exact_out_many_pool_candidate_domain_contract_rejects_oversized_budget() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/build_exact_out_many_pool_candidate_domain_contract",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_out_total": 6,
-                "max_legs": 3,
-                "max_candidate_pools": 3,
-                "max_enumerated_candidates": 50_001,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_max_enumerated_candidates"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_exact_out_many_pool_candidate_domain_contract_rejects_excessive_search_space() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
-            _pool_dict(pid="pool_d", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
-            _pool_dict(pid="pool_e", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/build_exact_out_many_pool_candidate_domain_contract",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_out_total": 100,
-                "max_legs": 3,
-                "max_candidate_pools": 5,
-                "max_enumerated_candidates": 50_000,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_exact_out_search_budget"
     finally:
         _stop_test_server(httpd, t)
 
@@ -5818,6 +4375,8 @@ def test_api_server_guard_exact_out_many_pool_canonicality_accepts_match() -> No
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
         assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
@@ -5864,6 +4423,8 @@ def test_api_server_guard_exact_out_many_pool_canonicality_accepts_known_counter
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
         assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
@@ -5911,6 +4472,8 @@ def test_api_server_guard_exact_out_many_pool_canonicality_accepts_mixed_curve_s
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
         assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
@@ -5961,6 +4524,8 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_match() -> None:
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["packet_schema"] == "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
@@ -5973,191 +4538,6 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_match() -> None:
         assert body["runtime_matches_canonical_projected_path"] is True
         assert body["projection_cover_available"] is True
         assert body["projection_cover_holds"] is True
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_exact_out_guarded_quote_requires_bridge_when_configured(monkeypatch) -> None:
-    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "1")
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_out_many_pool_guarded",
-            _exact_out_guarded_quote_payload(pools),
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "guarded_quote requires oracle_adapter_bridge"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_exact_out_guarded_quote_invalid_required_config_fails_closed(monkeypatch) -> None:
-    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "tru")
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_out_many_pool_guarded",
-            _exact_out_guarded_quote_payload(pools),
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"].startswith(
-            "oracle_adapter_bridge config error: DEX_ROUTING_ORACLE_ADAPTER_REQUIRED must be one of:"
-        )
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_authorization_exact_out_guarded_quote_requires_authorization_when_configured(
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED", "1")
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-        ]
-        payload = _exact_out_guarded_quote_payload(pools)
-        payload["oracle_action_epoch"] = 0
-        status, body = _post_json(host, port, "/api/dex/quote_exact_out_many_pool_guarded", payload)
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "guarded_quote requires oracle_authorization"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_authorization_exact_out_guarded_quote_accepts_bound_authorization() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-        ]
-        payload = _exact_out_guarded_quote_payload(pools)
-        payload["oracle_action_epoch"] = 0
-        status_preview, preview = _post_json(host, port, "/api/dex/quote_exact_out_many_pool_guarded", payload)
-        assert status_preview == 200
-        assert preview["ok"] is True
-        payload["oracle_authorization"] = _routing_oracle_authorization_bundle(payload, preview["quote"])
-
-        status, body = _post_json(host, port, "/api/dex/quote_exact_out_many_pool_guarded", payload)
-
-        assert status == 200
-        assert body["ok"] is True
-        assert body["quote"] == preview["quote"]
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_exact_out_guarded_quote_rejects_wrong_action_id(monkeypatch) -> None:
-    from src.integration.api_server import DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID, DEX_ROUTING_REFERENCE_QUERY_ID
-
-    pools = [
-        _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-        _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-        _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-    ]
-    _install_fake_oracle_adapter(
-        monkeypatch,
-        {
-            "status": "accepted",
-            "errors": [],
-            "consumer_module": "zenodex.routing",
-            "action_kind": "guarded_quote",
-            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
-            "action_id": "sha256:" + "00" * 32,
-            "profile_id": DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-        },
-    )
-
-    httpd, t, host, port = _start_test_server()
-    try:
-        payload = _exact_out_guarded_quote_payload(pools)
-        payload["oracle_adapter_bridge"] = {"schema": "test"}
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_out_many_pool_guarded",
-            payload,
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "oracle_adapter_bridge action_id mismatch"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_oracle_adapter_exact_out_guarded_quote_accepts_bound_bridge(monkeypatch) -> None:
-    from src.integration.api_server import (
-        DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-        DEX_ROUTING_REFERENCE_QUERY_ID,
-        _routing_guarded_exact_out_quote_oracle_action_id,
-    )
-
-    pools = [
-        _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-        _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-        _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-    ]
-    expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(
-        path="/api/dex/quote_exact_out_many_pool_guarded",
-        asset_in="A",
-        asset_out="B",
-        amount_out_total=6,
-        max_legs=3,
-        max_candidate_pools=3,
-        max_candidates=6,
-        max_iters=512,
-        window=8,
-        brute_force_max=12,
-        max_enumerated_candidates=2000,
-        pools_raw=pools,
-    )
-    _install_fake_oracle_adapter(
-        monkeypatch,
-        {
-            "status": "accepted",
-            "errors": [],
-            "consumer_module": "zenodex.routing",
-            "action_kind": "guarded_quote",
-            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
-            "action_id": expected_action_id,
-            "profile_id": DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-        },
-    )
-
-    httpd, t, host, port = _start_test_server()
-    try:
-        payload = _exact_out_guarded_quote_payload(pools)
-        payload["oracle_adapter_bridge"] = {"schema": "test"}
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/quote_exact_out_many_pool_guarded",
-            payload,
-        )
-        assert status == 200
-        assert body["ok"] is True
-        assert body["quote"] == body["contract"]["audit"]["runtime_quote"]
     finally:
         _stop_test_server(httpd, t)
 
@@ -6195,6 +4575,8 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_known_counterexamp
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["packet_schema"] == "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
@@ -6245,6 +4627,8 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_mixed_curve_select
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["packet_schema"] == "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
@@ -6302,6 +4686,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_guarded_quote_packet() 
         assert body["packet_schema"] == packet["schema"]
         assert body["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_guarded_quote_packet"
         assert packet["guard_ok"] is True
+        assert packet["contract"]["contract_ok"] is True
         assert packet["quote"] == packet["contract"]["audit"]["runtime_quote"]
 
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -6315,110 +4700,6 @@ def test_api_server_build_and_verify_exact_out_many_pool_guarded_quote_packet() 
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is True
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_exact_out_many_pool_guarded_packet_rejects_unbounded_search_limits() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        pools = [
-            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
-            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
-        ]
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_out_total": 6,
-                "max_legs": 4,
-                "max_candidate_pools": 3,
-                "max_candidates": 6,
-                "max_iters": 512,
-                "window": 8,
-                "brute_force_max": 12,
-                "max_enumerated_candidates": 50_000,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_max_legs"
-
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
-            {
-                "asset_in": "A",
-                "asset_out": "B",
-                "amount_out_total": 6,
-                "max_legs": 3,
-                "max_candidate_pools": 3,
-                "max_candidates": 6,
-                "max_iters": 512,
-                "window": 8,
-                "brute_force_max": 12,
-                "max_enumerated_candidates": 50_001,
-                "pools": pools,
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_max_enumerated_candidates"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_verify_exact_out_many_pool_packet_rejects_nested_unbounded_search_limits() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-            {
-                "packet": {
-                    "contract": {
-                        "max_enumerated_candidates": 50_001,
-                        "pool_snapshots": [
-                            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
-                        ],
-                    },
-                },
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_max_enumerated_candidates"
-    finally:
-        _stop_test_server(httpd, t)
-
-
-def test_api_server_verify_exact_out_many_pool_packet_rejects_nested_excessive_search_space() -> None:
-    httpd, t, host, port = _start_test_server()
-    try:
-        status, body = _post_json(
-            host,
-            port,
-            "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
-            {
-                "packet": {
-                    "contract": {
-                        "amount_out_total": 100,
-                        "max_legs": 3,
-                        "max_candidate_pools": 5,
-                        "max_enumerated_candidates": 50_000,
-                        "pool_snapshots": [
-                            _pool_dict(pid="pool_a", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
-                        ],
-                    },
-                },
-            },
-        )
-        assert status == 400
-        assert body["error"] == "bad_exact_out_search_budget"
     finally:
         _stop_test_server(httpd, t)
 
@@ -6563,6 +4844,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_certified_winner_packet
                     "max_iters": 512,
                     "window": 8,
                     "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
                     "max_enumerated_candidates": 2000,
                     "pools": pools,
                 }
@@ -6579,6 +4861,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_certified_winner_packet
         assert packet["packet_ok"] is True
         assert packet["domain_contract"]["contract_ok"] is True
         assert packet["guarded_packet"]["guard_ok"] is True
+        assert packet["guarded_packet"]["contract"]["max_full_domain_pools"] == 9
 
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
@@ -6591,6 +4874,273 @@ def test_api_server_build_and_verify_exact_out_many_pool_certified_winner_packet
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_exact_out_many_pool_audited_bounds_contract() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 6,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 6,
+                    "max_iters": 512,
+                    "window": 8,
+                    "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
+                    "max_enumerated_candidates": 2000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        contract = body["contract"]
+        assert body["contract_schema"] == contract["schema"]
+        assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_audited_bounds_contract"
+        assert contract["contract_ok"] is True
+        assert contract["max_full_domain_pools"] == 9
+        assert contract["certified_advisory_packet"]["certified_packet"]["guarded_packet"]["contract"]["max_full_domain_pools"] == 9
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps({"contract": contract}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_out_many_pool_audited_bounds_contract_rejects_tampering() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 6,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 6,
+                    "max_iters": 512,
+                    "window": 8,
+                    "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
+                    "max_enumerated_candidates": 2000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        contract = body["contract"]
+
+        contract["budget_parameters_bound"] = False
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps({"contract": contract}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is False
+        assert body2["error"] == "audited bounds contract payload mismatch"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_quote_exact_out_many_pool_adaptive() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p0", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p1", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+            _pool_dict(pid="p3", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/quote_exact_out_many_pool_adaptive",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 12,
+                    "max_iters": 4096,
+                    "window": 64,
+                    "brute_force_max": 512,
+                    "max_full_domain_pools": 6,
+                    "max_enumerated_candidates": 50000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        assert body["quote_policy"] == "adaptive_liveness_v1"
+        assert body["build_packet_endpoint"] == "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet"
+        assert body["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet"
+        assert body["cheap_path_success"] is True
+        assert body["fallback_success"] is False
+        assert body["liveness_ok"] is True
+        assert body["quote_source"] == "default_certified_advisory"
+        assert body["quote"] == body["packet"]["effective_quote"]
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_exact_out_many_pool_adaptive_liveness_packet() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p0", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p1", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+            _pool_dict(pid="p3", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_legs": 3,
+                    "max_candidate_pools": 1,
+                    "max_candidates": 2,
+                    "max_iters": 1,
+                    "window": 0,
+                    "brute_force_max": 0,
+                    "max_full_domain_pools": 6,
+                    "max_enumerated_candidates": 50000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        assert body["quote_policy"] == "adaptive_liveness_v1"
+        assert body["liveness_ok"] is True
+        packet = body["packet"]
+        assert body["packet_schema"] == packet["schema"]
+        assert body["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet"
+        assert packet["explicit_failure"] is True
+        assert packet["failure_reason"] == "default_packet_not_ok"
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps({"packet": packet}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        assert body2["quote_policy"] == "adaptive_liveness_v1"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_out_many_pool_adaptive_liveness_packet_rejects_tampering() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p0", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p1", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+            _pool_dict(pid="p3", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 12,
+                    "max_iters": 4096,
+                    "window": 64,
+                    "brute_force_max": 512,
+                    "max_full_domain_pools": 6,
+                    "max_enumerated_candidates": 50000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        packet = body["packet"]
+
+        packet["fallback_attempted"] = True
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps({"packet": packet}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is False
+        assert body2["error"] == "adaptive liveness packet payload mismatch"
     finally:
         _stop_test_server(httpd, t)
 

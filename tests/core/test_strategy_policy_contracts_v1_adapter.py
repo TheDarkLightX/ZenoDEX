@@ -20,6 +20,10 @@ from src.agents.strategy_ir import (
     StrategyTemplate,
     StrategyWindow,
 )
+from src.agents.tau_policy_adapter import (
+    build_compilation_witness_tau_policy_receipt,
+    build_compile_contract_tau_policy_receipt,
+)
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.kernels.python.strategy_policy_artifact_contract_v1_adapter import (
     check_strategy_policy_artifact_contract,
@@ -44,14 +48,6 @@ def _strategy(owner_pubkey: str) -> StrategyIR:
     )
 
 
-def _compile_receipt() -> dict[str, object]:
-    return {"expected_ok": True, "spec_id": "autotrader_compile_contract_v1"}
-
-
-def _witness_receipt() -> dict[str, object]:
-    return {"expected_ok": True, "spec_id": "autotrader_compilation_witness_v1"}
-
-
 def test_policy_bundle_and_artifact_contract_accept_path() -> None:
     privkey = 17
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
@@ -59,8 +55,7 @@ def test_policy_bundle_and_artifact_contract_accept_path() -> None:
     source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")
     bundle = build_tau_policy_bundle(
         strategy=strategy,
-        compile_contract_tau_receipt=_compile_receipt(),
-        compilation_witness_tau_receipt=_witness_receipt(),
+        compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
         source_artifact=source_artifact,
     )
     artifact = sign_strategy_policy_artifact(
@@ -85,8 +80,7 @@ def test_policy_bundle_contract_rejects_evidence_class_below_live_floor() -> Non
     source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")
     good_bundle = build_tau_policy_bundle(
         strategy=strategy,
-        compile_contract_tau_receipt=_compile_receipt(),
-        compilation_witness_tau_receipt=_witness_receipt(),
+        compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
         source_artifact=source_artifact,
     )
     low_evidence_bundle = TauPolicyBundle(
@@ -120,8 +114,7 @@ def test_policy_artifact_contract_rejects_unsigned_artifact() -> None:
     source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")
     bundle = build_tau_policy_bundle(
         strategy=strategy,
-        compile_contract_tau_receipt=_compile_receipt(),
-        compilation_witness_tau_receipt=_witness_receipt(),
+        compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
         source_artifact=source_artifact,
     )
     artifact = build_strategy_policy_artifact(
@@ -138,13 +131,16 @@ def test_policy_contract_adapters_cover_type_and_error_edges() -> None:
     privkey = 23
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
     strategy = _strategy(owner_pubkey)
-    receipt = _compile_receipt()
+    receipt = build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict()
     source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")
-    witness_receipt = _witness_receipt()
+    witness_receipt = build_compilation_witness_tau_policy_receipt(
+        strategy=strategy,
+        source_artifact=source_artifact,
+        compile_contract_tau_receipt=receipt,
+    ).to_dict()
     bundle = build_tau_policy_bundle(
         strategy=strategy,
         compile_contract_tau_receipt=receipt,
-        compilation_witness_tau_receipt=witness_receipt,
         source_artifact=source_artifact,
     )
     artifact = sign_strategy_policy_artifact(
@@ -187,19 +183,11 @@ def test_policy_contract_adapters_cover_type_and_error_edges() -> None:
     assert check_strategy_policy_bundle_contract(bad_bundle).error == "canonical_specs_invalid"
 
     object.__setattr__(bad_bundle, "required_spec_ids", AUTOTRADER_TAU_POLICY_SPECS)
-    object.__setattr__(
-        bad_bundle,
-        "compile_contract_tau_receipt",
-        {"expected_ok": False, "spec_id": "autotrader_compile_contract_v1"},
-    )
+    object.__setattr__(bad_bundle, "compile_contract_tau_receipt", {"expected_ok": False, "spec_id": "autotrader_compile_contract_v1"})
     assert check_strategy_policy_bundle_contract(bad_bundle).error == "compile_contract_tau_receipt_invalid"
 
     object.__setattr__(bad_bundle, "compile_contract_tau_receipt", receipt)
-    object.__setattr__(
-        bad_bundle,
-        "compilation_witness_tau_receipt",
-        {"expected_ok": False, "spec_id": "autotrader_compilation_witness_v1"},
-    )
+    object.__setattr__(bad_bundle, "compilation_witness_tau_receipt", {"expected_ok": False, "spec_id": "autotrader_compilation_witness_v1"})
     assert check_strategy_policy_bundle_contract(bad_bundle).error == "compilation_witness_tau_receipt_invalid"
 
     object.__setattr__(bad_bundle, "compilation_witness_tau_receipt", witness_receipt)

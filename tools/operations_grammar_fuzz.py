@@ -243,7 +243,6 @@ def _signed_intent_cases() -> tuple[GrammarCase, ...]:
         GrammarCase("SignedOps->OneEntry ; IntentDict->BadModule", {"2": [{**copy.deepcopy(valid_intent), "module": "BadSwap"}]}),
         GrammarCase("SignedOps->OneEntry ; IntentDict->BadKind", {"2": [{**copy.deepcopy(valid_intent), "kind": "UNKNOWN"}]}),
         GrammarCase("SignedOps->OneEntry ; IntentDict->BadDeadlineType", {"2": [{**copy.deepcopy(valid_intent), "deadline": "1"}]}),
-        GrammarCase("SignedOps->OneEntry ; IntentDict->UnknownField", {"2": [{**copy.deepcopy(valid_intent), "hidden_metadata": {"unsafe": True}}]}),
         GrammarCase("SignedOps->OneEntry ; IntentDict->SignatureFieldEmpty", {"2": [{**copy.deepcopy(valid_intent), "signature": ""}]}),
         GrammarCase("SignedOps->OneEntry ; IntentDict->QuoteReceiptFieldBadBody", {"2": [{**copy.deepcopy(valid_intent), "quote_receipt": {"body": [], "receipt_hash": "hash-1"}}]}),
         GrammarCase("SignedOps->OneEntry ; Entry->DuplicateSignatureSame", {"2": [[{**copy.deepcopy(valid_intent), "signature": valid_sig}, valid_sig]]}),

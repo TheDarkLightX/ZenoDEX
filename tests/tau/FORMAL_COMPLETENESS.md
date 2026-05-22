@@ -1,9 +1,3 @@
----
-title: FORMAL_COMPLETENESS
-type: note
-permalink: autonomous-tau-dex-review/tests/tau/formal-completeness
----
-
 # Formal Completeness Testing - Enhanced Edition
 
 This folder defines a repeatable process for ensuring Tau specs are **formally complete state machines** with:

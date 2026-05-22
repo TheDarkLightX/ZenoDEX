@@ -10,6 +10,7 @@ from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.support_root import (
+    SUPPORT_ROOT_VERSION,
     BatchStateSupport,
     compute_support_state_root,
     compute_support_state_root_for_batch,
@@ -19,6 +20,10 @@ from src.state.support_root import (
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def test_support_root_version_commits_lp_age_schema() -> None:
+    assert SUPPORT_ROOT_VERSION == 4
 
 
 def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> None:
@@ -317,12 +322,13 @@ def test_derive_batch_state_support_covers_invalid_create_pool_and_missing_pool_
         (pk, asset1),
     }
     assert support.pool_ids == (pool_id,)
-    assert support.lp_keys == ()
+    assert support.lp_keys == ((pk, pool_id),)
     assert support.nonce_keys == (pk,)
 
 
 def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_created_pool() -> None:
     pk = "0x" + "11" * 48
+    recipient = "0x" + "22" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     asset2 = "0x" + "03" * 32
@@ -337,7 +343,7 @@ def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_c
         intent_id=_iid(16),
         sender_pubkey=pk,
         deadline=9999999999,
-        fields={"pool_id": existing_pool_id},
+        fields={"pool_id": existing_pool_id, "recipient": recipient},
     )
     create_pool = Intent(
         module="TauSwap",
@@ -364,7 +370,48 @@ def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_c
     )
     assert set(support.balance_keys) == {(pk, asset0), (pk, asset1), (pk, asset2), (pk, asset3)}
     assert set(support.pool_ids) == {existing_pool_id, created_pool_id}
+    assert set(support.lp_keys) == {(recipient, existing_pool_id), (pk, created_pool_id)}
     assert support.nonce_keys == (pk,)
+
+
+def test_support_root_commits_add_liquidity_recipient_duration_metadata() -> None:
+    sender = "0x" + "11" * 48
+    recipient = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(21),
+        sender_pubkey=sender,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "recipient": recipient},
+    )
+    support = derive_batch_state_support(
+        [intent],
+        pools={pool_id: _pool(pool_id, asset0, asset1)},
+    )
+    lp = LPTable()
+    before = compute_support_state_root(
+        balances=BalanceTable(),
+        pools={pool_id: _pool(pool_id, asset0, asset1)},
+        lp_balances=lp,
+        support=support,
+    )
+    lp.set_last_remove_timestamp(recipient, pool_id, 500)
+    lp.set_churn_tier(recipient, pool_id, 2)
+    lp.set_last_churn_update_timestamp(recipient, pool_id, 500)
+    after = compute_support_state_root(
+        balances=BalanceTable(),
+        pools={pool_id: _pool(pool_id, asset0, asset1)},
+        lp_balances=lp,
+        support=support,
+    )
+
+    assert support.lp_keys == ((recipient, pool_id),)
+    assert after != before
 
 
 def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknown_kind() -> None:
@@ -435,23 +482,20 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
 
 
 def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> None:
-    pk = "0x" + "ab" * 48
-    pk_alt = pk.upper().replace("0X", "0x")
+    pk = "0x" + "11" * 48
     pool_id = "0x" + "aa" * 32
     asset = "0x" + "01" * 32
     balances = BalanceTable()
     balances.set(pk, asset, 1)
-    balances.set(pk_alt, asset, 1)
     lp = LPTable()
     lp.set(pk, pool_id, 1)
-    lp.set(pk_alt, pool_id, 1)
 
     with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, asset\\)"):
         compute_support_state_root(
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset), (pk_alt, asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
 
     with pytest.raises(ValueError, match="duplicate decoded pool_id"):
@@ -467,23 +511,7 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk_alt, pool_id)), nonce_keys=()),
-        )
-
-    nonces = NonceTable()
-    nonces.set_last(pk, 1)
-    with pytest.raises(ValueError, match="duplicate decoded pubkey in support nonces"):
-        compute_support_state_root(
-            balances=BalanceTable(),
-            pools={},
-            lp_balances=LPTable(),
-            support=BatchStateSupport(
-                balance_keys=(),
-                pool_ids=(),
-                lp_keys=(),
-                nonce_keys=(pk, pk_alt),
-            ),
-            nonces=nonces,
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)), nonce_keys=()),
         )
 
 
@@ -526,7 +554,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
         )
 
     bad_fee_pool = _pool(pool_id, asset0, asset1)
-    bad_fee_pool.fee_bps = 10_000
+    bad_fee_pool.fee_bps = 10_001
     with pytest.raises(ValueError, match="invalid pool fee_bps"):
         compute_support_state_root(
             balances=BalanceTable(),

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
 from src.core.zusd import (
     E8,
     ZUSDMultiCommand,
@@ -122,22 +126,72 @@ def test_multi_borrow_fee_and_redemption_flow_on_one_vault() -> None:
         }
     )
     s = _ok(s, "deposit_collateral", vault="a", amount_e8=3 * E8)
-    s = _ok(s, "mint_zusd", vault="a", amount_e8=100 * E8)
-    assert s.vault_a.debt_e8 == 101 * E8
-    assert s.free_debt_e8 == 101 * E8
-    assert s.protocol_revenue_zusd_cum_e8 == 1 * E8
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+    assert s.vault_a.debt_e8 == 202 * E8
+    assert s.free_debt_e8 == 202 * E8
+    assert s.protocol_revenue_zusd_cum_e8 == 2 * E8
 
     r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"vault": "a", "amount_e8": 50 * E8}))
     assert r.ok, r.error
     assert r.state is not None
     assert r.effects is not None
     ns = r.state
-    assert ns.vault_a.debt_e8 == 51 * E8
+    assert ns.vault_a.debt_e8 == 152 * E8
     assert ns.vault_a.collateral_e8 == 250_000_000
-    assert ns.free_debt_e8 == 51 * E8
+    assert ns.free_debt_e8 == 152 * E8
     assert ns.protocol_collateral_e8 == 500_000
     assert r.effects["redemption_fee_collateral_e8"] == 500_000
     assert check_multi_invariants(ns) == []
+
+
+def test_multi_repay_and_redemption_cannot_leave_sub_floor_debt() -> None:
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=3 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=150 * E8)
+
+    repay = step_multi(s, ZUSDMultiCommand(tag="repay_zusd", args={"vault": "a", "amount_e8": 75 * E8}))
+    assert not repay.ok
+    assert "below min_debt_open_e8" in (repay.error or "")
+
+    redeem = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"vault": "a", "amount_e8": 75 * E8}))
+    assert not redeem.ok
+    assert "below min_debt_open_e8" in (redeem.error or "")
+
+    full = step_multi(s, ZUSDMultiCommand(tag="repay_zusd", args={"vault": "a", "amount_e8": 150 * E8}))
+    assert full.ok, full.error
+    assert full.state is not None
+    assert full.state.vault_a.debt_e8 == 0
+    assert check_multi_invariants(full.state) == []
+
+
+def test_multi_invariant_detection_for_sub_floor_debt() -> None:
+    s = ZUSDMultiState(
+        oracle_seen=True,
+        oracle_last_update_epoch=0,
+        price_e8=100 * E8,
+        price_pending_e8=100 * E8,
+        free_debt_e8=50 * E8,
+        vault_a=ZUSDVault(collateral_e8=2 * E8, debt_e8=50 * E8),
+    )
+
+    assert "inv_debt_floor_a" in check_multi_invariants(s)
+
+
+def test_multi_debt_floor_sequence_grid_for_repay_and_redeem() -> None:
+    for minted_e8 in (100 * E8, 150 * E8, 250 * E8):
+        s = init_multi_state()
+        s = _bootstrap(s)
+        s = _ok(s, "deposit_collateral", vault="a", amount_e8=10 * E8)
+        s = _ok(s, "mint_zusd", vault="a", amount_e8=minted_e8)
+
+        for amt in tuple(a for a in (25 * E8, 50 * E8, 75 * E8, minted_e8) if a <= minted_e8):
+            post_debt = minted_e8 - amt
+            repay = step_multi(s, ZUSDMultiCommand(tag="repay_zusd", args={"vault": "a", "amount_e8": amt}))
+            redeem = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"vault": "a", "amount_e8": amt}))
+            should_accept = post_debt == 0 or post_debt >= s.min_debt_open_e8
+            assert repay.ok is should_accept
+            assert redeem.ok is should_accept
 
 
 def test_multi_redemption_blocked_when_pending_oracle_differs() -> None:
@@ -172,6 +226,48 @@ def test_multi_redemption_auto_selects_closest_to_mcr() -> None:
     assert ns.vault_b.debt_e8 == 250 * E8
 
 
+def test_multi_redemption_allows_amount_equal_to_free_debt() -> None:
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=5 * E8)
+    s = _ok(s, "deposit_collateral", vault="b", amount_e8=5 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+    s = _ok(s, "mint_zusd", vault="b", amount_e8=300 * E8)
+    s = _ok(s, "deposit_sp", amount_e8=450 * E8)
+
+    assert s.free_debt_e8 == 50 * E8
+    r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 50 * E8}))
+    assert r.ok, r.error
+    assert r.state is not None
+    assert r.state.free_debt_e8 == 0
+
+
+def test_multi_redemption_exceeding_free_debt_fails_before_auto_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.core.zusd as zusd_mod
+
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=5 * E8)
+    s = _ok(s, "deposit_collateral", vault="b", amount_e8=5 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+    s = _ok(s, "mint_zusd", vault="b", amount_e8=300 * E8)
+    s = _ok(s, "deposit_sp", amount_e8=450 * E8)
+
+    called = False
+
+    def _selector(**_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("selector should not be called")
+
+    monkeypatch.setattr(zusd_mod, "select_multi_redeem_vault", _selector)
+
+    r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 51 * E8}))
+    assert not r.ok
+    assert r.error == "redemption exceeds free debt"
+    assert called is False
+
+
 def test_multi_redemption_auto_tie_breaks_to_vault_a() -> None:
     s = init_multi_state()
     s = _bootstrap(s)
@@ -189,6 +285,28 @@ def test_multi_redemption_auto_tie_breaks_to_vault_a() -> None:
     assert r.effects["selection_policy"] == "closest_to_mcr"
     assert r.state.vault_a.debt_e8 == 150 * E8
     assert r.state.vault_b.debt_e8 == 200 * E8
+
+
+def test_multi_redemption_auto_fails_closed_when_selector_omits_post_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.core.zusd as zusd_mod
+
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=5 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+
+    monkeypatch.setattr(
+        zusd_mod,
+        "select_multi_redeem_vault",
+        lambda **_kwargs: SimpleNamespace(
+            selected_vault="a",
+            selected_post_collateral_e8=None,
+            selected_post_debt_e8=None,
+        ),
+    )
+    r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 50 * E8}))
+    assert not r.ok
+    assert r.error == "redeem selection missing post-state"
 
 
 def test_multi_redemption_auto_policy_matches_bounded_oracle() -> None:
@@ -223,6 +341,8 @@ def test_multi_redemption_auto_policy_matches_bounded_oracle() -> None:
                         if debt < amount_e8 or coll < gross_collateral_e8:
                             continue
                         post_debt = debt - amount_e8
+                        if post_debt != 0 and post_debt < s.min_debt_open_e8:
+                            continue
                         post_coll = coll - gross_collateral_e8
                         if (post_coll * price_e8 * 10_000) < (post_debt * mcr_bps * E8):
                             continue

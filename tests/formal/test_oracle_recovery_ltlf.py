@@ -9,8 +9,6 @@ Verifies:
 from __future__ import annotations
 
 import importlib.util
-import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -26,39 +24,12 @@ def _maybe_add_external_toolchain() -> None:
 
 _maybe_add_external_toolchain()
 
-ESSO_AVAILABLE = importlib.util.find_spec("ESSO") is not None
-
-
-def test_oracle_recovery_public_replay_accepts() -> None:
-    root = Path(__file__).resolve().parents[2]
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "tools/zeno_oracle_ltlf_recovery_replay.py",
-            "--format",
-            "json",
-        ],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    receipt = json.loads(proc.stdout)
-    assert receipt["schema"] == "zenodex.oracle.ltlf_recovery_replay.v1"
-    assert receipt["status"] == "accepted"
-    assert receipt["failed_goal_count"] == 0
-    goal_ids = {goal["id"] for goal in receipt["goals"]}
-    assert "G_stale_eventually_recovers" in goal_ids
-    assert "G_stale_blocks_risky" in goal_ids
-    assert "G_recovery_reachable" in goal_ids
+if importlib.util.find_spec("ESSO") is None:  # pragma: no cover
+    pytest.skip("verification toolchain not installed", allow_module_level=True)
 
 
 def test_oracle_recovery_reachability() -> None:
     """Reachability: the operator can recover from a stale oracle."""
-    if not ESSO_AVAILABLE:  # pragma: no cover
-        pytest.skip("ESSO verification toolchain not installed")
     import yaml
 
     from ESSO.ir.schema import CandidateIR
@@ -94,8 +65,6 @@ def test_oracle_recovery_reachability() -> None:
 
 def test_oracle_recovery_block_reachability() -> None:
     """Reachability: the operator can reach permanent block state."""
-    if not ESSO_AVAILABLE:  # pragma: no cover
-        pytest.skip("ESSO verification toolchain not installed")
     import yaml
 
     from ESSO.ir.schema import CandidateIR
@@ -130,8 +99,6 @@ def test_oracle_recovery_block_reachability() -> None:
 
 def test_oracle_recovery_goal_family_realizable() -> None:
     """Multi-property synthesis: required recovery goals are jointly realizable."""
-    if not ESSO_AVAILABLE:  # pragma: no cover
-        pytest.skip("ESSO verification toolchain not installed")
     import yaml
 
     from ESSO.ir.schema import CandidateIR

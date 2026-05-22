@@ -1,0 +1,55 @@
+{
+  "checks": [
+    {
+      "check_id": "sources.model_collapse",
+      "detail": "model-collapse and accumulation sources are linked",
+      "passed": true
+    },
+    {
+      "check_id": "sources.transfer_and_solver_guidance",
+      "detail": "simulation-transfer, learned-optimization, and EBM training sources are linked",
+      "passed": true
+    },
+    {
+      "check_id": "boundary.verifier_labels",
+      "detail": "note requires deterministic labels instead of model self-labels",
+      "passed": true
+    },
+    {
+      "check_id": "boundary.no_real_replay_replacement",
+      "detail": "note blocks replacing real replay with synthetic evidence",
+      "passed": true
+    },
+    {
+      "check_id": "coverage.tail_families",
+      "detail": "note requires explicit rare-tail and adversarial-family coverage",
+      "passed": true
+    },
+    {
+      "check_id": "gate.research_vs_production",
+      "detail": "research and production gates are separated",
+      "passed": true
+    }
+  ],
+  "decision": "synthetic_data_research_only_until_real_replay_gate",
+  "failed_count": 0,
+  "negative_knowledge": [
+    "Synthetic verifier-labeled data can improve advisory ranking, but it is not production distribution evidence by itself.",
+    "Recursive synthetic replacement and self-consuming model loops can lose tails or diversity.",
+    "Real replay, source manifests, secret scans, and coverage profiles remain required for production-adjacent promotion."
+  ],
+  "ok": true,
+  "passed_count": 6,
+  "required_source_urls": {
+    "accumulation": "https://arxiv.org/abs/2404.01413",
+    "curse_of_recursion": "https://arxiv.org/abs/2305.17493",
+    "domain_randomization": "https://arxiv.org/abs/1703.06907",
+    "ebm_training": "https://arxiv.org/abs/2101.03288",
+    "go_mad": "https://arxiv.org/abs/2307.01850",
+    "ml_for_co": "https://arxiv.org/abs/1811.06128",
+    "nature_model_collapse": "https://www.nature.com/articles/s41586-024-07566-y",
+    "statistical_collapse": "https://arxiv.org/abs/2404.05090"
+  },
+  "schema": "zenodex/energy/synthetic_data_limits_receipt/v1",
+  "source_count": 8
+}

@@ -69,7 +69,10 @@ EXACT_OUT_MANY_POOL_CANDIDATE_DOMAIN_CONTRACT_SCHEMA = "zenodex/exact-out-many-p
 EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA = "zenodex/exact-out-many-pool-oracle-contract/v1"
 EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA = "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
 EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA = "zenodex/exact-out-many-pool-certified-winner-packet/v1"
+EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA = "zenodex/exact-out-many-pool-audited-bounds-contract/v1"
+EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA = "zenodex/exact-out-many-pool-adaptive-liveness-packet/v1"
 EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR = "many_pool_runtime_not_canonical_on_bounded_audit_domain"
+EXACT_OUT_MANY_POOL_PROJECTION_COVER_ERROR = "many_pool_projection_cover_not_verified"
 EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_UNAVAILABLE_ERROR = "many_pool_repaired_prefilter_contract_not_ok"
 EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_UNAVAILABLE_ERROR = "many_pool_repaired_selected_domain_contract_not_ok"
 EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR = "many_pool_repaired_advisory_not_full_domain_canonical"
@@ -78,6 +81,10 @@ EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_INTERPRETATION_ERROR = (
     "many_pool_repaired_key_cover_witness_interpretation_inconsistent"
 )
 EXACT_OUT_MANY_POOL_RUNTIME_QUOTE_INCONSISTENCY_ERROR = "many_pool_runtime_quote_inconsistency_between_selected_and_repaired_packets"
+EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_AUDITED_BOUNDS_CONTRACT_NOT_OK = "audited_bounds_contract_not_ok"
+EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_DEFAULT_PACKET_NOT_OK = "default_packet_not_ok"
+EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK = "repaired_full_domain_packet_not_ok"
+EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING = "replayable_quote_missing"
 
 
 @dataclass(frozen=True)
@@ -611,6 +618,19 @@ class ExactOutManyPoolOracleContract:
     pool_snapshots: tuple[dict[str, Any], ...]
     audit: ExactOutManyPoolCanonicalityAudit
 
+    @property
+    def contract_ok(self) -> bool:
+        projection_cover = self.audit.projection_cover_audit
+        if projection_cover is None:
+            return False
+        runtime_projected_path = _quote_to_projected_path_payload(self.audit.runtime_quote)
+        canonical_projected_path = _quote_to_projected_path_payload(self.audit.canonical_winner_quote)
+        return bool(
+            self.audit.runtime_matches_canonical
+            and runtime_projected_path == canonical_projected_path
+            and projection_cover.projection_cover_holds
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
@@ -627,6 +647,7 @@ class ExactOutManyPoolOracleContract:
             "max_enumerated_candidates": int(self.max_enumerated_candidates),
             "pool_snapshots": [dict(snapshot) for snapshot in self.pool_snapshots],
             "audit": self.audit.to_dict(),
+            "contract_ok": bool(self.contract_ok),
         }
 
 
@@ -1339,6 +1360,268 @@ class ExactOutManyPoolCertifiedAdvisoryPacket:
 
 
 @dataclass(frozen=True)
+class ExactOutManyPoolAuditedBoundsContract:
+    asset_in: str
+    asset_out: str
+    amount_out_total: int
+    max_legs: int
+    max_candidate_pools: int
+    max_candidates: int
+    max_iters: int
+    window: int
+    brute_force_max: int
+    max_full_domain_pools: int
+    max_enumerated_candidates: int
+    pool_snapshots: tuple[dict[str, Any], ...]
+    certified_advisory_packet: ExactOutManyPoolCertifiedAdvisoryPacket
+    selected_domain_budget_respected: bool
+    repaired_selection_budget_respected: bool
+    full_domain_pool_budget_respected: bool
+    full_domain_candidate_budget_respected: bool
+    budget_parameters_bound: bool
+    failure_path_explicit: bool
+    success_path_replayable: bool
+    contract_ok: bool
+    schema: str = EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA
+
+    def __post_init__(self) -> None:
+        if not self.asset_in or not self.asset_out or self.asset_in == self.asset_out:
+            raise ValueError("asset_in and asset_out must be non-empty and distinct")
+        for field_name, value, min_value in (
+            ("amount_out_total", self.amount_out_total, 1),
+            ("max_legs", self.max_legs, 1),
+            ("max_candidate_pools", self.max_candidate_pools, 1),
+            ("max_candidates", self.max_candidates, 1),
+            ("max_iters", self.max_iters, 1),
+            ("window", self.window, 0),
+            ("brute_force_max", self.brute_force_max, 0),
+            ("max_full_domain_pools", self.max_full_domain_pools, 1),
+            ("max_enumerated_candidates", self.max_enumerated_candidates, 1),
+        ):
+            if not isinstance(value, int) or isinstance(value, bool) or int(value) < int(min_value):
+                raise ValueError(f"{field_name} must be an int >= {min_value}")
+        if not all(isinstance(snapshot, dict) for snapshot in self.pool_snapshots):
+            raise TypeError("pool_snapshots must be dict payloads")
+        if not isinstance(self.certified_advisory_packet, ExactOutManyPoolCertifiedAdvisoryPacket):
+            raise TypeError("certified_advisory_packet must be an ExactOutManyPoolCertifiedAdvisoryPacket")
+        bool_fields = (
+            self.selected_domain_budget_respected,
+            self.repaired_selection_budget_respected,
+            self.full_domain_pool_budget_respected,
+            self.full_domain_candidate_budget_respected,
+            self.budget_parameters_bound,
+            self.failure_path_explicit,
+            self.success_path_replayable,
+            self.contract_ok,
+        )
+        if not all(isinstance(value, bool) for value in bool_fields):
+            raise TypeError("audited bounds contract flags must be bools")
+        if self.schema != EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA:
+            raise ValueError("unsupported audited bounds contract schema")
+
+    def _bounds_summary(self) -> dict[str, Any]:
+        domain_contract = self.certified_advisory_packet.certified_packet.domain_contract
+        repaired_contract = self.certified_advisory_packet.advisory_packet.workaround_packet.repaired_packet.repaired_contract
+        repaired_full_domain_packet = self.certified_advisory_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+        return {
+            "selected_domain_audit_pool_count": len(domain_contract.audit_pool_ids),
+            "selected_domain_candidate_count": int(domain_contract.candidate_count),
+            "repaired_selected_pool_count": len(repaired_contract.repaired_selected_pool_ids),
+            "repaired_subset_search_count": int(repaired_contract.searched_subset_count),
+            "full_domain_feasible_pool_count": len(repaired_full_domain_packet.full_domain_feasible_pool_ids),
+            "full_domain_candidate_count": int(repaired_full_domain_packet.full_domain_candidate_count),
+            "certified_packet_ok": bool(self.certified_advisory_packet.certified_packet.packet_ok),
+            "advisory_packet_ok": bool(self.certified_advisory_packet.advisory_packet.packet_ok),
+            "selected_runtime_quotes_agree": bool(self.certified_advisory_packet.selected_runtime_quotes_agree),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "asset_in": str(self.asset_in),
+            "asset_out": str(self.asset_out),
+            "amount_out_total": int(self.amount_out_total),
+            "max_legs": int(self.max_legs),
+            "max_candidate_pools": int(self.max_candidate_pools),
+            "max_candidates": int(self.max_candidates),
+            "max_iters": int(self.max_iters),
+            "window": int(self.window),
+            "brute_force_max": int(self.brute_force_max),
+            "max_full_domain_pools": int(self.max_full_domain_pools),
+            "max_enumerated_candidates": int(self.max_enumerated_candidates),
+            "pool_snapshots": [dict(snapshot) for snapshot in self.pool_snapshots],
+            "certified_advisory_packet": self.certified_advisory_packet.to_dict(),
+            "selected_domain_budget_respected": bool(self.selected_domain_budget_respected),
+            "repaired_selection_budget_respected": bool(self.repaired_selection_budget_respected),
+            "full_domain_pool_budget_respected": bool(self.full_domain_pool_budget_respected),
+            "full_domain_candidate_budget_respected": bool(self.full_domain_candidate_budget_respected),
+            "budget_parameters_bound": bool(self.budget_parameters_bound),
+            "failure_path_explicit": bool(self.failure_path_explicit),
+            "success_path_replayable": bool(self.success_path_replayable),
+            "contract_ok": bool(self.contract_ok),
+            **self._bounds_summary(),
+        }
+
+
+@dataclass(frozen=True)
+class ExactOutManyPoolAdaptiveLivenessPacket:
+    audited_bounds_contract: ExactOutManyPoolAuditedBoundsContract
+    repaired_full_domain_packet: ExactOutManyPoolRepairedFullDomainCertifiedPacket
+    cheap_path_attempted: bool
+    cheap_path_success: bool
+    fallback_required: bool
+    fallback_attempted: bool
+    fallback_available: bool
+    fallback_success: bool
+    returned_success: bool
+    explicit_failure: bool
+    failure_reason_present: bool
+    no_spurious_failure: bool
+    effective_quote_source: str | None
+    effective_quote: SplitManyPoolsExactOutQuote | None
+    failure_reason: str | None
+    nested_error: str | None
+    packet_ok: bool
+    liveness_ok: bool
+    schema: str = EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.audited_bounds_contract, ExactOutManyPoolAuditedBoundsContract):
+            raise TypeError("audited_bounds_contract must be an ExactOutManyPoolAuditedBoundsContract")
+        if not isinstance(self.repaired_full_domain_packet, ExactOutManyPoolRepairedFullDomainCertifiedPacket):
+            raise TypeError("repaired_full_domain_packet must be an ExactOutManyPoolRepairedFullDomainCertifiedPacket")
+        for field_name, value in (
+            ("cheap_path_attempted", self.cheap_path_attempted),
+            ("cheap_path_success", self.cheap_path_success),
+            ("fallback_required", self.fallback_required),
+            ("fallback_attempted", self.fallback_attempted),
+            ("fallback_available", self.fallback_available),
+            ("fallback_success", self.fallback_success),
+            ("returned_success", self.returned_success),
+            ("explicit_failure", self.explicit_failure),
+            ("failure_reason_present", self.failure_reason_present),
+            ("no_spurious_failure", self.no_spurious_failure),
+            ("packet_ok", self.packet_ok),
+            ("liveness_ok", self.liveness_ok),
+        ):
+            if not isinstance(value, bool):
+                raise TypeError(f"{field_name} must be a bool")
+        if self.effective_quote_source is not None and self.effective_quote_source not in (
+            "default_certified_advisory",
+            "repaired_full_domain",
+        ):
+            raise ValueError("unsupported effective_quote_source")
+        if self.effective_quote is not None and not isinstance(self.effective_quote, SplitManyPoolsExactOutQuote):
+            raise TypeError("effective_quote must be a SplitManyPoolsExactOutQuote or None")
+        if self.failure_reason is not None and self.failure_reason not in (
+            EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_AUDITED_BOUNDS_CONTRACT_NOT_OK,
+            EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_DEFAULT_PACKET_NOT_OK,
+            EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK,
+            EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING,
+        ):
+            raise ValueError("unsupported failure_reason")
+        if self.nested_error is not None and (not isinstance(self.nested_error, str) or not self.nested_error):
+            raise ValueError("nested_error must be a non-empty string or None")
+        if self.schema != EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA:
+            raise ValueError("unsupported adaptive liveness packet schema")
+        if (
+            self.repaired_full_domain_packet
+            != self.audited_bounds_contract.certified_advisory_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+        ):
+            raise ValueError("repaired_full_domain_packet must match the nested audited-bounds repaired full-domain packet")
+        if not self.cheap_path_attempted:
+            raise ValueError("cheap_path_attempted must always be true")
+        if self.fallback_required != (not self.cheap_path_success):
+            raise ValueError("fallback_required must equal not cheap_path_success")
+        if self.fallback_attempted != self.fallback_required:
+            raise ValueError("fallback_attempted must equal fallback_required")
+        if self.fallback_success != (self.fallback_attempted and self.fallback_available):
+            raise ValueError("fallback_success must equal fallback_attempted and fallback_available")
+        if self.returned_success != (self.cheap_path_success or self.fallback_success):
+            raise ValueError("returned_success must equal cheap_path_success or fallback_success")
+        if self.explicit_failure != (not self.returned_success):
+            raise ValueError("explicit_failure must equal not returned_success")
+        if self.failure_reason_present != (self.failure_reason is not None):
+            raise ValueError("failure_reason_present must track failure_reason presence")
+        if self.no_spurious_failure != ((not self.explicit_failure) or (not self.fallback_available)):
+            raise ValueError("no_spurious_failure formula mismatch")
+        if self.returned_success:
+            if self.effective_quote_source is None:
+                raise ValueError("returned_success requires effective_quote_source")
+            if self.effective_quote is None:
+                raise ValueError("returned_success requires effective_quote")
+            if self.failure_reason is not None:
+                raise ValueError("returned_success must not carry failure_reason")
+            if self.effective_quote_source == "default_certified_advisory":
+                if not self.cheap_path_success:
+                    raise ValueError("default_certified_advisory source requires cheap_path_success")
+                if self.effective_quote != self.audited_bounds_contract.certified_advisory_packet.advisory_packet.advisory_quote:
+                    raise ValueError("effective_quote must match audited-bounds certified advisory quote")
+            elif self.effective_quote_source == "repaired_full_domain":
+                if not self.fallback_success:
+                    raise ValueError("repaired_full_domain source requires fallback_success")
+                if self.effective_quote != self.repaired_full_domain_packet.repaired_quote:
+                    raise ValueError("effective_quote must match repaired_full_domain_packet.repaired_quote")
+        else:
+            if self.effective_quote_source is not None or self.effective_quote is not None:
+                raise ValueError("explicit failure packets must not carry an effective quote")
+            if self.failure_reason is None:
+                raise ValueError("explicit failure packets must carry a failure_reason")
+        if self.liveness_ok != (
+            self.packet_ok and self.audited_bounds_contract.contract_ok and self.no_spurious_failure
+        ):
+            raise ValueError("liveness_ok formula mismatch")
+
+    def _summary(self) -> dict[str, Any]:
+        default_payload = self.audited_bounds_contract.certified_advisory_packet.to_dict()
+        repaired_payload = self.repaired_full_domain_packet.to_dict()
+        return {
+            "audited_bounds_contract_ok": bool(self.audited_bounds_contract.contract_ok),
+            "default_packet_ok": bool(self.audited_bounds_contract.certified_advisory_packet.packet_ok),
+            "default_effective_quote_source": default_payload["effective_quote_source"],
+            "default_effective_quote": default_payload["effective_quote"],
+            "default_effective_quote_matches_full_domain_canonical": default_payload[
+                "effective_quote_matches_full_domain_canonical"
+            ],
+            "repaired_full_domain_packet_ok": bool(self.repaired_full_domain_packet.packet_ok),
+            "repaired_full_domain_quote": repaired_payload["repaired_quote"],
+            "repaired_quote_matches_full_domain_canonical": bool(
+                repaired_payload["repaired_matches_full_canonical"]
+            ),
+            "repaired_full_domain_canonical_quote": repaired_payload["full_domain_canonical_quote"],
+            "effective_quote_matches_full_domain_canonical": (
+                None
+                if self.effective_quote is None
+                else bool(self.effective_quote == self.repaired_full_domain_packet.full_domain_canonical_quote)
+            ),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "audited_bounds_contract": self.audited_bounds_contract.to_dict(),
+            "repaired_full_domain_packet": self.repaired_full_domain_packet.to_dict(),
+            "cheap_path_attempted": bool(self.cheap_path_attempted),
+            "cheap_path_success": bool(self.cheap_path_success),
+            "fallback_required": bool(self.fallback_required),
+            "fallback_attempted": bool(self.fallback_attempted),
+            "fallback_available": bool(self.fallback_available),
+            "fallback_success": bool(self.fallback_success),
+            "returned_success": bool(self.returned_success),
+            "explicit_failure": bool(self.explicit_failure),
+            "failure_reason_present": bool(self.failure_reason_present),
+            "no_spurious_failure": bool(self.no_spurious_failure),
+            "effective_quote_source": self.effective_quote_source,
+            "effective_quote": None if self.effective_quote is None else _quote_to_dict(self.effective_quote),
+            "failure_reason": self.failure_reason,
+            "nested_error": self.nested_error,
+            "packet_ok": bool(self.packet_ok),
+            "liveness_ok": bool(self.liveness_ok),
+            **self._summary(),
+        }
+
+
+@dataclass(frozen=True)
 class ExactOutManyPoolRepairedReplacementShadowPacket:
     default_packet: ExactOutManyPoolCertifiedAdvisoryPacket
     replacement_contract: ExactOutManyPoolRepairedSelectedDomainOracleContract
@@ -2009,6 +2292,53 @@ def _key_cover_witness_interpretation_summary(
     )
 
 
+def _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
+    *,
+    selected_domain_contract: ExactOutManyPoolRepairedSelectedDomainOracleContract,
+    repaired_full_domain_packet: ExactOutManyPoolRepairedFullDomainCertifiedPacket,
+) -> ExactOutManyPoolRepairedKeyCoverPacket:
+    selected_candidates = selected_domain_contract.audit.certificate.candidates
+    full_candidates = repaired_full_domain_packet.full_domain_certificate.candidates
+    domination_witnesses, selected_keys_subset_full_keys, key_cover_holds = _build_exact_out_many_pool_key_cover_witnesses(
+        selected_candidates=selected_candidates,
+        full_candidates=full_candidates,
+    )
+    selected_domain_canonical_matches_full_domain_canonical = bool(
+        selected_domain_contract.audit.canonical_winner_quote == repaired_full_domain_packet.full_domain_canonical_quote
+    )
+    packet_ok = bool(
+        selected_domain_contract.contract_ok
+        and repaired_full_domain_packet.packet_ok
+        and selected_keys_subset_full_keys
+        and key_cover_holds
+        and selected_domain_canonical_matches_full_domain_canonical
+    )
+    if packet_ok:
+        error = None
+    elif not selected_domain_contract.contract_ok:
+        error = EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_UNAVAILABLE_ERROR
+    elif not repaired_full_domain_packet.packet_ok:
+        error = str(repaired_full_domain_packet.error or EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR)
+    elif not selected_keys_subset_full_keys or not key_cover_holds:
+        error = EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_ERROR
+    else:
+        error = EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR
+    return ExactOutManyPoolRepairedKeyCoverPacket(
+        packet_ok=bool(packet_ok),
+        error=error,
+        selected_keys_subset_full_keys=bool(selected_keys_subset_full_keys),
+        key_cover_holds=bool(key_cover_holds),
+        selected_domain_canonical_matches_full_domain_canonical=bool(
+            selected_domain_canonical_matches_full_domain_canonical
+        ),
+        selected_candidate_count=len(selected_candidates),
+        full_candidate_count=len(full_candidates),
+        domination_witnesses=domination_witnesses,
+        selected_domain_contract=selected_domain_contract,
+        repaired_full_domain_packet=repaired_full_domain_packet,
+    )
+
+
 def build_exact_out_many_pool_repaired_key_cover_packet(
     pools: Sequence[PoolState],
     *,
@@ -2052,77 +2382,15 @@ def build_exact_out_many_pool_repaired_key_cover_packet(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    selected_candidates = selected_domain_contract.audit.certificate.candidates
-    full_candidates = repaired_full_domain_packet.full_domain_certificate.candidates
-    domination_witnesses, selected_keys_subset_full_keys, key_cover_holds = _build_exact_out_many_pool_key_cover_witnesses(
-        selected_candidates=selected_candidates,
-        full_candidates=full_candidates,
-    )
-    selected_domain_canonical_matches_full_domain_canonical = bool(
-        selected_domain_contract.audit.canonical_winner_quote == repaired_full_domain_packet.full_domain_canonical_quote
-    )
-    packet_ok = bool(
-        selected_domain_contract.contract_ok
-        and repaired_full_domain_packet.packet_ok
-        and selected_keys_subset_full_keys
-        and key_cover_holds
-        and selected_domain_canonical_matches_full_domain_canonical
-    )
-    if packet_ok:
-        error = None
-    elif not selected_domain_contract.contract_ok:
-        error = EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_UNAVAILABLE_ERROR
-    elif not repaired_full_domain_packet.packet_ok:
-        error = str(repaired_full_domain_packet.error or EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR)
-    elif not selected_keys_subset_full_keys or not key_cover_holds:
-        error = EXACT_OUT_MANY_POOL_REPAIRED_KEY_COVER_ERROR
-    else:
-        error = EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR
-    return ExactOutManyPoolRepairedKeyCoverPacket(
-        packet_ok=bool(packet_ok),
-        error=error,
-        selected_keys_subset_full_keys=bool(selected_keys_subset_full_keys),
-        key_cover_holds=bool(key_cover_holds),
-        selected_domain_canonical_matches_full_domain_canonical=bool(
-            selected_domain_canonical_matches_full_domain_canonical
-        ),
-        selected_candidate_count=len(selected_candidates),
-        full_candidate_count=len(full_candidates),
-        domination_witnesses=domination_witnesses,
+    return _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
         selected_domain_contract=selected_domain_contract,
         repaired_full_domain_packet=repaired_full_domain_packet,
     )
 
 
-def build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
-    pools: Sequence[PoolState],
-    *,
-    asset_in: str,
-    asset_out: str,
-    amount_out_total: int,
-    max_legs: int = 3,
-    max_candidate_pools: int = 5,
-    max_candidates: int = 12,
-    max_iters: int = 4096,
-    window: int = 64,
-    brute_force_max: int = 512,
-    max_full_domain_pools: int = 8,
-    max_enumerated_candidates: int = 20_000,
+def _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
+    key_cover_packet: ExactOutManyPoolRepairedKeyCoverPacket,
 ) -> ExactOutManyPoolRepairedKeyCoverInterpretationPacket:
-    key_cover_packet = build_exact_out_many_pool_repaired_key_cover_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
     (
         selected_winner_index_in_range,
         selected_winner_matches_certificate,
@@ -2161,6 +2429,40 @@ def build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
         domination_witness_keys_match_candidates=bool(domination_witness_keys_match_candidates),
         domination_witnesses_dominate=bool(domination_witnesses_dominate),
         key_cover_packet=key_cover_packet,
+    )
+
+
+def build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int = 3,
+    max_candidate_pools: int = 5,
+    max_candidates: int = 12,
+    max_iters: int = 4096,
+    window: int = 64,
+    brute_force_max: int = 512,
+    max_full_domain_pools: int = 8,
+    max_enumerated_candidates: int = 20_000,
+) -> ExactOutManyPoolRepairedKeyCoverInterpretationPacket:
+    key_cover_packet = build_exact_out_many_pool_repaired_key_cover_packet(
+        pools,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+    )
+    return _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
+        key_cover_packet
     )
 
 
@@ -2696,35 +2998,17 @@ def quote_exact_out_many_pool_repaired_advisory(
     return None, str(packet.error or EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_UNAVAILABLE_ERROR), packet
 
 
-def build_exact_out_many_pool_repaired_full_domain_certified_packet(
+def _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repaired_packet(
+    repaired_packet: ExactOutManyPoolRepairedAdvisoryQuotePacket,
     pools: Sequence[PoolState],
     *,
     asset_in: str,
     asset_out: str,
     amount_out_total: int,
-    max_legs: int = 3,
-    max_candidate_pools: int = 5,
-    max_candidates: int = 12,
-    max_iters: int = 4096,
-    window: int = 64,
-    brute_force_max: int = 512,
-    max_full_domain_pools: int = 8,
-    max_enumerated_candidates: int = 20_000,
+    max_legs: int,
+    max_full_domain_pools: int,
+    max_enumerated_candidates: int,
 ) -> ExactOutManyPoolRepairedFullDomainCertifiedPacket:
-    repaired_packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
     feasible_pool_ids, full_candidates, full_domain_certificate = _build_exact_out_many_pool_full_domain_certificate(
         pools,
         asset_in=asset_in,
@@ -2756,6 +3040,47 @@ def build_exact_out_many_pool_repaired_full_domain_certified_packet(
         full_domain_canonical_quote=full_domain_certificate.winner_quote,
         repaired_packet=repaired_packet,
         full_domain_certificate=full_domain_certificate,
+    )
+
+
+def build_exact_out_many_pool_repaired_full_domain_certified_packet(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int = 3,
+    max_candidate_pools: int = 5,
+    max_candidates: int = 12,
+    max_iters: int = 4096,
+    window: int = 64,
+    brute_force_max: int = 512,
+    max_full_domain_pools: int = 8,
+    max_enumerated_candidates: int = 20_000,
+) -> ExactOutManyPoolRepairedFullDomainCertifiedPacket:
+    repaired_packet = build_exact_out_many_pool_repaired_advisory_quote_packet(
+        pools,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+    )
+    return _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repaired_packet(
+        repaired_packet,
+        pools,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
     )
 
 
@@ -2836,17 +3161,13 @@ def build_exact_out_many_pool_bounded_workaround_packet(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    repaired_full_domain_packet = build_exact_out_many_pool_repaired_full_domain_certified_packet(
+    repaired_full_domain_packet = _build_exact_out_many_pool_repaired_full_domain_certified_packet_from_repaired_packet(
+        repaired_packet,
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
         amount_out_total=int(amount_out_total),
         max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
@@ -3043,8 +3364,444 @@ def build_exact_out_many_pool_default_packet(
     )
 
 
+def _exact_out_many_pool_budget_parameters_bound(
+    packet: ExactOutManyPoolCertifiedAdvisoryPacket,
+    *,
+    max_legs: int,
+    max_candidate_pools: int,
+    max_candidates: int,
+    max_iters: int,
+    window: int,
+    brute_force_max: int,
+    max_full_domain_pools: int,
+    max_enumerated_candidates: int,
+) -> bool:
+    domain_contract = packet.certified_packet.domain_contract
+    guarded_contract = packet.certified_packet.guarded_packet.contract
+    selected_domain_contract = packet.repaired_key_cover_packet.selected_domain_contract
+    advisory_packet = packet.advisory_packet
+    oracle_contract = advisory_packet.workaround_packet.oracle_contract
+    repaired_packet = advisory_packet.workaround_packet.repaired_packet
+    repaired_contract = repaired_packet.repaired_contract
+    expected_domain_bounds = (
+        int(max_legs),
+        int(max_candidate_pools),
+        int(max_enumerated_candidates),
+    )
+    expected_runtime_bounds = (
+        int(max_legs),
+        int(max_candidate_pools),
+        int(max_candidates),
+        int(max_iters),
+        int(window),
+        int(brute_force_max),
+        int(max_full_domain_pools),
+        int(max_enumerated_candidates),
+    )
+    return (
+        (int(domain_contract.max_legs), int(domain_contract.max_candidate_pools), int(domain_contract.max_enumerated_candidates))
+        == expected_domain_bounds
+        and (
+            int(guarded_contract.max_legs),
+            int(guarded_contract.max_candidate_pools),
+            int(guarded_contract.max_candidates),
+            int(guarded_contract.max_iters),
+            int(guarded_contract.window),
+            int(guarded_contract.brute_force_max),
+            int(guarded_contract.max_full_domain_pools),
+            int(guarded_contract.max_enumerated_candidates),
+        )
+        == expected_runtime_bounds
+        and (
+            int(selected_domain_contract.max_legs),
+            int(selected_domain_contract.max_candidate_pools),
+            int(selected_domain_contract.max_candidates),
+            int(selected_domain_contract.max_iters),
+            int(selected_domain_contract.window),
+            int(selected_domain_contract.brute_force_max),
+            int(selected_domain_contract.max_full_domain_pools),
+            int(selected_domain_contract.max_enumerated_candidates),
+        )
+        == expected_runtime_bounds
+        and (
+            int(oracle_contract.max_legs),
+            int(oracle_contract.max_candidate_pools),
+            int(oracle_contract.max_candidates),
+            int(oracle_contract.max_iters),
+            int(oracle_contract.window),
+            int(oracle_contract.brute_force_max),
+            int(oracle_contract.max_full_domain_pools),
+            int(oracle_contract.max_enumerated_candidates),
+        )
+        == expected_runtime_bounds
+        and (
+            int(repaired_packet.max_candidates),
+            int(repaired_packet.max_iters),
+            int(repaired_packet.window),
+            int(repaired_packet.brute_force_max),
+        )
+        == (
+            int(max_candidates),
+            int(max_iters),
+            int(window),
+            int(brute_force_max),
+        )
+        and (
+            int(repaired_contract.max_legs),
+            int(repaired_contract.max_candidate_pools),
+            int(repaired_contract.max_full_domain_pools),
+            int(repaired_contract.max_enumerated_candidates),
+        )
+        == (
+            int(max_legs),
+            int(max_candidate_pools),
+            int(max_full_domain_pools),
+            int(max_enumerated_candidates),
+        )
+    )
+
+
+def build_exact_out_many_pool_audited_bounds_contract(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int = 3,
+    max_candidate_pools: int = 5,
+    max_candidates: int = 12,
+    max_iters: int = 4096,
+    window: int = 64,
+    brute_force_max: int = 512,
+    max_full_domain_pools: int = 8,
+    max_enumerated_candidates: int = 20_000,
+) -> ExactOutManyPoolAuditedBoundsContract:
+    certified_advisory_packet = build_exact_out_many_pool_certified_advisory_packet(
+        pools,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+    )
+    domain_contract = certified_advisory_packet.certified_packet.domain_contract
+    repaired_contract = certified_advisory_packet.advisory_packet.workaround_packet.repaired_packet.repaired_contract
+    repaired_full_domain_packet = certified_advisory_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+    selected_domain_budget_respected = bool(
+        domain_contract.audit_pool_ids_within_budget
+        and domain_contract.candidate_count_within_budget
+    )
+    repaired_selection_budget_respected = bool(
+        repaired_contract.repaired_selected_pool_ids_within_budget
+    )
+    full_domain_pool_budget_respected = bool(
+        len(repaired_full_domain_packet.full_domain_feasible_pool_ids) <= int(max_full_domain_pools)
+    )
+    full_domain_candidate_budget_respected = bool(
+        int(repaired_full_domain_packet.full_domain_candidate_count) <= int(max_enumerated_candidates)
+    )
+    budget_parameters_bound = _exact_out_many_pool_budget_parameters_bound(
+        certified_advisory_packet,
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+    )
+    failure_path_explicit = bool(
+        certified_advisory_packet.packet_ok
+        or not certified_advisory_packet.certified_packet.packet_ok
+        or (
+            not certified_advisory_packet.advisory_packet.packet_ok
+            and certified_advisory_packet.advisory_packet.error is not None
+        )
+        or not certified_advisory_packet.selected_runtime_quotes_agree
+    )
+    success_path_replayable = bool(
+        not certified_advisory_packet.packet_ok
+        or (
+            certified_advisory_packet.advisory_packet.advisory_quote is not None
+            and certified_advisory_packet.advisory_packet.quote_source is not None
+            and certified_advisory_packet.advisory_packet.error is None
+        )
+    )
+    contract_ok = bool(
+        selected_domain_budget_respected
+        and repaired_selection_budget_respected
+        and full_domain_pool_budget_respected
+        and full_domain_candidate_budget_respected
+        and budget_parameters_bound
+        and failure_path_explicit
+        and success_path_replayable
+    )
+    return ExactOutManyPoolAuditedBoundsContract(
+        asset_in=str(asset_in),
+        asset_out=str(asset_out),
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+        pool_snapshots=tuple(_pool_to_dict(pool) for pool in pools),
+        certified_advisory_packet=certified_advisory_packet,
+        selected_domain_budget_respected=bool(selected_domain_budget_respected),
+        repaired_selection_budget_respected=bool(repaired_selection_budget_respected),
+        full_domain_pool_budget_respected=bool(full_domain_pool_budget_respected),
+        full_domain_candidate_budget_respected=bool(full_domain_candidate_budget_respected),
+        budget_parameters_bound=bool(budget_parameters_bound),
+        failure_path_explicit=bool(failure_path_explicit),
+        success_path_replayable=bool(success_path_replayable),
+        contract_ok=bool(contract_ok),
+    )
+
+
+def _exact_out_many_pool_certified_advisory_packet_error(
+    packet: ExactOutManyPoolCertifiedAdvisoryPacket,
+) -> str | None:
+    if packet.packet_ok:
+        return None
+    if not packet.certified_packet.packet_ok:
+        return EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR
+    if not packet.advisory_packet.packet_ok:
+        return str(packet.advisory_packet.error or EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR)
+    if not packet.selected_runtime_quotes_agree:
+        return EXACT_OUT_MANY_POOL_RUNTIME_QUOTE_INCONSISTENCY_ERROR
+    return EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR
+
+
+def build_exact_out_many_pool_adaptive_liveness_packet(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int = 3,
+    max_candidate_pools: int = 5,
+    max_candidates: int = 12,
+    max_iters: int = 4096,
+    window: int = 64,
+    brute_force_max: int = 512,
+    max_full_domain_pools: int = 8,
+    max_enumerated_candidates: int = 20_000,
+) -> ExactOutManyPoolAdaptiveLivenessPacket:
+    audited_bounds_contract = build_exact_out_many_pool_audited_bounds_contract(
+        pools,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+    )
+    default_packet = audited_bounds_contract.certified_advisory_packet
+    repaired_full_domain_packet = default_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+
+    cheap_path_attempted = True
+    cheap_path_success = bool(default_packet.packet_ok and default_packet.advisory_packet.advisory_quote is not None)
+    fallback_required = not cheap_path_success
+    fallback_attempted = fallback_required
+    fallback_available = bool(
+        repaired_full_domain_packet.packet_ok and repaired_full_domain_packet.repaired_quote is not None
+    )
+    fallback_success = bool(fallback_attempted and fallback_available)
+    returned_success = bool(cheap_path_success or fallback_success)
+    explicit_failure = not returned_success
+
+    if cheap_path_success:
+        effective_quote_source = "default_certified_advisory"
+        effective_quote = default_packet.advisory_packet.advisory_quote
+        failure_reason = None
+        nested_error = None
+    elif fallback_success:
+        effective_quote_source = "repaired_full_domain"
+        effective_quote = repaired_full_domain_packet.repaired_quote
+        failure_reason = None
+        nested_error = None
+    else:
+        effective_quote_source = None
+        effective_quote = None
+        default_error = _exact_out_many_pool_certified_advisory_packet_error(default_packet)
+        fallback_error = None if fallback_available else repaired_full_domain_packet.error
+        if not audited_bounds_contract.contract_ok:
+            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_AUDITED_BOUNDS_CONTRACT_NOT_OK
+        elif not default_packet.packet_ok:
+            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_DEFAULT_PACKET_NOT_OK
+        elif not repaired_full_domain_packet.packet_ok:
+            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPAIRED_FULL_DOMAIN_PACKET_NOT_OK
+        else:
+            failure_reason = EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING
+        nested_error = str(fallback_error or default_error or failure_reason)
+
+    failure_reason_present = bool(failure_reason is not None)
+    no_spurious_failure = bool((not explicit_failure) or (not fallback_available))
+    packet_ok = bool(
+        repaired_full_domain_packet
+        == default_packet.advisory_packet.workaround_packet.repaired_full_domain_packet
+        and cheap_path_attempted
+        and fallback_required == (not cheap_path_success)
+        and fallback_attempted == fallback_required
+        and fallback_success == (fallback_attempted and fallback_available)
+        and returned_success == (cheap_path_success or fallback_success)
+        and explicit_failure == (not returned_success)
+        and failure_reason_present == (failure_reason is not None)
+        and no_spurious_failure == ((not explicit_failure) or (not fallback_available))
+        and (
+            (
+                returned_success
+                and effective_quote_source is not None
+                and effective_quote is not None
+                and failure_reason is None
+            )
+            or (
+                explicit_failure
+                and effective_quote_source is None
+                and effective_quote is None
+                and failure_reason is not None
+            )
+        )
+    )
+    liveness_ok = bool(packet_ok and audited_bounds_contract.contract_ok and no_spurious_failure)
+    return ExactOutManyPoolAdaptiveLivenessPacket(
+        audited_bounds_contract=audited_bounds_contract,
+        repaired_full_domain_packet=repaired_full_domain_packet,
+        cheap_path_attempted=bool(cheap_path_attempted),
+        cheap_path_success=bool(cheap_path_success),
+        fallback_required=bool(fallback_required),
+        fallback_attempted=bool(fallback_attempted),
+        fallback_available=bool(fallback_available),
+        fallback_success=bool(fallback_success),
+        returned_success=bool(returned_success),
+        explicit_failure=bool(explicit_failure),
+        failure_reason_present=bool(failure_reason_present),
+        no_spurious_failure=bool(no_spurious_failure),
+        effective_quote_source=effective_quote_source,
+        effective_quote=effective_quote,
+        failure_reason=failure_reason,
+        nested_error=nested_error,
+        packet_ok=bool(packet_ok),
+        liveness_ok=bool(liveness_ok),
+    )
+
+
+def quote_exact_out_many_pool_adaptive(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int = 3,
+    max_candidate_pools: int = 5,
+    max_candidates: int = 12,
+    max_iters: int = 4096,
+    window: int = 64,
+    brute_force_max: int = 512,
+    max_full_domain_pools: int = 8,
+    max_enumerated_candidates: int = 20_000,
+) -> tuple[SplitManyPoolsExactOutQuote | None, str | None, ExactOutManyPoolAdaptiveLivenessPacket]:
+    packet = build_exact_out_many_pool_adaptive_liveness_packet(
+        pools,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_out_total=int(amount_out_total),
+        max_legs=int(max_legs),
+        max_candidate_pools=int(max_candidate_pools),
+        max_candidates=int(max_candidates),
+        max_iters=int(max_iters),
+        window=int(window),
+        brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
+        max_enumerated_candidates=int(max_enumerated_candidates),
+    )
+    if packet.returned_success:
+        return packet.effective_quote, None, packet
+    return None, str(packet.failure_reason or packet.nested_error or EXACT_OUT_MANY_POOL_ADAPTIVE_FAILURE_REPLAYABLE_QUOTE_MISSING), packet
+
+
 def verify_exact_out_many_pool_default_packet_payload(payload: object) -> tuple[bool, str | None]:
     return verify_exact_out_many_pool_certified_advisory_packet_payload(payload)
+
+
+def verify_exact_out_many_pool_audited_bounds_contract_payload(payload: object) -> tuple[bool, str | None]:
+    if not isinstance(payload, dict):
+        return False, "audited bounds contract payload must be a dict"
+    if payload.get("schema") != EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA:
+        return False, "unsupported audited bounds contract schema"
+    try:
+        pools_payload = payload["pool_snapshots"]
+        if not isinstance(pools_payload, list) or not pools_payload:
+            return False, "pool_snapshots must be a non-empty list"
+        pools = tuple(_pool_from_dict(pool_payload) for pool_payload in pools_payload)
+        expected = build_exact_out_many_pool_audited_bounds_contract(
+            pools,
+            asset_in=str(payload["asset_in"]),
+            asset_out=str(payload["asset_out"]),
+            amount_out_total=int(payload["amount_out_total"]),
+            max_legs=int(payload["max_legs"]),
+            max_candidate_pools=int(payload["max_candidate_pools"]),
+            max_candidates=int(payload["max_candidates"]),
+            max_iters=int(payload["max_iters"]),
+            window=int(payload["window"]),
+            brute_force_max=int(payload["brute_force_max"]),
+            max_full_domain_pools=int(payload["max_full_domain_pools"]),
+            max_enumerated_candidates=int(payload["max_enumerated_candidates"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        return False, str(exc)
+    if payload != expected.to_dict():
+        return False, "audited bounds contract payload mismatch"
+    return True, None
+
+
+def verify_exact_out_many_pool_adaptive_liveness_packet_payload(payload: object) -> tuple[bool, str | None]:
+    if not isinstance(payload, dict):
+        return False, "adaptive liveness packet payload must be a dict"
+    if payload.get("schema") != EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA:
+        return False, "unsupported adaptive liveness packet schema"
+    try:
+        contract_payload = payload["audited_bounds_contract"]
+        if not isinstance(contract_payload, dict):
+            return False, "audited_bounds_contract must be a dict"
+        pools_payload = contract_payload["pool_snapshots"]
+        if not isinstance(pools_payload, list) or not pools_payload:
+            return False, "pool_snapshots must be a non-empty list"
+        pools = tuple(_pool_from_dict(pool_payload) for pool_payload in pools_payload)
+        expected = build_exact_out_many_pool_adaptive_liveness_packet(
+            pools,
+            asset_in=str(contract_payload["asset_in"]),
+            asset_out=str(contract_payload["asset_out"]),
+            amount_out_total=int(contract_payload["amount_out_total"]),
+            max_legs=int(contract_payload["max_legs"]),
+            max_candidate_pools=int(contract_payload["max_candidate_pools"]),
+            max_candidates=int(contract_payload["max_candidates"]),
+            max_iters=int(contract_payload["max_iters"]),
+            window=int(contract_payload["window"]),
+            brute_force_max=int(contract_payload["brute_force_max"]),
+            max_full_domain_pools=int(contract_payload["max_full_domain_pools"]),
+            max_enumerated_candidates=int(contract_payload["max_enumerated_candidates"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        return False, str(exc)
+    if payload != expected.to_dict():
+        return False, "adaptive liveness packet payload mismatch"
+    return True, None
 
 
 def verify_exact_out_many_pool_candidate_domain_contract_payload(payload: object) -> tuple[bool, str | None]:
@@ -3102,8 +3859,10 @@ def guard_exact_out_many_pool_runtime_canonicality(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    if contract.audit.runtime_matches_canonical:
+    if contract.contract_ok:
         return True, None, contract
+    if contract.audit.runtime_matches_canonical:
+        return False, EXACT_OUT_MANY_POOL_PROJECTION_COVER_ERROR, contract
     return False, EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR, contract
 
 
@@ -3197,6 +3956,7 @@ def build_exact_out_many_pool_certified_winner_packet(
     max_iters: int = 4096,
     window: int = 64,
     brute_force_max: int = 512,
+    max_full_domain_pools: int = 8,
     max_enumerated_candidates: int = 20_000,
 ) -> ExactOutManyPoolCertifiedWinnerPacket:
     domain_contract = build_exact_out_many_pool_candidate_domain_contract(
@@ -3219,6 +3979,7 @@ def build_exact_out_many_pool_certified_winner_packet(
         max_iters=int(max_iters),
         window=int(window),
         brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
     gate = check_exact_out_many_pool_certified_winner_packet_gate(
@@ -3258,6 +4019,7 @@ def build_exact_out_many_pool_certified_advisory_packet(
         max_iters=int(max_iters),
         window=int(window),
         brute_force_max=int(brute_force_max),
+        max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
     advisory_packet = build_exact_out_many_pool_bounded_advisory_quote_packet(
@@ -3274,7 +4036,7 @@ def build_exact_out_many_pool_certified_advisory_packet(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    repaired_key_cover_packet = build_exact_out_many_pool_repaired_key_cover_packet(
+    selected_domain_contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
         pools,
         asset_in=asset_in,
         asset_out=asset_out,
@@ -3288,19 +4050,14 @@ def build_exact_out_many_pool_certified_advisory_packet(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    repaired_key_cover_interpretation_packet = build_exact_out_many_pool_repaired_key_cover_interpretation_packet(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
+    repaired_key_cover_packet = _build_exact_out_many_pool_repaired_key_cover_packet_from_components(
+        selected_domain_contract=selected_domain_contract,
+        repaired_full_domain_packet=advisory_packet.workaround_packet.repaired_full_domain_packet,
+    )
+    repaired_key_cover_interpretation_packet = (
+        _build_exact_out_many_pool_repaired_key_cover_interpretation_packet_from_key_cover_packet(
+            repaired_key_cover_packet
+        )
     )
     selected_runtime_quotes_agree = (
         certified_packet.guarded_packet.contract.audit.runtime_quote
@@ -3390,20 +4147,7 @@ def build_exact_out_many_pool_repaired_replacement_shadow_packet(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    replacement_contract = build_exact_out_many_pool_repaired_selected_domain_oracle_contract(
-        pools,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_out_total=int(amount_out_total),
-        max_legs=int(max_legs),
-        max_candidate_pools=int(max_candidate_pools),
-        max_candidates=int(max_candidates),
-        max_iters=int(max_iters),
-        window=int(window),
-        brute_force_max=int(brute_force_max),
-        max_full_domain_pools=int(max_full_domain_pools),
-        max_enumerated_candidates=int(max_enumerated_candidates),
-    )
+    replacement_contract = default_packet.repaired_key_cover_packet.selected_domain_contract
     replacement_available = bool(replacement_contract.contract_ok)
     effective_quote_matches_replacement_quote = bool(
         replacement_available
@@ -3474,6 +4218,7 @@ def verify_exact_out_many_pool_certified_winner_packet_payload(payload: object) 
             max_iters=int(payload["guarded_packet"]["contract"]["max_iters"]),
             window=int(payload["guarded_packet"]["contract"]["window"]),
             brute_force_max=int(payload["guarded_packet"]["contract"]["brute_force_max"]),
+            max_full_domain_pools=int(payload["guarded_packet"]["contract"]["max_full_domain_pools"]),
             max_enumerated_candidates=int(domain_payload["max_enumerated_candidates"]),
         )
     except (KeyError, TypeError, ValueError) as exc:

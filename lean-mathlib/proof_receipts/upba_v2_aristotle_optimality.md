@@ -78,3 +78,70 @@ can exist.
 Boundary: these are model-level optimality lemmas. They do not prove global
 price-search completeness, fair order inclusion, solver correctness, or MEV
 elimination.
+
+## Second Aristotle Packet: Partial-Fill Bounded Grid
+
+Aristotle project:
+
+```text
+5ab11e96-962e-46a7-a342-17e65b796141
+```
+
+Purpose: independent proof-search for the UPBA v2 partial-fill bounded-grid
+bridge.
+
+The submitted packet is in
+`internal/aristotle/upba_v2_partial_fill_grid_20260517`. It asks Aristotle to
+fill the proof holes for:
+
+- `partialFillCanonicalGridCandidates_complete`
+- `partialFillCanonicalGridCandidates_sound`
+- `partialFillCanonicalGridCandidates_complete_audit_set`
+- `partialFillCanonicalGridCandidates_sound_audit_set`
+- `partialFillCanonicalGridCandidates_exact_audit_set`
+- `upba_v2_partial_fill_bounded_grid_upper_bound_certificate_implies_global_weak_optimal`
+
+Local pre-submission check:
+
+```bash
+cd internal/aristotle/upba_v2_partial_fill_grid_20260517
+~/.elan/bin/lake build
+```
+
+Result: build completed successfully with only the expected `sorry` warnings in
+the challenge file.
+
+Returned result path:
+
+```text
+internal/aristotle/results/upba_v2_partial_fill_grid_5ab11e96/result.tar.gz
+```
+
+Local returned-packet check:
+
+```bash
+cd internal/aristotle/results/upba_v2_partial_fill_grid_5ab11e96/upba_v2_partial_fill_grid_20260517_aristotle
+~/.elan/bin/lake build
+```
+
+Result:
+
+```text
+Build completed successfully (3 jobs).
+```
+
+Trust scan on returned Lean:
+
+```bash
+rg -n '\b(sorry|admit|axiom|unsafe|sorryAx)\b' \
+  internal/aristotle/results/upba_v2_partial_fill_grid_5ab11e96/upba_v2_partial_fill_grid_20260517_aristotle/AristotleTask.lean
+```
+
+Result: no matches.
+
+Integration decision: accepted the theorem statement preservation and proof
+ideas as an independent replay of the UPBA v2 partial-fill bridge. No code was
+copied into `lean-mathlib/Proofs/UniformBatchOptimality.lean` because the local
+proofs were already present, checked, and more explicit than the generated
+proof text. The returned proof remains recorded as corroborating evidence, not
+as the canonical source file.

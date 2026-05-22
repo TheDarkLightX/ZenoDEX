@@ -14,7 +14,7 @@ from .confidential_extension_receipts import verify_confidential_extension_recei
 
 
 def _canonical_policy_digest(value: object, *, name: str) -> str:
-    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)  # type: ignore[arg-type]
+    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
 
 
 def _require_flag(value: Any, *, name: str) -> bool:
@@ -50,7 +50,12 @@ def evaluate_confidential_extension_live_admission_gate(
     policy_digest_match_ok = _require_flag(policy_digest_match, name="policy_digest_match")
     request_used = _require_flag(request_used_before, name="request_used_before")
     request_unused_ok = not request_used
-    admission_ok = bool(do_execute_ok and receipt_verified_ok and policy_digest_match_ok and request_unused_ok)
+    admission_ok = bool(
+        do_execute_ok
+        and receipt_verified_ok
+        and policy_digest_match_ok
+        and request_unused_ok
+    )
     request_used_after = bool(request_used or admission_ok)
     return ConfidentialExtensionLiveAdmissionOutcome(
         do_execute_ok=do_execute_ok,

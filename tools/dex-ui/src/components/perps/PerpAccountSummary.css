@@ -1,0 +1,48 @@
+/* PerpAccountSummary */
+.perp-account-summary {
+    padding: var(--space-md) 0;
+}
+
+.perp-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-md);
+}
+
+.perp-summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+}
+
+.perp-summary-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.perp-summary-value {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+}
+
+.perp-summary-pnl.positive {
+    color: var(--perp-long);
+}
+
+.perp-summary-pnl.negative {
+    color: var(--perp-short);
+}
+
+@media (max-width: 768px) {
+    .perp-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

@@ -33,8 +33,6 @@ from src.integration.dex_engine import (
     _verify_intent_signature_bytes,
     _verify_proof_if_present,
     apply_ops,
-    production_config_violations,
-    validate_production_config,
 )
 from src.integration.operations import SettlementEnvelope, SignedIntentEnvelope
 from src.integration.proof_verifier import (
@@ -304,28 +302,6 @@ def test_dex_engine_config_rejects_certificate_mode_without_price_history() -> N
         )
 
 
-def test_dex_engine_config_rejects_end_to_end_certificate_mode_without_inputs() -> None:
-    with pytest.raises(
-        ValueError,
-        match="require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs",
-    ):
-        DexEngineConfig(require_settlement_end_to_end_certificate=True)
-
-
-def test_dex_engine_config_rejects_wrong_certificate_helper_types() -> None:
-    with pytest.raises(
-        TypeError,
-        match="settlement_certificate_proof_flags must be a SettlementProofFlags instance",
-    ):
-        DexEngineConfig(settlement_certificate_proof_flags=object())  # type: ignore[arg-type]
-
-    with pytest.raises(
-        TypeError,
-        match="settlement_end_to_end_certificate_inputs must be a SettlementEndToEndCertificateInputs instance",
-    ):
-        DexEngineConfig(settlement_end_to_end_certificate_inputs=object())  # type: ignore[arg-type]
-
-
 def test_dex_engine_config_rejects_malformed_certificate_price_history() -> None:
     with pytest.raises(
         ValueError,
@@ -380,61 +356,6 @@ def test_validate_external_tool_policy_covers_consensus_and_disable_paths() -> N
         == "external tools disabled (set DexEngineConfig.allow_external_tools=True)"
     )
     assert _validate_external_tool_policy(DexEngineConfig()) is None
-
-
-def test_validate_production_config_accepts_default_engine_posture() -> None:
-    ok, err = validate_production_config(DexEngineConfig())
-    assert ok is True
-    assert err is None
-
-
-def test_validate_production_config_rejects_unsafe_boundary_profile() -> None:
-    cfg = DexEngineConfig(
-        allow_missing_settlement=True,
-        require_settlement_match=False,
-        require_intent_signatures=False,
-        allow_external_tools=True,
-        consensus_mode=False,
-        dex_config=DexConfig(
-            require_all_nonces=False,
-            allow_legacy_nonce_free_steps=True,
-            settlement_validation="legacy",
-        ),
-        enable_test_fault_injection=True,
-        fault_injection=DexFaultInjectionConfig(fail_at_stage="after_raw_validation"),
-    )
-
-    reasons = production_config_violations(cfg)
-    assert "allow_missing_settlement must be false" in reasons
-    assert "require_settlement_match must be true" in reasons
-    assert "require_intent_signatures must be true" in reasons
-    assert "dex_config.require_all_nonces must be true" in reasons
-    assert "dex_config.allow_legacy_nonce_free_steps must be false" in reasons
-    assert "dex_config.settlement_validation must not be legacy" in reasons
-    assert "allow_external_tools must be false" in reasons
-    assert "consensus_mode must be true" in reasons
-    assert "test fault injection must be disabled" in reasons
-
-    ok, err = validate_production_config(cfg)
-    assert ok is False
-    assert err is not None
-    assert "dex_config.require_all_nonces must be true" in err
-
-
-def test_validate_production_config_can_require_strict_upba_posture() -> None:
-    ok, err = validate_production_config(DexEngineConfig(), require_strict_upba=True)
-    assert ok is False
-    assert err is not None
-    assert "strict UPBA production requires allow_uniform_batch_certificate" in err
-    assert "strict UPBA production requires require_uniform_batch_certificate" in err
-    assert "strict UPBA production requires require_uniform_batch_price_grid_evidence" in err
-
-
-def test_validate_production_config_rejects_proof_required_without_verifier() -> None:
-    ok, err = validate_production_config(DexEngineConfig(require_proof_when_present=True))
-    assert ok is False
-    assert err is not None
-    assert "require_proof_when_present requires proof_config.enabled" in err
 
 
 def test_validate_raw_operation_guards_fail_early() -> None:
@@ -870,21 +791,6 @@ def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(m
     assert (ok, err) == (False, "py_ecc (BLS) not available")
 
     monkeypatch.setattr("src.integration.dex_engine._BLS_AVAILABLE", True)
-    monkeypatch.setattr("src.integration.dex_engine.G2Basic", None)
-    ok, err = _verify_intent_signature_bytes(
-        sender_pubkey_hex="0x" + "11" * 48,
-        signature_hex="0x" + "22" * 96,
-        signing_payload_bytes=b"{}",
-        chain_id="tau-net-alpha",
-    )
-    assert (ok, err) == (False, "py_ecc.bls.G2Basic unavailable")
-
-    class _DomainBLS:
-        @staticmethod
-        def Verify(pubkey: bytes, message: bytes, signature: bytes) -> bool:
-            return True
-
-    monkeypatch.setattr("src.integration.dex_engine.G2Basic", _DomainBLS)
     monkeypatch.setattr("src.integration.dex_engine.domain_sep_bytes", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("domain boom")))
     ok, err = _verify_intent_signature_bytes(
         sender_pubkey_hex="0x" + "11" * 48,

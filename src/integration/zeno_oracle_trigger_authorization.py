@@ -227,5 +227,4 @@ def check_trigger_execute_oracle_authorization(
         query_id=str(runtime["query_id"]),
         runtime_value_e8=int(runtime["runtime_value_e8"]),
         now_epoch=int(runtime["now_epoch"]),
-        max_freshness_window_epochs=2,
     )

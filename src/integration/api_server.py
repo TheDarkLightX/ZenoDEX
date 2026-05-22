@@ -10,14 +10,14 @@ Security posture:
 - Default-deny CORS (no wildcard by default)
 - Basic rate limiting (per-IP, token bucket)
 - Tight request parsing and bounded request sizes
-- Optional bearer-token auth for demo/dev routes (DEMO_API_TOKEN)
+- Demo bearer-token auth for explicitly approved demo/dev routes (DEMO_API_TOKEN)
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import hmac
+import hashlib
 import os
 import threading
 import time
@@ -25,13 +25,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import comb
 from typing import Any, Mapping, Optional, Sequence, Set
-
-from src.state.canonical import canonical_json_bytes
-from src.integration.api_surface_profiles import (
-    API_SURFACE_PROFILE_LOCAL_DEMO,
-    validate_api_surface_profile,
-)
-from src.integration.zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
+from urllib.parse import urlsplit
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
@@ -41,6 +35,7 @@ for _prewarm_module_name in (
     "src.integration.settlement_price_provenance",
     "src.integration.settlement_price_attestation",
     "src.integration.settlement_end_to_end_certificate_packet",
+    "src.integration.settlement_witness_lifecycle",
     "src.integration.settlement_feature_extension_packet",
     "src.integration.settlement_value_contract",
     "src.integration.settlement_lp_value_contract",
@@ -76,6 +71,44 @@ def _env_str(name: str, default: str) -> str:
     return v if v else default
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return bool(default)
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _safe_http_header_value(value: object) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+        return None
+    try:
+        value.encode("latin-1")
+    except UnicodeEncodeError:
+        return None
+    return value
+
+
+def _safe_cors_origin(value: object) -> Optional[str]:
+    raw = _safe_http_header_value(value)
+    if raw is None:
+        return None
+    origin = raw.strip()
+    if not origin:
+        return None
+    parsed = urlsplit(origin)
+    if parsed.scheme not in ("http", "https"):
+        return None
+    if not parsed.netloc or parsed.username or parsed.password:
+        return None
+    if parsed.query or parsed.fragment:
+        return None
+    if parsed.path not in ("", "/"):
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def _parse_cors_origins(value: str) -> Set[str]:
     """
     Parse CORS origins list. Supports comma-separated values.
@@ -88,8 +121,8 @@ def _parse_cors_origins(value: str) -> Set[str]:
     if not s:
         return out
     for item in s.split(","):
-        origin = item.strip()
-        if not origin:
+        origin = _safe_cors_origin(item)
+        if origin is None:
             continue
         if origin == "*":
             # Explicitly refuse wildcard; force operators to list trusted origins.
@@ -98,57 +131,12 @@ def _parse_cors_origins(value: str) -> Set[str]:
     return out
 
 
-def _parse_settlement_proof_flags_payload(payload: object) -> Any:
-    from src.integration.settlement_strong_certificate import (  # pylint: disable=import-outside-toplevel
-        SettlementProofFlags,
-    )
-
-    if not isinstance(payload, dict):
-        raise ValueError("proof_flags must be an object")
-    names = (
-        "cpmm_ok",
-        "balance_ok",
-        "token_ok",
-        "buyback_floor_ok",
-        "buyback_floor_fixedpoint_ok",
-        "rebate_ok",
-        "lock_weight_ok",
-        "proof_ok",
-        "binding_ok",
-    )
-    values: dict[str, int] = {}
-    for name in names:
-        raw = payload.get(name)
-        if not isinstance(raw, int) or isinstance(raw, bool) or raw not in (0, 1):
-            raise ValueError(f"proof_flags.{name} must be 0 or 1")
-        values[name] = int(raw)
-    return SettlementProofFlags(**values)
-
-
-def _parse_price_history_payload(payload: object) -> tuple[int, int, int]:
-    if not isinstance(payload, (list, tuple)) or len(payload) != 3:
-        raise ValueError("price_history must be a 3-item array: [price_pp, price_prev, price_curr]")
-    values: list[int] = []
-    for idx, raw in enumerate(payload):
-        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
-            raise ValueError(f"price_history[{idx}] must be a non-negative int")
-        values.append(int(raw))
-    return (values[0], values[1], values[2])
-
-
-def _parse_settlement_feature_extension_inputs_payload(payload: object) -> Any:
-    from src.integration.settlement_feature_extension_packet import (  # pylint: disable=import-outside-toplevel
-        SettlementFeatureExtensionInputs,
-    )
-
-    if not isinstance(payload, dict):
-        raise ValueError("feature_extension_inputs must be an object")
-    return SettlementFeatureExtensionInputs.from_dict(payload)
-
-
-def _is_loopback_host(host: str) -> bool:
-    h = (host or "").strip().lower()
-    return h in ("127.0.0.1", "localhost", "::1")
+from src.integration.api_server_settlement_parsers import (
+    _parse_price_history_payload,
+    _parse_settlement_feature_extension_inputs_payload,
+    _parse_settlement_proof_flags_payload,
+)
+from src.state.canonical import canonical_json_bytes
 
 
 DEX_API_MAX_ROUTE_AMOUNT_IN = 50_000
@@ -157,6 +145,7 @@ DEX_API_MAX_SANDWICH_ATTACKER_AMOUNT_IN = 50_000
 DEX_API_MAX_SLIPPAGE_OPTIONS = 64
 DEX_API_MAX_POOLS = 64
 DEX_API_MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN = 5_000
+DEX_API_MAX_FAST_TOPK = 4_096
 DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET = 4_096
 DEX_API_EXACT_OUT_SEARCH_CAPS = {
     "amount_out_total": (1, DEX_API_MAX_ROUTE_AMOUNT_IN),
@@ -195,6 +184,11 @@ DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID = "sha256:" + hashlib.sha256(
         }
     )
 ).hexdigest()
+
+
+def _is_loopback_host(host: str) -> bool:
+    h = (host or "").strip().lower()
+    return h in ("127.0.0.1", "localhost", "::1")
 
 
 def _dex_api_int_limit_error(
@@ -368,8 +362,13 @@ def _dex_api_exact_out_search_budget_error(params: dict[str, Any]) -> Optional[s
         amount_out_total=int(amount_out_total),
         max_candidate_pools=int(max_candidate_pools),
         max_legs=int(max_legs),
-        stop_after=DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET,
+        stop_after=max(
+            DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET,
+            int(max_enumerated_candidates),
+        ),
     )
+    if candidate_space > int(max_enumerated_candidates):
+        return "bad_exact_out_search_budget"
     effective_budget = min(int(max_enumerated_candidates), int(candidate_space))
     if effective_budget > DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET:
         return "bad_exact_out_search_budget"
@@ -467,15 +466,35 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
             if err is not None:
                 return err
 
-    if path == "/api/dex/quote" and str(obj.get("kind", "")).strip().lower() == "exact_in":
-        err = _dex_api_int_limit_error(
-            obj,
-            field="amount_in",
-            min_value=1,
-            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
-        )
-        if err is not None:
-            return err
+    if path == "/api/dex/quote":
+        kind = str(obj.get("kind", "")).strip().lower()
+        if kind == "exact_in":
+            err = _dex_api_int_limit_error(
+                obj,
+                field="amount_in",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            )
+            if err is not None:
+                return err
+        elif kind == "exact_out":
+            err = _dex_api_int_limit_error(
+                obj,
+                field="amount_out",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            )
+            if err is not None:
+                return err
+        if str(obj.get("routing_mode", "exact")).strip().lower() == "fast_v1":
+            err = _dex_api_int_limit_error(
+                obj,
+                field="fast_topk_max",
+                min_value=1,
+                max_value=DEX_API_MAX_FAST_TOPK,
+            )
+            if err is not None:
+                return err
 
     if path in DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS:
         err = _dex_api_int_limit_error(
@@ -566,25 +585,6 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
     return None
 
 
-def _env_bool(name: str, *, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return bool(default)
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _env_bool_strict(name: str, *, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None:
-        return bool(default)
-    v = raw.strip().lower()
-    if v in {"1", "true", "yes", "on"}:
-        return True
-    if v in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be one of: 1, true, yes, on, 0, false, no, off")
-
-
 def _adapter_result_get(result: Any, key: str) -> Any:
     if isinstance(result, Mapping):
         return result.get(key)
@@ -625,17 +625,6 @@ def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]
     return snapshots
 
 
-def _routing_pool_snapshot_hash(pools_raw: object) -> str:
-    return "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": _canonical_routing_pool_snapshots(pools_raw)})).hexdigest()
-
-
-def _routing_pre_state_hash(*, pools_raw: object) -> str:
-    return semantic_hash(
-        "zenodex.routing.pre_state.v1",
-        {"pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw)},
-    )
-
-
 def _routing_guarded_quote_oracle_action_id(
     *,
     path: str,
@@ -647,6 +636,8 @@ def _routing_guarded_quote_oracle_action_id(
     binding_ok: int,
     pools_raw: object,
 ) -> str:
+    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
     payload = {
         "schema": "zenodex.oracle.routing_runtime_action_id.v1",
         "consumer_module": "zenodex.routing",
@@ -659,44 +650,9 @@ def _routing_guarded_quote_oracle_action_id(
         "split_search_profile": split_search_profile,
         "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
         "binding_ok": int(binding_ok),
-        "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
+        "pool_snapshot_hash": pool_snapshot_hash,
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
-
-
-def _routing_guarded_quote_oracle_action_facts_hash(
-    *,
-    path: str,
-    asset_in: str,
-    asset_out: str,
-    amount_in: int,
-    split_search_profile: str,
-    enable_mixed_direct_twohop_split: bool,
-    binding_ok: int,
-    pools_raw: object,
-    runtime_quote: Mapping[str, Any],
-    action_epoch: int,
-) -> str:
-    return semantic_hash(
-        "zenodex.routing.action_facts.v1",
-        {
-            "action_kind": "guarded_quote",
-            "action_epoch": int(action_epoch),
-            "asset_in": asset_in,
-            "asset_out": asset_out,
-            "amount_in": int(amount_in),
-            "binding_ok": int(binding_ok),
-            "consumer_module": "zenodex.routing",
-            "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
-            "path": path,
-            "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
-            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
-            "quote_kind": "exact_in",
-            "runtime_quote": dict(runtime_quote),
-            "runtime_value_e8": int(runtime_quote.get("amount_out", 0)),
-            "split_search_profile": split_search_profile,
-        },
-    )
 
 
 def _routing_guarded_exact_out_quote_oracle_action_id(
@@ -714,6 +670,8 @@ def _routing_guarded_exact_out_quote_oracle_action_id(
     max_enumerated_candidates: int,
     pools_raw: object,
 ) -> str:
+    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
     payload = {
         "schema": "zenodex.oracle.routing_runtime_action_id.v1",
         "consumer_module": "zenodex.routing",
@@ -730,103 +688,9 @@ def _routing_guarded_exact_out_quote_oracle_action_id(
         "window": int(window),
         "brute_force_max": int(brute_force_max),
         "max_enumerated_candidates": int(max_enumerated_candidates),
-        "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
+        "pool_snapshot_hash": pool_snapshot_hash,
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
-
-
-def _routing_guarded_exact_out_quote_oracle_action_facts_hash(
-    *,
-    path: str,
-    asset_in: str,
-    asset_out: str,
-    amount_out_total: int,
-    max_legs: int,
-    max_candidate_pools: int,
-    max_candidates: int,
-    max_iters: int,
-    window: int,
-    brute_force_max: int,
-    max_enumerated_candidates: int,
-    pools_raw: object,
-    runtime_quote: Mapping[str, Any],
-    action_epoch: int,
-) -> str:
-    return semantic_hash(
-        "zenodex.routing.action_facts.v1",
-        {
-            "action_kind": "guarded_quote",
-            "action_epoch": int(action_epoch),
-            "amount_out_total": int(amount_out_total),
-            "asset_in": asset_in,
-            "asset_out": asset_out,
-            "brute_force_max": int(brute_force_max),
-            "consumer_module": "zenodex.routing",
-            "max_candidate_pools": int(max_candidate_pools),
-            "max_candidates": int(max_candidates),
-            "max_enumerated_candidates": int(max_enumerated_candidates),
-            "max_iters": int(max_iters),
-            "max_legs": int(max_legs),
-            "path": path,
-            "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
-            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
-            "quote_kind": "exact_out_many_pool",
-            "runtime_quote": dict(runtime_quote),
-            "runtime_value_e8": int(runtime_quote.get("amount_in_total", 0)),
-            "window": int(window),
-        },
-    )
-
-
-def _routing_oracle_action_epoch(body: Mapping[str, Any]) -> tuple[int, Optional[str]]:
-    raw = body.get("oracle_action_epoch", 0)
-    if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
-        return 0, "oracle_action_epoch must be a non-negative int"
-    return int(raw), None
-
-
-def _check_routing_oracle_authorization(
-    *,
-    body: Mapping[str, Any],
-    action_id: str,
-    action_facts_hash: str,
-    pre_state_hash: str,
-    runtime_value_e8: int,
-    action_epoch: int,
-) -> Optional[str]:
-    try:
-        required = _env_bool_strict("DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED", default=False)
-    except ValueError as exc:
-        return f"oracle_authorization config error: {exc}"
-
-    if "oracle_authorization" not in body:
-        if required:
-            return "guarded_quote requires oracle_authorization"
-        return None
-    authorization = body.get("oracle_authorization")
-    if not isinstance(authorization, Mapping):
-        return "oracle_authorization must be an object"
-    try:
-        result = check_critical_consumer_authorization(
-            authorization,
-            consumer_module="zenodex.routing",
-            action_kind="guarded_quote",
-            action_id=action_id,
-            action_facts_hash=action_facts_hash,
-            pre_state_hash=pre_state_hash,
-            profile_id=DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
-            query_id=DEX_ROUTING_REFERENCE_QUERY_ID,
-            runtime_value_e8=int(runtime_value_e8),
-            now_epoch=int(action_epoch),
-        )
-    except Exception as exc:
-        return f"oracle_authorization verifier error: {type(exc).__name__}"
-    if not result.get("typed_ok"):
-        errors = result.get("typed_errors")
-        if isinstance(errors, list) and errors:
-            return "oracle_authorization rejected: " + "; ".join(str(error) for error in errors[:3])
-        return "oracle_authorization rejected"
-    return None
 
 
 def _check_routing_oracle_adapter_bridge_for_action(
@@ -834,10 +698,7 @@ def _check_routing_oracle_adapter_bridge_for_action(
     body: Mapping[str, Any],
     expected_action_id: str,
 ) -> Optional[str]:
-    try:
-        required = _env_bool_strict("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
-    except ValueError as exc:
-        return f"oracle_adapter_bridge config error: {exc}"
+    required = _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
     if "oracle_adapter_bridge" not in body:
         if required:
             return "guarded_quote requires oracle_adapter_bridge"
@@ -886,11 +747,7 @@ def _check_routing_oracle_adapter_bridge(
     binding_ok: int,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in body:
-        try:
-            required = _env_bool_strict("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
-        except ValueError as exc:
-            return f"oracle_adapter_bridge config error: {exc}"
-        if required:
+        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
             return "guarded_quote requires oracle_adapter_bridge"
         return None
     try:
@@ -928,11 +785,7 @@ def _check_routing_exact_out_oracle_adapter_bridge(
     max_enumerated_candidates: int,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in body:
-        try:
-            required = _env_bool_strict("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
-        except ValueError as exc:
-            return f"oracle_adapter_bridge config error: {exc}"
-        if required:
+        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
             return "guarded_quote requires oracle_adapter_bridge"
         return None
     try:
@@ -1020,10 +873,11 @@ class _Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if not isinstance(origin, str) or not origin:
             return None
-        return origin
+        return _safe_cors_origin(origin)
 
     def _write_json(self, status: int, obj: object, *, cors_origin: Optional[str]) -> None:
         body = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        safe_cors_origin = _safe_cors_origin(cors_origin) if cors_origin is not None else None
         self.send_response(int(status))
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -1032,8 +886,8 @@ class _Handler(BaseHTTPRequestHandler):
             # Hint for clients and intermediaries (even though we don't use Basic auth).
             self.send_header("WWW-Authenticate", "Bearer")
         self.send_header("Content-Length", str(len(body)))
-        if cors_origin is not None:
-            self.send_header("Access-Control-Allow-Origin", cors_origin)
+        if safe_cors_origin is not None and "\r" not in safe_cors_origin and "\n" not in safe_cors_origin:
+            self.send_header("Access-Control-Allow-Origin", safe_cors_origin)
             self.send_header("Vary", "Origin")
         self.end_headers()
         self.wfile.write(body)
@@ -1047,12 +901,17 @@ class _Handler(BaseHTTPRequestHandler):
         origin = self._cors_origin()
         if origin is None:
             return None
-        return origin if origin in allowed else None
+        for allowed_origin in allowed:
+            if origin == allowed_origin:
+                return allowed_origin
+        return None
 
     def _demo_auth_ok(self) -> bool:
         """Optional bearer token auth for demo/dev routes.
 
-        If no token is configured, auth is not enforced.
+        If no token is configured, auth is not enforced by the handler. main()
+        refuses that configuration for enabled sensitive APIs unless an external
+        auth boundary is explicitly declared.
         """
         token = getattr(self.server, "demo_api_token", "")  # type: ignore[attr-defined]
         if not isinstance(token, str) or not token:
@@ -1111,6 +970,10 @@ class _Handler(BaseHTTPRequestHandler):
             # Witness-preserving exact-out certificate packets can exceed 64 KiB once
             # they include full bounded-domain candidate streams and domination witnesses.
             return 262_144
+        if path.startswith("/api/strategy/autotrader/"):
+            return 96_000
+        if path.startswith("/api/confidential/attestation/"):
+            return 96_000
         return 65_536
 
     def _perps_state(self) -> Any:
@@ -1122,6 +985,13 @@ class _Handler(BaseHTTPRequestHandler):
     ) -> bool:
         if not path.startswith("/api/perps/"):
             return False
+        if path.startswith("/api/perps/wallet/"):
+            return self._maybe_handle_perps_wallet_api(
+                method=method,
+                path=path,
+                cors_origin=cors_origin,
+                raw_body=raw_body,
+            )
         if not getattr(self.server, "perps_api_enabled", False):
             return False
         if not self._demo_auth_ok():
@@ -1133,11 +1003,41 @@ class _Handler(BaseHTTPRequestHandler):
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
+    def _maybe_handle_perps_wallet_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/perps/wallet/"):
+            return False
+        if not getattr(self.server, "perps_wallet_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.perps_wallet_api import handle_perps_wallet_request
+
+        status, resp = handle_perps_wallet_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
     def _maybe_handle_zusd_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
     ) -> bool:
         if not path.startswith("/api/zusd/"):
             return False
+        if path.startswith("/api/zusd/monetary/"):
+            return self._maybe_handle_zusd_monetary_wallet_api(
+                method=method,
+                path=path,
+                cors_origin=cors_origin,
+                raw_body=raw_body,
+            )
+        if path.startswith("/api/zusd/wallet/"):
+            return self._maybe_handle_zusd_tau_wallet_api(
+                method=method,
+                path=path,
+                cors_origin=cors_origin,
+                raw_body=raw_body,
+            )
         if not getattr(self.server, "zusd_api_enabled", False):
             return False
         if not self._demo_auth_ok():
@@ -1146,6 +1046,111 @@ class _Handler(BaseHTTPRequestHandler):
         from src.integration.zusd_api import handle_zusd_request
 
         status, resp = handle_zusd_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_zusd_tau_wallet_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/zusd/wallet/"):
+            return False
+        if not getattr(self.server, "zusd_tau_wallet_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
+
+        status, resp = handle_zusd_tau_wallet_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_zusd_monetary_wallet_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/zusd/monetary/"):
+            return False
+        if not getattr(self.server, "zusd_monetary_wallet_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
+
+        status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_autotrader_live_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/strategy/autotrader/"):
+            return False
+        if not getattr(self.server, "autotrader_live_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.autotrader_live_api import handle_autotrader_live_request
+
+        execution_keys = getattr(self.server, "autotrader_execution_keys", None)  # type: ignore[attr-defined]
+        supervisor_runs = getattr(self.server, "autotrader_supervisor_runs", None)  # type: ignore[attr-defined]
+        execution_lock = getattr(self.server, "autotrader_execution_lock", None)  # type: ignore[attr-defined]
+        if path in {
+            "/api/strategy/autotrader/execute-once",
+            "/api/strategy/autotrader/supervisor/execute",
+        } and execution_lock is not None:
+            with execution_lock:
+                status, resp = handle_autotrader_live_request(
+                    method,
+                    path,
+                    raw_body,
+                    execution_keys=execution_keys,
+                    supervisor_runs=supervisor_runs,
+                )
+        else:
+            status, resp = handle_autotrader_live_request(
+                method,
+                path,
+                raw_body,
+                execution_keys=execution_keys,
+                supervisor_runs=supervisor_runs,
+            )
+        self._write_json(status, resp, cors_origin=cors_origin)
+        return True
+
+    def _maybe_handle_confidential_attestation_api(
+        self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
+    ) -> bool:
+        if not path.startswith("/api/confidential/attestation/"):
+            return False
+        if not getattr(self.server, "confidential_attestation_api_enabled", False):
+            return False
+        if not self._demo_auth_ok():
+            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        from src.integration.confidential_attestation_api import handle_confidential_attestation_request
+
+        request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
+        request_lock = getattr(self.server, "confidential_request_lock", None)  # type: ignore[attr-defined]
+        if path in {
+            "/api/confidential/attestation/admit",
+            "/api/confidential/attestation/execute",
+        } and request_lock is not None:
+            with request_lock:
+                status, resp = handle_confidential_attestation_request(
+                    method,
+                    path,
+                    raw_body,
+                    request_table=request_table,
+                )
+        else:
+            status, resp = handle_confidential_attestation_request(
+                method,
+                path,
+                raw_body,
+                request_table=request_table,
+            )
         self._write_json(status, resp, cors_origin=cors_origin)
         return True
 
@@ -1174,9 +1179,9 @@ class _Handler(BaseHTTPRequestHandler):
         if not isinstance(obj, dict):
             self._write_json(400, {"ok": False, "error": "bad_body"}, cors_origin=cors_origin)
             return True
-        resource_err = _dex_api_search_limit_error(path, obj)
-        if resource_err is not None:
-            self._write_json(400, {"ok": False, "error": resource_err}, cors_origin=cors_origin)
+        search_limit_error = _dex_api_search_limit_error(path, obj)
+        if search_limit_error is not None:
+            self._write_json(400, {"ok": False, "error": search_limit_error}, cors_origin=cors_origin)
             return True
 
         if path == "/api/dex/impact_preview":
@@ -1223,7 +1228,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "impact_preview_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "impact_preview_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1350,7 +1355,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "slippage_advice_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "slippage_advice_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1465,7 +1470,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "pokayoke_swap_suggest_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1561,7 +1566,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1571,19 +1576,19 @@ class _Handler(BaseHTTPRequestHandler):
             chain_balances = obj.get("chain_balances", {})
             tx_sender_pubkey = str(obj.get("tx_sender_pubkey", ""))
             expected_proposal_hash = str(obj.get("expected_proposal_hash", ""))
+            proof_mining_context = obj.get("proof_mining_context")
             app_state_json = obj.get("app_state_json", "")
-            proof_mining_context_obj = obj.get("proof_mining_context")
             if not isinstance(claim_artifact, dict):
                 self._write_json(400, {"ok": False, "error": "bad_claim"}, cors_origin=cors_origin)
                 return True
             if not isinstance(chain_balances, dict):
                 self._write_json(400, {"ok": False, "error": "bad_chain_balances"}, cors_origin=cors_origin)
                 return True
+            if proof_mining_context is not None and not isinstance(proof_mining_context, dict):
+                self._write_json(400, {"ok": False, "error": "bad_proof_mining_context"}, cors_origin=cors_origin)
+                return True
             if not isinstance(app_state_json, str):
                 self._write_json(400, {"ok": False, "error": "bad_app_state_json"}, cors_origin=cors_origin)
-                return True
-            if proof_mining_context_obj is not None and not isinstance(proof_mining_context_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_proof_mining_context"}, cors_origin=cors_origin)
                 return True
             if not tx_sender_pubkey:
                 self._write_json(400, {"ok": False, "error": "missing_tx_sender_pubkey"}, cors_origin=cors_origin)
@@ -1604,14 +1609,14 @@ class _Handler(BaseHTTPRequestHandler):
                     claim_artifact=claim_artifact,
                     tx_sender_pubkey=tx_sender_pubkey,
                     expected_proposal_hash=expected_proposal_hash,
-                    proof_mining_context_obj=proof_mining_context_obj,
+                    proof_mining_context_obj=proof_mining_context,
                 )
                 self._write_json(200, {"ok": True, "status": status.to_public_dict()}, cors_origin=cors_origin)
                 return True
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "proof_mining_status_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "proof_mining_status_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1865,7 +1870,21 @@ class _Handler(BaseHTTPRequestHandler):
                 if q is None:
                     self._write_json(200, {"ok": False, "error": "no_route"}, cors_origin=cors_origin)
                     return True
-                receipt = make_route_quote_receipt(kind=kind, quote=q, pools_by_id=pools_by_id)
+                quote_epoch = obj.get("quote_epoch")
+                if quote_epoch is not None:
+                    if not isinstance(quote_epoch, int) or isinstance(quote_epoch, bool) or quote_epoch < 0:
+                        self._write_json(
+                            400,
+                            {"ok": False, "error": "bad_quote_epoch"},
+                            cors_origin=cors_origin,
+                        )
+                        return True
+                receipt = make_route_quote_receipt(
+                    kind=kind,
+                    quote=q,
+                    pools_by_id=pools_by_id,
+                    quote_epoch=(None if quote_epoch is None else int(quote_epoch)),
+                )
                 self._write_json(
                     200,
                     {
@@ -1880,7 +1899,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             except Exception as exc:
                 err = "bad_pools" if "pools" in str(exc).lower() else "quote_error"
-                self._write_json(400, {"ok": False, "error": err, "details": str(exc)[:200]}, cors_origin=cors_origin)
+                self._write_json(400, {"ok": False, "error": err, "details": "request failed"}, cors_origin=cors_origin)
                 return True
 
         if path == "/api/dex/verify_quote_receipt":
@@ -1888,15 +1907,34 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(rec, dict):
                 self._write_json(400, {"ok": False, "error": "bad_receipt"}, cors_origin=cors_origin)
                 return True
+            expected_quote_epoch = obj.get("expected_quote_epoch")
+            if expected_quote_epoch is not None:
+                if (
+                    not isinstance(expected_quote_epoch, int)
+                    or isinstance(expected_quote_epoch, bool)
+                    or expected_quote_epoch < 0
+                ):
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "bad_expected_quote_epoch"},
+                        cors_origin=cors_origin,
+                    )
+                    return True
             try:
                 pools_by_id = _parse_pools()
                 from src.core.quote_receipts import verify_route_quote_receipt  # pylint: disable=import-outside-toplevel
 
-                ok, err = verify_route_quote_receipt(rec, pools_by_id=pools_by_id)
+                ok, err = verify_route_quote_receipt(
+                    rec,
+                    pools_by_id=pools_by_id,
+                    expected_quote_epoch=(
+                        None if expected_quote_epoch is None else int(expected_quote_epoch)
+                    ),
+                )
                 self._write_json(200, {"ok": bool(ok), "error": str(err)}, cors_origin=cors_origin)
                 return True
             except Exception as exc:
-                self._write_json(400, {"ok": False, "error": "verify_error", "details": str(exc)[:200]}, cors_origin=cors_origin)
+                self._write_json(400, {"ok": False, "error": "verify_error", "details": "request failed"}, cors_origin=cors_origin)
                 return True
 
         if path == "/api/dex/build_exact_in_route_oracle_contract":
@@ -1955,7 +1993,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1976,7 +2014,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_in_route_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_in_route_oracle_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2029,7 +2067,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "guard_exact_in_route_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "guard_exact_in_route_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2062,11 +2100,6 @@ class _Handler(BaseHTTPRequestHandler):
                 if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
                     self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
                     return True
-                action_epoch, action_epoch_err = _routing_oracle_action_epoch(obj)
-                if action_epoch_err is not None:
-                    self._write_json(400, {"ok": False, "error": "bad_oracle_action_epoch"}, cors_origin=cors_origin)
-                    return True
-
                 bridge_err = _check_routing_oracle_adapter_bridge(
                     body=obj,
                     path=path,
@@ -2080,11 +2113,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if bridge_err is not None:
                     self._write_json(
                         400,
-                        {
-                            "ok": False,
-                            "error": "rejected",
-                            "detail": bridge_err,
-                        },
+                        {"ok": False, "error": "rejected", "detail": bridge_err},
                         cors_origin=cors_origin,
                     )
                     return True
@@ -2102,56 +2131,15 @@ class _Handler(BaseHTTPRequestHandler):
                     enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
                     binding_ok=int(binding_ok),
                 )
-                contract_dict = contract.to_dict()
-                response = {"ok": quote is not None, "contract": contract_dict, "error": err}
+                response = {"ok": quote is not None, "contract": contract.to_dict(), "error": err}
                 if quote is not None:
-                    runtime_quote = contract_dict["runtime_quote"]
-                    authorization_err = _check_routing_oracle_authorization(
-                        body=obj,
-                        action_id=_routing_guarded_quote_oracle_action_id(
-                            path=path,
-                            asset_in=asset_in,
-                            asset_out=asset_out,
-                            amount_in=int(amount_in),
-                            split_search_profile=split_search_profile,
-                            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                            binding_ok=int(binding_ok),
-                            pools_raw=obj.get("pools"),
-                        ),
-                        action_facts_hash=_routing_guarded_quote_oracle_action_facts_hash(
-                            path=path,
-                            asset_in=asset_in,
-                            asset_out=asset_out,
-                            amount_in=int(amount_in),
-                            split_search_profile=split_search_profile,
-                            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
-                            binding_ok=int(binding_ok),
-                            pools_raw=obj.get("pools"),
-                            runtime_quote=runtime_quote,
-                            action_epoch=action_epoch,
-                        ),
-                        pre_state_hash=_routing_pre_state_hash(pools_raw=obj.get("pools")),
-                        runtime_value_e8=int(runtime_quote["amount_out"]),
-                        action_epoch=action_epoch,
-                    )
-                    if authorization_err is not None:
-                        self._write_json(
-                            400,
-                            {
-                                "ok": False,
-                                "error": "rejected",
-                                "detail": authorization_err,
-                            },
-                            cors_origin=cors_origin,
-                        )
-                        return True
-                    response["quote"] = runtime_quote
+                    response["quote"] = contract.to_dict()["runtime_quote"]
                 self._write_json(200, response, cors_origin=cors_origin)
                 return True
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "quote_exact_in_route_guarded_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "quote_exact_in_route_guarded_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2213,7 +2201,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2234,7 +2222,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_in_route_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_in_route_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2293,7 +2281,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_rank_projection_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_rank_projection_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2314,7 +2302,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_in_route_rank_projection_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_in_route_rank_projection_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2373,7 +2361,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_true_key_interpretation_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_true_key_interpretation_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2397,7 +2385,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_in_route_true_key_interpretation_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -2410,8 +2398,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
@@ -2438,11 +2425,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2461,8 +2445,7 @@ class _Handler(BaseHTTPRequestHandler):
                         price_attestation=price_attestation,
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -2499,7 +2482,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_spot_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_spot_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2511,8 +2494,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             contract_obj = obj.get("contract")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -2540,11 +2522,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             if not isinstance(contract_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
@@ -2563,8 +2542,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         contract_payload=contract_obj,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_value_contract import (  # pylint: disable=import-outside-toplevel
@@ -2599,7 +2577,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_spot_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_spot_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2611,8 +2589,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             lp_unit_values_obj = obj.get("lp_unit_values")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -2643,11 +2620,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2676,8 +2650,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
@@ -2716,7 +2689,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_lp_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_lp_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2728,8 +2701,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             lp_unit_values_obj = obj.get("lp_unit_values")
             contract_obj = obj.get("contract")
             if not isinstance(settlement_obj, dict):
@@ -2761,11 +2733,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             if not isinstance(contract_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
@@ -2794,8 +2763,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
                         contract_payload=contract_obj,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
@@ -2832,7 +2800,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_lp_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_lp_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2841,16 +2809,14 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
-            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             lp_unit_values_obj = obj.get("lp_unit_values")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
+            if price_packet_obj is None and price_attestation_obj is None:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2859,13 +2825,10 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
-                return True
             if lp_unit_values_obj is not None and (not isinstance(lp_unit_values_obj, dict) or not lp_unit_values_obj):
                 self._write_json(400, {"ok": False, "error": "bad_lp_unit_values"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
+            if price_attestation_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2876,11 +2839,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2897,25 +2857,7 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_bundle_obj is not None:
-                    from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                        SettlementSpotPriceAttestationBundle,
-                    )
-                    from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
-                        build_settlement_value_packet_from_price_attestation_bundle,
-                    )
-
-                    price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_obj)
-                    packet = build_settlement_value_packet_from_price_attestation_bundle(
-                        settlement=settlement,
-                        price_attestation_bundle=price_attestation_bundle,
-                        consumer_now_epoch=int(consumer_now_epoch),
-                        max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        lp_unit_values=lp_unit_values,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                    )
-                elif price_attestation_obj is not None:
+                if price_attestation_obj is not None:
                     from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                         SettlementSpotPriceAttestation,
                     )
@@ -2930,8 +2872,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 else:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -2952,7 +2893,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2961,17 +2902,15 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
-            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             lp_unit_values_obj = obj.get("lp_unit_values")
             packet_obj = obj.get("packet")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
+            if price_packet_obj is None and price_attestation_obj is None:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2980,16 +2919,13 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
-                return True
             if lp_unit_values_obj is not None and (not isinstance(lp_unit_values_obj, dict) or not lp_unit_values_obj):
                 self._write_json(400, {"ok": False, "error": "bad_lp_unit_values"}, cors_origin=cors_origin)
                 return True
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
+            if price_attestation_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -3000,11 +2936,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -3021,22 +2954,7 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_bundle_obj is not None:
-                    from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
-                        verify_settlement_value_packet_payload_from_price_attestation_bundle,
-                    )
-
-                    ok, err = verify_settlement_value_packet_payload_from_price_attestation_bundle(
-                        settlement=settlement,
-                        price_attestation_bundle_payload=price_attestation_bundle_obj,
-                        consumer_now_epoch=int(consumer_now_epoch),
-                        max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        packet_payload=packet_obj,
-                        lp_unit_values=lp_unit_values,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                    )
-                elif price_attestation_obj is not None:
+                if price_attestation_obj is not None:
                     from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
                         verify_settlement_value_packet_payload_from_price_attestation,
                     )
@@ -3048,8 +2966,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         packet_payload=packet_obj,
                         lp_unit_values=lp_unit_values,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 else:
                     from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
@@ -3067,7 +2984,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3076,16 +2993,14 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
-            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
+            if price_packet_obj is None and price_attestation_obj is None:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -3094,13 +3009,10 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
-                return True
             if not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj:
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
+            if price_attestation_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -3111,39 +3023,20 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_endogenous_lp_value_packet import (  # pylint: disable=import-outside-toplevel
                     _pool_from_dict,
-                    build_settlement_endogenous_lp_value_packet_from_price_attestation_bundle,
                     build_settlement_endogenous_lp_value_packet_from_price_attestation,
                     build_settlement_endogenous_lp_value_packet_from_price_packet,
                 )
 
                 settlement = _parse_settlement(settlement_obj)
                 pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_obj)
-                if price_attestation_bundle_obj is not None:
-                    from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                        SettlementSpotPriceAttestationBundle,
-                    )
-
-                    price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_obj)
-                    packet = build_settlement_endogenous_lp_value_packet_from_price_attestation_bundle(
-                        settlement=settlement,
-                        price_attestation_bundle=price_attestation_bundle,
-                        consumer_now_epoch=int(consumer_now_epoch),
-                        max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        pool_snapshots=pool_snapshots,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                    )
-                elif price_attestation_obj is not None:
+                if price_attestation_obj is not None:
                     from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                         SettlementSpotPriceAttestation,
                     )
@@ -3155,8 +3048,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         pool_snapshots=pool_snapshots,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 else:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -3174,7 +3066,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_endogenous_lp_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_endogenous_lp_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3183,17 +3075,15 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
-            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             packet_obj = obj.get("packet")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
+            if price_packet_obj is None and price_attestation_obj is None:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -3202,16 +3092,13 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
-                return True
             if not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj:
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
                 return True
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
+            if price_attestation_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -3222,33 +3109,18 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_endogenous_lp_value_packet import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation_bundle,
                     verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation,
                     verify_settlement_endogenous_lp_value_packet_payload_from_price_packet,
                 )
 
                 settlement = _parse_settlement(settlement_obj)
-                if price_attestation_bundle_obj is not None:
-                    ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation_bundle(
-                        settlement=settlement,
-                        price_attestation_bundle_payload=price_attestation_bundle_obj,
-                        consumer_now_epoch=int(consumer_now_epoch),
-                        max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        pool_snapshots_payload=pool_snapshots_obj,
-                        packet_payload=packet_obj,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                    )
-                elif price_attestation_obj is not None:
+                if price_attestation_obj is not None:
                     ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
                         settlement=settlement,
                         price_attestation_payload=price_attestation_obj,
@@ -3256,8 +3128,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         pool_snapshots_payload=pool_snapshots_obj,
                         packet_payload=packet_obj,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 else:
                     ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
@@ -3271,7 +3142,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_endogenous_lp_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_endogenous_lp_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3292,7 +3163,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3317,7 +3188,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3329,17 +3200,15 @@ class _Handler(BaseHTTPRequestHandler):
             feature_extension_inputs_obj = obj.get("feature_extension_inputs")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
-            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             lp_unit_values_obj = obj.get("lp_unit_values")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
+            if price_packet_obj is None and price_attestation_obj is None:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -3347,9 +3216,6 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
-                return True
-            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
                 return True
             if pool_snapshots_obj is not None and (not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj):
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
@@ -3360,7 +3226,7 @@ class _Handler(BaseHTTPRequestHandler):
             if pool_snapshots_obj is not None and lp_unit_values_obj is not None:
                 self._write_json(400, {"ok": False, "error": "conflicting_value_mode_inputs"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
+            if price_attestation_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -3371,16 +3237,12 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_end_to_end_certificate_packet import (  # pylint: disable=import-outside-toplevel
-                    build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle,
                     build_settlement_end_to_end_certificate_packet_from_price_attestation,
                     build_settlement_end_to_end_certificate_packet_from_price_packet,
                 )
@@ -3406,26 +3268,7 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_bundle_obj is not None:
-                    from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                        SettlementSpotPriceAttestationBundle,
-                    )
-
-                    price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_obj)
-                    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
-                        settlement=settlement,
-                        proof_flags=proof_flags,
-                        price_history=price_history,
-                        feature_extension_inputs=feature_extension_inputs,
-                        price_attestation_bundle=price_attestation_bundle,
-                        consumer_now_epoch=int(consumer_now_epoch),
-                        max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        lp_unit_values=lp_unit_values,
-                        pool_snapshots=pool_snapshots,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                    )
-                elif price_attestation_obj is not None:
+                if price_attestation_obj is not None:
                     from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                         SettlementSpotPriceAttestation,
                     )
@@ -3441,8 +3284,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
                         pool_snapshots=pool_snapshots,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 else:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -3464,7 +3306,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_end_to_end_certificate_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_end_to_end_certificate_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3476,18 +3318,16 @@ class _Handler(BaseHTTPRequestHandler):
             feature_extension_inputs_obj = obj.get("feature_extension_inputs")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
-            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             lp_unit_values_obj = obj.get("lp_unit_values")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             packet_obj = obj.get("packet")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
+            if price_packet_obj is None and price_attestation_obj is None:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -3495,9 +3335,6 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
-                return True
-            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
                 return True
             if pool_snapshots_obj is not None and (not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj):
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
@@ -3511,7 +3348,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
+            if price_attestation_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -3522,16 +3359,12 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                    return True
-                if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_end_to_end_certificate_packet import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle,
                     verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation,
                     verify_settlement_end_to_end_certificate_packet_payload_from_price_packet,
                 )
@@ -3550,22 +3383,7 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_bundle_obj is not None:
-                    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle(
-                        settlement=settlement,
-                        proof_flags=proof_flags,
-                        price_history=price_history,
-                        feature_extension_inputs_payload=feature_extension_inputs_obj,
-                        price_attestation_bundle_payload=price_attestation_bundle_obj,
-                        consumer_now_epoch=int(consumer_now_epoch),
-                        max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        packet_payload=packet_obj,
-                        lp_unit_values=lp_unit_values,
-                        pool_snapshots_payload=pool_snapshots_obj,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                    )
-                elif price_attestation_obj is not None:
+                if price_attestation_obj is not None:
                     ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation(
                         settlement=settlement,
                         proof_flags=proof_flags,
@@ -3577,8 +3395,7 @@ class _Handler(BaseHTTPRequestHandler):
                         packet_payload=packet_obj,
                         lp_unit_values=lp_unit_values,
                         pool_snapshots_payload=pool_snapshots_obj,
-                        attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                        allowed_signers=allowed_signers_obj,
                     )
                 else:
                     ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
@@ -3596,10 +3413,26 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_end_to_end_certificate_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_end_to_end_certificate_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
+
+
+        from src.integration.api_server_settlement_witness_routes import (  # pylint: disable=import-outside-toplevel
+            maybe_handle_settlement_witness_lifecycle_route,
+        )
+
+        if maybe_handle_settlement_witness_lifecycle_route(
+            path=path,
+            obj=obj,
+            write_json=lambda status, body: self._write_json(status, body, cors_origin=cors_origin),
+            parse_pools=_parse_pools,
+            parse_settlement_proof_flags_payload=_parse_settlement_proof_flags_payload,
+            parse_price_history_payload=_parse_price_history_payload,
+            parse_settlement_feature_extension_inputs_payload=_parse_settlement_feature_extension_inputs_payload,
+        ):
+            return True
 
         if path == "/api/dex/build_settlement_spot_price_packet":
             entries_obj = obj.get("entries")
@@ -3641,7 +3474,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3662,7 +3495,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_spot_price_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_spot_price_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3670,8 +3503,6 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/dex/build_settlement_spot_price_attestation":
             packet_obj = obj.get("packet")
             signer_privkey = obj.get("signer_privkey")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
@@ -3682,56 +3513,21 @@ class _Handler(BaseHTTPRequestHandler):
                 from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                     build_settlement_spot_price_attestation,
                 )
-                from src.integration.settlement_attestation_policy import (  # pylint: disable=import-outside-toplevel
-                    coerce_settlement_attestation_policy,
-                )
                 from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
                     SettlementSpotPricePacket,
                 )
-                from src.integration.settlement_signer_registry import (  # pylint: disable=import-outside-toplevel
-                    coerce_settlement_signer_registry_snapshot,
-                )
 
                 packet = SettlementSpotPricePacket.from_dict(packet_obj)
-                attestation_policy = coerce_settlement_attestation_policy(attestation_policy_obj)
-                attestation_registry_snapshot = coerce_settlement_signer_registry_snapshot(
-                    attestation_registry_snapshot_obj
-                )
                 attestation = build_settlement_spot_price_attestation(
                     packet=packet,
                     signer_privkey=signer_privkey,
-                    attestation_policy=attestation_policy,
-                    attestation_registry_snapshot=attestation_registry_snapshot,
                 )
                 self._write_json(200, {"ok": True, "attestation": attestation.to_dict()}, cors_origin=cors_origin)
                 return True
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": str(exc)[:200]},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/build_settlement_spot_price_attestation_bundle":
-            attestations_obj = obj.get("attestations")
-            if not isinstance(attestations_obj, list) or not attestations_obj:
-                self._write_json(400, {"ok": False, "error": "bad_attestations"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                    SettlementSpotPriceAttestation,
-                    build_settlement_spot_price_attestation_bundle,
-                )
-
-                attestations = tuple(SettlementSpotPriceAttestation.from_dict(attestation) for attestation in attestations_obj)
-                bundle = build_settlement_spot_price_attestation_bundle(attestations=attestations)
-                self._write_json(200, {"ok": True, "bundle": bundle.to_dict()}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "build_settlement_spot_price_attestation_bundle_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3740,8 +3536,7 @@ class _Handler(BaseHTTPRequestHandler):
             attestation_obj = obj.get("attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            allowed_signers_obj = obj.get("allowed_signers")
             if not isinstance(attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_attestation"}, cors_origin=cors_origin)
                 return True
@@ -3755,11 +3550,8 @@ class _Handler(BaseHTTPRequestHandler):
             ):
                 self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                 return True
-            if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                return True
-            if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+            if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
                 return True
             try:
                 from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
@@ -3770,62 +3562,14 @@ class _Handler(BaseHTTPRequestHandler):
                     payload=attestation_obj,
                     consumer_now_epoch=int(consumer_now_epoch),
                     max_attestation_age_epochs=int(max_attestation_age_epochs),
-                    attestation_policy=attestation_policy_obj,
-                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    allowed_signers=allowed_signers_obj,
                 )
                 self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
                 return True
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": str(exc)[:200]},
-                    cors_origin=cors_origin,
-                )
-                return True
-
-        if path == "/api/dex/verify_settlement_spot_price_attestation_bundle":
-            bundle_obj = obj.get("bundle")
-            consumer_now_epoch = obj.get("consumer_now_epoch")
-            max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            attestation_policy_obj = obj.get("attestation_policy")
-            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
-            if not isinstance(bundle_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_bundle"}, cors_origin=cors_origin)
-                return True
-            if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
-                self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
-                return True
-            if (
-                not isinstance(max_attestation_age_epochs, int)
-                or isinstance(max_attestation_age_epochs, bool)
-                or max_attestation_age_epochs < 0
-            ):
-                self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
-                return True
-            if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
-                return True
-            if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
-                return True
-            try:
-                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
-                    verify_settlement_spot_price_attestation_bundle_payload,
-                )
-
-                ok, err = verify_settlement_spot_price_attestation_bundle_payload(
-                    payload=bundle_obj,
-                    consumer_now_epoch=int(consumer_now_epoch),
-                    max_attestation_age_epochs=int(max_attestation_age_epochs),
-                    attestation_policy=attestation_policy_obj,
-                    attestation_registry_snapshot=attestation_registry_snapshot_obj,
-                )
-                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
-                return True
-            except Exception as exc:
-                self._write_json(
-                    400,
-                    {"ok": False, "error": "verify_settlement_spot_price_attestation_bundle_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3847,7 +3591,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "bad_exact_out_certificate_request", "details": str(exc)[:200]},
+                    {"ok": False, "error": "bad_exact_out_certificate_request", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3892,7 +3636,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -3909,6 +3653,7 @@ class _Handler(BaseHTTPRequestHandler):
                 max_iters = obj.get("max_iters", 4096)
                 window = obj.get("window", 64)
                 brute_force_max = obj.get("brute_force_max", 512)
+                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
                 max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
                 if not asset_in or not asset_out or asset_in == asset_out:
                     self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
@@ -3921,6 +3666,7 @@ class _Handler(BaseHTTPRequestHandler):
                     ("max_iters", max_iters, 1),
                     ("window", window, 0),
                     ("brute_force_max", brute_force_max, 0),
+                    ("max_full_domain_pools", max_full_domain_pools, 1),
                     ("max_enumerated_candidates", max_enumerated_candidates, 1),
                 )
                 for field_name, value, min_value in int_fields:
@@ -3943,6 +3689,7 @@ class _Handler(BaseHTTPRequestHandler):
                     max_iters=int(max_iters),
                     window=int(window),
                     brute_force_max=int(brute_force_max),
+                    max_full_domain_pools=int(max_full_domain_pools),
                     max_enumerated_candidates=int(max_enumerated_candidates),
                 )
                 self._write_json(200, {"ok": True, "audit": audit.to_dict()}, cors_origin=cors_origin)
@@ -3950,7 +3697,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "audit_exact_out_many_pool_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "audit_exact_out_many_pool_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -4009,7 +3756,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_candidate_domain_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4066,7 +3813,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4129,7 +3876,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4205,7 +3952,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4305,7 +4052,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_repaired_selected_domain_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4412,7 +4159,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_repaired_advisory_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4495,7 +4242,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_repaired_full_domain_certified_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4640,7 +4387,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_bounded_advisory_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4789,7 +4536,107 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
+                    },
+                    cors_origin=cors_origin,
+                )
+                return True
+
+        if path == "/api/dex/quote_exact_out_many_pool_adaptive":
+            try:
+                pools_by_id = _parse_pools()
+                asset_in = str(obj.get("asset_in", "")).strip()
+                asset_out = str(obj.get("asset_out", "")).strip()
+                amount_out_total = obj.get("amount_out_total")
+                max_legs = obj.get("max_legs", 3)
+                max_candidate_pools = obj.get("max_candidate_pools", 5)
+                max_candidates = obj.get("max_candidates", 12)
+                max_iters = obj.get("max_iters", 4096)
+                window = obj.get("window", 64)
+                brute_force_max = obj.get("brute_force_max", 512)
+                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
+                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
+                if not asset_in or not asset_out or asset_in == asset_out:
+                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
+                    return True
+                int_fields = (
+                    ("amount_out_total", amount_out_total, 1),
+                    ("max_legs", max_legs, 1),
+                    ("max_candidate_pools", max_candidate_pools, 1),
+                    ("max_candidates", max_candidates, 1),
+                    ("max_iters", max_iters, 1),
+                    ("window", window, 0),
+                    ("brute_force_max", brute_force_max, 0),
+                    ("max_full_domain_pools", max_full_domain_pools, 1),
+                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
+                )
+                for field_name, value, min_value in int_fields:
+                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
+                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
+                        return True
+
+                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+                    quote_exact_out_many_pool_adaptive,
+                )
+
+                quote, err, packet = quote_exact_out_many_pool_adaptive(
+                    list(pools_by_id.values()),
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_out_total=int(amount_out_total),
+                    max_legs=int(max_legs),
+                    max_candidate_pools=int(max_candidate_pools),
+                    max_candidates=int(max_candidates),
+                    max_iters=int(max_iters),
+                    window=int(window),
+                    brute_force_max=int(brute_force_max),
+                    max_full_domain_pools=int(max_full_domain_pools),
+                    max_enumerated_candidates=int(max_enumerated_candidates),
+                )
+                packet_payload = packet.to_dict()
+                payload = {
+                    "ok": bool(quote is not None),
+                    "quote_policy": "adaptive_liveness_v1",
+                    "packet": packet_payload,
+                    "packet_schema": packet_payload["schema"],
+                    "build_packet_endpoint": "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
+                    "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+                    "audited_bounds_contract_ok": bool(packet_payload["audited_bounds_contract_ok"]),
+                    "default_packet_ok": bool(packet_payload["default_packet_ok"]),
+                    "default_effective_quote_source": packet_payload["default_effective_quote_source"],
+                    "repaired_full_domain_packet_ok": bool(packet_payload["repaired_full_domain_packet_ok"]),
+                    "repaired_quote_matches_full_domain_canonical": bool(
+                        packet_payload["repaired_quote_matches_full_domain_canonical"]
+                    ),
+                    "cheap_path_attempted": bool(packet_payload["cheap_path_attempted"]),
+                    "cheap_path_success": bool(packet_payload["cheap_path_success"]),
+                    "fallback_required": bool(packet_payload["fallback_required"]),
+                    "fallback_attempted": bool(packet_payload["fallback_attempted"]),
+                    "fallback_available": bool(packet_payload["fallback_available"]),
+                    "fallback_success": bool(packet_payload["fallback_success"]),
+                    "returned_success": bool(packet_payload["returned_success"]),
+                    "explicit_failure": bool(packet_payload["explicit_failure"]),
+                    "no_spurious_failure": bool(packet_payload["no_spurious_failure"]),
+                    "packet_ok": bool(packet_payload["packet_ok"]),
+                    "liveness_ok": bool(packet_payload["liveness_ok"]),
+                    "quote_source": packet_payload["effective_quote_source"],
+                    "effective_quote": packet_payload["effective_quote"],
+                    "failure_reason": packet_payload["failure_reason"],
+                    "nested_error": packet_payload["nested_error"],
+                }
+                if quote is not None:
+                    payload["quote"] = packet_payload["effective_quote"]
+                else:
+                    payload["error"] = str(err or packet_payload["failure_reason"] or "many_pool_adaptive_unavailable")
+                self._write_json(200, payload, cors_origin=cors_origin)
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "quote_exact_out_many_pool_adaptive_error",
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4937,7 +4784,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_certified_advisory_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5012,7 +4859,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5087,7 +4934,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_full_domain_certified_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5162,7 +5009,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_key_cover_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5239,7 +5086,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5313,7 +5160,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_bounded_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5387,7 +5234,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_certified_advisory_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5462,7 +5309,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_replacement_shadow_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5537,7 +5384,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_default_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5612,7 +5459,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_bounded_workaround_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5667,11 +5514,13 @@ class _Handler(BaseHTTPRequestHandler):
                     brute_force_max=int(brute_force_max),
                     max_enumerated_candidates=int(max_enumerated_candidates),
                 )
+                contract_dict = contract.to_dict()
                 self._write_json(
                     200,
                     {
                         "ok": True,
-                        "contract": contract.to_dict(),
+                        "contract": contract_dict,
+                        "contract_ok": bool(contract_dict["contract_ok"]),
                         "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                         "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
                     },
@@ -5681,7 +5530,159 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_out_many_pool_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_out_many_pool_oracle_contract_error", "details": "request failed"},
+                    cors_origin=cors_origin,
+                )
+                return True
+
+        if path == "/api/dex/build_exact_out_many_pool_audited_bounds_contract":
+            try:
+                pools_by_id = _parse_pools()
+                asset_in = str(obj.get("asset_in", "")).strip()
+                asset_out = str(obj.get("asset_out", "")).strip()
+                amount_out_total = obj.get("amount_out_total")
+                max_legs = obj.get("max_legs", 3)
+                max_candidate_pools = obj.get("max_candidate_pools", 5)
+                max_candidates = obj.get("max_candidates", 12)
+                max_iters = obj.get("max_iters", 4096)
+                window = obj.get("window", 64)
+                brute_force_max = obj.get("brute_force_max", 512)
+                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
+                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
+                if not asset_in or not asset_out or asset_in == asset_out:
+                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
+                    return True
+                int_fields = (
+                    ("amount_out_total", amount_out_total, 1),
+                    ("max_legs", max_legs, 1),
+                    ("max_candidate_pools", max_candidate_pools, 1),
+                    ("max_candidates", max_candidates, 1),
+                    ("max_iters", max_iters, 1),
+                    ("window", window, 0),
+                    ("brute_force_max", brute_force_max, 0),
+                    ("max_full_domain_pools", max_full_domain_pools, 1),
+                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
+                )
+                for field_name, value, min_value in int_fields:
+                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
+                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
+                        return True
+
+                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+                    EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
+                    build_exact_out_many_pool_audited_bounds_contract,
+                )
+
+                contract = build_exact_out_many_pool_audited_bounds_contract(
+                    list(pools_by_id.values()),
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_out_total=int(amount_out_total),
+                    max_legs=int(max_legs),
+                    max_candidate_pools=int(max_candidate_pools),
+                    max_candidates=int(max_candidates),
+                    max_iters=int(max_iters),
+                    window=int(window),
+                    brute_force_max=int(brute_force_max),
+                    max_full_domain_pools=int(max_full_domain_pools),
+                    max_enumerated_candidates=int(max_enumerated_candidates),
+                )
+                self._write_json(
+                    200,
+                    {
+                        "ok": True,
+                        "contract": contract.to_dict(),
+                        "contract_schema": EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
+                        "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+                    },
+                    cors_origin=cors_origin,
+                )
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "build_exact_out_many_pool_audited_bounds_contract_error",
+                        "details": "request failed",
+                    },
+                    cors_origin=cors_origin,
+                )
+                return True
+
+        if path == "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet":
+            try:
+                pools_by_id = _parse_pools()
+                asset_in = str(obj.get("asset_in", "")).strip()
+                asset_out = str(obj.get("asset_out", "")).strip()
+                amount_out_total = obj.get("amount_out_total")
+                max_legs = obj.get("max_legs", 3)
+                max_candidate_pools = obj.get("max_candidate_pools", 5)
+                max_candidates = obj.get("max_candidates", 12)
+                max_iters = obj.get("max_iters", 4096)
+                window = obj.get("window", 64)
+                brute_force_max = obj.get("brute_force_max", 512)
+                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
+                max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
+                if not asset_in or not asset_out or asset_in == asset_out:
+                    self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
+                    return True
+                int_fields = (
+                    ("amount_out_total", amount_out_total, 1),
+                    ("max_legs", max_legs, 1),
+                    ("max_candidate_pools", max_candidate_pools, 1),
+                    ("max_candidates", max_candidates, 1),
+                    ("max_iters", max_iters, 1),
+                    ("window", window, 0),
+                    ("brute_force_max", brute_force_max, 0),
+                    ("max_full_domain_pools", max_full_domain_pools, 1),
+                    ("max_enumerated_candidates", max_enumerated_candidates, 1),
+                )
+                for field_name, value, min_value in int_fields:
+                    if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
+                        self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
+                        return True
+
+                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+                    EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
+                    build_exact_out_many_pool_adaptive_liveness_packet,
+                )
+
+                packet = build_exact_out_many_pool_adaptive_liveness_packet(
+                    list(pools_by_id.values()),
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_out_total=int(amount_out_total),
+                    max_legs=int(max_legs),
+                    max_candidate_pools=int(max_candidate_pools),
+                    max_candidates=int(max_candidates),
+                    max_iters=int(max_iters),
+                    window=int(window),
+                    brute_force_max=int(brute_force_max),
+                    max_full_domain_pools=int(max_full_domain_pools),
+                    max_enumerated_candidates=int(max_enumerated_candidates),
+                )
+                self._write_json(
+                    200,
+                    {
+                        "ok": bool(packet.packet_ok),
+                        "packet": packet.to_dict(),
+                        "packet_schema": EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
+                        "verify_packet_endpoint": "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+                        "quote_policy": "adaptive_liveness_v1",
+                        "liveness_ok": bool(packet.liveness_ok),
+                    },
+                    cors_origin=cors_origin,
+                )
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "build_exact_out_many_pool_adaptive_liveness_packet_error",
+                        "details": "request failed",
+                    },
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5740,6 +5741,7 @@ class _Handler(BaseHTTPRequestHandler):
                 payload = {
                     "ok": bool(ok),
                     "contract": contract_dict,
+                    "contract_ok": bool(contract_dict["contract_ok"]),
                     "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                     "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
                     "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
@@ -5760,7 +5762,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "guard_exact_out_many_pool_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "guard_exact_out_many_pool_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5795,11 +5797,6 @@ class _Handler(BaseHTTPRequestHandler):
                     if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
                         self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
                         return True
-                action_epoch, action_epoch_err = _routing_oracle_action_epoch(obj)
-                if action_epoch_err is not None:
-                    self._write_json(400, {"ok": False, "error": "bad_oracle_action_epoch"}, cors_origin=cors_origin)
-                    return True
-
                 bridge_err = _check_routing_exact_out_oracle_adapter_bridge(
                     body=obj,
                     path=path,
@@ -5817,11 +5814,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if bridge_err is not None:
                     self._write_json(
                         400,
-                        {
-                            "ok": False,
-                            "error": "rejected",
-                            "detail": bridge_err,
-                        },
+                        {"ok": False, "error": "rejected", "detail": bridge_err},
                         cors_origin=cors_origin,
                     )
                     return True
@@ -5848,60 +5841,13 @@ class _Handler(BaseHTTPRequestHandler):
                 contract_dict = contract.to_dict()
                 audit_payload = contract_dict["audit"]
                 if quote is not None:
-                    runtime_quote = dict(contract_dict["audit"]["runtime_quote"])
-                    authorization_err = _check_routing_oracle_authorization(
-                        body=obj,
-                        action_id=_routing_guarded_exact_out_quote_oracle_action_id(
-                            path=path,
-                            asset_in=asset_in,
-                            asset_out=asset_out,
-                            amount_out_total=int(amount_out_total),
-                            max_legs=int(max_legs),
-                            max_candidate_pools=int(max_candidate_pools),
-                            max_candidates=int(max_candidates),
-                            max_iters=int(max_iters),
-                            window=int(window),
-                            brute_force_max=int(brute_force_max),
-                            max_enumerated_candidates=int(max_enumerated_candidates),
-                            pools_raw=obj.get("pools"),
-                        ),
-                        action_facts_hash=_routing_guarded_exact_out_quote_oracle_action_facts_hash(
-                            path=path,
-                            asset_in=asset_in,
-                            asset_out=asset_out,
-                            amount_out_total=int(amount_out_total),
-                            max_legs=int(max_legs),
-                            max_candidate_pools=int(max_candidate_pools),
-                            max_candidates=int(max_candidates),
-                            max_iters=int(max_iters),
-                            window=int(window),
-                            brute_force_max=int(brute_force_max),
-                            max_enumerated_candidates=int(max_enumerated_candidates),
-                            pools_raw=obj.get("pools"),
-                            runtime_quote=runtime_quote,
-                            action_epoch=action_epoch,
-                        ),
-                        pre_state_hash=_routing_pre_state_hash(pools_raw=obj.get("pools")),
-                        runtime_value_e8=int(runtime_quote["amount_in_total"]),
-                        action_epoch=action_epoch,
-                    )
-                    if authorization_err is not None:
-                        self._write_json(
-                            400,
-                            {
-                                "ok": False,
-                                "error": "rejected",
-                                "detail": authorization_err,
-                            },
-                            cors_origin=cors_origin,
-                        )
-                        return True
                     self._write_json(
                         200,
                         {
                             "ok": True,
-                            "quote": runtime_quote,
+                            "quote": dict(contract_dict["audit"]["runtime_quote"]),
                             "contract": contract_dict,
+                            "contract_ok": bool(contract_dict["contract_ok"]),
                             "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                             "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
                             "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
@@ -5927,6 +5873,7 @@ class _Handler(BaseHTTPRequestHandler):
                             "runtime_quote": dict(contract_dict["audit"]["runtime_quote"]),
                             "canonical_winner_quote": dict(contract_dict["audit"]["canonical_winner_quote"]),
                             "contract": contract_dict,
+                            "contract_ok": bool(contract_dict["contract_ok"]),
                             "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                             "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
                             "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
@@ -5947,7 +5894,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6016,7 +5963,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_out_many_pool_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6040,7 +5987,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6057,6 +6004,7 @@ class _Handler(BaseHTTPRequestHandler):
                 max_iters = obj.get("max_iters", 4096)
                 window = obj.get("window", 64)
                 brute_force_max = obj.get("brute_force_max", 512)
+                max_full_domain_pools = obj.get("max_full_domain_pools", 8)
                 max_enumerated_candidates = obj.get("max_enumerated_candidates", 20_000)
                 if not asset_in or not asset_out or asset_in == asset_out:
                     self._write_json(400, {"ok": False, "error": "bad_assets"}, cors_origin=cors_origin)
@@ -6069,6 +6017,7 @@ class _Handler(BaseHTTPRequestHandler):
                     ("max_iters", max_iters, 1),
                     ("window", window, 0),
                     ("brute_force_max", brute_force_max, 0),
+                    ("max_full_domain_pools", max_full_domain_pools, 1),
                     ("max_enumerated_candidates", max_enumerated_candidates, 1),
                 )
                 for field_name, value, min_value in int_fields:
@@ -6091,6 +6040,7 @@ class _Handler(BaseHTTPRequestHandler):
                     max_iters=int(max_iters),
                     window=int(window),
                     brute_force_max=int(brute_force_max),
+                    max_full_domain_pools=int(max_full_domain_pools),
                     max_enumerated_candidates=int(max_enumerated_candidates),
                 )
                 self._write_json(
@@ -6107,7 +6057,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_out_many_pool_certified_winner_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_out_many_pool_certified_winner_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6131,7 +6081,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_certified_winner_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_many_pool_certified_winner_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6162,7 +6112,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6198,7 +6148,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_full_domain_certified_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6230,7 +6180,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_key_cover_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6270,7 +6220,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6302,7 +6252,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_certified_advisory_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6334,7 +6284,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_replacement_shadow_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6366,7 +6316,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_default_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6398,7 +6348,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_bounded_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6430,7 +6380,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_bounded_workaround_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6466,7 +6416,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6498,7 +6448,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_candidate_domain_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6530,7 +6480,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6562,7 +6512,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -6587,7 +6537,75 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_many_pool_oracle_contract_error", "details": "request failed"},
+                    cors_origin=cors_origin,
+                )
+                return True
+
+        if path == "/api/dex/verify_exact_out_many_pool_audited_bounds_contract":
+            contract = obj.get("contract")
+            if not isinstance(contract, dict):
+                self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
+                return True
+            try:
+                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+                    verify_exact_out_many_pool_audited_bounds_contract_payload,
+                )
+
+                ok, err = verify_exact_out_many_pool_audited_bounds_contract_payload(contract)
+                if ok:
+                    self._write_json(200, {"ok": True}, cors_origin=cors_origin)
+                else:
+                    self._write_json(
+                        200,
+                        {"ok": False, "error": err or "audited bounds contract verification failed"},
+                        cors_origin=cors_origin,
+                    )
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "verify_exact_out_many_pool_audited_bounds_contract_error",
+                        "details": "request failed",
+                    },
+                    cors_origin=cors_origin,
+                )
+                return True
+
+        if path == "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet":
+            packet = obj.get("packet")
+            if not isinstance(packet, dict):
+                self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
+                return True
+            try:
+                from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
+                    verify_exact_out_many_pool_adaptive_liveness_packet_payload,
+                )
+
+                ok, err = verify_exact_out_many_pool_adaptive_liveness_packet_payload(packet)
+                if ok:
+                    self._write_json(200, {"ok": True, "quote_policy": "adaptive_liveness_v1"}, cors_origin=cors_origin)
+                else:
+                    self._write_json(
+                        200,
+                        {
+                            "ok": False,
+                            "error": err or "adaptive liveness packet verification failed",
+                            "quote_policy": "adaptive_liveness_v1",
+                        },
+                        cors_origin=cors_origin,
+                    )
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "verify_exact_out_many_pool_adaptive_liveness_packet_error",
+                        "details": "request failed",
+                    },
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6608,7 +6626,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_certificate_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_certificate_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -6622,8 +6640,14 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
+        safe_cors_origin = _safe_cors_origin(cors_origin)
+        if safe_cors_origin is None:
+            self.send_response(204)
+            self.end_headers()
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", cors_origin)
+        if "\r" not in safe_cors_origin and "\n" not in safe_cors_origin:
+            self.send_header("Access-Control-Allow-Origin", safe_cors_origin)
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Max-Age", "600")
@@ -6667,6 +6691,10 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_zusd_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
+        if self._maybe_handle_autotrader_live_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
+        if self._maybe_handle_confidential_attestation_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
+            return
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
 
@@ -6679,7 +6707,13 @@ class _Handler(BaseHTTPRequestHandler):
         path = (self.path or "").split("?", 1)[0]
 
         raw_body = None
-        if path.startswith("/api/perps/") or path.startswith("/api/zusd/") or path.startswith("/api/dex/"):
+        if (
+            path.startswith("/api/perps/")
+            or path.startswith("/api/zusd/")
+            or path.startswith("/api/dex/")
+            or path.startswith("/api/strategy/autotrader/")
+            or path.startswith("/api/confidential/attestation/")
+        ):
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype and ctype != "application/json":
                 self._write_json(415, {"ok": False, "error": "unsupported_media_type"}, cors_origin=cors_origin)
@@ -6693,21 +6727,26 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self._maybe_handle_zusd_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
+        if self._maybe_handle_autotrader_live_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
+        if self._maybe_handle_confidential_attestation_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
+            return
         if self._maybe_handle_dex_api(method="POST", path=path, cors_origin=cors_origin, raw_body=raw_body):
             return
 
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
 
     def log_message(self, fmt: str, *args: object) -> None:
-        # Keep logs minimal and deterministic (avoid leaking headers/query strings).
-        # Default implementation prints client IP + full request line.
-        msg = fmt % args if args else fmt
-        safe_path = (self.path or "").split("?", 1)[0]
-        safe_path = "".join(ch if 0x20 <= ord(ch) < 0x7F else "?" for ch in safe_path)
-        if len(safe_path) > 2048:
-            safe_path = safe_path[:2048] + "..."
-        line = f"{self.command} {safe_path} => {msg}"
-        print(line)
+        # BaseHTTPRequestHandler's default message can include the full request
+        # line. Avoid formatting request-derived values into clear-text logs.
+        _ = (fmt, args)
+        print("zenodex-api request event")
+
+    def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+        # Keep access logs useful without recording paths, queries, or headers.
+        safe_code = str(code) if str(code).isdigit() else "-"
+        safe_size = str(size) if str(size).isdigit() else "-"
+        print(f"zenodex-api request status={safe_code} size={safe_size}")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -6719,32 +6758,65 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
 
     perps_enabled = _env_str("PERPS_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    perps_wallet_enabled = _env_str("PERPS_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
     zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    autotrader_live_enabled = _env_str("AUTOTRADER_LIVE_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    confidential_attestation_enabled = _env_str("CONFIDENTIAL_ATTESTATION_API_ENABLED", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
     demo_api_token = _env_str("DEMO_API_TOKEN", "")
-    api_surface_profile = _env_str("API_SURFACE_PROFILE", API_SURFACE_PROFILE_LOCAL_DEMO)
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
+    from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
 
-    try:
-        ok, err = validate_api_surface_profile(
-            profile_id=api_surface_profile,
-            demo_api_token=demo_api_token,
-            perps_enabled=perps_enabled,
-            zusd_enabled=zusd_enabled,
-            dex_enabled=dex_enabled,
-        )
-    except ValueError as exc:
-        print(f"Refusing to start: {exc}")
-        return 2
-    if not ok:
-        print(f"Refusing to start: {err}")
-        return 2
+    sensitive_api_enabled = bool(
+        perps_enabled
+        or perps_wallet_enabled
+        or zusd_enabled
+        or zusd_tau_wallet_enabled
+        or zusd_monetary_wallet_enabled
+        or autotrader_live_enabled
+        or confidential_attestation_enabled
+        or dex_enabled
+    )
+    runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
+    production_mode = runtime_env not in ("dev", "development", "test", "local")
+    external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
+    allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
 
-    if (perps_enabled or zusd_enabled or dex_enabled) and (not demo_api_token) and (not _is_loopback_host(host)):
+    if sensitive_api_enabled and not external_auth_enforced and not demo_api_token:
         print(
-            "Refusing to start: demo APIs enabled on non-loopback host without DEMO_API_TOKEN "
-            f"(host={host!r}, perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled})"
+            "Refusing to start: sensitive APIs enabled without external auth or DEMO_API_TOKEN "
+            f"(host={host!r}, perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, "
+            f"zusd_api={zusd_enabled}, "
+            f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
+            f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
+            f"autotrader_live_api={autotrader_live_enabled}, "
+            f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled})"
+        )
+        return 2
+    if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
+        print(
+            "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
+            "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
+            "ALLOW_DEMO_TOKEN_AUTH=1 only for a controlled demo."
+        )
+        return 2
+    if (
+        sensitive_api_enabled
+        and not external_auth_enforced
+        and demo_api_token
+        and not _is_loopback_host(host)
+        and not allow_demo_token_auth
+    ):
+        print(
+            "Refusing to start: demo-token auth on a non-loopback bind requires "
+            "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
         )
         return 2
 
@@ -6753,17 +6825,32 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.cors_origins = cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=rpm, max_buckets=max_buckets)  # type: ignore[attr-defined]
     httpd.perps_api_enabled = perps_enabled  # type: ignore[attr-defined]
+    httpd.perps_wallet_api_enabled = perps_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
+    httpd.zusd_tau_wallet_api_enabled = zusd_tau_wallet_enabled  # type: ignore[attr-defined]
+    httpd.zusd_monetary_wallet_api_enabled = zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_live_api_enabled = autotrader_live_enabled  # type: ignore[attr-defined]
+    httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
+    httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
+    httpd.autotrader_execution_lock = threading.Lock()  # type: ignore[attr-defined]
+    httpd.confidential_attestation_api_enabled = confidential_attestation_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]
     httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
+    httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
+    httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
 
     print(
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
-        f"perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled}, "
-        f"api_surface_profile={api_surface_profile}, "
-        f"confidential_stage={confidential_feature_status.get('stage')}, demo_api_token_set={bool(demo_api_token)})"
+        f"perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, zusd_api={zusd_enabled}, "
+        f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
+        f"zusd_monetary_wallet_api={zusd_monetary_wallet_enabled}, "
+        f"autotrader_live_api={autotrader_live_enabled}, "
+        f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
+        f"confidential_stage={confidential_feature_status.get('stage')}, "
+        f"external_auth_enforced={external_auth_enforced}, demo_api_token_set={bool(demo_api_token)}, "
+        f"demo_token_auth_allowed={allow_demo_token_auth})"
     )
     httpd.serve_forever(poll_interval=0.25)
     return 0

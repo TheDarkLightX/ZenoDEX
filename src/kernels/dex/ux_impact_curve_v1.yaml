@@ -1,0 +1,286 @@
+# [FORGE] UX Impact Curve v1 (Price Impact Monotonicity & Safe Zone)
+#
+# Purpose:
+# - Models the Price Impact Curve Sampler (PICS) safety invariants:
+#   1. Impact is monotone non-decreasing in trade size
+#   2. Safe zone boundary is sound (impact at boundary ≤ threshold)
+#
+# Companion Evidence:
+# - Lean proofs: lean-mathlib/Proofs/UXAlgorithms.lean (impact_monotone, safe_zone_sound)
+# - Python tests: experiments/algorithm_innovation_ux/impact_curve/test_pics.py
+
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "ux_impact_curve_v1"
+  description: "Price impact curve monotonicity and safe zone model"
+  version: "1.1.0"
+
+observables:
+  state_vars:
+    - reserve_in
+    - fee_bps
+    - alpha_bps
+    - amount_small
+    - amount_large
+    - impact_small
+    - impact_large
+    - safe_threshold_bps
+    - safe_boundary
+    - impact_at_boundary
+
+state_vars:
+  - id: reserve_in
+    role: data
+    type: {kind: int, min: 1000, max: 100000}
+
+  - id: fee_bps
+    role: data
+    type: {kind: int, min: 0, max: 500}
+
+  - id: alpha_bps
+    role: control
+    type: {kind: int, min: 9500, max: 10000}
+
+  - id: amount_small
+    role: data
+    type: {kind: int, min: 1, max: 50000}
+
+  - id: amount_large
+    role: data
+    type: {kind: int, min: 1, max: 50000}
+
+  - id: impact_small
+    role: control
+    type: {kind: int, min: 0, max: 10000}
+
+  - id: impact_large
+    role: control
+    type: {kind: int, min: 0, max: 10000}
+
+  - id: safe_threshold_bps
+    role: data
+    type: {kind: int, min: 10, max: 1000}
+
+  - id: safe_boundary
+    role: control
+    type: {kind: int, min: 0, max: 10000000}
+
+  - id: impact_at_boundary
+    role: control
+    type: {kind: int, min: 0, max: 10000}
+
+invariants:
+  # Impact monotonicity: when amounts are ordered, impacts are ordered
+  - id: inv_impact_monotone
+    kind: safety
+    description: "Impact is non-decreasing in trade size"
+    expr:
+      op: "or"
+      args:
+        - {op: ">", args: [{var: amount_small}, {var: amount_large}]}
+        - {op: "<=", args: [{var: impact_small}, {var: impact_large}]}
+
+  # Alpha consistency
+  - id: inv_alpha_consistent
+    kind: safety
+    expr:
+      op: "="
+      args:
+        - {var: alpha_bps}
+        - op: "-"
+          args: [{const: 10000}, {var: fee_bps}]
+
+  # Impact bounded by BPS
+  - id: inv_impact_bounded
+    kind: safety
+    expr:
+      op: "and"
+      args:
+        - {op: "<=", args: [{var: impact_small}, {const: 10000}]}
+        - {op: "<=", args: [{var: impact_large}, {const: 10000}]}
+
+init:
+  - var: reserve_in
+    expr: {const: 10000}
+  - var: fee_bps
+    expr: {const: 30}
+  - var: alpha_bps
+    expr: {const: 9970}
+  - var: amount_small
+    expr: {const: 1000}
+  - var: amount_large
+    expr: {const: 5000}
+  - var: impact_small
+    expr: {const: 0}
+  - var: impact_large
+    expr: {const: 0}
+  - var: safe_threshold_bps
+    expr: {const: 100}
+  - var: safe_boundary
+    expr: {const: 0}
+  - var: impact_at_boundary
+    expr: {const: 0}
+
+actions:
+  # Atomic: set amounts + fee + compute both impacts
+  - id: compute_impacts
+    description: "Set trade amounts and atomically compute impacts"
+    params:
+      - id: ri
+        type: {kind: int, min: 1000, max: 100000}
+      - id: fee
+        type: {kind: int, min: 0, max: 500}
+      - id: a_small
+        type: {kind: int, min: 1, max: 50000}
+      - id: a_large
+        type: {kind: int, min: 1, max: 50000}
+    guard:
+      op: "and"
+      args:
+        - {op: ">", args: [{param: ri}, {const: 0}]}
+        - {op: "<=", args: [{param: a_small}, {param: a_large}]}
+        - {op: ">=", args: [{param: fee}, {const: 0}]}
+        - {op: "<=", args: [{param: fee}, {const: 500}]}
+    updates:
+      - var: reserve_in
+        expr: {param: ri}
+      - var: fee_bps
+        expr: {param: fee}
+      - var: alpha_bps
+        expr:
+          op: "-"
+          args: [{const: 10000}, {param: fee}]
+      - var: amount_small
+        expr: {param: a_small}
+      - var: amount_large
+        expr: {param: a_large}
+      - var: impact_small
+        expr:
+          # alpha * a * BPS / (ri * BPS + alpha * a)
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{const: 10000}, {param: fee}]
+                - op: "*"
+                  args: [{param: a_small}, {const: 10000}]
+            - op: "+"
+              args:
+                - op: "*"
+                  args: [{param: ri}, {const: 10000}]
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+                    - {param: a_small}
+      - var: impact_large
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{const: 10000}, {param: fee}]
+                - op: "*"
+                  args: [{param: a_large}, {const: 10000}]
+            - op: "+"
+              args:
+                - op: "*"
+                  args: [{param: ri}, {const: 10000}]
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+                    - {param: a_large}
+
+  # Atomic: set params + compute safe zone boundary + impact at boundary
+  - id: compute_safe_zone
+    description: "Set threshold and atomically compute safe zone"
+    params:
+      - id: ri
+        type: {kind: int, min: 1000, max: 100000}
+      - id: fee
+        type: {kind: int, min: 0, max: 500}
+      - id: threshold
+        type: {kind: int, min: 10, max: 1000}
+    guard:
+      op: "and"
+      args:
+        - {op: ">", args: [{param: ri}, {const: 0}]}
+        - {op: ">", args: [{param: threshold}, {const: 0}]}
+        - {op: "<", args: [{param: threshold}, {const: 10000}]}
+    updates:
+      - var: reserve_in
+        expr: {param: ri}
+      - var: fee_bps
+        expr: {param: fee}
+      - var: alpha_bps
+        expr:
+          op: "-"
+          args: [{const: 10000}, {param: fee}]
+      - var: safe_threshold_bps
+        expr: {param: threshold}
+      - var: safe_boundary
+        expr:
+          # ri * threshold * BPS / (alpha * (BPS - threshold))
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - {param: ri}
+                - op: "*"
+                  args: [{param: threshold}, {const: 10000}]
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{const: 10000}, {param: fee}]
+                - op: "-"
+                  args: [{const: 10000}, {param: threshold}]
+      - var: impact_at_boundary
+        expr:
+          # Impact at safe_boundary using inline formula
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{const: 10000}, {param: fee}]
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - {param: ri}
+                            - op: "*"
+                              args: [{param: threshold}, {const: 10000}]
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{const: 10000}, {param: fee}]
+                            - op: "-"
+                              args: [{const: 10000}, {param: threshold}]
+                    - {const: 10000}
+            - op: "+"
+              args:
+                - op: "*"
+                  args: [{param: ri}, {const: 10000}]
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - {param: ri}
+                            - op: "*"
+                              args: [{param: threshold}, {const: 10000}]
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{const: 10000}, {param: fee}]
+                            - op: "-"
+                              args: [{const: 10000}, {param: threshold}]

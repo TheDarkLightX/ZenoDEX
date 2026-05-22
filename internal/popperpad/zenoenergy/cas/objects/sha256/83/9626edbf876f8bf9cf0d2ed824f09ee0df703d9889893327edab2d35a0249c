@@ -1,0 +1,9 @@
+# ZenoEnergy Neighborhood Repair Knowledge v2
+
+Date: 2026-05-17
+
+This supersedes the first neighborhood repair PopperPad artifact by preserving the same benchmark metrics plus interpretation fields in the static JSON report.
+
+Positive knowledge: deterministic neighborhood proposals reduced best-valid volume regret and improved weak dominance over the full synthetic-list winner.
+
+Negative knowledge: the neighborhood baseline increased verifier work and is not a bounded-grid optimality certificate without exact fallback or dominance-cover evidence.

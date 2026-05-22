@@ -1,0 +1,261 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_liquidation_eligibility_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: isolated-perps partial-liquidation eligibility witness.
+
+    Purpose:
+      - Make the top-level admission checks for `partial_liquidate` explicit and replayable.
+      - Cover phase/auth/oracle/index/liquidatable checks before fraction selection and penalty accounting.
+
+    Assume/guarantee split:
+      - Assumes fraction resolution, penalty arithmetic, and fee/insurance overflow checks remain in the core partial-liquidate guard.
+      - Guarantees only the top-level liquidation-eligibility booleans and derived maintenance requirement at the current index price.
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "epoch_phase",
+      "auth_ok",
+      "position_base",
+      "index_price_e8",
+      "oracle_last_update_epoch",
+      "max_oracle_staleness_epochs",
+      "oracle_seen",
+      "collateral_quote",
+      "maintenance_margin_bps",
+      "depeg_buffer_bps",
+    ]
+  effects:
+    [
+      "phase_open_ok",
+      "auth_ok",
+      "position_open_ok",
+      "index_price_ok",
+      "staleness_param_ok",
+      "oracle_seen_ok",
+      "oracle_fresh",
+      "effective_maint_bps",
+      "maint_req_quote",
+      "liquidatable",
+      "partial_liquidation_allowed",
+    ]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "epoch_phase"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "auth_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "position_base"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "max_oracle_staleness_epochs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "oracle_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "collateral_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+  - id: "maintenance_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "depeg_buffer_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 5000 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "epoch_phase"
+    expr: { const: 0 }
+  - var: "auth_ok"
+    expr: { const: 0 }
+  - var: "position_base"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "oracle_seen"
+    expr: { const: 0 }
+  - var: "collateral_quote"
+    expr: { const: 0 }
+  - var: "maintenance_margin_bps"
+    expr: { const: 500 }
+  - var: "depeg_buffer_bps"
+    expr: { const: 100 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "auth_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_liquidation_eligibility"
+    params: []
+    guard:
+      op: "="
+      args: [{ const: 0 }, { const: 0 }]
+    updates: []
+    effects:
+      phase_open_ok:
+        op: "="
+        args: [{ var: "epoch_phase" }, { const: 0 }]
+      auth_ok:
+        op: "="
+        args: [{ var: "auth_ok" }, { const: 1 }]
+      position_open_ok:
+        op: "not"
+        args:
+          - op: "="
+            args: [{ var: "position_base" }, { const: 0 }]
+      index_price_ok:
+        op: ">"
+        args: [{ var: "index_price_e8" }, { const: 0 }]
+      staleness_param_ok:
+        op: ">"
+        args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }]
+      oracle_seen_ok:
+        op: "="
+        args: [{ var: "oracle_seen" }, { const: 1 }]
+      oracle_fresh:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+          - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      effective_maint_bps:
+        op: "+"
+        args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+      maint_req_quote:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">="
+                          args: [{ var: "position_base" }, { const: 0 }]
+                        then: { var: "position_base" }
+                        else:
+                          op: "-"
+                          args: [{ const: 0 }, { var: "position_base" }]
+                      - { var: "index_price_e8" }
+                  - { const: 100000000 }
+              - op: "+"
+                args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+          - { const: 10000 }
+      liquidatable:
+        op: "and"
+        args:
+          - op: "not"
+            args:
+              - op: "="
+                args: [{ var: "position_base" }, { const: 0 }]
+          - { op: ">", args: [{ var: "index_price_e8" }, { const: 0 }] }
+          - op: "<"
+            args:
+              - { var: "collateral_quote" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: ">="
+                                  args: [{ var: "position_base" }, { const: 0 }]
+                                then: { var: "position_base" }
+                                else:
+                                  op: "-"
+                                  args: [{ const: 0 }, { var: "position_base" }]
+                              - { var: "index_price_e8" }
+                          - { const: 100000000 }
+                      - op: "+"
+                        args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                  - { const: 10000 }
+      partial_liquidation_allowed:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "epoch_phase" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+          - op: "not"
+            args:
+              - op: "="
+                args: [{ var: "position_base" }, { const: 0 }]
+          - { op: ">", args: [{ var: "index_price_e8" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+              - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+              - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+          - op: "<"
+            args:
+              - { var: "collateral_quote" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: ">="
+                                  args: [{ var: "position_base" }, { const: 0 }]
+                                then: { var: "position_base" }
+                                else:
+                                  op: "-"
+                                  args: [{ const: 0 }, { var: "position_base" }]
+                              - { var: "index_price_e8" }
+                          - { const: 100000000 }
+                      - op: "+"
+                        args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                  - { const: 10000 }

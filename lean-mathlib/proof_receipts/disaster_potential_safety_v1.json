@@ -1,0 +1,16 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/DisasterPotentialSafety.lean",
+  "claim": "Generic disaster-potential algebra: if safe transition acceptance is risk nonincrease or a recovery certificate, then any accepted risk-increasing transition requires the recovery-certificate branch.",
+  "file": "lean-mathlib/Proofs/DisasterPotentialSafety.lean",
+  "non_claims": [
+    "Does not prove the chosen risk vector is complete.",
+    "Does not prove concrete runtime receipts are truthful.",
+    "Does not prove every disaster state is unreachable."
+  ],
+  "status": "checked",
+  "theorems": [
+    "Proofs.DisasterPotentialSafety.SafeTransition",
+    "Proofs.DisasterPotentialSafety.risk_increase_requires_recovery_certificate",
+    "Proofs.DisasterPotentialSafety.certified_recovery_post_risk_le_cap"
+  ]
+}

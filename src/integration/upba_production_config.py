@@ -29,8 +29,10 @@ def make_upba_v1_bounded_price_grid_engine_config(
         allow_external_tools=False,
         consensus_mode=True,
         allow_uniform_batch_certificate=True,
-        require_uniform_batch_certificate=True,
-        require_uniform_batch_price_grid_evidence=True,
+        require_uniform_batch_certificate_for_supported_swaps=True,
+        require_uniform_batch_optimality_certificate=True,
+        require_uniform_batch_v2_bounded_grid_optimality=True,
+        require_uniform_batch_v3_exact_out_grid_optimality=True,
         enable_test_fault_injection=False,
         fault_injection=None,
     )

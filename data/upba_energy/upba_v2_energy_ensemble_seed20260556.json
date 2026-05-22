@@ -1,0 +1,435 @@
+{
+  "available_train_batches": 10000,
+  "available_train_rows": 199860,
+  "baseline_model": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+  "baselines": {
+    "current_gap_weighted": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.0166414523449319,
+      "mean_verifier_calls_to_objective_winner": 1.0166414523449319,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 33,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.983358547655068,
+      "top_1_recall": 0.983358547655068,
+      "top_5_recall": 1.0
+    }
+  },
+  "ensemble": {
+    "aggregation_modes": [
+      "ensemble_mean_energy",
+      "ensemble_mean_rank",
+      "ensemble_rank_std_penalty_0_25",
+      "ensemble_rank_std_penalty_0_5",
+      "ensemble_rank_std_penalty_1_0",
+      "ensemble_rank_std_penalty_2_0"
+    ],
+    "member_count": 6,
+    "member_paths": [
+      "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+      "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_raw_250_seed20260657.json",
+      "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_quality_500_seed20260758.json",
+      "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_raw_1000_seed20260859.json",
+      "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_quality_1000_seed20260960.json",
+      "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_quality_2500_seed20261061.json"
+    ],
+    "parameter_count_per_member": 97,
+    "total_parameter_count": 582
+  },
+  "holdout_dataset": "data/upba_energy/upba_v2_energy_holdout_seed20260518.jsonl",
+  "holdout_rows": 39979,
+  "interpretation": {
+    "baseline_mean_verifier_calls": 1.0166414523449319,
+    "best_ensemble_beats_current_gap_weighted": false,
+    "best_ensemble_mean_verifier_calls": 1.0237014624306606,
+    "best_ensemble_mode": "ensemble_mean_energy",
+    "best_ensemble_top_10_recall": 1.0,
+    "best_uncertainty_auc": 0.6819185578178384,
+    "negative_knowledge": "If the best ensemble mode does not beat the current gap-weighted checkpoint, keep the single retained UPBA model as the default and use ensemble disagreement only as diagnostic coverage evidence.",
+    "positive_knowledge": "The ensemble lane tests rank consensus and disagreement as an advisory uncertainty signal while deterministic verification and fallback remain authoritative."
+  },
+  "member_specs": [
+    {
+      "budget": 250,
+      "policy": "raw"
+    },
+    {
+      "budget": 500,
+      "policy": "quality"
+    },
+    {
+      "budget": 1000,
+      "policy": "raw"
+    },
+    {
+      "budget": 1000,
+      "policy": "quality"
+    },
+    {
+      "budget": 2500,
+      "policy": "quality"
+    }
+  ],
+  "members": [
+    {
+      "member_id": "current_gap_weighted",
+      "metrics": {
+        "batches": 1983,
+        "false_exclusion_rate_top_10": 0.0,
+        "invalid_accept_count": 0,
+        "mean_verifier_calls": 1.0166414523449319,
+        "mean_verifier_calls_to_objective_winner": 1.0166414523449319,
+        "p95_verifier_calls": 1,
+        "p99_verifier_calls": 2,
+        "top1_invalid_count": 0,
+        "top1_miss_count": 33,
+        "top_10_recall": 1.0,
+        "top_1_objective_recall": 0.983358547655068,
+        "top_1_recall": 0.983358547655068,
+        "top_5_recall": 1.0
+      },
+      "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+      "model_sha256": "sha256:1a665e8fc07c1b24dd1ae0110f4509b73c0d975805f0a7ac807fc1f0de157c0a",
+      "source": "baseline"
+    },
+    {
+      "member_id": "raw_250_seed20260657",
+      "metrics": {
+        "batches": 1983,
+        "false_exclusion_rate_top_10": 0.0,
+        "invalid_accept_count": 0,
+        "mean_verifier_calls": 1.033282904689864,
+        "mean_verifier_calls_to_objective_winner": 1.033282904689864,
+        "p95_verifier_calls": 1,
+        "p99_verifier_calls": 2,
+        "top1_invalid_count": 0,
+        "top1_miss_count": 46,
+        "top_10_recall": 1.0,
+        "top_1_objective_recall": 0.9768028240040343,
+        "top_1_recall": 0.9768028240040343,
+        "top_5_recall": 0.9989914271306102
+      },
+      "model_path": "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_raw_250_seed20260657.json",
+      "model_sha256": "sha256:52da9cdaa0ac19fddf7a25df215b2d98157b7bc38805c4b790aea79063ca6996",
+      "selected_batch_head": [
+        "synthetic-upba-v2-00000018",
+        "synthetic-upba-v2-00000051",
+        "synthetic-upba-v2-00000084",
+        "synthetic-upba-v2-00000128",
+        "synthetic-upba-v2-00000159",
+        "synthetic-upba-v2-00000166",
+        "synthetic-upba-v2-00000213",
+        "synthetic-upba-v2-00000248",
+        "synthetic-upba-v2-00000380",
+        "synthetic-upba-v2-00000381"
+      ],
+      "selection_policy": "raw",
+      "source": "trained_for_ensemble",
+      "train_batches": 250,
+      "train_rows": 4996,
+      "train_seconds": 1.6114368541166186
+    },
+    {
+      "member_id": "quality_500_seed20260758",
+      "metrics": {
+        "batches": 1983,
+        "false_exclusion_rate_top_10": 0.0,
+        "invalid_accept_count": 0,
+        "mean_verifier_calls": 1.027231467473525,
+        "mean_verifier_calls_to_objective_winner": 1.027231467473525,
+        "p95_verifier_calls": 1,
+        "p99_verifier_calls": 2,
+        "top1_invalid_count": 0,
+        "top1_miss_count": 45,
+        "top_10_recall": 1.0,
+        "top_1_objective_recall": 0.9773071104387292,
+        "top_1_recall": 0.9773071104387292,
+        "top_5_recall": 1.0
+      },
+      "model_path": "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_quality_500_seed20260758.json",
+      "model_sha256": "sha256:aa26e7089012d71896c8d1d51d250939c2063d699c371e0cfcd1090e7d9517e4",
+      "selected_batch_head": [
+        "synthetic-upba-v2-00000012",
+        "synthetic-upba-v2-00000047",
+        "synthetic-upba-v2-00000072",
+        "synthetic-upba-v2-00000106",
+        "synthetic-upba-v2-00000184",
+        "synthetic-upba-v2-00000217",
+        "synthetic-upba-v2-00000227",
+        "synthetic-upba-v2-00000252",
+        "synthetic-upba-v2-00000277",
+        "synthetic-upba-v2-00000287"
+      ],
+      "selection_policy": "quality",
+      "source": "trained_for_ensemble",
+      "train_batches": 500,
+      "train_rows": 9999,
+      "train_seconds": 3.9557849429547787
+    },
+    {
+      "member_id": "raw_1000_seed20260859",
+      "metrics": {
+        "batches": 1983,
+        "false_exclusion_rate_top_10": 0.0,
+        "invalid_accept_count": 0,
+        "mean_verifier_calls": 1.0292486132123047,
+        "mean_verifier_calls_to_objective_winner": 1.0292486132123047,
+        "p95_verifier_calls": 1,
+        "p99_verifier_calls": 2,
+        "top1_invalid_count": 0,
+        "top1_miss_count": 43,
+        "top_10_recall": 1.0,
+        "top_1_objective_recall": 0.978315683308119,
+        "top_1_recall": 0.978315683308119,
+        "top_5_recall": 0.9994957135653051
+      },
+      "model_path": "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_raw_1000_seed20260859.json",
+      "model_sha256": "sha256:953161e8d3b206f3f80ea9e5f118d53a0cc1ebf162516ced830c53844be02ebd",
+      "selected_batch_head": [
+        "synthetic-upba-v2-00000002",
+        "synthetic-upba-v2-00000011",
+        "synthetic-upba-v2-00000012",
+        "synthetic-upba-v2-00000039",
+        "synthetic-upba-v2-00000045",
+        "synthetic-upba-v2-00000063",
+        "synthetic-upba-v2-00000068",
+        "synthetic-upba-v2-00000069",
+        "synthetic-upba-v2-00000071",
+        "synthetic-upba-v2-00000073"
+      ],
+      "selection_policy": "raw",
+      "source": "trained_for_ensemble",
+      "train_batches": 1000,
+      "train_rows": 19992,
+      "train_seconds": 6.659336477983743
+    },
+    {
+      "member_id": "quality_1000_seed20260960",
+      "metrics": {
+        "batches": 1983,
+        "false_exclusion_rate_top_10": 0.0,
+        "invalid_accept_count": 0,
+        "mean_verifier_calls": 1.022188603126576,
+        "mean_verifier_calls_to_objective_winner": 1.022188603126576,
+        "p95_verifier_calls": 1,
+        "p99_verifier_calls": 2,
+        "top1_invalid_count": 0,
+        "top1_miss_count": 38,
+        "top_10_recall": 1.0,
+        "top_1_objective_recall": 0.9808371154815936,
+        "top_1_recall": 0.9808371154815936,
+        "top_5_recall": 1.0
+      },
+      "model_path": "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_quality_1000_seed20260960.json",
+      "model_sha256": "sha256:52e5652280c688935214eef80b86b4f4f5e056e3011dc445b18db9d0caca4c71",
+      "selected_batch_head": [
+        "synthetic-upba-v2-00000012",
+        "synthetic-upba-v2-00000044",
+        "synthetic-upba-v2-00000047",
+        "synthetic-upba-v2-00000048",
+        "synthetic-upba-v2-00000056",
+        "synthetic-upba-v2-00000061",
+        "synthetic-upba-v2-00000062",
+        "synthetic-upba-v2-00000072",
+        "synthetic-upba-v2-00000077",
+        "synthetic-upba-v2-00000078"
+      ],
+      "selection_policy": "quality",
+      "source": "trained_for_ensemble",
+      "train_batches": 1000,
+      "train_rows": 19995,
+      "train_seconds": 7.636420402210206
+    },
+    {
+      "member_id": "quality_2500_seed20261061",
+      "metrics": {
+        "batches": 1983,
+        "false_exclusion_rate_top_10": 0.0,
+        "invalid_accept_count": 0,
+        "mean_verifier_calls": 1.0191628845184064,
+        "mean_verifier_calls_to_objective_winner": 1.0191628845184064,
+        "p95_verifier_calls": 1,
+        "p99_verifier_calls": 2,
+        "top1_invalid_count": 0,
+        "top1_miss_count": 36,
+        "top_10_recall": 1.0,
+        "top_1_objective_recall": 0.9818456883509834,
+        "top_1_recall": 0.9818456883509834,
+        "top_5_recall": 1.0
+      },
+      "model_path": "data/upba_energy/ensemble_models/upba_v2_energy_ensemble_quality_2500_seed20261061.json",
+      "model_sha256": "sha256:6363874097131bd2d05ff30dec2eecca950dc95aa032a03c360ed19ce67f7fbc",
+      "selected_batch_head": [
+        "synthetic-upba-v2-00000001",
+        "synthetic-upba-v2-00000005",
+        "synthetic-upba-v2-00000012",
+        "synthetic-upba-v2-00000040",
+        "synthetic-upba-v2-00000044",
+        "synthetic-upba-v2-00000047",
+        "synthetic-upba-v2-00000048",
+        "synthetic-upba-v2-00000056",
+        "synthetic-upba-v2-00000061",
+        "synthetic-upba-v2-00000062"
+      ],
+      "selection_policy": "quality",
+      "source": "trained_for_ensemble",
+      "train_batches": 2500,
+      "train_rows": 49988,
+      "train_seconds": 23.74263109220192
+    }
+  ],
+  "modes": {
+    "ensemble_mean_energy": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.0237014624306606,
+      "mean_verifier_calls_to_objective_winner": 1.0237014624306606,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 37,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9813414019162885,
+      "top_1_recall": 0.9813414019162885,
+      "top_5_recall": 0.9994957135653051
+    },
+    "ensemble_mean_rank": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.0237014624306606,
+      "mean_verifier_calls_to_objective_winner": 1.0237014624306606,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 37,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9813414019162885,
+      "top_1_recall": 0.9813414019162885,
+      "top_5_recall": 1.0
+    },
+    "ensemble_rank_std_penalty_0_25": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.0237014624306606,
+      "mean_verifier_calls_to_objective_winner": 1.0237014624306606,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 37,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9813414019162885,
+      "top_1_recall": 0.9813414019162885,
+      "top_5_recall": 1.0
+    },
+    "ensemble_rank_std_penalty_0_5": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.0237014624306606,
+      "mean_verifier_calls_to_objective_winner": 1.0237014624306606,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 37,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9813414019162885,
+      "top_1_recall": 0.9813414019162885,
+      "top_5_recall": 1.0
+    },
+    "ensemble_rank_std_penalty_1_0": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.0247100353000504,
+      "mean_verifier_calls_to_objective_winner": 1.0247100353000504,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 37,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9813414019162885,
+      "top_1_recall": 0.9813414019162885,
+      "top_5_recall": 1.0
+    },
+    "ensemble_rank_std_penalty_2_0": {
+      "batches": 1983,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_verifier_calls": 1.02773575390822,
+      "mean_verifier_calls_to_objective_winner": 1.02773575390822,
+      "p95_verifier_calls": 1,
+      "p99_verifier_calls": 2,
+      "top1_invalid_count": 0,
+      "top1_miss_count": 37,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9813414019162885,
+      "top_1_recall": 0.9813414019162885,
+      "top_5_recall": 0.9994957135653051
+    }
+  },
+  "safety": {
+    "deterministic_fallback_required": true,
+    "invalid_accept_count_total": 0,
+    "model_authorizes_settlement": false,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/upba_v2_ensemble_report/v1",
+  "seed": 20260556,
+  "train_dataset": "data/upba_energy/upba_v2_energy_synthetic_seed20260517.jsonl",
+  "training": {
+    "epochs": 4,
+    "init": "hand",
+    "learning_rate": 0.05,
+    "margin": 1.0,
+    "max_pair_weight": 8.0,
+    "objective_gap_weight": 4.0,
+    "same_volume_surplus_gap_weight": 1.0,
+    "winner_pair_weight": 2.0
+  },
+  "uncertainty": {
+    "ensemble_mean_energy": {
+      "top1_miss_count": 37,
+      "top1_uncertainty_auc": 0.6814394044609872,
+      "top1_uncertainty_hit_mean": 0.0064275619619920815,
+      "top1_uncertainty_miss_mean": 0.15590041969250756
+    },
+    "ensemble_mean_rank": {
+      "top1_miss_count": 37,
+      "top1_uncertainty_auc": 0.6819185578178384,
+      "top1_uncertainty_hit_mean": 0.006347439925528051,
+      "top1_uncertainty_miss_mean": 0.16011440571842656
+    },
+    "ensemble_rank_std_penalty_0_25": {
+      "top1_miss_count": 37,
+      "top1_uncertainty_auc": 0.6819185578178384,
+      "top1_uncertainty_hit_mean": 0.006347439925528051,
+      "top1_uncertainty_miss_mean": 0.16011440571842656
+    },
+    "ensemble_rank_std_penalty_0_5": {
+      "top1_miss_count": 37,
+      "top1_uncertainty_auc": 0.6819185578178384,
+      "top1_uncertainty_hit_mean": 0.006347439925528051,
+      "top1_uncertainty_miss_mean": 0.16011440571842656
+    },
+    "ensemble_rank_std_penalty_1_0": {
+      "top1_miss_count": 37,
+      "top1_uncertainty_auc": 0.6819185578178384,
+      "top1_uncertainty_hit_mean": 0.006347439925528051,
+      "top1_uncertainty_miss_mean": 0.16011440571842656
+    },
+    "ensemble_rank_std_penalty_2_0": {
+      "top1_miss_count": 37,
+      "top1_uncertainty_auc": 0.6819185578178384,
+      "top1_uncertainty_hit_mean": 0.006347439925528051,
+      "top1_uncertainty_miss_mean": 0.16011440571842656
+    }
+  },
+  "winner_bearing_train_batches": 9916
+}

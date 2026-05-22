@@ -1,0 +1,50 @@
+{
+  "schema": "zenodex/energy/production_evidence_bundle_receipt/v1",
+  "date": "2026-05-18",
+  "claim": "ZenoEnergy production-adjacent review now has a single fail-closed evidence bundle command that assembles source-manifested and coverage-profiled UPBA and AutoTrader real replay reports, then runs the production promotion gate.",
+  "bundle_schema": "zenodex/energy/production_evidence_bundle/v1",
+  "artifacts": [
+    "tools/build_zenoenergy_production_evidence_bundle.py",
+    "tests/energy/test_zenoenergy_production_evidence_bundle.py",
+    "docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md"
+  ],
+  "composed_tools": [
+    "tools/build_zenoenergy_real_replay_report.py",
+    "tools/check_zenoenergy_replay_source_manifest.py",
+    "tools/check_zenoenergy_replay_coverage_profile.py",
+    "tools/check_zenoenergy_production_promotion.py"
+  ],
+  "required_input_schemas": [
+    "zenodex/energy/upba_v2_benchmark_report/v1",
+    "zenodex/energy/upba_v2_evaluation_report/v1",
+    "zenodex/energy/autotrader_shadow_bridge_report/v1",
+    "zenodex/energy/replay_source_manifest/v1",
+    "zenodex/energy/replay_coverage_profile/v1"
+  ],
+  "output_schemas": [
+    "zenodex/energy/upba_real_replay_report/v1",
+    "zenodex/energy/autotrader_real_shadow_report/v1",
+    "zenodex/energy/replay_source_manifest_check/v1",
+    "zenodex/energy/replay_coverage_profile_check/v1",
+    "zenodex/energy/production_promotion_gate/v1",
+    "zenodex/energy/production_evidence_bundle/v1"
+  ],
+  "safety": {
+    "verifier_authoritative": true,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_settlement_or_trade": false,
+    "model_output_in_state_root": false,
+    "deterministic_fallback_required": true
+  },
+  "limits": [
+    "The bundle cannot prove external data custody or truthful collection by itself.",
+    "The bundle cannot prove that declared coverage breadth is representative of future traffic.",
+    "The bundle does not relax production gate thresholds.",
+    "The bundle supports advisory ranking only."
+  ],
+  "negative_knowledge": [
+    "Synthetic and built-in fixture evidence remains research evidence even when the bundle command can parse it.",
+    "Without passing replay source manifests, coverage profiles, and real replay coverage, the production promotion gate remains blocked.",
+    "A passing bundle is not a settlement authorization path."
+  ]
+}

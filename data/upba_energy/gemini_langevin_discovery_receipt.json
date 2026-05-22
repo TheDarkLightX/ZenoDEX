@@ -1,0 +1,41 @@
+{
+  "accepted_refinement": false,
+  "candidate_count": 32,
+  "checks": [
+    {
+      "check_id": "langevin_discovery.seed_verifier_ok",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.selected_verifier_ok",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.model_does_not_authorize_settlement",
+      "passed": true
+    },
+    {
+      "check_id": "langevin_discovery.invalid_refinement_falls_back",
+      "passed": true
+    }
+  ],
+  "decision": "research_only_verifier_checked_proposal",
+  "energy_delta": -8.472667704926721,
+  "fallback_to_seed": true,
+  "guard": "internal/Gemini/zeno_guard_v1.json",
+  "model": "internal/Gemini/gemini_mlp_v6_final.json",
+  "negative_knowledge": [
+    "Lower learned energy does not imply verifier acceptance.",
+    "ZenoGuard is an advisory soft prior and cannot prove candidate validity.",
+    "Langevin proposals must be canonicalized and checked by the deterministic verifier before selection."
+  ],
+  "ok": true,
+  "refined_energy": 281.35064414489244,
+  "refined_verifier_error": "uniform batch v2 requires at least one positive fill",
+  "refined_verifier_ok": false,
+  "schema": "zenodex/energy/gemini_langevin_discovery_receipt/v1",
+  "seed": 20260580,
+  "seed_energy": 289.82331184981916,
+  "seed_verifier_ok": true,
+  "selected_verifier_ok": true
+}
