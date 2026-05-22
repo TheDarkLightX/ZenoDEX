@@ -16,24 +16,35 @@ def test_named_disaster_class_corpus_closes_requested_classes(tmp_path: Path) ->
 
     assert receipt["schema"] == "zenodex.oracle.disaster_class_corpus.v1"
     assert receipt["status"] == "accepted"
-    assert receipt["named_disaster_class_count"] == 8
-    assert receipt["closed_class_count"] == 8
+    assert receipt["named_disaster_class_count"] == 15
+    assert receipt["closed_class_count"] == 15
     assert receipt["failed_class_count"] == 0
 
     cases = {case["class_id"]: case for case in receipt["cases"]}
     assert set(cases) == {
         "source_cartel",
         "dispute_griefing",
+        "settlement_execution_total_drift",
         "registry_drift",
         "verifier_spoofing",
         "o5_independence_spoofing",
         "proof_timeout_treated_as_success",
         "terminal_replay_integrity",
         "cross_module_split_brain",
+        "spot_price_overvaluation_requires_nonspot_oracle",
+        "governance_parameter_drift_crosses_absolute_guardrails",
+        "quote_farming_free_option_from_settlement_lag",
+        "recursive_collateral_dependency_reaches_zusd",
+        "funding_zero_crossing_micro_oscillation",
+        "pre_slash_withdrawal_escape_attempt",
     }
 
     assert "operator_concentration_exceeds_policy" in cases["source_cartel"]["observed"]["errors"]
     assert "dispute_bond_required" in cases["dispute_griefing"]["observed"]["errors"]
+    assert (
+        "receipt:settlement_execution_report_reward_paid_e8_mismatch"
+        in cases["settlement_execution_total_drift"]["observed"]["errors"]
+    )
     assert any(
         error.startswith("registry_content_hash_mismatch:")
         for error in cases["registry_drift"]["observed"]["errors"]
@@ -51,6 +62,19 @@ def test_named_disaster_class_corpus_closes_requested_classes(tmp_path: Path) ->
         "terminal_replay_integrity"
     ]["observed"]["required_replay_states"]
     assert "recovery_divergence_split_brain_rejects" in cases["cross_module_split_brain"]["observed"]["scenario_ids"]
+    spot_case = cases["spot_price_overvaluation_requires_nonspot_oracle"]
+    assert spot_case["observed"]["overvaluation_multiplier"] == {"num": 121, "den": 1}
+    governance_case = cases["governance_parameter_drift_crosses_absolute_guardrails"]
+    assert governance_case["observed"]["fee"]["final_bps"] > governance_case["observed"]["fee"]["absolute_ceiling_bps"]
+    quote_case = cases["quote_farming_free_option_from_settlement_lag"]
+    assert quote_case["observed"]["expected_payoff_e8"]["num"] > 0
+    collateral_case = cases["recursive_collateral_dependency_reaches_zusd"]
+    assert collateral_case["observed"]["unsafe_indirect_wrapper"] is True
+    funding_case = cases["funding_zero_crossing_micro_oscillation"]
+    assert funding_case["observed"]["deadband_micro_funding"] == 0
+    assert funding_case["observed"]["deadband_outside_funding"] == 1
+    slash_escape_case = cases["pre_slash_withdrawal_escape_attempt"]
+    assert "slash_exceeds_reporter_bond" in slash_escape_case["observed"]["errors"]
 
 
 def test_named_disaster_class_corpus_cli_writes_receipt(tmp_path: Path) -> None:
@@ -73,6 +97,6 @@ def test_named_disaster_class_corpus_cli_writes_receipt(tmp_path: Path) -> None:
     )
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "closed_class_count = 8" in proc.stdout
+    assert "closed_class_count = 15" in proc.stdout
     receipt = json.loads(output.read_text(encoding="utf-8"))
     assert receipt["status"] == "accepted"

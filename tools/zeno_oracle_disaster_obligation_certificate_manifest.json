@@ -93,6 +93,10 @@
     {
       "name": "terminal_graph_authorization_mismatch",
       "obligations": ["receipt_dag_closed", "registry_root_binding", "runtime_state_binding", "schema_total", "value_binding"]
+    },
+    {
+      "name": "cross_domain_finality_reorg_feeds_oracle_read",
+      "obligations": ["critical_action_bound", "cross_domain_finality", "dependency_order", "receipt_dag_closed", "schema_total"]
     }
   ],
   "guards": [
@@ -131,6 +135,10 @@
     {
       "name": "cross_module_sync_gate",
       "covers": ["cross_module_sync"]
+    },
+    {
+      "name": "cross_domain_finality_gate",
+      "covers": ["cross_domain_finality"]
     }
   ],
   "selected_guard_set": [
@@ -142,7 +150,8 @@
     "reporter_economics_gate",
     "proof_verifier_registry_gate",
     "proof_independence_gate",
-    "cross_module_sync_gate"
+    "cross_module_sync_gate",
+    "cross_domain_finality_gate"
   ],
   "private_witnesses": [
     {"guard_name": "terminal_receipt_dag_gate", "private_obligation": "duplicate_reject"},
@@ -153,7 +162,8 @@
     {"guard_name": "reporter_economics_gate", "private_obligation": "reporter_bonded"},
     {"guard_name": "proof_verifier_registry_gate", "private_obligation": "proof_verifier_bound"},
     {"guard_name": "proof_independence_gate", "private_obligation": "proof_independence"},
-    {"guard_name": "cross_module_sync_gate", "private_obligation": "cross_module_sync"}
+    {"guard_name": "cross_module_sync_gate", "private_obligation": "cross_module_sync"},
+    {"guard_name": "cross_domain_finality_gate", "private_obligation": "cross_domain_finality"}
   ],
   "candidate_probes": [
     {
@@ -174,19 +184,19 @@
     {
       "name": "cross_domain_finality_oracle_variant",
       "obligations": ["critical_action_bound", "cross_domain_finality", "receipt_dag_closed"],
-      "expected_classification": "new_atom_required"
+      "expected_classification": "dominated_by_existing_class"
     }
   ],
   "expected": {
-    "axis_count": 23,
-    "quotient_class_count": 20,
-    "antichain_class_count": 15,
+    "axis_count": 24,
+    "quotient_class_count": 21,
+    "antichain_class_count": 16,
     "dominated_class_count": 5,
-    "required_obligation_count": 21,
-    "guard_count": 9,
-    "selected_guard_count": 9,
-    "private_witness_count": 9,
-    "compression_ratio_axis_to_antichain": "23:15",
+    "required_obligation_count": 22,
+    "guard_count": 10,
+    "selected_guard_count": 10,
+    "private_witness_count": 10,
+    "compression_ratio_axis_to_antichain": "24:16",
     "selected_guards_all_forced": true,
     "selected_guard_set_covers_required_obligations": true,
     "private_certificate_proves_subset_minimality": true,
