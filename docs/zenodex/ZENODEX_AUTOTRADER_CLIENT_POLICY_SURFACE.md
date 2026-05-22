@@ -20,7 +20,7 @@ This note makes the client-side autotrader split explicit:
 ClientAutoTraderPolicy := strategy_logic ∧ hard_local_guards ∧ assurance_artifacts
 ```
 
-Standard reading:
+Reading:
 - strategy logic describes what the user is trying to do,
 - hard local guards describe the fail-closed limits the client should enforce,
 - assurance artifacts describe what was compiled, checked, or signed.
@@ -33,7 +33,7 @@ Practical consequence: the autotrader can show and audit user intent separately 
 UserRuleBundle -> compile -> StrategyIR -> ClientPolicySurface -> SignedClientPolicyBundle
 ```
 
-Standard reading:
+Reading:
 - the user should author a higher-level rule bundle,
 - the client compiles that bundle into the existing `StrategyIR`,
 - then the existing client policy surface and signed client bundle carry the assurance artifacts.
@@ -121,7 +121,7 @@ The current surface exports three top-level sections:
 hard_local_guard_violation -> client rejects_or_blocks_action
 ```
 
-Standard reading: if a hard local guard is violated, the client fails closed.
+Reading: if a hard local guard is violated, the client fails closed.
 
 Practical consequence: client automation stays user-controlled without becoming reckless.
 
@@ -133,7 +133,7 @@ This surface is client-side only.
 client_policy_surface != protocol_validity_surface
 ```
 
-Standard reading: this object helps the user client reason about strategy and safety; it does not define protocol-wide validity.
+Reading: this object helps the user client reason about strategy and safety; it does not define protocol-wide validity.
 
 Practical consequence: this fits the ZenoDEX policy charter, where autotrader strategy stays off-protocol by default.
 
@@ -143,7 +143,7 @@ Practical consequence: this fits the ZenoDEX policy charter, where autotrader st
 GuardEvaluationOK <-> controls_ok ∧ slippage_ok ∧ provenance_ok ∧ oracle_freshness_ok ∧ execution_ok ∧ notional_budget_ok
 ```
 
-Standard reading:
+Reading:
 - the client-side guard evaluation passes exactly when every checked guard family passes,
 - and unchecked optional families do not block the result.
 
@@ -167,7 +167,7 @@ The evaluator preserves existing guard/kernel reason strings where possible:
 PortableClientPolicyBundle <-> surface_hash_pinned ∧ optional_guard_evaluation_hash_pinned ∧ owner_signature_valid
 ```
 
-Standard reading:
+Reading:
 - the portable client policy bundle pins the client policy surface hash,
 - optionally pins one concrete local guard evaluation,
 - and must be signed by the strategy owner before the live path will accept it.
@@ -190,7 +190,7 @@ Current bundle fields:
 LiveExplanationSurface := user_rule_summary ∧ krr_explanation ∧ actionability_explanation ∧ actionability_summary
 ```
 
-Standard reading:
+Reading:
 - `user_rule_summary` says what the strategy intends,
 - `krr_explanation` says why the KRR trusted or discounted it,
 - `actionability_explanation` says what allowed or blocked the current action,

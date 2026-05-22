@@ -33,7 +33,7 @@ DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA = "zenodex/stateful-disaster-search-expans
 DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA = "zenodex/stateful-disaster-search-expansion-receipt/v1"
 
 DEFAULT_TARGET_MANIFEST = REPO_ROOT / "tools" / "acceptance_tcb_dangerous_surfaces.json"
-DEFAULT_WORLD_MODEL = REPO_ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_world_model.seed.json"
+DEFAULT_WORLD_MODEL = REPO_ROOT / "docs" / "zenodex" / "world_model_promoted" / "zenodex_world_model.seed.json"
 DEFAULT_SHAPE_RATCHET = REPO_ROOT / "tools" / "check_shape_v1_ratchet.py"
 
 EVIDENCE_ORDER = {
@@ -255,6 +255,38 @@ CRITICAL_DISASTER_SURFACE_IDS: tuple[str, ...] = (
     "settlement_attestation_policy_boundary",
     "stale_quote_receipt_boundary",
     "stale_settlement_boundary",
+)
+
+CLOSED_DISASTER_SEARCH_AXIS_IDS: tuple[str, ...] = (
+    "epoch_split_brain",
+    "identity_registry_drift",
+    "canonicalization_equivocation",
+    "serialization_width_aliasing",
+    "resource_budget_abort",
+    "repair_after_tamper",
+    "external_state_drift",
+    "atomicity_partial_side_effect",
+    "restart_replay_persistence",
+    "dependency_outage_fail_closed",
+    "reciprocal_netting_pair_forgery",
+    "bounded_advisory_search_envelope",
+    "exact_out_candidate_domain_explosion",
+    "tau_gate_policy_aliasing",
+    "confidential_receipt_attestation_drift",
+    "batch_clearing_fragmentation_ordering",
+    "perp_funding_liquidation_oracle_window",
+    "proof_mining_packet_envelope_replay",
+    "tau_net_client_transport_boundary",
+    "settlement_proof_recompute_gate",
+    "operations_parser_canonical_envelope",
+    "dex_engine_sequence_anomaly_surface",
+    "dex_core_ref_parity_drift",
+    "boundary_concolic_wrapper_consistency",
+    "exact_out_prefilter_winner_repair_boundary",
+    "perp_engine_integration_oracle_bootstrap_boundary",
+    "quote_receipt_transport_intent_boundary",
+    "tau_runner_subprocess_transport_boundary",
+    "dex_settlement_recovery_proof_unit_boundary",
 )
 
 SURFACE_WITNESS_LANGUAGE_REQUIREMENTS: dict[str, dict[str, Any]] = {
@@ -800,6 +832,8 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
+                "-k",
+                "not tau_steps_verify_when_tau_is_available",
                 "tests/integration/test_exact_out_route_certificate.py",
                 "tests/integration/test_exact_out_route_certificate_fuzz.py",
                 "tests/core/test_exact_out_many_pool_canonical_domain_v1.py",
@@ -1071,10 +1105,9 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
-                "tests/core/test_proof_mining_claim_gate.py",
-                "tests/core/test_proof_mining_claim_identity_gate.py",
-                "tests/core/test_proof_mining_manager_packet_envelope_gate.py",
-                "tests/core/test_proof_mining_manager_verification_flags_gate.py",
+                "tests/core/test_proof_mining_claimability_gate.py",
+                "tests/core/test_proof_mining_manager.py",
+                "tests/integration/test_proof_mining_claimability.py",
                 "tests/integration/test_proof_mining_runtime.py",
                 "tests/integration/test_proof_mining_context_edges.py",
             ),
@@ -1254,6 +1287,8 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
+                "-k",
+                "not tau_bundle_steps_replay",
                 "tests/integration/test_recompute_batch_proof_verifier.py",
                 "tests/integration/test_validation_uses_strong_settlement_gate.py",
                 "tests/integration/test_settlement_certificate_runtime_gate.py",

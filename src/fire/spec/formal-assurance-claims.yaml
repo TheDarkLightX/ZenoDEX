@@ -78,7 +78,7 @@ components:
         - path: lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
           checker: lean
           result: proved
-          sha256: sha256:74b2130ce96bc9cf72729939c4db5fd90a4713e635d7840a2730eedf102f0eb3
+          sha256: sha256:18441378184c6032bfd1faa3f18e6d225d6d813b7006999257b678c5477daaf1
           scope: ZPL compiler soundness, CAL core soundness, and certified payoff collateral safety theorem surface
         - path: lean-mathlib/proof_receipts/zpl_payoff_combinators_v1.json
           checker: lean

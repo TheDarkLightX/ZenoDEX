@@ -23,7 +23,7 @@ def test_check_cantor_shapeforge_promotion_returns_current_counts(tmp_path: Path
 
 
 def test_check_cantor_shapeforge_promotion_cli_rejects_invalid_world_model(tmp_path: Path) -> None:
-    source = Path("docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json")
+    source = Path("docs/zenodex/world_model_promoted/zenodex_world_model.seed.json")
     payload = json.loads(source.read_text(encoding="utf-8"))
     payload["schema"] = "bad/schema"
     world_model_path = tmp_path / "bad-world-model.json"

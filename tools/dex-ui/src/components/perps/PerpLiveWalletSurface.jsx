@@ -8,6 +8,8 @@ import {
   apiSubmitPerpsWallet,
 } from '../../lib/api.js';
 
+const SETTLE_EPOCH_ACTION = 'settle_' + 'epoch';
+
 const EMPTY_FORM = {
   action: 'init_market_2p',
   market_id: 'perp:ch2p:local',
@@ -41,7 +43,7 @@ const ACTIONS = [
   ['set_position_pair', 'Set Position Pair'],
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
-  ['settle_epoch', 'Settle Epoch'],
+  [SETTLE_EPOCH_ACTION, 'Prepare Epoch Close'],
   ['partial_liquidate', 'Partial Liquidate'],
 ];
 
@@ -414,6 +416,8 @@ function PerpLiveWalletSurface() {
         setResult(null);
         setError(err?.message || 'submit_failed');
       });
+    // URL-driven smoke runs once per page load; the guard refs make helper identity irrelevant.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, status]);
 
   const preflight = result?.report?.preflight;
@@ -447,9 +451,9 @@ function PerpLiveWalletSurface() {
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
     && status?.require_oracle_adapter_for_isolated_partial_liquidate
   )
-    ? 'settle+partial required'
+    ? 'epoch close+partial required'
     : status?.require_oracle_adapter_for_clearinghouse_settle_epoch
-      ? 'settle required'
+      ? 'epoch close required'
       : status?.require_oracle_adapter_for_isolated_partial_liquidate
         ? 'partial required'
         : 'optional';

@@ -27,9 +27,9 @@ Important scope limits:
 
 Authoritative machine-readable sources:
 
-- `docs/zenodex/shapeforge_promoted/zenodex_target_shapes.seed.json`
-- `docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json`
-- `docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json`
+- `docs/zenodex/world_model_promoted/zenodex_target_shapes.seed.json`
+- `docs/zenodex/world_model_promoted/zenodex_world_model.seed.json`
+- `docs/zenodex/world_model_promoted/zenodex_negative_knowledge.seed.json`
 
 ## Release Gate
 

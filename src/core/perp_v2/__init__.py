@@ -14,10 +14,17 @@ Public API:
 - `step_or_raise(state, params) -> StepResult` (raises on rejection)
 """
 
-from .engine import step, step_or_raise
 from .errors import PerpGuardError, PerpInvariantError, PerpOverflowError
 from .state import initial_state, state_from_dict, state_to_dict
 from .types import Action, ActionParams, Effect, EpochPhase, Event, PerpState, StepResult
+
+
+def __getattr__(name: str):
+    if name in {"step", "step_or_raise"}:
+        from .engine import step, step_or_raise
+
+        return {"step": step, "step_or_raise": step_or_raise}[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "step",

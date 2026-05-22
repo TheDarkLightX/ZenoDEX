@@ -28,6 +28,7 @@ LABEL org.opencontainers.image.description="Hash-locked ZenoDEX production image
 LABEL org.opencontainers.image.vendor="ZenoDEX"
 
 RUN apt-get update -o Acquire::Retries=3 \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends nginx \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default

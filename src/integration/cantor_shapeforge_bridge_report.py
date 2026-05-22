@@ -10,7 +10,7 @@ from .cantor_region_backend_invariance_receipt import build_cantor_region_backen
 
 
 SHAPEFORGE_CANTOR_BRIDGE_REPORT_SCHEMA = "zenodex/shapeforge-cantor-bridge-report/v1"
-DEFAULT_SHAPEFORGE_WORLD_MODEL_PATH = Path("docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json")
+DEFAULT_SHAPEFORGE_WORLD_MODEL_PATH = Path("docs/zenodex/world_model_promoted/zenodex_world_model.seed.json")
 
 
 _SURFACE_BRIDGE_CONFIG: dict[str, dict[str, object]] = {

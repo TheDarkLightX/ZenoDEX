@@ -41,8 +41,8 @@ pytest -q \
   tests/test_zenodex_oracle_economic_security_chaos.py
 
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
-pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
-pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
-pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
+pytest -q tests/integration/test_perp_engine.py -k oracle
+pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k 'publish_price_2p or settle_epoch_2p'
+pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k 'publish_price_3p or settle_epoch_3p'
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
-pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
+pytest -q tests/integration/test_api_server_dex_api.py -k oracle_contract

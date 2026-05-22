@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ORACLE_CONSUMER_PROFILES,
   ORACLE_DISPUTES,
@@ -550,15 +550,6 @@ function LatestRead({ feed, onVerifyReceipt }) {
 function VerifyPanel({ initialReceiptId = '' }) {
   const [receiptId, setReceiptId] = useState(initialReceiptId);
   const [status, setStatus] = useState(initialReceiptId ? 'Ready to replay' : 'Waiting for receipt ID');
-
-  useEffect(() => {
-    const nextId = String(initialReceiptId || '').trim();
-    if (!nextId || nextId === receiptId) {
-      return;
-    }
-    setReceiptId(nextId);
-    setStatus('Ready to replay');
-  }, [initialReceiptId, receiptId]);
 
   async function verifyReceipt() {
     const id = receiptId.trim();
@@ -1833,7 +1824,7 @@ function ZenoOracleDashboard() {
   const oracleSmokeRan = useRef(false);
   const oracleAuthorityExerciseSmokeRan = useRef(false);
 
-  async function postOracle(path, payload) {
+  const postOracle = useCallback(async (path, payload) => {
     const response = await fetch(zenoOracleApiUrl(path), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1844,9 +1835,9 @@ function ZenoOracleDashboard() {
       throw new Error(body.error || `HTTP ${response.status}`);
     }
     return body;
-  }
+  }, []);
 
-  async function runAuthorityExercise() {
+  const runAuthorityExercise = useCallback(async () => {
     setAuthorityExerciseBusy(true);
     setAuthorityExerciseState('oracle authority exercise running');
     try {
@@ -1870,7 +1861,7 @@ function ZenoOracleDashboard() {
     } finally {
       setAuthorityExerciseBusy(false);
     }
-  }
+  }, [postOracle]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1925,7 +1916,7 @@ function ZenoOracleDashboard() {
     void runSmoke().catch((error) => {
       setOracleSmokeStatus(`oracle write smoke failed ${error?.message || 'unknown'}`);
     });
-  }, []);
+  }, [postOracle]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1942,7 +1933,7 @@ function ZenoOracleDashboard() {
     }
     window.sessionStorage.setItem(storageKey, '1');
     void runAuthorityExercise().catch(() => {});
-  }, []);
+  }, [runAuthorityExercise]);
 
   const feeds = remoteData?.feeds?.length ? remoteData.feeds : ORACLE_FEEDS;
   const reporters = remoteData?.reporters || ORACLE_REPORTERS;
@@ -2055,7 +2046,7 @@ function ZenoOracleDashboard() {
       return (
         <>
           <div className="zor-two-up">
-            <VerifyPanel initialReceiptId={verifyReceiptId} />
+            <VerifyPanel key={verifyReceiptId || 'empty'} initialReceiptId={verifyReceiptId} />
             <ServicesPanel />
           </div>
           <AuthorizationTrailPanel items={authorizationTrail} />
@@ -2214,7 +2205,7 @@ function ZenoOracleDashboard() {
             <FeedStatusPanel feed={selectedFeed} />
             <ReceiptBuilderPanel feed={selectedFeed} />
             <DisputesPanel disputes={disputes} />
-            <VerifyPanel initialReceiptId={verifyReceiptId} />
+            <VerifyPanel key={verifyReceiptId || 'empty'} initialReceiptId={verifyReceiptId} />
             <ServicesPanel />
           </aside>
         </div>
