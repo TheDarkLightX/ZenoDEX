@@ -58,7 +58,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
 )
 from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
 from tools.zeno_ledger_run_local import ZERO_ROOT, build_local_block_v0
-from tools.operator_report_output import print_operator_json, write_public_json
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps
 
 
 NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
@@ -85,7 +85,8 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 
 
 def _write_json(path: Path, value: object) -> None:
-    write_public_json(path, value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(public_storage_json_dumps(value) + "\n", encoding="utf-8")
 
 
 def _is_safe_relative(path_text: str) -> bool:
@@ -2266,7 +2267,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
@@ -2278,7 +2279,7 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_SYNC_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
@@ -2289,7 +2290,7 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
         strict_exposure=args.strict_exposure,
         public_operator=args.public_operator,
     )
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
@@ -2307,7 +2308,7 @@ def _cmd_write_network_config(args: argparse.Namespace) -> int:
         report = {**report, "config_path": str(args.out)}
     except Exception as exc:
         report = {"schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if "errors" not in report else 1
 
 
@@ -2322,7 +2323,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     if report.get("ok") is not True:
         return 1
     if args.serve:
@@ -2351,7 +2352,7 @@ def _cmd_append(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
@@ -2363,7 +2364,7 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_PULL_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
@@ -2375,7 +2376,7 @@ def _cmd_check_peers(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_PEER_CHECK_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
@@ -2384,7 +2385,7 @@ def _cmd_join(args: argparse.Namespace) -> int:
         report = join_public_node_from_config_v0(config_path=args.config)
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     if report.get("ok") is not True:
         return 1
     config = dict(_load_json_object(args.config))
@@ -2428,7 +2429,7 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     if report.get("ok") is not True:
         return 1
     if args.serve:
@@ -2468,7 +2469,7 @@ def _cmd_faucet(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 

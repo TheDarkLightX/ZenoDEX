@@ -25,14 +25,15 @@ from tools.zeno_ledger_make_testnet_bundle import (
     build_testnet_bundle_v0,
 )
 from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
-from tools.operator_report_output import print_operator_json, write_public_json
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
 
 
 def _write_json(path: Path, value: object) -> None:
-    write_public_json(path, value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(public_storage_json_dumps(value) + "\n", encoding="utf-8")
 
 
 def _resolve_manifest_path(manifest_path: Path, path_text: object, *, name: str) -> Path:
@@ -1341,7 +1342,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report["ok"] else 1
 
 

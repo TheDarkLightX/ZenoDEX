@@ -193,7 +193,7 @@ def _header(body: dict[str, object], *, prev_header_hash: str) -> dict[str, obje
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_bytes(json.dumps(value, indent=2, sort_keys=True).encode("utf-8"))
 
 
 def _manifest_relative_path(manifest_path: Path, value: object) -> Path:

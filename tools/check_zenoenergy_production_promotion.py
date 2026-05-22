@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.operator_report_output import print_operator_json  # noqa: E402
+from tools.operator_report_output import operator_json_dumps  # noqa: E402
 
 
 MIN_UPBA_REAL_BATCHES = 1_000
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_markdown is not None:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(report), encoding="utf-8")
-    print_operator_json(report)
+    print(operator_json_dumps(report))
     return 0 if report["decision"] != "invalid_evidence" else 1
 
 

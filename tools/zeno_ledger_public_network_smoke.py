@@ -37,7 +37,7 @@ from tools.zeno_ledger_node import (
     run_node_once_v0,
     sync_public_bundle_from_url_v0,
 )
-from tools.operator_report_output import print_operator_json, write_public_json
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.public_network_smoke_report.v0"
@@ -435,8 +435,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         report = {"schema": REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
     if args.report_out is not None:
-        write_public_json(args.report_out, report)
-    print_operator_json(report)
+        args.report_out.parent.mkdir(parents=True, exist_ok=True)
+        args.report_out.write_text(public_storage_json_dumps(report) + "\n", encoding="utf-8")
+    print(operator_json_dumps(report))
     return 0 if report.get("ok") is True else 1
 
 
