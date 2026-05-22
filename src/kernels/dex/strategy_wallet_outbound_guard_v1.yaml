@@ -1,0 +1,86 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_wallet_outbound_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless sender-scoped outbound veto guard for Tau control-plane policy.
+
+    Semantics:
+    - disabled rule is neutral and allows
+    - sender mismatch is neutral and allows
+    - matching sender must satisfy amount cap and context flags
+observables:
+  state_vars: []
+  effects:
+    [
+      "rule_enabled",
+      "sender_scope_match",
+      "amount_ok",
+      "context_ok",
+      "outbound_allowed",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_wallet_outbound"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "max_outbound_amount"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "sender_id"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "scoped_sender_id"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "destination_allowed"
+        type: { kind: "bool" }
+      - id: "session_active"
+        type: { kind: "bool" }
+      - id: "policy_hash_ok"
+        type: { kind: "bool" }
+      - id: "enabled"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      rule_enabled: { param: "enabled" }
+      sender_scope_match:
+        op: "="
+        args:
+          - { param: "sender_id" }
+          - { param: "scoped_sender_id" }
+      amount_ok:
+        op: "<="
+        args:
+          - { param: "amount" }
+          - { param: "max_outbound_amount" }
+      context_ok:
+        op: "and"
+        args:
+          - { param: "destination_allowed" }
+          - { param: "session_active" }
+          - { param: "policy_hash_ok" }
+      outbound_allowed:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "enabled" }]
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args:
+                      - { param: "sender_id" }
+                      - { param: "scoped_sender_id" }
+              - op: "and"
+                args:
+                  - op: "<="
+                    args:
+                      - { param: "amount" }
+                      - { param: "max_outbound_amount" }
+                  - { param: "destination_allowed" }
+                  - { param: "session_active" }
+                  - { param: "policy_hash_ok" }

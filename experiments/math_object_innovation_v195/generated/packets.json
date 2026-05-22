@@ -1,0 +1,194 @@
+[
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": true,
+    "failed_atoms": [],
+    "no_user_net_ack_ok": true,
+    "packet_id": "valid_route_override",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": true,
+    "failed_atoms": [],
+    "no_user_net_ack_ok": true,
+    "packet_id": "valid_uncapped_surface_override",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": false,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "domain_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "wrong_domain_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "surface_binding_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "surface_mismatch_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": false
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": false,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "cap_reference_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "stale_cap_reference_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": false,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "assumption_nonce_fresh"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "replayed_assumption_id_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "signer_threshold_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "threshold_drift_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": false,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "registry_root_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "registry_root_drift_bad",
+    "registry_root_ok": false,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": false,
+    "expected_good": false,
+    "failed_atoms": [
+      "epoch_freshness_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "expired_override_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "no_user_net_ack_ok"
+    ],
+    "no_user_net_ack_ok": false,
+    "packet_id": "missing_ack_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "registry_root_ok",
+      "signer_threshold_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "text_right_but_no_authority_bad",
+    "registry_root_ok": false,
+    "signer_threshold_ok": false,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": false,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "cap_reference_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "fresh_signature_wrong_cap_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": true
+  },
+  {
+    "assumption_nonce_fresh": true,
+    "cap_reference_ok": true,
+    "domain_ok": true,
+    "epoch_freshness_ok": true,
+    "expected_good": false,
+    "failed_atoms": [
+      "surface_binding_ok"
+    ],
+    "no_user_net_ack_ok": true,
+    "packet_id": "fresh_cap_wrong_surface_bad",
+    "registry_root_ok": true,
+    "signer_threshold_ok": true,
+    "surface_binding_ok": false
+  }
+]

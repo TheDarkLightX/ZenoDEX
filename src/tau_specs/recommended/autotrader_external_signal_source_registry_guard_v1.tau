@@ -1,0 +1,66 @@
+# AutoTrader External Signal Source Registry Guard v1
+#
+# PURPOSE: Bind an external signal observation to an allowlisted source-registry entry.
+#
+# i1  = registry_entry_present (sbf)
+# i2  = registry_entry_enabled (sbf)
+# i3  = observed_source_kind_code (bv[32])
+# i4  = observed_trust_tier_code (bv[32])
+# i5  = advisory_only (sbf)
+# i6  = auth_ok (sbf)
+# i7  = freshness_ok (sbf)
+# i8  = registered_source_kind_code (bv[32])
+# i9  = allow_advisory (sbf)
+# i10 = allow_attested (sbf)
+# i11 = allow_verified (sbf)
+# i12 = allow_protocol (sbf)
+# i13 = require_advisory_only (sbf)
+# i14 = require_auth (sbf)
+# i15 = require_freshness (sbf)
+# o8  = source_registry_ok
+
+set charvar off
+
+registry_entry_found(registry_entry_present : sbf) :=
+  registry_entry_present = 1:sbf.
+
+registry_enabled_ok(registry_entry_present : sbf, registry_entry_enabled : sbf) :=
+  (registry_entry_present = 1:sbf) &&
+  (registry_entry_enabled = 1:sbf).
+
+source_kind_matches(registry_entry_present : sbf, observed_source_kind_code : bv[32], registered_source_kind_code : bv[32]) :=
+  (registry_entry_present = 1:sbf) &&
+  (observed_source_kind_code = registered_source_kind_code).
+
+trust_tier_allowed(registry_entry_present : sbf, observed_trust_tier_code : bv[32], allow_advisory : sbf, allow_attested : sbf, allow_verified : sbf, allow_protocol : sbf) :=
+  (registry_entry_present = 1:sbf) &&
+  (
+    ((observed_trust_tier_code = { #x00000000 }:bv[32]) && (allow_advisory = 1:sbf)) ||
+    ((observed_trust_tier_code = { #x00000001 }:bv[32]) && (allow_attested = 1:sbf)) ||
+    ((observed_trust_tier_code = { #x00000002 }:bv[32]) && (allow_verified = 1:sbf)) ||
+    ((observed_trust_tier_code = { #x00000003 }:bv[32]) && (allow_protocol = 1:sbf))
+  ).
+
+advisory_mode_allowed(require_advisory_only : sbf, advisory_only : sbf) :=
+  (require_advisory_only = 0:sbf) ||
+  (advisory_only = 1:sbf).
+
+auth_requirement_ok(require_auth : sbf, auth_ok : sbf) :=
+  (require_auth = 0:sbf) ||
+  (auth_ok = 1:sbf).
+
+freshness_requirement_ok(require_freshness : sbf, freshness_ok : sbf) :=
+  (require_freshness = 0:sbf) ||
+  (freshness_ok = 1:sbf).
+
+source_registry_ok(registry_entry_present : sbf, registry_entry_enabled : sbf, observed_source_kind_code : bv[32], observed_trust_tier_code : bv[32], advisory_only : sbf, auth_ok : sbf, freshness_ok : sbf, registered_source_kind_code : bv[32], allow_advisory : sbf, allow_attested : sbf, allow_verified : sbf, allow_protocol : sbf, require_advisory_only : sbf, require_auth : sbf, require_freshness : sbf) :=
+  registry_entry_found(registry_entry_present) &&
+  registry_enabled_ok(registry_entry_present, registry_entry_enabled) &&
+  source_kind_matches(registry_entry_present, observed_source_kind_code, registered_source_kind_code) &&
+  trust_tier_allowed(registry_entry_present, observed_trust_tier_code, allow_advisory, allow_attested, allow_verified, allow_protocol) &&
+  advisory_mode_allowed(require_advisory_only, advisory_only) &&
+  auth_requirement_ok(require_auth, auth_ok) &&
+  freshness_requirement_ok(require_freshness, freshness_ok).
+
+always
+  (o8[t]:sbf = 1:sbf <-> source_registry_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:bv[32], i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)).

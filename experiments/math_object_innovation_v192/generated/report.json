@@ -1,0 +1,70 @@
+{
+  "accepted_count": 18,
+  "actual_reject_reason_counts": {
+    "user_fee_exceeds_measured_value": 1,
+    "wash_score_rejected": 1
+  },
+  "artifacts": {
+    "calibration_report": "generated/calibration_report.json",
+    "execution_receipts_jsonl": "generated/execution_revenue_surface_receipts.jsonl",
+    "fee_cap_recommendations": "generated/fee_cap_recommendations.json"
+  },
+  "candidate_review_cap_count": 2,
+  "discovery_domain": {
+    "bad_execution_row_count": 2,
+    "exact_in_amounts": [
+      1000,
+      5000,
+      10000
+    ],
+    "exact_out_amounts": [
+      500,
+      1000,
+      5000
+    ],
+    "market_case_count": 3
+  },
+  "execution_metrics": {
+    "exact_out_receipt_count": 9,
+    "exact_out_savings_max": 4183,
+    "exact_out_savings_min": 55,
+    "market_case_count": 3,
+    "route_improvement_max": 7441,
+    "route_improvement_min": 119,
+    "route_receipt_count": 9
+  },
+  "expected_reject_reason_counts": {
+    "user_fee_exceeds_measured_value": 1,
+    "wash_score_rejected": 1
+  },
+  "holdout_domain": "none; deterministic execution-derived fixtures only",
+  "launch_parameter_claim_count": 0,
+  "model_audit": {
+    "calibration_invariant_failures": 0,
+    "recommendation_invariant_failures": 0,
+    "total_execution_receipt_invariant_failures": 0
+  },
+  "non_claims": [
+    "The market cases are fixtures, not live telemetry.",
+    "The result tests receipt generation and cap guards against real router arithmetic; it does not prove fee optimality.",
+    "Runtime launch fees still require production receipt replay and governance approval."
+  ],
+  "object": "execution_derived_fee_receipt_bridge_v1",
+  "oracle_dependent": true,
+  "receipt_count": 20,
+  "recommended_caps": {
+    "exact_out_savings_capture": 2497,
+    "route_surplus_capture": 2500
+  },
+  "reject_reason_mismatches": {},
+  "rejected_count": 2,
+  "retail_cap_failures": 0,
+  "schema": "zenodex/math-object-innovation-v192-report/v1",
+  "status_counts": {
+    "candidate_review_cap": 2,
+    "rejected_only": 2
+  },
+  "strongest_claim": "On three deterministic CPMM routing markets, actual best-route improvements generate 18 accepted fee receipts and two deliberately bad rows. The same calibration bridge emits two review caps, keeps retail caps at or below 2500 bps of measured value, and rejects the bad rows for the expected reasons.",
+  "tier": "descriptive_oracle",
+  "unexpected_reject_reasons": {}
+}

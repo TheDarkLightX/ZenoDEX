@@ -4,16 +4,17 @@ from hashlib import sha256
 from math import gcd
 
 from src.core.cpmm import compute_fee_total
-from src.core.batch_clearing import compute_settlement
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
     UNIFORM_BATCH_CERTIFICATE_SCHEMA_V2,
+    UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
     UNIFORM_BATCH_MAX_FILLS,
     UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
     UNIFORM_BATCH_PRICE_OBJECTIVE_ID,
     UNIFORM_BATCH_POLICY_ID,
     UNIFORM_BATCH_POLICY_V2_ID,
+    UNIFORM_BATCH_POLICY_V3_ID,
     UNIFORM_BATCH_PRICE_RATIO_MAX,
     UNIFORM_BATCH_UNFILLED_REASON,
     build_uniform_batch_settlement_v1,
@@ -23,14 +24,17 @@ from src.core.uniform_batch_clearing import (
 from src.core.uniform_batch_optimality import (
     UniformBatchAuditCandidateV1,
     UniformBatchOptimalityCertificateV1,
+    build_uniform_batch_exact_out_grid_audit_candidates_v1,
+    build_uniform_batch_optimality_certificate_v1,
+    build_uniform_batch_v2_bounded_grid_audit_candidates_v1,
+    build_uniform_batch_v2_bounded_grid_optimality_table_v1,
     uniform_batch_candidate_id_for_certificate,
     uniform_batch_optimality_candidate_set_hash,
+    uniform_batch_v2_bounded_grid_optimality_table_root,
 )
-from src.core.uniform_batch_price_grid_table import build_uniform_batch_price_grid_table_v1
 from src.core.settlement import FillAction
-from src.integration.dex_engine import DexEngineConfig, apply_ops
+from src.integration.dex_engine import DexEngineConfig, apply_ops, make_strict_upba_engine_config
 from src.integration.operations import create_settlement_operation, parse_intents
-from src.integration.upba_production_config import make_upba_v1_bounded_price_grid_engine_config
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -116,6 +120,31 @@ def _swap_dict(
     }
 
 
+def _exact_out_swap_dict(
+    *,
+    label: str,
+    asset_in: str,
+    asset_out: str,
+    nonce: int,
+    amount_out: int = 100,
+    max_amount_in: int = 100,
+) -> dict[str, object]:
+    return {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "SWAP_EXACT_OUT",
+        "intent_id": _intent_id(label),
+        "sender_pubkey": SENDER,
+        "deadline": 999_999_999,
+        "nonce": nonce,
+        "pool_id": "pool_ab",
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_out": amount_out,
+        "max_amount_in": max_amount_in,
+    }
+
+
 def _intent(
     *,
     label: str,
@@ -139,6 +168,33 @@ def _intent(
             "asset_out": asset_out,
             "amount_in": amount_in,
             "min_amount_out": min_amount_out,
+        },
+    )
+
+
+def _exact_out_intent(
+    *,
+    label: str,
+    asset_in: str,
+    asset_out: str,
+    nonce: int,
+    amount_out: int = 100,
+    max_amount_in: int = 100,
+) -> Intent:
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_intent_id(label),
+        sender_pubkey=SENDER,
+        deadline=999_999_999,
+        fields={
+            "nonce": nonce,
+            "pool_id": "pool_ab",
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_out": amount_out,
+            "max_amount_in": max_amount_in,
         },
     )
 
@@ -235,6 +291,46 @@ def _v2_certificate_for(
     )
 
 
+def _v3_exact_out_certificate_for(
+    *,
+    intents: list[Intent],
+    pool: PoolState,
+    executed_in_by_id: dict[str, int],
+) -> UniformBatchCertificateV1:
+    base_to_quote_net = 0
+    quote_to_base_net = 0
+    for intent in intents:
+        executed_in = int(executed_in_by_id[intent.intent_id])
+        net_in = executed_in - compute_fee_total(executed_in, pool.fee_bps)
+        if str(intent.get_field("asset_in")) == pool.asset0:
+            base_to_quote_net += net_in
+        else:
+            quote_to_base_net += net_in
+    if base_to_quote_net > 0 and quote_to_base_net > 0:
+        price_num, price_den = _reduce_ratio(quote_to_base_net, base_to_quote_net)
+    else:
+        price_num, price_den = _reduce_ratio(pool.reserve1, pool.reserve0)
+    return UniformBatchCertificateV1(
+        pool_id=pool.pool_id,
+        base_asset=pool.asset0,
+        quote_asset=pool.asset1,
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
+        intent_set_hash=uniform_batch_intent_set_hash(intents),
+        price_num=price_num,
+        price_den=price_den,
+        fills=tuple(
+            UniformBatchFillV1(
+                intent_id=intent.intent_id,
+                executed_in=int(executed_in_by_id[intent.intent_id]),
+                executed_out=int(intent.get_field("amount_out")),
+            )
+            for intent in sorted(intents, key=lambda item: item.intent_id)
+        ),
+        policy_id=UNIFORM_BATCH_POLICY_V3_ID,
+        schema=UNIFORM_BATCH_CERTIFICATE_SCHEMA_V3,
+    )
+
+
 def _ratio_intents() -> list[Intent]:
     return [
         _intent(
@@ -323,15 +419,71 @@ def _ops_with_uniform_certificate(*, tamper_settlement: bool = False) -> dict[st
     return {"2": _intent_ops(), "3": settlement_op}
 
 
-def _ops_with_sequential_settlement() -> dict[str, object]:
+def _exact_out_intents() -> list[Intent]:
+    return [
+        _exact_out_intent(label="a-to-b-exact-out", asset_in="A", asset_out="B", nonce=1),
+        _exact_out_intent(label="b-to-a-exact-out", asset_in="B", asset_out="A", nonce=2),
+    ]
+
+
+def _exact_out_intent_ops() -> list[dict[str, object]]:
+    return [
+        _exact_out_swap_dict(label="a-to-b-exact-out", asset_in="A", asset_out="B", nonce=1),
+        _exact_out_swap_dict(label="b-to-a-exact-out", asset_in="B", asset_out="A", nonce=2),
+    ]
+
+
+def _ops_with_uniform_exact_out_certificate() -> dict[str, object]:
     state = _state()
-    settlement = compute_settlement(
-        intents=_intents(),
-        pools=state.pools,
-        balances=state.balances,
-        lp_balances=state.lp_balances,
+    intents = _exact_out_intents()
+    cert = _v3_exact_out_certificate_for(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        executed_in_by_id={intent.intent_id: 100 for intent in intents},
     )
-    return {"2": _intent_ops(), "3": create_settlement_operation(settlement)["3"]}
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = cert.to_dict()
+    return {"2": _exact_out_intent_ops(), "3": settlement_op}
+
+
+def _ops_with_uniform_exact_out_certificate_and_optimality() -> dict[str, object]:
+    ops = _ops_with_uniform_exact_out_certificate()
+    cert = UniformBatchCertificateV1.from_obj(ops["3"]["uniform_batch_certificate"])
+    optimality = _optimality_certificate_for_uniform_certificate(cert)
+    ops["3"]["uniform_batch_optimality_certificate"] = optimality.to_dict()
+    return ops
+
+
+def _ops_with_uniform_exact_out_certificate_and_grid_optimality(
+    *,
+    max_price_num: int = 1,
+    max_price_den: int = 1,
+) -> dict[str, object]:
+    ops = _ops_with_uniform_exact_out_certificate()
+    state = _state()
+    intents = _exact_out_intents()
+    scored_candidates = build_uniform_batch_exact_out_grid_audit_candidates_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        max_price_num=max_price_num,
+        max_price_den=max_price_den,
+    )
+    optimality = build_uniform_batch_optimality_certificate_v1(
+        tuple(item.audit_candidate for item in scored_candidates)
+    )
+    ops["3"]["uniform_batch_optimality_certificate"] = optimality.to_dict()
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {
+        "max_price_num": max_price_num,
+        "max_price_den": max_price_den,
+    }
+    return ops
 
 
 def _optimality_certificate_for_uniform_certificate(
@@ -374,26 +526,6 @@ def _ops_with_uniform_certificate_and_optimality(
     cert = UniformBatchCertificateV1.from_obj(ops["3"]["uniform_batch_certificate"])
     optimality = _optimality_certificate_for_uniform_certificate(cert, winner_id=winner_id)
     ops["3"]["uniform_batch_optimality_certificate"] = optimality.to_dict()
-    return ops
-
-
-def _ops_with_uniform_certificate_and_price_grid() -> dict[str, object]:
-    state = _state()
-    intents = _intents()
-    cert = _certificate(intents)
-    ops = _ops_with_uniform_certificate()
-    config, rows, witness = build_uniform_batch_price_grid_table_v1(
-        intents=intents,
-        pool=state.pools["pool_ab"],
-        balances=state.balances,
-        uniform_batch_certificate=cert,
-        settlement_id="settlement-engine-price-grid",
-        max_price_num=2,
-        max_price_den=2,
-    )
-    ops["3"]["uniform_batch_price_grid_config"] = config.to_dict()
-    ops["3"]["uniform_batch_price_grid_rows"] = [row.to_dict() for row in rows]
-    ops["3"]["uniform_batch_price_grid_witness"] = witness.to_dict()
     return ops
 
 
@@ -628,6 +760,48 @@ def _ops_with_v2_partial_certificate() -> dict[str, object]:
     return {"2": _ratio_intent_ops(), "3": settlement_op}
 
 
+def _ops_with_v2_partial_certificate_and_bounded_grid(
+    *,
+    table_root: str | None = None,
+) -> dict[str, object]:
+    ops = _ops_with_v2_partial_certificate()
+    state = _state()
+    intents = _ratio_intents()
+    winner_cert = UniformBatchCertificateV1.from_obj(ops["3"]["uniform_batch_certificate"])
+    lower_cert = _v2_certificate_for(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        executed_in_by_id={
+            intents[0].intent_id: 50,
+            intents[1].intent_id: 50,
+        },
+    )
+    fill_vectors = (lower_cert.fills, winner_cert.fills)
+    scored_candidates = build_uniform_batch_v2_bounded_grid_audit_candidates_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        max_price_num=1,
+        max_price_den=1,
+        fill_vectors=fill_vectors,
+    )
+    optimality = build_uniform_batch_optimality_certificate_v1(
+        tuple(item.audit_candidate for item in scored_candidates)
+    )
+    rows = build_uniform_batch_v2_bounded_grid_optimality_table_v1(scored_candidates)
+    ops["3"]["uniform_batch_optimality_certificate"] = optimality.to_dict()
+    ops["3"]["uniform_batch_v2_bounded_grid"] = {
+        "max_price_num": 1,
+        "max_price_den": 1,
+        "fill_vectors": [
+            [fill.to_dict() for fill in fill_vector]
+            for fill_vector in fill_vectors
+        ],
+        "table_root": table_root or uniform_batch_v2_bounded_grid_optimality_table_root(rows),
+    }
+    return ops
+
+
 def _ops_with_v2_zero_fill_certificate() -> dict[str, object]:
     state = _high_fee_state()
     intents = _ratio_intents()
@@ -698,14 +872,14 @@ def test_engine_accepts_uniform_batch_optimality_certificate_when_bound() -> Non
     assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
 
 
-def test_engine_accepts_uniform_batch_price_grid_evidence_when_bound() -> None:
+def test_engine_accepts_uniform_batch_v3_exact_out_certificate_when_enabled() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
-        operations=_ops_with_uniform_certificate_and_price_grid(),
+        operations=_ops_with_uniform_exact_out_certificate(),
         block_timestamp=0,
         tx_sender_pubkey=SENDER,
     )
@@ -713,33 +887,56 @@ def test_engine_accepts_uniform_batch_price_grid_evidence_when_bound() -> None:
     assert result.ok, result.error
     assert result.settlement is not None
     assert result.settlement.events is not None
-    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V3"
+    assert result.settlement.events[0]["policy_id"] == UNIFORM_BATCH_POLICY_V3_ID
 
 
-def test_engine_accepts_uniform_batch_price_grid_evidence_when_required() -> None:
+def test_engine_strict_upba_posture_rejects_supported_swaps_without_certificate() -> None:
+    ops = _ops_with_uniform_certificate()
+    del ops["3"]["uniform_batch_certificate"]
+
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
-            require_uniform_batch_price_grid_evidence=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
             require_intent_signatures=False,
         ),
         state=_state(),
-        operations=_ops_with_uniform_certificate_and_price_grid(),
+        operations=ops,
         block_timestamp=0,
         tx_sender_pubkey=SENDER,
     )
 
-    assert result.ok, result.error
-    assert result.settlement is not None
-    assert result.settlement.events is not None
-    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+    assert result.ok is False
+    assert result.error == "uniform batch certificate required for supported swaps"
 
 
-def test_engine_rejects_uniform_batch_certificate_without_price_grid_when_required() -> None:
+def test_engine_strict_upba_posture_rejects_supported_exact_out_without_certificate() -> None:
+    ops = _ops_with_uniform_exact_out_certificate()
+    del ops["3"]["uniform_batch_certificate"]
+
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
-            require_uniform_batch_price_grid_evidence=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate required for supported swaps"
+
+
+def test_engine_strict_upba_posture_rejects_certificate_without_optimality() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
@@ -749,81 +946,19 @@ def test_engine_rejects_uniform_batch_certificate_without_price_grid_when_requir
     )
 
     assert result.ok is False
-    assert result.error == "uniform batch price grid evidence required"
+    assert result.error == "uniform batch optimality certificate required"
 
 
-def test_engine_config_rejects_required_price_grid_without_uniform_batch_bridge() -> None:
-    try:
-        DexEngineConfig(require_uniform_batch_price_grid_evidence=True)
-    except ValueError as exc:
-        assert str(exc) == (
-            "require_uniform_batch_price_grid_evidence=True "
-            "requires allow_uniform_batch_certificate=True"
-        )
-    else:  # pragma: no cover - explicit failure branch for assertion clarity
-        raise AssertionError("expected price-grid requirement config rejection")
-
-
-def test_engine_config_rejects_required_uniform_batch_without_bridge() -> None:
-    try:
-        DexEngineConfig(require_uniform_batch_certificate=True)
-    except ValueError as exc:
-        assert str(exc) == (
-            "require_uniform_batch_certificate=True requires allow_uniform_batch_certificate=True"
-        )
-    else:  # pragma: no cover - explicit failure branch for assertion clarity
-        raise AssertionError("expected uniform-batch requirement config rejection")
-
-
-def test_upba_bounded_price_grid_engine_config_forces_strict_posture() -> None:
-    cfg = make_upba_v1_bounded_price_grid_engine_config(
-        DexEngineConfig(
-            allow_missing_settlement=True,
-            require_settlement_match=False,
-            require_intent_signatures=False,
-            allow_external_tools=True,
-            consensus_mode=False,
-            allow_unsigned_intents_if_tx_sender_matches=False,
-        )
-    )
-
-    assert cfg.allow_missing_settlement is False
-    assert cfg.require_settlement_match is True
-    assert cfg.require_intent_signatures is True
-    assert cfg.allow_unsigned_intents_if_tx_sender_matches is False
-    assert cfg.allow_external_tools is False
-    assert cfg.consensus_mode is True
-    assert cfg.allow_uniform_batch_certificate is True
-    assert cfg.require_uniform_batch_certificate is True
-    assert cfg.require_uniform_batch_price_grid_evidence is True
-    assert cfg.enable_test_fault_injection is False
-    assert cfg.fault_injection is None
-
-
-def test_engine_rejects_swap_batch_without_uniform_certificate_when_required() -> None:
+def test_engine_strict_upba_posture_accepts_certificate_with_bound_optimality() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
-            require_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
-        operations=_ops_with_sequential_settlement(),
-        block_timestamp=0,
-        tx_sender_pubkey=SENDER,
-    )
-
-    assert result.ok is False
-    assert result.error == "uniform batch certificate required"
-
-
-def test_upba_bounded_price_grid_engine_config_accepts_bound_certificate() -> None:
-    result = apply_ops(
-        config=make_upba_v1_bounded_price_grid_engine_config(
-            DexEngineConfig(require_intent_signatures=False)
-        ),
-        state=_state(),
-        operations=_ops_with_uniform_certificate_and_price_grid(),
+        operations=_ops_with_uniform_certificate_and_optimality(),
         block_timestamp=0,
         tx_sender_pubkey=SENDER,
     )
@@ -834,68 +969,69 @@ def test_upba_bounded_price_grid_engine_config_accepts_bound_certificate() -> No
     assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
 
 
-def test_engine_rejects_uniform_batch_price_grid_without_uniform_certificate() -> None:
-    ops = _ops_with_uniform_certificate_and_price_grid()
-    del ops["3"]["uniform_batch_certificate"]
-
+def test_engine_strict_upba_posture_accepts_exact_out_certificate_with_bound_optimality() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
-        operations=ops,
+        operations=_ops_with_uniform_exact_out_certificate_and_optimality(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V3"
+
+
+def test_engine_strict_upba_posture_rejects_v3_exact_out_without_grid_evidence() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
+            require_uniform_batch_v3_exact_out_grid_optimality=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_exact_out_certificate_and_optimality(),
         block_timestamp=0,
         tx_sender_pubkey=SENDER,
     )
 
     assert result.ok is False
-    assert result.error == "uniform batch price grid evidence requires uniform batch certificate"
+    assert result.error == "uniform batch v3 exact-out grid evidence required"
 
 
-def test_engine_rejects_partial_uniform_batch_price_grid_evidence() -> None:
-    ops = _ops_with_uniform_certificate_and_price_grid()
-    del ops["3"]["uniform_batch_price_grid_rows"]
-
+def test_engine_strict_upba_posture_accepts_v3_exact_out_with_grid_evidence() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
+            require_uniform_batch_v3_exact_out_grid_optimality=True,
             require_intent_signatures=False,
         ),
         state=_state(),
-        operations=ops,
+        operations=_ops_with_uniform_exact_out_certificate_and_grid_optimality(),
         block_timestamp=0,
         tx_sender_pubkey=SENDER,
     )
 
-    assert result.ok is False
-    assert result.error == "uniform batch price grid evidence requires config, rows, and witness"
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V3"
 
 
-def test_engine_rejects_uniform_batch_price_grid_non_list_rows() -> None:
-    ops = _ops_with_uniform_certificate_and_price_grid()
-    ops["3"]["uniform_batch_price_grid_rows"] = "bad"
-
-    result = apply_ops(
-        config=DexEngineConfig(
-            allow_uniform_batch_certificate=True,
-            require_intent_signatures=False,
-        ),
-        state=_state(),
-        operations=ops,
-        block_timestamp=0,
-        tx_sender_pubkey=SENDER,
-    )
-
-    assert result.ok is False
-    assert result.error == "invalid settlement: settlement uniform_batch_price_grid_rows must be a list"
-
-
-def test_engine_rejects_tampered_uniform_batch_price_grid_evidence() -> None:
-    ops = _ops_with_uniform_certificate_and_price_grid()
-    rows = ops["3"]["uniform_batch_price_grid_rows"]
-    assert isinstance(rows, list)
-    rows[0]["volume"] = int(rows[0]["volume"]) + 1
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_candidate_set_mismatch() -> None:
+    ops = _ops_with_uniform_exact_out_certificate_and_grid_optimality()
+    ops["3"]["uniform_batch_optimality_certificate"]["candidate_set_hash"] = "different"
 
     result = apply_ops(
         config=DexEngineConfig(
@@ -910,9 +1046,182 @@ def test_engine_rejects_tampered_uniform_batch_price_grid_evidence() -> None:
 
     assert result.ok is False
     assert result.error == (
-        "uniform batch price grid evidence rejected: "
-        "price grid candidate_table_root mismatch"
+        "uniform batch optimality certificate rejected: "
+        "v3 exact-out grid candidate_set_hash mismatch"
     )
+
+
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_without_optimality() -> None:
+    ops = _ops_with_uniform_exact_out_certificate()
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {
+        "max_price_num": 1,
+        "max_price_den": 1,
+    }
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch v3 exact-out grid evidence requires optimality certificate"
+
+
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_on_v2_certificate() -> None:
+    ops = _ops_with_v2_partial_certificate_and_bounded_grid()
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {
+        "max_price_num": 1,
+        "max_price_den": 1,
+    }
+    del ops["3"]["uniform_batch_v2_bounded_grid"]
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch v3 exact-out grid evidence requires v3 uniform batch certificate"
+
+
+def test_engine_rejects_uniform_batch_bounded_grid_evidence_provided_twice() -> None:
+    ops = _ops_with_v2_partial_certificate_and_bounded_grid()
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = {
+        "max_price_num": 1,
+        "max_price_den": 1,
+    }
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch bounded-grid evidence provided twice"
+
+
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_non_object() -> None:
+    ops = _ops_with_uniform_exact_out_certificate_and_optimality()
+    ops["3"]["uniform_batch_v3_exact_out_grid"] = "bad"
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "invalid settlement: settlement uniform_batch_v3_exact_out_grid must be an object"
+    )
+
+
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_missing_bound() -> None:
+    ops = _ops_with_uniform_exact_out_certificate_and_grid_optimality()
+    del ops["3"]["uniform_batch_v3_exact_out_grid"]["max_price_den"]
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "uniform batch optimality certificate rejected: "
+        "uniform batch v3 exact-out grid evidence missing max_price_den"
+    )
+
+
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_unknown_field() -> None:
+    ops = _ops_with_uniform_exact_out_certificate_and_grid_optimality()
+    ops["3"]["uniform_batch_v3_exact_out_grid"]["table_root"] = "0x" + "0" * 64
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "uniform batch optimality certificate rejected: "
+        "uniform batch v3 exact-out grid evidence has unknown field table_root"
+    )
+
+
+def test_engine_rejects_uniform_batch_v3_exact_out_grid_bool_bound() -> None:
+    ops = _ops_with_uniform_exact_out_certificate_and_grid_optimality()
+    ops["3"]["uniform_batch_v3_exact_out_grid"]["max_price_num"] = True
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "uniform batch optimality certificate rejected: "
+        "uniform batch v3 exact-out grid max_price_num must be an int"
+    )
+
+
+def test_engine_strict_upba_config_requires_upba_enabled() -> None:
+    try:
+        DexEngineConfig(require_uniform_batch_certificate_for_supported_swaps=True)
+    except ValueError as exc:
+        assert str(exc) == "strict UPBA requirements require allow_uniform_batch_certificate=True"
+    else:
+        raise AssertionError("expected strict UPBA config rejection without allow_uniform_batch_certificate")
+
+
+def test_strict_upba_engine_config_factory_enables_required_flags() -> None:
+    config = make_strict_upba_engine_config()
+
+    assert config.allow_uniform_batch_certificate is True
+    assert config.require_uniform_batch_certificate_for_supported_swaps is True
+    assert config.require_uniform_batch_optimality_certificate is True
+    assert config.require_uniform_batch_v2_bounded_grid_optimality is True
+    assert config.require_uniform_batch_v3_exact_out_grid_optimality is True
 
 
 def test_engine_rejects_uniform_batch_optimality_without_uniform_certificate() -> None:
@@ -996,6 +1305,67 @@ def test_engine_accepts_uniform_batch_v2_partial_certificate_when_enabled() -> N
     assert result.settlement.events[0]["policy_id"] == UNIFORM_BATCH_POLICY_V2_ID
     assert [fill.action for fill in result.settlement.fills] == [FillAction.FILL, FillAction.FILL]
     assert [fill.amount_in_filled for fill in result.settlement.fills] == [100, 100]
+
+
+def test_engine_strict_upba_posture_rejects_v2_certificate_without_bounded_grid_evidence() -> None:
+    ops = _ops_with_v2_partial_certificate_and_bounded_grid()
+    del ops["3"]["uniform_batch_v2_bounded_grid"]
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
+            require_uniform_batch_v2_bounded_grid_optimality=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch v2 bounded-grid evidence required"
+
+
+def test_engine_strict_upba_posture_accepts_v2_certificate_with_bounded_grid_evidence() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_certificate_for_supported_swaps=True,
+            require_uniform_batch_optimality_certificate=True,
+            require_uniform_batch_v2_bounded_grid_optimality=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_v2_partial_certificate_and_bounded_grid(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V2"
+
+
+def test_engine_rejects_uniform_batch_v2_bounded_grid_table_root_mismatch() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_v2_partial_certificate_and_bounded_grid(table_root="0x" + "0" * 64),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "uniform batch optimality certificate rejected: v2 bounded-grid table_root mismatch"
+    )
 
 
 def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member() -> None:

@@ -1,0 +1,9 @@
+# Tests live in the repo but are not shipped to npm consumers.
+test/
+
+# Editor/CI artifacts.
+.DS_Store
+*.log
+.tap*
+coverage/
+node_modules/

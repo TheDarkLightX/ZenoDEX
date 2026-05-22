@@ -2,17 +2,31 @@
 
 from __future__ import annotations
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+import pytest
+
+from src.agents.intent_signer import (
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+    sign_intent,
+)
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
+from src.core.settlement import LPDelta, Settlement
 from src.integration.dex_engine import DexEngineConfig, apply_ops
-from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation, create_settlement_operation
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_settlement_operation,
+    create_signed_intent_operation,
+    parse_intents,
+)
 from src.integration.proof_verifier import ProofVerifierConfig
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus
 
 
@@ -83,6 +97,411 @@ def test_engine_computes_settlement_when_missing() -> None:
 
     # Creator received LP (excluding MIN_LP_LOCK).
     assert res.state.lp_balances.get(sender, pool_id) == lp_minted
+    assert res.state.lp_balances.get_last_mint_timestamp(sender, pool_id) == 0
+
+
+def test_engine_rejects_remove_liquidity_before_runtime_lp_age_lock_expires() -> None:
+    sender = "0x" + "ab" * 48
+    asset0 = "0x" + "13" * 32
+    asset1 = "0x" + "14" * 32
+    pool_id = "0x" + "15" * 32
+    lp = LPTable()
+    lp.set(sender, pool_id, 100)
+    lp.set_last_mint_timestamp(sender, pool_id, 10)
+    state = DexState(
+        balances=BalanceTable(),
+        pools={
+            pool_id: PoolState(
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
+                reserve0=1_000,
+                reserve1=1_000,
+                fee_bps=30,
+                lp_supply=1_000,
+                status=PoolStatus.ACTIVE,
+                created_at=0,
+                curve_tag="CPMM",
+                curve_params="",
+            )
+        },
+        lp_balances=lp,
+    )
+    ops = {
+        "2": [
+            {
+                "module": "TauSwap",
+                "version": "0.1",
+                "kind": "REMOVE_LIQUIDITY",
+                "intent_id": "0x" + "16" * 32,
+                "sender_pubkey": sender,
+                "deadline": 100,
+                "nonce": 1,
+                "pool_id": pool_id,
+                "lp_amount": 10,
+                "amount0_min": 0,
+                "amount1_min": 0,
+            }
+        ]
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            min_lp_position_age_seconds=20,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=15,
+        tx_sender_pubkey=sender,
+    )
+
+    assert not res.ok
+    assert res.error == "lp_position_locked for intent_id=" + "0x" + "16" * 32
+    assert state.lp_balances.get(sender, pool_id) == 100
+
+
+def test_engine_accepts_remove_liquidity_after_runtime_lp_age_lock_expires() -> None:
+    sender = "0x" + "ac" * 48
+    asset0 = "0x" + "17" * 32
+    asset1 = "0x" + "18" * 32
+    pool_id = "0x" + "19" * 32
+    lp = LPTable()
+    lp.set(sender, pool_id, 100)
+    lp.set_last_mint_timestamp(sender, pool_id, 10)
+    state = DexState(
+        balances=BalanceTable(),
+        pools={
+            pool_id: PoolState(
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
+                reserve0=1_000,
+                reserve1=1_000,
+                fee_bps=30,
+                lp_supply=1_000,
+                status=PoolStatus.ACTIVE,
+                created_at=0,
+                curve_tag="CPMM",
+                curve_params="",
+            )
+        },
+        lp_balances=lp,
+    )
+    intent_id = "0x" + "1a" * 32
+    ops = {
+        "2": [
+            {
+                "module": "TauSwap",
+                "version": "0.1",
+                "kind": "REMOVE_LIQUIDITY",
+                "intent_id": intent_id,
+                "sender_pubkey": sender,
+                "deadline": 100,
+                "nonce": 1,
+                "pool_id": pool_id,
+                "lp_amount": 10,
+                "amount0_min": 0,
+                "amount1_min": 0,
+            }
+        ]
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            min_lp_position_age_seconds=20,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=30,
+        tx_sender_pubkey=sender,
+    )
+
+    assert res.ok, res.error
+    assert res.state is not None
+    assert res.state.lp_balances.get(sender, pool_id) == 90
+    assert res.state.lp_balances.get_last_mint_timestamp(sender, pool_id) == 10
+
+
+def test_engine_rejects_same_batch_lp_add_remove_under_age_gate() -> None:
+    sender = "0x" + "ad" * 48
+    asset0 = "0x" + "1b" * 32
+    asset1 = "0x" + "1c" * 32
+    pool_id = "0x" + "1d" * 32
+    balances = BalanceTable()
+    balances.set(sender, asset0, 1_000)
+    balances.set(sender, asset1, 1_000)
+    lp = LPTable()
+    lp.set(sender, pool_id, 100)
+    lp.set_last_mint_timestamp(sender, pool_id, 1)
+    state = DexState(
+        balances=balances,
+        pools={
+            pool_id: PoolState(
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
+                reserve0=1_000,
+                reserve1=1_000,
+                fee_bps=30,
+                lp_supply=1_000,
+                status=PoolStatus.ACTIVE,
+                created_at=0,
+                curve_tag="CPMM",
+                curve_params="",
+            )
+        },
+        lp_balances=lp,
+    )
+    remove_id = "0x" + "1f" * 32
+    ops = {
+        "2": [
+            {
+                "module": "TauSwap",
+                "version": "0.1",
+                "kind": "ADD_LIQUIDITY",
+                "intent_id": "0x" + "1e" * 32,
+                "sender_pubkey": sender,
+                "deadline": 100,
+                "nonce": 1,
+                "pool_id": pool_id,
+                "amount0_desired": 100,
+                "amount1_desired": 100,
+                "amount0_min": 0,
+                "amount1_min": 0,
+            },
+            {
+                "module": "TauSwap",
+                "version": "0.1",
+                "kind": "REMOVE_LIQUIDITY",
+                "intent_id": remove_id,
+                "sender_pubkey": sender,
+                "deadline": 100,
+                "nonce": 2,
+                "pool_id": pool_id,
+                "lp_amount": 10,
+                "amount0_min": 0,
+                "amount1_min": 0,
+            },
+        ]
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            min_lp_position_age_seconds=1,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=30,
+        tx_sender_pubkey=sender,
+    )
+
+    assert not res.ok
+    assert res.error == f"same_batch_lp_add_remove_rejected for intent_id={remove_id}"
+
+
+def test_engine_rejects_supplied_settlement_lp_burn_when_settlement_match_disabled() -> None:
+    sender = "0x" + "ae" * 48
+    asset0 = "0x" + "21" * 32
+    asset1 = "0x" + "22" * 32
+    pool_id = "0x" + "20" * 32
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1_000)
+    balances.set(sender, max(asset0, asset1), 1_000)
+    lp = LPTable()
+    lp.set(sender, pool_id, 100)
+    lp.set_last_mint_timestamp(sender, pool_id, 10)
+    state = DexState(balances=balances, pools={}, lp_balances=lp)
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="external",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=10)],
+    )
+    ops = {
+        "2": [
+            _create_pool_intent_dict(
+                intent_id="0x" + "23" * 32,
+                sender=sender,
+                asset0=asset0,
+                asset1=asset1,
+            )
+        ],
+        **create_settlement_operation(settlement),
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_settlement_match=False,
+            require_intent_signatures=False,
+            min_lp_position_age_seconds=20,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=15,
+        tx_sender_pubkey=sender,
+    )
+
+    assert not res.ok
+    assert res.error == f"lp_position_locked for lp_delta={sender}:{pool_id}"
+    assert state.lp_balances.get(sender, pool_id) == 100
+
+
+def test_engine_rejects_signature_valid_cross_batch_nonce_replay_without_mutation() -> None:
+    pytest.importorskip("py_ecc")
+
+    privkey = 7
+    sender = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    asset0 = "0x" + "31" * 32
+    asset1 = "0x" + "32" * 32
+    intent_id = "0x" + "36" * 32
+
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1000)
+    balances.set(sender, max(asset0, asset1), 2000)
+    nonces = NonceTable()
+    nonces.set_last(sender, 1)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable(), nonces=nonces)
+
+    intent = parse_intents(
+        {
+            "2": [
+                _create_pool_intent_dict(
+                    intent_id=intent_id,
+                    sender=sender,
+                    asset0=asset0,
+                    asset1=asset1,
+                )
+            ]
+        }
+    )[0]
+    signed = sign_intent(intent, privkey, chain_id="tau-net-alpha")
+    ops = create_signed_intent_operation(
+        [SignedIntentEnvelope(intent=signed.intent, signature=signed.signature)]
+    )
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=None,
+    )
+
+    assert not res.ok
+    assert res.error == "nonce sequence invalid"
+    assert res.state is None
+    assert res.settlement is None
+    assert state.nonces.get_last(sender) == 1
+    assert state.pools == {}
+    assert state.balances.get(sender, min(asset0, asset1)) == 1000
+    assert state.balances.get(sender, max(asset0, asset1)) == 2000
+
+
+def test_engine_rejects_unsigned_live_admission_nonce_replay_without_mutation() -> None:
+    sender = "0x" + "39" * 48
+    asset0 = "0x" + "33" * 32
+    asset1 = "0x" + "34" * 32
+    intent_id = "0x" + "39" * 32
+
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1000)
+    balances.set(sender, max(asset0, asset1), 2000)
+    nonces = NonceTable()
+    nonces.set_last(sender, 1)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable(), nonces=nonces)
+    ops = {
+        "2": [
+            _create_pool_intent_dict(
+                intent_id=intent_id,
+                sender=sender,
+                asset0=asset0,
+                asset1=asset1,
+            )
+        ]
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=True,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+
+    assert not res.ok
+    assert res.error == "nonce sequence invalid"
+    assert res.state is None
+    assert res.settlement is None
+    assert state.nonces.get_last(sender) == 1
+    assert state.pools == {}
+    assert state.balances.get(sender, min(asset0, asset1)) == 1000
+    assert state.balances.get(sender, max(asset0, asset1)) == 2000
+
+
+def test_engine_rejects_signed_intent_rebound_to_wrong_sender_without_nonce_mutation() -> None:
+    pytest.importorskip("py_ecc")
+
+    signing_privkey = 40
+    signer = "0x" + bls_pubkey_hex_from_privkey(signing_privkey)
+    rebound_sender = "0x" + bls_pubkey_hex_from_privkey(41)
+    asset0 = "0x" + "40" * 32
+    asset1 = "0x" + "41" * 32
+    intent_id = "0x" + "40" * 32
+
+    signed_intent_dict = _create_pool_intent_dict(
+        intent_id=intent_id,
+        sender=signer,
+        asset0=asset0,
+        asset1=asset1,
+    )
+    intent = parse_intents({"2": [signed_intent_dict]})[0]
+    signed = sign_intent(intent, signing_privkey, chain_id="tau-net-alpha")
+    rebound_intent_dict = dict(signed_intent_dict, sender_pubkey=rebound_sender, signature=signed.signature)
+
+    balances = BalanceTable()
+    balances.set(rebound_sender, min(asset0, asset1), 1000)
+    balances.set(rebound_sender, max(asset0, asset1), 2000)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable(), nonces=NonceTable())
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+        ),
+        state=state,
+        operations={"2": [rebound_intent_dict]},
+        block_timestamp=0,
+        tx_sender_pubkey=None,
+    )
+
+    assert not res.ok
+    assert res.error == f"intent signature invalid: {intent_id}: invalid intent signature"
+    assert res.state is None
+    assert res.settlement is None
+    assert state.nonces.get_last(signer) == 0
+    assert state.nonces.get_last(rebound_sender) == 0
+    assert state.pools == {}
+    assert state.balances.get(rebound_sender, min(asset0, asset1)) == 1000
+    assert state.balances.get(rebound_sender, max(asset0, asset1)) == 2000
 
 
 def test_engine_accepts_proof_fields_when_verifier_disabled() -> None:
@@ -542,7 +961,7 @@ def test_engine_rejects_bool_quote_receipt_leg_index() -> None:
     )
     assert not res.ok
     assert res.error is not None
-    assert "intent.quote_receipt_leg_index must be an int" in res.error
+    assert "missing quote_receipt_leg_index" in res.error
 
 
 def test_engine_rejects_incomplete_split_quote_receipt_leg_coverage() -> None:

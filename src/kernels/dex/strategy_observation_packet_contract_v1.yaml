@@ -1,0 +1,188 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_observation_packet_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless contract for the normalized observation packet consumed by the
+    policy-constrained auto-trader and KRR advisor.
+
+    This kernel keeps the packet semantics small and explicit:
+    - the primary signal must be either trusted (route/local/attested) or
+      explicitly advisory
+    - the primary packet fields must all be present and verified
+    - external signals must partition cleanly into advisory or trusted
+observables:
+  state_vars: []
+  effects:
+    [
+      "primary_mode_ok",
+      "trusted_primary_ok",
+      "primary_packet_ok",
+      "external_counts_ok",
+      "observation_packet_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_observation_packet"
+    params:
+      - id: "primary_source_kind_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "primary_trust_tier_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "primary_quote_receipt_present"
+        type: { kind: "bool" }
+      - id: "primary_quote_receipt_verified"
+        type: { kind: "bool" }
+      - id: "primary_quote_epoch_present"
+        type: { kind: "bool" }
+      - id: "primary_source_available"
+        type: { kind: "bool" }
+      - id: "primary_auth_ok"
+        type: { kind: "bool" }
+      - id: "primary_binding_ok"
+        type: { kind: "bool" }
+      - id: "external_signal_count"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "advisory_external_count"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "trusted_external_count"
+        type: { kind: "int", min: 0, max: 4294967295 }
+    guard: { bool: true }
+    updates: []
+    effects:
+      primary_mode_ok:
+        op: "or"
+        args:
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 1 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 2 }] }
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 3 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 2 }] }
+                  - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 3 }] }
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 3 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 1 }] }
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 2 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 4 }] }
+                  - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 0 }] }
+      trusted_primary_ok:
+        op: "or"
+        args:
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 1 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 2 }] }
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 3 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 2 }] }
+                  - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 3 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 3 }] }
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 1 }] }
+                  - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 2 }] }
+      primary_packet_ok:
+        op: "and"
+        args:
+          - { param: "primary_quote_receipt_present" }
+          - op: "and"
+            args:
+              - { param: "primary_quote_receipt_verified" }
+              - op: "and"
+                args:
+                  - { param: "primary_quote_epoch_present" }
+                  - op: "and"
+                    args:
+                      - { param: "primary_source_available" }
+                      - op: "and"
+                        args:
+                          - { param: "primary_auth_ok" }
+                          - { param: "primary_binding_ok" }
+      external_counts_ok:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "advisory_external_count" }, { param: "external_signal_count" }] }
+          - op: "and"
+            args:
+              - { op: "<=", args: [{ param: "trusted_external_count" }, { param: "external_signal_count" }] }
+              - { op: "=", args: [{ op: "+", args: [{ param: "advisory_external_count" }, { param: "trusted_external_count" }] }, { param: "external_signal_count" }] }
+      observation_packet_ok:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 1 }] }
+                      - op: "or"
+                        args:
+                          - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 2 }] }
+                          - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 3 }] }
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 2 }] }
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 3 }] }
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 3 }] }
+                      - op: "or"
+                        args:
+                          - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 1 }] }
+                          - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 2 }] }
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "primary_source_kind_code" }, { const: 4 }] }
+                      - { op: "=", args: [{ param: "primary_trust_tier_code" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - op: "and"
+                args:
+                  - { param: "primary_quote_receipt_present" }
+                  - op: "and"
+                    args:
+                      - { param: "primary_quote_receipt_verified" }
+                      - op: "and"
+                        args:
+                          - { param: "primary_quote_epoch_present" }
+                          - op: "and"
+                            args:
+                              - { param: "primary_source_available" }
+                              - op: "and"
+                                args:
+                                  - { param: "primary_auth_ok" }
+                                  - { param: "primary_binding_ok" }
+              - op: "and"
+                args:
+                  - { op: "<=", args: [{ param: "advisory_external_count" }, { param: "external_signal_count" }] }
+                  - op: "and"
+                    args:
+                      - { op: "<=", args: [{ param: "trusted_external_count" }, { param: "external_signal_count" }] }
+                      - { op: "=", args: [{ op: "+", args: [{ param: "advisory_external_count" }, { param: "trusted_external_count" }] }, { param: "external_signal_count" }] }

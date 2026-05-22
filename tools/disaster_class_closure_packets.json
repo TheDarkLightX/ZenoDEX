@@ -1,0 +1,354 @@
+{
+  "schema": "zenodex/disaster-class-closure-packets/v1",
+  "generated_on": "2026-04-30",
+  "purpose": "Define formal bad-trace predicates and closure obligations for each public-seeded disaster-shape family in the taxonomy crosswalk. These packets are proof obligations plus bounded replay links; they are not universal immunity proofs until the coverage and rejection theorems are discharged.",
+  "crosswalk_path": "tools/disaster_shape_taxonomy_crosswalk.json",
+  "claim_status": "closure_obligations_defined_bounded_axes_replayed",
+  "global_theorem_template": {
+    "class_closure": "forall trace, BadTrace_C(trace) -> exists axis in Axes(C), Covers(axis, trace)",
+    "axis_rejection": "forall trace axis, Covers(axis, trace) and AxisRejected(axis, trace) -> not AcceptedBadTrace(trace)",
+    "immunity": "ClassClosure(C) and AxisRejection(C) -> forall trace, BadTrace_C(trace) -> not AcceptedBadTrace(trace)"
+  },
+  "packets": [
+    {
+      "id": "epoch_clock_and_lifecycle_split_brain_closure",
+      "crosswalk_entry_id": "epoch_clock_and_lifecycle_split_brain",
+      "bad_trace_predicate": {
+        "name": "EpochClockLifecycleSplitBrainBadTrace",
+        "state_scope": ["epoch", "clock", "oracle_window", "settlement_lifecycle", "queue_fairness"],
+        "conditions": [
+          "trace contains an accepted action whose epoch, clock, or lifecycle source is not the unique current source of truth",
+          "the accepted action mutates price-dependent, settlement-dependent, or queue-dependent state",
+          "a neighboring stale, future, or fairness-incompatible view would be rejected by the declared guard"
+        ]
+      },
+      "closure_obligations": [
+        "Every accepted stale/future epoch trace maps to an epoch, oracle-window, lifecycle, or liveness axis.",
+        "Every mapped axis rejects the stale/future view or requires an explicit recovery/liveness certificate before mutation."
+      ]
+    },
+    {
+      "id": "identity_authority_and_capability_drift_closure",
+      "crosswalk_entry_id": "identity_authority_and_capability_drift",
+      "bad_trace_predicate": {
+        "name": "IdentityAuthorityCapabilityDriftBadTrace",
+        "state_scope": ["signer", "role", "capability", "session", "nonce", "policy_identity"],
+        "conditions": [
+          "trace contains an accepted action whose authorization material belongs to a different identity, role, session, nonce, or policy root",
+          "the accepted action crosses an execution, settlement, strategy, zUSD, or Tau witness boundary",
+          "the intended owner or capability-binding predicate would reject the same action under the canonical identity view"
+        ]
+      },
+      "closure_obligations": [
+        "Every identity-drift acceptance maps to a signer, nonce, capability, policy, session, or witness-binding axis.",
+        "Every mapped axis rejects neighboring identity material before live authority is granted."
+      ]
+    },
+    {
+      "id": "canonicalization_ordering_mev_and_route_selection_closure",
+      "crosswalk_entry_id": "canonicalization_ordering_mev_and_route_selection",
+      "bad_trace_predicate": {
+        "name": "CanonicalizationOrderingMevRouteBadTrace",
+        "state_scope": ["candidate_set", "winner_key", "tie_break", "route", "batch_order", "netting_pair"],
+        "conditions": [
+          "trace accepts a winner, ordering, netting pair, route, or repaired candidate outside the declared total key or certificate domain",
+          "a presentation-equivalent or feasible candidate would produce a different canonical winner or safer rejection",
+          "the accepted choice can change value allocation, MEV exposure, fill priority, or settlement semantics"
+        ]
+      },
+      "closure_obligations": [
+        "Every noncanonical acceptance maps to a route, batch, netting, candidate-domain, repaired-key, or Lean certificate axis.",
+        "Every mapped axis either proves winner equality under the total key or rejects ambiguous/repaired candidate drift."
+      ]
+    },
+    {
+      "id": "serialization_schema_width_and_parser_confusion_closure",
+      "crosswalk_entry_id": "serialization_schema_width_and_parser_confusion",
+      "bad_trace_predicate": {
+        "name": "SerializationSchemaWidthParserBadTrace",
+        "state_scope": ["bytes", "schema", "field_width", "parser_envelope", "symbolic_guard"],
+        "conditions": [
+          "trace accepts serialized data whose parsed semantic value differs from the canonical schema value",
+          "the accepted parse crosses an operation, receipt, witness, state-accounting, or symbolic-guard boundary",
+          "a canonical decoder, width check, or wrapper parity check rejects the same payload"
+        ]
+      },
+      "closure_obligations": [
+        "Every parser/width confusion trace maps to a serialization, operations-envelope, state-size, wrapper, receipt, or symbolic-lint axis.",
+        "Every mapped axis rejects noncanonical encodings or proves adapter/parser parity for the accepted envelope."
+      ]
+    },
+    {
+      "id": "resource_exhaustion_and_unbounded_search_closure",
+      "crosswalk_entry_id": "resource_exhaustion_and_unbounded_search",
+      "bad_trace_predicate": {
+        "name": "ResourceExhaustionUnboundedSearchBadTrace",
+        "state_scope": ["request_bounds", "search_budget", "loop_budget", "subprocess_budget", "memory_budget"],
+        "conditions": [
+          "trace accepts caller-controlled or dependency-controlled bounds that exceed the declared resource envelope",
+          "the accepted path performs advisory, quote, proof, subprocess, or optimization work proportional to the hostile bound",
+          "the path can delay, abort, or starve normal steady-state behavior without a fail-closed budget result"
+        ]
+      },
+      "closure_obligations": [
+        "Every unbounded workload trace maps to a resource-budget, advisory-envelope, exact-out-domain, subprocess, or liveness axis.",
+        "Every mapped axis enforces a hard cap, load-shedding decision, timeout rejection, or explicit backlog status."
+      ]
+    },
+    {
+      "id": "external_state_dependency_transport_and_rpc_boundary_closure",
+      "crosswalk_entry_id": "external_state_dependency_transport_and_rpc_boundary",
+      "bad_trace_predicate": {
+        "name": "ExternalStateDependencyTransportBadTrace",
+        "state_scope": ["remote_endpoint", "transport_body", "subprocess_result", "external_verifier", "imported_source"],
+        "conditions": [
+          "trace accepts external state or transport output that is stale, oversized, malformed, unauthenticated, or root-mismatched",
+          "the accepted external value becomes authoritative for verification, settlement, strategy, or proof-state mutation",
+          "the dependency-outage or transport-boundary guard would reject the same value under canonical limits"
+        ]
+      },
+      "closure_obligations": [
+        "Every external-boundary bad trace maps to external-state, dependency, Tau client/runner, verifier, checker, import, or operator-environment axes.",
+        "Every mapped axis rejects malformed/outage/oversized drift or binds the external value to a checked root."
+      ]
+    },
+    {
+      "id": "atomicity_replay_persistence_and_recovery_closure",
+      "crosswalk_entry_id": "atomicity_replay_persistence_and_recovery",
+      "bad_trace_predicate": {
+        "name": "AtomicityReplayPersistenceRecoveryBadTrace",
+        "state_scope": ["nonce_state", "persistence_log", "side_effect", "recovery_root", "receipt_state"],
+        "conditions": [
+          "trace accepts a replayed, partially applied, recovered, or persisted artifact as fresh and complete",
+          "the accepted artifact can duplicate a side effect, bypass a nonce/replay boundary, or mutate state under a stale root",
+          "the canonical replay, recovery, or receipt verifier rejects or requires a recovery certificate"
+        ]
+      },
+      "closure_obligations": [
+        "Every replay/partial-side-effect bad trace maps to atomicity, restart, nonce, proof-mining, sequence, witness, FIRE, or acceptance-TCB axes.",
+        "Every mapped axis rejects stale/replayed roots or requires the exact recovery certificate before acceptance."
+      ]
+    },
+    {
+      "id": "numeric_arithmetic_rounding_and_integer_semantics_closure",
+      "crosswalk_entry_id": "numeric_arithmetic_rounding_and_integer_semantics",
+      "bad_trace_predicate": {
+        "name": "NumericArithmeticRoundingIntegerBadTrace",
+        "state_scope": ["amount", "reserve", "rounding_mode", "integer_width", "adapter_result", "proof_envelope"],
+        "conditions": [
+          "trace accepts integer arithmetic whose rounded or bounded result lies outside the declared runtime/proof envelope",
+          "the accepted result mutates balances, reserves, accounting, oracle-dependent state, or curve-family value",
+          "a BVA, native-adapter, reference-parity, or proof-envelope check rejects the neighboring arithmetic case"
+        ]
+      },
+      "closure_obligations": [
+        "Every arithmetic mismatch maps to numeric-boundary, accounting, native-witness, oracle-BVA, ML-history, AMM, or canonical-math axes.",
+        "Every mapped axis rejects overflow/rounding drift or proves runtime/reference/proof envelope agreement."
+      ]
+    },
+    {
+      "id": "oracle_price_provenance_and_market_data_freshness_closure",
+      "crosswalk_entry_id": "oracle_price_provenance_and_market_data_freshness",
+      "bad_trace_predicate": {
+        "name": "OraclePriceProvenanceFreshnessBadTrace",
+        "state_scope": ["oracle_seen", "index_price", "price_root", "attestation", "freshness_window", "benefit_accounting"],
+        "conditions": [
+          "trace accepts price-dependent mutation without a usable, fresh, positive, and provenance-bound oracle view",
+          "the accepted mutation affects settlement, perps, zUSD recovery, swap preflight, or benefit accounting",
+          "the oracle freshness/provenance guard rejects the stale, missing, or neighboring price root"
+        ]
+      },
+      "closure_obligations": [
+        "Every oracle freshness/provenance bad trace maps to zUSD, perps, funding clock, settlement price, LTL recovery, Tau semantic, or preflight axes.",
+        "Every mapped axis rejects missing/stale/unbound oracle material before price-dependent mutation."
+      ]
+    },
+    {
+      "id": "confidential_attestation_and_private_request_binding_closure",
+      "crosswalk_entry_id": "confidential_attestation_and_private_request_binding",
+      "bad_trace_predicate": {
+        "name": "ConfidentialAttestationPrivateBindingBadTrace",
+        "state_scope": ["attestation", "private_request", "verifier_root", "confidential_nonce_root"],
+        "conditions": [
+          "trace accepts a confidential request, receipt, or verifier output bound to a neighboring private state",
+          "the accepted private state crosses admission, nonce, or verifier boundaries",
+          "the canonical confidential request or verifier binding check rejects the mismatched root"
+        ]
+      },
+      "closure_obligations": [
+        "Every confidential binding bad trace maps to confidential receipt, admission gate, core verifier, or nonce-state axes.",
+        "Every mapped axis rejects root drift before private evidence becomes authoritative."
+      ]
+    },
+    {
+      "id": "supply_chain_proof_artifact_and_release_integrity_closure",
+      "crosswalk_entry_id": "supply_chain_proof_artifact_and_release_integrity",
+      "bad_trace_predicate": {
+        "name": "SupplyChainProofArtifactReleaseBadTrace",
+        "state_scope": ["artifact_root", "proof_receipt", "registry_root", "release_matrix", "toolchain_state"],
+        "conditions": [
+          "trace accepts a proof, receipt, generated artifact, release matrix, or toolchain output after its source root changed",
+          "the accepted artifact authorizes runtime, release, deployment, proof-mining, FIRE, Tau, or autotrader behavior",
+          "the corresponding root, receipt, falsifier, or ratchet check rejects the stale artifact"
+        ]
+      },
+      "closure_obligations": [
+        "Every proof/artifact drift trace maps to FIRE, Tau operator, autotrader, runtime shell, claims, RC1, ShapeForge, or ranking artifact axes.",
+        "Every mapped axis binds artifacts to current roots or rejects stale generated output."
+      ]
+    },
+    {
+      "id": "settlement_witness_certificate_and_recompute_boundary_closure",
+      "crosswalk_entry_id": "settlement_witness_certificate_and_recompute_boundary",
+      "bad_trace_predicate": {
+        "name": "SettlementWitnessCertificateRecomputeBadTrace",
+        "state_scope": ["settlement_packet", "recompute_proof", "witness_lifecycle", "native_adapter", "price_provenance"],
+        "conditions": [
+          "trace accepts a settlement certificate, witness, or recompute result not bound to the current execution state",
+          "the accepted packet mutates balances, reserves, fills, or price-dependent settlement state",
+          "the end-to-end certificate, recompute, native witness, or lifecycle checker rejects the packet"
+        ]
+      },
+      "closure_obligations": [
+        "Every settlement certificate bad trace maps to recompute, quote gate, witness lifecycle, formal packet, native witness, price provenance, or queue axes.",
+        "Every mapped axis rejects state drift or proves packet/current-state binding before mutation."
+      ]
+    },
+    {
+      "id": "market_namespace_curve_dispatch_and_reference_parity_closure",
+      "crosswalk_entry_id": "market_namespace_curve_dispatch_and_reference_parity",
+      "bad_trace_predicate": {
+        "name": "MarketNamespaceCurveDispatchParityBadTrace",
+        "state_scope": ["market_id", "curve_tag", "adapter", "reference_model", "namespace_version"],
+        "conditions": [
+          "trace accepts a market, curve, adapter, or reference value under a neighboring namespace or curve family",
+          "the accepted value changes quote, settlement, accounting, or curve-specific invariant semantics",
+          "the namespace, dispatch, reference-parity, or AMM-family check rejects the neighboring interpretation"
+        ]
+      },
+      "closure_obligations": [
+        "Every namespace/curve parity bad trace maps to market isolation, curve dispatch, core parity, refinement, zUSD accounting, split parity, or AMM parity axes.",
+        "Every mapped axis rejects aliasing or proves reference/runtime equivalence for the selected namespace."
+      ]
+    },
+    {
+      "id": "fire_tokenomics_rewards_and_budget_safety_closure",
+      "crosswalk_entry_id": "fire_tokenomics_rewards_and_budget_safety",
+      "bad_trace_predicate": {
+        "name": "FireTokenomicsRewardBudgetBadTrace",
+        "state_scope": ["reward_budget", "rebate", "proof_mining_slot", "fire_package", "repair_budget", "vault_carry"],
+        "conditions": [
+          "trace accepts a reward, rebate, proof-mining, FIRE, tokenomics, or repair-economics spend above verified value plus explicit budget",
+          "the accepted spend mutates treasury, vault, proof-mining, tokenomics, or FIRE settlement state",
+          "the budget, package-root, slot-control, or repair-economics guard rejects the same spend"
+        ]
+      },
+      "closure_obligations": [
+        "Every reward/budget bad trace maps to vault reward, FIRE runtime, zUSD accounting, proof-mining slot, FIRE supply-chain, tokenomics wash, or repair-economics axes.",
+        "Every mapped axis rejects over-budget spend or binds it to verified value plus an explicit budget."
+      ]
+    },
+    {
+      "id": "autotrader_krr_ai_policy_and_reasoner_boundary_closure",
+      "crosswalk_entry_id": "autotrader_krr_ai_policy_and_reasoner_boundary",
+      "bad_trace_predicate": {
+        "name": "AutotraderKrrAiPolicyReasonerBadTrace",
+        "state_scope": ["advisory_cache", "krr_fact_root", "policy_artifact", "ranking_bundle", "live_authority"],
+        "conditions": [
+          "trace accepts AI/KRR/advisory output as live authority or accepts a signed policy/ranking/fact artifact under a stale root",
+          "the accepted artifact changes live strategy execution, wallet action, Tau witness, or policy compilation behavior",
+          "the advisory boundary, capability proof, fact-root, or signed-artifact guard rejects the same state"
+        ]
+      },
+      "closure_obligations": [
+        "Every AI/KRR policy bad trace maps to advisory cache, autotrader artifact, signing, KRR, native strategy, Tau witness, semantic gate, chaos regret, import, solver-policy, or ranking axes.",
+        "Every mapped axis preserves advisory non-authority or rejects stale fact/policy roots."
+      ]
+    },
+    {
+      "id": "stablecoin_vault_support_and_recovery_closure",
+      "crosswalk_entry_id": "stablecoin_vault_support_and_recovery",
+      "bad_trace_predicate": {
+        "name": "StablecoinVaultSupportRecoveryBadTrace",
+        "state_scope": ["vault", "support_root", "oracle_recovery", "api_token_policy", "selector"],
+        "conditions": [
+          "trace accepts a zUSD vault/support/recovery action under a stale oracle, wrong selector, or neighboring support root",
+          "the accepted action mutates debt, collateral, liquidation, redemption, or recovery state",
+          "the zUSD oracle, API token, accounting, LTL recovery, or support selector guard rejects the same state"
+        ]
+      },
+      "closure_obligations": [
+        "Every stablecoin recovery bad trace maps to zUSD oracle, API token, native accounting, LTL recovery, or support selector axes.",
+        "Every mapped axis rejects stale oracle/support roots or proves selector/accounting consistency."
+      ]
+    },
+    {
+      "id": "general_chaos_steady_state_and_repair_barrier_closure",
+      "crosswalk_entry_id": "general_chaos_steady_state_and_repair_barrier",
+      "bad_trace_predicate": {
+        "name": "GeneralChaosSteadyStateRepairBadTrace",
+        "state_scope": ["steady_state_metric", "risk_vector", "repair_certificate", "dependency_state", "shape_ratchet"],
+        "conditions": [
+          "trace accepts a perturbation that increases disaster potential or disrupts steady-state behavior",
+          "the accepted perturbation lacks the exact recovery certificate required for the risk increase",
+          "the disaster-potential, chaos-regret, dependency, or shape-ratchet check rejects the same perturbation"
+        ]
+      },
+      "closure_obligations": [
+        "Every chaos/recovery bad trace maps to repair, outage, load-shedding, concolic wrapper, runner lifecycle, TLA queue, acceptance-TCB, chaos regret, operator, or ShapeForge axes.",
+        "Every mapped axis rejects risk-increasing transitions unless the required recovery certificate is present."
+      ]
+    },
+    {
+      "id": "sealed_bid_bounty_and_catalog_feedback_closure",
+      "crosswalk_entry_id": "sealed_bid_bounty_and_catalog_feedback",
+      "bad_trace_predicate": {
+        "name": "SealedBidBountyCatalogFeedbackBadTrace",
+        "state_scope": ["commitment", "reveal", "bounty_catalog", "candidate_index", "hash_binding"],
+        "conditions": [
+          "trace accepts a sealed-bid, bounty, or catalog feedback state after commitment, reveal, or candidate-index substitution",
+          "the accepted state changes candidate eligibility, bounty allocation, or commitment semantics",
+          "the commitment-binding or catalog feedback checker rejects the substituted state"
+        ]
+      },
+      "closure_obligations": [
+        "Every sealed-bid/bounty bad trace maps to commitment-binding or stateful catalog feedback axes.",
+        "Every mapped axis rejects substituted commitments, reveals, or omitted/promoted candidates."
+      ]
+    },
+    {
+      "id": "cross_surface_composition_and_formal_bridge_drift_closure",
+      "crosswalk_entry_id": "cross_surface_composition_and_formal_bridge_drift",
+      "bad_trace_predicate": {
+        "name": "CrossSurfaceCompositionFormalBridgeBadTrace",
+        "state_scope": ["surface_a", "surface_b", "formal_packet", "runtime_packet", "composition_invariant"],
+        "conditions": [
+          "trace accepts two locally valid proof, runtime, or policy surfaces whose composition violates a global invariant",
+          "the accepted composition mutates settlement, FIRE, exact-out, repair, autotrader, or cross-venue state",
+          "the formal packet, Morph/Shapeforge bridge, or cross-surface proof rejects the composed state"
+        ]
+      },
+      "closure_obligations": [
+        "Every cross-surface bad trace maps to Cantor/Shapeforge, formal packet, FIRE runtime, repair-economics, autotrader-policy, or cross-composition axes.",
+        "Every mapped axis rejects composition drift or proves the shared invariant across surfaces."
+      ]
+    },
+    {
+      "id": "perps_liquidation_funding_and_legacy_reference_closure",
+      "crosswalk_entry_id": "perps_liquidation_funding_and_legacy_reference",
+      "bad_trace_predicate": {
+        "name": "PerpsLiquidationFundingLegacyReferenceBadTrace",
+        "state_scope": ["perp_state", "funding_epoch", "liquidation", "oracle_snapshot", "legacy_reference"],
+        "conditions": [
+          "trace accepts a perps settlement, funding, liquidation, legacy reference, or submission path under stale oracle or arithmetic drift",
+          "the accepted path mutates collateral, PnL, funding, insurance, liquidation, or market parameters",
+          "the perps oracle, BVA, submission, legacy-ref, or funding/liquidation guard rejects the same trace"
+        ]
+      },
+      "closure_obligations": [
+        "Every perps bad trace maps to funding/liquidation, submission, oracle parity, legacy-ref, integration bootstrap, or native-adapter BVA axes.",
+        "Every mapped axis rejects unusable oracle/arithmetic/reference drift before perps state mutation."
+      ]
+    }
+  ]
+}

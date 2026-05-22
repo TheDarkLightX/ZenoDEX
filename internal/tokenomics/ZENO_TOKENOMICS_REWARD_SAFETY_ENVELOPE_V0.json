@@ -1,0 +1,59 @@
+{
+  "programs": [
+    {
+      "id": "fee-gated-identity",
+      "kind": "fee_gated_identity_reward",
+      "params": {
+        "base_reward_per_identity_quote": 10,
+        "fee_bps": 10,
+        "funded_budget_quote": 100,
+        "max_identities": 10,
+        "max_trade_in_quote": 20000,
+        "min_usage_quote": 10,
+        "pol_share_bps": 0,
+        "protocol_fee_share_bps": 10000,
+        "reserve_base": 10000,
+        "reserve_quote": 10000
+      }
+    },
+    {
+      "id": "pro-rata-budget",
+      "kind": "pro_rata_budget",
+      "params": {
+        "budget_quote": 2,
+        "fee_bps": 10,
+        "funded_budget_quote": 2,
+        "max_cycles": 3,
+        "max_trade_in_quote": 20000,
+        "other_usage_quote": 0,
+        "pol_share_bps": 0,
+        "protocol_fee_share_bps": 10000,
+        "reserve_base": 10000,
+        "reserve_quote": 10000,
+        "scan_step": 1
+      }
+    },
+    {
+      "id": "active-use-distribution-v0",
+      "kind": "activity_mined_distribution",
+      "params": {
+        "activation_allowed": false,
+        "campaign_budget_token": 25000000,
+        "counsel_review_status": "required_not_complete",
+        "covered_user_interface_gate_required": true,
+        "eligible_activity_receipt_required": true,
+        "funded_campaign_budget_token": 25000000,
+        "max_epoch_distribution_token": 1000000,
+        "max_rewardable_activities_per_user_per_epoch": 25,
+        "max_user_distribution_token_per_epoch": 500,
+        "non_transferable_xp_required": true,
+        "non_wash_receipt_required": true,
+        "reward_per_activity_token": 10,
+        "source_bucket_amount_token": 250000000,
+        "source_bucket_id": "ecosystem_lp_solver_operator_proof_incentives",
+        "xp_entitlement": false
+      }
+    }
+  ],
+  "schema": "zenodex.tokenomics.reward_safety_envelope.v0"
+}

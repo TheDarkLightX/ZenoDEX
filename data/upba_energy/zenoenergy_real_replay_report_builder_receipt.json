@@ -1,0 +1,40 @@
+{
+  "artifacts": [
+    "tools/build_zenoenergy_real_replay_report.py",
+    "tools/check_zenoenergy_replay_coverage_profile.py",
+    "tests/energy/test_zenoenergy_real_replay_report.py",
+    "docs/ZENO_ENERGY_REAL_REPLAY_REPORTS.md"
+  ],
+  "claim": "ZenoEnergy has a deterministic builder for the real UPBA replay and AutoTrader shadow report schemas consumed by the production promotion gate.",
+  "limits": [
+    "The builder validates schemas, hashes source reports, rejects obvious fixture or synthetic source descriptors, and can attach passing replay source manifest and coverage profile checks.",
+    "The builder requires deterministic replay and no-live-secrets attestations.",
+    "The builder cannot independently prove that a human-supplied source descriptor is truthful.",
+    "Coverage thresholds and learned-versus-hand performance remain production-gate obligations."
+  ],
+  "negative_knowledge": [
+    "Synthetic and built-in fixture reports remain research evidence.",
+    "A real-report JSON without passing replay source manifest and coverage profile checks, replay provenance, and secret-scrubbing custody is insufficient for production promotion."
+  ],
+  "safety": {
+    "model_output_in_state_root": false,
+    "performance_thresholds_delegated_to_production_gate": true,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_settlement_or_trade": false,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/real_replay_report_builder_receipt/v1",
+  "source_schemas": [
+    "zenodex/energy/upba_v2_benchmark_report/v1",
+    "zenodex/energy/upba_v2_topk_sweep/v1",
+    "zenodex/energy/upba_v2_evaluation_report/v1",
+    "zenodex/energy/autotrader_shadow_bridge_report/v1"
+  ],
+  "source_manifest_check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+  "coverage_profile_check_schema": "zenodex/energy/replay_coverage_profile_check/v1",
+  "target_schemas": [
+    "zenodex/energy/upba_real_replay_report/v1",
+    "zenodex/energy/autotrader_real_shadow_report/v1"
+  ],
+  "supported_status": "supported"
+}

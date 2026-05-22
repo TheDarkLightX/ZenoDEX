@@ -102,7 +102,7 @@ def _extract_reward_artifact(reward_artifact: Mapping[str, Any]) -> dict[str, An
                 witness_hash=_require_str(winner.get("witness_sha256"), name="reward_artifact.body.winner.witness_sha256"),
             ),
         }
-    elif schema == "zenodex/permissionless_solver_proof_mining_claim/v2":
+    elif schema == "zenodex/permissionless_solver_proof_mining_claim/v1":
         # The public ledger records claim artifacts structurally; it is not the
         # authority that decides whether a claim may be paid out on-chain.
         return validate_proof_mining_claim_artifact(reward_artifact, require_admissible=False)

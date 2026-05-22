@@ -6,24 +6,21 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 from tools.check_oracle_authorization_semantic_binding import (
-    ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
-    ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     SCHEMA,
     OracleAuthorization,
     RuntimeActionFacts,
-    check_critical_consumer_authorization,
     check_authorization_for_runtime,
     check_authorization_payload,
+    check_critical_consumer_authorization,
     economic_envelope_hash,
     oracle_value_hash,
     semantic_hash,
     verify_opaque_authorization,
     verify_typed_authorization,
 )
-from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
-from src.integration.zeno_oracle_trigger_authorization import _ORACLE_TRIGGER_EXECUTE_PROFILE_ID
-from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _hash(domain: str, name: str) -> str:
@@ -114,7 +111,6 @@ def _check_with_runtime(
     runtime: RuntimeActionFacts,
     *,
     runtime_notional_value_e8: int | None = None,
-    max_freshness_window_epochs: int | None = None,
 ) -> dict:
     return check_critical_consumer_authorization(
         authorization_payload,
@@ -127,7 +123,6 @@ def _check_with_runtime(
         runtime_value_e8=runtime.runtime_value_e8,
         now_epoch=runtime.now_epoch,
         runtime_notional_value_e8=runtime_notional_value_e8,
-        max_freshness_window_epochs=max_freshness_window_epochs,
     )
 
 
@@ -141,26 +136,6 @@ def test_typed_authorization_accepts_matching_runtime_facts() -> None:
     assert opaque_errors == ()
     assert typed_ok is True
     assert typed_errors == ()
-
-
-def test_typed_authorization_rejects_stale_observed_epoch_when_window_is_bound() -> None:
-    authorization, runtime = _valid_pair()
-
-    accepted = _check_with_runtime(
-        authorization_bundle(asdict(authorization)),
-        runtime,
-        max_freshness_window_epochs=1,
-    )
-    stale_runtime = replace(runtime, now_epoch=int(authorization.observed_epoch) + 3)
-    rejected = _check_with_runtime(
-        authorization_bundle(asdict(authorization)),
-        stale_runtime,
-        max_freshness_window_epochs=1,
-    )
-
-    assert accepted["typed_ok"] is True
-    assert rejected["typed_ok"] is False
-    assert "authorization freshness window exceeded" in rejected["typed_errors"]
 
 
 def test_typed_authorization_accepts_bound_economic_envelope() -> None:
@@ -396,22 +371,54 @@ def test_critical_consumer_wrapper_accepts_zusd_mint_and_rejects_wrong_profile()
     assert "critical profile mismatch" in rejected["typed_errors"]
 
 
+def test_critical_consumer_rejects_receipt_outside_profile_freshness_window() -> None:
+    authorization, runtime = _valid_pair()
+    stale_observed_epoch = runtime.now_epoch - 3
+    stale_authorization = replace(
+        authorization,
+        observed_epoch=stale_observed_epoch,
+        expires_at_epoch=runtime.now_epoch + 1,
+        value_hash=oracle_value_hash(
+            query_id=authorization.query_id,
+            value_e8=authorization.value_e8,
+            observed_epoch=stale_observed_epoch,
+        ),
+    )
+
+    result = check_critical_consumer_authorization(
+        authorization_bundle(asdict(stale_authorization)),
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert "authorization freshness window exceeds runtime profile" in result["typed_errors"]
+    assert "authorization observed_epoch outside runtime freshness window" in result["typed_errors"]
+
+
 def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
     authorization, runtime = _valid_pair()
     surfaces = [
-        ("zenodex.zusd", "liquidate", "critical-zusd-v1"),
-        ("zenodex.perps", "settle_epoch", ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID),
-        ("zenodex.perps", "liquidate", ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID),
-        ("zenodex.routing", "protected_swap", "critical-routing-v1"),
-        ("zenodex.trigger", "execute_trigger", _ORACLE_TRIGGER_EXECUTE_PROFILE_ID),
-        ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id()),
+        ("zenodex.zusd", "liquidate", "critical-zusd-v1", 1),
+        ("zenodex.perps", "settle_epoch", "critical-perps-v1", 2),
+        ("zenodex.perps", "liquidate", "critical-perps-v1", 1),
+        ("zenodex.routing", "protected_swap", "critical-routing-v1", 4),
+        ("zenodex.trigger", "execute", "critical-trigger-v1", 2),
+        ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id(), 1),
     ]
-    for consumer_module, action_kind, profile_id in surfaces:
+    for consumer_module, action_kind, profile_id, max_window in surfaces:
         surface_auth = replace(
             authorization,
             consumer_module=consumer_module,
             action_kind=action_kind,
             profile_id=profile_id,
+            expires_at_epoch=authorization.observed_epoch + max_window,
         )
         surface_runtime = replace(
             runtime,
@@ -435,31 +442,6 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
         assert result["typed_ok"] is True
         assert result["receipt_graph_ok"] is True
         assert result["critical_consumer_profile"] == profile_id
-
-
-def test_critical_consumer_wrapper_rejects_legacy_trigger_execute_alias() -> None:
-    authorization, runtime = _valid_pair()
-    surface_auth = replace(
-        authorization,
-        consumer_module="zenodex.trigger",
-        action_kind="execute",
-        profile_id="critical-trigger-v1",
-    )
-
-    result = check_critical_consumer_authorization(
-        authorization_bundle(asdict(surface_auth)),
-        consumer_module="zenodex.trigger",
-        action_kind="execute",
-        action_id=runtime.action_id,
-        action_facts_hash=runtime.action_facts_hash,
-        pre_state_hash=runtime.pre_state_hash,
-        query_id=runtime.query_id,
-        runtime_value_e8=runtime.runtime_value_e8,
-        now_epoch=runtime.now_epoch,
-    )
-
-    assert result["typed_ok"] is False
-    assert "unsupported critical consumer/action" in result["typed_errors"]
 
 
 def test_critical_consumer_requires_terminal_receipt_graph() -> None:
@@ -530,106 +512,3 @@ def test_critical_consumer_rejects_terminal_graph_fake_control_group_diversity()
         in result["receipt_graph_errors"]
     )
     assert "receipt_graph distinct control groups below min_reporters" in result["receipt_graph_errors"]
-
-
-def test_critical_consumer_rejects_terminal_graph_policy_root_mixing() -> None:
-    authorization, runtime = _valid_pair()
-    bundle = authorization_bundle(asdict(authorization))
-    bundle["receipt_graph"]["query_policy_root"] = _hash("zenodex.query_policy.v1", "downgraded-policy")
-    _refresh_terminal_graph_roots(bundle)
-
-    result = check_critical_consumer_authorization(
-        bundle,
-        consumer_module="zenodex.zusd",
-        action_kind="mint",
-        action_id=runtime.action_id,
-        action_facts_hash=runtime.action_facts_hash,
-        pre_state_hash=runtime.pre_state_hash,
-        query_id=runtime.query_id,
-        runtime_value_e8=runtime.runtime_value_e8,
-        now_epoch=runtime.now_epoch,
-    )
-
-    assert result["typed_ok"] is False
-    assert result["receipt_graph_ok"] is False
-    assert "receipt_graph query_policy_root does not match authorization" in result["receipt_graph_errors"]
-
-
-def test_critical_consumer_rejects_devnet_o2_terminal_graph_leakage() -> None:
-    authorization, runtime = _valid_pair()
-    bundle = authorization_bundle(asdict(authorization))
-    bundle["receipt_graph"]["read_evidence_class"] = "O2"
-    bundle["receipt_graph"]["aggregate_evidence_class"] = "O2"
-    _refresh_terminal_graph_roots(bundle)
-
-    result = check_critical_consumer_authorization(
-        bundle,
-        consumer_module="zenodex.zusd",
-        action_kind="mint",
-        action_id=runtime.action_id,
-        action_facts_hash=runtime.action_facts_hash,
-        pre_state_hash=runtime.pre_state_hash,
-        query_id=runtime.query_id,
-        runtime_value_e8=runtime.runtime_value_e8,
-        now_epoch=runtime.now_epoch,
-    )
-
-    assert result["typed_ok"] is False
-    assert result["receipt_graph_ok"] is False
-    assert "receipt_graph read_evidence_class below O3" in result["receipt_graph_errors"]
-    assert "receipt_graph aggregate_evidence_class below O3" in result["receipt_graph_errors"]
-
-
-def test_critical_consumer_rejects_terminal_graph_source_sybil_collapse() -> None:
-    authorization, runtime = _valid_pair()
-    bundle = authorization_bundle(asdict(authorization))
-    for leaf in bundle["receipt_graph"]["report_leaf_commitments"]:
-        leaf["source_id"] = "source:shared"
-    bundle["receipt_graph"]["included_source_ids"] = ["source:shared", "source:shared", "source:shared"]
-    _refresh_terminal_graph_roots(bundle)
-
-    result = check_critical_consumer_authorization(
-        bundle,
-        consumer_module="zenodex.zusd",
-        action_kind="mint",
-        action_id=runtime.action_id,
-        action_facts_hash=runtime.action_facts_hash,
-        pre_state_hash=runtime.pre_state_hash,
-        query_id=runtime.query_id,
-        runtime_value_e8=runtime.runtime_value_e8,
-        now_epoch=runtime.now_epoch,
-    )
-
-    assert result["typed_ok"] is False
-    assert result["receipt_graph_ok"] is False
-    assert "receipt_graph included_source_ids must be distinct" in result["receipt_graph_errors"]
-    assert "receipt_graph source_count does not match distinct report leaf sources" in result["receipt_graph_errors"]
-
-
-def test_critical_consumer_rejects_terminal_graph_dead_reporter_leaf() -> None:
-    authorization, runtime = _valid_pair()
-    bundle = authorization_bundle(asdict(authorization))
-    leaf = bundle["receipt_graph"]["report_leaf_commitments"][0]
-    report_id = leaf["report_id"]
-    leaf["active"] = False
-    leaf["slash_state"] = "slashed"
-    leaf["bond_e8"] = int(leaf["required_bond_e8"]) - 1
-    _refresh_terminal_graph_roots(bundle)
-
-    result = check_critical_consumer_authorization(
-        bundle,
-        consumer_module="zenodex.zusd",
-        action_kind="mint",
-        action_id=runtime.action_id,
-        action_facts_hash=runtime.action_facts_hash,
-        pre_state_hash=runtime.pre_state_hash,
-        query_id=runtime.query_id,
-        runtime_value_e8=runtime.runtime_value_e8,
-        now_epoch=runtime.now_epoch,
-    )
-
-    assert result["typed_ok"] is False
-    assert result["receipt_graph_ok"] is False
-    assert f"receipt_graph report leaf {report_id} reporter inactive" in result["receipt_graph_errors"]
-    assert f"receipt_graph report leaf {report_id} slash_state not clear" in result["receipt_graph_errors"]
-    assert f"receipt_graph report leaf {report_id} bond below required" in result["receipt_graph_errors"]

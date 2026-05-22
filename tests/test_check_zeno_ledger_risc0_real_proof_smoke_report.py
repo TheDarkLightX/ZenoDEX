@@ -74,7 +74,6 @@ def _report() -> dict[str, object]:
             "faucet_mint",
             "create_pool",
             "swap_exact_in",
-            "swap_exact_out",
             "add_liquidity",
             "remove_liquidity",
             "spot_block_liquidity_cycle",
@@ -234,7 +233,7 @@ def test_risc0_real_proof_smoke_report_accepts_all_supported_cases() -> None:
     check = validate_risc0_real_proof_smoke_report_v0(_report())
 
     assert check["ok"] is True
-    assert check["case_count"] == 8
+    assert check["case_count"] == 7
     assert check["required_cases"] == [
         "add_liquidity",
         "create_pool",
@@ -243,30 +242,18 @@ def test_risc0_real_proof_smoke_report_accepts_all_supported_cases() -> None:
         "remove_liquidity",
         "spot_block_liquidity_cycle",
         "swap_exact_in",
-        "swap_exact_out",
     ]
 
 
 def test_risc0_real_proof_smoke_report_rejects_missing_case() -> None:
     report = _report()
     report["cases"] = report["cases"][:-1]  # type: ignore[index]
-    report["case_count"] = 7
+    report["case_count"] = 6
 
     check = validate_risc0_real_proof_smoke_report_v0(report)
 
     assert check["ok"] is False
     assert "missing required cases: spot_block_liquidity_cycle" in check["errors"]
-
-
-def test_risc0_real_proof_smoke_report_rejects_missing_exact_out_case() -> None:
-    report = _report()
-    report["cases"] = [case for case in report["cases"] if case["case"] != "swap_exact_out"]  # type: ignore[index]
-    report["case_count"] = 7
-
-    check = validate_risc0_real_proof_smoke_report_v0(report)
-
-    assert check["ok"] is False
-    assert "missing required cases: swap_exact_out" in check["errors"]
 
 
 def test_risc0_real_proof_smoke_report_rejects_empty_receipt() -> None:

@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-
 E8 = 100_000_000
 BPS_SCALE = 10_000
 VaultId = Literal["a", "b"]
@@ -41,6 +40,10 @@ def _mcr_ok(*, collateral_e8: int, debt_e8: int, price_e8: int, mcr_bps: int) ->
     return (collateral_e8 * price_e8 * BPS_SCALE) >= (debt_e8 * mcr_bps * E8)
 
 
+def _debt_floor_ok(*, debt_e8: int, min_debt_open_e8: int) -> bool:
+    return debt_e8 == 0 or debt_e8 >= min_debt_open_e8
+
+
 def _mcr_headroom_num(*, collateral_e8: int, debt_e8: int, price_e8: int, mcr_bps: int) -> int:
     return (collateral_e8 * price_e8 * BPS_SCALE) - (debt_e8 * mcr_bps * E8)
 
@@ -54,10 +57,12 @@ def select_multi_redeem_vault(
     vault_a_debt_e8: int,
     vault_b_collateral_e8: int,
     vault_b_debt_e8: int,
+    min_debt_open_e8: int = 0,
 ) -> ZUSDMultiRedeemSelectorOutcome:
     amount = _require_pos_int(amount_e8, name="amount_e8")
     price = _require_pos_int(price_e8, name="price_e8")
     mcr = _require_pos_int(mcr_bps, name="mcr_bps")
+    min_debt = _require_non_negative_int(min_debt_open_e8, name="min_debt_open_e8")
     coll_a = _require_non_negative_int(vault_a_collateral_e8, name="vault_a_collateral_e8")
     debt_a = _require_non_negative_int(vault_a_debt_e8, name="vault_a_debt_e8")
     coll_b = _require_non_negative_int(vault_b_collateral_e8, name="vault_b_collateral_e8")
@@ -75,6 +80,7 @@ def select_multi_redeem_vault(
     candidate_a_ok = bool(
         amount <= debt_a
         and gross_collateral_e8 <= coll_a
+        and _debt_floor_ok(debt_e8=post_debt_a, min_debt_open_e8=min_debt)
         and _mcr_ok(
             collateral_e8=post_coll_a,
             debt_e8=post_debt_a,
@@ -85,6 +91,7 @@ def select_multi_redeem_vault(
     candidate_b_ok = bool(
         amount <= debt_b
         and gross_collateral_e8 <= coll_b
+        and _debt_floor_ok(debt_e8=post_debt_b, min_debt_open_e8=min_debt)
         and _mcr_ok(
             collateral_e8=post_coll_b,
             debt_e8=post_debt_b,

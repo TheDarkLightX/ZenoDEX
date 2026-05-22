@@ -1,11 +1,8 @@
 """
-Runtime validation bridge for ZenoDEX operations.
+Tau validation bridge for ZenoDEX operations.
 
-This module is the integration-layer settlement admission boundary. The default
-path treats supplied settlements as untrusted certificates, replays accepted
-intents against the local pre-state, and requires exact deltas/events from the
-strong validator. Optional Tau gates add independent spec checks for deployments
-that enable them.
+This module bridges between Python operations and Tau Language validation.
+In production, this would call the Tau Docker container to validate operations.
 """
 
 from __future__ import annotations
@@ -15,14 +12,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from ..core.batch_clearing import apply_settlement
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
-from ..core.uniform_batch_clearing import (
-    UniformBatchCertificateV1,
-    validate_uniform_batch_settlement_v1,
-)
+from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
-from ..state.nonces import NonceTable
 from ..state.pools import PoolState
 from .settlement_end_to_end_certificate_packet import (
     SettlementEndToEndCertificateInputs,
@@ -44,7 +37,6 @@ def validate_operations(
     lp_balances: Optional[LPTable],
     block_timestamp: int,
     *,
-    nonces: Optional[NonceTable] = None,
     tau_gate_config: Optional["TauGateConfig"] = None,
     settlement_validation: str = "strong_proof_carrying",
     swap_ordering: str = "greedy_ab_refined",
@@ -57,12 +49,15 @@ def validate_operations(
     uniform_batch_certificate: Optional[Dict[str, object]] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
-    Validate ZenoDEX operations against the configured settlement policy.
-
-    The default policy runs strong replay validation locally. Certificate and
-    UPBA modes route through their deterministic verifier predicates. Tau spec
-    validation is an optional fail-closed defense-in-depth gate.
-
+    Validate ZenoDEX operations using Tau Language validation.
+    
+    In production, this would:
+    1. Serialize state and operations to Tau Language format
+    2. Call Tau Docker container with validation spec
+    3. Parse validation result
+    
+    For now, this performs Python-side validation as a placeholder.
+    
     Args:
         intents: List of intents from operations["2"]
         settlement: Settlement from operations["3"] (if present)
@@ -114,7 +109,6 @@ def validate_operations(
                     pre_balances=balances,
                     pre_pools=pools,
                     pre_lp_balances=lp_balances,
-                    pre_nonces=nonces,
                     mode=str(settlement_validation),
                     allow_cow_netting=bool(allow_cow_netting),
                     allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),

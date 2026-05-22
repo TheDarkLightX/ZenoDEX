@@ -1,0 +1,38 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/ZenoDEXAristotleDisasterBasis.lean",
+  "claim": "Promotes the highest-value Aristotle disaster-state theorem basis into local Lean: verifier admission, full binding, O5 independence rejection, oracle consumption binding, ProofMining reward accounting, settlement conservation, CPMM no-overdelivery, coverage monotonicity, and backend admission rejection bits.",
+  "file": "lean-mathlib/Proofs/ZenoDEXAristotleDisasterBasis.lean",
+  "focused_test": "pytest -q tests/formal/test_lean_zenodex_aristotle_disaster_basis.py",
+  "non_claims": [
+    "Does not prove cryptographic soundness, oracle truth, compiler correctness, zkVM validity, Wasm containment, or network liveness.",
+    "Does not prove the disaster-axis set is complete.",
+    "Does not prove concrete runtime fields instantiate every abstract theorem assumption.",
+    "Does not prove full transitive O5 DAG closure; only the promoted simple acyclicity/self-support rejection theorem is included."
+  ],
+  "proof_quality_scan": "S (100/100), placeholders=0, trust=0, broad_auto=0",
+  "status": "checked",
+  "theorems": [
+    "Proofs.ZenoDEXAristotleDisasterBasis.admission_requires_verifier",
+    "Proofs.ZenoDEXAristotleDisasterBasis.reward_requires_verifier_acceptance",
+    "Proofs.ZenoDEXAristotleDisasterBasis.full_binding_iff_match",
+    "Proofs.ZenoDEXAristotleDisasterBasis.binding_mismatch_blocks_statement_hash",
+    "Proofs.ZenoDEXAristotleDisasterBasis.partial_binding_allows_mismatch",
+    "Proofs.ZenoDEXAristotleDisasterBasis.weak_verifier_count_rejects",
+    "Proofs.ZenoDEXAristotleDisasterBasis.root_drift_rejects",
+    "Proofs.ZenoDEXAristotleDisasterBasis.acyclic_no_self_support",
+    "Proofs.ZenoDEXAristotleDisasterBasis.stale_report_rejected",
+    "Proofs.ZenoDEXAristotleDisasterBasis.mismatched_query_blocks",
+    "Proofs.ZenoDEXAristotleDisasterBasis.mismatched_value_blocks",
+    "Proofs.ZenoDEXAristotleDisasterBasis.reward_conservation",
+    "Proofs.ZenoDEXAristotleDisasterBasis.duplicate_claim_rejected",
+    "Proofs.ZenoDEXAristotleDisasterBasis.reward_budget_bounded",
+    "Proofs.ZenoDEXAristotleDisasterBasis.settlement_composition_conserved",
+    "Proofs.ZenoDEXAristotleDisasterBasis.cpmm_output_le_reserve",
+    "Proofs.ZenoDEXAristotleDisasterBasis.adding_axis_reduces_risk",
+    "Proofs.ZenoDEXAristotleDisasterBasis.full_coverage_iff",
+    "Proofs.ZenoDEXAristotleDisasterBasis.same_public_result_context_ok_eq",
+    "Proofs.ZenoDEXAristotleDisasterBasis.code_identity_fail_rejects",
+    "Proofs.ZenoDEXAristotleDisasterBasis.sandbox_fail_rejects",
+    "Proofs.ZenoDEXAristotleDisasterBasis.deterministic_fail_rejects"
+  ]
+}

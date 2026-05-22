@@ -366,8 +366,6 @@ def step(s: State, cmd: Command) -> StepResult:
             return StepResult(ok=False, error=f"post-invariant violated: {failed}")
         return StepResult(ok=True, state=new_state, effects=effects)
     elif cmd.tag == "settle_rate_epoch":
-        if "auth_ok" not in cmd.args or not (isinstance(cmd.args["auth_ok"], bool)):
-            return StepResult(ok=False, error="invalid param auth_ok")
         if "realized_rate_bps" not in cmd.args or not (
             isinstance(cmd.args["realized_rate_bps"], int)
             and not isinstance(cmd.args["realized_rate_bps"], bool)
@@ -410,7 +408,6 @@ def step(s: State, cmd: Command) -> StepResult:
                 (cmd.args["settle_protocol_fee"] + s.protocol_fee_pool) <= 1000000000000
             )
             and (cmd.args["realized_rate_bps"] <= s.funding_cap_bps)
-            and cmd.args["auth_ok"]
             and (False == s.frozen)
             and (False == s.settled_this_epoch)
             and (

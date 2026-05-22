@@ -1,13 +1,11 @@
 # Zeno Oracle Runtime Bridge V1
 
-Status: concrete ZenoDEX perps, zUSD, routing, protected swap, trigger, and
-critical-settlement consumer hooks.
+Status: first concrete ZenoDEX perps, zUSD, and routing consumer hooks.
 
 The Oracle receipt chain is useful only if runtime actions refuse to treat raw
 oracle-looking data as authority. The first runtime bridges are now wired into
 perps settlement paths, critical zUSD API actions, and guarded routing quote
-APIs, with typed authorization checks for protected swaps, zUSD, guarded
-quotes, isolated perps settlement, and critical settlement.
+APIs.
 
 ## Perps Settlement Hook
 
@@ -17,7 +15,6 @@ quotes, isolated perps settlement, and critical settlement.
 oracle_adapter_bridge_verifier: Optional[Callable[[Mapping[str, Any]], Any]]
 require_oracle_adapter_for_isolated_settle_epoch: bool
 require_oracle_adapter_for_clearinghouse_settle_epoch: bool
-require_oracle_authorization_for_isolated_settle_epoch: bool
 ```
 
 When a `settle_epoch` op carries `oracle_adapter_bridge`, the engine:
@@ -79,11 +76,6 @@ without `oracle_adapter_bridge` is rejected on 2-party and 3-party clearinghouse
 perps. If the bridge is present but no verifier is configured, settlement is
 rejected even when the requirement flag is false.
 
-If `require_oracle_authorization_for_isolated_settle_epoch` is true, isolated
-settlement also requires a typed `oracle_authorization` bound to the runtime
-action facts and current oracle snapshot. The older internal spelling
-`require_oracle_authorization_for_isolated_settle` remains accepted as an alias.
-
 This prevents the wired perps settlement paths from accepting a receipt minted
 for a different consumer, action, query, profile policy, market, market kind,
 participant set, epoch, clearing price, or oracle snapshot, or accepting a
@@ -95,6 +87,14 @@ The zUSD development API now gates the critical `mint_zusd` and `liquidate`
 commands when `ZUSD_ORACLE_ADAPTER_REQUIRED` is enabled, and also verifies any
 `oracle_adapter_bridge` supplied on those commands even when the requirement flag
 is disabled.
+
+When `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` is enabled, the same critical
+`mint_zusd` and `liquidate` commands also require typed `oracle_authorization`.
+The authorization is checked against the runtime action kind (`mint` or
+`liquidate_vault`), the per-action zUSD profile, the runtime action ID,
+action-facts hash, pre-state hash, query ID, active or pending oracle price, and
+current epoch. This keeps the O3 adapter receipt and the runtime-consumed typed
+authorization bound to the same zUSD action surface.
 
 The verified bridge must bind to:
 
@@ -128,6 +128,7 @@ The Oracle MVP gate also runs:
 
 ```bash
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 ```
 
 The zUSD hook does not claim that the zUSD API is the production chain
@@ -203,42 +204,6 @@ The routing hooks are currently limited to the exact-in guarded quote endpoint
 and the exact-out many-pool guarded quote endpoint. They do not claim every
 quote, packet-build, advisory, or verification endpoint is runtime-wired.
 
-## Protected Swap Authorization Hook
-
-`DexEngineConfig.require_oracle_authorization_for_protected_swaps` makes
-quote-receipt-bound exact-in and exact-out swaps require a typed
-`oracle_authorization`. The runtime derives protected-swap action facts from the
-intent, quote receipt, quoted leg, pool snapshot, amount constraint, query id,
-and block epoch, then checks the authorization against those facts before nonce
-application and settlement computation.
-
-The production-candidate network config gate requires this control in
-`runtime_controls` and binds the enabled-control set into the
-`runtime_controls_attestation` receipt.
-
-The protected swap hook rejects missing authorization when configured,
-non-object authorization payloads, missing quote receipt witnesses, quote-leg
-drift, wrong runtime value, wrong receipt context, and expired authorization.
-
-## Trigger Execution Hooks
-
-Trigger execution uses the catalog action identity `execute_trigger` for both
-the O3 adapter bridge and typed Oracle authorization. The trigger command facts
-still carry the local command action `execute`, but the Oracle-facing action
-facts hash now records that local command under `trigger_action_kind` and records
-`action_kind = "execute_trigger"` for the consumer profile boundary.
-
-`check_trigger_execute_oracle_adapter_bridge(required=True)` rejects missing
-bridges, wrong consumer/action/query/profile, and action-id drift.
-`check_trigger_execute_oracle_authorization` rejects legacy `execute`
-authorization aliases, wrong value, wrong pre-state context, below-O3 evidence,
-expired authorization, unsatisfied trigger conditions, and catalog-profile
-drift.
-
-The production-candidate network config gate requires
-`trigger_oracle_authorization_required` in `runtime_controls` and binds that
-enabled control into the `runtime_controls_attestation` receipt.
-
 ## CI Coverage
 
 The Oracle MVP gate runs:
@@ -248,8 +213,11 @@ pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
 pytest -q tests/integration/test_zeno_oracle_trigger_authorization.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
 ```
 
 Those tests cover:
@@ -261,6 +229,8 @@ Those tests cover:
 - accepted bridge for the wrong query;
 - accepted bridge for the wrong runtime action ID;
 - accepted bridge bound to the intended consumer/action.
+- isolated perps v3 `settle_epoch` rejection when the Oracle snapshot is
+  missing, zero-priced, stale, or from the same epoch.
 
 ## Non-Claims
 
@@ -271,7 +241,8 @@ This hook does not yet claim:
 - the external Oracle network is live;
 - verifier callbacks are automatically configured by deployment tooling.
 
-The current claim covers perps settlement, critical zUSD demo API actions,
-guarded routing quote APIs, protected swaps, trigger execution helpers, and
-critical-settlement authorization helpers. Production deployment still has to
-enable the required runtime controls and provide the attestation receipt.
+The current claim is narrower: perps settlement, critical zUSD demo API actions,
+trigger execution, and guarded routing quote APIs now have fail-closed runtime
+bridge points that can require an accepted aggregate-derived Oracle receipt
+before execution proceeds. zUSD, trigger execution, protected swap, isolated
+perps settlement, and critical settlement also have typed authorization tests.

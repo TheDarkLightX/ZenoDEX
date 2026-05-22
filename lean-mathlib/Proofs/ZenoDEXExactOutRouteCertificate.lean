@@ -206,6 +206,19 @@ theorem verifyingCertificate_unique
     certificate = buildCertificate first rest bindingOk := by
   exact hVerify
 
+theorem verifiedCertificate_rejects_distinct_rebuild
+    (first liveFirst : Candidate)
+    (rest liveRest : List Candidate)
+    (bindingOk : Bool)
+    {certificate : Certificate}
+    (hVerify : verifyCertificate first rest bindingOk certificate)
+    (hDistinct :
+      buildCertificate first rest bindingOk ≠
+        buildCertificate liveFirst liveRest bindingOk) :
+    ¬ verifyCertificate liveFirst liveRest bindingOk certificate := by
+  intro hLiveVerify
+  exact hDistinct (hVerify.symm.trans hLiveVerify)
+
 theorem buildCertificate_winner_keyLe_all
     (first : Candidate)
     (rest : List Candidate)

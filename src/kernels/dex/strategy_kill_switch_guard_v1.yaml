@@ -1,0 +1,33 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_kill_switch_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless kill-switch guard for the auto-trader shell.
+
+observables:
+  state_vars: []
+  effects: ["kill_switch_ok"]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "check_kill_switch"
+    params:
+      - id: "kill_switch_enabled"
+        type: { kind: "bool" }
+      - id: "kill_switch_active"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      kill_switch_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "kill_switch_enabled" }]
+          - op: "not"
+            args: [{ param: "kill_switch_active" }]

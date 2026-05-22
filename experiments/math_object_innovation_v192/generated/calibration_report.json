@@ -1,0 +1,149 @@
+{
+  "accepted_count": 18,
+  "gross_protocol_revenue_units": 8236,
+  "malformed_count": 0,
+  "malformed_rows": [],
+  "model_audit": {
+    "accepted_negative_gross_revenue_failures": 0,
+    "accepted_net_identity_failures": 0,
+    "accepted_no_worse_failures": 0,
+    "total_calibration_invariant_failures": 0
+  },
+  "net_protocol_revenue_units": 8218,
+  "non_claims": [
+    "This is calibration scaffolding, not live production telemetry.",
+    "The sample receipts are fixtures, not market data.",
+    "Observed caps should not be used as launch parameters without real corpus replay."
+  ],
+  "penalty_revenue_bps": 0,
+  "penalty_revenue_units": 0,
+  "primary_recurring_revenue_bps": 10000,
+  "primary_recurring_revenue_units": 8236,
+  "receipt_count": 20,
+  "reject_reason_counts": {
+    "user_fee_exceeds_measured_value": 1,
+    "wash_score_rejected": 1
+  },
+  "rejected_count": 2,
+  "schema": "zenodex/fire-revenue-surface-calibration-report/v1",
+  "source_path": "generated/execution_revenue_surface_receipts.jsonl",
+  "strongest_claim": "This report converts receipt-backed fee events into empirical value-density caps and rejects rows where user fees exceed measured value, protocol surplus capture exceeds surplus, penalties are primary, wash score is too high, or primary revenue is negative net.",
+  "surface_summaries": {
+    "exact_out_savings_capture": {
+      "accepted_count": 9,
+      "accepted_fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 9
+      },
+      "accepted_measured_value_units": 10283,
+      "accepted_net_protocol_revenue_units": 2287,
+      "accepted_primary_revenue_count": 9,
+      "accepted_protocol_revenue_units": 2296,
+      "accepted_recurring_count": 9,
+      "accepted_retail_eligible_count": 9,
+      "accepted_user_fee_paid_units": 2296,
+      "accepted_user_net_value_units": 7987,
+      "accepted_wash_score_max_bps": 0,
+      "fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 9
+      },
+      "observed_max_fee_bps_of_value": 2498,
+      "observed_p50_fee_bps_of_value": 1491,
+      "observed_p90_fee_bps_of_notional": 1206,
+      "observed_p90_fee_bps_of_value": 2497,
+      "rejected_count": 0,
+      "row_count": 9,
+      "suggested_review_cap_bps_of_value": 2497
+    },
+    "execution_exact_out_wash_bad": {
+      "accepted_count": 0,
+      "accepted_fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 0
+      },
+      "accepted_measured_value_units": 0,
+      "accepted_net_protocol_revenue_units": 0,
+      "accepted_primary_revenue_count": 0,
+      "accepted_protocol_revenue_units": 0,
+      "accepted_recurring_count": 0,
+      "accepted_retail_eligible_count": 0,
+      "accepted_user_fee_paid_units": 0,
+      "accepted_user_net_value_units": 0,
+      "accepted_wash_score_max_bps": 0,
+      "fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 1
+      },
+      "observed_max_fee_bps_of_value": 0,
+      "observed_p50_fee_bps_of_value": 0,
+      "observed_p90_fee_bps_of_notional": 0,
+      "observed_p90_fee_bps_of_value": 0,
+      "rejected_count": 1,
+      "row_count": 1,
+      "suggested_review_cap_bps_of_value": 0
+    },
+    "execution_route_overcharge_bad": {
+      "accepted_count": 0,
+      "accepted_fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 0
+      },
+      "accepted_measured_value_units": 0,
+      "accepted_net_protocol_revenue_units": 0,
+      "accepted_primary_revenue_count": 0,
+      "accepted_protocol_revenue_units": 0,
+      "accepted_recurring_count": 0,
+      "accepted_retail_eligible_count": 0,
+      "accepted_user_fee_paid_units": 0,
+      "accepted_user_net_value_units": 0,
+      "accepted_wash_score_max_bps": 0,
+      "fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 1
+      },
+      "observed_max_fee_bps_of_value": 0,
+      "observed_p50_fee_bps_of_value": 0,
+      "observed_p90_fee_bps_of_notional": 0,
+      "observed_p90_fee_bps_of_value": 0,
+      "rejected_count": 1,
+      "row_count": 1,
+      "suggested_review_cap_bps_of_value": 0
+    },
+    "route_surplus_capture": {
+      "accepted_count": 9,
+      "accepted_fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 9
+      },
+      "accepted_measured_value_units": 23612,
+      "accepted_net_protocol_revenue_units": 5931,
+      "accepted_primary_revenue_count": 9,
+      "accepted_protocol_revenue_units": 5940,
+      "accepted_recurring_count": 9,
+      "accepted_retail_eligible_count": 9,
+      "accepted_user_fee_paid_units": 5940,
+      "accepted_user_net_value_units": 17672,
+      "accepted_wash_score_max_bps": 0,
+      "fee_source_counts": {
+        "penalty": 0,
+        "protocol_surplus": 0,
+        "user": 9
+      },
+      "observed_max_fee_bps_of_value": 2999,
+      "observed_p50_fee_bps_of_value": 1999,
+      "observed_p90_fee_bps_of_notional": 1653,
+      "observed_p90_fee_bps_of_value": 2998,
+      "rejected_count": 0,
+      "row_count": 9,
+      "suggested_review_cap_bps_of_value": 2998
+    }
+  }
+}

@@ -4,13 +4,10 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from enum import Enum
 import importlib.util
 import json
 import sys
 import tempfile
-import types
 from pathlib import Path
 from typing import Any
 
@@ -26,75 +23,6 @@ if MORPH.is_dir() and str(MORPH) not in sys.path:
     sys.path.append(str(MORPH))
 
 SCHEMA = "zenodex.oracle.workflow_evidence_status.v1"
-
-
-def _ensure_morph_smoke_api() -> str:
-    try:
-        from morph.domain import Goal, ProblemState, Representation  # noqa: F401
-        from morph.proofs import Transition, VerifyResult  # noqa: F401
-        from morph.triviality_safe import CertificateOnlyDomain, CheckResult  # noqa: F401
-
-        if getattr(sys.modules.get("morph"), "__zenodex_public_api_stub__", False):
-            return "public_api_stub"
-        return "morph"
-    except ModuleNotFoundError as exc:
-        if exc.name != "morph":
-            raise
-
-    morph_mod = types.ModuleType("morph")
-    morph_mod.__zenodex_public_api_stub__ = True
-    domain_mod = types.ModuleType("morph.domain")
-    proofs_mod = types.ModuleType("morph.proofs")
-    triviality_mod = types.ModuleType("morph.triviality_safe")
-
-    @dataclass(frozen=True)
-    class Goal:
-        text: str
-
-    @dataclass(frozen=True)
-    class Representation:
-        text: str
-
-    @dataclass(frozen=True)
-    class ProblemState:
-        goal: Goal
-        assumptions: tuple[Any, ...]
-        constraints: tuple[Any, ...]
-        representation: Representation
-        history: tuple[Any, ...]
-        metadata: tuple[Any, ...]
-
-    @dataclass(frozen=True)
-    class Transition:
-        child: ProblemState
-
-    class VerifyResult(Enum):
-        PASS = "PASS"
-        FAIL = "FAIL"
-
-    class CheckResult(Enum):
-        PASS = "PASS"
-        FAIL = "FAIL"
-
-    class CertificateOnlyDomain:
-        pass
-
-    domain_mod.Goal = Goal
-    domain_mod.ProblemState = ProblemState
-    domain_mod.Representation = Representation
-    proofs_mod.Transition = Transition
-    proofs_mod.VerifyResult = VerifyResult
-    triviality_mod.CertificateOnlyDomain = CertificateOnlyDomain
-    triviality_mod.CheckResult = CheckResult
-    morph_mod.domain = domain_mod
-    morph_mod.proofs = proofs_mod
-    morph_mod.triviality_safe = triviality_mod
-
-    sys.modules["morph"] = morph_mod
-    sys.modules["morph.domain"] = domain_mod
-    sys.modules["morph.proofs"] = proofs_mod
-    sys.modules["morph.triviality_safe"] = triviality_mod
-    return "public_api_stub"
 
 
 def _artifact_case(
@@ -125,10 +53,8 @@ def _morph_case() -> dict[str, Any]:
     errors: list[str] = []
     check = None
     check2 = None
-    dependency_mode = None
     if not missing:
         try:
-            dependency_mode = _ensure_morph_smoke_api()
             from morph.domain import Goal, ProblemState, Representation
             from morph.triviality_safe import CheckResult
 
@@ -198,7 +124,6 @@ def _morph_case() -> dict[str, Any]:
         "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format text",
         "files": files,
         "missing_files": missing,
-        "dependency_mode": dependency_mode,
         "check": None if check is None else str(check),
         "check2": None if check2 is None else str(check2),
         "errors": errors,
@@ -265,10 +190,9 @@ def build_status() -> dict[str, Any]:
             files=[
                 "formal/tla/OracleRecoveryLifecycle.tla",
                 "formal/tla/OracleRecoveryLifecycle.cfg",
-                "tools/zeno_oracle_tla_recovery_replay.py",
                 "tests/formal/test_tla_oracle_recovery_lifecycle.py",
             ],
-            replay_command="python3 tools/zeno_oracle_tla_recovery_replay.py --format text",
+            replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py",
             evidence_class="tla_public_replay",
         ),
         _artifact_case(
@@ -276,20 +200,18 @@ def build_status() -> dict[str, Any]:
             files=[
                 "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
                 "formal/ltlf/oracle_recovery_goal_family_v1.json",
-                "tools/zeno_oracle_ltlf_recovery_replay.py",
                 "tests/formal/test_oracle_recovery_ltlf.py",
             ],
-            replay_command="python3 tools/zeno_oracle_ltlf_recovery_replay.py --format text",
+            replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py",
             evidence_class="ltlf_public_replay",
         ),
         _artifact_case(
             "esso_zusd_oracle_recovery_lifecycle",
             files=[
                 "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
-                "tools/zeno_oracle_esso_zusd_recovery_replay.py",
                 "tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
             ],
-            replay_command="python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format text",
+            replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
             evidence_class="esso_public_replay",
         ),
         _morph_case(),

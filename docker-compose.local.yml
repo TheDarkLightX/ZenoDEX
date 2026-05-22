@@ -1,0 +1,38 @@
+services:
+  zenodex-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zenodex:local
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8000:8000"
+    environment:
+      API_HOST: "127.0.0.1"
+      API_PORT: "8000"
+      API_SURFACE_PROFILE: "local-demo"
+      LOG_LEVEL: "info"
+    volumes:
+      - zenodex-local-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 512m
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=64m
+      - /var/run:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=64m
+      - /var/log/nginx:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=16m
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  zenodex-local-data:

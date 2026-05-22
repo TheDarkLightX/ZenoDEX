@@ -1,0 +1,51 @@
+# AutoTrader Wallet Capability Guard v1
+#
+# PURPOSE: Validate a delegated wallet/session capability for live auto-trader use.
+#
+# i1 = enabled (sbf)
+# i2 = signer_ok (sbf)
+# i3 = asset_in_allowed (sbf)
+# i4 = asset_out_allowed (sbf)
+# i5 = action_allowed (sbf)
+# i6 = chain_id_ok (sbf)
+# i7 = current_epoch (bv[32])
+# i8 = valid_from_epoch (bv[32])
+# i9 = valid_until_epoch (bv[32])
+# i10 = order_amount (bv[32])
+# i11 = notional_remaining (bv[32])
+# o1 = enabled_ok
+# o2 = scope_ok
+# o3 = within_window_ok
+# o4 = notional_ok
+# o5 = capability_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) &&
+  (
+    o2[t]:sbf = 1:sbf <->
+    (
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf)
+    )
+  ) &&
+  (o3[t]:sbf = 1:sbf <-> ((i7[t]:bv[32] >= i8[t]:bv[32]) && (i7[t]:bv[32] <= i9[t]:bv[32]))) &&
+  (o4[t]:sbf = 1:sbf <-> (i10[t]:bv[32] <= i11[t]:bv[32])) &&
+  (
+    o5[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 1:sbf) &&
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf) &&
+      (i7[t]:bv[32] >= i8[t]:bv[32]) &&
+      (i7[t]:bv[32] <= i9[t]:bv[32]) &&
+      (i10[t]:bv[32] <= i11[t]:bv[32])
+    )
+  ).

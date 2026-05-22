@@ -40,6 +40,17 @@ Best practice:
 - keep `API_HOST=127.0.0.1` unless you explicitly expose the API
 - keep `CORS_ORIGINS` empty for same-origin hosting
 - set `DEMO_API_TOKEN` if demo/dev APIs are reachable from non-loopback binds
+- on Linux hosts that support AppArmor, load the optional ZenoDEX profile and
+  run with `docker-compose.apparmor.yml`
+
+Optional AppArmor path:
+
+```bash
+sudo apparmor_parser -r .docker/apparmor/zenodex
+docker compose -f docker-compose.yml -f docker-compose.apparmor.yml up -d
+```
+
+See `docs/CONTAINER_HARDENING.md` for the complete container hardening posture.
 
 ### 2. Local-node-first operator mode
 
@@ -227,6 +238,7 @@ A shell wrapper is also available: `python3 tools/permissionless_proof_mining_st
 Current best-practice posture for the public path:
 
 - rootless container or rootless Podman
+- optional AppArmor overlay on Linux hosts
 - same-origin UI + API
 - local Tau node where possible
 - static frontend optionally mirrored to IPFS

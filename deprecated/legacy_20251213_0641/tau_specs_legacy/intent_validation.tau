@@ -1,0 +1,70 @@
+// Intent Validation Rules
+// Validates intent authorization and constraints
+//
+// NOTE: This file contains pseudo-code comments.
+// It will be rewritten in actual Tau Language syntax.
+// See types.tau, invariants.tau, cpmm_math.tau, balance_safety.tau
+// for examples of valid Tau syntax.
+
+// Intent structure:
+// - module: "TauSwap"
+// - version: "0.1"
+// - kind: CREATE_POOL | ADD_LIQUIDITY | REMOVE_LIQUIDITY | SWAP_EXACT_IN | SWAP_EXACT_OUT
+// - intent_id: 32-byte hex identifier
+// - sender_pubkey: Public key of intent creator
+// - deadline: Unix timestamp expiration
+// - fields: Intent-specific fields (pool_id, amounts, etc.)
+
+// Validation rules (to be encoded in Tau):
+
+// 1. Authorization: intent.sender_pubkey must equal tx.sender_pubkey
+// authorized := intent.sender_pubkey = tx.sender_pubkey
+
+// 2. Expiration: block.timestamp <= intent.deadline
+// not_expired := block.timestamp <= intent.deadline
+
+// 3. Intent ID format: must be 32-byte hex string
+// valid_intent_id := intent.intent_id matches /^0x[0-9a-f]{64}$/
+
+// 4. Module and version: must match protocol
+// valid_module := intent.module = "TauSwap" && intent.version = "0.1"
+
+// 5. Intent-specific field validation:
+// For CREATE_POOL:
+//   - asset0 < asset1 (canonical ordering)
+//   - 0 <= fee_bps <= 10000
+//   - amount0 > 0 && amount1 > 0
+//
+// For SWAP_EXACT_IN:
+//   - pool_id exists
+//   - asset_in and asset_out match pool assets
+//   - amount_in > 0
+//   - min_amount_out >= 0
+//
+// For SWAP_EXACT_OUT:
+//   - pool_id exists
+//   - asset_in and asset_out match pool assets
+//   - amount_out > 0
+//   - max_amount_in >= 0
+//
+// For ADD_LIQUIDITY:
+//   - pool_id exists
+//   - amount0_desired > 0 && amount1_desired > 0
+//   - amount0_min >= 0 && amount1_min >= 0
+//
+// For REMOVE_LIQUIDITY:
+//   - pool_id exists
+//   - lp_amount > 0
+//   - amount0_min >= 0 && amount1_min >= 0
+
+// 6. No double fill: intent_id must not be in INTENT_FILLED
+// not_double_filled := intent.intent_id not in INTENT_FILLED
+
+// Intent is valid if all applicable rules hold:
+// intent_valid :=
+//   authorized &&
+//   not_expired &&
+//   valid_intent_id &&
+//   valid_module &&
+//   intent_specific_fields_valid &&
+//   not_double_filled

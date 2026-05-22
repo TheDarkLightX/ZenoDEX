@@ -1,0 +1,111 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_budget_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Guard kernel for the imperative-shell auto-trader.
+
+    The kernel does not choose trades. It only enforces bounded policy:
+    - kill switch blocks all consumption
+    - each order must fit the per-order cap
+    - cumulative spent_in_window + order_amount must fit the window budget
+    - window roll resets spend and must advance monotonically
+
+observables:
+  state_vars: ["window_id", "spent_in_window", "kill_switch_on"]
+  effects: ["budget_ok", "kill_switch_active", "order_applied"]
+
+state_vars:
+  - id: "window_id"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967295 }
+  - id: "spent_in_window"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967295 }
+  - id: "kill_switch_on"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "window_id"
+    expr: { const: 0 }
+  - var: "spent_in_window"
+    expr: { const: 0 }
+  - var: "kill_switch_on"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_window_id_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "window_id" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "window_id" }, { const: 4294967295 }] }
+  - id: "inv_spent_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "spent_in_window" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "spent_in_window" }, { const: 4294967295 }] }
+
+actions:
+  - id: "consume_order"
+    params:
+      - id: "order_amount"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "per_order_limit"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "window_budget"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - op: "not"
+          args: [{ var: "kill_switch_on" }]
+        - { op: "<=", args: [{ param: "order_amount" }, { param: "per_order_limit" }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "spent_in_window" }, { param: "order_amount" }]
+            - { param: "window_budget" }
+    updates:
+      - var: "spent_in_window"
+        expr:
+          op: "+"
+          args: [{ var: "spent_in_window" }, { param: "order_amount" }]
+    effects:
+      budget_ok: { const: 1 }
+      kill_switch_active: { const: 0 }
+      order_applied: { const: 1 }
+
+  - id: "roll_window"
+    params:
+      - id: "new_window_id"
+        type: { kind: "int", min: 0, max: 4294967295 }
+    guard:
+      op: ">"
+      args: [{ param: "new_window_id" }, { var: "window_id" }]
+    updates:
+      - var: "window_id"
+        expr: { param: "new_window_id" }
+      - var: "spent_in_window"
+        expr: { const: 0 }
+    effects:
+      budget_ok: { const: 1 }
+      kill_switch_active: { const: 0 }
+      order_applied: { const: 0 }
+
+  - id: "trigger_kill_switch"
+    params: []
+    guard:
+      op: "not"
+      args: [{ var: "kill_switch_on" }]
+    updates:
+      - var: "kill_switch_on"
+        expr: { bool: true }
+    effects:
+      budget_ok: { const: 0 }
+      kill_switch_active: { const: 1 }
+      order_applied: { const: 0 }

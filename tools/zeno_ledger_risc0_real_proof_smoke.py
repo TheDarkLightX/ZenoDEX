@@ -379,40 +379,6 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
         },
     }
 
-    exact_out_pre = _empty_snapshot_copy()
-    exact_out_pre["balances"] = [
-        {"pubkey": SENDER, "asset": ASSET0, "amount": 1_000},
-    ]
-    exact_out_pre["pools"] = [_pool_entry(reserve0=10_000, reserve1=10_000)]
-    exact_out_post = _empty_snapshot_copy()
-    exact_out_post["balances"] = [
-        {"pubkey": SENDER, "asset": ASSET0, "amount": 7},
-        {"pubkey": RECIPIENT, "asset": ASSET1, "amount": 900},
-    ]
-    exact_out_post["pools"] = [_pool_entry(reserve0=10_993, reserve1=9_100)]
-    exact_out_tx = {
-        "sender_pubkey": SENDER,
-        "nonce": 0,
-        "operations": {
-            "2": [
-                {
-                    "module": "TauSwap",
-                    "version": "v1",
-                    "kind": "SWAP_EXACT_OUT",
-                    "intent_id": "swap-exact-out-1",
-                    "sender_pubkey": SENDER,
-                    "deadline": 100,
-                    "pool_id": POOL_ID,
-                    "asset_in": ASSET0,
-                    "asset_out": ASSET1,
-                    "amount_out": 900,
-                    "max_amount_in": 993,
-                    "recipient": RECIPIENT,
-                }
-            ]
-        },
-    }
-
     add_pre = _empty_snapshot_copy()
     add_pre["balances"] = [
         {"pubkey": SENDER, "asset": ASSET0, "amount": 1_000},
@@ -535,12 +501,6 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
             "pre_hash": _snapshot_hash(swap_pre),
             "transactions": [swap_tx],
             "post_hash": _snapshot_hash(swap_post),
-        },
-        "swap_exact_out": {
-            "pre_snapshot": exact_out_pre,
-            "pre_hash": _snapshot_hash(exact_out_pre),
-            "transactions": [exact_out_tx],
-            "post_hash": _snapshot_hash(exact_out_post),
         },
         "add_liquidity": {
             "pre_snapshot": add_pre,
@@ -715,7 +675,6 @@ def main(argv: list[str] | None = None) -> int:
             "faucet_mint",
             "create_pool",
             "swap_exact_in",
-            "swap_exact_out",
             "add_liquidity",
             "remove_liquidity",
             "spot_block_liquidity_cycle",

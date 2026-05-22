@@ -1,0 +1,1 @@
+{"blob_ref":"sha256:d0cf7ef1f20c209fc59d3d6edff9edae32aa0e39314e8fc43640e4d663bf9425","kind":"audit-tool","media_type":"text/x-python","name":"zenoenergy_synthetic_candidate_coverage_tool","path":"tools/audit_upba_energy_synthetic_coverage.py","schema":"popperpad/artifact/v1"}

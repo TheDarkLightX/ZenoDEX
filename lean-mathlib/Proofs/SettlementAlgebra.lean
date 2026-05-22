@@ -88,7 +88,12 @@ structure Settlement where
 @[ext]
 theorem Settlement.ext {s₁ s₂ : Settlement} (hx : s₁.dx = s₂.dx) (hy : s₁.dy = s₂.dy) :
     s₁ = s₂ := by
-  cases s₁; cases s₂; simp_all
+  cases s₁ with
+  | mk dx₁ dy₁ =>
+    cases s₂ with
+    | mk dx₂ dy₂ =>
+      simp only at hx hy
+      rw [hx, hy]
 
 /-! ## Part 2: Mathlib AddCommGroup Instance
 

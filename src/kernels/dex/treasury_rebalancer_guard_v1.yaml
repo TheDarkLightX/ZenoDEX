@@ -1,0 +1,280 @@
+# Treasury Rebalancer Guard v1
+#
+# Non-live kernel: admission and risk-budget guard for a protocol-owned
+# treasury rebalancer. This model is intentionally not wired into runtime
+# execution. It exists so the market-making idea starts as a bounded proof
+# obligation instead of an ungoverned trading bot.
+
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "treasury_rebalancer_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Admission guard for proof-backed treasury rebalancing.
+
+    A trade can be admitted only when:
+      - the strategy is not paused,
+      - the oracle is fresh,
+      - the route is public,
+      - the route does not use private order flow,
+      - the route does not sandwich users,
+      - the route is not a self-trade,
+      - expected edge covers cost plus risk buffer,
+      - notional stays within liquidity budget,
+      - inventory stays within cap,
+      - reserved worst-case loss stays within the daily loss budget,
+      - cooldown has elapsed.
+
+    Bounds are intentionally small for SMT tractability. Production values
+    would use e8-scaled integer units and the same monotone inequalities.
+
+observables:
+  state_vars:
+    [
+      "treasury_balance",
+      "max_daily_loss_budget",
+      "daily_loss_used",
+      "liquidity_budget",
+      "inventory_exposure_bps",
+      "max_inventory_bps",
+      "cooldown_epochs",
+      "last_trade_epoch",
+      "paused",
+      "admitted_count",
+    ]
+  effects:
+    [
+      "trade_admitted",
+      "budget_remaining",
+      "inventory_after",
+      "admission_reason_code",
+    ]
+
+types: []
+
+state_vars:
+  - id: "treasury_balance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "max_daily_loss_budget"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "daily_loss_used"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "liquidity_budget"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "inventory_exposure_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "max_inventory_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "cooldown_epochs"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10 }
+
+  - id: "last_trade_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100 }
+
+  - id: "paused"
+    role: "control"
+    type: { kind: "bool" }
+
+  - id: "admitted_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100 }
+
+invariants:
+  - id: "daily_loss_budget_preserved"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "daily_loss_used" }, { var: "max_daily_loss_budget" }]
+
+  - id: "daily_loss_budget_backed_by_treasury"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "max_daily_loss_budget" }, { var: "treasury_balance" }]
+
+  - id: "inventory_cap_preserved"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "inventory_exposure_bps" }, { var: "max_inventory_bps" }]
+
+  - id: "admitted_count_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "admitted_count" }, { const: 0 }]
+
+init:
+  - var: "treasury_balance"
+    expr: { const: 1000 }
+  - var: "max_daily_loss_budget"
+    expr: { const: 100 }
+  - var: "daily_loss_used"
+    expr: { const: 0 }
+  - var: "liquidity_budget"
+    expr: { const: 100 }
+  - var: "inventory_exposure_bps"
+    expr: { const: 0 }
+  - var: "max_inventory_bps"
+    expr: { const: 1000 }
+  - var: "cooldown_epochs"
+    expr: { const: 1 }
+  - var: "last_trade_epoch"
+    expr: { const: 0 }
+  - var: "paused"
+    expr: { bool: false }
+  - var: "admitted_count"
+    expr: { const: 0 }
+
+actions:
+  - id: "set_policy"
+    params:
+      - id: "new_max_daily_loss_budget"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "new_liquidity_budget"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "new_max_inventory_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "new_cooldown_epochs"
+        type: { kind: "int", min: 0, max: 10 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "new_max_daily_loss_budget" }, { var: "treasury_balance" }] }
+        - { op: "<=", args: [{ var: "daily_loss_used" }, { param: "new_max_daily_loss_budget" }] }
+        - { op: "<=", args: [{ var: "inventory_exposure_bps" }, { param: "new_max_inventory_bps" }] }
+    updates:
+      - var: "max_daily_loss_budget"
+        expr: { param: "new_max_daily_loss_budget" }
+      - var: "liquidity_budget"
+        expr: { param: "new_liquidity_budget" }
+      - var: "max_inventory_bps"
+        expr: { param: "new_max_inventory_bps" }
+      - var: "cooldown_epochs"
+        expr: { param: "new_cooldown_epochs" }
+    effects:
+      trade_admitted: { bool: false }
+      budget_remaining:
+        op: "-"
+        args: [{ var: "max_daily_loss_budget" }, { var: "daily_loss_used" }]
+      inventory_after: { var: "inventory_exposure_bps" }
+      admission_reason_code: { const: 0 }
+
+  - id: "set_paused"
+    params:
+      - id: "new_paused"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "paused"
+        expr: { param: "new_paused" }
+    effects:
+      trade_admitted: { bool: false }
+      budget_remaining:
+        op: "-"
+        args: [{ var: "max_daily_loss_budget" }, { var: "daily_loss_used" }]
+      inventory_after: { var: "inventory_exposure_bps" }
+      admission_reason_code: { const: 0 }
+
+  - id: "admit_trade"
+    params:
+      - id: "now_epoch"
+        type: { kind: "int", min: 0, max: 100 }
+      - id: "expected_edge"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "costs"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "risk_buffer"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "trade_notional"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "worst_case_loss"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "inventory_after_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "oracle_fresh"
+        type: { kind: "bool" }
+      - id: "public_route"
+        type: { kind: "bool" }
+      - id: "no_private_orderflow"
+        type: { kind: "bool" }
+      - id: "no_user_sandwich"
+        type: { kind: "bool" }
+      - id: "no_self_trade"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "not", args: [{ var: "paused" }] }
+        - { op: "=", args: [{ param: "oracle_fresh" }, { bool: true }] }
+        - { op: "=", args: [{ param: "public_route" }, { bool: true }] }
+        - { op: "=", args: [{ param: "no_private_orderflow" }, { bool: true }] }
+        - { op: "=", args: [{ param: "no_user_sandwich" }, { bool: true }] }
+        - { op: "=", args: [{ param: "no_self_trade" }, { bool: true }] }
+        - { op: ">", args: [{ param: "trade_notional" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "trade_notional" }, { var: "liquidity_budget" }] }
+        - { op: "<=", args: [{ param: "inventory_after_bps" }, { var: "max_inventory_bps" }] }
+        - {
+            op: ">=",
+            args:
+              [
+                { param: "expected_edge" },
+                { op: "+", args: [{ param: "costs" }, { param: "risk_buffer" }] },
+              ],
+          }
+        - {
+            op: "<=",
+            args:
+              [
+                { op: "+", args: [{ var: "daily_loss_used" }, { param: "worst_case_loss" }] },
+                { var: "max_daily_loss_budget" },
+              ],
+          }
+        - {
+            op: ">=",
+            args:
+              [
+                { param: "now_epoch" },
+                { op: "+", args: [{ var: "last_trade_epoch" }, { var: "cooldown_epochs" }] },
+              ],
+          }
+        - { op: "<", args: [{ var: "admitted_count" }, { const: 100 }] }
+    updates:
+      - var: "daily_loss_used"
+        expr:
+          op: "+"
+          args: [{ var: "daily_loss_used" }, { param: "worst_case_loss" }]
+      - var: "inventory_exposure_bps"
+        expr: { param: "inventory_after_bps" }
+      - var: "last_trade_epoch"
+        expr: { param: "now_epoch" }
+      - var: "admitted_count"
+        expr:
+          op: "+"
+          args: [{ var: "admitted_count" }, { const: 1 }]
+    effects:
+      trade_admitted: { bool: true }
+      budget_remaining:
+        op: "-"
+        args:
+          [
+            { var: "max_daily_loss_budget" },
+            { op: "+", args: [{ var: "daily_loss_used" }, { param: "worst_case_loss" }] },
+          ]
+      inventory_after: { param: "inventory_after_bps" }
+      admission_reason_code: { const: 1 }

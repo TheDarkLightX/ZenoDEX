@@ -1,0 +1,286 @@
+{
+  "aggregate": {
+    "learned_beats_hand_count": 3,
+    "learned_beats_random_count": 3,
+    "modes": {
+      "hand": {
+        "invalid_top_1_rate_max": 0.0,
+        "mean_guard_calls_max": 2.216,
+        "mean_guard_calls_mean": 2.1766666666666667,
+        "mean_guard_calls_min": 2.154,
+        "top_1_recall_mean": 0.4053333333333333,
+        "top_1_recall_min": 0.382,
+        "top_5_recall_mean": 0.9716666666666667,
+        "top_5_recall_min": 0.967
+      },
+      "hybrid": {
+        "invalid_top_1_rate_max": 0.0,
+        "mean_guard_calls_max": 1.783,
+        "mean_guard_calls_mean": 1.734,
+        "mean_guard_calls_min": 1.698,
+        "top_1_recall_mean": 0.5706666666666667,
+        "top_1_recall_min": 0.553,
+        "top_5_recall_mean": 0.99,
+        "top_5_recall_min": 0.984
+      },
+      "learned": {
+        "invalid_top_1_rate_max": 0.0,
+        "mean_guard_calls_max": 1.783,
+        "mean_guard_calls_mean": 1.734,
+        "mean_guard_calls_min": 1.698,
+        "top_1_recall_mean": 0.5706666666666667,
+        "top_1_recall_min": 0.553,
+        "top_5_recall_mean": 0.99,
+        "top_5_recall_min": 0.984
+      },
+      "random": {
+        "invalid_top_1_rate_max": 0.638,
+        "mean_guard_calls_max": 8.773,
+        "mean_guard_calls_mean": 8.602333333333334,
+        "mean_guard_calls_min": 8.484,
+        "top_1_recall_mean": 0.059666666666666666,
+        "top_1_recall_min": 0.051,
+        "top_5_recall_mean": 0.30833333333333335,
+        "top_5_recall_min": 0.289
+      }
+    },
+    "profile_nonvacuous_count": 3,
+    "safety_pass_count": 3
+  },
+  "candidates_per_context": 16,
+  "holdout_contexts": 1000,
+  "interpretation": {
+    "limit": "This remains synthetic-distribution evidence; production-shadow observations are still required for live-distribution utility claims.",
+    "positive_knowledge": "The hard-profile AutoTraderEnergy ranker beats hand energy on every evaluated seed pair while deterministic guards remain authoritative."
+  },
+  "profile": "hard",
+  "run_count": 3,
+  "runs": [
+    {
+      "holdout_rows": 16000,
+      "holdout_seed": 20260523,
+      "holdout_valid_rows": 5944,
+      "holdout_winner_rows": 1000,
+      "learned_beats_hand": true,
+      "learned_beats_random": true,
+      "model_parameter_count": 36,
+      "modes": {
+        "hand": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 2.16,
+          "p95_guard_calls_until_winner": 5,
+          "p99_guard_calls_until_winner": 6,
+          "top_1_recall": 0.418,
+          "top_3_recall": 0.834,
+          "top_5_recall": 0.975
+        },
+        "hybrid": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 1.698,
+          "p95_guard_calls_until_winner": 4,
+          "p99_guard_calls_until_winner": 5,
+          "top_1_recall": 0.595,
+          "top_3_recall": 0.929,
+          "top_5_recall": 0.99
+        },
+        "learned": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 1.698,
+          "p95_guard_calls_until_winner": 4,
+          "p99_guard_calls_until_winner": 5,
+          "top_1_recall": 0.595,
+          "top_3_recall": 0.929,
+          "top_5_recall": 0.99
+        },
+        "random": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.632,
+          "mean_guard_calls_until_winner": 8.55,
+          "p95_guard_calls_until_winner": 16,
+          "p99_guard_calls_until_winner": 16,
+          "top_1_recall": 0.068,
+          "top_3_recall": 0.187,
+          "top_5_recall": 0.318
+        }
+      },
+      "profile_nonvacuous": true,
+      "safety": {
+        "invalid_accept_count": 0,
+        "policy_guards_authoritative": true,
+        "scorer_authorizes_trade": false
+      },
+      "train_rows": 40000,
+      "train_seed": 20260522,
+      "train_valid_rows": 15123,
+      "train_winner_rows": 2500
+    },
+    {
+      "holdout_rows": 16000,
+      "holdout_seed": 20260525,
+      "holdout_valid_rows": 6005,
+      "holdout_winner_rows": 1000,
+      "learned_beats_hand": true,
+      "learned_beats_random": true,
+      "model_parameter_count": 36,
+      "modes": {
+        "hand": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 2.216,
+          "p95_guard_calls_until_winner": 5,
+          "p99_guard_calls_until_winner": 6,
+          "top_1_recall": 0.382,
+          "top_3_recall": 0.836,
+          "top_5_recall": 0.967
+        },
+        "hybrid": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 1.783,
+          "p95_guard_calls_until_winner": 4,
+          "p99_guard_calls_until_winner": 6,
+          "top_1_recall": 0.553,
+          "top_3_recall": 0.913,
+          "top_5_recall": 0.984
+        },
+        "learned": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 1.783,
+          "p95_guard_calls_until_winner": 4,
+          "p99_guard_calls_until_winner": 6,
+          "top_1_recall": 0.553,
+          "top_3_recall": 0.913,
+          "top_5_recall": 0.984
+        },
+        "random": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.638,
+          "mean_guard_calls_until_winner": 8.773,
+          "p95_guard_calls_until_winner": 16,
+          "p99_guard_calls_until_winner": 16,
+          "top_1_recall": 0.051,
+          "top_3_recall": 0.164,
+          "top_5_recall": 0.289
+        }
+      },
+      "profile_nonvacuous": true,
+      "safety": {
+        "invalid_accept_count": 0,
+        "policy_guards_authoritative": true,
+        "scorer_authorizes_trade": false
+      },
+      "train_rows": 40000,
+      "train_seed": 20260524,
+      "train_valid_rows": 15272,
+      "train_winner_rows": 2500
+    },
+    {
+      "holdout_rows": 16000,
+      "holdout_seed": 20260527,
+      "holdout_valid_rows": 5951,
+      "holdout_winner_rows": 1000,
+      "learned_beats_hand": true,
+      "learned_beats_random": true,
+      "model_parameter_count": 36,
+      "modes": {
+        "hand": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 2.154,
+          "p95_guard_calls_until_winner": 5,
+          "p99_guard_calls_until_winner": 6,
+          "top_1_recall": 0.416,
+          "top_3_recall": 0.843,
+          "top_5_recall": 0.973
+        },
+        "hybrid": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 1.721,
+          "p95_guard_calls_until_winner": 4,
+          "p99_guard_calls_until_winner": 5,
+          "top_1_recall": 0.564,
+          "top_3_recall": 0.928,
+          "top_5_recall": 0.996
+        },
+        "learned": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.0,
+          "mean_guard_calls_until_winner": 1.721,
+          "p95_guard_calls_until_winner": 4,
+          "p99_guard_calls_until_winner": 5,
+          "top_1_recall": 0.564,
+          "top_3_recall": 0.928,
+          "top_5_recall": 0.996
+        },
+        "random": {
+          "candidate_count_mean": 16,
+          "contexts": 1000,
+          "invalid_accept_count": 0,
+          "invalid_top_1_rate": 0.624,
+          "mean_guard_calls_until_winner": 8.484,
+          "p95_guard_calls_until_winner": 16,
+          "p99_guard_calls_until_winner": 16,
+          "top_1_recall": 0.06,
+          "top_3_recall": 0.201,
+          "top_5_recall": 0.318
+        }
+      },
+      "profile_nonvacuous": true,
+      "safety": {
+        "invalid_accept_count": 0,
+        "policy_guards_authoritative": true,
+        "scorer_authorizes_trade": false
+      },
+      "train_rows": 40000,
+      "train_seed": 20260526,
+      "train_valid_rows": 15205,
+      "train_winner_rows": 2500
+    }
+  ],
+  "safety": {
+    "invalid_accept_count_total": 0,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_trade": false
+  },
+  "schema": "zenodex/energy/autotrader_cross_seed_report/v1",
+  "seed_pairs": [
+    "20260522:20260523",
+    "20260524:20260525",
+    "20260526:20260527"
+  ],
+  "train_contexts": 2500,
+  "training": {
+    "backend": "linear_pairwise_hinge",
+    "epochs": 6,
+    "init": "hand",
+    "learning_rate": 0.001,
+    "margin": 1.0
+  }
+}

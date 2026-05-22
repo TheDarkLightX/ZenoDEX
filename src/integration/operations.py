@@ -6,24 +6,17 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import List, Dict, Any, Optional
 
-from ..core.domain_limits import (
-    DEX_LP_AMOUNT_MAX,
-    DEX_LP_SUPPLY_MAX,
-    DEX_POOL_RESERVE_MAX,
-    DEX_SWAP_AMOUNT_MAX,
-)
-from ..core.settlement import (
-    BalanceDelta,
-    Fill,
-    FillAction,
-    LPDelta,
-    ReserveDelta,
-    Settlement,
-)
 from ..state.intents import Intent, IntentKind
-from ..state.pools import POOL_FEE_BPS_MAX, POOL_FEE_BPS_MIN, normalize_curve_config
+from ..core.settlement import (
+    Settlement,
+    FillAction,
+    Fill,
+    BalanceDelta,
+    ReserveDelta,
+    LPDelta,
+)
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -42,21 +35,6 @@ def _require_int(value: Any, *, name: str, non_negative: bool = False) -> int:
     if non_negative and value < 0:
         raise ValueError(f"{name} must be non-negative")
     return int(value)
-
-
-def _require_int_range(
-    value: Any,
-    *,
-    name: str,
-    minimum: int | None = None,
-    maximum: int | None = None,
-) -> int:
-    value_int = _require_int(value, name=name)
-    if minimum is not None and value_int < minimum:
-        raise ValueError(f"{name} must be >= {minimum}")
-    if maximum is not None and value_int > maximum:
-        raise ValueError(f"{name} must be <= {maximum}")
-    return value_int
 
 
 def _optional_int(value: Any, *, name: str, non_negative: bool = False) -> Optional[int]:
@@ -99,18 +77,6 @@ class SignedIntentEnvelope:
     quote_receipt: Optional[Dict[str, Any]] = None
 
 
-@dataclass
-class ValidatedIntent(Intent):
-    """
-    Intent admitted through the operations parser normal-form boundary.
-
-    The state-layer `Intent` type remains generic for generated fixtures and
-    internal proof/test construction. User-supplied operations cross this
-    boundary only after common fields, kind-specific fields, and unknown fields
-    have been validated.
-    """
-
-
 @dataclass(frozen=True)
 class SettlementEnvelope:
     settlement: Settlement
@@ -118,9 +84,8 @@ class SettlementEnvelope:
     oracle_authorization: Optional[Dict[str, Any]] = None
     uniform_batch_certificate: Optional[Dict[str, Any]] = None
     uniform_batch_optimality_certificate: Optional[Dict[str, Any]] = None
-    uniform_batch_price_grid_config: Optional[Dict[str, Any]] = None
-    uniform_batch_price_grid_rows: Optional[List[Dict[str, Any]]] = None
-    uniform_batch_price_grid_witness: Optional[Dict[str, Any]] = None
+    uniform_batch_v2_bounded_grid: Optional[Dict[str, Any]] = None
+    uniform_batch_v3_exact_out_grid: Optional[Dict[str, Any]] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -241,7 +206,7 @@ def _parse_events(value: Any) -> Optional[list[dict[str, Any]]]:
     return value
 
 
-def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
+def parse_intents(operations: Dict[str, Any]) -> List[Intent]:
     """
     Parse intents from transaction operations["2"].
     
@@ -264,7 +229,7 @@ def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
     if not isinstance(intents_data, list):
         raise ValueError(f"operations['2'] must be a list, got {type(intents_data)}")
     
-    intents: list[ValidatedIntent] = []
+    intents = []
     for i, intent_data in enumerate(intents_data):
         try:
             intent = _parse_intent(intent_data)
@@ -359,7 +324,7 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
     return out
 
 
-def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
+def _parse_intent(intent_data: Dict[str, Any]) -> Intent:
     """
     Parse a single intent from JSON data.
     
@@ -406,7 +371,7 @@ def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
         if k not in common_fields
     }
     
-    intent = ValidatedIntent(
+    intent = Intent(
         module=module,
         version=version,
         kind=kind,
@@ -416,291 +381,8 @@ def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
         salt=salt,
         fields=fields,
     )
-    _validate_intent_fields(intent)
     
     return intent
-
-
-_COMMON_INTENT_FIELD_KEYS = frozenset(
-    {
-        "nonce",
-        "recipient",
-        "submission_order",
-        "quote_receipt_hash",
-        "quote_pool_fingerprint",
-        "quote_receipt_leg_index",
-        "oracle_authorization",
-    }
-)
-
-_KIND_INTENT_FIELD_KEYS = {
-    IntentKind.SWAP_EXACT_IN: frozenset(
-        {
-            "pool_id",
-            "asset_in",
-            "asset_out",
-            "amount_in",
-            "min_amount_out",
-        }
-    ),
-    IntentKind.SWAP_EXACT_OUT: frozenset(
-        {
-            "pool_id",
-            "asset_in",
-            "asset_out",
-            "amount_out",
-            "max_amount_in",
-        }
-    ),
-    IntentKind.CREATE_POOL: frozenset(
-        {
-            "asset0",
-            "asset1",
-            "fee_bps",
-            "amount0",
-            "amount1",
-            "created_at",
-            "curve_tag",
-            "curve_params",
-        }
-    ),
-    IntentKind.ADD_LIQUIDITY: frozenset(
-        {
-            "pool_id",
-            "amount0_desired",
-            "amount1_desired",
-            "amount0_min",
-            "amount1_min",
-        }
-    ),
-    IntentKind.REMOVE_LIQUIDITY: frozenset(
-        {
-            "pool_id",
-            "lp_amount",
-            "amount0_min",
-            "amount1_min",
-        }
-    ),
-}
-
-
-def _reject_unknown_intent_fields(fields: Dict[str, Any], *, intent_kind: IntentKind) -> None:
-    allowed = _COMMON_INTENT_FIELD_KEYS | _KIND_INTENT_FIELD_KEYS.get(intent_kind, frozenset())
-    unknown = sorted(set(fields) - allowed)
-    if unknown:
-        joined = ", ".join(unknown)
-        raise ValueError(f"unsupported field for {intent_kind.value}: {joined}")
-
-
-def _require_field(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind) -> Any:
-    if key not in fields:
-        raise ValueError(f"Missing required field for {intent_kind.value}: {key}")
-    return fields[key]
-
-
-def _require_field_str(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind, max_len: int = 256) -> str:
-    return _require_str(
-        _require_field(fields, key, intent_kind=intent_kind),
-        name=f"intent.{key}",
-        non_empty=True,
-        max_len=max_len,
-    )
-
-
-def _require_field_int_range(
-    fields: Dict[str, Any],
-    key: str,
-    *,
-    intent_kind: IntentKind,
-    minimum: int | None = None,
-    maximum: int | None = None,
-) -> int:
-    return _require_int_range(
-        _require_field(fields, key, intent_kind=intent_kind),
-        name=f"intent.{key}",
-        minimum=minimum,
-        maximum=maximum,
-    )
-
-
-def _validate_common_intent_fields(fields: Dict[str, Any]) -> None:
-    if "nonce" in fields:
-        _require_int_range(fields["nonce"], name="intent.nonce", minimum=1, maximum=0xFFFFFFFF)
-    if "recipient" in fields:
-        _require_str(fields["recipient"], name="intent.recipient", non_empty=True, max_len=512)
-    if "submission_order" in fields:
-        _require_int_range(fields["submission_order"], name="intent.submission_order", minimum=0)
-    if "quote_receipt_hash" in fields:
-        _require_str(fields["quote_receipt_hash"], name="intent.quote_receipt_hash", non_empty=True, max_len=512)
-    if "quote_pool_fingerprint" in fields:
-        _require_str(fields["quote_pool_fingerprint"], name="intent.quote_pool_fingerprint", non_empty=True, max_len=512)
-    if "quote_receipt_leg_index" in fields:
-        _require_int_range(fields["quote_receipt_leg_index"], name="intent.quote_receipt_leg_index", minimum=0)
-    if "oracle_authorization" in fields:
-        _require_dict_str_keys(fields["oracle_authorization"], name="intent.oracle_authorization")
-
-
-def _validate_swap_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
-    kind = intent.kind
-    asset_in = _require_field_str(fields, "asset_in", intent_kind=kind)
-    asset_out = _require_field_str(fields, "asset_out", intent_kind=kind)
-    if asset_in == asset_out:
-        raise ValueError("intent.asset_in and intent.asset_out must differ")
-    _require_field_str(fields, "pool_id", intent_kind=kind)
-
-    if kind == IntentKind.SWAP_EXACT_IN:
-        _require_field_int_range(
-            fields,
-            "amount_in",
-            intent_kind=kind,
-            minimum=1,
-            maximum=DEX_SWAP_AMOUNT_MAX,
-        )
-        _require_field_int_range(
-            fields,
-            "min_amount_out",
-            intent_kind=kind,
-            minimum=0,
-            maximum=DEX_SWAP_AMOUNT_MAX,
-        )
-        return
-
-    _require_field_int_range(
-        fields,
-        "amount_out",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_SWAP_AMOUNT_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "max_amount_in",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_SWAP_AMOUNT_MAX,
-    )
-
-
-def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
-    kind = intent.kind
-    asset0 = _require_field_str(fields, "asset0", intent_kind=kind)
-    asset1 = _require_field_str(fields, "asset1", intent_kind=kind)
-    if asset0 >= asset1:
-        raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}")
-    _require_field_int_range(
-        fields,
-        "fee_bps",
-        intent_kind=kind,
-        minimum=POOL_FEE_BPS_MIN,
-        maximum=POOL_FEE_BPS_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount0",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_LP_AMOUNT_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount1",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_LP_AMOUNT_MAX,
-    )
-    if "created_at" in fields:
-        _require_int_range(fields["created_at"], name="intent.created_at", minimum=0)
-    try:
-        normalize_curve_config(curve_tag=fields.get("curve_tag"), curve_params=fields.get("curve_params"))
-    except Exception as exc:
-        raise ValueError(f"invalid curve configuration: {exc}") from exc
-
-
-def _validate_add_liquidity_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
-    kind = intent.kind
-    _require_field_str(fields, "pool_id", intent_kind=kind)
-    _require_field_int_range(
-        fields,
-        "amount0_desired",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_LP_AMOUNT_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount1_desired",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_LP_AMOUNT_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount0_min",
-        intent_kind=kind,
-        minimum=0,
-        maximum=DEX_LP_AMOUNT_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount1_min",
-        intent_kind=kind,
-        minimum=0,
-        maximum=DEX_LP_AMOUNT_MAX,
-    )
-
-
-def _validate_remove_liquidity_intent_fields(intent: Intent, fields: Dict[str, Any]) -> None:
-    kind = intent.kind
-    _require_field_str(fields, "pool_id", intent_kind=kind)
-    _require_field_int_range(
-        fields,
-        "lp_amount",
-        intent_kind=kind,
-        minimum=1,
-        maximum=DEX_LP_SUPPLY_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount0_min",
-        intent_kind=kind,
-        minimum=0,
-        maximum=DEX_POOL_RESERVE_MAX,
-    )
-    _require_field_int_range(
-        fields,
-        "amount1_min",
-        intent_kind=kind,
-        minimum=0,
-        maximum=DEX_POOL_RESERVE_MAX,
-    )
-
-
-def _validate_intent_fields(intent: Intent) -> None:
-    """
-    Validate the kind-specific normal form produced by the JSON parser.
-
-    The state-layer `Intent` object stays intentionally generic for internal
-    tests and generated fixtures. Parsed user operations must still enter the
-    engine with all value-moving fields present, typed, and inside kernel
-    domains.
-    """
-    fields = intent.fields or {}
-    _reject_unknown_intent_fields(fields, intent_kind=intent.kind)
-    _validate_common_intent_fields(fields)
-
-    if intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-        _validate_swap_intent_fields(intent, fields)
-        return
-    if intent.kind == IntentKind.CREATE_POOL:
-        _validate_create_pool_intent_fields(intent, fields)
-        return
-    if intent.kind == IntentKind.ADD_LIQUIDITY:
-        _validate_add_liquidity_intent_fields(intent, fields)
-        return
-    if intent.kind == IntentKind.REMOVE_LIQUIDITY:
-        _validate_remove_liquidity_intent_fields(intent, fields)
-        return
-    raise ValueError(f"unsupported intent kind: {intent.kind}")
 
 
 def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:
@@ -731,26 +413,11 @@ def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:
 
 def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[SettlementEnvelope]:
     """
-    Parse settlement plus optional proof and oracle authorization payloads from operations["3"].
+    Parse settlement and optional proof payload from operations["3"].
 
     Proof payload is passed through as an opaque JSON object under either:
     - settlement_data["proof"] (preferred: object)
     - settlement_data["zk_proof"] (legacy/alt: object)
-
-    Oracle authorization is passed through as an opaque JSON object under:
-    - settlement_data["oracle_authorization"]
-
-    UPBA v1 certificate payload is passed through as an opaque JSON object under:
-    - settlement_data["uniform_batch_certificate"]
-
-    UPBA bounded optimality certificate payload is passed through as an opaque
-    JSON object under:
-    - settlement_data["uniform_batch_optimality_certificate"]
-
-    UPBA bounded price-grid evidence is passed through as opaque JSON under:
-    - settlement_data["uniform_batch_price_grid_config"]
-    - settlement_data["uniform_batch_price_grid_rows"]
-    - settlement_data["uniform_batch_price_grid_witness"]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -774,63 +441,53 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement proof must be an object")
         proof = raw_proof
 
-    oracle_authorization = None
     raw_oracle_authorization = settlement_data.get("oracle_authorization")
+    oracle_authorization = None
     if raw_oracle_authorization is not None:
         if not isinstance(raw_oracle_authorization, dict):
             raise ValueError("settlement oracle_authorization must be an object")
         oracle_authorization = raw_oracle_authorization
 
-    uniform_batch_certificate = None
     raw_uniform_batch_certificate = settlement_data.get("uniform_batch_certificate")
+    uniform_batch_certificate = None
     if raw_uniform_batch_certificate is not None:
         if not isinstance(raw_uniform_batch_certificate, dict):
             raise ValueError("settlement uniform_batch_certificate must be an object")
         uniform_batch_certificate = raw_uniform_batch_certificate
 
-    uniform_batch_optimality_certificate = None
     raw_uniform_batch_optimality_certificate = settlement_data.get("uniform_batch_optimality_certificate")
+    uniform_batch_optimality_certificate = None
     if raw_uniform_batch_optimality_certificate is not None:
         if not isinstance(raw_uniform_batch_optimality_certificate, dict):
             raise ValueError("settlement uniform_batch_optimality_certificate must be an object")
         uniform_batch_optimality_certificate = raw_uniform_batch_optimality_certificate
 
-    uniform_batch_price_grid_config = None
-    raw_uniform_batch_price_grid_config = settlement_data.get("uniform_batch_price_grid_config")
-    if raw_uniform_batch_price_grid_config is not None:
-        if not isinstance(raw_uniform_batch_price_grid_config, dict):
-            raise ValueError("settlement uniform_batch_price_grid_config must be an object")
-        uniform_batch_price_grid_config = raw_uniform_batch_price_grid_config
+    raw_uniform_batch_v2_bounded_grid = settlement_data.get("uniform_batch_v2_bounded_grid")
+    uniform_batch_v2_bounded_grid = None
+    if raw_uniform_batch_v2_bounded_grid is not None:
+        if not isinstance(raw_uniform_batch_v2_bounded_grid, dict):
+            raise ValueError("settlement uniform_batch_v2_bounded_grid must be an object")
+        uniform_batch_v2_bounded_grid = raw_uniform_batch_v2_bounded_grid
 
-    uniform_batch_price_grid_rows = None
-    raw_uniform_batch_price_grid_rows = settlement_data.get("uniform_batch_price_grid_rows")
-    if raw_uniform_batch_price_grid_rows is not None:
-        if not isinstance(raw_uniform_batch_price_grid_rows, list):
-            raise ValueError("settlement uniform_batch_price_grid_rows must be a list")
-        for row in raw_uniform_batch_price_grid_rows:
-            if not isinstance(row, dict):
-                raise ValueError("settlement uniform_batch_price_grid_rows entries must be objects")
-        uniform_batch_price_grid_rows = raw_uniform_batch_price_grid_rows
-
-    uniform_batch_price_grid_witness = None
-    raw_uniform_batch_price_grid_witness = settlement_data.get("uniform_batch_price_grid_witness")
-    if raw_uniform_batch_price_grid_witness is not None:
-        if not isinstance(raw_uniform_batch_price_grid_witness, dict):
-            raise ValueError("settlement uniform_batch_price_grid_witness must be an object")
-        uniform_batch_price_grid_witness = raw_uniform_batch_price_grid_witness
+    raw_uniform_batch_v3_exact_out_grid = settlement_data.get("uniform_batch_v3_exact_out_grid")
+    uniform_batch_v3_exact_out_grid = None
+    if raw_uniform_batch_v3_exact_out_grid is not None:
+        if not isinstance(raw_uniform_batch_v3_exact_out_grid, dict):
+            raise ValueError("settlement uniform_batch_v3_exact_out_grid must be an object")
+        uniform_batch_v3_exact_out_grid = raw_uniform_batch_v3_exact_out_grid
 
     settlement_data_no_proof = {
         k: v
         for k, v in settlement_data.items()
-        if k not in (
+        if k
+        not in (
             "proof",
             "zk_proof",
             "oracle_authorization",
             "uniform_batch_certificate",
             "uniform_batch_optimality_certificate",
-            "uniform_batch_price_grid_config",
-            "uniform_batch_price_grid_rows",
-            "uniform_batch_price_grid_witness",
+            "uniform_batch_v2_bounded_grid",
+            "uniform_batch_v3_exact_out_grid",
         )
     }
     settlement = _parse_settlement(settlement_data_no_proof)
@@ -840,9 +497,8 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
         oracle_authorization=oracle_authorization,
         uniform_batch_certificate=uniform_batch_certificate,
         uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
-        uniform_batch_price_grid_config=uniform_batch_price_grid_config,
-        uniform_batch_price_grid_rows=uniform_batch_price_grid_rows,
-        uniform_batch_price_grid_witness=uniform_batch_price_grid_witness,
+        uniform_batch_v2_bounded_grid=uniform_batch_v2_bounded_grid,
+        uniform_batch_v3_exact_out_grid=uniform_batch_v3_exact_out_grid,
     )
 
 

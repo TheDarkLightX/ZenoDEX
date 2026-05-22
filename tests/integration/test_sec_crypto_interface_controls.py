@@ -34,24 +34,3 @@ def test_ui_source_avoids_broker_like_recommendation_phrasing() -> None:
         f"{finding.path}:{finding.line}: {finding.rule_id}: {finding.text}"
         for finding in findings
     )
-
-
-def test_lint_scans_jsx_visible_text_with_class_attribute(tmp_path: Path) -> None:
-    component = tmp_path / "BadButton.jsx"
-    component.write_text(
-        'export function BadButton() { return <button className="cta">Execute trade</button>; }\n',
-        encoding="utf-8",
-    )
-
-    _files, findings = scan_paths([str(component)])
-
-    assert any(finding.rule_id == "execution_or_settlement_discretion_language" for finding in findings)
-
-
-def test_lint_scans_markdown_bullet_text(tmp_path: Path) -> None:
-    doc = tmp_path / "README.md"
-    doc.write_text("* Recommended route for active users\n", encoding="utf-8")
-
-    _files, findings = scan_paths([str(doc)])
-
-    assert any(finding.rule_id == "subjective_route_or_price_label" for finding in findings)

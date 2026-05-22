@@ -329,9 +329,9 @@ def test_create_pool_intent_rejects_non_canonical_assets() -> None:
         )
 
 
-@pytest.mark.parametrize("fee_bps", [None, -1, 10_000])
+@pytest.mark.parametrize("fee_bps", [None, -1, 10001])
 def test_create_pool_intent_rejects_fee_bounds(fee_bps: object) -> None:
-    with pytest.raises(ValueError, match="fee_bps must be in \\[0, 9999\\]"):
+    with pytest.raises(ValueError, match="fee_bps must be in \\[0, 10000\\]"):
         CreatePoolIntent(
             module="TauSwap",
             version="0.1",

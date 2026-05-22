@@ -1,0 +1,9 @@
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (
+    (i1[t]:sbf = 1:sbf) &&
+    (i2[t]:sbf = 1:sbf) &&
+    (i3[t]:sbf = 1:sbf) &&
+    (i4[t]:sbf = 1:sbf)
+  )).

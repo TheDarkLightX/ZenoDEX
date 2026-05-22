@@ -1,0 +1,59 @@
+// Settlement Validation Rules
+// Validates batch settlement proposals
+//
+// NOTE: This file contains pseudo-code comments. 
+// It will be rewritten in actual Tau Language syntax.
+// See types.tau, invariants.tau, cpmm_math.tau, balance_safety.tau
+// for examples of valid Tau syntax.
+
+// Settlement structure:
+// - included_intents: list of (intent_id, action) where action is FILL or REJECT
+// - fills: list of fill details
+// - balance_deltas: list of (pubkey, asset, delta_add, delta_sub)
+// - reserve_deltas: list of (pool_id, asset, delta_add, delta_sub)
+// - lp_deltas: list of (pubkey, pool_id, delta_add, delta_sub)
+
+// Validation rules (to be encoded in Tau):
+
+// 1. Intent coverage: every intent in the block must be in included_intents
+// all_intents_covered := forall intent in block_intents:
+//   exists (intent_id, action) in included_intents: intent_id = intent.id
+
+// 2. Fill consistency: every FILL action must have a corresponding fill detail
+// fill_consistent := forall (intent_id, FILL) in included_intents:
+//   exists fill in fills: fill.intent_id = intent_id
+
+// 3. Balance non-negativity: applying deltas must not make balances negative
+// balance_safe := forall delta in balance_deltas:
+//   balance[delta.pubkey, delta.asset] + delta.net() >= 0
+// where delta.net() = delta_add - delta_sub
+// (See balance_safety.tau for implementation)
+
+// 4. Reserve non-negativity: applying deltas must not make reserves negative
+// reserve_safe := forall delta in reserve_deltas:
+//   reserve[delta.pool_id, delta.asset] + delta.net() >= 0
+
+// 5. Asset conservation: Σ_account_deltas + Σ_pool_deltas = 0 (per asset)
+// asset_conservation := forall asset:
+//   sum(delta.net() for delta in balance_deltas where delta.asset = asset) +
+//   sum(delta.net() for delta in reserve_deltas where delta.asset = asset) = 0
+
+// 6. LP conservation: Σ_lp_deltas = Σ_lp_mints - Σ_lp_burns
+// lp_conservation := forall pool_id:
+//   sum(delta.net() for delta in lp_deltas where delta.pool_id = pool_id) =
+//   sum(lp_minted for fill in fills) - sum(lp_burned for fill in fills)
+
+// 7. Price protection: filled swaps must satisfy slippage constraints
+// price_protected := forall fill in fills where fill is swap:
+//   (fill.kind = SWAP_EXACT_IN && fill.amount_out >= intent.min_amount_out) ||
+//   (fill.kind = SWAP_EXACT_OUT && fill.amount_in <= intent.max_amount_in)
+
+// Settlement is valid if all above rules hold:
+// settlement_valid :=
+//   all_intents_covered &&
+//   fill_consistent &&
+//   balance_safe &&
+//   reserve_safe &&
+//   asset_conservation &&
+//   lp_conservation &&
+//   price_protected

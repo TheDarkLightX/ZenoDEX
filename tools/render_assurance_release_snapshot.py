@@ -191,8 +191,6 @@ def _render_readme(snapshot: dict[str, Any], disputed: list[dict[str, str]]) -> 
             "",
             f"This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.",
             "For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.",
-            "The production traceability matrix is checked by the release gate and can be",
-            "replayed directly with `python3 tools/check_production_traceability_matrix.py`.",
             "",
             "Important derivatives note:",
             "",

@@ -10,6 +10,8 @@ It applies DEX operations from a Tau transaction's `operations` dict:
   - "7": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
   - "8": perps (list) [optional; isolated markets require an operator key for admin actions]
   - "9": token ops (list) [optional; transfer/mint/burn for non-native assets]
+  - "10": proof mining claim (object) [optional; bound to verified DEX proof context]
+  - "11": zUSD monetary ops (list) [optional; collateral, mint/repay, stability pool]
 
 Legacy key aliases are also accepted when invoking the plugin directly:
   - "2" -> intents, "3" -> settlement, "4" -> faucet, "5" -> perps
@@ -41,6 +43,13 @@ from .proof_mining_runtime import (
     sync_proof_mining_runtime_balance,
 )
 from .proof_verifier import ProofVerifierConfig
+from .zusd_monetary_bridge import (
+    ZUSDMonetaryConfig,
+    ZUSDMonetaryState,
+    apply_zusd_monetary_ops,
+    zusd_monetary_state_from_obj,
+    zusd_monetary_state_to_obj,
+)
 
 
 _DEX_INTENTS_KEY = "5"
@@ -49,6 +58,7 @@ _DEX_FAUCET_KEY = "7"
 _PERP_OPS_KEY = "8"
 _TOKEN_OPS_KEY = "9"
 _PROOF_MINING_OPS_KEY = "10"
+_ZUSD_MONETARY_OPS_KEY = "11"
 
 _LEGACY_DEX_INTENTS_KEY = "2"
 _LEGACY_DEX_SETTLEMENT_KEY = "3"
@@ -64,16 +74,20 @@ def _canonical_state_and_hash(
     state: DexState,
     *,
     proof_mining_state: Optional[ProofMiningRuntimeState] = None,
+    zusd_monetary_state: Optional[ZUSDMonetaryState] = None,
 ) -> Tuple[str, str]:
     snap = snapshot_from_state(state)
-    if proof_mining_state is None:
+    if proof_mining_state is None and zusd_monetary_state is None:
         canonical = snap.canonical_bytes()
         return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
     payload = {
         "schema": _APP_STATE_SCHEMA,
         "version": _APP_STATE_VERSION,
         "dex_state": snap.data,
-        "proof_mining": proof_mining_runtime_state_to_obj(proof_mining_state),
+        "proof_mining": None if proof_mining_state is None else proof_mining_runtime_state_to_obj(proof_mining_state),
+        "zusd_monetary": (
+            None if zusd_monetary_state is None else zusd_monetary_state_to_obj(zusd_monetary_state)
+        ),
     }
     canonical = canonical_json_bytes(payload)
     return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
@@ -89,6 +103,27 @@ def _bool_env(name: str, *, default: bool) -> bool:
     if v in {"0", "false", "no", "off"}:
         return False
     return bool(default)
+
+
+def _int_env(name: str, *, default: int, minimum: int = 0, maximum: Optional[int] = None) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return int(default)
+    try:
+        out = int(raw)
+    except Exception as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if out < minimum:
+        raise ValueError(f"{name} must be >= {minimum}")
+    if maximum is not None and out > maximum:
+        raise ValueError(f"{name} must be <= {maximum}")
+    return out
+
+
+def _int_env_alias(primary: str, fallback: str, *, default: int, minimum: int = 0, maximum: Optional[int] = None) -> int:
+    if os.environ.get(primary, "").strip():
+        return _int_env(primary, default=default, minimum=minimum, maximum=maximum)
+    return _int_env(fallback, default=default, minimum=minimum, maximum=maximum)
 
 
 def _maybe_decode_custom_stream_value(value: Any) -> Any:
@@ -163,10 +198,10 @@ def _build_proof_verifier_config() -> ProofVerifierConfig:
     )
 
 
-def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRuntimeState]]:
+def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRuntimeState], Optional[ZUSDMonetaryState]]:
     raw = (app_state_json or "").strip()
     if not raw:
-        return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()), None
+        return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()), None, None
     if len(raw.encode("utf-8")) > _MAX_APP_STATE_JSON_BYTES:
         raise ValueError("app_state_json too large")
     try:
@@ -185,11 +220,19 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
                 raise ValueError(f"unsupported app_state version: {version}")
             dex_state = state_from_snapshot(_require_mapping(obj.get("dex_state"), name="app_state.dex_state"))
             proof_obj = obj.get("proof_mining")
-            if proof_obj is None:
-                return dex_state, None
-            proof_state = proof_mining_runtime_state_from_obj(_require_mapping(proof_obj, name="app_state.proof_mining"))
-            return dex_state, proof_state
-        return state_from_snapshot(obj), None
+            proof_state = (
+                None
+                if proof_obj is None
+                else proof_mining_runtime_state_from_obj(_require_mapping(proof_obj, name="app_state.proof_mining"))
+            )
+            zusd_obj = obj.get("zusd_monetary")
+            zusd_state = (
+                None
+                if zusd_obj is None
+                else zusd_monetary_state_from_obj(_require_mapping(zusd_obj, name="app_state.zusd_monetary"))
+            )
+            return dex_state, proof_state, zusd_state
+        return state_from_snapshot(obj), None, None
     except Exception as exc:
         raise ValueError(f"invalid app_state snapshot: {exc}") from exc
 
@@ -588,6 +631,13 @@ def _select_proof_mining_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _select_zusd_monetary_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if _ZUSD_MONETARY_OPS_KEY in operations:
+        out[_ZUSD_MONETARY_OPS_KEY] = operations.get(_ZUSD_MONETARY_OPS_KEY)
+    return out
+
+
 def _apply_proof_mining_op(
     *,
     state: DexState,
@@ -697,11 +747,49 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
     operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
     oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
     allow_isolated = _bool_env("TAU_DEX_ALLOW_ISOLATED_PERPS", default=False)
+
+    def _oracle_adapter_bridge_verifier(bridge):
+        from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
+            verify_aggregate_adapter_bridge,
+        )
+
+        return verify_aggregate_adapter_bridge(bridge)
+
     return PerpEngineConfig(
         operator_pubkey=(operator_pubkey or "").strip() or None,
         chain_id=chain_id,
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
         allow_isolated_markets=bool(allow_isolated),
+        oracle_adapter_bridge_verifier=_oracle_adapter_bridge_verifier,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            default=False,
+        ),
+        require_oracle_adapter_for_isolated_partial_liquidate=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+    )
+
+
+def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
+    oracle_pubkey = os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+    asset_id = os.environ.get("TAU_DEX_ZUSD_ASSET_ID", "").strip() or None
+    return ZUSDMonetaryConfig(
+        chain_id=chain_id,
+        oracle_pubkey=(oracle_pubkey or "").strip() or None,
+        asset_id=asset_id,
+        liquidation_gas_comp_fixed_collateral_e8=_int_env_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
+            default=0,
+        ),
+        liquidation_gas_comp_bps=_int_env_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
+            default=0,
+            maximum=10_000,
+        ),
     )
 
 
@@ -735,7 +823,7 @@ def apply_app_tx(
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
 
     try:
-        state, proof_mining_state = _load_state(app_state_json)
+        state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
     except Exception as exc:
         return False, app_state_json, "", None, str(exc)
     state = _sync_native_balances(state, chain_balances=chain_balances)
@@ -760,10 +848,15 @@ def apply_app_tx(
     perp_ops = _select_perp_ops(operations)
     token_ops = _select_token_ops(operations)
     proof_mining_ops = _select_proof_mining_ops(operations)
+    zusd_monetary_ops = _select_zusd_monetary_ops(operations)
 
     # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
-    if not dex_ops and not perp_ops and not token_ops and not proof_mining_ops:
-        canonical, app_hash = _canonical_state_and_hash(state, proof_mining_state=proof_mining_state)
+    if not dex_ops and not perp_ops and not token_ops and not proof_mining_ops and not zusd_monetary_ops:
+        canonical, app_hash = _canonical_state_and_hash(
+            state,
+            proof_mining_state=proof_mining_state,
+            zusd_monetary_state=zusd_monetary_state,
+        )
         return True, canonical, app_hash, None, None
 
     next_state = state
@@ -776,6 +869,21 @@ def apply_app_tx(
         )
         if not ok:
             return False, app_state_json, "", None, token_err or "token op rejected"
+
+    if zusd_monetary_ops:
+        zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        zusd_res = apply_zusd_monetary_ops(
+            config=zusd_cfg,
+            state=next_state,
+            zusd_state=zusd_monetary_state,
+            operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
+            tx_sender_pubkey=tx_sender_pubkey,
+            block_timestamp=int(block_timestamp),
+        )
+        if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:
+            return False, app_state_json, "", None, zusd_res.error or "zUSD monetary op rejected"
+        next_state = zusd_res.state
+        zusd_monetary_state = zusd_res.zusd_state
 
     try:
         proof_verifier_config = _build_proof_verifier_config()
@@ -832,5 +940,9 @@ def apply_app_tx(
         next_state = perp_res.state
 
     balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
-    canonical, app_hash = _canonical_state_and_hash(next_state, proof_mining_state=proof_mining_state)
+    canonical, app_hash = _canonical_state_and_hash(
+        next_state,
+        proof_mining_state=proof_mining_state,
+        zusd_monetary_state=zusd_monetary_state,
+    )
     return True, canonical, app_hash, balances_patch, None

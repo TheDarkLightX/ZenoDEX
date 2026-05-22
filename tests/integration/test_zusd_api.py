@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import sys
 import types
@@ -14,15 +13,12 @@ from src.core.zusd import E8, ZUSDState
 from src.integration import perps_api as perps_demo_api
 from src.integration.zusd_api import (
     _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-    _ZUSD_ORACLE_CONSUMER_PROFILE_IDS,
+    _zusd_oracle_runtime_facts,
     _tau_gate_config_from_env,
-    _zusd_runtime_oracle_action_facts_hash,
-    _zusd_runtime_oracle_action_id,
-    _zusd_runtime_oracle_pre_state_hash,
     handle_zusd_request,
     reset_demo_state,
 )
-from src.integration.zeno_oracle_authorization import OracleAuthorization, oracle_value_hash, semantic_hash
+from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
@@ -33,12 +29,12 @@ def _reset_state_and_env(monkeypatch):
     monkeypatch.setenv("ZUSD_TAU_GATE_ENABLED", "0")
     monkeypatch.delenv("ZUSD_TAU_BIN", raising=False)
     monkeypatch.delenv("ZUSD_TAU_ALLOW_PATH_LOOKUP", raising=False)
+    monkeypatch.delenv("ZUSD_ORACLE_ADAPTER_REQUIRED", raising=False)
+    monkeypatch.delenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", raising=False)
-    monkeypatch.delenv("ZUSD_ORACLE_ADAPTER_REQUIRED", raising=False)
-    monkeypatch.delenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", raising=False)
     yield
     reset_demo_state()
     perps_demo_api.reset_demo_state()
@@ -49,54 +45,104 @@ def _post(path: str, body: dict) -> tuple[int, dict]:
     return handle_zusd_request("POST", path, raw)
 
 
-def _install_fake_oracle_adapter(monkeypatch, result):
-    module = types.SimpleNamespace(verify_aggregate_adapter_bridge=lambda _bridge: result)
-    monkeypatch.setitem(sys.modules, "tools.zenodex_oracle_aggregate_adapter", module)
+def _hash(domain: str, name: str) -> str:
+    return semantic_hash(domain, {"name": name})
 
 
-def _zusd_oracle_authorization_bundle(
+def _authorization_for_runtime(
+    runtime,  # type: ignore[no-untyped-def]
     *,
-    state: ZUSDState,
-    tag: str,
-    args: dict,
-    value_e8: int | None = None,
+    value_e8: int,
+    evidence_class: str = "O3",
+    observed_epoch: int | None = None,
+    expires_at_epoch: int | None = None,
+    envelope_id: str = "econ:zusd-bootstrap-v1",
 ) -> dict:
-    action_kind = "mint" if tag == "mint_zusd" else "liquidate_vault"
-    observed_epoch = int(state.oracle_last_update_epoch)
-    authorized_value_e8 = int(state.price_e8 if value_e8 is None else value_e8)
-    authorization = OracleAuthorization(
-        consumer_module="zenodex.zusd",
-        action_kind=action_kind,
-        action_id=_zusd_runtime_oracle_action_id(mode="single", state=state, tag=tag, args=args),
-        action_facts_hash=_zusd_runtime_oracle_action_facts_hash(
-            mode="single",
-            state=state,
-            tag=tag,
-            args=args,
+    observed = int(runtime.now_epoch if observed_epoch is None else observed_epoch)
+    authorization = {
+        "consumer_module": runtime.consumer_module,
+        "action_kind": runtime.action_kind,
+        "action_id": runtime.action_id,
+        "action_facts_hash": runtime.action_facts_hash,
+        "pre_state_hash": runtime.pre_state_hash,
+        "profile_id": runtime.profile_id,
+        "query_id": runtime.query_id,
+        "value_e8": value_e8,
+        "value_hash": oracle_value_hash(
+            query_id=runtime.query_id,
+            value_e8=value_e8,
+            observed_epoch=observed,
         ),
-        pre_state_hash=_zusd_runtime_oracle_pre_state_hash(mode="single", state=state),
-        profile_id=_ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind],
-        query_id=_ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-        value_e8=authorized_value_e8,
-        value_hash=oracle_value_hash(
-            query_id=_ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-            value_e8=authorized_value_e8,
-            observed_epoch=observed_epoch,
-        ),
-        confidence_e8=10_000,
-        deviation_bps=25,
-        observed_epoch=observed_epoch,
-        expires_at_epoch=int(state.now_epoch) + 2,
-        feed_id="feed:zusd-collateral:v1",
-        feed_registry_root=semantic_hash("test.zusd.feed_registry", {"name": "r1"}),
-        query_policy_root=semantic_hash("test.zusd.query_policy", {"name": "q1"}),
-        source_registry_root=semantic_hash("test.zusd.source_registry", {"name": "s1"}),
-        reporter_registry_root=semantic_hash("test.zusd.reporter_registry", {"name": "p1"}),
-        evidence_class="O3",
-        economic_envelope_id="econ:zusd-small-v1",
-        receipt_graph_root=semantic_hash("test.zusd.receipt_graph", {"name": "placeholder"}),
+        "confidence_e8": 0,
+        "deviation_bps": 0,
+        "observed_epoch": observed,
+        "expires_at_epoch": int(runtime.now_epoch if expires_at_epoch is None else expires_at_epoch),
+        "feed_id": "feed:zusd-price:v1",
+        "feed_registry_root": _hash("zenodex.feed_registry.v1", "zusd"),
+        "query_policy_root": _hash("zenodex.query_policy.v1", "zusd"),
+        "source_registry_root": _hash("zenodex.source_registry.v1", "zusd"),
+        "reporter_registry_root": _hash("zenodex.reporter_registry.v1", "zusd"),
+        "evidence_class": evidence_class,
+        "economic_envelope_id": envelope_id,
+        "receipt_graph_root": _hash("zenodex.receipt_graph.v1", "zusd"),
+    }
+    return authorization_bundle(authorization)
+
+
+def _zusd_bootstrap_authorization(
+    *,
+    price_e8: int,
+    query_id: str = "query:ZUSD/PRICE",
+    evidence_class: str = "O3",
+    observed_epoch: int | None = None,
+    expires_at_epoch: int | None = None,
+) -> dict:
+    status, body = handle_zusd_request("GET", "/api/zusd/state", None)
+    assert status == 200
+    runtime = _zusd_oracle_runtime_facts(
+        mode="single",
+        state=ZUSDState(**body["state"]),
+        tag="bootstrap_oracle",
+        query_id=query_id,
+        runtime_value_e8=price_e8,
     )
-    return authorization_bundle(asdict(authorization))
+    return _authorization_for_runtime(
+        runtime,
+        value_e8=price_e8,
+        evidence_class=evidence_class,
+        observed_epoch=observed_epoch,
+        expires_at_epoch=expires_at_epoch,
+    )
+
+
+def _zusd_mint_authorization(*, amount_e8: int, value_e8: int | None = None) -> dict:
+    status, body = handle_zusd_request("GET", "/api/zusd/state", None)
+    assert status == 200
+    state = ZUSDState(**body["state"])
+    args = {"amount_e8": amount_e8}
+    runtime_value = int(state.price_e8 if value_e8 is None else value_e8)
+    runtime = _zusd_oracle_runtime_facts(
+        mode="single",
+        state=state,
+        tag="mint_zusd",
+        args=args,
+        query_id=_ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+        runtime_value_e8=runtime_value,
+    )
+    return _authorization_for_runtime(
+        runtime,
+        value_e8=runtime_value,
+        envelope_id="econ:zusd-mint-v1",
+    )
+
+
+def _bootstrap_and_deposit() -> None:
+    s1, b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+    assert s1 == 200
+    assert b1["ok"] is True
+    s2, b2 = _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})
+    assert s2 == 200
+    assert b2["ok"] is True
 
 
 class TestGetState:
@@ -139,260 +185,215 @@ class TestSingleFlow:
         assert body["error"] == "rejected"
 
 
-class TestOracleAdapterBridge:
-    def test_oracle_adapter_mint_requires_bridge_when_configured(self, monkeypatch):
-        monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", "1")
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-
-        status, body = _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "mint requires oracle_adapter_bridge"
-
-    def test_oracle_adapter_invalid_required_config_fails_closed(self, monkeypatch):
-        monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", "tru")
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-
-        status, body = _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"].startswith(
-            "oracle_adapter_bridge config error: ZUSD_ORACLE_ADAPTER_REQUIRED must be one of:"
-        )
-
-    def test_oracle_authorization_mint_requires_authorization_when_configured(self, monkeypatch):
+class TestOracleAuthorizationGate:
+    def test_required_typed_oracle_authorization_accepts_matching_bootstrap(self, monkeypatch):
         monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-
-        status, body = _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})
-
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "mint requires oracle_authorization"
-
-    def test_oracle_authorization_invalid_required_config_fails_closed(self, monkeypatch):
-        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "tru")
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-
-        status, body = _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})
-
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"].startswith(
-            "oracle_authorization config error: ZUSD_ORACLE_AUTHORIZATION_REQUIRED must be one of:"
-        )
-
-    def test_oracle_authorization_mint_accepts_bound_authorization(self):
-        mint_args = {"amount_e8": 100 * E8}
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
-        assert status_state == 200
-        state = ZUSDState(**body_state["state"])
+        price_e8 = 100 * E8
+        authorization = _zusd_bootstrap_authorization(price_e8=price_e8)
 
         status, body = _post(
             "/api/zusd/step",
             {
-                "tag": "mint_zusd",
-                "args": mint_args,
-                "oracle_authorization": _zusd_oracle_authorization_bundle(
-                    state=state,
-                    tag="mint_zusd",
-                    args=mint_args,
-                ),
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": price_e8,
+                    "oracle_authorization": authorization,
+                },
             },
         )
 
         assert status == 200
         assert body["ok"] is True
-        assert body["state"]["debt_e8"] == 100 * E8
+        assert body["state"]["price_e8"] == price_e8
 
-    def test_oracle_authorization_mint_rejects_wrong_runtime_value(self):
-        mint_args = {"amount_e8": 100 * E8}
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
-        assert status_state == 200
-        state = ZUSDState(**body_state["state"])
+    def test_required_typed_oracle_authorization_rejects_missing_bundle(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
 
         status, body = _post(
             "/api/zusd/step",
             {
-                "tag": "mint_zusd",
-                "args": mint_args,
-                "oracle_authorization": _zusd_oracle_authorization_bundle(
-                    state=state,
-                    tag="mint_zusd",
-                    args=mint_args,
-                    value_e8=int(state.price_e8) + 1,
-                ),
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": 100 * E8,
+                    "auth_ok": True,
+                },
             },
         )
 
         assert status == 400
         assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert body["detail"] == "oracle_authorization_required"
+
+    def test_required_typed_oracle_authorization_rejects_runtime_price_mismatch(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        authorization = _zusd_bootstrap_authorization(price_e8=100 * E8)
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": 101 * E8,
+                    "oracle_authorization": authorization,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
         assert "runtime_value_e8 mismatch" in body["detail"]
 
-    def test_oracle_adapter_mint_rejects_wrong_bridge_action_id(self, monkeypatch):
-        _install_fake_oracle_adapter(
-            monkeypatch,
-            {
-                "status": "accepted",
-                "errors": [],
-                "consumer_module": "zenodex.zusd",
-                "action_kind": "mint",
-                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-                "profile_id": _ZUSD_ORACLE_CONSUMER_PROFILE_IDS["mint"],
-                "action_id": "sha256:" + "00" * 32,
-            },
-        )
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
+    def test_required_typed_oracle_authorization_rejects_below_o3_evidence(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        price_e8 = 100 * E8
+        authorization = _zusd_bootstrap_authorization(price_e8=price_e8, evidence_class="O2")
 
         status, body = _post(
             "/api/zusd/step",
             {
-                "tag": "mint_zusd",
-                "args": {"amount_e8": 100 * E8},
-                "oracle_adapter_bridge": {"schema": "test"},
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": price_e8,
+                    "oracle_authorization": authorization,
+                },
             },
         )
+
         assert status == 400
         assert body["ok"] is False
-        assert body["detail"] == "oracle_adapter_bridge action_id mismatch"
+        assert body["error"] == "rejected"
+        assert "evidence_class below required O3" in body["detail"]
 
-    def test_oracle_adapter_mint_rejects_wrong_profile(self, monkeypatch):
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
-        assert status_state == 200
-        state = ZUSDState(**body_state["state"])
-        expected_action_id = _zusd_runtime_oracle_action_id(
-            mode="single",
-            state=state,
-            tag="mint_zusd",
-            args={"amount_e8": 100 * E8},
-        )
-        _install_fake_oracle_adapter(
-            monkeypatch,
-            {
-                "status": "accepted",
-                "errors": [],
-                "consumer_module": "zenodex.zusd",
-                "action_kind": "mint",
-                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-                "profile_id": "sha256:" + "00" * 32,
-                "action_id": expected_action_id,
-            },
-        )
-
-        status, body = _post(
-            "/api/zusd/step",
-            {
-                "tag": "mint_zusd",
-                "args": {"amount_e8": 100 * E8},
-                "oracle_adapter_bridge": {"schema": "test"},
-            },
-        )
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "oracle_adapter_bridge profile mismatch"
-
-    def test_oracle_adapter_mint_accepts_bound_bridge(self, monkeypatch):
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
-        assert status_state == 200
-        state = ZUSDState(**body_state["state"])
-        expected_action_id = _zusd_runtime_oracle_action_id(
-            mode="single",
-            state=state,
-            tag="mint_zusd",
-            args={"amount_e8": 100 * E8},
-        )
-        _install_fake_oracle_adapter(
-            monkeypatch,
-            {
-                "status": "accepted",
-                "errors": [],
-                "consumer_module": "zenodex.zusd",
-                "action_kind": "mint",
-                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-                "profile_id": _ZUSD_ORACLE_CONSUMER_PROFILE_IDS["mint"],
-                "action_id": expected_action_id,
-            },
-        )
-
-        status, body = _post(
-            "/api/zusd/step",
-            {
-                "tag": "mint_zusd",
-                "args": {"amount_e8": 100 * E8},
-                "oracle_adapter_bridge": {"schema": "test"},
-            },
-        )
+    def test_required_typed_oracle_authorization_rejects_expired_authorization(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        price_e8 = 100 * E8
+        status, body = _post("/api/zusd/step", {"tag": "advance_epoch", "args": {"delta": 2}})
         assert status == 200
         assert body["ok"] is True
-        assert body["state"]["debt_e8"] == 100 * E8
+        authorization = _zusd_bootstrap_authorization(
+            price_e8=price_e8,
+            observed_epoch=1,
+            expires_at_epoch=1,
+        )
 
-    def test_oracle_adapter_liquidate_requires_bridge_when_configured(self, monkeypatch):
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_sp", "args": {"amount_e8": 100 * E8}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "oracle_report", "args": {"price_e8": 50 * E8, "auth_ok": True}})[0] == 200
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": price_e8,
+                    "oracle_authorization": authorization,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "authorization expired" in body["detail"]
+
+    def test_required_typed_oracle_authorization_invalid_env_fails_closed(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "tru")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": 100 * E8,
+                    "auth_ok": True,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_authorization_config_error" in body["detail"]
+
+    def test_required_typed_oracle_authorization_mint_requires_authorization(self, monkeypatch):
+        _bootstrap_and_deposit()
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {
+                    "amount_e8": 100 * E8,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert body["detail"] == "oracle_authorization_required"
+
+    def test_required_typed_oracle_authorization_mint_accepts_bound_authorization(self, monkeypatch):
+        _bootstrap_and_deposit()
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        amount_e8 = 100 * E8
+        authorization = _zusd_mint_authorization(amount_e8=amount_e8)
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {
+                    "amount_e8": amount_e8,
+                    "oracle_authorization": authorization,
+                },
+            },
+        )
+
+        assert status == 200
+        assert body["ok"] is True
+        assert body["state"]["debt_e8"] == amount_e8
+
+    def test_required_typed_oracle_authorization_mint_rejects_wrong_runtime_value(self, monkeypatch):
+        _bootstrap_and_deposit()
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        amount_e8 = 100 * E8
+        authorization = _zusd_mint_authorization(amount_e8=amount_e8, value_e8=101 * E8)
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {
+                    "amount_e8": amount_e8,
+                    "oracle_authorization": authorization,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "runtime_value_e8 mismatch" in body["detail"]
+
+
+class TestOracleAdapterGate:
+    def test_oracle_adapter_mint_requires_bridge_when_configured(self, monkeypatch):
         monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", "1")
 
-        status, body = _post("/api/zusd/step", {"tag": "liquidate", "args": {}})
-
-        assert status == 400
-        assert body["ok"] is False
-        assert body["detail"] == "liquidate_vault requires oracle_adapter_bridge"
-
-    def test_oracle_adapter_liquidate_accepts_bound_bridge(self, monkeypatch):
-        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "deposit_sp", "args": {"amount_e8": 100 * E8}})[0] == 200
-        assert _post("/api/zusd/step", {"tag": "oracle_report", "args": {"price_e8": 50 * E8, "auth_ok": True}})[0] == 200
-        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
-        assert status_state == 200
-        state = ZUSDState(**body_state["state"])
-        expected_action_id = _zusd_runtime_oracle_action_id(
-            mode="single",
-            state=state,
-            tag="liquidate",
-            args={},
-        )
-        _install_fake_oracle_adapter(
-            monkeypatch,
-            {
-                "status": "accepted",
-                "errors": [],
-                "consumer_module": "zenodex.zusd",
-                "action_kind": "liquidate_vault",
-                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
-                "profile_id": _ZUSD_ORACLE_CONSUMER_PROFILE_IDS["liquidate_vault"],
-                "action_id": expected_action_id,
-            },
-        )
-
         status, body = _post(
             "/api/zusd/step",
             {
-                "tag": "liquidate",
-                "args": {},
-                "oracle_adapter_bridge": {"schema": "test"},
+                "tag": "mint_zusd",
+                "args": {
+                    "amount_e8": 1,
+                },
             },
         )
 
-        assert status == 200
-        assert body["ok"] is True
-        assert body["state"]["debt_e8"] == 0
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert body["detail"] == "mint requires oracle_adapter_bridge"
 
 
 class TestMultiFlow:
@@ -530,6 +531,127 @@ class TestHistoryAndReset:
         assert rs == 200
         assert rb["ok"] is True
         assert rb["state"]["debt_e8"] == 0
+
+
+class TestOracleRecoveryLifecycleApi:
+    def test_build_and_verify_oracle_recovery_lifecycle_packet(self):
+        s1, b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s1 == 200
+        s2, b2 = _post("/api/zusd/step", {"tag": "advance_epoch", "args": {"delta": 150}})
+        assert s2 == 200
+
+        stale_state = b2["state"]
+        s3, b3 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": stale_state, "risky_requested": True, "tcr_ok": True},
+        )
+        assert s3 == 200
+        assert b3["ok"] is True
+        previous_pending = b3["contract"]
+        assert previous_pending["action_allowed"] is False
+
+        s4, _b4 = _post("/api/zusd/step", {"tag": "oracle_report", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s4 == 200
+        s5, b5 = _post("/api/zusd/step", {"tag": "oracle_commit", "args": {"auth_ok": True}})
+        assert s5 == 200
+        current_state = b5["state"]
+
+        s6, b6 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": current_state, "risky_requested": True, "tcr_ok": True},
+        )
+        assert s6 == 200
+        assert b6["ok"] is True
+        current_pending = b6["contract"]
+        assert current_pending["action_allowed"] is True
+
+        s7, b7 = _post(
+            "/api/zusd/build_cross_module_oracle_sync_contract",
+            {
+                "market_id": "TAU-USD",
+                "zusd_price_e8": current_state["price_e8"],
+                "zusd_epoch": current_state["oracle_last_update_epoch"],
+                "perp_price_e8": current_state["price_e8"],
+                "perp_oracle_epoch": current_state["oracle_last_update_epoch"],
+                "max_divergence_bps": 0,
+                "max_epoch_lag": 0,
+            },
+        )
+        assert s7 == 200
+        assert b7["ok"] is True
+        current_sync = b7["contract"]
+        assert current_sync["sync_gate_ok"] is True
+
+        s8, b8 = _post(
+            "/api/zusd/build_oracle_recovery_lifecycle_packet",
+            {
+                "previous_pending_gate_contract": previous_pending,
+                "current_pending_gate_contract": current_pending,
+                "current_sync_contract": current_sync,
+            },
+        )
+        assert s8 == 200
+        assert b8["ok"] is True
+        packet = b8["packet"]
+        assert packet["risky_ops_reenabled"] is True
+        assert packet["rejected_with_reason"] is False
+        assert packet["lifecycle_ok"] is True
+
+        s9, b9 = _post("/api/zusd/verify_oracle_pending_gate_contract", {"contract": previous_pending})
+        assert s9 == 200
+        assert b9["ok"] is True
+        s10, b10 = _post("/api/zusd/verify_cross_module_oracle_sync_contract", {"contract": current_sync})
+        assert s10 == 200
+        assert b10["ok"] is True
+        s11, b11 = _post("/api/zusd/verify_oracle_recovery_lifecycle_packet", {"packet": packet})
+        assert s11 == 200
+        assert b11["ok"] is True
+        assert b11["error"] is None
+
+    def test_verify_oracle_recovery_lifecycle_packet_rejects_tampering(self):
+        s1, _b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s1 == 200
+        s2, b2 = _post("/api/zusd/step", {"tag": "advance_epoch", "args": {"delta": 150}})
+        assert s2 == 200
+        stale_state = b2["state"]
+        _, b3 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": stale_state, "risky_requested": True, "tcr_ok": True},
+        )
+        _post("/api/zusd/step", {"tag": "oracle_report", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        _, b5 = _post("/api/zusd/step", {"tag": "oracle_commit", "args": {"auth_ok": True}})
+        current_state = b5["state"]
+        _, b6 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": current_state, "risky_requested": True, "tcr_ok": True},
+        )
+        _, b7 = _post(
+            "/api/zusd/build_cross_module_oracle_sync_contract",
+            {
+                "market_id": "TAU-USD",
+                "zusd_price_e8": current_state["price_e8"],
+                "zusd_epoch": current_state["oracle_last_update_epoch"],
+                "perp_price_e8": current_state["price_e8"],
+                "perp_oracle_epoch": current_state["oracle_last_update_epoch"],
+                "max_divergence_bps": 0,
+                "max_epoch_lag": 0,
+            },
+        )
+        _, b8 = _post(
+            "/api/zusd/build_oracle_recovery_lifecycle_packet",
+            {
+                "previous_pending_gate_contract": b3["contract"],
+                "current_pending_gate_contract": b6["contract"],
+                "current_sync_contract": b7["contract"],
+            },
+        )
+        packet = b8["packet"]
+        packet["rejected_with_reason"] = True
+
+        status, body = _post("/api/zusd/verify_oracle_recovery_lifecycle_packet", {"packet": packet})
+        assert status == 200
+        assert body["ok"] is False
+        assert body["error"] == "rejected_with_reason mismatch"
 
 
 class TestApiServerZusdGate:

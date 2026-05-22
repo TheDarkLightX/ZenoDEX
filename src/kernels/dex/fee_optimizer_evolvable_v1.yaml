@@ -7,7 +7,7 @@ meta:
     High ROI: Used in every swap operation
 
     Evolvable v1:
-    - Adds non-observable latent state vars (unused by the kernel) to give the optional search toolchain
+    - Adds non-observable latent state vars (unused by the kernel) to give the private toolchain
       safe degrees of freedom for domain shrinking / merges / phase-enum ops
       without changing observable behavior.
 

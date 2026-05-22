@@ -1,10 +1,10 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext } from 'react';
 
 export const DemoModeContext = createContext({
-  demoMode: true,
-  setDemoMode: () => {},
+    demoMode: true,
+    setDemoMode: () => { },
 });
 
 export function useDemoMode() {
-  return useContext(DemoModeContext);
+    return useContext(DemoModeContext);
 }

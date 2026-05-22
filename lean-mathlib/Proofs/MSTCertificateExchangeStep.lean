@@ -35,23 +35,32 @@ theorem exists_mem_eq_foldr_max_of_ne_nil (xs : List Nat) (hne : xs ≠ []) :
     by_cases htl : tl = []
     · subst htl
       -- foldr max 0 [a] = max a 0 = a
-      exact ⟨a, by simp, by simp⟩
+      refine ⟨a, ?_, ?_⟩
+      · simp
+      · simp
     · -- tl nonempty: pick max element in tl, then compare with a
       have hne_tl : tl ≠ [] := htl
       obtain ⟨m, hm_mem, hm_eq⟩ := ih hne_tl
+      -- foldr max 0 (a :: tl) = max a (foldr max 0 tl)
+      have : (a :: tl).foldr Nat.max 0 = Nat.max a (tl.foldr Nat.max 0) := by
+        simp
       -- Decide whether max is a or comes from tail
       by_cases ha : (tl.foldr Nat.max 0) ≤ a
       · -- max a tail = a
-        exact ⟨a, by simp, by simp [Nat.max_eq_left ha]⟩
+        refine ⟨a, ?_, ?_⟩
+        · simp
+        · -- use ha to rewrite max
+          simp [this, Nat.max_eq_left ha]
       · -- max a tail = tail
         have ha' : a ≤ tl.foldr Nat.max 0 := Nat.le_of_not_ge ha
-        exact ⟨m, by simp [hm_mem], by
-          -- max a tail = tail, and tail max equals m
+        refine ⟨m, ?_, ?_⟩
+        · simp [hm_mem]
+        · -- max a tail = tail, and tail max equals m
           calc
             (a :: tl).foldr Nat.max 0
                 = Nat.max a (tl.foldr Nat.max 0) := by simp
             _   = tl.foldr Nat.max 0 := by simp [Nat.max_eq_right ha']
-            _   = m := hm_eq⟩
+            _   = m := by simpa [hm_eq]
 
 
 /- Extract a heaviest edge on the unique `u-v` path in a tree, and bound it via the certificate. -/
@@ -83,18 +92,17 @@ theorem exists_heaviest_edge_on_path_le_offEdge
 
   obtain ⟨e, he_mem, he_w⟩ := this
 
-  exact ⟨e, he_mem, by
-    -- w e = maxWeightOnPath
+  refine ⟨e, he_mem, ?_, ?_⟩
+  · -- w e = maxWeightOnPath
     calc
       w e = x := he_w
       _ = maxWeightOnPath (T := T) (w := w) hT u v := by
         unfold maxWeightOnPath
-        exact hx_eq.symm,
-    by
-      -- w e ≤ w off-edge
-      have hwe_le_max : w e ≤ maxWeightOnPath (T := T) (w := w) hT u v :=
-        le_maxWeightOnPath_of_mem (T := T) (w := w) hT (u := u) (v := v) he_mem
-      exact Nat.le_trans hwe_le_max hcert⟩
+        exact hx_eq.symm
+  · -- w e ≤ w off-edge
+    have hwe_le_max : w e ≤ maxWeightOnPath (T := T) (w := w) hT u v :=
+      le_maxWeightOnPath_of_mem (T := T) (w := w) hT (u := u) (v := v) he_mem
+    exact Nat.le_trans hwe_le_max hcert
 
 end MST
 end TauSwap

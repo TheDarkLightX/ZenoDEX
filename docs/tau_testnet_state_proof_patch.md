@@ -79,7 +79,7 @@ TAU_STATE_PROOF_DEBUG=1 bash tools/run_tau_testnet_local_smoke.sh
 
 This uses `tools/state_proof_debug_generate.py` + `tools/state_proof_debug_verify.py` (debug-only; not ZK) to prove the end-to-end plumbing works.
 
-## Local ZenoDEX spot smoke (Risc0 proof)
+## Local TauSwap smoke (Risc0 proof)
 
 Requires Rust + the Risc0 toolchain/target.
 

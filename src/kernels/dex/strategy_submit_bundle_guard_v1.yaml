@@ -1,0 +1,93 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_submit_bundle_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless post-signing submission-bundle guard for the live auto-trader path.
+
+    This kernel constrains the actual artifacts emitted by the imperative shell:
+    - a live emit must carry at least one signed intent
+    - every signed intent must have a signature, verify under the chain binding,
+      and stay bound to the expected sender
+    - every signed intent must carry a quote-receipt witness
+    - the emitted operations stream must round-trip through the signed-intent parser
+    - if a Tau transaction is requested, the final payload must match the expected
+      sender/bounds/operations and carry a valid signature
+observables:
+  state_vars: []
+  effects:
+    [
+      "signed_intents_ok",
+      "submission_binding_ok",
+      "transport_roundtrip_ok",
+      "tx_payload_ok",
+      "submit_bundle_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_submit_bundle"
+    params:
+      - id: "emit_requested"
+        type: { kind: "bool" }
+      - id: "signed_intents_present"
+        type: { kind: "bool" }
+      - id: "signatures_present"
+        type: { kind: "bool" }
+      - id: "signatures_verify"
+        type: { kind: "bool" }
+      - id: "sender_binding_ok"
+        type: { kind: "bool" }
+      - id: "quote_receipts_present"
+        type: { kind: "bool" }
+      - id: "operations_roundtrip_ok"
+        type: { kind: "bool" }
+      - id: "tx_requested"
+        type: { kind: "bool" }
+      - id: "tx_payload_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      signed_intents_ok:
+        op: "and"
+        args:
+          - { param: "signed_intents_present" }
+          - { param: "signatures_present" }
+          - { param: "signatures_verify" }
+      submission_binding_ok:
+        op: "and"
+        args:
+          - { param: "sender_binding_ok" }
+          - { param: "quote_receipts_present" }
+      transport_roundtrip_ok: { param: "operations_roundtrip_ok" }
+      tx_payload_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "tx_requested" }]
+          - { param: "tx_payload_ok" }
+      submit_bundle_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "emit_requested" }]
+          - op: "and"
+            args:
+              - op: "and"
+                args:
+                  - { param: "signed_intents_present" }
+                  - { param: "signatures_present" }
+                  - { param: "signatures_verify" }
+              - op: "and"
+                args:
+                  - { param: "sender_binding_ok" }
+                  - { param: "quote_receipts_present" }
+              - { param: "operations_roundtrip_ok" }
+              - op: "or"
+                args:
+                  - op: "not"
+                    args: [{ param: "tx_requested" }]
+                  - { param: "tx_payload_ok" }

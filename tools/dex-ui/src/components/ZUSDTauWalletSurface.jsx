@@ -1,0 +1,317 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet } from '../lib/api.js';
+import './ZUSDTauWalletSurface.css';
+
+const EMPTY_FORM = {
+  action: 'transfer',
+  sender_pubkey: '',
+  recipient_pubkey: '',
+  operator_pubkey: '',
+  signer_privkey: '',
+  amount: '100',
+  deadline: '',
+};
+
+function readSmokeConfig() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('zenodexUiSmokeZusd') !== '1') {
+    return null;
+  }
+  return {
+    action: params.get('zusdAction') || 'transfer',
+    sender_pubkey: params.get('senderPubkey') || '',
+    recipient_pubkey: params.get('recipientPubkey') || '',
+    operator_pubkey: params.get('operatorPubkey') || '',
+    signer_privkey: params.get('signerPrivkey') || '',
+    amount: params.get('zusdAmount') || '100',
+    deadline: params.get('zusdDeadline') || '',
+  };
+}
+
+function buildPayload(form) {
+  const payload = {
+    action: form.action,
+    amount: Number.parseInt(form.amount || '0', 10),
+  };
+  if (form.deadline.trim()) {
+    payload.deadline = Number.parseInt(form.deadline.trim(), 10);
+  }
+  if (form.sender_pubkey.trim()) {
+    payload.sender_pubkey = form.sender_pubkey.trim();
+  }
+  if (form.recipient_pubkey.trim()) {
+    payload.recipient_pubkey = form.recipient_pubkey.trim();
+  }
+  if (form.operator_pubkey.trim()) {
+    payload.operator_pubkey = form.operator_pubkey.trim();
+  }
+  if (form.signer_privkey.trim()) {
+    payload.signer_privkey = form.signer_privkey.trim();
+  }
+  return payload;
+}
+
+function ZUSDTauWalletSurface() {
+  const [status, setStatus] = useState(null);
+  const [statusError, setStatusError] = useState('');
+  const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const smokeRan = useRef(false);
+
+  const isTransfer = form.action === 'transfer';
+  const isMint = form.action === 'mint';
+  const isBurn = form.action === 'burn';
+
+  async function loadStatus() {
+    try {
+      const payload = await apiGetZusdWalletStatus({ timeoutMs: 8000 });
+      setStatus(payload?.status || null);
+      setStatusError('');
+    } catch (err) {
+      setStatus(null);
+      setStatusError(err?.message || 'status_unavailable');
+    }
+  }
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const liveSummary = useMemo(() => {
+    if (!result?.transport) return null;
+    return result.transport;
+  }, [result]);
+
+  async function handlePrepare() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiPrepareZusdWallet(buildPayload(form), { timeoutMs: 15000 });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'prepare_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSubmit() {
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiSubmitZusdWallet(buildPayload(form), { timeoutMs: 20000 });
+      setResult(payload);
+    } catch (err) {
+      setResult(null);
+      setError(err?.message || 'submit_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    const smoke = readSmokeConfig();
+    if (!smoke || smokeRan.current || busy) {
+      return;
+    }
+    if (status?.node_reachable !== true) {
+      return;
+    }
+    smokeRan.current = true;
+    setForm(smoke);
+    void apiSubmitZusdWallet(buildPayload(smoke), { timeoutMs: 20000 })
+      .then((payload) => {
+        setResult(payload);
+        setError('');
+      })
+      .catch((err) => {
+        setResult(null);
+        setError(err?.message || 'submit_failed');
+      });
+  }, [busy, status]);
+
+  return (
+    <section className="zusd-wallet-surface">
+      <div className="zusd-hero panel panel-glass animate-fade-in">
+        <div>
+          <p className="zusd-kicker">Tau testnet transport</p>
+          <h1>zUSD Wallet Transport</h1>
+          <p className="zusd-subtitle">
+            This live surface targets the Tau-node-backed stream-9 TauToken path.
+            Use it next to the stream-11 monetary vault for transfer, mint, and burn transport checks.
+          </p>
+        </div>
+        <div className="zusd-hero-meta">
+          <span className="zusd-chip">Live posture</span>
+          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Tau node connected' : 'Tau node required'}</span>
+        </div>
+      </div>
+
+      <div className="zusd-wallet-grid">
+        <div className="panel zusd-wallet-card">
+          <div className="zusd-section-header">
+            <h2>Transport Status</h2>
+            <span className="zusd-section-badge">Tau-backed</span>
+          </div>
+          <div className="zusd-wallet-meta">
+            <div className="zusd-wallet-kv"><span>Chain</span><span>{status?.chain_id || 'unknown'}</span></div>
+            <div className="zusd-wallet-kv"><span>Asset ID</span><span className="zusd-mono">{status?.asset_id || 'unavailable'}</span></div>
+            <div className="zusd-wallet-kv"><span>Node</span><span>{status?.tau_host || '127.0.0.1'}:{status?.tau_port || 65432}</span></div>
+            <div className="zusd-wallet-kv"><span>App Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
+            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
+            <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
+          </div>
+          {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
+          {!statusError ? (
+            <button className="btn btn-secondary zusd-wallet-refresh" type="button" onClick={loadStatus}>
+              Refresh status
+            </button>
+          ) : null}
+        </div>
+
+        <div className="panel zusd-wallet-card">
+          <div className="zusd-section-header">
+            <h2>Prepare Or Submit</h2>
+            <span className="zusd-section-badge">Stream 9</span>
+          </div>
+          <div className="zusd-wallet-form">
+            <label className="label" htmlFor="zusd-action">Action</label>
+            <select
+              id="zusd-action"
+              className="input"
+              value={form.action}
+              onChange={(event) => setForm((current) => ({ ...current, action: event.target.value }))}
+            >
+              <option value="transfer">Transfer</option>
+              <option value="mint">Mint</option>
+              <option value="burn">Burn</option>
+            </select>
+
+            {(isTransfer || isBurn) ? (
+              <>
+                <label className="label" htmlFor="zusd-sender">Sender Pubkey</label>
+                <input
+                  id="zusd-sender"
+                  className="input"
+                  value={form.sender_pubkey}
+                  onChange={(event) => setForm((current) => ({ ...current, sender_pubkey: event.target.value }))}
+                  placeholder="0x..."
+                />
+              </>
+            ) : null}
+
+            {(isTransfer || isMint) ? (
+              <>
+                <label className="label" htmlFor="zusd-recipient">Recipient Pubkey</label>
+                <input
+                  id="zusd-recipient"
+                  className="input"
+                  value={form.recipient_pubkey}
+                  onChange={(event) => setForm((current) => ({ ...current, recipient_pubkey: event.target.value }))}
+                  placeholder="0x..."
+                />
+              </>
+            ) : null}
+
+            {isMint ? (
+              <>
+                <label className="label" htmlFor="zusd-operator">Operator Pubkey</label>
+                <input
+                  id="zusd-operator"
+                  className="input"
+                  value={form.operator_pubkey}
+                  onChange={(event) => setForm((current) => ({ ...current, operator_pubkey: event.target.value }))}
+                  placeholder="0x..."
+                />
+              </>
+            ) : null}
+
+            <label className="label" htmlFor="zusd-amount">Amount</label>
+            <input
+              id="zusd-amount"
+              className="input"
+              type="number"
+              min="1"
+              step="1"
+              value={form.amount}
+              onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+            />
+
+            <label className="label" htmlFor="zusd-deadline">Deadline Epoch Or Unix Time</label>
+            <input
+              id="zusd-deadline"
+              className="input"
+              type="number"
+              min="1"
+              step="1"
+              value={form.deadline}
+              onChange={(event) => setForm((current) => ({ ...current, deadline: event.target.value }))}
+              placeholder="optional"
+            />
+
+            <label className="label" htmlFor="zusd-signer">Signer Privkey (local test only)</label>
+            <input
+              id="zusd-signer"
+              className="input"
+              value={form.signer_privkey}
+              onChange={(event) => setForm((current) => ({ ...current, signer_privkey: event.target.value }))}
+              placeholder="32-byte hex or integer"
+            />
+
+            <div className="zusd-wallet-actions">
+              <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy}>
+                {busy ? 'Preparing...' : 'Prepare'}
+              </button>
+              <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy}>
+                {busy ? 'Submitting...' : 'Submit to Tau node'}
+              </button>
+            </div>
+            {error ? <p className="zusd-wallet-error">{error}</p> : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="zusd-wallet-grid">
+        <div className="panel zusd-wallet-card">
+          <div className="zusd-section-header">
+            <h2>Live Context</h2>
+            <span className="zusd-section-badge">Auto-derived</span>
+          </div>
+          {liveSummary ? (
+            <div className="zusd-wallet-meta">
+              <div className="zusd-wallet-kv"><span>App Hash</span><span className="zusd-mono">{liveSummary.app_hash || 'none'}</span></div>
+              <div className="zusd-wallet-kv"><span>Actor</span><span className="zusd-mono">{liveSummary.actor_pubkey}</span></div>
+              <div className="zusd-wallet-kv"><span>Sender Balance</span><span>{liveSummary.sender_balance_before}</span></div>
+              <div className="zusd-wallet-kv"><span>Recipient Balance</span><span>{liveSummary.recipient_balance_before}</span></div>
+              <div className="zusd-wallet-kv"><span>Total Supply</span><span>{liveSummary.total_supply_before}</span></div>
+              <div className="zusd-wallet-kv"><span>Token Nonce</span><span>{liveSummary.last_used_nonce}</span></div>
+              <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
+            </div>
+          ) : (
+            <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current Tau-node context.</p>
+          )}
+        </div>
+
+        <div className="panel zusd-wallet-card">
+          <div className="zusd-section-header">
+            <h2>Latest Report</h2>
+            <span className="zusd-section-badge">Deterministic</span>
+          </div>
+          {result ? (
+            <pre className="zusd-wallet-json">{JSON.stringify(result, null, 2)}</pre>
+          ) : (
+            <p className="zusd-wallet-placeholder">No transport report yet.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default ZUSDTauWalletSurface;

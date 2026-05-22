@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+def test_lean_zenocover_payout_cap_file_typechecks() -> None:
+    lake = shutil.which("lake")
+    if not lake:
+        return
+
+    root = Path(__file__).resolve().parents[2]
+    lean_dir = root / "lean-mathlib"
+    target = "Proofs/ZenoCoverPayoutCap.lean"
+    if not (root / "external" / "mathlib4").exists():
+        pytest.skip("mathlib4 checkout missing")
+    source = (lean_dir / target).read_text(encoding="utf-8")
+    assert "theorem settleOne_preserves_reserve_floor" in source
+    assert "theorem settleClaims_preserves_reserve_floor" in source
+
+    try:
+        proc = subprocess.run(
+            [lake, "env", "lean", target],
+            cwd=lean_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr

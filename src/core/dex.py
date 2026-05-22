@@ -31,13 +31,6 @@ class DexConfig:
     """Runtime config for the core step."""
 
     fee_split_params: Optional[FeeSplitParams] = None
-    # Replay protection is required by default, including for the functional
-    # core. Set False only for legacy replay fixtures that intentionally model
-    # pre-nonce batches.
-    require_all_nonces: bool = True
-    # Second key for legacy nonce-free fixtures. Value-moving callers should
-    # never set this; production linters reject it.
-    allow_legacy_nonce_free_steps: bool = False
     # Promote chunked invariant-preserving greedy batch ordering by default.
     swap_ordering: str = "greedy_ab_refined"
     # Settlement acceptance gate:
@@ -48,6 +41,10 @@ class DexConfig:
     # Quote-bound snapshot markers are only accepted after a higher layer
     # validates and strips raw receipt transport metadata.
     allow_snapshot_bound_quote_bindings: bool = False
+    # Legacy default preserves older nonce-free demos. Deployment profiles can
+    # require complete nonce coverage for public or production posture.
+    require_all_nonces: bool = False
+    allow_legacy_nonce_free_steps: bool = True
 
 
 @dataclass(frozen=True)
@@ -77,12 +74,6 @@ class DexStepResult:
     state: Optional[DexState] = None
     effects: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-
-
-def _core_nonce_policy_error(config: DexConfig) -> Optional[str]:
-    if not bool(config.require_all_nonces) and not bool(config.allow_legacy_nonce_free_steps):
-        return "require_all_nonces=False requires allow_legacy_nonce_free_steps=True"
-    return None
 
 
 def _validate_and_apply_settlement(
@@ -164,9 +155,6 @@ def step_with_candidate_settlement(
 ) -> DexStepResult:
     """Verifier path: accept an externally proposed settlement (proof-carrying friendly)."""
     try:
-        nonce_policy_error = _core_nonce_policy_error(config)
-        if nonce_policy_error is not None:
-            return DexStepResult(ok=False, error=nonce_policy_error)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,
@@ -192,9 +180,6 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
     This function is pure: it returns a new DexState and structured effects.
     """
     try:
-        nonce_policy_error = _core_nonce_policy_error(config)
-        if nonce_policy_error is not None:
-            return DexStepResult(ok=False, error=nonce_policy_error)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,

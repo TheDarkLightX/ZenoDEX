@@ -737,48 +737,6 @@ fn parse_intent_obj(
                 },
             ))
         }
-        "SWAP_EXACT_OUT" => {
-            let pool_id = obj
-                .get("pool_id")
-                .and_then(Value::as_str)
-                .ok_or_else(|| "intent.pool_id missing".to_string())?;
-            let asset_in = obj
-                .get("asset_in")
-                .and_then(Value::as_str)
-                .ok_or_else(|| "intent.asset_in missing".to_string())?;
-            let asset_out = obj
-                .get("asset_out")
-                .and_then(Value::as_str)
-                .ok_or_else(|| "intent.asset_out missing".to_string())?;
-            let amount_out = obj
-                .get("amount_out")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount_out missing".to_string())?;
-            let max_amount_in = obj
-                .get("max_amount_in")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.max_amount_in missing".to_string())?;
-            let recipient = obj
-                .get("recipient")
-                .and_then(Value::as_str)
-                .ok_or_else(|| "intent.recipient missing".to_string())?;
-            Ok(tau_state_proof_risc0_shared::DexIntentV1::SwapExactOut(
-                tau_state_proof_risc0_shared::SwapExactOutIntentV1 {
-                    module: module.to_string(),
-                    version: version.to_string(),
-                    intent_id: intent_id.to_string(),
-                    sender_pubkey: sender.to_string(),
-                    deadline,
-                    pool_id: pool_id.to_string(),
-                    asset_in: asset_in.to_string(),
-                    asset_out: asset_out.to_string(),
-                    amount_out: amount_out as u128,
-                    max_amount_in: max_amount_in as u128,
-                    recipient: recipient.to_string(),
-                    salt,
-                },
-            ))
-        }
         "ADD_LIQUIDITY" => {
             let pool_id = obj
                 .get("pool_id")

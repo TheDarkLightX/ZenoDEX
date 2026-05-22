@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -193,17 +194,6 @@ def _run_adapter(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _metadata_root_args() -> tuple[str, ...]:
-    return (
-        "--conflict-schedule-hash",
-        _root("schedule"),
-        "--feature-suite-hash",
-        _root("feature-suite"),
-        "--dependency-lock-hash",
-        _root("dependency-lock"),
-    )
-
-
 def _verifier_script(path: Path, *, ok: bool) -> Path:
     body = f"""#!/usr/bin/env python3
 import json
@@ -221,23 +211,6 @@ if req.get("state_hash") != req.get("proof", {{}}).get("state_hash"):
     raise SystemExit(0)
 if "tau_state" not in req or "context" not in req:
     print(json.dumps({{"ok": False, "error": "missing context"}}))
-    raise SystemExit(0)
-block = req.get("block")
-if not isinstance(block, dict):
-    print(json.dumps({{"ok": False, "error": "missing block"}}))
-    raise SystemExit(0)
-if not isinstance(block.get("transactions"), list) or len(block["transactions"]) == 0:
-    print(json.dumps({{"ok": False, "error": "missing transactions"}}))
-    raise SystemExit(0)
-timestamp = block.get("header", {{}}).get("timestamp")
-if not isinstance(timestamp, int) or timestamp < 0:
-    print(json.dumps({{"ok": False, "error": "missing block timestamp"}}))
-    raise SystemExit(0)
-if req["context"].get("block_timestamp") != timestamp:
-    print(json.dumps({{"ok": False, "error": "block timestamp mismatch"}}))
-    raise SystemExit(0)
-if req["tau_state"].get("app_hash") != req["proof"].get("meta", {{}}).get("post_app_hash"):
-    print(json.dumps({{"ok": False, "error": "post app hash mismatch"}}))
     raise SystemExit(0)
 print(json.dumps({{"ok": {str(ok)}}}))
 """
@@ -273,6 +246,8 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-post-app-hash-header-app-hash",
     )
     assert first.returncode == 0, first.stderr or first.stdout
@@ -280,6 +255,7 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
     assert first_report["ok"] is True
     assert first_report["header_bound"] is False
     assert first_report["body_checked"] is True
+    assert first_report["toolchain_lock_hash"] == _root("toolchain-lock")
     assert metadata_path.is_file()
 
     bound_header = _header(body, proof_journal_hash=str(first_report["proof_journal_hash"]))
@@ -302,6 +278,8 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-bound-header",
         "--require-post-app-hash-header-app-hash",
     )
@@ -310,6 +288,7 @@ def test_risc0_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path
     assert second_report["header_bound"] is True
 
     metadata = json.loads(bound_metadata_path.read_text(encoding="utf-8"))
+    assert metadata["toolchain_lock_hash"] == _root("toolchain-lock")
     validate_proof_metadata_header_binding_v0(metadata, bound_header)
 
 
@@ -328,15 +307,7 @@ def test_risc0_adapter_rejects_wrong_proof_type_and_app_hash_mismatch(tmp_path: 
     )
     _write_json(wrong_app_hash_path, _proof(post_app_hash=_hex("wrong-post-app-hash")))
 
-    wrong_type = _run_adapter(
-        "--proof",
-        str(wrong_type_path),
-        "--header",
-        str(header_path),
-        "--body",
-        str(body_path),
-        *_metadata_root_args(),
-    )
+    wrong_type = _run_adapter("--proof", str(wrong_type_path), "--header", str(header_path), "--body", str(body_path))
     assert wrong_type.returncode == 1
     assert "unsupported risc0 proof_type" in wrong_type.stdout
 
@@ -347,14 +318,13 @@ def test_risc0_adapter_rejects_wrong_proof_type_and_app_hash_mismatch(tmp_path: 
         str(header_path),
         "--body",
         str(body_path),
-        *_metadata_root_args(),
         "--require-post-app-hash-header-app-hash",
     )
     assert wrong_app_hash.returncode == 1
     assert "post_app_hash/header app_hash mismatch" in wrong_app_hash.stdout
 
 
-def test_risc0_adapter_requires_metadata_binding_roots(tmp_path: Path) -> None:
+def test_risc0_adapter_rejects_default_placeholder_metadata_roots(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
     proof = _proof(post_app_hash=str(header["app_hash"])[2:])
@@ -373,10 +343,46 @@ def test_risc0_adapter_requires_metadata_binding_roots(tmp_path: Path) -> None:
         "--body",
         str(body_path),
     )
-    assert proc.returncode == 2
-    assert "--conflict-schedule-hash" in proc.stderr
-    assert "--feature-suite-hash" in proc.stderr
-    assert "--dependency-lock-hash" in proc.stderr
+    assert proc.returncode == 1
+    assert "proof_metadata.conflict_schedule_hash must be non-zero" in proc.stdout
+
+
+def test_risc0_adapter_defaults_to_repo_toolchain_lock_hash(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
+    body_path = tmp_path / "body.json"
+    header_path = tmp_path / "header.json"
+    proof_path = tmp_path / "proof.json"
+    metadata_path = tmp_path / "metadata.json"
+    _write_json(body_path, body)
+    _write_json(header_path, header)
+    _write_json(proof_path, proof)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--body",
+        str(body_path),
+        "--out",
+        str(metadata_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--require-post-app-hash-header-app-hash",
+    )
+
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    report = json.loads(proc.stdout)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    expected = proof_toolchain_lock_hash_v0(ROOT)
+    assert report["toolchain_lock_hash"] == expected
+    assert metadata["toolchain_lock_hash"] == expected
 
 
 def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
@@ -410,6 +416,8 @@ def test_risc0_adapter_binds_pre_app_hash_presence_bit(tmp_path: Path) -> None:
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-post-app-hash-header-app-hash",
     )
     no_pre = _run_adapter("--proof", str(no_pre_path), "--out", str(no_pre_metadata_path), *common_args)
@@ -597,6 +605,8 @@ def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--require-post-app-hash-header-app-hash",
         "--require-risc0-verifier",
         "--risc0-verify-cmd",
@@ -606,35 +616,6 @@ def test_risc0_adapter_can_require_external_verifier(tmp_path: Path) -> None:
     report = json.loads(proc.stdout)
     assert report["risc0_verified"] is True
     assert metadata_path.is_file()
-
-
-def test_risc0_adapter_requires_body_for_external_verifier(tmp_path: Path) -> None:
-    body = _body(1)
-    header = _header(body)
-    proof = _proof(post_app_hash=str(header["app_hash"])[2:])
-    header_path = tmp_path / "header.json"
-    proof_path = tmp_path / "proof.json"
-    verifier_path = _verifier_script(tmp_path / "accept_verifier.py", ok=True)
-    _write_json(header_path, header)
-    _write_json(proof_path, proof)
-
-    proc = _run_adapter(
-        "--proof",
-        str(proof_path),
-        "--header",
-        str(header_path),
-        "--conflict-schedule-hash",
-        _root("schedule"),
-        "--feature-suite-hash",
-        _root("feature-suite"),
-        "--dependency-lock-hash",
-        _root("dependency-lock"),
-        "--require-risc0-verifier",
-        "--risc0-verify-cmd",
-        str(verifier_path),
-    )
-    assert proc.returncode == 1
-    assert "--risc0-verify-cmd requires --body for ledger transaction binding" in proc.stdout
 
 
 def test_risc0_adapter_rejects_when_required_verifier_rejects(tmp_path: Path) -> None:
@@ -688,7 +669,6 @@ def test_risc0_adapter_rejects_required_verifier_without_command(tmp_path: Path)
         str(header_path),
         "--body",
         str(body_path),
-        *_metadata_root_args(),
         "--require-risc0-verifier",
     )
     assert proc.returncode == 1

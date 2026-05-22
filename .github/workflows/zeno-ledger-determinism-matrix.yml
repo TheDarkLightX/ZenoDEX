@@ -1,0 +1,112 @@
+name: zeno-ledger-determinism-matrix
+
+# Run the cross-version determinism golden vectors on every Python ABI we
+# support. If a hash diverges across these versions, we lose every prior
+# on-disk commitment — the matrix catches that on PR, not in production.
+
+on:
+  pull_request:
+    paths:
+      - "src/state/canonical.py"
+      - "src/integration/zeno_ledger_v0.py"
+      - "src/integration/zeno_ledger_signer_registry.py"
+      - "src/integration/zeno_ledger_signature.py"
+      - "tests/integration/test_zeno_ledger_chaos_*.py"
+      - "tests/integration/test_zeno_ledger_determinism_golden.py"
+      - ".github/workflows/zeno-ledger-determinism-matrix.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "src/state/canonical.py"
+      - "src/integration/zeno_ledger_v0.py"
+      - "src/integration/zeno_ledger_signer_registry.py"
+      - "src/integration/zeno_ledger_signature.py"
+      - "tests/integration/test_zeno_ledger_chaos_*.py"
+      - "tests/integration/test_zeno_ledger_determinism_golden.py"
+      - ".github/workflows/zeno-ledger-determinism-matrix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  determinism-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install minimal runtime deps
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Show environment fingerprint
+        run: |
+          python -c "import sys, platform; print('python', sys.version); print('platform', platform.platform()); print('machine', platform.machine())"
+
+      - name: Run golden-vector suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_determinism_golden.py
+
+      - name: Run encoding chaos suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_encoding.py
+
+      - name: Run protocol-drift chaos suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_protocol.py
+
+      - name: Run adversarial mutation chaos suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_adversarial.py
+
+      - name: Run fork state-machine chaos suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_forks.py
+
+      - name: Run network chaos suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_network.py
+
+      - name: Run runner chaos suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_runner.py
+
+      - name: Run multi-process determinism suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_multiprocess.py
+
+      - name: Run byte-order audit + invariant suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_byteorder.py
+
+      - name: Run adversarial-server suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_adversarial_server.py
+
+      - name: Run malicious-validator suite
+        run: |
+          python -m pytest -v \
+            tests/integration/test_zeno_ledger_chaos_malicious_validators.py

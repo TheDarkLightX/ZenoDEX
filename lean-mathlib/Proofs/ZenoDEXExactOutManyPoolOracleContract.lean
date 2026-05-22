@@ -14,6 +14,7 @@ It proves:
   contract,
 - the `runtimeMatchesCanonical` bit is exactly the statement that the runtime
   choice equals the bounded canonical winner,
+- the `contractOk` bit additionally requires the projection-cover witness,
 - the verifying contract is unique for fixed inputs.
 
 This proof does **not** claim that the shipped many-pool runtime already equals
@@ -35,6 +36,7 @@ structure Inputs where
   rest : List Candidate
   bindingOk : Bool
   runtimeChoice : Candidate
+  projectionCoverHolds : Bool
 deriving DecidableEq, Repr
 
 def canonicalWinner (inputs : Inputs) : Candidate :=
@@ -51,6 +53,8 @@ structure Contract where
   runtimeChoice : Candidate
   canonicalWinner : Candidate
   runtimeMatchesCanonical : Bool
+  projectionCoverHolds : Bool
+  contractOk : Bool
   certificate : Certificate
 deriving DecidableEq, Repr
 
@@ -68,6 +72,8 @@ def buildContract (inputs : Inputs) : Contract :=
     runtimeChoice := inputs.runtimeChoice
     canonicalWinner := winner
     runtimeMatchesCanonical := decide (inputs.runtimeChoice = winner)
+    projectionCoverHolds := inputs.projectionCoverHolds
+    contractOk := decide (inputs.runtimeChoice = winner) && inputs.projectionCoverHolds
     certificate := certificate
   }
 
@@ -196,6 +202,43 @@ theorem runtimeMatchesCanonical_iff
     (buildContract inputs).runtimeMatchesCanonical = true ↔
       inputs.runtimeChoice = canonicalWinner inputs := by
   simp [buildContract, canonicalWinner]
+
+theorem contractOk_iff
+    (inputs : Inputs) :
+    (buildContract inputs).contractOk = true ↔
+      inputs.runtimeChoice = canonicalWinner inputs ∧
+        inputs.projectionCoverHolds = true := by
+  simp [buildContract, canonicalWinner, Bool.and_eq_true]
+
+theorem contractOk_implies_runtimeMatchesCanonical
+    (inputs : Inputs)
+    (hOk : (buildContract inputs).contractOk = true) :
+    (buildContract inputs).runtimeMatchesCanonical = true := by
+  have hEq : inputs.runtimeChoice = canonicalWinner inputs :=
+    (contractOk_iff inputs).1 hOk |>.1
+  exact (runtimeMatchesCanonical_iff inputs).2 hEq
+
+theorem contractOk_implies_projectionCoverHolds
+    (inputs : Inputs)
+    (hOk : (buildContract inputs).contractOk = true) :
+    inputs.projectionCoverHolds = true :=
+  (contractOk_iff inputs).1 hOk |>.2
+
+theorem not_contractOk_without_projection_cover
+    (inputs : Inputs)
+    (hCover : inputs.projectionCoverHolds = false) :
+    (buildContract inputs).contractOk = false := by
+  simp [buildContract, hCover]
+
+theorem not_contractOk_without_runtime_canonicality
+    (inputs : Inputs)
+    (hMismatch : inputs.runtimeChoice ≠ canonicalWinner inputs) :
+    (buildContract inputs).contractOk = false := by
+  by_cases hOk : (buildContract inputs).contractOk = true
+  · have hEq : inputs.runtimeChoice = canonicalWinner inputs :=
+      (contractOk_iff inputs).1 hOk |>.1
+    exact False.elim (hMismatch hEq)
+  · cases hVal : (buildContract inputs).contractOk <;> simp [hVal] at hOk ⊢
 
 theorem runtimeMatchesCanonical_iff_mem_and_keyLe_all
     (inputs : Inputs) :

@@ -20,7 +20,7 @@ then unique canonical minimality over the full bounded key set already follows.
 What it does **not** prove:
 
 - that the runtime witness payloads already carry those semantics automatically,
-- or that the exact-out world-model blocker is closed by the packet shell alone.
+- or that the exact-out ShapeForge blocker is closed by the packet shell alone.
 
 That interpretation layer remains the real blocker.
 -/

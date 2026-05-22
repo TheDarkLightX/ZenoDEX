@@ -1,0 +1,66 @@
+{
+  "checks": [
+    {
+      "check_id": "sources.primary_epiplexity",
+      "detail": "Finzi et al. epiplexity source and version dates are recorded",
+      "passed": true
+    },
+    {
+      "check_id": "sources.proxy_counterexample",
+      "detail": "controlled counterexample source is recorded as a task-relevance caveat",
+      "passed": true
+    },
+    {
+      "check_id": "sources.companions",
+      "detail": "all required companion sources are linked",
+      "passed": true
+    },
+    {
+      "check_id": "mapping.bounded_observer",
+      "detail": "ZenoEnergy observer budget is made explicit",
+      "passed": true
+    },
+    {
+      "check_id": "mapping.task_relevance_gate",
+      "detail": "task-relevance gate requires verifier-call and safety metrics",
+      "passed": true
+    },
+    {
+      "check_id": "mapping.proxy_boundary",
+      "detail": "note forbids treating proxy as a certificate or production claim",
+      "passed": true
+    },
+    {
+      "check_id": "curriculum.proxy_receipt",
+      "detail": "committed curriculum proxy remains stable",
+      "passed": true
+    }
+  ],
+  "curriculum": "data/upba_energy/zenoenergy_negative_curriculum_seed20260545.json",
+  "decision": "use_epiplexity_for_training_data_selection_only",
+  "failed_count": 0,
+  "negative_knowledge": [
+    "A high epiplexity proxy is insufficient without task-relevant heldout ranking improvement.",
+    "The epiplexity proxy is not a correctness certificate, production-readiness claim, or bounded-grid completeness proof."
+  ],
+  "note": "docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md",
+  "ok": true,
+  "passed_count": 7,
+  "proxy": {
+    "classification": "measurable_bounded_structure",
+    "label_entropy_bits": 2.866122,
+    "policy_separation": 0.375,
+    "rare_label_headroom": 0.900498,
+    "score": 0.358265
+  },
+  "required_source_urls": {
+    "ebm_training": "https://arxiv.org/abs/2101.03288",
+    "epiplexity": "https://arxiv.org/abs/2601.03220",
+    "gcn_branching": "https://arxiv.org/abs/1906.01629",
+    "graph_pointer_branching": "https://arxiv.org/abs/2307.01434",
+    "proxy_counterexample": "https://arxiv.org/abs/2605.11554",
+    "thermodynamic_epiplexity": "https://arxiv.org/abs/2602.05463"
+  },
+  "schema": "zenodex/energy/epiplexity_literature_receipt/v1",
+  "source_count": 6
+}

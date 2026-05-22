@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -229,6 +230,8 @@ def test_tee_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path) 
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--approved-measurement",
         MEASUREMENT,
     )
@@ -237,6 +240,7 @@ def test_tee_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path) 
     assert first_report["proof_kind"] == "tee_attestation_v0"
     assert first_report["header_bound"] is False
     assert first_report["body_checked"] is True
+    assert first_report["toolchain_lock_hash"] == _root("toolchain-lock")
 
     bound_header = _header(body, proof_journal_hash=str(first_report["proof_journal_hash"]))
     bound_header_path = tmp_path / "header_bound.json"
@@ -258,12 +262,15 @@ def test_tee_adapter_builds_metadata_and_validates_bound_header(tmp_path: Path) 
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--approved-measurement",
         MEASUREMENT,
         "--require-bound-header",
     )
     assert second.returncode == 0, second.stderr or second.stdout
     metadata = json.loads(bound_metadata_path.read_text(encoding="utf-8"))
+    assert metadata["toolchain_lock_hash"] == _root("toolchain-lock")
     validate_proof_metadata_header_binding_v0(metadata, bound_header)
 
 
@@ -294,6 +301,41 @@ def test_tee_adapter_rejects_unapproved_measurement(tmp_path: Path) -> None:
     assert "receipt measurement is not in --approved-measurement" in proc.stdout
 
 
+def test_tee_adapter_defaults_to_repo_toolchain_lock_hash(tmp_path: Path) -> None:
+    body = _body(1)
+    header = _header(body)
+    receipt = _receipt()
+    receipt_path = tmp_path / "receipt.json"
+    header_path = tmp_path / "header.json"
+    metadata_path = tmp_path / "metadata.json"
+    _write_json(receipt_path, receipt)
+    _write_json(header_path, header)
+
+    proc = _run_adapter(
+        "--receipt",
+        str(receipt_path),
+        "--header",
+        str(header_path),
+        "--out",
+        str(metadata_path),
+        "--conflict-schedule-hash",
+        _root("schedule"),
+        "--feature-suite-hash",
+        _root("feature-suite"),
+        "--dependency-lock-hash",
+        _root("dependency-lock"),
+        "--approved-measurement",
+        MEASUREMENT,
+    )
+
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    report = json.loads(proc.stdout)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    expected = proof_toolchain_lock_hash_v0(ROOT)
+    assert report["toolchain_lock_hash"] == expected
+    assert metadata["toolchain_lock_hash"] == expected
+
+
 def test_tee_adapter_can_require_external_attestation_verifier(tmp_path: Path) -> None:
     body = _body(1)
     header = _header(body)
@@ -317,6 +359,8 @@ def test_tee_adapter_can_require_external_attestation_verifier(tmp_path: Path) -
         _root("feature-suite"),
         "--dependency-lock-hash",
         _root("dependency-lock"),
+        "--toolchain-lock-hash",
+        _root("toolchain-lock"),
         "--approved-measurement",
         MEASUREMENT,
         "--require-tee-attestation-verifier",

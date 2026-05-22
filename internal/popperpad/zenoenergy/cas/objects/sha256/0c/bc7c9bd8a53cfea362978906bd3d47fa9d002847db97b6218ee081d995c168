@@ -1,0 +1,1 @@
+{"blob_ref":"sha256:f44f33473da5494afc4f7db515852c8653ac1be7b1271e179ce016d79ca41a16","kind":"benchmark","media_type":"application/json","name":"hard_cases_artifact","path":"data/upba_energy/upba_v2_energy_objective_tuned_hard_cases_500x3x3.json","schema":"popperpad/artifact/v1"}

@@ -29,7 +29,6 @@ variable {V : Type} [DecidableEq V]
 
 variable (T : SimpleGraph V) (w : Sym2 V → Nat)
 
-omit [DecidableEq V] in
 theorem le_weight_offTreeEdge_of_mem_path
     (hT : T.IsTree) (u v : V)
     (hcert : maxWeightOnPath (T := T) (w := w) hT u v ≤ w s(u, v))

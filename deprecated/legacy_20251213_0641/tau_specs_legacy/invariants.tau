@@ -1,0 +1,85 @@
+// TauSwap Global Invariants
+// These invariants must hold at all times (always statements)
+//
+// Three-layer architecture: Monotonic base, compositional middle, minimal non-monotonic top
+//
+// Base Layer: Monotonic invariants (never become false once true)
+// - Reserve non-negativity tracking
+// - Balance non-negativity tracking
+// - Progress indicators
+
+// Stream declarations
+reserve0_lo : bv[16] = in console  // reserve0 lower 16 bits
+reserve0_hi : bv[16] = in console  // reserve0 upper 16 bits
+reserve1_lo : bv[16] = in console  // reserve1 lower 16 bits
+reserve1_hi : bv[16] = in console  // reserve1 upper 16 bits
+balance_lo : bv[16] = in console  // balance lower 16 bits
+balance_hi : bv[16] = in console  // balance upper 16 bits
+lp_supply_lo : bv[16] = in console  // LP supply lower 16 bits
+lp_supply_hi : bv[16] = in console  // LP supply upper 16 bits
+lp_balance_sum_lo : bv[16] = in console  // Sum of LP balances lower 16 bits
+lp_balance_sum_hi : bv[16] = in console  // Sum of LP balances upper 16 bits
+
+// Output streams
+reserve_non_negative : sbf = out console  // true if both reserves are non-negative
+balance_non_negative : sbf = out console  // true if balance is non-negative
+cpmm_invariant_ok : sbf = out console  // true if CPMM invariant holds (simplified check)
+lp_conservation_ok : sbf = out console  // true if LP supply equals sum of balances
+
+// Constants
+ZERO_16 : bv[16] = { #x0000 }:bv[16]
+ONE_16 : bv[16] = { #x0001 }:bv[16]
+
+// Helper predicates (cached by Tau for performance)
+// Check if value (hi/lo representation) is non-negative
+is_non_negative(hi : bv[16], lo : bv[16]) := 
+  (hi > ZERO_16) | (hi = ZERO_16 & lo >= ZERO_16)
+
+// Check if value is positive (strictly greater than zero)
+is_positive(hi : bv[16], lo : bv[16]) :=
+  (hi > ZERO_16) | (hi = ZERO_16 & lo > ZERO_16)
+
+// Check if both reserves are valid (non-negative)
+both_reserves_valid(r0_hi : bv[16], r0_lo : bv[16], r1_hi : bv[16], r1_lo : bv[16]) :=
+  is_non_negative(r0_hi, r0_lo) & is_non_negative(r1_hi, r1_lo)
+
+// Check if two values are equal (hi/lo representation)
+values_equal(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) :=
+  (hi1 = hi2) & (lo1 = lo2)
+
+// Base Layer: Monotonic invariants
+// These track that reserves/balances never become negative
+// Once true, they remain true (monotonic property)
+
+// Invariant 1: Reserve non-negativity (monotonic)
+// always (reserve0 >= 0) && (reserve1 >= 0)
+always (
+  is_non_negative(reserve0_hi[t], reserve0_lo[t]) &
+  is_non_negative(reserve1_hi[t], reserve1_lo[t])
+)
+
+// Output: reserve_non_negative
+reserve_non_negative[t] = both_reserves_valid(reserve0_hi[t], reserve0_lo[t], reserve1_hi[t], reserve1_lo[t])
+
+// Invariant 2: Balance non-negativity (monotonic)
+// always (balance >= 0)
+always (is_non_negative(balance_hi[t], balance_lo[t]))
+
+// Output: balance_non_negative
+balance_non_negative[t] = is_non_negative(balance_hi[t], balance_lo[t])
+
+// Invariant 3: CPMM invariant (both reserves positive or both zero)
+// This is a simplified check - full k calculation done externally
+// Temporal pattern: state evolves but invariant preserved
+cpmm_invariant_ok[t] = (
+  // Both zero (empty pool)
+  ((reserve0_hi[t] = ZERO_16) & (reserve0_lo[t] = ZERO_16) &
+   (reserve1_hi[t] = ZERO_16) & (reserve1_lo[t] = ZERO_16)) |
+  // Both positive (active pool)
+  (is_positive(reserve0_hi[t], reserve0_lo[t]) & is_positive(reserve1_hi[t], reserve1_lo[t]))
+)
+
+// Invariant 4: LP conservation (lp_supply = sum of lp_balances)
+// This is checked per-settlement, not as a global always
+// Output: lp_conservation (equality check)
+lp_conservation_ok[t] = values_equal(lp_supply_hi[t], lp_supply_lo[t], lp_balance_sum_hi[t], lp_balance_sum_lo[t])

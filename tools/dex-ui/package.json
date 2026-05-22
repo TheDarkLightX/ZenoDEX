@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:sdk": "node --test --test-reporter=dot src/sdk/*.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@noble/curves": "1.2.0",
+    "@zenodex/proof-client": "file:../../packages/zeno-proof-client",
+    "ethers": "^6.16.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

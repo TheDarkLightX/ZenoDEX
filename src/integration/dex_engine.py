@@ -23,11 +23,16 @@ from ..core.quote_receipts import verify_route_quote_receipt
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..core.uniform_batch_clearing import (
+    UNIFORM_BATCH_POLICY_V2_ID,
+    UNIFORM_BATCH_POLICY_V3_ID,
     UniformBatchCertificateV1,
     build_uniform_batch_settlement_v1,
 )
-from ..core.uniform_batch_optimality import verify_uniform_batch_bound_optimality_certificate_v1
-from ..core.uniform_batch_price_grid_table import verify_uniform_batch_price_grid_table_v1
+from ..core.uniform_batch_optimality import (
+    verify_uniform_batch_bound_optimality_certificate_v1,
+    verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1,
+    verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1,
+)
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
@@ -39,6 +44,11 @@ from ..state.intents import Intent, IntentKind
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
+from .lp_position_age_gate import (
+    LPDurationRiskPolicy,
+    apply_lp_mint_timestamps_after_settlement,
+    validate_lp_settlement_age_gate,
+)
 from .operations import (
     SettlementEnvelope,
     SignedIntentEnvelope,
@@ -210,19 +220,21 @@ class DexEngineConfig:
     # typed ZenoOracle authorization binding the exact settlement, pre-state,
     # and price_curr value consumed by the settlement certificate lane.
     require_oracle_authorization_for_critical_settlements: bool = False
-    # Optional UPBA v1 bridge. When enabled, ops["3"].uniform_batch_certificate
-    # is accepted as the settlement construction rule for a single-pool exact-in
-    # uniform-price batch. The default keeps the existing sequential settlement
-    # path authoritative.
     allow_uniform_batch_certificate: bool = False
-    # Optional UPBA-only swap posture. When enabled, any swap batch must carry a
-    # uniform batch certificate instead of falling back to sequential settlement.
-    # Non-swap intents remain outside the UPBA v1 scope.
-    require_uniform_batch_certificate: bool = False
-    # Production UPBA optimality posture. When enabled, every accepted
-    # uniform_batch_certificate must carry bounded price-grid evidence that
-    # passes the functional-core table verifier.
-    require_uniform_batch_price_grid_evidence: bool = False
+    # Optional strict UPBA production posture. When enabled, supported
+    # single-pool swap families must use UPBA, and UPBA settlements must carry
+    # bound audited-set optimality evidence.
+    require_uniform_batch_certificate_for_supported_swaps: bool = False
+    require_uniform_batch_optimality_certificate: bool = False
+    require_uniform_batch_v2_bounded_grid_optimality: bool = False
+    require_uniform_batch_v3_exact_out_grid_optimality: bool = False
+
+    # Optional LP duration-risk gate. When positive, REMOVE_LIQUIDITY burns must
+    # be at least this old according to runtime-tracked LP mint timestamps.
+    min_lp_position_age_seconds: int = 0
+    # Optional accepted-lifecycle churn policy. When set, the effective LP age
+    # floor grows with committed LP churn metadata and decays over quiet periods.
+    lp_duration_risk_policy: Optional[LPDurationRiskPolicy] = None
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -240,12 +252,6 @@ class DexEngineConfig:
             raise ValueError(
                 "require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs"
             )
-        if self.require_uniform_batch_price_grid_evidence and not self.allow_uniform_batch_certificate:
-            raise ValueError(
-                "require_uniform_batch_price_grid_evidence=True requires allow_uniform_batch_certificate=True"
-            )
-        if self.require_uniform_batch_certificate and not self.allow_uniform_batch_certificate:
-            raise ValueError("require_uniform_batch_certificate=True requires allow_uniform_batch_certificate=True")
 
         if self.settlement_certificate_proof_flags is not None and not isinstance(
             self.settlement_certificate_proof_flags, SettlementProofFlags
@@ -268,14 +274,86 @@ class DexEngineConfig:
                 if not isinstance(value, int) or isinstance(value, bool):
                     raise ValueError(f"settlement_certificate_price_history[{idx}] must be an int")
 
+        if not isinstance(self.min_lp_position_age_seconds, int) or isinstance(
+            self.min_lp_position_age_seconds, bool
+        ):
+            raise TypeError("min_lp_position_age_seconds must be an int")
+        if self.min_lp_position_age_seconds < 0:
+            raise ValueError("min_lp_position_age_seconds must be non-negative")
+        if self.lp_duration_risk_policy is not None and not isinstance(
+            self.lp_duration_risk_policy, LPDurationRiskPolicy
+        ):
+            raise TypeError("lp_duration_risk_policy must be an LPDurationRiskPolicy")
+        if not isinstance(self.allow_uniform_batch_certificate, bool):
+            raise TypeError("allow_uniform_batch_certificate must be a bool")
+        if not isinstance(self.require_uniform_batch_certificate_for_supported_swaps, bool):
+            raise TypeError("require_uniform_batch_certificate_for_supported_swaps must be a bool")
+        if not isinstance(self.require_uniform_batch_optimality_certificate, bool):
+            raise TypeError("require_uniform_batch_optimality_certificate must be a bool")
+        if not isinstance(self.require_uniform_batch_v2_bounded_grid_optimality, bool):
+            raise TypeError("require_uniform_batch_v2_bounded_grid_optimality must be a bool")
+        if not isinstance(self.require_uniform_batch_v3_exact_out_grid_optimality, bool):
+            raise TypeError("require_uniform_batch_v3_exact_out_grid_optimality must be a bool")
+        if (
+            self.require_uniform_batch_certificate_for_supported_swaps
+            or self.require_uniform_batch_optimality_certificate
+            or self.require_uniform_batch_v2_bounded_grid_optimality
+            or self.require_uniform_batch_v3_exact_out_grid_optimality
+        ) and not self.allow_uniform_batch_certificate:
+            raise ValueError("strict UPBA requirements require allow_uniform_batch_certificate=True")
 
-@dataclass(frozen=True)
-class DexTxResult:
-    ok: bool
-    state: Optional[DexState] = None
-    settlement: Optional[Settlement] = None
-    error: Optional[str] = None
-    proof_mining_context: Optional[ProofMiningContext] = None
+
+def make_strict_upba_engine_config(**overrides: Any) -> DexEngineConfig:
+    """Build the strict UPBA profile for supported single-pool swap families."""
+
+    params: Dict[str, Any] = dict(overrides)
+    dex_config = params.get("dex_config")
+    if isinstance(dex_config, DexConfig):
+        params["dex_config"] = replace(
+            dex_config,
+            settlement_validation="strong_proof_carrying",
+            allow_snapshot_bound_quote_bindings=False,
+        )
+    params.update(
+        {
+            "allow_missing_settlement": False,
+            "require_settlement_match": True,
+            "require_intent_signatures": True,
+            "allow_external_tools": False,
+            "consensus_mode": True,
+            "allow_uniform_batch_certificate": True,
+            "require_uniform_batch_certificate_for_supported_swaps": True,
+            "require_uniform_batch_optimality_certificate": True,
+            "require_uniform_batch_v2_bounded_grid_optimality": True,
+            "require_uniform_batch_v3_exact_out_grid_optimality": True,
+        }
+    )
+    return DexEngineConfig(**params)
+
+
+def strict_upba_engine_config_facts_v0(config: DexEngineConfig) -> dict[str, Any]:
+    """Expose the strict UPBA profile facts used by release/audit tooling."""
+
+    return {
+        "allow_missing_settlement": config.allow_missing_settlement,
+        "require_settlement_match": config.require_settlement_match,
+        "require_intent_signatures": config.require_intent_signatures,
+        "allow_external_tools": config.allow_external_tools,
+        "consensus_mode": config.consensus_mode,
+        "settlement_validation": config.dex_config.settlement_validation,
+        "allow_snapshot_bound_quote_bindings": config.dex_config.allow_snapshot_bound_quote_bindings,
+        "allow_uniform_batch_certificate": config.allow_uniform_batch_certificate,
+        "require_uniform_batch_certificate_for_supported_swaps": (
+            config.require_uniform_batch_certificate_for_supported_swaps
+        ),
+        "require_uniform_batch_optimality_certificate": config.require_uniform_batch_optimality_certificate,
+        "require_uniform_batch_v2_bounded_grid_optimality": (
+            config.require_uniform_batch_v2_bounded_grid_optimality
+        ),
+        "require_uniform_batch_v3_exact_out_grid_optimality": (
+            config.require_uniform_batch_v3_exact_out_grid_optimality
+        ),
+    }
 
 
 def production_config_violations(
@@ -283,13 +361,7 @@ def production_config_violations(
     *,
     require_strict_upba: bool = False,
 ) -> tuple[str, ...]:
-    """Return fail-closed reasons a config is unsuitable for value-moving production.
-
-    This is intentionally a linter, not a dataclass constructor guard. Tests,
-    historical replay fixtures, and local research profiles may need unsafe
-    combinations to prove they are rejected. Production bootstrap code should
-    call this predicate and refuse to start when it returns any reason.
-    """
+    """Return fail-closed production posture violations for a DEX engine config."""
 
     reasons: list[str] = []
     if bool(config.allow_missing_settlement):
@@ -298,45 +370,45 @@ def production_config_violations(
         reasons.append("require_settlement_match must be true")
     if not bool(config.require_intent_signatures):
         reasons.append("require_intent_signatures must be true")
-    if not bool(config.dex_config.require_all_nonces):
-        reasons.append("dex_config.require_all_nonces must be true")
-    if bool(config.dex_config.allow_legacy_nonce_free_steps):
-        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
-    if str(config.dex_config.settlement_validation) == "legacy":
-        reasons.append("dex_config.settlement_validation must not be legacy")
     if bool(config.allow_external_tools):
         reasons.append("allow_external_tools must be false")
     if not bool(config.consensus_mode):
         reasons.append("consensus_mode must be true")
-    if bool(config.require_proof_when_present) and not bool(config.proof_config.enabled):
-        reasons.append("require_proof_when_present requires proof_config.enabled")
     if bool(config.enable_test_fault_injection) or config.fault_injection is not None:
         reasons.append("test fault injection must be disabled")
-    if bool(config.require_uniform_batch_certificate) and not bool(config.allow_uniform_batch_certificate):
-        reasons.append("require_uniform_batch_certificate requires allow_uniform_batch_certificate")
-    if bool(config.require_uniform_batch_price_grid_evidence) and not bool(config.allow_uniform_batch_certificate):
-        reasons.append("require_uniform_batch_price_grid_evidence requires allow_uniform_batch_certificate")
+
+    dex_config = config.dex_config
+    if not bool(dex_config.require_all_nonces):
+        reasons.append("dex_config.require_all_nonces must be true")
+    if bool(dex_config.allow_legacy_nonce_free_steps):
+        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
+    if dex_config.settlement_validation != "strong_proof_carrying":
+        reasons.append("dex_config.settlement_validation must be strong_proof_carrying")
+    if bool(dex_config.allow_snapshot_bound_quote_bindings):
+        reasons.append("dex_config.allow_snapshot_bound_quote_bindings must be false")
+
     if require_strict_upba:
         if not bool(config.allow_uniform_batch_certificate):
-            reasons.append("strict UPBA production requires allow_uniform_batch_certificate")
-        if not bool(config.require_uniform_batch_certificate):
-            reasons.append("strict UPBA production requires require_uniform_batch_certificate")
-        if not bool(config.require_uniform_batch_price_grid_evidence):
-            reasons.append("strict UPBA production requires require_uniform_batch_price_grid_evidence")
-    return tuple(reasons)
+            reasons.append("allow_uniform_batch_certificate must be true")
+        if not bool(config.require_uniform_batch_certificate_for_supported_swaps):
+            reasons.append("require_uniform_batch_certificate_for_supported_swaps must be true")
+        if not bool(config.require_uniform_batch_optimality_certificate):
+            reasons.append("require_uniform_batch_optimality_certificate must be true")
+        if not bool(config.require_uniform_batch_v2_bounded_grid_optimality):
+            reasons.append("require_uniform_batch_v2_bounded_grid_optimality must be true")
+        if not bool(config.require_uniform_batch_v3_exact_out_grid_optimality):
+            reasons.append("require_uniform_batch_v3_exact_out_grid_optimality must be true")
+
+    return tuple(dict.fromkeys(reasons))
 
 
-def validate_production_config(
-    config: DexEngineConfig,
-    *,
-    require_strict_upba: bool = False,
-) -> tuple[bool, str | None]:
-    """Compact production-config predicate for CLI/bootstrap callers."""
-
-    reasons = production_config_violations(config, require_strict_upba=require_strict_upba)
-    if reasons:
-        return False, "; ".join(reasons)
-    return True, None
+@dataclass(frozen=True)
+class DexTxResult:
+    ok: bool
+    state: Optional[DexState] = None
+    settlement: Optional[Settlement] = None
+    error: Optional[str] = None
+    proof_mining_context: Optional[ProofMiningContext] = None
 
 
 class _InjectedFault(RuntimeError):
@@ -606,6 +678,23 @@ def _validate_raw_settlement_op(config: DexEngineConfig, raw_settlement_op: Any)
     if isinstance(raw_fills, list) and len(raw_fills) > config.max_settlement_fills:
         return f"too many settlement fills: {len(raw_fills)} > {config.max_settlement_fills}"
     return None
+
+
+def _v3_exact_out_grid_bounds(evidence: Mapping[str, Any]) -> Tuple[int, int]:
+    allowed = {"max_price_num", "max_price_den"}
+    extras = sorted(set(evidence) - allowed)
+    if extras:
+        raise ValueError(f"uniform batch v3 exact-out grid evidence has unknown field {extras[0]}")
+    missing = sorted(allowed - set(evidence))
+    if missing:
+        raise ValueError(f"uniform batch v3 exact-out grid evidence missing {missing[0]}")
+    max_price_num = evidence["max_price_num"]
+    max_price_den = evidence["max_price_den"]
+    if not isinstance(max_price_num, int) or isinstance(max_price_num, bool):
+        raise ValueError("uniform batch v3 exact-out grid max_price_num must be an int")
+    if not isinstance(max_price_den, int) or isinstance(max_price_den, bool):
+        raise ValueError("uniform batch v3 exact-out grid max_price_den must be an int")
+    return max_price_num, max_price_den
 
 
 def _validate_raw_intent_ops(config: DexEngineConfig, raw_intents: Any) -> Optional[str]:
@@ -1017,6 +1106,53 @@ def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> L
     return out
 
 
+def _is_supported_uniform_batch_swap_family(intents: List[Intent]) -> bool:
+    """Return true for the current scoped UPBA single-pool swap families."""
+
+    if not intents:
+        return False
+    pool_id: Optional[str] = None
+    asset_pair: Optional[frozenset[str]] = None
+    kind: Optional[IntentKind] = None
+    for intent in intents:
+        if intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+            return False
+        if kind is None:
+            kind = intent.kind
+        elif intent.kind != kind:
+            return False
+        try:
+            current_pool_id = str(intent.get_field("pool_id"))
+            asset_in = str(intent.get_field("asset_in"))
+            asset_out = str(intent.get_field("asset_out"))
+        except Exception:
+            return False
+        if asset_in == asset_out:
+            return False
+        if intent.kind == IntentKind.SWAP_EXACT_IN:
+            amount_in = intent.get_field("amount_in")
+            min_amount_out = intent.get_field("min_amount_out")
+            if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+                return False
+            if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
+                return False
+        else:
+            amount_out = intent.get_field("amount_out")
+            max_amount_in = intent.get_field("max_amount_in")
+            if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
+                return False
+            if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
+                return False
+        current_pair = frozenset((asset_in, asset_out))
+        if pool_id is None:
+            pool_id = current_pool_id
+            asset_pair = current_pair
+            continue
+        if current_pool_id != pool_id or current_pair != asset_pair:
+            return False
+    return True
+
+
 def _build_signing_payloads(
     signed_intents: List[SignedIntentEnvelope],
     *,
@@ -1100,52 +1236,42 @@ def apply_ops(
         uniform_batch_optimality_certificate = (
             getattr(settlement_env, "uniform_batch_optimality_certificate", None) if settlement_env else None
         )
-        uniform_batch_price_grid_config = (
-            getattr(settlement_env, "uniform_batch_price_grid_config", None) if settlement_env else None
+        uniform_batch_v2_bounded_grid = (
+            getattr(settlement_env, "uniform_batch_v2_bounded_grid", None) if settlement_env else None
         )
-        uniform_batch_price_grid_rows = (
-            getattr(settlement_env, "uniform_batch_price_grid_rows", None) if settlement_env else None
-        )
-        uniform_batch_price_grid_witness = (
-            getattr(settlement_env, "uniform_batch_price_grid_witness", None) if settlement_env else None
+        uniform_batch_v3_exact_out_grid = (
+            getattr(settlement_env, "uniform_batch_v3_exact_out_grid", None) if settlement_env else None
         )
         if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
             return DexTxResult(
                 ok=False,
                 error="uniform batch optimality certificate requires uniform batch certificate",
             )
-        price_grid_evidence_present = any(
-            item is not None
-            for item in (
-                uniform_batch_price_grid_config,
-                uniform_batch_price_grid_rows,
-                uniform_batch_price_grid_witness,
-            )
-        )
-        price_grid_evidence_complete = all(
-            item is not None
-            for item in (
-                uniform_batch_price_grid_config,
-                uniform_batch_price_grid_rows,
-                uniform_batch_price_grid_witness,
-            )
-        )
-        if price_grid_evidence_present and not price_grid_evidence_complete:
+        if uniform_batch_v2_bounded_grid is not None and uniform_batch_certificate is None:
             return DexTxResult(
                 ok=False,
-                error="uniform batch price grid evidence requires config, rows, and witness",
+                error="uniform batch v2 bounded-grid evidence requires uniform batch certificate",
             )
-        if price_grid_evidence_present and uniform_batch_certificate is None:
+        if uniform_batch_v3_exact_out_grid is not None and uniform_batch_certificate is None:
             return DexTxResult(
                 ok=False,
-                error="uniform batch price grid evidence requires uniform batch certificate",
+                error="uniform batch v3 exact-out grid evidence requires uniform batch certificate",
             )
-        if (
-            uniform_batch_certificate is not None
-            and config.require_uniform_batch_price_grid_evidence
-            and not price_grid_evidence_complete
-        ):
-            return DexTxResult(ok=False, error="uniform batch price grid evidence required")
+        if uniform_batch_v2_bounded_grid is not None and uniform_batch_optimality_certificate is None:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch v2 bounded-grid evidence requires optimality certificate",
+            )
+        if uniform_batch_v3_exact_out_grid is not None and uniform_batch_optimality_certificate is None:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch v3 exact-out grid evidence requires optimality certificate",
+            )
+        if uniform_batch_v2_bounded_grid is not None and uniform_batch_v3_exact_out_grid is not None:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch bounded-grid evidence provided twice",
+            )
         proof_scheme: Optional[str] = None
         if proof is not None:
             scheme_raw = proof.get("scheme")
@@ -1201,6 +1327,12 @@ def apply_ops(
         if err is not None:
             return DexTxResult(ok=False, error=err)
         validation_intents = _sanitize_intents_after_quote_receipt_validation(intents)
+        if (
+            config.require_uniform_batch_certificate_for_supported_swaps
+            and uniform_batch_certificate is None
+            and _is_supported_uniform_batch_swap_family(validation_intents)
+        ):
+            return DexTxResult(ok=False, error="uniform batch certificate required for supported swaps")
 
         next_nonces: Optional[NonceTable] = None
         if intents:
@@ -1212,15 +1344,6 @@ def apply_ops(
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
         if intents:
-            if (
-                config.require_uniform_batch_certificate
-                and uniform_batch_certificate is None
-                and any(
-                    intent.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT)
-                    for intent in validation_intents
-                )
-            ):
-                return DexTxResult(ok=False, error="uniform batch certificate required")
             if uniform_batch_certificate is not None:
                 if not config.allow_uniform_batch_certificate:
                     return DexTxResult(ok=False, error="uniform batch certificate not enabled")
@@ -1231,41 +1354,97 @@ def apply_ops(
                         ok=False,
                         error=f"uniform batch certificate rejected: {_clean_error(exc)}",
                     )
-                if uniform_batch_optimality_certificate is not None:
-                    optimality_result = verify_uniform_batch_bound_optimality_certificate_v1(
-                        optimality_certificate=uniform_batch_optimality_certificate,
-                        uniform_batch_certificate=cert,
-                    )
-                    if not optimality_result.ok:
-                        return DexTxResult(
-                            ok=False,
-                            error=(
-                                "uniform batch optimality certificate rejected: "
-                                f"{optimality_result.error or 'invalid certificate'}"
-                            ),
-                        )
                 pool = state.pools.get(cert.pool_id)
                 if pool is None:
                     return DexTxResult(
                         ok=False,
                         error=f"uniform batch certificate pool not found: {cert.pool_id}",
                     )
-                if price_grid_evidence_present:
-                    price_grid_result = verify_uniform_batch_price_grid_table_v1(
-                        intents=validation_intents,
-                        pool=pool,
-                        balances=state.balances,
-                        uniform_batch_certificate=cert,
-                        config=uniform_batch_price_grid_config,
-                        rows=uniform_batch_price_grid_rows or (),
-                        witness=uniform_batch_price_grid_witness,
+                if config.require_uniform_batch_optimality_certificate and uniform_batch_optimality_certificate is None:
+                    return DexTxResult(ok=False, error="uniform batch optimality certificate required")
+                if (
+                    config.require_uniform_batch_v2_bounded_grid_optimality
+                    and cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
+                    and uniform_batch_v2_bounded_grid is None
+                ):
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch v2 bounded-grid evidence required",
                     )
-                    if not price_grid_result.ok:
+                if (
+                    config.require_uniform_batch_v3_exact_out_grid_optimality
+                    and cert.policy_id == UNIFORM_BATCH_POLICY_V3_ID
+                    and uniform_batch_v3_exact_out_grid is None
+                ):
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch v3 exact-out grid evidence required",
+                    )
+                if uniform_batch_v2_bounded_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V2_ID:
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch v2 bounded-grid evidence requires v2 uniform batch certificate",
+                    )
+                if uniform_batch_v3_exact_out_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V3_ID:
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch v3 exact-out grid evidence requires v3 uniform batch certificate",
+                    )
+                if uniform_batch_optimality_certificate is not None:
+                    if uniform_batch_v2_bounded_grid is not None:
+                        try:
+                            optimality_result = verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1(
+                                optimality_certificate=uniform_batch_optimality_certificate,
+                                uniform_batch_certificate=cert,
+                                intents=validation_intents,
+                                pool=pool,
+                                balances=state.balances,
+                                max_price_num=uniform_batch_v2_bounded_grid["max_price_num"],
+                                max_price_den=uniform_batch_v2_bounded_grid["max_price_den"],
+                                fill_vectors=uniform_batch_v2_bounded_grid["fill_vectors"],
+                                expected_table_root=uniform_batch_v2_bounded_grid.get("table_root"),
+                            )
+                        except KeyError as exc:
+                            return DexTxResult(
+                                ok=False,
+                                error=(
+                                    "uniform batch optimality certificate rejected: "
+                                    f"uniform batch v2 bounded-grid evidence missing {str(exc)}"
+                                ),
+                            )
+                    elif uniform_batch_v3_exact_out_grid is not None:
+                        try:
+                            max_price_num, max_price_den = _v3_exact_out_grid_bounds(
+                                uniform_batch_v3_exact_out_grid
+                            )
+                            optimality_result = verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1(
+                                optimality_certificate=uniform_batch_optimality_certificate,
+                                uniform_batch_certificate=cert,
+                                intents=validation_intents,
+                                pool=pool,
+                                balances=state.balances,
+                                max_price_num=max_price_num,
+                                max_price_den=max_price_den,
+                            )
+                        except ValueError as exc:
+                            return DexTxResult(
+                                ok=False,
+                                error=(
+                                    "uniform batch optimality certificate rejected: "
+                                    f"{_clean_error(exc)}"
+                                ),
+                            )
+                    else:
+                        optimality_result = verify_uniform_batch_bound_optimality_certificate_v1(
+                            optimality_certificate=uniform_batch_optimality_certificate,
+                            uniform_batch_certificate=cert,
+                        )
+                    if not optimality_result.ok:
                         return DexTxResult(
                             ok=False,
                             error=(
-                                "uniform batch price grid evidence rejected: "
-                                f"{price_grid_result.error or 'invalid evidence'}"
+                                "uniform batch optimality certificate rejected: "
+                                f"{optimality_result.error or 'invalid certificate'}"
                             ),
                         )
                 try:
@@ -1303,6 +1482,18 @@ def apply_ops(
                     return DexTxResult(ok=False, error="settlement mismatch")
                 settlement = computed_settlement
         _fault_stage(config, "after_settlement_compute")
+
+        if settlement is not None:
+            err = validate_lp_settlement_age_gate(
+                settlement=settlement,
+                intents=intents,
+                lp_balances=state.lp_balances,
+                block_timestamp=block_timestamp,
+                min_lp_position_age_seconds=config.min_lp_position_age_seconds,
+                duration_risk_policy=config.lp_duration_risk_policy,
+            )
+            if err is not None:
+                return DexTxResult(ok=False, error=err)
 
         err = _validate_critical_settlement_oracle_authorization(
             settlement=settlement,
@@ -1428,7 +1619,6 @@ def apply_ops(
             pools=state.pools,
             lp_balances=state.lp_balances,
             block_timestamp=block_timestamp,
-            nonces=state.nonces,
             tau_gate_config=config.tau_gate_config,
             settlement_validation=config.dex_config.settlement_validation,
             swap_ordering=str(config.swap_ordering),
@@ -1468,6 +1658,14 @@ def apply_ops(
             pools=state.pools,
             lp_balances=state.lp_balances,
         )
+        err = apply_lp_mint_timestamps_after_settlement(
+            lp_balances=next_lp,
+            settlement=settlement,
+            block_timestamp=block_timestamp,
+            duration_risk_policy=config.lp_duration_risk_policy,
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_apply_pure")
 
         # Optional fee split accounting (dust carry). This is a local/accounting module

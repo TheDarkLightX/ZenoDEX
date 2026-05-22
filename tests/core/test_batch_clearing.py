@@ -1112,20 +1112,6 @@ def test_parse_create_pool_event_payload_rejects_missing_pool_assets_curve_field
     try:
         _parse_create_pool_event_payload(
             {
-                "pool_id": "0x" + "ae" * 32,
-                "asset0": "0x" + "01" * 32,
-                "asset1": "0x" + "02" * 32,
-                "fee_bps": 10_000,
-            }
-        )
-    except ValueError as exc:
-        assert str(exc) == "Invalid CREATE_POOL fee_bps for pool: " + ("0x" + "ae" * 32)
-    else:
-        assert False, "expected 100 percent fee_bps to raise"
-
-    try:
-        _parse_create_pool_event_payload(
-            {
                 "pool_id": "0x" + "ab" * 32,
                 "asset0": "0x" + "01" * 32,
                 "asset1": "0x" + "02" * 32,
@@ -1234,7 +1220,7 @@ def test_try_create_pool_rejects_invalid_params_balance_computation_and_duplicat
             intent_id=_iid(1006),
             sender_pubkey=pk,
             deadline=base_intent.deadline,
-            fields={**base_intent.fields, "fee_bps": 10_000},
+            fields={**base_intent.fields, "fee_bps": 10_001},
         ),
         {},
         balances,
@@ -2148,7 +2134,7 @@ def test_order_swaps_optimal_ab_bounded_fallbacks_and_exact_out_path() -> None:
 
     too_many = [
         _exact_in(1300 + i, {"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1})
-        for i in range(8)
+        for i in range(13)
     ]
     assert _order_swaps_optimal_ab_bounded(too_many, pool_state=pool, balances=balances, reserves=reserves) == _order_swaps_limit_price(too_many)
 

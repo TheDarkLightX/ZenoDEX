@@ -1,21 +1,14 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
-import pytest
-
 
 MODEL = Path("src/kernels/dex/confidential_extension_receipt_precheck_gate_v1.yaml")
 ADAPTER = "src.kernels.python.confidential_extension_receipt_precheck_gate_v1_native_adapter:make_adapter"
-
-
-def _esso_available() -> bool:
-    return importlib.util.find_spec("ESSO") is not None
 
 
 def _install_fake_interpreter(monkeypatch):
@@ -67,7 +60,6 @@ def _base_state() -> dict[str, int]:
     }
 
 
-@pytest.mark.skipif(not _esso_available(), reason="ESSO module unavailable")
 def test_confidential_extension_receipt_precheck_gate_v1_adapter_shell_lint_and_verify(tmp_path: Path) -> None:
     lint_path = tmp_path / "shell_lint.json"
     verify_path = tmp_path / "shell_verify.json"

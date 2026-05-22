@@ -20,12 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum, unique
 
-from .domain_limits import require_int_range
-from .endogenous_reference_gate import (
-    REFERENCE_SOURCE_TWAP_ACCUMULATOR,
-    evaluate_endogenous_reference_gate,
-)
 from .il_futures_math import compute_il_bps, compute_payout
+
 
 BPS_DENOM = 10_000
 MAX_AMOUNT = 1_000_000_000_000
@@ -87,9 +83,6 @@ class ILFState:
     max_leverage_bps: int = 20000  # 2x: long_exposure <= short_exposure * 2
     protocol_fee_bps: int = 100    # 1% protocol fee on payoffs
     coverage_ratio_bps: int = 8000  # 80% coverage
-    require_twap_reference: bool = False
-    min_twap_window_blocks: int = 1
-    min_reference_elapsed_blocks: int = 1
 
     def __post_init__(self) -> None:
         if not (0 <= self.protocol_fee_bps <= BPS_DENOM):
@@ -98,10 +91,6 @@ class ILFState:
             raise ValueError(f"coverage_ratio_bps must be in [0, {BPS_DENOM}]: {self.coverage_ratio_bps}")
         if self.max_leverage_bps <= 0:
             raise ValueError(f"max_leverage_bps must be positive: {self.max_leverage_bps}")
-        if not isinstance(self.require_twap_reference, bool):
-            raise TypeError("require_twap_reference must be a bool")
-        require_int_range("min_twap_window_blocks", self.min_twap_window_blocks, minimum=1)
-        require_int_range("min_reference_elapsed_blocks", self.min_reference_elapsed_blocks, minimum=1)
 
 
 @dataclass(frozen=True)
@@ -121,9 +110,6 @@ class ILFActionParams:
     # settlement params
     current_reserve_x: int = 0
     current_reserve_y: int = 0
-    reference_source_kind: str = "spot"
-    twap_window_blocks: int = 0
-    reference_elapsed_blocks: int = 0
 
 
 @dataclass(frozen=True)
@@ -215,8 +201,6 @@ def _guard_snapshot(state: ILFState, params: ILFActionParams) -> bool:
         return False
     if params.reserve_x > MAX_AMOUNT or params.reserve_y > MAX_AMOUNT:
         return False
-    if not _twap_reference_ok(state, params):
-        return False
     return True
 
 
@@ -231,29 +215,11 @@ def _guard_settle(state: ILFState, params: ILFActionParams) -> bool:
         return False
     if params.current_reserve_x > MAX_AMOUNT or params.current_reserve_y > MAX_AMOUNT:
         return False
-    if not _twap_reference_ok(state, params):
-        return False
     return True
 
 
 def _guard_advance(state: ILFState, params: ILFActionParams) -> bool:
     return state.settled_this_epoch
-
-
-def _twap_reference_ok(state: ILFState, params: ILFActionParams) -> bool:
-    if not state.require_twap_reference:
-        return True
-    outcome = evaluate_endogenous_reference_gate(
-        source_kind=params.reference_source_kind,
-        twap_window_blocks=params.twap_window_blocks,
-        reference_elapsed_blocks=params.reference_elapsed_blocks,
-        min_twap_window_blocks=state.min_twap_window_blocks,
-        min_reference_elapsed_blocks=state.min_reference_elapsed_blocks,
-    )
-    return bool(outcome.admission_ok)
-
-
-ILF_TWAP_REFERENCE_SOURCE_KIND = REFERENCE_SOURCE_TWAP_ACCUMULATOR
 
 
 # ---------------------------------------------------------------------------

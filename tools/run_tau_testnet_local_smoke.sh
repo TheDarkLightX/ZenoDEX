@@ -5,8 +5,8 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT"
 
-if [[ ! -f "$ROOT/requirements.txt" ]]; then
-  echo "error: run from repo checkout (missing requirements.txt)" >&2
+if [[ ! -f "$ROOT/requirements-dev.lock.txt" ]]; then
+  echo "error: run from repo checkout (missing requirements-dev.lock.txt)" >&2
   exit 2
 fi
 
@@ -62,11 +62,8 @@ fi
 source "$VENV_DIR/bin/activate"
 
 echo "[python] $(python -V)"
-echo "[pip] upgrading pip/setuptools/wheel"
-python -m pip install --upgrade pip setuptools wheel
-
-echo "[deps] installing repo requirements"
-python -m pip install -r "$ROOT/requirements.txt"
+echo "[deps] installing locked repo requirements"
+python -m pip install --require-hashes -r "$ROOT/requirements-dev.lock.txt"
 
 echo "[deps] installing tau-testnet requirements"
 python -m pip install -r "$ROOT/external/tau-testnet/requirements.txt"

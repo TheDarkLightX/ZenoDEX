@@ -1,5 +1,5 @@
 """
-Deterministic state root hashing (v2).
+Deterministic state root hashing (v4).
 
 This is intended for:
 - debugging / audit (stable hashes for the same logical state),
@@ -19,11 +19,11 @@ from .canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
-from .lp import LPTable
+from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
-from .pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus
+from .pools import PoolState, PoolStatus
 
-STATE_ROOT_VERSION = 2
+STATE_ROOT_VERSION = 4
 
 _POOL_STATUS_CODE: dict[PoolStatus, int] = {
     PoolStatus.ACTIVE: 1,
@@ -62,6 +62,38 @@ def _sorted_lp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError(f"invalid LP amount: {amount!r}")
         entries.append((pk_b, pool_b, amount))
+    entries.sort(key=lambda t: (t[0], t[1]))
+    return entries
+
+
+def _sorted_lp_duration_risk_entries(
+    lp_balances: LPTable,
+) -> list[tuple[bytes, bytes, LPDurationRiskMetadata]]:
+    entries: list[tuple[bytes, bytes, LPDurationRiskMetadata]] = []
+    seen: set[tuple[bytes, bytes]] = set()
+    for (pubkey, pool_id), metadata in lp_balances.get_all_duration_risk_metadata().items():
+        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
+        key = (pk_b, pool_b)
+        if key in seen:
+            raise ValueError("duplicate decoded (pubkey, pool_id) in lp_duration_risk")
+        seen.add(key)
+        for name, timestamp in (
+            ("LP mint timestamp", metadata.last_mint_timestamp),
+            ("LP remove timestamp", metadata.last_remove_timestamp),
+            ("LP churn update timestamp", metadata.last_churn_update_timestamp),
+        ):
+            if timestamp is not None and (
+                not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0
+            ):
+                raise ValueError(f"invalid {name}: {timestamp!r}")
+        if (
+            not isinstance(metadata.churn_tier, int)
+            or isinstance(metadata.churn_tier, bool)
+            or metadata.churn_tier < 0
+        ):
+            raise ValueError(f"invalid LP churn tier: {metadata.churn_tier!r}")
+        entries.append((pk_b, pool_b, metadata))
     entries.sort(key=lambda t: (t[0], t[1]))
     return entries
 
@@ -111,7 +143,7 @@ def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
         ):
             if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 raise ValueError(f"invalid pool {name}: {v!r}")
-        if pool.fee_bps > POOL_FEE_BPS_MAX:
+        if pool.fee_bps > 10_000:
             raise ValueError(f"invalid pool fee_bps: {pool.fee_bps!r}")
 
         out += pool_b
@@ -137,6 +169,27 @@ def _encode_lp_section(lp_balances: LPTable) -> bytes:
         out += pk_b
         out += pool_b
         out += encode_uvarint(amount)
+    return bytes(out)
+
+
+def _encode_lp_duration_risk_section(lp_balances: LPTable) -> bytes:
+    out = bytearray()
+    entries = _sorted_lp_duration_risk_entries(lp_balances)
+    out += encode_uvarint(len(entries))
+    for pk_b, pool_b, metadata in entries:
+        out += pk_b
+        out += pool_b
+        for timestamp in (
+            metadata.last_mint_timestamp,
+            metadata.last_remove_timestamp,
+        ):
+            out += encode_uvarint(1 if timestamp is not None else 0)
+            if timestamp is not None:
+                out += encode_uvarint(timestamp)
+        out += encode_uvarint(metadata.churn_tier)
+        out += encode_uvarint(1 if metadata.last_churn_update_timestamp is not None else 0)
+        if metadata.last_churn_update_timestamp is not None:
+            out += encode_uvarint(metadata.last_churn_update_timestamp)
     return bytes(out)
 
 
@@ -183,6 +236,7 @@ def compute_state_root(
     balances_section = _encode_balances_section(balances)
     pools_section = _encode_pools_section(pools)
     lp_section = _encode_lp_section(lp_balances)
+    lp_duration_risk_section = _encode_lp_duration_risk_section(lp_balances)
     nonce_section = _encode_nonce_section(nonce_table)
 
     payload = (
@@ -193,6 +247,8 @@ def compute_state_root(
         + encode_bytes(pools_section)
         + b"LPB"
         + encode_bytes(lp_section)
+        + b"LPA"
+        + encode_bytes(lp_duration_risk_section)
         + b"NNC"
         + encode_bytes(nonce_section)
     )

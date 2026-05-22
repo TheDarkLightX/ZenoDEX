@@ -1,13 +1,74 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './ConfidentialWorkbench.css';
 import { CONFIDENTIAL_SURFACE } from '../lib/confidentialData';
-import { apiGetConfidentialStatus } from '../lib/api';
+import {
+  apiAdmitConfidentialAttestation,
+  apiExecuteConfidentialAttestation,
+  apiGetConfidentialStatus,
+} from '../lib/api';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
+
+const SMOKE_NITRO_PCR0 = 'a'.repeat(96);
+const SMOKE_NITRO_PCR8 = 'b'.repeat(96);
+const SMOKE_POLICY_DIGEST = `0x${'d'.repeat(64)}`;
+
+function confidentialAttestationSmokeEnabled() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('zenodexUiSmokeConfidentialVerify') === '1';
+}
+
+function buildAttestationRequest({ requestId = 'req-ui' } = {}) {
+  return {
+    attestation_payload: {
+      provider: 'nitro',
+      nonce: 'ui-smoke',
+      summary: {
+        pcrs: {
+          0: SMOKE_NITRO_PCR0,
+          8: SMOKE_NITRO_PCR8,
+        },
+      },
+    },
+    extension_id: 'route-premium-v1',
+    provider_id: 'provider-1',
+    request_id: requestId,
+    policy_version: 'tee-policy-v1',
+    do_execute: 1,
+    policy_ok: 1,
+    nonce_unused: 1,
+    output_bound_ok: 1,
+    current_epoch: 10,
+    max_attestation_age: 2,
+    fee_charged: 7,
+    receipt_fee: 7,
+    credit_before: 40,
+    credit_after: 33,
+    provider_balance_before: 9,
+    provider_balance_after: 16,
+    expected_policy_digest: SMOKE_POLICY_DIGEST,
+  };
+}
+
+function buildRuntimeExecutionRequest({ requestId = 'req-ui', executionId = 'exec-ui' } = {}) {
+  return {
+    ...buildAttestationRequest({ requestId }),
+    execution_id: executionId,
+    execution_kind: 'private_route_quote',
+    result_code: 'bounded_route_selected',
+  };
+}
 
 function ConfidentialWorkbench() {
   const { demoMode } = useDemoMode();
+  const smokeRan = useRef(false);
   const [liveStatus, setLiveStatus] = useState(null);
   const [liveError, setLiveError] = useState('');
+  const [attestationStatus, setAttestationStatus] = useState('');
+  const [attestationResult, setAttestationResult] = useState(null);
+  const [attestationError, setAttestationError] = useState('');
+  const [runtimeStatus, setRuntimeStatus] = useState('');
+  const [runtimeResult, setRuntimeResult] = useState(null);
+  const [runtimeError, setRuntimeError] = useState('');
 
   useEffect(() => {
     if (demoMode) {
@@ -33,6 +94,56 @@ function ConfidentialWorkbench() {
     };
   }, [demoMode]);
 
+  async function runAttestationVerify() {
+    setAttestationStatus('attestation admission running');
+    setAttestationError('');
+    setAttestationResult(null);
+    try {
+      const requestId = confidentialAttestationSmokeEnabled() ? 'req-ui' : `req-ui-${Date.now()}`;
+      const payload = await apiAdmitConfidentialAttestation(
+        buildAttestationRequest({ requestId }),
+        { timeoutMs: 10000 },
+      );
+      setAttestationResult(payload || null);
+      setAttestationStatus(payload?.ok ? 'attestation accepted' : 'attestation rejected');
+    } catch (err) {
+      setAttestationResult(null);
+      setAttestationStatus('attestation rejected');
+      setAttestationError(err?.message || 'verification_failed');
+    }
+  }
+
+  async function runRuntimeExecute() {
+    setRuntimeStatus('runtime execution running');
+    setRuntimeError('');
+    setRuntimeResult(null);
+    try {
+      const requestId = confidentialAttestationSmokeEnabled() ? 'req-ui-runtime' : `req-ui-runtime-${Date.now()}`;
+      const executionId = confidentialAttestationSmokeEnabled() ? 'exec-ui' : `exec-ui-${Date.now()}`;
+      const payload = await apiExecuteConfidentialAttestation(
+        buildRuntimeExecutionRequest({ requestId, executionId }),
+        { timeoutMs: 10000 },
+      );
+      setAttestationResult(payload || null);
+      setAttestationStatus(payload?.ok ? 'attestation accepted' : 'attestation rejected');
+      setAttestationError('');
+      setRuntimeResult(payload?.runtime_receipt || null);
+      setRuntimeStatus(payload?.ok ? 'runtime receipt ready' : 'runtime receipt rejected');
+    } catch (err) {
+      setRuntimeResult(null);
+      setRuntimeStatus('runtime receipt rejected');
+      setRuntimeError(err?.message || 'runtime_execution_failed');
+    }
+  }
+
+  useEffect(() => {
+    if (demoMode || !confidentialAttestationSmokeEnabled() || smokeRan.current) {
+      return;
+    }
+    smokeRan.current = true;
+    void runRuntimeExecute();
+  }, [demoMode]);
+
   const stageLabel = String(liveStatus?.stage || CONFIDENTIAL_SURFACE.summary.stage || 'beta').toUpperCase();
   const subtitle = String(liveStatus?.user_summary || CONFIDENTIAL_SURFACE.summary.subtitle);
   const operatorContact = String(liveStatus?.operator_contact || 'not_configured');
@@ -41,6 +152,25 @@ function ConfidentialWorkbench() {
     : 0;
   const betaReady = liveStatus?.beta_ready === true;
   const readinessGaps = Array.isArray(liveStatus?.readiness_gaps) ? liveStatus.readiness_gaps : [];
+  const claimScope = String(liveStatus?.claim_scope || CONFIDENTIAL_SURFACE.summary.claimScope);
+  const nonClaims = Array.isArray(liveStatus?.non_claims) && liveStatus.non_claims.length > 0
+    ? liveStatus.non_claims
+    : [CONFIDENTIAL_SURFACE.summary.nonClaim];
+  const statusHash = String(liveStatus?.status_hash || '');
+  const allowlistHash = String(liveStatus?.approved_measurements_hash || '');
+  const verifierBindingHash = String(
+    runtimeResult?.body?.external_verifier_binding_hash
+    || attestationResult?.external_verifier_binding_hash
+    || liveStatus?.external_verifier_binding_hash
+    || ''
+  );
+  const receiptHash = String(attestationResult?.receipt_hash || '');
+  const measurement = String(attestationResult?.measurement || attestationResult?.measurement_provider || '');
+  const executionAdmitted = attestationResult?.execution_admitted === true;
+  const runtimeReceiptHash = String(runtimeResult?.receipt_hash || '');
+  const runtimeBody = runtimeResult?.body || {};
+  const runtimeEffectDigest = String(runtimeBody?.public_effect_digest || '');
+  const runtimeRedacted = runtimeBody?.result_redacted === true;
 
   return (
     <section className="confidential-workbench">
@@ -106,7 +236,71 @@ function ConfidentialWorkbench() {
                 <span className="confidential-proof">/api/confidential/status</span>
               </div>
             </article>
+            <article className="confidential-check-row">
+              <div>
+                <div className="confidential-check-title">Attestation Receipt</div>
+                <p className="confidential-check-detail">
+                  {attestationStatus || 'No live attestation receipt has been accepted in this session.'}
+                </p>
+              </div>
+              <div className="confidential-check-meta">
+                <button
+                  className="confidential-action-button"
+                  type="button"
+                  onClick={runAttestationVerify}
+                  disabled={demoMode || attestationStatus === 'attestation admission running'}
+                >
+                  Admit Attestation
+                </button>
+                <span className="confidential-proof">/api/confidential/attestation/admit</span>
+              </div>
+            </article>
+            <article className="confidential-check-row">
+              <div>
+                <div className="confidential-check-title">Runtime Receipt</div>
+                <p className="confidential-check-detail">
+                  {runtimeStatus || 'No bounded confidential runtime receipt has been produced in this session.'}
+                </p>
+              </div>
+              <div className="confidential-check-meta">
+                <button
+                  className="confidential-action-button"
+                  type="button"
+                  onClick={runRuntimeExecute}
+                  disabled={demoMode || runtimeStatus === 'runtime execution running'}
+                >
+                  Execute Runtime
+                </button>
+                <span className="confidential-proof">/api/confidential/attestation/execute</span>
+              </div>
+            </article>
           </div>
+          {attestationResult || attestationError || runtimeResult || runtimeError ? (
+            <div className="confidential-attestation-result">
+              {attestationResult ? (
+                <>
+                  <span>receipt {receiptHash || 'missing'}</span>
+                  <span>measurement {measurement.startsWith('nitro:') ? 'nitro' : measurement || 'unknown'}</span>
+                  <span>{executionAdmitted ? 'execution admitted' : 'execution withheld'}</span>
+                  <span>{attestationResult?.request_consumed ? 'request consumed' : 'request unconsumed'}</span>
+                </>
+              ) : (
+                <span>attestation error {attestationError}</span>
+              )}
+              {runtimeResult ? (
+                <>
+                  <span>runtime receipt {runtimeReceiptHash || 'missing'}</span>
+                  <span>{runtimeRedacted ? 'result redacted' : 'result exposed'}</span>
+                  <span>effect digest {runtimeEffectDigest || 'missing'}</span>
+                  <span>status hash {statusHash || runtimeBody?.operator_status_hash || 'missing'}</span>
+                  <span>allowlist hash {allowlistHash || runtimeBody?.approved_measurements_hash || 'missing'}</span>
+                  <span>verifier binding {verifierBindingHash || 'missing'}</span>
+                </>
+              ) : runtimeError ? (
+                <span>runtime error {runtimeError}</span>
+              ) : null}
+            </div>
+          ) : null}
           {readinessGaps.length > 0 ? (
             <div className="confidential-card-footer">
               <div className="confidential-check-title">What still needs to be configured</div>
@@ -121,8 +315,19 @@ function ConfidentialWorkbench() {
 
         <div className="panel confidential-card">
           <div className="confidential-card-header">
-            <h2>Formal Surface</h2>
-            <span className="confidential-section-badge">Proof-backed</span>
+            <h2>Assurance Surface</h2>
+            <span className="confidential-section-badge">Bounded evidence</span>
+          </div>
+          <div className="confidential-claim-scope">
+            <div>
+              <div className="confidential-check-title">Confidentiality Claim Scope</div>
+              <p className="confidential-check-detail">{claimScope}</p>
+            </div>
+            <ul className="confidential-bullet-list">
+              {nonClaims.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
           <div className="confidential-check-list">
             {CONFIDENTIAL_SURFACE.checks.map((check) => (

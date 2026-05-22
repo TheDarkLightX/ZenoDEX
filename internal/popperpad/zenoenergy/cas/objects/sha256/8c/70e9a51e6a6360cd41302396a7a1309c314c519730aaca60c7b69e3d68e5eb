@@ -1,0 +1,20 @@
+# ZenoEnergy Neighborhood Repair Knowledge
+
+Date: 2026-05-17
+
+Static report: `upba_v2_energy_neighborhood_benchmark_seed20260525.json`
+
+Observed result:
+
+- Limited budget: 6 candidates, best dominates full synthetic winner in 21.25% of batches, mean volume regret 278.3375, mean calls 4.95.
+- Neighborhood budget: 15.9 candidates, best dominates full synthetic winner in 95.0% of batches, mean volume regret 4.7, mean calls 12.6125.
+- Invalid accepts: 0.
+- Original subset violations: 0.
+
+Positive knowledge:
+
+Deterministic neighborhood proposals can sharply reduce best-valid regret from a small candidate budget.
+
+Negative knowledge:
+
+The deterministic repair baseline increases verifier work. It is a candidate-generation baseline, not a bounded-grid optimality certificate without exact fallback or dominance-cover evidence.

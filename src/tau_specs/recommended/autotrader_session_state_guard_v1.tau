@@ -1,0 +1,45 @@
+# AutoTrader Session State Guard v1
+#
+# PURPOSE: Keep delegated live sessions fail-closed after explicit revocation.
+#
+# i1 = enabled
+# i2 = session_binding_ok
+# i3 = owner_binding_ok
+# i4 = chain_binding_ok
+# i5 = revocation_epoch_present
+# i6 = current_epoch
+# i7 = revoked_at_epoch
+# o1 = enabled_ok
+# o2 = session_binding_ok
+# o3 = owner_binding_ok
+# o4 = chain_binding_ok
+# o5 = revocation_ok
+# o6 = session_state_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) &&
+  (
+    o5[t]:sbf = 1:sbf <->
+    (
+      (i5[t]:sbf = 0:sbf) ||
+      (i6[t]:bv[32] < i7[t]:bv[32])
+    )
+  ) &&
+  (
+    o6[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 1:sbf) &&
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (
+        (i5[t]:sbf = 0:sbf) ||
+        (i6[t]:bv[32] < i7[t]:bv[32])
+      )
+    )
+  ).

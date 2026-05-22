@@ -1,0 +1,62 @@
+/* PerpCircuitBreakerBanner */
+.perp-breaker-banner {
+    width: 100%;
+    background: var(--perp-extreme-bg);
+    border: 1px solid var(--perp-extreme);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    animation: pulse 2s infinite;
+}
+
+.perp-breaker-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.perp-breaker-banner-icon {
+    font-size: var(--font-size-xl);
+    flex-shrink: 0;
+    color: var(--perp-extreme);
+}
+
+.perp-breaker-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.perp-breaker-banner-title {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--perp-extreme);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.perp-breaker-banner-desc {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.perp-breaker-banner-epoch {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .perp-breaker-banner-content {
+        flex-wrap: wrap;
+    }
+
+    .perp-breaker-banner-epoch {
+        width: 100%;
+        padding-left: calc(var(--font-size-xl) + var(--space-md));
+    }
+}

@@ -119,8 +119,6 @@ Single entrypoint:
 
 This runs unit/integration tests and kernel-level checks. Some checks require optional local toolchains; the script fails closed when prerequisites are missing so “production posture” is always explicit.
 
-Additional high-resource discovery campaigns were used internally during development, but the internal runners and notes are not published in this repo.
-
 ## Roadmap to v1.0 (pragmatic)
 
 The repo currently ships both isolated-margin and clearinghouse perps. A practical v1.0 target is:

@@ -193,11 +193,6 @@ def main():
         action='store_true',
         help='Also print output to stdout'
     )
-    compile_parser.add_argument(
-        '--validate',
-        action='store_true',
-        help='Validate generated Tau output if Tau tooling is available'
-    )
     compile_parser.set_defaults(func=cmd_compile)
 
     # check command
@@ -207,13 +202,6 @@ def main():
     )
     check_parser.add_argument('input', help='Input .lspec file')
     check_parser.set_defaults(func=cmd_check)
-
-    # status command
-    status_parser = subparsers.add_parser(
-        'status',
-        help='Show Tau grammar/validation availability'
-    )
-    status_parser.set_defaults(func=cmd_status)
 
     # version command
     version_parser = subparsers.add_parser(

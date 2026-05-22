@@ -30,7 +30,6 @@ DEFAULT_REQUIRED_CASES = frozenset(
         "faucet_mint",
         "create_pool",
         "swap_exact_in",
-        "swap_exact_out",
         "add_liquidity",
         "remove_liquidity",
         "spot_block_liquidity_cycle",

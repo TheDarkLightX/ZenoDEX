@@ -20,6 +20,8 @@ from src.agents.strategy_ir import (
     _normalize_string_tuple,
     _require_int,
     _require_safe_token,
+    strategy_budget_window_duration_epochs,
+    strategy_budget_window_id,
     strategy_ir_from_dict,
 )
 
@@ -126,6 +128,20 @@ def test_strategy_ir_roundtrip_hash_is_stable() -> None:
     ).encode("utf-8")
 
 
+def test_strategy_budget_window_id_uses_static_strategy_buckets() -> None:
+    whole_window = StrategyWindow(valid_from_epoch=1, valid_until_epoch=100)
+    assert strategy_budget_window_duration_epochs(whole_window) == 100
+    assert strategy_budget_window_id(whole_window, 5) == 1
+    assert strategy_budget_window_id(whole_window, 99) == 1
+
+    fixed_window = StrategyWindow(valid_from_epoch=1, valid_until_epoch=100, budget_window_epochs=4)
+    assert strategy_budget_window_duration_epochs(fixed_window) == 4
+    assert strategy_budget_window_id(fixed_window, 1) == 1
+    assert strategy_budget_window_id(fixed_window, 4) == 1
+    assert strategy_budget_window_id(fixed_window, 5) == 5
+    assert strategy_budget_window_id(fixed_window, 9) == 9
+
+
 def test_strategy_ir_tau_backend_requires_spec() -> None:
     with pytest.raises(ValueError, match="tau_policy_specs is required"):
         _make_strategy(backend=PolicyBackend.TAU)
@@ -154,15 +170,6 @@ def test_strategy_ir_legacy_tau_spec_expands_to_canonical_bundle() -> None:
         }
     )
     assert roundtrip.tau_policy_specs == AUTOTRADER_TAU_POLICY_SPECS
-
-
-def test_strategy_ir_legacy_session_capability_tau_spec_expands_to_canonical_bundle() -> None:
-    strategy = _make_strategy(
-        backend=PolicyBackend.TAU,
-        tau_policy_spec="autotrader_session_capability_binding_guard_v1",
-    )
-    assert strategy.tau_policy_specs == AUTOTRADER_TAU_POLICY_SPECS
-    assert strategy.tau_policy_spec is None
 
 
 def test_strategy_ir_legacy_tau_bundle_expands_to_canonical_bundle() -> None:
@@ -212,6 +219,7 @@ def test_risk_limits_reject_invalid_inputs(kwargs: dict[str, object], match: str
     [
         ({"valid_from_epoch": 10, "valid_until_epoch": 1}, "valid_from_epoch must be <= valid_until_epoch"),
         ({"valid_from_epoch": 1, "valid_until_epoch": 100, "min_order_spacing_epochs": True}, "min_order_spacing_epochs must be an int"),
+        ({"valid_from_epoch": 1, "valid_until_epoch": 100, "budget_window_epochs": True}, "budget_window_epochs must be an int"),
     ],
 )
 def test_strategy_window_reject_invalid_inputs(kwargs: dict[str, object], match: str) -> None:
@@ -224,6 +232,7 @@ def test_strategy_window_reject_invalid_inputs(kwargs: dict[str, object], match:
     [
         ({"kill_switch_enabled": 1, "max_live_orders": 1}, "kill_switch_enabled must be a bool"),
         ({"kill_switch_enabled": True, "max_live_orders": 0}, "max_live_orders must be >= 1"),
+        ({"kill_switch_enabled": True, "max_live_orders": 1, "max_intents_per_order": 0}, "max_intents_per_order must be >= 1"),
     ],
 )
 def test_strategy_controls_reject_invalid_inputs(kwargs: dict[str, object], match: str) -> None:

@@ -1,0 +1,30 @@
+// Simplified CPMM Test - Minimal valid Tau spec
+// Testing basic constraint validation with descriptive names
+
+// Input streams (16-bit components)
+reserve_in_lo : bv[16] = in console
+reserve_in_hi : bv[16] = in console
+reserve_out_lo : bv[16] = in console
+reserve_out_hi : bv[16] = in console
+amount_in_lo : bv[16] = in console
+amount_in_hi : bv[16] = in console
+fee_bps : bv[16] = in console
+amount_out_lo : bv[16] = in console
+amount_out_hi : bv[16] = in console
+
+// Output
+swap_valid : sbf = out console
+
+// Constants
+ZERO_16 : bv[16] = { #x0000 }:bv[16]
+MAX_FEE : bv[16] = { #x2710 }:bv[16]
+
+// Simple validation: all inputs non-negative, amount_out <= reserve_out
+swap_valid[t] = 
+  (reserve_in_hi[t] >= ZERO_16) &
+  (reserve_out_hi[t] >= ZERO_16) &
+  (amount_in_hi[t] > ZERO_16) &
+  (fee_bps[t] >= ZERO_16) &
+  (fee_bps[t] <= MAX_FEE) &
+  (amount_out_hi[t] >= ZERO_16) &
+  (amount_out_hi[t] <= reserve_out_hi[t])

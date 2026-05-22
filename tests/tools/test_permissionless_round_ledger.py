@@ -70,10 +70,6 @@ def _proof_mining_claim(*, round_id: str, miner_id: str, witness_sha256: str, im
         epoch=1,
         proposal_slot=0,
         prover_id=0,
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
 
 
@@ -143,7 +139,7 @@ def test_round_ledger_accepts_proof_mining_claim_artifact(tmp_path: Path) -> Non
     ok, msg = verify_ledger_rows(rows)
     assert ok is True
     assert msg == "ok"
-    assert rows[0]["body"]["reward_artifact_schema"] == "zenodex/permissionless_solver_proof_mining_claim/v2"
+    assert rows[0]["body"]["reward_artifact_schema"] == "zenodex/permissionless_solver_proof_mining_claim/v1"
 
 
 def test_round_ledger_accepts_structurally_valid_rejected_proof_mining_claim() -> None:
@@ -156,17 +152,13 @@ def test_round_ledger_accepts_structurally_valid_rejected_proof_mining_claim() -
         proposal_slot=0,
         prover_id=0,
         allow_rejected=True,
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
     record = build_round_ledger_record(
         round_obj=_round_obj(round_id="r-bad", miner_id="alice", witness_sha256="sha:a", improvement_u64=11, job_digest="job-bad"),
         reward_artifact=claim,
         prev_record_hash="",
     )
-    assert record["body"]["reward_artifact_schema"] == "zenodex/permissionless_solver_proof_mining_claim/v2"
+    assert record["body"]["reward_artifact_schema"] == "zenodex/permissionless_solver_proof_mining_claim/v1"
 
 
 def test_round_ledger_rejects_forged_claim_hash() -> None:
@@ -267,10 +259,6 @@ def test_round_ledger_verify_detects_duplicate_proposal_hash(tmp_path: Path) -> 
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
     claim_2 = build_proof_mining_claim(
         round_obj=_round_obj(round_id="r2", miner_id="bob", witness_sha256="sha:a", improvement_u64=9, job_digest="job2"),
@@ -284,10 +272,6 @@ def test_round_ledger_verify_detects_duplicate_proposal_hash(tmp_path: Path) -> 
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
     r1 = build_round_ledger_record(
         round_obj=_round_obj(round_id="r1", miner_id="alice", witness_sha256="sha:a", improvement_u64=7, job_digest="job1"),
