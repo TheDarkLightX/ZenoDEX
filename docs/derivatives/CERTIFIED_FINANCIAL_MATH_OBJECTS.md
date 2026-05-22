@@ -25,7 +25,7 @@ behavior is not just described in prose or hidden in code, but packaged as:
 \text{proof/certificate}.
 \]
 
-Standard reading: a live financial object should come with an explicit formula,
+Interpretation: a live financial object should come with an explicit formula,
 an explicit dimensional interpretation, explicit payoff bounds, an explicit
 transition law, an explicit witness policy, an explicit collateral rule, and an
 explicit evidence bundle.
@@ -48,7 +48,7 @@ Use the repo evidence order:
 \text{hypothesis}.
 \]
 
-Standard reading: every financial object should be labeled by the strongest
+Interpretation: every financial object should be labeled by the strongest
 artifact that actually backs it.
 
 Practical consequence: a bounded payoff may be proved while its economic
@@ -123,7 +123,7 @@ The live-admission condition is:
 \operatorname{ReplayVerifiable}.
 \]
 
-Standard reading: an object is live-admissible only if the protocol can verify
+Interpretation: an object is live-admissible only if the protocol can verify
 its type discipline, witnesses, state transitions, payoff bounds, collateral
 coverage, and replay posture.
 
@@ -181,7 +181,7 @@ and
 C_{\text{long}} + f(P_T) \ge 0.
 \]
 
-Standard reading: the certificate does not only describe the payoff. It proves
+Interpretation: the certificate does not only describe the payoff. It proves
 that the payoff cannot escape its liability envelope.
 
 Practical consequence: this is the difference between a formula and an
@@ -255,7 +255,7 @@ P_T + \text{volume}_T
 
 is invalid, because price and volume have different dimensions.
 
-Standard reading: unit safety should reject dimensionally invalid formulas
+Interpretation: unit safety should reject dimensionally invalid formulas
 before any deeper proof effort starts.
 
 Practical consequence: unit checking should be a first-class compiler phase,
@@ -351,7 +351,7 @@ e \in [\epsilon, u],\quad \epsilon > 0
 \frac{1}{e} \in \left[\frac{1}{u}, \frac{1}{\epsilon}\right].
 \]
 
-Standard reading: the safety engine is interval arithmetic over a restricted
+Interpretation: the safety engine is interval arithmetic over a restricted
 expression grammar.
 
 Practical consequence: once the system computes a sound payoff upper bound, it
@@ -423,7 +423,7 @@ If the object burns tokens, the accounting sink must be explicit:
 S_{t+1} = S_t + \text{mint}_t - \text{burn}_t.
 \]
 
-Standard reading: collateral sufficiency and conservation are part of the
+Interpretation: collateral sufficiency and conservation are part of the
 certificate, not implicit runtime assumptions.
 
 Practical consequence: “bounded payoff” is not enough. The system must also
@@ -463,7 +463,7 @@ Conclusion:
 \forall t,\ \operatorname{Inv}(z_t).
 \]
 
-Standard reading: reward indices, burn indices, fee accumulators, funding
+Interpretation: reward indices, burn indices, fee accumulators, funding
 accumulators, and volatility trackers should be certified by inductive
 transition invariants.
 
@@ -505,7 +505,7 @@ Then the conservation theorem is:
 \sum_t R_t.
 \]
 
-Standard reading: rounding cannot cause overpayment beyond funded rewards.
+Interpretation: rounding cannot cause overpayment beyond funded rewards.
 
 Practical consequence: the reward object is mechanically safe even if the
 economics of the reward program remain an open question.
@@ -551,7 +551,7 @@ It is **not**
 \text{oracle was economically perfect}.
 \]
 
-Standard reading: witness certification is about admissibility and replay, not
+Interpretation: witness certification is about admissibility and replay, not
 omniscience.
 
 Practical consequence: oracle assumptions must stay explicit in the object
@@ -629,7 +629,7 @@ So writer collateral is simply:
 C_{\text{writer}} \ge N C_{\max}.
 \]
 
-Standard reading: the object certifies floor-preserving burn behavior and a
+Interpretation: the object certifies floor-preserving burn behavior and a
 capped derivative on the burn process.
 
 Practical consequence: it does **not** certify price appreciation.
@@ -716,7 +716,7 @@ Again:
 0 \le \text{BuyBurnNote} \le N C_{\max}.
 \]
 
-Standard reading: this object gives exposure to certified buy-and-burn activity,
+Interpretation: this object gives exposure to certified buy-and-burn activity,
 not to a marketing claim about price.
 
 Practical consequence: it is attractive precisely because the underlying is a
@@ -784,7 +784,7 @@ then
 0 \le \text{RewardNoteCapped} \le N C_{\max}.
 \]
 
-Standard reading: the note is certified by bounded reward growth, not by any
+Interpretation: the note is certified by bounded reward growth, not by any
 claim that rewards will be large.
 
 Practical consequence: this is a good first-wave product if the reward index is
@@ -798,7 +798,7 @@ In the smooth symmetric homogeneous AMM model:
 SC = \frac{1}{8}.
 \]
 
-Standard reading: better local depth and better local LP curvature cannot both
+Interpretation: better local depth and better local LP curvature cannot both
 be improved freely under those assumptions.
 
 Practical consequence: the derivatives layer should not promise to remove LP
@@ -832,7 +832,7 @@ Then:
 0 \le \text{ILCover} \le N C_{\max}.
 \]
 
-Standard reading: LP loss becomes a tradable, capped, collateralized object.
+Interpretation: LP loss becomes a tradable, capped, collateralized object.
 
 Practical consequence: this is powerful, but it requires a certified LP-value
 packet and a certified HODL benchmark convention.
@@ -905,7 +905,7 @@ So live admission can require:
 C_{\text{writer}} \ge N C_{\max}.
 \]
 
-Standard reading: users can build exotic products, but only through certified
+Interpretation: users can build exotic products, but only through certified
 constructors and certified indices.
 
 Practical consequence: this is the safe-playground model.
@@ -1007,7 +1007,7 @@ e^{P_T},
 
 uncapped short calls, and recursive leverage schemes.
 
-Standard reading: the language is expressive over bounded objects and
+Interpretation: the language is expressive over bounded objects and
 intentionally hostile to unbounded liabilities.
 
 Practical consequence: any expression outside the certified grammar should be
@@ -1050,7 +1050,7 @@ They can let users specify products while the protocol computes:
 \text{evidence class}.
 \]
 
-Standard reading: a certified-object system can support a large product family
+Interpretation: a certified-object system can support a large product family
 without exposing the protocol to arbitrary financial code.
 
 Practical consequence: the expressive power is high, but only over bounded
@@ -1073,7 +1073,7 @@ unbounded loops, singularities, dynamic leverage, and hidden state dependence.
 They cannot make undercollateralized products safe. If the worst-case liability
 exceeds collateral, admission must fail.
 
-Standard reading: certification is about the **mechanical risk envelope**, not
+Interpretation: certification is about the **mechanical risk envelope**, not
 economic success.
 
 Practical consequence: this is a strong engineering guarantee, not a guarantee
@@ -1115,7 +1115,7 @@ C \ge \max(0,U)
 \operatorname{NoWriterDefault}.
 \]
 
-Standard reading: once the primitive constructors are proved, many user-created
+Interpretation: once the primitive constructors are proved, many user-created
 products inherit safety by construction.
 
 Practical consequence: this is a proof-carrying algebra, not bespoke derivative
@@ -1135,7 +1135,7 @@ A certified-object system behaves like:
 \text{prove admissibility first, then allow deployment}.
 \]
 
-Standard reading: product creativity is moved behind a certifying compiler.
+Interpretation: product creativity is moved behind a certifying compiler.
 
 Practical consequence: ZenoDEX can support exotic but bounded products without
 letting users create accidental unbounded liabilities.
@@ -1166,7 +1166,7 @@ Evidence: bound proved; burn packet contract-backed; settlement replayed
 Economic claim: none
 ```
 
-Standard reading: mathematical boundedness, witness policy, implementation
+Interpretation: mathematical boundedness, witness policy, implementation
 status, and economic usefulness are all separate labels.
 
 Practical consequence: the protocol should never market a product above its
@@ -1216,7 +1216,7 @@ The live-admission theorem is:
 \operatorname{SettlementSafe}.
 \]
 
-Standard reading: this is the central theorem of the certified playground.
+Interpretation: this is the central theorem of the certified playground.
 
 Practical consequence: live deployment is the output of a proof/certificate
 pipeline, not the start of the experiment.
@@ -1300,7 +1300,7 @@ verifiable.}
 }
 \]
 
-Standard reading: the protocol cannot make finance safe in the naive sense, but
+Interpretation: the protocol cannot make finance safe in the naive sense, but
 it can make the mechanical liability envelope explicit and enforceable.
 
 Practical consequence: this is the kind of place where formal math creates
