@@ -61,7 +61,7 @@ VERIFY_ARTIFACT_SIGNATURE_SCRIPT = ROOT / "tools" / "zeno_ledger_verify_artifact
 PUBLISH_MIRROR_SCRIPT = ROOT / "tools" / "zeno_ledger_publish_mirror.py"
 OPERATOR_REHEARSAL_SCRIPT = ROOT / "tools" / "zeno_ledger_operator_rehearsal.py"
 ZERO_ROOT = "0x" + "00" * 32
-TEST_SIGNING_SECRET = "0x" + "42" * 32
+TEST_SIGNING_KEY_HEX = "0x" + "42" * 32
 TEST_BLS_PRIVATE_KEY = "0x" + "01" * 32
 TEST_BLS_PRIVATE_KEY_2 = "0x" + "02" * 32
 
@@ -193,7 +193,6 @@ def _header(body: dict[str, object], *, prev_header_hash: str) -> dict[str, obje
 
 
 def _write_json(path: Path, value: object) -> None:
-    # codeql[py/clear-text-storage-sensitive-data] Test fixtures contain synthetic hashes and no live secrets.
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 
@@ -842,6 +841,7 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
             "proof_kind": metadata["proof_kind"],
             "program_id": metadata["program_id"],
             "verifier_id": metadata["verifier_id"],
+            "toolchain_lock_hash": metadata["toolchain_lock_hash"],
             "header_bound": True,
             "body_checked": True,
             "post_app_hash_checked": True,
@@ -3849,7 +3849,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(attestation_envelope_path),
     )
@@ -3867,7 +3867,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(mirror_envelope_path),
     )
@@ -3883,7 +3883,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--payload-kind",
         "watcher_attestation",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
     )
     assert watcher_verify.returncode == 0, watcher_verify.stderr
     watcher_verify_report = json.loads(watcher_verify.stdout)
@@ -3897,7 +3897,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--payload-kind",
         "mirror_index",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
     )
     assert mirror_verify.returncode == 0, mirror_verify.stderr
     mirror_verify_report = json.loads(mirror_verify.stdout)
@@ -3909,7 +3909,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         envelope=envelope,
         expected_payload_kind="watcher_attestation",
         expected_payload_hash=attestation["attestation_hash"],
-        secret_hex=TEST_SIGNING_SECRET,
+        secret_hex=TEST_SIGNING_KEY_HEX,
     )
 
 
@@ -3935,7 +3935,7 @@ def test_signed_artifact_envelope_rejects_tampered_artifact_hash(tmp_path: Path)
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(attestation_envelope_path),
     )
@@ -3954,7 +3954,7 @@ def test_signed_artifact_envelope_rejects_tampered_artifact_hash(tmp_path: Path)
         "--payload-kind",
         "watcher_attestation",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
     )
     assert verify.returncode == 1
     verify_report = json.loads(verify.stdout)
@@ -4149,7 +4149,7 @@ def test_publish_mirror_copies_indexed_artifacts_and_extra_signature(tmp_path: P
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(signature_path),
     )

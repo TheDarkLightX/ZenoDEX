@@ -27,6 +27,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TIME_MS,
     build_testnet_bundle_v0,
 )
+from tools.operator_report_output import print_operator_json, write_public_json
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_public_testnet_bundle_report.v0"
@@ -36,8 +37,7 @@ RUN_FEATURE_SUITE_SCRIPT = ROOT / "tools" / "zeno_ledger_run_feature_suite.py"
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_public_json(path, value)
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -293,8 +293,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    # codeql[py/clear-text-logging-sensitive-data] Public bundle report omits credential-bearing config fields.
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print_operator_json(report)
     return 0 if report["ok"] else 1
 
 

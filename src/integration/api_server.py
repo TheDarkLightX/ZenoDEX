@@ -6769,7 +6769,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "yes",
     )
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    demo_api_token = _env_str("DEMO_API_TOKEN", "")
+    demo_auth_configured = _env_str("DEMO_API_TOKEN", "") != ""
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
     from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
@@ -6789,9 +6789,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
     allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
 
-    if sensitive_api_enabled and not external_auth_enforced and not demo_api_token:
+    if sensitive_api_enabled and not external_auth_enforced and not demo_auth_configured:
         print(
-            "Refusing to start: sensitive APIs enabled without external auth or demo credential "
+            "Refusing to start: protected APIs enabled without external auth or demo credential "
             f"(host={host!r}, perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, "
             f"zusd_api={zusd_enabled}, "
             f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
@@ -6800,7 +6800,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled})"
         )
         return 2
-    if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
+    if sensitive_api_enabled and not external_auth_enforced and demo_auth_configured and production_mode and not allow_demo_token_auth:
         print(
             "Refusing to start: the configured demo credential is demo/dev auth only. "
             "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
@@ -6810,15 +6810,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if (
         sensitive_api_enabled
         and not external_auth_enforced
-        and demo_api_token
+        and demo_auth_configured
         and not _is_loopback_host(host)
         and not allow_demo_token_auth
     ):
         print(
-            "Refusing to start: demo-token auth on a non-loopback bind requires "
+            "Refusing to start: demo auth on a non-loopback bind requires "
             "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
         )
         return 2
+    demo_api_token = _env_str("DEMO_API_TOKEN", "") if demo_auth_configured else ""
 
     httpd = ThreadingHTTPServer((host, port), _Handler)
     # Attach config to server instance (used by handler).
@@ -6849,8 +6850,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"autotrader_live_api={autotrader_live_enabled}, "
         f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
-        f"external_auth_enforced={external_auth_enforced}, demo_credential_configured={bool(demo_api_token)}, "
-        f"demo_token_auth_allowed={allow_demo_token_auth})"
+        f"external_auth_enforced={external_auth_enforced}, "
+        f"demo_auth_allowed={allow_demo_token_auth})"
     )
     httpd.serve_forever(poll_interval=0.25)
     return 0

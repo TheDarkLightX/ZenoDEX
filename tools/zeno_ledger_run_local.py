@@ -41,6 +41,7 @@ from src.integration.zeno_ledger_v0 import (
     validate_proof_metadata_header_binding_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x
+from tools.operator_report_output import print_operator_json, write_public_json
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
@@ -54,9 +55,7 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # codeql[py/clear-text-storage-sensitive-data] Local-run artifacts intentionally exclude auth tokens and keys.
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_public_json(path, value)
 
 
 def _write_text(path: Path, value: str) -> None:
@@ -1786,8 +1785,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    # codeql[py/clear-text-logging-sensitive-data] Local-run report contains public node status only.
-    print(json.dumps(result, indent=2, sort_keys=True))
+    print_operator_json(result)
     return 0 if result["ok"] else 1
 
 

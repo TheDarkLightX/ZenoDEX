@@ -18,6 +18,7 @@ from tools.check_autotrader_chatbot_provider_config import (  # noqa: E402
     build_report as build_provider_config_report,
 )
 from tools.evaluate_autotrader_chatbot_providers import build_report as build_eval_report  # noqa: E402
+from tools.operator_report_output import print_operator_json  # noqa: E402
 
 SCHEMA = "zenodex/agents/autotrader_chatbot_production_readiness/v1"
 
@@ -132,8 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         provider_config=args.provider_config,
         evaluate_provider_config=args.evaluate_provider_config,
     )
-    # codeql[py/clear-text-logging-sensitive-data] Provider config report redacts credential values.
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print_operator_json(report)
     return 0 if report["ok"] else 1
 
 

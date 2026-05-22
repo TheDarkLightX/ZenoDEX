@@ -255,45 +255,56 @@ def _extract_semantic_features(*, schema: str, semantic_signature: str) -> tuple
 def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
     kb_path = Path(path).resolve() if path else DEFAULT_KB_PATH
     if not kb_path.exists():
-        return {
-            "schema": "zenodex/krr-kb/v1",
-            "operator_priors": {},
-            "semantic_rules": [],
-            "check_priors": {},
-            "check_family_priors": {},
-            "engine": {
-                "backend": "auto",
-                "prolog": {
-                    "binary": "swipl",
-                    "timeout_s": 2.0,
-                    "preferred_bonus": 0.03,
-                },
-                "souffle": {
-                    "binary": "souffle",
-                    "timeout_s": 2.0,
-                    "preferred_bonus": 0.03,
-                },
-                "scoring": {
-                    "exploitation_weight": 0.72,
-                    "exploration_weight": 0.22,
-                    "uncertainty_weight": 0.08,
-                    "uncertainty_penalty_weight": 0.06,
-                    "reliability_weight": 0.12,
-                    "backend_score_weight": 0.14,
-                    "prior_evidence_weight": 0.5,
-                    "pseudo_count": 1.0,
-                    "position_bonus_weight": 0.01,
-                    "preference_bonus": 0.03,
-                    "reliability_scale": 32.0,
+        return normalize_krr_kb_object(
+            {
+                "schema": "zenodex/krr-kb/v1",
+                "operator_priors": {},
+                "semantic_rules": [],
+                "check_priors": {},
+                "check_family_priors": {},
+                "engine": {
+                    "backend": "auto",
+                    "prolog": {
+                        "binary": "swipl",
+                        "timeout_s": 2.0,
+                        "preferred_bonus": 0.03,
+                    },
+                    "souffle": {
+                        "binary": "souffle",
+                        "timeout_s": 2.0,
+                        "preferred_bonus": 0.03,
+                    },
+                    "scoring": {
+                        "exploitation_weight": 0.72,
+                        "exploration_weight": 0.22,
+                        "uncertainty_weight": 0.08,
+                        "uncertainty_penalty_weight": 0.06,
+                        "reliability_weight": 0.12,
+                        "backend_score_weight": 0.14,
+                        "prior_evidence_weight": 0.5,
+                        "pseudo_count": 1.0,
+                        "position_bonus_weight": 0.01,
+                        "preference_bonus": 0.03,
+                        "reliability_scale": 32.0,
+                    },
                 },
             },
-        }
+            kb_path=kb_path,
+        )
     try:
         obj = json.loads(kb_path.read_text(encoding="utf-8"))
     except Exception:
         obj = {}
     if not isinstance(obj, dict):
         obj = {}
+    return normalize_krr_kb_object(obj, kb_path=kb_path)
+
+
+def normalize_krr_kb_object(obj: dict[str, Any], *, kb_path: Path | str | None = None) -> dict[str, Any]:
+    """Fill optional KRR KB sections with deterministic defaults."""
+
+    if not isinstance(obj, dict):
+        raise ValueError("KRR knowledge base must be a JSON object")
     obj.setdefault("schema", "zenodex/krr-kb/v1")
     obj.setdefault("operator_priors", {})
     obj.setdefault("semantic_rules", [])
@@ -338,7 +349,8 @@ def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
     scoring.setdefault("preference_bonus", 0.03)
     scoring.setdefault("reliability_scale", 32.0)
 
-    obj["_kb_path"] = str(kb_path)
+    if kb_path is not None:
+        obj["_kb_path"] = str(kb_path)
     return obj
 
 

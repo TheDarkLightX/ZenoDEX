@@ -30,6 +30,7 @@ from tools.check_zenoenergy_replay_coverage_profile import (  # noqa: E402
     coverage_profile_summary,
     validate_replay_coverage_profile,
 )
+from tools.operator_report_output import print_operator_json  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -81,8 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_markdown is not None:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(bundle), encoding="utf-8")
-    # codeql[py/clear-text-logging-sensitive-data] Evidence bundle records secret-scan status only.
-    print(encoded)
+    print_operator_json(bundle)
     return 0
 
 
