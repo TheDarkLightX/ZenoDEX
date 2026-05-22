@@ -1169,11 +1169,11 @@ claims:
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile tools/check_zeno_ledger_light_client_checkpoint.py tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
-        - cmd: pytest -q tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+        - cmd: python3 -m py_compile tools/check_zeno_ledger_light_client_checkpoint.py tests/test_check_zeno_ledger_light_client_checkpoint.py
+        - cmd: pytest -q tests/test_check_zeno_ledger_light_client_checkpoint.py
       files:
         - tools/check_zeno_ledger_light_client_checkpoint.py
-        - tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+        - tests/test_check_zeno_ledger_light_client_checkpoint.py
         - tools/zeno_ledger_verify.py
         - src/integration/zeno_ledger_signer_registry.py
         - src/integration/zeno_ledger_signature.py

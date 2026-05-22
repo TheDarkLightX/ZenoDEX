@@ -186,7 +186,7 @@
       "verifier_id": "sha256:3eb92479aefa33d13b7a2711ad94e40c7472de32e9c892737753aee7c5fe2c48"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:bb07b1b0a598375eb12df303c389d997ef0bc1f015e22a474bc2ec329b72fa6c",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -200,7 +200,7 @@
         "sha256:b1fdc2948c8ba3e58bd705ee8085d28996ea3e9ba26a3b4957c88cbc65b60a29"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_workflow_evidence_status_v1"
@@ -208,7 +208,7 @@
       "verifier_id": "sha256:055f67e1cc7f1a93f9b49274b7b5346e83ee7a811b8ec8b51f8b5afd553043ba"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:94a277186469997af46e1027c272a7f8c7740db0f3eba272e744e41056b7a768",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -222,7 +222,7 @@
         "sha256:29c47e97f280e147a0b3ee5607448e0406a4bf54da5cfcb056feef48373010ea"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_math_witness_sweep_julia_v1"
@@ -230,7 +230,7 @@
       "verifier_id": "sha256:74f91670c6d852c843add1a76b007277d8a729a07050c06baa19baea437a2b9b"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:b6d77205af54f3200ca69dcd101790abe9f6ecdb7fd35b4bcdffd72a96211a2c",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -244,7 +244,7 @@
         "sha256:d77c7a7c3eb2c3d4cd0f5d79004328ac21d220d50f28e7c84da191bdf2eee747"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_math_witness_anchor_lean_v1"
@@ -252,7 +252,7 @@
       "verifier_id": "sha256:57263ed213841b4b1875bc25a1bb743579c5a2bfb618e2f9d2cee1d6bc5e0fa5"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:7e391abf70467577c5c3816b2f03385650b34802739a3781594985e43de5e5eb",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -266,7 +266,7 @@
         "sha256:b85eda1679dcdda2757b11b61d6569da13218eaa5e76c6c4e3628ca2b602878d"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_recovery_lifecycle_tla_v1"
@@ -274,7 +274,7 @@
       "verifier_id": "sha256:4b24cee9b09ddcc5e1ef2f25423b651701fe52c70b865a44fc26292ca71450bf"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:c0399f50cbc006cc689982b78830416d18bd36159839debd3d03c3a260974243",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -288,7 +288,7 @@
         "sha256:7d4d8ca34d7fca3ca289bf6358d2ff9b068a27c9d156b0cef2f54c7707231051"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_recovery_ltlf_v1"
@@ -296,7 +296,7 @@
       "verifier_id": "sha256:62074f1ca3a06af5008ed18b42c772ec737f5681eb6da859001c3405a28d44fa"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:f89c133133a86276fa09bab1dcc54f0d4a88a59fb2a0bc429330ff225ed33605",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -310,7 +310,7 @@
         "sha256:8f29c64a59e994c7390609282a5c73f82aed5fb1ac3f9c939020d02b17630877"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_zusd_oracle_recovery_esso_v1"
@@ -318,7 +318,7 @@
       "verifier_id": "sha256:fbde9afdf58711ba1d54c114e5e46dc6214619c2710be18159302376c5684877"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:5a42d12d55dc88706fdfcab2e88f13479d24c97d59126363f2b4ba890fa958d8",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -332,7 +332,7 @@
         "sha256:617db8fc341adf3fb4774f0d7d2b5098cc05f67d711a3680c5313d5fb02a77d7"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_morph_clamp_envelope_v1"
@@ -340,7 +340,7 @@
       "verifier_id": "sha256:9475fb4834b1e7f35c661e8eac5903cbff7c30ab842ef620f85615e4946551d3"
     },
     {
-      "allow_path_lookup": true,
+      "allow_path_lookup": false,
       "current_policy_root": "sha256:05117af3de75fea6846efdf3a7300ea0bbc588e1bfe66eaf77e6233e58130a37",
       "execution_mode": "subprocess_json",
       "max_input_bytes": 1000000,
@@ -354,7 +354,7 @@
         "sha256:d2ea6c632aa61169a66a3e1756dc037382460867dfc848c1873e3e12e570d8af"
       ],
       "verifier_command": [
-        "python3",
+        "/usr/bin/python3",
         "tools/zenoproof_public_replay_verifier.py",
         "--profile",
         "zeno_oracle_smt_freshness_v1"
