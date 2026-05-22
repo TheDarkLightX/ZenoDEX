@@ -193,6 +193,7 @@ def _header(body: dict[str, object], *, prev_header_hash: str) -> dict[str, obje
 
 
 def _write_json(path: Path, value: object) -> None:
+    # codeql[py/clear-text-storage-sensitive-data] Test fixtures contain synthetic hashes and no live secrets.
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 

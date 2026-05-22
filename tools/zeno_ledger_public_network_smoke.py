@@ -435,7 +435,9 @@ def main(argv: list[str] | None = None) -> int:
         report = {"schema": REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
     if args.report_out is not None:
         args.report_out.parent.mkdir(parents=True, exist_ok=True)
+        # codeql[py/clear-text-storage-sensitive-data] Smoke report stores public loopback-test artifacts only.
         args.report_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # codeql[py/clear-text-logging-sensitive-data] Smoke report contains public loopback-test artifacts only.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 

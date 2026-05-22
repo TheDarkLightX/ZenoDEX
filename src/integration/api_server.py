@@ -6791,7 +6791,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if sensitive_api_enabled and not external_auth_enforced and not demo_api_token:
         print(
-            "Refusing to start: sensitive APIs enabled without external auth or DEMO_API_TOKEN "
+            "Refusing to start: sensitive APIs enabled without external auth or demo credential "
             f"(host={host!r}, perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, "
             f"zusd_api={zusd_enabled}, "
             f"zusd_tau_wallet_api={zusd_tau_wallet_enabled}, "
@@ -6802,7 +6802,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
     if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
         print(
-            "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
+            "Refusing to start: the configured demo credential is demo/dev auth only. "
             "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
             "ALLOW_DEMO_TOKEN_AUTH=1 only for a controlled demo."
         )
@@ -6849,7 +6849,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"autotrader_live_api={autotrader_live_enabled}, "
         f"confidential_attestation_api={confidential_attestation_enabled}, dex_api={dex_enabled}, "
         f"confidential_stage={confidential_feature_status.get('stage')}, "
-        f"external_auth_enforced={external_auth_enforced}, demo_api_token_set={bool(demo_api_token)}, "
+        f"external_auth_enforced={external_auth_enforced}, demo_credential_configured={bool(demo_api_token)}, "
         f"demo_token_auth_allowed={allow_demo_token_auth})"
     )
     httpd.serve_forever(poll_interval=0.25)

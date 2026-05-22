@@ -27,6 +27,10 @@ def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
         "sender_pubkey": "pk",
         "deadline": 1,
         "pool_id": "0x" + "22" * 32,
+        "asset_in": "TAU",
+        "asset_out": "zUSD",
+        "amount_in": 100,
+        "min_amount_out": 1,
     }
 
 
@@ -368,6 +372,34 @@ def test_parse_intents_handles_missing_group_and_rejects_invalid_shapes() -> Non
 
     with pytest.raises(ValueError, match="Failed to parse intent 0: Missing required field: module"):
         parse_intents({"2": [{"version": "0.1"}]})
+
+
+def test_parse_intents_rejects_unknown_kind_specific_field() -> None:
+    with pytest.raises(ValueError, match="unsupported field for SWAP_EXACT_IN: extra_field"):
+        parse_intents({"2": [{**_min_intent_dict(), "extra_field": "ignored-before-review-fix"}]})
+
+
+def test_parse_intents_rejects_missing_kind_specific_field() -> None:
+    intent = _min_intent_dict()
+    del intent["amount_in"]
+
+    with pytest.raises(ValueError, match="Missing required field for SWAP_EXACT_IN: amount_in"):
+        parse_intents({"2": [intent]})
+
+
+def test_parse_intents_rejects_bad_kind_specific_type() -> None:
+    with pytest.raises(ValueError, match=r"intent\.amount_in must be an int"):
+        parse_intents({"2": [{**_min_intent_dict(), "amount_in": "100"}]})
+
+
+def test_parse_intents_rejects_same_swap_assets() -> None:
+    with pytest.raises(ValueError, match=r"intent\.asset_in and intent\.asset_out must differ"):
+        parse_intents({"2": [{**_min_intent_dict(), "asset_out": "TAU"}]})
+
+
+def test_parse_signed_intents_rejects_invalid_kind_specific_fields() -> None:
+    with pytest.raises(ValueError, match="unsupported field for SWAP_EXACT_IN: extra_field"):
+        parse_signed_intents({"2": [[{**_min_intent_dict(), "extra_field": "bad"}, "0xsig"]]})
 
 
 def test_parse_signed_intents_rejects_invalid_operations_shapes() -> None:

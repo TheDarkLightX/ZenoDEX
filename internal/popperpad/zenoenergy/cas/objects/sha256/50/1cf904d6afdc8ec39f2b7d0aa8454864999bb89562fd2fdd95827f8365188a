@@ -1,1 +1,0 @@
-{"context_key":"zenoenergy:gap-weighted-default:20260518","domain_ref":"sha256:491ffd61981b5fa5b0ca2e54afc3fea3b80bb75ac5d923176dae8063ddd9d82b","harness":{"digest":"sha256:9773617ff7c73c9d6c56b81fc82afdb303fcc2c7f00c25389c0df9a047d49ad7","id":"tools/check_zenoenergy_research_evidence.py gap-weighted-default slice"},"schema":"popperpad/context/v1","toolchain":{}}

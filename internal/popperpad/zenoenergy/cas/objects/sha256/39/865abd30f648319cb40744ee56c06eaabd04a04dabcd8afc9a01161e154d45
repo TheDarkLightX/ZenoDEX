@@ -1,1 +1,0 @@
-{"context_key":"zenoenergy:research-evidence-replay-gate-v8:20260518","domain_ref":"sha256:491ffd61981b5fa5b0ca2e54afc3fea3b80bb75ac5d923176dae8063ddd9d82b","harness":{"digest":"sha256:1833b87c8179eaf93bf8dea5aa9a8081e69575ce2626c67ef54dc103eaeb91b0","id":"tools/check_zenoenergy_research_evidence.py v8"},"schema":"popperpad/context/v1","toolchain":{}}

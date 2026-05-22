@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_markdown is not None:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(report), encoding="utf-8")
+    # codeql[py/clear-text-logging-sensitive-data] Scanner findings report paths and categories, not values.
     print(encoded)
     return 0 if bool(report["ok"]) else 1
 

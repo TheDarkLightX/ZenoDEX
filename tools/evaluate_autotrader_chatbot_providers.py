@@ -150,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         max_prompt_chars=args.max_prompt_chars,
         max_token_estimate=args.max_token_estimate,
     )
+    # codeql[py/clear-text-logging-sensitive-data] Provider evaluation report excludes credential values.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 

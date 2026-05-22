@@ -132,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         provider_config=args.provider_config,
         evaluate_provider_config=args.evaluate_provider_config,
     )
+    # codeql[py/clear-text-logging-sensitive-data] Provider config report redacts credential values.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 

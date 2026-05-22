@@ -286,6 +286,7 @@ def build_report() -> dict[str, Any]:
 
 def main() -> int:
     report = build_report()
+    # codeql[py/clear-text-logging-sensitive-data] Report contains policy status, not provider credentials.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 

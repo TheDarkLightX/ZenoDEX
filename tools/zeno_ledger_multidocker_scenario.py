@@ -821,6 +821,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         report_out=args.report_out,
         bundle_tar_out=args.bundle_tar_out,
     )
+    # codeql[py/clear-text-logging-sensitive-data] Bootstrap report contains local testnet status only.
     print(json.dumps(report, indent=2, sort_keys=True))
     sys.stdout.flush()
     if args.stay_alive and report["ok"]:

@@ -56,24 +56,75 @@ def _quote_receipt_transport(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def _intent_fields(draw: st.DrawFn) -> dict[str, Any]:
-    keys = draw(
-        st.lists(
-            NON_EMPTY_TEXT.filter(lambda value: value not in RESERVED_INTENT_KEYS),
-            min_size=0,
-            max_size=4,
-            unique=True,
-        )
-    )
-    return {key: draw(JSON_VALUE) for key in keys}
+def _common_intent_fields(draw: st.DrawFn) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    if draw(st.booleans()):
+        fields["nonce"] = draw(st.integers(min_value=1, max_value=100_000))
+    if draw(st.booleans()):
+        fields["recipient"] = draw(NON_EMPTY_TEXT)
+    if draw(st.booleans()):
+        fields["submission_order"] = draw(st.integers(min_value=0, max_value=100_000))
+    if draw(st.booleans()):
+        fields["quote_receipt_hash"] = draw(NON_EMPTY_TEXT)
+    if draw(st.booleans()):
+        fields["quote_pool_fingerprint"] = draw(NON_EMPTY_TEXT)
+    if draw(st.booleans()):
+        fields["quote_receipt_leg_index"] = draw(st.integers(min_value=0, max_value=8))
+    if draw(st.booleans()):
+        fields["oracle_authorization"] = draw(st.dictionaries(NON_EMPTY_TEXT, JSON_VALUE, max_size=3))
+    return fields
+
+
+def _kind_specific_intent_fields(kind: str) -> dict[str, Any]:
+    if kind == IntentKind.SWAP_EXACT_IN.value:
+        return {
+            "pool_id": "pool-a",
+            "asset_in": "asset-a",
+            "asset_out": "asset-b",
+            "amount_in": 1,
+            "min_amount_out": 0,
+        }
+    if kind == IntentKind.SWAP_EXACT_OUT.value:
+        return {
+            "pool_id": "pool-a",
+            "asset_in": "asset-a",
+            "asset_out": "asset-b",
+            "amount_out": 1,
+            "max_amount_in": 1,
+        }
+    if kind == IntentKind.CREATE_POOL.value:
+        return {
+            "asset0": "asset-a",
+            "asset1": "asset-b",
+            "fee_bps": 30,
+            "amount0": 1,
+            "amount1": 1,
+        }
+    if kind == IntentKind.ADD_LIQUIDITY.value:
+        return {
+            "pool_id": "pool-a",
+            "amount0_desired": 1,
+            "amount1_desired": 1,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        }
+    if kind == IntentKind.REMOVE_LIQUIDITY.value:
+        return {
+            "pool_id": "pool-a",
+            "lp_amount": 1,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        }
+    raise AssertionError(f"unhandled intent kind: {kind}")
 
 
 @st.composite
 def _valid_intent_dict(draw: st.DrawFn) -> dict[str, Any]:
+    kind = draw(st.sampled_from([kind.value for kind in IntentKind]))
     intent = {
         "module": "TauSwap",
         "version": "0.1",
-        "kind": draw(st.sampled_from([kind.value for kind in IntentKind])),
+        "kind": kind,
         "intent_id": draw(HEX_32),
         "sender_pubkey": draw(NON_EMPTY_TEXT),
         "deadline": draw(st.integers(min_value=0, max_value=2**31)),
@@ -81,7 +132,8 @@ def _valid_intent_dict(draw: st.DrawFn) -> dict[str, Any]:
     salt = draw(st.one_of(st.none(), NON_EMPTY_TEXT))
     if salt is not None:
         intent["salt"] = salt
-    intent.update(draw(_intent_fields()))
+    intent.update(_kind_specific_intent_fields(kind))
+    intent.update(draw(_common_intent_fields()))
     return intent
 
 
