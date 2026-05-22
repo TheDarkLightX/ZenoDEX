@@ -21,7 +21,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TIME_MS,
 )
 from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
-from tools.operator_report_output import operator_json_dumps
+from tools.operator_report_output import emit_operator_json
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.dual_operator_rehearsal_report.v0"
@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print(operator_json_dumps(report))
+    emit_operator_json(report)
     return 0 if report["ok"] else 1
 
 

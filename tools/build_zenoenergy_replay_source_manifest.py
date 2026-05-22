@@ -21,7 +21,7 @@ from tools.check_zenoenergy_replay_source_manifest import (  # noqa: E402
 from tools.check_zenoenergy_replay_secret_scan import (  # noqa: E402
     secret_scan_manifest_fragment,
 )
-from tools.operator_report_output import operator_json_dumps  # noqa: E402
+from tools.operator_report_output import emit_operator_json  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_markdown is not None:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(manifest, check), encoding="utf-8")
-    print(operator_json_dumps(manifest))
+    emit_operator_json(manifest)
     return 0
 
 

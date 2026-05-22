@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.operator_report_output import operator_json_dumps  # noqa: E402
+from tools.operator_report_output import emit_operator_json  # noqa: E402
 
 from src.agents.autotrader_chatbot_advisor import (  # noqa: E402
     AutoTraderChatbotConfig,
@@ -288,7 +288,7 @@ def build_report() -> dict[str, Any]:
 
 def main() -> int:
     report = build_report()
-    print(operator_json_dumps(report))
+    emit_operator_json(report)
     return 0 if report["ok"] else 1
 
 

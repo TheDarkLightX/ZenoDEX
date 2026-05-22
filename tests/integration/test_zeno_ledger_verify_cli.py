@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -193,7 +194,12 @@ def _header(body: dict[str, object], *, prev_header_hash: str) -> dict[str, obje
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.write_bytes(json.dumps(value, indent=2, sort_keys=True).encode("utf-8"))
+    payload = json.dumps(value, indent=2, sort_keys=True).encode("utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, payload)
+    finally:
+        os.close(fd)
 
 
 def _manifest_relative_path(manifest_path: Path, value: object) -> Path:

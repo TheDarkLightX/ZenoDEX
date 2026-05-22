@@ -9,6 +9,8 @@ values to static scanners.
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Any, Mapping
 
 _STATUS_KEY_RENAMES = {
@@ -60,11 +62,26 @@ def operator_json_dumps(value: Any, *, indent: int | None = 2) -> str:
     return json.dumps(_console_safe(value), indent=indent, sort_keys=True)
 
 
+def emit_operator_json(value: Any, *, indent: int | None = 2) -> None:
+    payload = (operator_json_dumps(value, indent=indent) + "\n").encode("utf-8")
+    os.write(1, payload)
+
+
 def public_storage_json_dumps(value: Any, *, indent: int | None = 2) -> str:
     """Serialize a public artifact after rejecting inline credential values."""
 
     checked = _reject_inline_material(value, path="$")
     return json.dumps(checked, indent=indent, sort_keys=True)
+
+
+def write_public_json(path: Path, value: Any, *, indent: int | None = 2) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = (public_storage_json_dumps(value, indent=indent) + "\n").encode("utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, payload)
+    finally:
+        os.close(fd)
 
 
 def _console_safe(value: Any) -> Any:
