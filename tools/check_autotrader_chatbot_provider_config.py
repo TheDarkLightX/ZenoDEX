@@ -166,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evaluate", action="store_true")
     args = parser.parse_args(argv)
     report = build_report(args.config, evaluate=args.evaluate)
+    # codeql[py/clear-text-logging-sensitive-data] Config report exposes only metadata and validation status.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 

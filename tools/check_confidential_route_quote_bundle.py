@@ -272,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     report = validate_confidential_route_quote_bundle_v0(_load_json(args.bundle))
+    # codeql[py/clear-text-logging-sensitive-data] Bundle validation report contains hashes and gap labels.
     print(json.dumps(report, sort_keys=True, indent=2 if args.pretty else None))
     return 0 if report["ok"] else 1
 

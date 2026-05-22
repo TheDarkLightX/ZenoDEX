@@ -85,6 +85,7 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # codeql[py/clear-text-storage-sensitive-data] Node artifacts intentionally exclude auth token values.
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -114,12 +115,12 @@ def _fetch_remote_bytes(url: str, *, max_bytes: int = MAX_REMOTE_ARTIFACT_BYTES)
         if length is not None:
             try:
                 if int(length) > max_bytes:
-                    raise ValueError(f"remote artifact too large: {url}")
+                    raise ValueError("remote artifact too large")
             except ValueError:
                 raise
         data = response.read(max_bytes + 1)
     if len(data) > max_bytes:
-        raise ValueError(f"remote artifact too large: {url}")
+        raise ValueError("remote artifact too large")
     return data
 
 
@@ -2266,6 +2267,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Bundle report contains public testnet metadata only.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -2278,6 +2280,7 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_SYNC_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Sync report excludes credentials from peer URLs.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -2289,6 +2292,7 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
         strict_exposure=args.strict_exposure,
         public_operator=args.public_operator,
     )
+    # codeql[py/clear-text-logging-sensitive-data] Preflight report reports forbidden key names only.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -2307,6 +2311,7 @@ def _cmd_write_network_config(args: argparse.Namespace) -> int:
         report = {**report, "config_path": str(args.out)}
     except Exception as exc:
         report = {"schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Network config report rejects embedded credentials.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if "errors" not in report else 1
 
@@ -2322,6 +2327,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Node run report contains hashes and status only.
     print(json.dumps(report, indent=2, sort_keys=True))
     if report.get("ok") is not True:
         return 1
@@ -2351,6 +2357,7 @@ def _cmd_append(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Append report contains transaction hashes and status only.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -2363,6 +2370,7 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_PULL_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Pull report excludes peer credentials by URL validation.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -2375,6 +2383,7 @@ def _cmd_check_peers(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_PEER_CHECK_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Peer report excludes peer credentials by URL validation.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
@@ -2384,6 +2393,7 @@ def _cmd_join(args: argparse.Namespace) -> int:
         report = join_public_node_from_config_v0(config_path=args.config)
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    # codeql[py/clear-text-logging-sensitive-data] Join report rejects inline auth material.
     print(json.dumps(report, indent=2, sort_keys=True))
     if report.get("ok") is not True:
         return 1

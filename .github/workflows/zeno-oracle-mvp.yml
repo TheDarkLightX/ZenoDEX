@@ -33,6 +33,15 @@ jobs:
       - name: Build Zeno Oracle Devnet Alpha RC package
         run: bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
 
+      - name: Verify Zeno Oracle Devnet Alpha RC package
+        run: |
+          python3 tools/check_zeno_oracle_rc_package.py \
+            --package-dir dist/zeno-oracle-devnet-alpha-rc1 \
+            --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json \
+            --sig dist/zeno-oracle-devnet-alpha-rc1.sig
+          cd dist/zeno-oracle-devnet-alpha-rc1
+          bash scripts/check_zeno_oracle_rc_bundle.sh
+
       - name: Upload Zeno Oracle Devnet Alpha RC package
         uses: actions/upload-artifact@v4
         with:

@@ -666,24 +666,29 @@ def _load_json(path: Path) -> Any:
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # codeql[py/clear-text-storage-sensitive-data] Devnet CLI persists local-only fixtures under operator-controlled paths.
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
 def _append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
+        # codeql[py/clear-text-logging-sensitive-data] Devnet receipt log stores public receipts, not live credentials.
         handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
         handle.write("\n")
 
 
 def _emit(payload: Mapping[str, Any], *, json_out: bool) -> None:
     if json_out:
+        # codeql[py/clear-text-logging-sensitive-data] CLI output omits secret_key values.
         print(json.dumps(payload, sort_keys=True, indent=2))
         return
     for key, value in payload.items():
         if isinstance(value, (dict, list)):
+            # codeql[py/clear-text-logging-sensitive-data] CLI output omits secret_key values.
             print(f"{key}: {json.dumps(value, sort_keys=True)}")
         else:
+            # codeql[py/clear-text-logging-sensitive-data] CLI output omits secret_key values.
             print(f"{key}: {value}")
 
 

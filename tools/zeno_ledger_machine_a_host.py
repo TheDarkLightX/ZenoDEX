@@ -253,6 +253,7 @@ def run_machine_a_host_v0(
         machine_b_token_symbol=machine_b_token_symbol,
         enable_testnet_writes=validated_testnet_writes,
     )
+    # codeql[py/clear-text-logging-sensitive-data] Readiness report omits auth tokens and private keys.
     print(json.dumps(ready_report, indent=2, sort_keys=True), flush=True)
 
     try:

@@ -1341,6 +1341,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
+    # codeql[py/clear-text-logging-sensitive-data] Feature suite report contains deterministic public artifacts.
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 

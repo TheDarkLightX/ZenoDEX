@@ -961,7 +961,7 @@ def test_engine_rejects_bool_quote_receipt_leg_index() -> None:
     )
     assert not res.ok
     assert res.error is not None
-    assert "missing quote_receipt_leg_index" in res.error
+    assert "intent.quote_receipt_leg_index must be an int" in res.error
 
 
 def test_engine_rejects_incomplete_split_quote_receipt_leg_coverage() -> None:

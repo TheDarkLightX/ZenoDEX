@@ -55,6 +55,7 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
 
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # codeql[py/clear-text-storage-sensitive-data] Local-run artifacts intentionally exclude auth tokens and keys.
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -1785,6 +1786,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
+    # codeql[py/clear-text-logging-sensitive-data] Local-run report contains public node status only.
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 

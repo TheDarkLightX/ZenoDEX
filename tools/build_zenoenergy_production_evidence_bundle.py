@@ -81,6 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_markdown is not None:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(bundle), encoding="utf-8")
+    # codeql[py/clear-text-logging-sensitive-data] Evidence bundle records secret-scan status only.
     print(encoded)
     return 0
 

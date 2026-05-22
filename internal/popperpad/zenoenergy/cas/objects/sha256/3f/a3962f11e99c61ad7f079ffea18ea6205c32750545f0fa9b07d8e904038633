@@ -1,1 +1,0 @@
-{"context_key":"zenoenergy:research-evidence-replay-v6:20260518","domain_ref":"sha256:491ffd61981b5fa5b0ca2e54afc3fea3b80bb75ac5d923176dae8063ddd9d82b","harness":{"digest":"sha256:b7cc53aa563e1648c018a8a397712b9b22ce6b482559be9fc66be84cffb64a03","id":"tools/check_zenoenergy_research_evidence.py v6 receipt"},"schema":"popperpad/context/v1","toolchain":{}}
