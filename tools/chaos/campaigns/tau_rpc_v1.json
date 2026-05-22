@@ -1,0 +1,18 @@
+{
+  "schema": "chaos/campaign/v1",
+  "id": "tau_rpc_v1",
+  "description": "Tau RPC client network-fault campaign targeting truncated replies and reset-peer behavior.",
+  "target_areas": [
+    "tau_net_client"
+  ],
+  "required_experiments": [
+    "tau_net_truncated_tcp",
+    "tau_net_reset_peer"
+  ],
+  "optional_experiments": [],
+  "required_prerequisites": [
+    "toxiproxy"
+  ],
+  "optional_prerequisites": [],
+  "max_recommended_blast_radius": 0.35
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chaos_regret_snapshot_v1.schema.json",
+  "title": "Chaos Regret Snapshot",
+  "description": "A point-in-time regret view over candidate chaos experiments.",
+  "type": "object",
+  "required": ["schema", "generated_at", "context_key", "candidate_priorities"],
+  "properties": {
+    "schema": {
+      "const": "chaos/regret_snapshot/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "context_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selected_experiment": {
+      "type": ["string", "null"]
+    },
+    "candidate_priorities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "score", "regret_vs_best", "feasible"],
+        "properties": {
+          "name": {"type": "string"},
+          "score": {"type": "number"},
+          "regret_vs_best": {"type": "number", "minimum": 0},
+          "feasible": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
