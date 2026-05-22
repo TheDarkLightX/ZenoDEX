@@ -6796,7 +6796,8 @@ def _print_api_auth_posture_error(code: str) -> None:
             "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
         ),
     }
-    print(messages.get(code, "Refusing to start: API auth posture is invalid."))
+    line = messages.get(code, "Refusing to start: API auth posture is invalid.")
+    os.write(1, (line + "\n").encode("utf-8"))
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -6868,7 +6869,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
 
-    print(
+    startup_line = (
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
         f"perps_api={perps_enabled}, perps_wallet_api={perps_wallet_enabled}, zusd_api={zusd_enabled}, "
@@ -6880,6 +6881,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"external_auth_enforced={external_auth_enforced}, "
         f"demo_auth_allowed={allow_demo_token_auth})"
     )
+    os.write(1, (startup_line + "\n").encode("utf-8"))
     httpd.demo_api_token = _env_str("DEMO_API_TOKEN", "")  # type: ignore[attr-defined]
     httpd.serve_forever(poll_interval=0.25)
     return 0

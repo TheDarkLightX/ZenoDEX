@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.operator_report_output import operator_json_dumps  # noqa: E402
+from tools.operator_report_output import emit_operator_json  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ def main() -> int:
     if args.output_markdown is not None:
         args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
         args.output_markdown.write_text(_markdown_report(report), encoding="utf-8")
-    print(operator_json_dumps(report))
+    emit_operator_json(report)
     return 0 if report["ok"] else 1
 
 

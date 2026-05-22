@@ -37,7 +37,7 @@ from src.agents.strategy_ir import (  # noqa: E402
     StrategyTemplate,
     StrategyWindow,
 )
-from tools.operator_report_output import operator_json_dumps  # noqa: E402
+from tools.operator_report_output import emit_operator_json  # noqa: E402
 from src.integration.autotrader_signals import (  # noqa: E402
     QuoteReceiptSignalPacket,
     SignalSourceKind,
@@ -151,7 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         max_prompt_chars=args.max_prompt_chars,
         max_token_estimate=args.max_token_estimate,
     )
-    print(operator_json_dumps(report))
+    emit_operator_json(report)
     return 0 if report["ok"] else 1
 
 

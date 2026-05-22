@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.operator_report_output import operator_json_dumps  # noqa: E402
+from tools.operator_report_output import emit_operator_json  # noqa: E402
 
 from src.core.confidential_extension_receipts import (  # noqa: E402
     confidential_measurement_registry_hash,
@@ -274,7 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     report = validate_confidential_route_quote_bundle_v0(_load_json(args.bundle))
-    print(operator_json_dumps(report, indent=2 if args.pretty else None))
+    emit_operator_json(report, indent=2 if args.pretty else None)
     return 0 if report["ok"] else 1
 
 
