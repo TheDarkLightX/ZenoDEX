@@ -47,6 +47,7 @@ LABEL org.opencontainers.image.vendor="ZenoDEX"
 # Install nginx (no curl dependency; healthcheck uses Python stdlib).
 # Add retries to reduce flakiness in constrained build environments.
 RUN apt-get update -o Acquire::Retries=3 \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends nginx \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default

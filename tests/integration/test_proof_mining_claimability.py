@@ -142,8 +142,8 @@ def test_claimability_rejects_inadmissible_claim_artifact() -> None:
         prev_state_hash="sha256:prev-inadmissible",
         batch_hash="sha256:batch-inadmissible",
         dex_hash_after="sha256:after-inadmissible",
-        policy_ok=False,
-        unclaimed_ok=False,
+        policy_ok=0,
+        unclaimed_ok=0,
         allow_rejected=True,
     )
 

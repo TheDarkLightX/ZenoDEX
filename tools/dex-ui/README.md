@@ -17,9 +17,9 @@ Current mounted posture:
   stability-pool transaction path.
 - Perps has a read-only preview grid plus a live stream-8 wallet panel for
   signed clearinghouse market init, collateral, position, epoch, oracle-price,
-  and settle transactions. Local preview writes for the older `/api/perps/*`
-  lane require an explicit override and still do not represent authoritative
-  settlement.
+  and epoch-close transaction preparation. Local preview writes for the older
+  `/api/perps/*` lane require an explicit override and remain outside the
+  authoritative funds-movement claim.
 - Strategy includes a receipt-backed AutoTrader local/testnet panel for
   prepare, gated submit, execute-once, and bounded supervisor flows through
   `/api/strategy/autotrader/*`. It requires explicit risk acknowledgement plus

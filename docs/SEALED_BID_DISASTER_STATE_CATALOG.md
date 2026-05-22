@@ -13,7 +13,7 @@ Method:
 - require that action to move the FSM into `Complete`.
 
 Tool:
-- [sealed_bid_disaster_catalog.py](${USER}/Downloads/Autonomous%20Tau%20DEX/tools/sealed_bid_disaster_catalog.py)
+- [sealed_bid_disaster_catalog.py](../tools/sealed_bid_disaster_catalog.py)
 
 Named disasters:
 

@@ -15,7 +15,7 @@ It is intentionally conservative about what is being claimed.
 WitnessedRejectState(D) := campaign_reaches(D) ∧ system_rejects(D)
 ```
 
-Standard reading: a disaster state `D` is *witnessed* when the stateful campaign can produce it and the system rejects it with a replayable receipt.
+Reading: a disaster state `D` is *witnessed* when the stateful campaign can produce it and the system rejects it with a replayable receipt.
 
 Practical consequence: the witness proves a dangerous state exists in the search space and is blocked by the current implementation.
 
@@ -23,7 +23,7 @@ Practical consequence: the witness proves a dangerous state exists in the search
 RemovedBlindSpot(S) := previously_reached_without_witness(S) -> now_reached_with_witness(S)
 ```
 
-Standard reading: an assurance blind spot is removed when a surface that was previously reached but not captured as a first-class witness is now backed by a replayable minimized witness.
+Reading: an assurance blind spot is removed when a surface that was previously reached but not captured as a first-class witness is now backed by a replayable minimized witness.
 
 Practical consequence: this strengthens regression defense and public assurance posture.
 
@@ -37,7 +37,7 @@ That is valuable, but it is different from proving the system used to accept tha
 WitnessedRejectState(D) ≠ PreviouslyAcceptedBug(D)
 ```
 
-Standard reading: witnessing and rejecting a dangerous state does not, by itself, prove that the same state was previously accepted.
+Reading: witnessing and rejecting a dangerous state does not, by itself, prove that the same state was previously accepted.
 
 Practical consequence: public reporting should say "witnessed and rejected" unless there is separate evidence that a bad state used to pass.
 
@@ -81,7 +81,7 @@ Current lane status:
 ConsumedNonceSequence ∧ ReplayAttempt -> reject
 ```
 
-Standard reading: once a nonce sequence has been consumed, replaying it is rejected.
+Reading: once a nonce sequence has been consumed, replaying it is rejected.
 
 Practical consequence: the protocol does not silently re-accept already-consumed intent sequences.
 
@@ -103,7 +103,7 @@ Practical consequence: the protocol does not silently re-accept already-consumed
 QuoteReceiptBoundToSnapshot ∧ PoolStateChanged -> reject
 ```
 
-Standard reading: if the pool snapshot changes after a quote receipt is issued, replaying that receipt is rejected.
+Reading: if the pool snapshot changes after a quote receipt is issued, replaying that receipt is rejected.
 
 Practical consequence: stale price surfaces do not silently cross into execution.
 
@@ -118,7 +118,7 @@ Practical consequence: stale price surfaces do not silently cross into execution
 SettlementComputedOnOldState ∧ StateChanged -> reject
 ```
 
-Standard reading: a settlement computed against an old state cannot be applied after the state changes.
+Reading: a settlement computed against an old state cannot be applied after the state changes.
 
 Practical consequence: stale settlement packets do not survive state drift.
 
@@ -140,7 +140,7 @@ Practical consequence: stale settlement packets do not survive state drift.
 CertificateBuiltForCandidates(C) ∧ ReplayOn(C') ∧ C' != C -> reject
 ```
 
-Standard reading: a certificate built for one candidate set cannot be replayed on a different candidate set.
+Reading: a certificate built for one candidate set cannot be replayed on a different candidate set.
 
 Practical consequence: route certificates stay bound to the candidate universe they were issued for.
 

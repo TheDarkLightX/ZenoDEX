@@ -481,7 +481,7 @@ def SettlementSafe {a : Asset} (I : FIREVInput (Asset := Asset) a) : Prop :=
 
 `FIREVAccept -> SettlementSafe`.
 
-Standard reading: if the verifier accepts the compiler certificate and posted
+Reading: if the verifier accepts the compiler certificate and posted
 collateral, the resulting settlement is mechanically solvent for both sides. -/
 theorem firev_accept_settlement_safe
     {a : Asset} (I : FIREVInput (Asset := Asset) a) :

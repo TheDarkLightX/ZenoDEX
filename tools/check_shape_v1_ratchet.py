@@ -21,7 +21,7 @@ from tools.shapeforge_validate import validate_artifact
 
 SHAPE_V1_RATCHET_REPORT_SCHEMA = "zenodex/shape-v1-ratchet-report/v1"
 
-DEFAULT_TARGET_SHAPES = ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_target_shapes.seed.json"
+DEFAULT_TARGET_SHAPES = ROOT / "docs" / "zenodex" / "world_model_promoted" / "zenodex_target_shapes.seed.json"
 DEFAULT_WORLD_MODEL = DEFAULT_SHAPEFORGE_WORLD_MODEL_PATH
 DEFAULT_MANIFEST = ROOT / "docs" / "zenodex" / "SHAPE_V1.md"
 

@@ -1824,6 +1824,11 @@
           "claim": "LTLf synthesis proves G(stale -> F(fresh OR blocked)) and G(stale -> !risky_op) on a bounded oracle recovery model with explicit end action.",
           "class": "proved",
           "source": "formal/ltlf/oracle_recovery_ltlf_v1.yaml"
+        },
+        {
+          "claim": "A replayable Cantor-region assurance bundle shows that the bounded zUSD recovery-mode gate shell partitions exactly into risky_action_allowed, safe_non_risky_action_allowed, and denied regions, with risky_action_allowed refining action_allowed and recovery_blocked_request refining denied.",
+          "class": "contract",
+          "source": "src/integration/cantor_region_assurance_bundle.py"
         }
       ],
       "guards": [
@@ -1888,7 +1893,9 @@
         "tests/integration/test_zusd_oracle_contracts.py",
         "docs/zenodex/SHAPING_FORMULAS_FULL_STACK.md",
         "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
-        "tests/formal/test_oracle_recovery_ltlf.py"
+        "tests/formal/test_oracle_recovery_ltlf.py",
+        "src/integration/zusd_recovery_mode_gate_regions.py",
+        "src/integration/cantor_region_assurance_bundle.py"
       ],
       "state_vars": [
         {
@@ -2764,6 +2771,11 @@
           "claim": "A Tau trace regression pins budget_facts_ok, public_outcome_explicit, and contract_ok on representative good and failing bounded inputs.",
           "class": "tested_discovery",
           "source": "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py"
+        },
+        {
+          "claim": "A replayable Cantor-region assurance bundle shows that the bounded exact-out adaptive-liveness shell partitions exactly into liveness_ok, budget_blocked, and invalid regions, and that the first two regions each refine coherent_surface.",
+          "class": "contract",
+          "source": "src/integration/cantor_region_assurance_bundle.py"
         }
       ],
       "guards": [
@@ -2848,7 +2860,9 @@
         "tests/integration/test_exact_out_route_certificate.py",
         "tests/integration/test_api_server_dex_api.py",
         "tests/formal/test_esso_optimizer_audited_bounds_liveness.py",
-        "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py"
+        "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py",
+        "src/integration/exact_out_many_pool_adaptive_liveness_regions.py",
+        "src/integration/cantor_region_assurance_bundle.py"
       ],
       "state_vars": [
         {
@@ -3128,6 +3142,11 @@
           "claim": "Focused integration runtime tests verify that require_settlement_certificate and require_settlement_end_to_end_certificate both accept or reject settlements according to the unified end-to-end packet gate, including feature-extension and full-price-rails failures.",
           "class": "implemented",
           "source": "tests/integration/test_settlement_certificate_runtime_gate.py"
+        },
+        {
+          "claim": "A replayable Cantor-region assurance bundle shows that the bounded settlement witness lifecycle shell partitions exactly into accepted, rejected, and invalid regions, and that accepted and rejected each refine lifecycle_ok.",
+          "class": "contract",
+          "source": "src/integration/cantor_region_assurance_bundle.py"
         }
       ],
       "guards": [
@@ -3261,7 +3280,9 @@
         "tests/formal/test_lean_settlement_feature_extension_packet.py",
         "tests/formal/test_esso_settlement_feature_extension_packet.py",
         "tests/integration/test_proof_verifier.py",
-        "src/integration/api_server.py"
+        "src/integration/api_server.py",
+        "src/integration/settlement_witness_lifecycle_regions.py",
+        "src/integration/cantor_region_assurance_bundle.py"
       ],
       "state_vars": [
         {
@@ -4374,6 +4395,138 @@
           "id": "pokayoke_action",
           "meaning": "Advisory action in the explicit order allow < confirm < typed_confirm < block.",
           "type": "Action"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "resource_admission_request",
+      "canonical_keys": [],
+      "description": "Resource admission under normal and load-shedding modes is represented as a bounded replayable shell with explicit proof-gated admission, admission-without-proof, and denial regions.",
+      "evidence": [
+        {
+          "claim": "A replayable Cantor-region assurance bundle shows that the bounded resource load-shedding shell partitions exactly into proof_gated, admitted_without_proof, and denied regions.",
+          "class": "contract",
+          "source": "src/integration/cantor_region_assurance_bundle.py"
+        },
+        {
+          "claim": "Within the same bounded shell, proof_gated admission refines final admission, and the normal-only and shed-only path regions are disjoint while their union recovers final admission.",
+          "class": "contract",
+          "source": "src/integration/resource_load_shedding_regret_guard_regions.py"
+        },
+        {
+          "claim": "Focused regressions pin the bounded shell against representative Tau trace cases and against the Python formulas for final and proof-gated admission over the full 12-bit surface.",
+          "class": "tested_discovery",
+          "source": "tests/integration/test_resource_load_shedding_regret_guard_regions.py"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "user_regret_ok \u2227 user_impact_ok \u2227 quote_fresh_ok",
+          "id": "user_safety_ok",
+          "meaning": "Normal-path admission requires the user-facing regret, impact, and quote-freshness checks to all hold."
+        },
+        {
+          "formula": "\u00acrequire_route_cert \u2228 route_cert_ok",
+          "id": "certs_ok",
+          "meaning": "The route certificate must hold exactly when the shell declares it mandatory."
+        },
+        {
+          "formula": "normal_path_ok \u2228 shed_path_ok",
+          "id": "final_admission_ok",
+          "meaning": "Admission succeeds only through the normal path or the explicit load-shedding emergency path."
+        },
+        {
+          "formula": "final_admission_ok \u2227 proof_ok \u2227 binding_ok",
+          "id": "proof_gated_final_admission_ok",
+          "meaning": "Proof-gated admission is a strict refinement of final admission that also requires proof and binding checks."
+        }
+      ],
+      "improvement_targets": [
+        "world-model promotion",
+        "contract strengthening",
+        "public assurance alignment"
+      ],
+      "known_gaps": [
+        "The promoted shell is a bounded integration-surface contract, not a kernel-backed admission baseline.",
+        "The current shell does not yet bind directly into a promoted API or autotrader capability slice."
+      ],
+      "observables": [
+        {
+          "id": "load_shedding_mode",
+          "meaning": "Whether the shell is using the emergency load-shedding path instead of the normal path.",
+          "type": "Bool"
+        },
+        {
+          "id": "proof_gated",
+          "meaning": "Whether the admitted request also satisfies the proof and binding refinement.",
+          "type": "Bool"
+        },
+        {
+          "id": "route_cert_required",
+          "meaning": "Whether the shell requires a route certificate on this input.",
+          "type": "Bool"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "normal_path_ok, shed_path_ok, final_admission_ok, and proof_gated_final_admission_ok are reconstructed from the bounded shell inputs"
+          ],
+          "id": "evaluate_resource_admission_shell",
+          "kind": "guard_evaluator",
+          "preconditions": [
+            "resource admission inputs are explicit booleans on the bounded shell",
+            "route-cert requirement and emergency mode are declared"
+          ]
+        },
+        {
+          "effects": [
+            "the input is classified into proof_gated, admitted_without_proof, or denied"
+          ],
+          "id": "classify_resource_admission_region",
+          "kind": "classifier",
+          "preconditions": [
+            "the bounded shell inputs are fixed"
+          ]
+        }
+      ],
+      "slice_id": "resource_load_shedding_regret_guard",
+      "sources": [
+        "src/integration/resource_load_shedding_regret_guard_regions.py",
+        "src/integration/cantor_region_assurance_bundle.py",
+        "tests/integration/test_resource_load_shedding_regret_guard_regions.py"
+      ],
+      "state_vars": [
+        {
+          "id": "resource_admission_ok",
+          "meaning": "Whether the normal-path resource admission precheck accepts the request.",
+          "type": "Bool"
+        },
+        {
+          "id": "artifact_binding_ok",
+          "meaning": "Whether the request is bound to the required supporting artifact context.",
+          "type": "Bool"
+        },
+        {
+          "id": "require_route_cert",
+          "meaning": "Whether a route certificate is required on this shell input.",
+          "type": "Bool"
+        },
+        {
+          "id": "load_shedding_mode",
+          "meaning": "Whether the shell is on the emergency load-shedding path.",
+          "type": "Bool"
+        },
+        {
+          "id": "proof_ok",
+          "meaning": "Whether the proof refinement bit is satisfied.",
+          "type": "Bool"
+        },
+        {
+          "id": "binding_ok",
+          "meaning": "Whether the binding refinement bit is satisfied.",
+          "type": "Bool"
         }
       ],
       "status": "contract"

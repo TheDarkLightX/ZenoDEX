@@ -195,6 +195,21 @@ def verify_tau_transaction_payload_signature(payload: Mapping[str, Any]) -> bool
         return False
 
 
+def tau_rpc_response_is_success(response: object) -> bool:
+    if not isinstance(response, str):
+        return False
+    text = response.strip()
+    if not text or "\x00" in text:
+        return False
+    normalized = text.upper()
+    if normalized == "SUCCESS":
+        return True
+    if not normalized.startswith("SUCCESS"):
+        return False
+    suffix = normalized[len("SUCCESS") :]
+    return bool(suffix) and suffix[0] in {":", " ", "\t"}
+
+
 def build_signed_tau_transaction(
     *,
     privkey: str | int | bytes | bytearray,

@@ -40,7 +40,7 @@
     {
       "module": "Proofs.ZenoPayoffLanguage",
       "path": "lean-mathlib/Proofs/ZenoPayoffLanguage.lean",
-      "sha256": "sha256:a63e9bd9063a5db5b3b3dcdfb32b9fa5bafc56449457b4bff64392a8bbc59db2",
+      "sha256": "sha256:7cfb0901997f54b30111285294973e894a9224727d3f6c752c55f3aa9c5f5303",
       "theorems": [
         "compile_correct",
         "compile_no_default",

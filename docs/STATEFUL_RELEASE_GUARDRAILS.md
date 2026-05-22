@@ -8,7 +8,7 @@ This note turns the current stateful weird-machine assurance results into a rele
 ReleaseGuardrailBasis := DeepGateGreen ∧ WitnessedSurfaces=10 ∧ ReachedNoWitness=0
 ```
 
-Standard reading: the release guardrails are based on a clean deep stateful campaign, full dangerous-surface witness coverage, and no remaining reachability gaps.
+Reading: the release guardrails are based on a clean deep stateful campaign, full dangerous-surface witness coverage, and no remaining reachability gaps.
 
 Practical consequence: this note is only valid as long as the deep lane continues to produce the same class of receipts.
 
@@ -25,7 +25,7 @@ Current basis snapshot:
 ReleaseOK -> DeepGateGreen ∧ TopWitnessesReplay ∧ CriticalSurfaceCoverageStable
 ```
 
-Standard reading: a release is acceptable only if the deep gate stays green, the top witness set still replays to the same reject families, and no critical surface loses witness coverage.
+Reading: a release is acceptable only if the deep gate stays green, the top witness set still replays to the same reject families, and no critical surface loses witness coverage.
 
 Practical consequence: these checks should be treated as release-blocking for routing, settlement, quote-receipt, and attestation refactors.
 
@@ -46,7 +46,7 @@ Invariant:
 candidate_reorder ∧ receipt_rehash -> reject(candidate_set_hash mismatch)
 ```
 
-Standard reading: if the route candidates are reordered and the receipt hash is repaired, the canonical route certificate must still fail.
+Reading: if the route candidates are reordered and the receipt hash is repaired, the canonical route certificate must still fail.
 
 Practical consequence: this blocks a high-value weird machine where an attacker tries to keep the receipt structurally valid while changing the winner relation.
 
@@ -63,7 +63,7 @@ Invariant:
 tamper_amount_out ∧ rehash -> reject(canonical_route_certificate_amount_out_mismatch)
 ```
 
-Standard reading: changing the quoted amount and then repairing the transport hash must still break the route certificate.
+Reading: changing the quoted amount and then repairing the transport hash must still break the route certificate.
 
 Practical consequence: this blocks cosmetic repair of a maliciously edited quote body.
 
@@ -80,7 +80,7 @@ Invariant:
 settlement_for_old_state ∧ state_moved -> reject(settlement mismatch)
 ```
 
-Standard reading: a settlement computed for an earlier state must fail once the state changes.
+Reading: a settlement computed for an earlier state must fail once the state changes.
 
 Practical consequence: this is one of the closest witnesses to actual value-transfer corruption, so it is release-critical.
 
@@ -97,7 +97,7 @@ Invariant:
 drop_hash ∧ rehash ∧ snapshot_drift -> reject(pool_snapshot_mismatch)
 ```
 
-Standard reading: repairing the receipt envelope is not enough; if the pool snapshot drifts afterward, the quote must still fail.
+Reading: repairing the receipt envelope is not enough; if the pool snapshot drifts afterward, the quote must still fail.
 
 Practical consequence: this blocks repaired-but-stale quote reuse.
 
@@ -114,7 +114,7 @@ Invariant:
 signed_at_epoch > consumer_now_epoch -> reject
 ```
 
-Standard reading: a future-dated attestation must not cross the settlement attestation boundary.
+Reading: a future-dated attestation must not cross the settlement attestation boundary.
 
 Practical consequence: this blocks temporal skew abuse in the attestation path.
 
@@ -124,7 +124,7 @@ Practical consequence: this blocks temporal skew abuse in the attestation path.
 PriorityOrder := preserve_canonicalization > preserve_freshness > preserve_replay > preserve_transport
 ```
 
-Standard reading: canonicalization and freshness guards carry more safety load than lower-level envelope hygiene.
+Reading: canonicalization and freshness guards carry more safety load than lower-level envelope hygiene.
 
 Practical consequence: if CI budgets or review attention are constrained, do not weaken or de-prioritize the top canonicalization/freshness witnesses first.
 
@@ -146,7 +146,7 @@ Current hotspot order:
 MainSafetyLoad := route_canonicalization_guard ∨ settlement_freshness_guard ∨ snapshot_freshness_guard ∨ attestation_temporal_guard
 ```
 
-Standard reading: the system currently relies most heavily on canonicalization, freshness, and attestation-time guards.
+Reading: the system currently relies most heavily on canonicalization, freshness, and attestation-time guards.
 
 Practical consequence: any refactor touching these guard families should require explicit witness replay before merge.
 
@@ -165,7 +165,7 @@ High-priority guard families:
 CriticalWitnessRank ≠ ProvenLiveExploit
 ```
 
-Standard reading: a critical-ranked witness is a high-value rejected bad state, not proof that the protocol previously accepted an exploit.
+Reading: a critical-ranked witness is a high-value rejected bad state, not proof that the protocol previously accepted an exploit.
 
 Practical consequence: public reporting should say these witnesses strengthen fail-closed assurance, not that they prove a past production exploit.
 
@@ -185,6 +185,6 @@ Practical consequence: public reporting should say these witnesses strengthen fa
 ThisNote := operator_release_guardrail ∧ not_claim_of_formal_proof
 ```
 
-Standard reading: this note is an operator-facing release discipline, not a formal proof artifact.
+Reading: this note is an operator-facing release discipline, not a formal proof artifact.
 
 Practical consequence: it complements, but does not replace, proofs, kernels, or formal contracts.
