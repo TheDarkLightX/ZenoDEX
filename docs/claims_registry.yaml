@@ -810,7 +810,6 @@ claims:
         - src/integration/zeno_ledger_v0.py
         - tests/integration/test_zeno_ledger_v0.py
         - tests/integration/test_zeno_ledger_verify_cli.py
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
       theorems:
         - ZenoLedgerZkTeeProofComposition.accepted_metadata_binds_header_roots
         - ZenoLedgerZkTeeProofComposition.accepted_metadata_digest_matches_header
@@ -861,7 +860,6 @@ claims:
         - tests/integration/test_zeno_ledger_risc0_proof_metadata.py
         - tests/integration/test_zeno_ledger_v0.py
         - tests/integration/test_zeno_ledger_verify_cli.py
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
 
   - id: rust_py:zeno_ledger:risc0_zenodex_spot_v1_fixture_equivalence_v0
     status: supported
@@ -908,7 +906,6 @@ claims:
         - src/core/cpmm.py
         - src/state/pools.py
         - src/state/canonical.py
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
 
   - id: rust:zeno_ledger:risc0_supported_transition_real_proof_smoke_v0
     status: supported
@@ -948,7 +945,6 @@ claims:
         - zk/state_proof_risc0/methods/build.rs
         - zk/state_proof_risc0/methods/guest/src/main.rs
         - zk/state_proof_risc0/cli/src/main.rs
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
 
   - id: py:zeno_ledger:tee_proof_metadata_adapter_v0
     status: supported
@@ -982,7 +978,6 @@ claims:
         - src/integration/zeno_ledger_v0.py
         - tests/integration/test_zeno_ledger_tee_proof_metadata.py
         - tests/integration/test_zeno_ledger_risc0_proof_metadata.py
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
 
   - id: py:confidential:route_quote_bundle_v0
     status: supported
@@ -1033,7 +1028,6 @@ claims:
         - tests/integration/test_zeno_ledger_verify_cli.py
         - src/integration/zeno_ledger_v0.py
         - src/integration/zeno_ledger_profile.py
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
 
   - id: py:zeno_ledger:validator_schedule_equivocation_boundary_v0
     status: supported
@@ -1158,7 +1152,6 @@ claims:
         - tests/integration/test_zeno_ledger_verify_cli.py
         - tools/zeno_ledger_risc0_proof_metadata.py
         - tools/zeno_ledger_tee_proof_metadata.py
-        - internal/ZENODEX_ZK_TEE_MATH_PLAN_2026_05_15.md
 
   - id: py:zeno_ledger:light_client_checkpoint_quorum_v0
     status: supported
@@ -1227,6 +1220,8 @@ claims:
         - cmd: bash tools/run_batch_auction_shell_assurance_gate.sh
       files:
         - src/kernels/dex/batch_auction_settler_v1.yaml
+        - tools/run_batch_auction_shell_assurance_gate.sh
+        - tools/check_batch_auction_shell_assurance_manifest.py
         - tools/batch_auction_shell_assurance_manifest.json
 
   - id: shell:batch_auction_settler_v1:native_adapter_equiv
@@ -1242,6 +1237,8 @@ claims:
         - cmd: bash tools/run_batch_auction_shell_assurance_gate.sh
       files:
         - src/kernels/dex/batch_auction_settler_v1.yaml
+        - tools/run_batch_auction_shell_assurance_gate.sh
+        - tools/check_batch_auction_shell_assurance_manifest.py
         - src/kernels/python/batch_auction_settler_v1_adapter.py
         - src/kernels/python/batch_auction_settler_v1_witness.py
         - generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
@@ -1260,9 +1257,13 @@ claims:
       check:
         - cmd: bash tools/run_batch_auction_ifql_vmo_gate.sh
       files:
+        - tools/run_batch_auction_ifql_vmo_gate.sh
+        - tools/check_batch_auction_ifql_vmo_manifest.py
         - tools/batch_auction_ifql_vmo_manifest.json
         - tools/intent_lattices/batch_auction_v7_observation_intent.json
-        - runs/batch_auction_compass_contract_v7.json
+        - tools/batch_auction_ifql_sources/batch_auction_compass_contract_v7.json
+        - tools/batch_auction_ifql_sources/batch_settler_v5_model.yaml
+        - tools/batch_auction_ifql_sources/batch_settler_v7_model.yaml
 
   - id: smt:settlement_swap_apply_witness_v1:inductive_z3_cvc5
     status: supported
@@ -2578,14 +2579,21 @@ claims:
         - cmd: python3 -m py_compile tools/check_zenocover_lp_loss_cover.py tests/tools/test_check_zenocover_lp_loss_cover.py
         - cmd: pytest -q tests/tools/test_check_zenocover_lp_loss_cover.py
       files:
+        - src/fire
         - tools/check_zenocover_lp_loss_cover.py
         - tests/tools/test_check_zenocover_lp_loss_cover.py
         - docs/ZENOCOVER_LP_LOSS_COVER_V1.md
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/bundle_manifest.json
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/object_manifest.json
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/instance_manifest.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/object_lock.json
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/certificate.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/compile_receipt.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/kernel_receipt.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/kernel_eval_receipt.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/kernel_settlement_receipt.json
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/proof_tree_certificate.json
+        - docs/fire_registry/devnet_v1/lp_loss_cover_v1/object_card.txt
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/replay_input.json
         - docs/fire_registry/devnet_v1/lp_loss_cover_v1/kernel_replay_receipt.json
 
@@ -2607,6 +2615,7 @@ claims:
         - cmd: python3 -m py_compile tools/check_zenocover_reserve_solvency.py tests/tools/test_check_zenocover_reserve_solvency.py
         - cmd: pytest -q tests/tools/test_check_zenocover_reserve_solvency.py
       files:
+        - src/fire
         - tools/check_zenocover_reserve_solvency.py
         - tests/tools/test_check_zenocover_reserve_solvency.py
         - tools/check_zenocover_lp_loss_cover.py
@@ -2635,7 +2644,6 @@ claims:
         - lean-mathlib/Proofs/ZenoCoverPayoutCap.lean
         - lean-mathlib/Proofs.lean
         - tests/formal/test_lean_zenocover_payout_cap.py
-        - internal/tokenomics/ZENOCOVER_CLAIM_VERIFIER_MODEL_V0.md
 
   - id: py:zenocover:bounded_attack_query_simulation_v0
     status: supported
@@ -2654,13 +2662,14 @@ claims:
     evidence:
       kind: pytest
       check:
-        - cmd: python3 tools/check_zenocover_attack_queries.py internal/zenocover/ATTACK_QUERY_MANIFEST_V0.json
+        - cmd: python3 tools/check_zenocover_attack_queries.py docs/zenocover_attack_query_manifest_v0.json
         - cmd: python3 -m py_compile tools/check_zenocover_attack_queries.py tests/tools/test_check_zenocover_attack_queries.py
         - cmd: pytest -q tests/tools/test_check_zenocover_attack_queries.py
       files:
+        - src/fire
         - tools/check_zenocover_attack_queries.py
         - tests/tools/test_check_zenocover_attack_queries.py
-        - internal/zenocover/ATTACK_QUERY_MANIFEST_V0.json
+        - docs/zenocover_attack_query_manifest_v0.json
         - tools/check_zenocover_reserve_solvency.py
         - tools/check_zenocover_claim_verifier_model.py
         - tools/check_zenocover_reserve_withdrawal_safety.py

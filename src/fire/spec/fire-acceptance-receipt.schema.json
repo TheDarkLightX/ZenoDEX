@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-acceptance-receipt.schema.json",
+  "title": "FIRE Package Acceptance Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_name",
+    "object_version",
+    "object_family",
+    "bundle_hash",
+    "bundle_manifest_sha256",
+    "object_hash",
+    "instance_hash",
+    "lock_hash",
+    "cert_sha256",
+    "artifacts",
+    "strict_requirements",
+    "package_acceptance",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-acceptance-receipt/v1"
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_family": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "bundle_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "bundle_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "instance_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "lock_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cert_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_manifest",
+        "object_instance",
+        "object_lock",
+        "certificate",
+        "object_card"
+      ],
+      "properties": {
+        "object_manifest": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "object_instance": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "object_lock": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "certificate": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "compile_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_eval_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_settlement_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "kernel_replay_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "proof_tree_certificate": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "object_card": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "replay_input": {
+          "$ref": "#/$defs/artifactPointer"
+        },
+        "replay_receipt": {
+          "$ref": "#/$defs/artifactPointer"
+        }
+      }
+    },
+    "strict_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "replay_input",
+        "compile_receipt",
+        "kernel_receipt",
+        "kernel_eval_receipt",
+        "kernel_replay_receipt",
+        "kernel_settlement_receipt",
+        "proof_tree_certificate"
+      ],
+      "properties": {
+        "replay_input": {
+          "type": "boolean"
+        },
+        "compile_receipt": {
+          "type": "boolean"
+        },
+        "kernel_receipt": {
+          "type": "boolean"
+        },
+        "kernel_eval_receipt": {
+          "type": "boolean"
+        },
+        "kernel_replay_receipt": {
+          "type": "boolean"
+        },
+        "kernel_settlement_receipt": {
+          "type": "boolean"
+        },
+        "proof_tree_certificate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "package_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok",
+        "accepted_gate",
+        "artifact_schemas_valid",
+        "instance_gates_ok",
+        "certificate_instance_gate_claims_ok",
+        "authorizes_settlement"
+      ],
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "accepted_gate": {
+          "const": "FIREPackageGate"
+        },
+        "artifact_schemas_valid": {
+          "const": true
+        },
+        "instance_gates_ok": {
+          "const": true
+        },
+        "certificate_instance_gate_claims_ok": {
+          "const": true
+        },
+        "authorizes_settlement": {
+          "const": false
+        }
+      }
+    },
+    "receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifactPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

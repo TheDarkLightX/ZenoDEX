@@ -1,0 +1,86 @@
+{
+  "all_negative_batch_count": 3,
+  "batches": 100,
+  "candidate_count_max": 32,
+  "candidate_count_mean": 31.96,
+  "candidate_count_min": 31,
+  "candidate_count_total": 3196,
+  "candidate_type_counts": {
+    "hard_attractive_output_mismatch": 100,
+    "hard_schema_policy_mismatch": 100,
+    "hard_unreduced_price": 100,
+    "invalid_all_zero": 100,
+    "invalid_balance": 97,
+    "invalid_limit_price": 100,
+    "invalid_negative_reserve": 100,
+    "invalid_noncanonical_fill_vector": 100,
+    "near_miss_adversarial": 99,
+    "random_noisy": 1850,
+    "valid": 447,
+    "valid_seed": 3
+  },
+  "candidates_per_batch": 32,
+  "coverage_ok": true,
+  "dedup_loss_count": 4,
+  "duplicate_hash_batches": 0,
+  "feature_dim_counts": {
+    "96": 3196
+  },
+  "hard_negative_count": 399,
+  "hard_negative_missing_types": [],
+  "hard_negative_rate": 0.12484355444305381,
+  "interpretation": {
+    "real_data_promotion_requirement": "A production-shadow audit should rerun the same coverage checks on real candidate distributions after removing user identifiers and secrets.",
+    "synthetic_boundary": "Rows are generated from fixed seeded synthetic pools, intents, balances, and candidate mutations; this is distributional coverage evidence, not live-order evidence."
+  },
+  "invalid_candidate_count": 2749,
+  "live_secret_key_hits": {},
+  "missing_mutation_by_batch": {
+    "invalid_balance": 3,
+    "near_miss_adversarial": 1
+  },
+  "missing_required_candidate_types": [],
+  "observed_candidate_types": [
+    "hard_attractive_output_mismatch",
+    "hard_schema_policy_mismatch",
+    "hard_unreduced_price",
+    "invalid_all_zero",
+    "invalid_balance",
+    "invalid_limit_price",
+    "invalid_negative_reserve",
+    "invalid_noncanonical_fill_vector",
+    "near_miss_adversarial",
+    "random_noisy",
+    "valid",
+    "valid_seed"
+  ],
+  "schema": "zenodex/energy/upba_v2_synthetic_candidate_coverage/v1",
+  "seed": 20260540,
+  "set_aware_feature_dim_counts": {
+    "147": 3196
+  },
+  "set_feature_dim_counts": {
+    "51": 3196
+  },
+  "source": "synthetic",
+  "source_counts": {
+    "synthetic": 3196
+  },
+  "synthetic_batches_requested": 100,
+  "synthetic_candidates_requested": 3200,
+  "synthetic_only": true,
+  "valid_candidate_count": 447,
+  "verifier_error_counts": {
+    "certificate fill exceeds intent amount_in": 1295,
+    "certificate fill net input is zero": 21,
+    "certificate fill output does not match uniform price": 395,
+    "certificate fill violates intent limit price": 3,
+    "certificate fills must be sorted by intent_id": 100,
+    "certificate price does not match canonical UPBA objective": 512,
+    "certificate price ratio must be reduced": 223,
+    "uniform batch certificate schema does not match policy_id": 100,
+    "uniform batch v2 requires at least one positive fill": 100
+  },
+  "winner_batch_count": 97,
+  "winner_batch_rate": 0.97
+}

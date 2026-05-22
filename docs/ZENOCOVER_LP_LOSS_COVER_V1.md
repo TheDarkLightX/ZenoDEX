@@ -62,7 +62,7 @@ claim-verifier model, and the reserve-withdrawal model:
 
 ```bash
 python3 tools/check_zenocover_attack_queries.py \
-  internal/zenocover/ATTACK_QUERY_MANIFEST_V0.json
+  docs/zenocover_attack_query_manifest_v0.json
 ```
 
 The cross-surface sweep checks bounded sequences where a withdrawal and a

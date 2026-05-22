@@ -1,0 +1,115 @@
+{
+  "manifest_version": 1,
+  "schema": "zenodex/disaster_obligation_certificate/v1",
+  "result_schema": "zenodex.campaign5.disaster_obligation_certificate_result.v1",
+  "axes": [
+    {
+      "name": "perp_sybil_bankruptcy_insurance_drain",
+      "obligations": ["adl_deficit_haircut", "budget_conservation", "economic_margin", "schema_total"]
+    },
+    {
+      "name": "perp_offsetting_leg_profit_after_bankruptcy",
+      "obligations": ["adl_deficit_haircut", "budget_conservation", "economic_margin", "schema_total"]
+    },
+    {
+      "name": "perp_treasury_draw_before_adl_haircut",
+      "obligations": ["adl_deficit_haircut", "budget_conservation", "economic_margin", "schema_total"]
+    },
+    {
+      "name": "jit_yield_vampire_snapshot_rewards",
+      "obligations": ["duration_exposure_accounting", "reward_budget_cap", "schema_total"]
+    },
+    {
+      "name": "lp_flash_stake_epoch_boundary_rewards",
+      "obligations": ["duration_exposure_accounting", "reward_budget_cap", "schema_total"]
+    },
+    {
+      "name": "exact_out_negative_cost_routing_cycle",
+      "obligations": ["hop_cap", "kernel_invariant_step", "resource_budget", "route_acyclicity", "schema_total"]
+    },
+    {
+      "name": "cyclic_wrapped_asset_exact_out_dos",
+      "obligations": ["hop_cap", "kernel_invariant_step", "resource_budget", "route_acyclicity", "schema_total"]
+    }
+  ],
+  "guards": [
+    {
+      "name": "schema_total_gate",
+      "covers": ["schema_total"]
+    },
+    {
+      "name": "twal_exposure_gate",
+      "covers": ["duration_exposure_accounting", "reward_budget_cap"]
+    },
+    {
+      "name": "adl_deficit_haircut_gate",
+      "covers": ["adl_deficit_haircut"]
+    },
+    {
+      "name": "settlement_budget_gate",
+      "covers": ["budget_conservation", "economic_margin"]
+    },
+    {
+      "name": "acyclic_routing_gate",
+      "covers": ["hop_cap", "route_acyclicity"]
+    },
+    {
+      "name": "kernel_invariant_gate",
+      "covers": ["kernel_invariant_step", "resource_budget"]
+    }
+  ],
+  "selected_guard_set": [
+    "schema_total_gate",
+    "twal_exposure_gate",
+    "adl_deficit_haircut_gate",
+    "settlement_budget_gate",
+    "acyclic_routing_gate",
+    "kernel_invariant_gate"
+  ],
+  "private_witnesses": [
+    {"guard_name": "schema_total_gate", "private_obligation": "schema_total"},
+    {"guard_name": "twal_exposure_gate", "private_obligation": "duration_exposure_accounting"},
+    {"guard_name": "adl_deficit_haircut_gate", "private_obligation": "adl_deficit_haircut"},
+    {"guard_name": "settlement_budget_gate", "private_obligation": "economic_margin"},
+    {"guard_name": "acyclic_routing_gate", "private_obligation": "route_acyclicity"},
+    {"guard_name": "kernel_invariant_gate", "private_obligation": "kernel_invariant_step"}
+  ],
+  "candidate_probes": [
+    {
+      "name": "another_epoch_boundary_yield_variant",
+      "obligations": ["duration_exposure_accounting", "reward_budget_cap", "schema_total"],
+      "expected_classification": "existing_class"
+    },
+    {
+      "name": "reward_budget_only_variant",
+      "obligations": ["reward_budget_cap"],
+      "expected_classification": "dominated_by_existing_class"
+    },
+    {
+      "name": "cubic_root_generosity_variant",
+      "obligations": ["kernel_invariant_step", "post_calculation_k_assertion"],
+      "expected_classification": "new_atom_required"
+    },
+    {
+      "name": "uniform_batch_lvr_variant",
+      "obligations": ["order_permutation_invariance", "uniform_batch_clearing"],
+      "expected_classification": "new_atom_required"
+    }
+  ],
+  "expected": {
+    "axis_count": 7,
+    "quotient_class_count": 3,
+    "antichain_class_count": 3,
+    "dominated_class_count": 0,
+    "required_obligation_count": 10,
+    "guard_count": 6,
+    "selected_guard_count": 6,
+    "private_witness_count": 6,
+    "compression_ratio_axis_to_antichain": "7:3",
+    "selected_guards_all_forced": true,
+    "selected_guard_set_covers_required_obligations": true,
+    "private_certificate_proves_subset_minimality": true,
+    "private_certificate_proves_cardinality_optimality": true,
+    "exhaustive_search_agrees_with_private_certificate": true
+  }
+}

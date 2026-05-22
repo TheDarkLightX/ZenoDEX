@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-cert.schema.json",
+  "title": "FIRE Interval Certificate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "root"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-interval-certificate/v1"
+    },
+    "root": {
+      "$ref": "#/$defs/node"
+    },
+    "instance_gate_claims": {
+      "$ref": "#/$defs/instanceGateClaims"
+    }
+  },
+  "$defs": {
+    "evidenceLevel": {
+      "type": "string",
+      "enum": [
+        "proved",
+        "contract",
+        "implemented",
+        "tested_discovery",
+        "hypothesis"
+      ]
+    },
+    "instanceGateClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "param_ok",
+        "authorization_ok",
+        "nonce_ok",
+        "maturity_ok",
+        "window_ok"
+      ],
+      "properties": {
+        "param_ok": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "authorization_ok": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "nonce_ok": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "maturity_ok": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "window_ok": {
+          "$ref": "#/$defs/evidenceLevel"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "lower",
+        "upper",
+        "children"
+      ],
+      "properties": {
+        "rule": {
+          "type": "string",
+          "enum": [
+            "const",
+            "exact_param",
+            "source_bound",
+            "add",
+            "sub",
+            "mul",
+            "min",
+            "max"
+          ]
+        },
+        "lower": {
+          "type": "integer"
+        },
+        "upper": {
+          "type": "integer"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "rule": {
+                "const": "const"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "value"
+            ],
+            "not": {
+              "required": [
+                "name"
+              ]
+            },
+            "properties": {
+              "children": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "rule": {
+                "enum": [
+                  "exact_param",
+                  "source_bound"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "name"
+            ],
+            "not": {
+              "required": [
+                "value"
+              ]
+            },
+            "properties": {
+              "children": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "rule": {
+                "enum": [
+                  "add",
+                  "sub",
+                  "mul",
+                  "min",
+                  "max"
+                ]
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "value"
+                  ]
+                },
+                {
+                  "required": [
+                    "name"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "children": {
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

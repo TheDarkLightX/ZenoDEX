@@ -115,11 +115,9 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "tests/integration/test_zeno_ledger_node.py::test_zeno_ledger_node_public_operator_rejects_public_fixture_endpoints" in release_gate
     assert "tests/integration/test_zeno_ledger_node.py::test_zeno_ledger_node_public_operator_accepts_local_env_auth_forwarding" in release_gate
 
-    for path in (
-        ROOT / ".github/workflows/ci.yml",
-        ROOT / ".github/workflows/security.yml",
-        ROOT / ".github/workflows/release-integrity.yml",
-        ROOT / ".github/workflows/zeno-oracle-mvp.yml",
-    ):
+    workflow_paths = sorted((ROOT / ".github/workflows").glob("*.yml"))
+    assert workflow_paths
+    for path in workflow_paths:
         text = path.read_text(encoding="utf-8")
-        assert "pip install --require-hashes -r requirements-dev.lock.txt" in text
+        if "pip install" in text:
+            assert "pip install --require-hashes -r requirements-dev.lock.txt" in text

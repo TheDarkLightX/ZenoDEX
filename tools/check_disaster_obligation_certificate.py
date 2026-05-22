@@ -173,6 +173,8 @@ def _classify_candidate(
 def evaluate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
     _require(int(manifest.get("manifest_version", -1)) == 1, "manifest_version mismatch")
     _require(manifest.get("schema") == "zenodex/disaster_obligation_certificate/v1", "schema mismatch")
+    result_schema = manifest.get("result_schema", "zenodex.disaster_obligation_certificate_result.v1")
+    _require(isinstance(result_schema, str) and result_schema, "result_schema must be a non-empty string")
 
     axes = _parse_named_sets(manifest.get("axes"), value_key="obligations", ctx="axes")
     guards = _parse_named_sets(manifest.get("guards"), value_key="covers", ctx="guards")
@@ -243,6 +245,8 @@ def evaluate_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
         )
 
     result = {
+        "schema": result_schema,
+        "status": "accepted",
         "ok": True,
         "axis_count": len(axes),
         "quotient_class_count": len(classes),
