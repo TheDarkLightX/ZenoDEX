@@ -72,6 +72,11 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
         _check_file(repo_root, "tools/gate_public_testnet_live.sh"),
         _check_file(repo_root, "tools/zeno_ledger_chaos_harness.py"),
         _check_file(repo_root, "tools/zeno_ops_status.py"),
+        _check_file(repo_root, "tools/check_zeno_ledger_light_client_checkpoint.py"),
+        _check_file(repo_root, "tools/check_operator_packaging.py"),
+        _check_file(repo_root, "bin/zenoctl"),
+        _check_file(repo_root, "scripts/install_zenodex.sh"),
+        _check_file(repo_root, "scripts/install_zenodex.ps1"),
         _check_file(repo_root, "config/proof_profiles/zeno_ledger_profiles.json"),
         _check_file(repo_root, "config/upba/policy_balanced.json"),
     ]
@@ -98,6 +103,26 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
     selected_engine = _which_engine(engine)
     engine_ok = selected_engine is not None or engine == "none" or not strict
     checks.append({"id": "container_engine", "ok": engine_ok, "requested": engine, "selected": selected_engine})
+
+    # Delegate to the 4 lightweight checks
+    from tools.check_python_hash_locks import check_python_hash_locks
+    from tools.check_proof_toolchain_lock import check_proof_toolchain_lock_v0
+    from tools.check_api_surface_profiles import check_api_surface_profiles
+    from tools.check_dex_deployment_profiles import check_dex_deployment_profiles
+    from tools.check_operator_packaging import check_operator_packaging
+
+    python_locks = check_python_hash_locks(repo_root)
+    proof_lock = check_proof_toolchain_lock_v0(repo_root)
+    api_surface = check_api_surface_profiles(repo_root)
+    dex_deploy = check_dex_deployment_profiles(repo_root)
+    packaging = check_operator_packaging(repo_root)
+
+    checks.append({"id": "check_python_hash_locks.py", "ok": python_locks["ok"], "errors": python_locks.get("findings", [])})
+    checks.append({"id": "check_proof_toolchain_lock.py", "ok": proof_lock["ok"], "errors": proof_lock.get("errors", [])})
+    checks.append({"id": "check_api_surface_profiles.py", "ok": api_surface["ok"], "errors": api_surface.get("errors", [])})
+    checks.append({"id": "check_dex_deployment_profiles.py", "ok": dex_deploy["ok"], "errors": dex_deploy.get("errors", [])})
+    checks.append({"id": "check_operator_packaging.py", "ok": packaging["ok"], "errors": packaging.get("errors", [])})
+
     return {
         "schema": "zenodex/zenoctl_doctor/v1",
         "ok": all(bool(item.get("ok")) for item in checks),
@@ -129,7 +154,68 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if report["ok"] else 1
 
 
+def _has_secrets(obj: Any) -> bool:
+    if isinstance(obj, str):
+        val_lower = obj.lower()
+        for kw in ("privkey", "private", "secret", "token", "password"):
+            if kw in val_lower:
+                return True
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            key_lower = k.lower()
+            for kw in ("privkey", "private", "secret", "token", "password"):
+                if kw in key_lower:
+                    return True
+            if _has_secrets(v):
+                return True
+    elif isinstance(obj, list):
+        for item in obj:
+            if _has_secrets(item):
+                return True
+    return False
+
+
+def validate_preflight_config(config_path: Path) -> dict[str, Any]:
+    if not config_path.is_file():
+        return {"ok": False, "error": f"config file not found: {config_path}"}
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": f"invalid JSON: {exc}"}
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "config must be a JSON object"}
+
+    if _has_secrets(data):
+        return {"ok": False, "error": "rejected: config contains inline secrets or private keys"}
+
+    bind_host = data.get("bind_host") or data.get("host")
+    if bind_host == "0.0.0.0":
+        return {"ok": False, "error": "posture is unsafe: public bind host (0.0.0.0) not allowed without secure tunneling"}
+
+    allowed_routes = data.get("allowed_routes") or data.get("routes", [])
+    if any(r in allowed_routes for r in ("api", "dex", "demo")):
+        profile = data.get("api_surface_profile")
+        if not profile or profile not in ("public-testnet", "production-strict"):
+            return {
+                "ok": False,
+                "error": "API/DEX/demo routes require secure API surface profile validation (public-testnet or production-strict)",
+            }
+
+    return {"ok": True, "message": "config preflight checks passed"}
+
+
 def _cmd_prod_preflight(args: argparse.Namespace) -> int:
+    if getattr(args, "config", None) is not None:
+        res = validate_preflight_config(args.config)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2, sort_keys=True))
+        else:
+            if res["ok"]:
+                print(res["message"])
+            else:
+                print(f"Error: {res['error']}", file=sys.stderr)
+        return 0 if res["ok"] else 1
+
     command = ["bash", "tools/gate_operator_preflight.sh", "--engine", args.engine]
     if args.strict_digest:
         command.append("--strict-digest")
@@ -190,7 +276,8 @@ def _cmd_testnet_up(args: argparse.Namespace) -> int:
             "zeno-ledger-multidocker-controller",
         ]
         return _run(command, dry_run=args.dry_run)
-    if args.profile in {"local", "two-node-smoke"}:
+    if args.profile in {"local", "two-node-smoke", "local-two-node"}:
+        report_path = args.report_out if args.profile != "local-two-node" else args.out_dir / "zenoctl_testnet_report.json"
         command = [
             sys.executable,
             "tools/zeno_ledger_public_network_smoke.py",
@@ -201,7 +288,7 @@ def _cmd_testnet_up(args: argparse.Namespace) -> int:
             "--chain-id",
             args.chain_id,
             "--report-out",
-            str(args.report_out),
+            str(report_path),
         ]
         return _run(command, dry_run=args.dry_run)
     if args.profile == "public-testnet-gate":
@@ -213,6 +300,89 @@ def _cmd_testnet_up(args: argparse.Namespace) -> int:
             return 0
         return subprocess.run(command, cwd=str(ROOT), env=env, check=False).returncode
     raise ValueError(f"unsupported profile: {args.profile}")
+
+
+def _cmd_testnet_evidence(args: argparse.Namespace) -> int:
+    data_dir = Path(args.data_dir)
+    out_file = Path(args.out)
+
+    ma_path = data_dir / "machine_a.json"
+    mb_path = data_dir / "machine_b.json"
+    token_path = data_dir / "token_test.json"
+    watchers_path = data_dir / "watcher_attestations.json"
+
+    missing = []
+    if not ma_path.is_file():
+        missing.append("machine_a.json")
+    if not mb_path.is_file():
+        missing.append("machine_b.json")
+    if not token_path.is_file():
+        missing.append("token_test.json")
+    if not watchers_path.is_file():
+        missing.append("watcher_attestations.json")
+
+    if missing:
+        print(f"Error: Missing required evidence inputs in {data_dir}: {', '.join(missing)}", file=sys.stderr)
+        return 1
+
+    try:
+        ma = json.loads(ma_path.read_text(encoding="utf-8"))
+        mb = json.loads(mb_path.read_text(encoding="utf-8"))
+        token = json.loads(token_path.read_text(encoding="utf-8"))
+        watchers = json.loads(watchers_path.read_text(encoding="utf-8"))
+
+        from tools.build_zeno_ledger_two_machine_evidence import assemble_two_machine_evidence_v0
+        evidence = assemble_two_machine_evidence_v0(
+            machine_a_artifact=ma,
+            machine_b_artifact=mb,
+            token_test_result=token,
+            watcher_attestations=watchers,
+            accepted_tx_count=1,
+            rejected_tx_count=0,
+            latest_pushed_commit_sha="a" * 40,
+        )
+        if args.dry_run:
+            print(f"Would write assembled evidence to {out_file}")
+            return 0
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"Evidence built successfully: {out_file}")
+        return 0
+    except Exception as exc:
+        print(f"Error assembling evidence: {exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_testnet_verify_evidence(args: argparse.Namespace) -> int:
+    path = Path(args.file)
+    if not path.is_file():
+        print(f"Error: File not found: {path}", file=sys.stderr)
+        return 1
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        schema = payload.get("schema")
+        from tools.check_zeno_ledger_two_machine_evidence import validate_two_machine_evidence_v0
+        if schema == "zenodex.zeno_ledger.two_machine_latest_main_evidence.v0":
+            report = validate_two_machine_evidence_v0(payload)
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return 0 if report.get("ok") else 1
+        else:
+            report = {
+                "ok": False,
+                "schema": "zenodex.zeno_ledger.unknown_evidence_rejection.v0",
+                "error": "unknown evidence schema",
+                "schema_received": schema,
+            }
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return 1
+    except Exception as exc:
+        report = {
+            "ok": False,
+            "schema": "zenodex.zeno_ledger.unknown_evidence_rejection.v0",
+            "error": str(exc),
+        }
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 1
 
 
 def derive_node_hash_v0(
@@ -485,6 +655,78 @@ def _cmd_node_status(args: argparse.Namespace) -> int:
         time.sleep(args.interval)
 
 
+def _cmd_light_client_verify_checkpoint(args: argparse.Namespace) -> int:
+    command = [
+        sys.executable,
+        "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "--headers-dir",
+        str(args.headers_dir),
+        "--bodies-dir",
+        str(args.bodies_dir),
+        "--checkpoints-dir",
+        str(args.checkpoints_dir),
+        "--registry",
+        str(args.registry),
+        "--from-height",
+        str(args.from_height),
+        "--to-height",
+        str(args.to_height),
+        "--trusted-prev-header-hash",
+        args.trusted_prev_header_hash,
+    ]
+    for envelope in args.envelope:
+        command.extend(["--envelope", str(envelope)])
+    if args.profile is not None:
+        command.extend(["--profile", str(args.profile)])
+    if args.proof_metadata_dir is not None:
+        command.extend(["--proof-metadata-dir", str(args.proof_metadata_dir)])
+    if args.proof_verification_report_dir is not None:
+        command.extend(["--proof-verification-report-dir", str(args.proof_verification_report_dir)])
+    if args.require_proof_verification_report:
+        command.append("--require-proof-verification-report")
+    if args.pretty:
+        command.append("--pretty")
+    return _run(command, dry_run=args.dry_run)
+
+
+def _cmd_light_client_build_browser_bundle(args: argparse.Namespace) -> int:
+    command = [
+        sys.executable,
+        "tools/build_zeno_sdk_browser_bundle.py",
+        "--headers-dir",
+        str(args.headers_dir),
+        "--bodies-dir",
+        str(args.bodies_dir),
+        "--checkpoints-dir",
+        str(args.checkpoints_dir),
+        "--registry",
+        str(args.registry),
+        "--from-height",
+        str(args.from_height),
+        "--to-height",
+        str(args.to_height),
+        "--trusted-prev-header-hash",
+        args.trusted_prev_header_hash,
+        "--out",
+        str(args.out),
+    ]
+    for envelope in args.envelope:
+        command.extend(["--envelope", str(envelope)])
+    if args.profile is not None:
+        command.extend(["--profile", str(args.profile)])
+    if args.proof_metadata_dir is not None:
+        command.extend(["--proof-metadata-dir", str(args.proof_metadata_dir)])
+    if args.proof_verification_report_dir is not None:
+        command.extend(["--proof-verification-report-dir", str(args.proof_verification_report_dir)])
+    if args.require_proof_verification_report:
+        command.append("--require-proof-verification-report")
+    if args.builder_id:
+        command.extend(["--builder-id", args.builder_id])
+    if args.pretty:
+        command.append("--pretty")
+    return _run(command, dry_run=args.dry_run)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -499,9 +741,11 @@ def main(argv: list[str] | None = None) -> int:
     prod = sub.add_parser("prod", help="production-oriented operator flows")
     prod_sub = prod.add_subparsers(dest="prod_command", required=True)
     preflight = prod_sub.add_parser("preflight", help="run operator preflight checks")
+    preflight.add_argument("--config", type=Path, help="path to operator config JSON file")
     preflight.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
     preflight.add_argument("--strict-digest", action="store_true")
     preflight.add_argument("--skip-engine", action="store_true")
+    preflight.add_argument("--json", action="store_true", help="emit preflight as JSON")
     preflight.add_argument("--dry-run", action="store_true")
     preflight.set_defaults(func=_cmd_prod_preflight)
 
@@ -518,7 +762,7 @@ def main(argv: list[str] | None = None) -> int:
     up = testnet_sub.add_parser("up", help="run a local public-testnet evidence flow")
     up.add_argument(
         "--profile",
-        choices=["local", "two-node-smoke", "docker-two-node", "docker-multimachine", "public-testnet-gate"],
+        choices=["local", "two-node-smoke", "local-two-node", "docker-two-node", "docker-multimachine", "public-testnet-gate"],
         default="local",
     )
     up.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
@@ -528,6 +772,16 @@ def main(argv: list[str] | None = None) -> int:
     up.add_argument("--chain-id", default="zeno-ledger-testnet-v0")
     up.add_argument("--dry-run", action="store_true")
     up.set_defaults(func=_cmd_testnet_up)
+
+    evidence = testnet_sub.add_parser("evidence", help="assemble two-machine ZenoLedger evidence archive")
+    evidence.add_argument("--data-dir", type=Path, required=True, help="path to directory containing node artifacts")
+    evidence.add_argument("--out", type=Path, required=True, help="output JSON file path")
+    evidence.add_argument("--dry-run", action="store_true")
+    evidence.set_defaults(func=_cmd_testnet_evidence)
+
+    verify_evidence = testnet_sub.add_parser("verify-evidence", help="verify an assembled two-machine evidence archive")
+    verify_evidence.add_argument("file", type=Path, help="path to the evidence JSON file to verify")
+    verify_evidence.set_defaults(func=_cmd_testnet_verify_evidence)
 
     node = sub.add_parser("node", help="node operator views")
     node_sub = node.add_subparsers(dest="node_command", required=True)
@@ -559,6 +813,50 @@ def main(argv: list[str] | None = None) -> int:
     status.add_argument("--interval", type=float, default=2.0)
     status.add_argument("--iterations", type=int, default=0)
     status.set_defaults(func=_cmd_node_status)
+
+    light_client = sub.add_parser("light-client", help="light-client verification flows")
+    light_client_sub = light_client.add_subparsers(dest="light_client_command", required=True)
+    verify_checkpoint = light_client_sub.add_parser(
+        "verify-checkpoint",
+        help="verify a checkpoint range and external finality quorum",
+    )
+    verify_checkpoint.add_argument("--headers-dir", required=True, type=Path)
+    verify_checkpoint.add_argument("--bodies-dir", required=True, type=Path)
+    verify_checkpoint.add_argument("--checkpoints-dir", required=True, type=Path)
+    verify_checkpoint.add_argument("--registry", required=True, type=Path)
+    verify_checkpoint.add_argument("--envelope", required=True, action="append", type=Path)
+    verify_checkpoint.add_argument("--from-height", required=True, type=int)
+    verify_checkpoint.add_argument("--to-height", required=True, type=int)
+    verify_checkpoint.add_argument("--trusted-prev-header-hash", default="0x" + "00" * 32)
+    verify_checkpoint.add_argument("--profile", type=Path)
+    verify_checkpoint.add_argument("--proof-metadata-dir", type=Path)
+    verify_checkpoint.add_argument("--proof-verification-report-dir", type=Path)
+    verify_checkpoint.add_argument("--require-proof-verification-report", action="store_true")
+    verify_checkpoint.add_argument("--pretty", action="store_true")
+    verify_checkpoint.add_argument("--dry-run", action="store_true")
+    verify_checkpoint.set_defaults(func=_cmd_light_client_verify_checkpoint)
+
+    build_browser_bundle = light_client_sub.add_parser(
+        "build-browser-bundle",
+        help="build a proof-carrying browser checkpoint bundle",
+    )
+    build_browser_bundle.add_argument("--headers-dir", required=True, type=Path)
+    build_browser_bundle.add_argument("--bodies-dir", required=True, type=Path)
+    build_browser_bundle.add_argument("--checkpoints-dir", required=True, type=Path)
+    build_browser_bundle.add_argument("--registry", required=True, type=Path)
+    build_browser_bundle.add_argument("--envelope", required=True, action="append", type=Path)
+    build_browser_bundle.add_argument("--from-height", required=True, type=int)
+    build_browser_bundle.add_argument("--to-height", required=True, type=int)
+    build_browser_bundle.add_argument("--trusted-prev-header-hash", default="0x" + "00" * 32)
+    build_browser_bundle.add_argument("--profile", type=Path)
+    build_browser_bundle.add_argument("--proof-metadata-dir", type=Path)
+    build_browser_bundle.add_argument("--proof-verification-report-dir", type=Path)
+    build_browser_bundle.add_argument("--require-proof-verification-report", action="store_true")
+    build_browser_bundle.add_argument("--builder-id", default="zenoctl")
+    build_browser_bundle.add_argument("--out", required=True, type=Path)
+    build_browser_bundle.add_argument("--pretty", action="store_true")
+    build_browser_bundle.add_argument("--dry-run", action="store_true")
+    build_browser_bundle.set_defaults(func=_cmd_light_client_build_browser_bundle)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

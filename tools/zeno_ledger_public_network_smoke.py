@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 import threading
+import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,6 +40,8 @@ from tools.zeno_ledger_node import (
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.public_network_smoke_report.v0"
+EXPECTED_FEATURE_COUNT = 10
+EXPECTED_WATCHER_COUNT = 2
 
 
 class _QuietStaticHandler(SimpleHTTPRequestHandler):
@@ -62,6 +65,7 @@ def _start_node_server(data_dir: Path, *, submit_peer_url: str | None = None) ->
         port=0,
         enable_testnet_intake=True,
         enable_testnet_faucet=True,
+        allow_unauthenticated_testnet_writes=True,
         submit_peer_url=submit_peer_url,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -85,7 +89,67 @@ def _post_json(url: str, value: dict[str, object]) -> dict[str, object]:
     return obj
 
 
+def validate_public_network_smoke_report_v0(report: dict[str, Any]) -> list[str]:
+    """Validate the exact state-machine trace expected from the smoke scenario."""
+
+    errors: list[str] = []
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+            errors.append(message)
+
+    def field(name: str) -> Any:
+        return report.get(name)
+
+    require(field("schema") == REPORT_SCHEMA, "schema mismatch")
+    require(field("ok") is True, "ok must be true")
+    require(field("status") == "accepted", "status must be accepted")
+    elapsed_ms = field("elapsed_ms")
+    require(isinstance(elapsed_ms, (int, float)) and elapsed_ms >= 0, "elapsed_ms must be nonnegative")
+    require(isinstance(field("network_id"), str) and bool(field("network_id")), "network_id must be non-empty")
+    require(isinstance(field("chain_id"), str) and bool(field("chain_id")), "chain_id must be non-empty")
+
+    for name in ("source_feature_count", "sync_a_feature_count", "sync_b_feature_count"):
+        require(field(name) == EXPECTED_FEATURE_COUNT, f"{name} must be {EXPECTED_FEATURE_COUNT}")
+
+    for name in ("node_a_watcher_count", "node_b_watcher_count"):
+        require(field(name) == EXPECTED_WATCHER_COUNT, f"{name} must be {EXPECTED_WATCHER_COUNT}")
+
+    expected_heights = {
+        "faucet_existing_height": 6,
+        "swap_height": 7,
+        "faucet_new_asset_height": 8,
+        "create_fake_pool_height": 9,
+        "add_fake_pool_liquidity_height": 10,
+        "remove_fake_pool_liquidity_height": 11,
+        "forwarded_faucet_height": 12,
+        "node_b_latest_height": 12,
+    }
+    for name, expected in expected_heights.items():
+        require(field(name) == expected, f"{name} must be {expected}")
+
+    require(field("node_b_pulled_count") == 6, "node_b_pulled_count must be 6")
+    require(field("node_b_total_pulled_count") == 7, "node_b_total_pulled_count must be 7")
+    require(field("forwarded_pull_count") == 1, "forwarded_pull_count must be 1")
+    require(field("forwarded_pull_to_height") == 12, "forwarded_pull_to_height must be 12")
+
+    require(field("pre_pull_peer_check_ok") is True, "pre-pull peer check must pass")
+    require(field("pre_pull_peer_height_relation") == "peer_ahead", "pre-pull peer must be ahead")
+    require(field("pre_pull_common_height") == 5, "pre-pull common height must be 5")
+    require(field("post_pull_peer_check_ok") is True, "post-pull peer check must pass")
+    require(field("post_pull_peer_height_relation") == "same_height", "post-pull peer relation must be same_height")
+    require(field("post_pull_common_height") == 11, "post-pull common height must be 11")
+    require(field("final_peer_check_ok") is True, "final peer check must pass")
+    require(field("final_peer_height_relation") == "same_height", "final peer relation must be same_height")
+    require(field("final_common_height") == 12, "final common height must be 12")
+
+    forwarded_to = field("forwarded_faucet_submit_peer")
+    require(isinstance(forwarded_to, str) and forwarded_to.startswith("http://127.0.0.1:"), "forwarded faucet must target local writer peer")
+    return errors
+
+
 def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str) -> dict[str, Any]:
+    start = time.perf_counter()
     source_bundle = out_dir / "source_bundle"
     node_a_bundle = out_dir / "node_a_bundle"
     node_b_bundle = out_dir / "node_b_bundle"
@@ -311,6 +375,7 @@ def run_public_network_smoke_v0(*, out_dir: Path, network_id: str, chain_id: str
         "schema": REPORT_SCHEMA,
         "ok": ok,
         "status": "accepted" if ok else "rejected",
+        "elapsed_ms": (time.perf_counter() - start) * 1000.0,
         "out_dir": str(out_dir),
         "network_id": network_id,
         "chain_id": chain_id,
@@ -349,6 +414,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--network-id", default=DEFAULT_CHAIN_ID)
     parser.add_argument("--chain-id", default=DEFAULT_CHAIN_ID)
+    parser.add_argument("--report-out", type=Path)
     args = parser.parse_args(argv)
 
     try:
@@ -357,8 +423,19 @@ def main(argv: list[str] | None = None) -> int:
             network_id=args.network_id,
             chain_id=args.chain_id,
         )
+        trace_errors = validate_public_network_smoke_report_v0(report)
+        if trace_errors:
+            report = {
+                **report,
+                "ok": False,
+                "status": "rejected",
+                "trace_errors": trace_errors,
+            }
     except Exception as exc:
         report = {"schema": REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
+    if args.report_out is not None:
+        args.report_out.parent.mkdir(parents=True, exist_ok=True)
+        args.report_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 

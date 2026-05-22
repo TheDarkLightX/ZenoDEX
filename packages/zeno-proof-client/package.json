@@ -1,0 +1,62 @@
+{
+  "name": "@zenodex/proof-client",
+  "version": "0.1.0",
+  "description": "Browser/Node ZenoLedger light-client SDK: verifies browser checkpoint bundles, independent BLS12-381 quorum, and wallet-sync state transitions.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./bls": {
+      "types": "./src/zenoBlsVerifier.d.ts",
+      "import": "./src/zenoBlsVerifier.js"
+    },
+    "./client": {
+      "types": "./src/zenoProofClient.d.ts",
+      "import": "./src/zenoProofClient.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "src",
+    "README.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@noble/curves": "1.2.0"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=dot test/*.test.mjs",
+    "lint": "node -e \"console.log('lint runs from the consuming repo')\"",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "keywords": [
+    "zenodex",
+    "tau",
+    "light-client",
+    "bls",
+    "bls12-381",
+    "browser",
+    "wallet",
+    "sdk"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zenodex/zenodex.git",
+    "directory": "packages/zeno-proof-client"
+  }
+}

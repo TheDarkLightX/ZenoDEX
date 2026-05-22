@@ -17,13 +17,13 @@ from src.integration.zeno_ledger_profile import (  # noqa: E402
     validate_checkpoint_admission_v0,
     validate_zeno_ledger_profile_v0,
 )
-from src.integration.zeno_ledger_v0 import (
+from src.integration.zeno_ledger_v0 import (  # noqa: E402
     canonical_header_hash_v0,
     validate_checkpoint_header_binding_v0,
     validate_header_body_roots_v0,
     validate_header_v0,
-    validate_proof_metadata_v0,
     validate_proof_metadata_header_binding_v0,
+    validate_proof_metadata_v0,
 )
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -226,7 +226,7 @@ def validate_proof_verification_report_v0(
         raise ValueError("proof_verification_report must be accepted")
     if _require_bool(obj.get("header_bound"), name="proof_verification_report.header_bound") is not True:
         raise ValueError("proof_verification_report must be header-bound")
-    for key in ("proof_kind", "program_id", "verifier_id"):
+    for key in ("proof_kind", "program_id", "verifier_id", "toolchain_lock_hash"):
         if obj.get(key) != metadata.get(key):
             raise ValueError(f"proof_verification_report/metadata {key} mismatch")
     if obj["proof_journal_hash"] != header["proof_journal_hash"]:

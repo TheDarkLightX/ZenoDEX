@@ -1505,6 +1505,30 @@ claims:
         - formal/tla/PerpIngressSchemaShadow.cfg
         - tools/run_tla_models.py
 
+  - id: tla:zeno_sdk_wallet_sync_checkpoint:no_rollback_or_same_height_drift
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ Zeno SDK wallet-sync checkpoint shadow model, accepted
+      updates require a validated checkpoint bundle, accepted updates from an
+      existing state require a valid current-state hash, checkpoint height never
+      decreases, chain id cannot change after initial sync, same-height accepted
+      updates cannot change app/checkpoint commitments, and rejected updates do
+      not mutate wallet-sync state.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the browser/mobile wallet-sync
+        reducer control boundary. Bundle validation, BLS quorum verification,
+        JSON parsing, full ledger replay, and wallet signing are host-side
+        predicates outside this TLA model.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ZenoSdkWalletSyncCheckpoint.tla
+        - formal/tla/ZenoSdkWalletSyncCheckpoint.cfg
+        - tools/run_tla_models.py
+
   - id: tla:perp_epoch_scheduler:terminates_each_epoch
     status: supported
     layer: liveness
@@ -2779,3 +2803,295 @@ claims:
         - tools/zenoproof_registry_manifest.json
         - tests/test_zenodex_campaign5_disaster_obligation_certificate.py
         - tests/test_zenoproof_verify.py
+
+  - id: py:derivatives_authorization_matrix:gap_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The derivative authorization coverage matrix fail-closed checks the
+      current covered/open boundary for perps, funding-rate derivatives, IL
+      futures, curve selection, and general CFMO/FIRE derivative work. It
+      preserves the disputed posture of funding-rate v1 and curve-selection v1
+      settlement authorization claims, records required open gaps for
+      authorization-complete settlement, and prevents production-ready claims
+      while those gaps remain open. This is a boundary and evidence-gating
+      claim; it does not upgrade any derivative market into live-value
+      production readiness.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_derivatives_authorization_matrix.py
+        - cmd: python3 -m py_compile tools/check_derivatives_authorization_matrix.py tests/test_derivatives_authorization_matrix.py
+        - cmd: pytest -q tests/test_derivatives_authorization_matrix.py
+      files:
+        - tools/check_derivatives_authorization_matrix.py
+        - tests/test_derivatives_authorization_matrix.py
+        - docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.json
+        - docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.md
+
+  - id: py:funding_rate_market:settlement_witness_helper_rejects_forgery_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The funding-rate market runtime exposes a strict v1.1 settlement-witness
+      helper that recomputes settlement values from the current state and
+      mark/index references before settlement. The helper accepts the derived
+      witness and rejects forged realized-rate, payout, and reference values.
+      This is implementation evidence for witness checking; the legacy parity
+      `step` path remains present, so mandatory production adoption remains a
+      separate open authorization gap.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_funding_rate_market.py::test_settle_rate_epoch_with_v1_1_witness tests/core/test_funding_rate_market.py::test_settle_rate_epoch_witness_rejects_forged_realized_rate tests/core/test_funding_rate_market.py::test_settle_rate_epoch_witness_rejects_forged_payout tests/core/test_funding_rate_market.py::test_settle_rate_epoch_witness_rejects_reference_mismatch
+      files:
+        - src/core/funding_rate_market.py
+        - tests/core/test_funding_rate_market.py
+
+  - id: py:funding_rate_market:authorized_settlement_helper_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The funding-rate market exposes a production-facing authorized settlement
+      helper that requires both an epoch-bound mark/index oracle receipt and the
+      recomputed v1.1 settlement witness before settlement. The helper accepts a
+      matching oracle/witness pair and rejects forged oracle price or epoch
+      receipts before the legacy parity-preserving step path is invoked.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_funding_rate_market.py::test_settle_rate_epoch_authorized_oracle_and_witness tests/core/test_funding_rate_market.py::test_settle_rate_epoch_authorized_rejects_forged_oracle_mark tests/core/test_funding_rate_market.py::test_settle_rate_epoch_authorized_rejects_forged_oracle_epoch
+      files:
+        - src/core/funding_rate_market.py
+        - tests/core/test_funding_rate_market.py
+
+  - id: py:funding_rate_market:production_step_requires_authorized_settlement_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The funding-rate market production dispatcher rejects settlement unless
+      both the epoch-bound oracle receipt and recomputed v1.1 settlement witness
+      are supplied. Non-settlement actions continue through the deterministic
+      state machine, and the legacy `step` function remains available for
+      generated-reference parity checks.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_funding_rate_market.py::test_production_step_requires_authorized_settlement_receipts tests/core/test_funding_rate_market.py::test_production_step_accepts_only_authorized_settlement_lane tests/core/test_funding_rate_market.py::test_production_step_preserves_non_settlement_actions tests/core/test_funding_rate_market.py::test_production_step_property_rejects_missing_settlement_receipts
+      files:
+        - src/core/funding_rate_market.py
+        - tests/core/test_funding_rate_market.py
+
+  - id: py:curve_selection:revenue_delta_receipt_helper_rejects_forgery_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The curve-selection runtime exposes a revenue-delta receipt helper that
+      derives deltas from pre/post revenue counters, requires the receipt pre
+      counters to match market state, and rejects forged delta values or state
+      mismatches before advancing an epoch. This is local provenance evidence
+      for counter deltas; replayed pool-event receipts, fee accumulator roots,
+      and production revenue authority remain separate open gaps.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_curve_selection.py::test_advance_epoch_with_revenue_receipt tests/core/test_curve_selection.py::test_advance_epoch_revenue_receipt_rejects_forged_delta tests/core/test_curve_selection.py::test_advance_epoch_revenue_receipt_rejects_state_mismatch
+      files:
+        - src/core/curve_selection.py
+        - tests/core/test_curve_selection.py
+
+  - id: py:curve_selection:fee_accumulator_and_winner_receipts_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The curve-selection runtime exposes fee-accumulator receipt helpers that
+      require one bounded pool receipt root per curve, reject duplicate or
+      forged pre-counter receipts, and derive revenue deltas before advancing an
+      epoch. It also exposes a winner receipt helper that recomputes the winning
+      curve and payout values from current revenue and stake state, rejecting a
+      forged winner before settlement.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_curve_selection.py::test_advance_epoch_with_fee_accumulator_receipts tests/core/test_curve_selection.py::test_advance_epoch_fee_accumulator_receipts_reject_forged_delta tests/core/test_curve_selection.py::test_advance_epoch_fee_accumulator_receipts_reject_duplicate_curve tests/core/test_curve_selection.py::test_settle_prediction_with_winner_receipt tests/core/test_curve_selection.py::test_settle_prediction_rejects_forged_winner_receipt
+      files:
+        - src/core/curve_selection.py
+        - tests/core/test_curve_selection.py
+
+  - id: py:curve_selection:pool_event_replay_receipts_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The curve-selection runtime exposes a bounded pool-event replay helper
+      that derives per-curve revenue deltas from ordered, hash-bound pool
+      revenue events. It rejects forged fee amounts, unordered event streams,
+      state pre-counter mismatches, and forged replay receipts before advancing
+      an epoch.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_curve_selection.py::test_advance_epoch_with_pool_event_replay tests/core/test_curve_selection.py::test_advance_epoch_pool_event_replay_rejects_forged_fee_amount tests/core/test_curve_selection.py::test_advance_epoch_pool_event_replay_rejects_unordered_events tests/core/test_curve_selection.py::test_advance_epoch_pool_event_replay_rejects_state_mismatch tests/core/test_curve_selection.py::test_advance_epoch_pool_event_replay_rejects_forged_replay_receipt tests/core/test_curve_selection.py::test_advance_epoch_pool_event_replay_property_matches_fee_sums
+      files:
+        - src/core/curve_selection.py
+        - tests/core/test_curve_selection.py
+
+  - id: py:il_futures:reserve_reference_receipt_helpers_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The IL futures runtime exposes helpers that bind epoch-start snapshot
+      reserves and settlement current reserves to bounded pool state-root
+      receipts, require an epoch-bound TWAP/reference receipt for strict
+      settlement, and reject forged snapshot or reference receipt values before
+      the legacy step path is invoked.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_il_futures.py::test_snapshot_epoch_with_reserve_state_root_receipt tests/core/test_il_futures.py::test_snapshot_epoch_reserve_receipt_rejects_forged_epoch tests/core/test_il_futures.py::test_settle_epoch_with_reserve_and_reference_receipts tests/core/test_il_futures.py::test_settle_epoch_reserve_receipts_reject_forged_snapshot tests/core/test_il_futures.py::test_settle_epoch_rejects_bad_twap_reference_receipt
+      files:
+        - src/core/il_futures.py
+        - tests/core/test_il_futures.py
+
+  - id: py:il_futures:settlement_authority_receipt_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The IL futures strict settlement helper emits a verified derivative
+      settlement authority receipt for accepted and rejected settlement
+      attempts. Accepted receipts bind pre/post state roots, reference root,
+      payoff formula hash, witness hash, collateral bound, and balance-transfer
+      root. Rejection receipts leave the state root unchanged. A malformed
+      balance-transfer root fails closed before returning an accepted
+      production result.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_il_futures.py::test_il_settlement_authorized_emits_balance_transfer_receipt tests/core/test_il_futures.py::test_il_settlement_authorized_rejects_bad_balance_transfer_root tests/core/test_il_futures.py::test_il_rejection_receipt_keeps_state_root_unchanged
+      files:
+        - src/core/il_futures.py
+        - src/core/derivative_settlement_receipts.py
+        - tests/core/test_il_futures.py
+        - tests/core/test_derivative_settlement_receipts.py
+
+  - id: py:derivative_settlement_receipts:authority_envelope_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The derivative settlement receipt envelope binds pre-state root,
+      post-state root, reference root, payoff formula hash, witness hash,
+      collateral bound, balance-transfer root, and acceptance or rejection
+      semantics under a canonical hash. Rejection receipts must leave the state
+      root unchanged, and tampered roots, collateral bounds, and receipt hashes
+      are rejected. Property tests cover valid accepted/rejected receipt
+      round-trips and invalid balance-transfer roots. This is a common receipt
+      envelope claim; each live market still needs lane-specific integration
+      evidence.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_derivative_settlement_receipts.py
+      files:
+        - src/core/derivative_settlement_receipts.py
+        - tests/core/test_derivative_settlement_receipts.py
+
+  - id: py:fire:stdlib_object_library_and_settlement_packets_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The FIRE stdlib manifest pins eight object/interface entries, including
+      the current money-moving BurnBoostCall, FeeNote, and LPLossCover object
+      families plus their source/interface objects. Focused tests cover the
+      compiler registry, object packages, kernel settlement entrypoints,
+      settlement packets, apply reports, and ledger adapter behavior for this
+      bounded library. This claim covers the checked-in stdlib surface, not
+      arbitrary future FIRE objects.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/kernels/test_fire_compiler_registry_v1.py tests/kernels/test_fire_kernel_settlement_v1.py tests/kernels/test_fire_ledger_adapter_v1.py tests/kernels/test_fire_settlement_packet_v1.py tests/kernels/test_fire_settlement_apply_report_v1.py tests/kernels/test_fire_object_package_v1.py
+      files:
+        - src/fire/stdlib/manifest.json
+        - src/fire/stdlib/objects/burn_boost_call_v1.json
+        - src/fire/stdlib/objects/fee_note_v1.json
+        - src/fire/stdlib/objects/lp_loss_cover_v1.json
+        - src/fire/compiler/compiler_registry_v1.py
+        - src/fire/kernel/settlement_v1.py
+        - src/fire/kernel/ledger_adapter_v1.py
+        - tests/kernels/test_fire_compiler_registry_v1.py
+        - tests/kernels/test_fire_kernel_settlement_v1.py
+        - tests/kernels/test_fire_ledger_adapter_v1.py
+        - tests/kernels/test_fire_settlement_packet_v1.py
+        - tests/kernels/test_fire_settlement_apply_report_v1.py
+        - tests/kernels/test_fire_object_package_v1.py
+
+  - id: py:fire:release_assurance_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The FIRE release-assurance gate composes the formal-assurance claims
+      manifest check, the acceptance-receipt schema, and the verifier-rule
+      catalog. It records that acceptance receipts do not authorize settlement,
+      settlement authority is restricted to FIREVReceiptOK, required receipt
+      bindings include object, instance, certificate, witness, and delta
+      hashes, and missing or mismatched authority data rejects. The gate is
+      evidence for the current FIRE release lane; it does not prove the Python
+      verifier bug-free or validate oracle truth.
+    evidence:
+      kind: shell
+      check:
+        - cmd: bash tools/run_fire_assurance_gate.sh
+      files:
+        - tools/run_fire_assurance_gate.sh
+        - tools/check_fire_formal_assurance_claims.py
+        - tools/check_fire_release_assurance.py
+        - src/fire/spec/formal-assurance-claims.yaml
+        - src/fire/spec/verifier-rules.yaml
+        - src/fire/spec/fire-acceptance-receipt.schema.json
+        - tests/kernels/test_fire_formal_assurance_claims.py
+        - tests/kernels/test_fire_release_assurance.py
+        - tests/kernels/test_fire_acceptance_receipt_v1.py
+        - tests/kernels/test_fire_verifier_rules_spec.py
+        - tests/kernels/test_cal_fire_logic_package_receipt_binding.py
+
+  - id: py:perps:production_integration_evidence_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The perps evidence runner composes the current perps pytest suites, ESSO
+      kernel inductiveness checks, perps shell assurance gates, Tau ingress
+      checks, market version/prefix checks, and Lean proof builds into a single
+      fail-closed command. This supports the bounded production-candidate perps
+      integration surface. It does not certify live oracle truth, governance
+      procedures, value-at-risk limits, operator rollout, incident response, or
+      the absence of bugs outside the checked surface.
+    evidence:
+      kind: shell
+      check:
+        - cmd: bash tools/run_perps_evidence.sh
+      files:
+        - tools/run_perps_evidence.sh
+        - tools/run_perp_apply_funding_auto_assurance_gate.sh
+        - tools/run_perp_funding_apply_assurance_gate.sh
+        - tools/run_perp_clearinghouse_market_params_assurance_gate.sh
+        - tools/run_perp_liquidation_eligibility_assurance_gate.sh
+        - tools/run_perp_submission_auth_assurance_gate.sh
+        - tools/run_perp_submission_auth_field_selector_assurance_gate.sh
+        - tools/run_perp_signed_surface_assurance_gate.sh
+        - tools/run_perp_runtime_risk_gate_assurance_gate.sh
+        - tools/run_perp_tau_ingress_stream_assurance_gate.sh
+        - tools/run_perp_tau_ingress_schema_tau_gate.sh
+        - tools/run_perp_market_version_prefix_assurance_gate.sh
+        - src/kernels/dex/perp_epoch_isolated_v3.yaml
+        - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
+        - src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml
+        - src/kernels/dex/perp_game_theory_v2.yaml
+        - tests/integration/test_perp_engine.py
+        - tests/integration/test_perp_engine_auth_guards.py
+        - tests/integration/test_perp_engine_signed_surface_guards.py
+        - tests/integration/test_perp_engine_market_params_clearinghouse.py
+        - tests/integration/test_perp_engine_clearinghouse_2p.py
+        - tests/integration/test_perp_engine_clearinghouse_3p_transfer.py
+        - lean-mathlib/Proofs/PerpEpochSafety.lean
+        - lean-mathlib/Proofs/PerpFundingRateSafety.lean
+        - lean-mathlib/Proofs/PerpInsuranceSafety.lean
+        - lean-mathlib/Proofs/PerpGameTheory.lean
