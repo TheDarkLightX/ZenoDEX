@@ -33,6 +33,8 @@ VALUE_SCALE_E8 = 100_000_000
 MIN_CRITICAL_EVIDENCE = "O3"
 ADMITTED_MEDIAN3_SCHEMA = "zenodex.oracle.admitted_median3_aggregate.v1"
 SIGNED_REPORT_SCHEMA = "zenodex.oracle.signed_report.v1"
+MIN_DISTINCT_SOURCE_DIMENSION = 2
+MAX_SOURCE_DIMENSION_CONCENTRATION = 2
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
 REGISTRY_KEYS = {"schema", "registry_id", "current_epoch", "feeds"}
@@ -399,6 +401,26 @@ def _validate_feed(
             and source_result.source_count < policy["min_sources"]
         ):
             errors.append("source_diversity_below_feed_min_sources")
+        if source_result.distinct_operator_count < MIN_DISTINCT_SOURCE_DIMENSION:
+            errors.append("source_diversity_below_feed_min_distinct_operators")
+        if source_result.distinct_venue_count < MIN_DISTINCT_SOURCE_DIMENSION:
+            errors.append("source_diversity_below_feed_min_distinct_venues")
+        if source_result.distinct_data_family_count < MIN_DISTINCT_SOURCE_DIMENSION:
+            errors.append("source_diversity_below_feed_min_distinct_data_families")
+        if source_result.distinct_transport_count < MIN_DISTINCT_SOURCE_DIMENSION:
+            errors.append("source_diversity_below_feed_min_distinct_transports")
+        if source_result.distinct_jurisdiction_count < MIN_DISTINCT_SOURCE_DIMENSION:
+            errors.append("source_diversity_below_feed_min_distinct_jurisdictions")
+        if source_result.max_operator_concentration > MAX_SOURCE_DIMENSION_CONCENTRATION:
+            errors.append("source_diversity_above_feed_max_same_operator")
+        if source_result.max_venue_concentration > MAX_SOURCE_DIMENSION_CONCENTRATION:
+            errors.append("source_diversity_above_feed_max_same_venue")
+        if source_result.max_data_family_concentration > MAX_SOURCE_DIMENSION_CONCENTRATION:
+            errors.append("source_diversity_above_feed_max_same_data_family")
+        if source_result.max_transport_concentration > MAX_SOURCE_DIMENSION_CONCENTRATION:
+            errors.append("source_diversity_above_feed_max_same_transport")
+        if source_result.max_jurisdiction_concentration > MAX_SOURCE_DIMENSION_CONCENTRATION:
+            errors.append("source_diversity_above_feed_max_same_jurisdiction")
 
     return {
         "feed_id": feed_id,
