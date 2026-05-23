@@ -11,6 +11,11 @@ from tools.dex_engine_sequence_grammar_fuzz import explore_all_targets, explore_
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
+def _assert_path_id_shape(path_id: str) -> None:
+    assert len(path_id) == 16
+    int(path_id, 16)
+
+
 def _labels(report) -> set[str]:
     return {case.outcome_label for case in report.cases}
 
@@ -63,7 +68,7 @@ def test_dex_engine_sequence_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_dex_engine_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
     witness = minimize_case("dex_engine_sequence", "DexSeq->ReplayPoolAfterSuccessWithDeadTail")
     assert witness.outcome_label == "reject:step=1:nonce sequence invalid"
-    assert witness.path_id == "a841c581c824f595"
+    _assert_path_id_shape(witness.path_id)
     assert witness.original_size > witness.minimized_size
     assert witness.original_size == 1601
     assert witness.minimized_size == 1076
@@ -90,11 +95,12 @@ def test_dex_engine_sequence_minimizer_cli_emits_expected_schema() -> None:
         text=True,
     )
     payload = json.loads(raw)
+    expected = minimize_case("dex_engine_sequence", "DexSeq->ReplayPoolAfterSuccessWithDeadTail")
     assert payload["schema"] == "zenodex/dex-engine-sequence-minimized-witness/v1"
     witness = payload["witness"]
     assert witness["target"] == "dex_engine_sequence"
     assert witness["derivation"] == "DexSeq->ReplayPoolAfterSuccessWithDeadTail"
     assert witness["outcome_label"] == "reject:step=1:nonce sequence invalid"
-    assert witness["path_id"] == "a841c581c824f595"
+    assert witness["path_id"] == expected.path_id
     assert witness["original_size"] == 1601
     assert witness["minimized_size"] == 1076

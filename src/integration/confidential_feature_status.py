@@ -70,6 +70,11 @@ def _measurements_from_file(path: str) -> tuple[str, ...]:
     if not file_path.exists() or not file_path.is_file():
         return ()
     try:
+        if file_path.stat().st_mode & 0o444 == 0:
+            return ()
+    except OSError:
+        return ()
+    try:
         text = file_path.read_text(encoding="utf-8").strip()
     except OSError:
         return ()

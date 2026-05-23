@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import threading
 from http.client import HTTPConnection
 
@@ -437,9 +438,7 @@ def test_api_server_dex_quote_and_verify_receipt_roundtrip() -> None:
 
 
 def test_api_server_dex_quote_exact_out_fast_v1_roundtrip() -> None:
-    import pytest
-
-    pytest.importorskip("numpy")
+    numpy_available = importlib.util.find_spec("numpy") is not None
     httpd, t, host, port = _start_test_server()
     try:
         pools = [
@@ -469,7 +468,7 @@ def test_api_server_dex_quote_exact_out_fast_v1_roundtrip() -> None:
         assert resp.status == 200
         assert body["ok"] is True
         assert body["kind"] == "exact_out"
-        assert body["routing_mode"] == "fast_v1"
+        assert body["routing_mode"] == ("fast_v1" if numpy_available else "exact")
         assert "receipt" in body
         receipt = body["receipt"]
         assert isinstance(receipt, dict)

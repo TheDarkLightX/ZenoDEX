@@ -780,6 +780,45 @@ def test_run_disaster_search_expansion_plan_marks_passing_axis_unreachable() -> 
     assert payload["axis_results"][0]["status"] == "unreachable_under_current_bounds"
 
 
+def test_run_disaster_search_expansion_plan_can_aggregate_pytest_commands(tmp_path: Path) -> None:
+    test_one = tmp_path / "test_one.py"
+    test_one.write_text("def test_one():\n    assert True\n", encoding="utf-8")
+    test_two = tmp_path / "test_two.py"
+    test_two.write_text("def test_smoke_two():\n    assert True\n", encoding="utf-8")
+    plan = {
+        "schema": DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA,
+        "ok": True,
+        "axes": [
+            {
+                "axis_id": "demo_axis_one",
+                "priority_score": 2,
+                "surface_ids": ["stale_settlement_boundary"],
+                "what_if": "demo",
+                "disaster_state_template": "demo",
+                "commands": [["pytest", "-q", str(test_one)]],
+            },
+            {
+                "axis_id": "demo_axis_two",
+                "priority_score": 1,
+                "surface_ids": ["stale_settlement_boundary"],
+                "what_if": "demo",
+                "disaster_state_template": "demo",
+                "commands": [["pytest", "-q", "-k", "smoke", str(test_two)]],
+            },
+        ],
+    }
+
+    payload = run_disaster_search_expansion_plan(plan=plan, timeout_s=30, aggregate_pytest=True)
+
+    assert payload["ok"] is True
+    assert payload["selected_axis_count"] == 2
+    assert payload["unreachable_count"] == 2
+    assert len(payload["aggregate_command_results"]) == 2
+    for axis in payload["axis_results"]:
+        assert axis["status"] == "unreachable_under_current_bounds"
+        assert axis["command_results"][0]["covered_by_aggregate_pytest"] is True
+
+
 def test_run_disaster_search_expansion_plan_cli_writes_receipt(tmp_path: Path) -> None:
     out = tmp_path / "search_receipt.json"
     raw = subprocess.check_output(

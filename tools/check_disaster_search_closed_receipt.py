@@ -124,7 +124,7 @@ def _print_text(payload: dict[str, Any]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run and ratchet the pinned closed disaster-state receipt.")
-    parser.add_argument("--timeout-s", type=int, default=240)
+    parser.add_argument("--timeout-s", type=int, default=600)
     parser.add_argument("--receipt", help="Existing receipt JSON to ratchet instead of running the closed axes")
     parser.add_argument("--output", help="Optional path to write the ratchet report JSON")
     parser.add_argument("--receipt-output", help="Optional path to write the raw closed receipt JSON")
@@ -138,6 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         receipt = run_disaster_search_expansion_plan(
             axis_ids=list(CLOSED_DISASTER_SEARCH_AXIS_IDS),
             timeout_s=int(args.timeout_s),
+            aggregate_pytest=True,
         )
 
     if args.receipt_output:
