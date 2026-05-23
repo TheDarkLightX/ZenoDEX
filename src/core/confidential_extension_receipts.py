@@ -671,9 +671,12 @@ def verify_confidential_extension_receipt(
     hash_matches = bool(
         receipt_hash_present and confidential_extension_receipt_hash(body) == want_hash
     )
-    extension_id_ok = isinstance(body.get("extension_id"), str) and bool(body.get("extension_id"))
-    provider_id_ok = isinstance(body.get("provider_id"), str) and bool(body.get("provider_id"))
-    request_id_ok = isinstance(body.get("request_id"), str) and bool(body.get("request_id"))
+    extension_id = body.get("extension_id")
+    provider_id = body.get("provider_id")
+    request_id = body.get("request_id")
+    extension_id_ok = isinstance(extension_id, str) and bool(extension_id) and extension_id == extension_id.strip()
+    provider_id_ok = isinstance(provider_id, str) and bool(provider_id) and provider_id == provider_id.strip()
+    request_id_ok = isinstance(request_id, str) and bool(request_id) and request_id == request_id.strip()
     policy_version_ok = isinstance(body.get("policy_version"), str) and bool(body.get("policy_version"))
     policy_digest_ok = False
     try:
