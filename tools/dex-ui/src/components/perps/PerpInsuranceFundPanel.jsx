@@ -16,9 +16,9 @@ function PerpInsuranceFundPanel({ market, wallet, writeEnabled, writeLockReason 
 
     if (!market) return null;
 
-    const balance = Number(market.insuranceBalance ?? 0);
-    const income = Number(market.feeIncome ?? 0);
-    const claims = Number(market.claimsPaid ?? 0);
+    const balance = finiteNumberOrNull(market.insuranceBalance);
+    const income = finiteNumberOrNull(market.feeIncome);
+    const claims = finiteNumberOrNull(market.claimsPaid);
 
     return (
         <div className="perp-insurance-panel panel">
@@ -37,19 +37,19 @@ function PerpInsuranceFundPanel({ market, wallet, writeEnabled, writeLockReason 
                     <div className="perp-insurance-stat">
                         <span className="perp-insurance-stat-label">Balance</span>
                         <span className="perp-insurance-stat-value">
-                            ${formatDollar(balance)}
+                            {formatDollarOrNA(balance)}
                         </span>
                     </div>
                     <div className="perp-insurance-stat">
                         <span className="perp-insurance-stat-label">Fee Income</span>
                         <span className="perp-insurance-stat-value perp-insurance-stat-value--positive">
-                            ${formatDollar(income)}
+                            {formatDollarOrNA(income)}
                         </span>
                     </div>
                     <div className="perp-insurance-stat">
                         <span className="perp-insurance-stat-label">Claims Paid</span>
                         <span className="perp-insurance-stat-value perp-insurance-stat-value--negative">
-                            ${formatDollar(claims)}
+                            {formatDollarOrNA(claims)}
                         </span>
                     </div>
                 </div>
@@ -83,6 +83,16 @@ function PerpInsuranceFundPanel({ market, wallet, writeEnabled, writeLockReason 
             </div>
         </div>
     );
+}
+
+function finiteNumberOrNull(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function formatDollarOrNA(value) {
+    if (value == null) return 'N/A';
+    return `$${formatDollar(value)}`;
 }
 
 function formatDollar(value) {
