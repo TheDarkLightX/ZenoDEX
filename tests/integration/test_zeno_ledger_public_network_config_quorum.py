@@ -22,6 +22,7 @@ from src.integration.zeno_ledger_signature import (
 )
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from tools.zeno_ledger_node import (
+    _public_network_config_hash_v0,
     _public_network_config_to_join_config_v0,
     attach_public_network_config_quorum_v0,
     build_public_network_config_v0,
@@ -347,7 +348,7 @@ def test_join_config_conversion_rejects_unadmitted_submit_peer_url(tmp_path: Pat
         node_port=8788,
     )
     config["recommended_node"]["submit_peer_url"] = "http://127.0.0.1:9001"
-    config["network_config_hash"] = hash_v0("zeno_ledger_public_network_config_v0", config)
+    config["network_config_hash"] = _public_network_config_hash_v0(config)
 
     with pytest.raises(ValueError, match="submit_peer_url must match an admitted writer URL"):
         _public_network_config_to_join_config_v0(

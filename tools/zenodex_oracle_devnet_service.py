@@ -261,6 +261,7 @@ def register_reporter(store: OracleDevnetStore, obj: Mapping[str, Any]) -> dict[
     lifecycle = {
         "schema": LIFECYCLE_SCHEMA,
         "reporter_id": reporter_id,
+        "reporter_pubkey": reporter_pubkey,
         "required_bond": required_bond,
         "events": [
             {"type": "register", "epoch": epoch},
