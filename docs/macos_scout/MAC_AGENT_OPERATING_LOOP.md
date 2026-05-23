@@ -45,17 +45,33 @@ reports, tests, proof targets, or tool improvements into tracked paths.
 - Do not use private keys, production credentials, or live treasury data.
 - Keep commits scoped. The repo may have unrelated dirty work.
 
-## Loop 0: Environment And Branch
+## Loop 0: Environment And Reviewed Commit
 
-Start from the handoff branch:
+Start from a reviewed, immutable handoff commit. Do not execute scout scripts from
+`codex/macos-scout-handoff` merely because that mutable branch currently points
+there; a force-push can change branch contents after review.
+
+Preconditions before running any scout script:
+
+- `HANDOFF_COMMIT` is the 40-hex commit SHA reviewed and approved for this run.
+- The working tree is clean or contains only changes you intentionally preserve.
+- `git rev-parse HEAD` must match `HANDOFF_COMMIT` after checkout.
 
 ```bash
+HANDOFF_COMMIT=<reviewed-40-hex-commit-sha>
+test "$HANDOFF_COMMIT" != "<reviewed-40-hex-commit-sha>"
+printf '%s\n' "$HANDOFF_COMMIT" | grep -Eq '^[0-9a-fA-F]{40}$'
 git fetch origin codex/macos-scout-handoff
-git checkout codex/macos-scout-handoff
+git checkout --detach "$HANDOFF_COMMIT"
+test "$(git rev-parse HEAD)" = "$HANDOFF_COMMIT"
 git status --short --branch
 ```
 
-Confirm tools:
+If any command above fails, stop. Do not fall back to `git checkout
+codex/macos-scout-handoff` or any other mutable branch checkout before running
+local scripts.
+
+Confirm tools only after the reviewed commit is checked out and verified:
 
 ```bash
 julia --version
