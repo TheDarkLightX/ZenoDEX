@@ -146,7 +146,7 @@ jobs:
           cyclonedx-py requirements -i requirements-core.lock.txt -o internal/release_artifacts/sbom/requirements-core.cdx.json
           cyclonedx-py requirements -i requirements-agents.lock.txt -o internal/release_artifacts/sbom/requirements-agents.cdx.json
           if [ -f tools/dex-ui/package-lock.json ]; then
-            npx --yes @cyclonedx/cyclonedx-npm --output-file internal/release_artifacts/sbom/dex-ui.cdx.json
+            (cd tools/dex-ui && npx --yes @cyclonedx/cyclonedx-npm --output-file ../../internal/release_artifacts/sbom/dex-ui.cdx.json)
           fi
 
       - name: Build operator release bundle
