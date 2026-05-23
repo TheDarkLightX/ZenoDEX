@@ -87,7 +87,9 @@ def _is_stale(state: State) -> bool:
 
 
 def _enabled_actions(state: State) -> set[str]:
-    enabled = {"end"}
+    enabled: set[str] = set()
+    if not _is_stale(state):
+        enabled.add("end")
     if state.now_epoch < MAX_NOW_EPOCH and not state.permanently_blocked:
         enabled.add("advance_time")
     if not state.permanently_blocked and not state.oracle_fresh:
@@ -225,7 +227,7 @@ def build_receipt(model_path: Path = MODEL_PATH, goals_path: Path = GOALS_PATH) 
         {
             "id": "G_stale_eventually_recovers",
             "ok": stale_can_recover_or_block,
-            "checked": "every reachable stale state enables update_oracle and block_permanently",
+            "checked": "stale states cannot terminate; recovery or permanent block is required before end",
             "stale_state_count": len(stale_states),
         },
         {
