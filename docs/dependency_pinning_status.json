@@ -42,7 +42,7 @@
     "lean-mathlib/lakefile.lean": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
     "tools/confidential_attestation_verifier_rust/Cargo.lock": "a50820080531e3f60e075e050287279f808ad7a3daba0682399e2fa9c90a23f5",
     "tools/dex-ui/package-lock.json": "b9dc074f8e55dee0ed5850076eaa956fcac0594a47158cdca23cd747e3ee5282",
-    "zk/state_proof_risc0/Cargo.lock": "210c4f0f6b4ad421e3fe9d81ef201dce6c1a5197434542abadbe8aef03707b3c"
+    "zk/state_proof_risc0/Cargo.lock": "7587569abe6af7da7d0f7e0766079b5a4f64135cf18a485792fc9646ea3b9752"
   },
   "exact_python_pins_required": [],
   "residual_limits": [

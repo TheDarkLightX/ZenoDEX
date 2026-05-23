@@ -7,3 +7,5 @@ members = [
   "cli",
 ]
 
+[patch.crates-io]
+ark-relations = { path = "patches/ark-relations-0.5.1" }

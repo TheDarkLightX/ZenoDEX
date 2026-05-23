@@ -36,3 +36,33 @@ python3 tools/check_python_hash_locks.py --json
 - `tools/check_python_hash_locks.py` accepts reordered `pip-compile` flags as
   long as the generated lockfile header still records `pip-compile` and
   `--generate-hashes`.
+
+## 2026-05-23 RISC Zero Follow-Up
+
+The RISC Zero state-proof workspace was moved from the RISC Zero `1.2` line to
+`2.3` and wired to the repo-local `ark-relations 0.5.1` patch. The patch keeps
+the arkworks API version expected by RISC Zero while lifting
+`tracing-subscriber` to the patched `0.3` line.
+
+Current evidence:
+
+```bash
+(cd zk/state_proof_risc0 && cargo audit --json)
+python3 tools/check_risc0_dependency_audit.py --no-fetch
+(cd zk/state_proof_risc0 && RISC0_SKIP_BUILD=1 cargo check --workspace)
+(cd zk/state_proof_risc0 && RISC0_SKIP_BUILD=1 cargo test -p tau-state-proof-risc0-shared -p tau-state-proof-risc0-cli)
+python3 -m pytest -q tests/integration/test_check_risc0_dependency_audit.py
+python3 -m pytest -q tests/integration/test_risc0_shared_fixture_equivalence.py tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py
+```
+
+Result: `cargo audit` reports no vulnerability IDs for the workspace. It still
+reports unmaintained-warning IDs for `bincode`, `derivative`, and `paste`.
+`tools/check_risc0_dependency_audit.py` now has an empty default allowlist, so a
+future RustSec vulnerability fails closed unless an explicit temporary
+`--allow` is supplied.
+
+`cargo test --workspace` remains the wrong host-side gate for this workspace
+because it tries to execute the RISC Zero guest binary directly on the host. Use
+`cargo check --workspace` plus the host package tests listed above unless the
+RISC Zero guest target is installed and the guest is being executed through the
+prover path.
