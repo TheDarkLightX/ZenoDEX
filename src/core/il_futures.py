@@ -17,15 +17,22 @@ Actions:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from dataclasses import dataclass, replace
 from enum import Enum, unique
 
+from .domain_limits import require_int_range
+from .endogenous_reference_gate import (
+    REFERENCE_SOURCE_TWAP_ACCUMULATOR,
+    evaluate_endogenous_reference_gate,
+)
 from .il_futures_math import compute_il_bps, compute_payout
-
 
 BPS_DENOM = 10_000
 MAX_AMOUNT = 1_000_000_000_000
 MAX_PREMIUM_AMOUNT = 100_000_000  # matches the v1 kernel's param domain
+TWAP_REFERENCE_COMMITMENT_VERSION = "zenodex-ilf-twap-reference-v1"
 
 
 @unique
@@ -83,6 +90,10 @@ class ILFState:
     max_leverage_bps: int = 20000  # 2x: long_exposure <= short_exposure * 2
     protocol_fee_bps: int = 100    # 1% protocol fee on payoffs
     coverage_ratio_bps: int = 8000  # 80% coverage
+    require_twap_reference: bool = False
+    min_twap_window_blocks: int = 1
+    min_reference_elapsed_blocks: int = 1
+    accepted_twap_reference_commitments: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if not (0 <= self.protocol_fee_bps <= BPS_DENOM):
@@ -91,6 +102,12 @@ class ILFState:
             raise ValueError(f"coverage_ratio_bps must be in [0, {BPS_DENOM}]: {self.coverage_ratio_bps}")
         if self.max_leverage_bps <= 0:
             raise ValueError(f"max_leverage_bps must be positive: {self.max_leverage_bps}")
+        if not isinstance(self.require_twap_reference, bool):
+            raise TypeError("require_twap_reference must be a bool")
+        require_int_range("min_twap_window_blocks", self.min_twap_window_blocks, minimum=1)
+        require_int_range("min_reference_elapsed_blocks", self.min_reference_elapsed_blocks, minimum=1)
+        if not isinstance(self.accepted_twap_reference_commitments, frozenset):
+            raise TypeError("accepted_twap_reference_commitments must be a frozenset")
 
 
 @dataclass(frozen=True)
@@ -110,6 +127,10 @@ class ILFActionParams:
     # settlement params
     current_reserve_x: int = 0
     current_reserve_y: int = 0
+    reference_source_kind: str = "spot"
+    twap_window_blocks: int = 0
+    reference_elapsed_blocks: int = 0
+    reference_commitment: str = ""
 
 
 @dataclass(frozen=True)
@@ -201,6 +222,8 @@ def _guard_snapshot(state: ILFState, params: ILFActionParams) -> bool:
         return False
     if params.reserve_x > MAX_AMOUNT or params.reserve_y > MAX_AMOUNT:
         return False
+    if not _twap_reference_ok(state, params, params.reserve_x, params.reserve_y):
+        return False
     return True
 
 
@@ -215,11 +238,89 @@ def _guard_settle(state: ILFState, params: ILFActionParams) -> bool:
         return False
     if params.current_reserve_x > MAX_AMOUNT or params.current_reserve_y > MAX_AMOUNT:
         return False
+    if not _twap_reference_ok(state, params, params.current_reserve_x, params.current_reserve_y):
+        return False
     return True
 
 
 def _guard_advance(state: ILFState, params: ILFActionParams) -> bool:
     return state.settled_this_epoch
+
+
+def _twap_reference_ok(
+    state: ILFState,
+    params: ILFActionParams,
+    reserve_x: int,
+    reserve_y: int,
+) -> bool:
+    if not state.require_twap_reference:
+        return True
+    outcome = evaluate_endogenous_reference_gate(
+        source_kind=params.reference_source_kind,
+        twap_window_blocks=params.twap_window_blocks,
+        reference_elapsed_blocks=params.reference_elapsed_blocks,
+        min_twap_window_blocks=state.min_twap_window_blocks,
+        min_reference_elapsed_blocks=state.min_reference_elapsed_blocks,
+    )
+    if not outcome.admission_ok:
+        return False
+    return _twap_reference_commitment_ok(state, params, reserve_x, reserve_y)
+
+
+def _twap_reference_commitment_ok(
+    state: ILFState,
+    params: ILFActionParams,
+    reserve_x: int,
+    reserve_y: int,
+) -> bool:
+    if not isinstance(params.reference_commitment, str):
+        return False
+    expected = compute_twap_reference_commitment(
+        source_kind=params.reference_source_kind,
+        twap_window_blocks=params.twap_window_blocks,
+        reference_elapsed_blocks=params.reference_elapsed_blocks,
+        reserve_x=reserve_x,
+        reserve_y=reserve_y,
+        action_kind=params.action.value,
+        epoch=state.epoch,
+    )
+    if not hmac.compare_digest(params.reference_commitment, expected):
+        return False
+    return params.reference_commitment in state.accepted_twap_reference_commitments
+
+
+def compute_twap_reference_commitment(
+    *,
+    source_kind: str,
+    twap_window_blocks: int,
+    reference_elapsed_blocks: int,
+    reserve_x: int,
+    reserve_y: int,
+    action_kind: str,
+    epoch: int,
+) -> str:
+    """Return the deterministic commitment that binds TWAP metadata to reserves.
+
+    DbC preconditions:
+    - source_kind identifies the admitted reference source.
+    - window, elapsed, reserve_x, reserve_y, action_kind, and epoch are already boundary-validated.
+
+    Postcondition: changing any committed field changes the returned digest.
+    """
+    payload = (
+        f"{TWAP_REFERENCE_COMMITMENT_VERSION}|"
+        f"{source_kind}|"
+        f"{twap_window_blocks}|"
+        f"{reference_elapsed_blocks}|"
+        f"{reserve_x}|"
+        f"{reserve_y}|"
+        f"{action_kind}|"
+        f"{epoch}"
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+ILF_TWAP_REFERENCE_SOURCE_KIND = REFERENCE_SOURCE_TWAP_ACCUMULATOR
 
 
 # ---------------------------------------------------------------------------
