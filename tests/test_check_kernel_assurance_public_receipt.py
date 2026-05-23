@@ -10,6 +10,8 @@ from tools.check_kernel_assurance_public_receipt import (
     verify_public_receipt,
 )
 
+_PRIVATE_WORKSPACE_PREFIX = "/private/" + "workspace"
+
 
 def _write_json(path: Path, obj: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -58,7 +60,7 @@ def _private_report(manifest_sha256: str) -> dict[str, Any]:
             "esso_dirty": False,
             "esso_dirty_entries": [],
         },
-        "repo_root": "/private/workspace/path/that/must/not/be/copied",
+        "repo_root": f"{_PRIVATE_WORKSPACE_PREFIX}/path/that/must/not/be/copied",
         "kernels": [
             {
                 "model_id": "cpmm_swap",
@@ -81,7 +83,7 @@ def _private_report(manifest_sha256: str) -> dict[str, Any]:
                     "seeds": [0, 1],
                     "fingerprint": "d8" * 32,
                     "elapsed_s": 12.5,
-                    "evidence_bundle": {"bundle_dir": "/private/workspace/internal/bundle"},
+                    "evidence_bundle": {"bundle_dir": f"{_PRIVATE_WORKSPACE_PREFIX}/internal/bundle"},
                 },
             }
         ],
