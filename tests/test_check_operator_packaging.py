@@ -32,6 +32,7 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         ".github/workflows/release-integrity.yml",
         ".github/workflows/release-publish.yml",
         "tools/check_release_publication_workflow.py",
+        "tools/build_release_sboms.py",
         "docs/DEPLOYMENT_QUICKSTART.md",
     ):
         src = ROOT / relpath

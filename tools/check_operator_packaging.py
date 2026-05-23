@@ -35,6 +35,7 @@ REQUIRED_FILES = (
     ".github/workflows/release-integrity.yml",
     ".github/workflows/release-publish.yml",
     "tools/check_release_publication_workflow.py",
+    "tools/build_release_sboms.py",
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
 )

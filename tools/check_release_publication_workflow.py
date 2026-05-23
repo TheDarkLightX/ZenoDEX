@@ -27,6 +27,7 @@ REQUIRED_TOKENS = (
     "docker/build-push-action@v6",
     "tools/build_operator_release_bundle.py build",
     "tools/build_zenodex_oracle_release.py",
+    "tools/build_release_sboms.py",
     "npm pack",
     "npm version --no-git-tag-version --allow-same-version",
     "npm publish --access public --provenance",

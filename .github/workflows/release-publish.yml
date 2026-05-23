@@ -125,6 +125,10 @@ jobs:
           npm test
           npm pack --pack-destination ../../dist --json | tee "../../dist/zenodex-proof-client-${{ steps.version.outputs.version }}.pack.json"
 
+      - name: Generate release SBOMs
+        run: |
+          python tools/build_release_sboms.py --out-dir dist --pretty
+
       - name: Generate release manifest and checksums
         run: |
           python - <<'PY'
