@@ -164,7 +164,7 @@ Focused runtime tests cover:
 - all-zero v2 rejection;
 - schema/policy mismatch rejection;
 - v2 permutation invariance over randomized partial fills;
-- engine acceptance when `allow_uniform_batch_certificate=True`.
+- engine acceptance only when both `allow_uniform_batch_certificate=True` and `allow_uniform_batch_partial_fill_certificate=True`.
 
 Replay command:
 
