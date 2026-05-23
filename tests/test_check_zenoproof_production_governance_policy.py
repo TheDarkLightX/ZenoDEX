@@ -279,6 +279,26 @@ def test_zenoproof_production_governance_policy_rejects_receipt_dependency_drift
         assert f"receipt:{expected_error}" in result["errors"]
 
 
+def test_zenoproof_production_governance_policy_rejects_forged_attestation_receipts() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    cases = (
+        ("code_signing_attestation", "0x" + "1" * 64),
+        ("sandbox_attestation", "0x" + "2" * 64),
+    )
+
+    for kind, forged_tx_hash in cases:
+        forged_bundle = json.loads(json.dumps(bundle))
+        receipt = _receipt(forged_bundle, kind)
+        receipt["tx_hash"] = forged_tx_hash
+        receipt["receipt_id"] = receipt_content_hash(receipt)
+
+        result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, forged_bundle)
+
+        assert result["status"] == "rejected"
+        assert f"receipt:policy_receipt_id_mismatch:{kind}" in result["errors"]
+
 def test_zenoproof_production_governance_policy_rejects_sandbox_attestation_drift() -> None:
     registry = _registry()
     policy = sample_policy(registry)

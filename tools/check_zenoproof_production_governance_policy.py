@@ -68,6 +68,8 @@ CODE_SIGNING_KEYS = {
     "artifact_digest_alg",
     "policy_bundle_digest",
     "verifier_release_manifest_digest",
+    "code_signing_attestation_receipt",
+    "verifier_release_transparency_log_receipt",
 }
 SANDBOX_KEYS = {
     "required",
@@ -77,6 +79,7 @@ SANDBOX_KEYS = {
     "filesystem_readonly",
     "max_input_bytes",
     "max_timeout_ms",
+    "sandbox_attestation_receipt",
 }
 REVOCATION_KEYS = {
     "enabled",
@@ -139,6 +142,15 @@ REQUIRED_RECEIPT_KINDS = {
     "sandbox_attestation",
     "verifier_release_transparency_log",
 }
+RECEIPT_POLICY_REF_PATHS = {
+    "code_signing_attestation": ("code_signing", "code_signing_attestation_receipt"),
+    "governance_approval": ("governance", "governance_approval_receipt"),
+    "governance_execution": ("governance", "governance_execution_receipt"),
+    "revocation_drill": ("revocation", "revocation_drill_receipt"),
+    "revocation_list": ("revocation", "revocation_list_receipt"),
+    "sandbox_attestation": ("sandbox", "sandbox_attestation_receipt"),
+    "verifier_release_transparency_log": ("code_signing", "verifier_release_transparency_log_receipt"),
+}
 RECEIPT_NOT_CLAIMS = {
     "does_not_claim_receipts_verified_against_live_rpc",
     "does_not_claim_contract_code_verified_onchain",
@@ -183,6 +195,13 @@ def policy_static_hash(policy: Mapping[str, Any]) -> str:
     if isinstance(governance, dict):
         governance.pop("governance_approval_receipt", None)
         governance.pop("governance_execution_receipt", None)
+    code_signing = payload.get("code_signing")
+    if isinstance(code_signing, dict):
+        code_signing.pop("code_signing_attestation_receipt", None)
+        code_signing.pop("verifier_release_transparency_log_receipt", None)
+    sandbox = payload.get("sandbox")
+    if isinstance(sandbox, dict):
+        sandbox.pop("sandbox_attestation_receipt", None)
     revocation = payload.get("revocation")
     if isinstance(revocation, dict):
         revocation.pop("revocation_list_receipt", None)
@@ -608,6 +627,13 @@ def _sample_receipt_refs(policy: Mapping[str, Any], registry: Mapping[str, Any])
             "governance_approval_receipt": by_kind["governance_approval"],
             "governance_execution_receipt": by_kind["governance_execution"],
         },
+        "code_signing": {
+            "code_signing_attestation_receipt": by_kind["code_signing_attestation"],
+            "verifier_release_transparency_log_receipt": by_kind["verifier_release_transparency_log"],
+        },
+        "sandbox": {
+            "sandbox_attestation_receipt": by_kind["sandbox_attestation"],
+        },
         "revocation": {
             "revocation_list_receipt": by_kind["revocation_list"],
             "revocation_drill_receipt": by_kind["revocation_drill"],
@@ -712,6 +738,8 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
     policy["code_signing"]["verifier_release_manifest_digest"] = release_manifest["manifest_digest"]
     refs = _sample_receipt_refs(policy, active_registry)
     policy["governance"].update(refs["governance"])
+    policy["code_signing"].update(refs["code_signing"])
+    policy["sandbox"].update(refs["sandbox"])
     policy["revocation"].update(refs["revocation"])
     policy["policy_id"] = policy_content_hash(policy)
     return policy
@@ -773,12 +801,19 @@ def check_receipt_bundle(
     verifier_policy = policy.get("verifier_policy") if isinstance(policy.get("verifier_policy"), Mapping) else {}
     static_hash = policy_static_hash(policy)
     governance_contract = governance.get("contract_address")
-    expected_receipt_id_by_kind = {
-        "governance_approval": governance.get("governance_approval_receipt"),
-        "governance_execution": governance.get("governance_execution_receipt"),
-        "revocation_list": revocation.get("revocation_list_receipt"),
-        "revocation_drill": revocation.get("revocation_drill_receipt"),
+    policy_sections = {
+        "code_signing": code_signing,
+        "governance": governance,
+        "revocation": revocation,
+        "sandbox": sandbox,
     }
+    expected_receipt_id_by_kind = {
+        kind: policy_sections[section].get(key)
+        for kind, (section, key) in RECEIPT_POLICY_REF_PATHS.items()
+    }
+    for kind, expected_receipt_id in expected_receipt_id_by_kind.items():
+        if not _is_sha(expected_receipt_id):
+            errors.append(f"policy_receipt_id_missing:{kind}")
     by_kind: dict[str, Mapping[str, Any]] = {}
 
     for idx, receipt in enumerate(raw_receipts):
@@ -799,7 +834,7 @@ def check_receipt_bundle(
         if receipt.get("receipt_id") != receipt_content_hash(receipt):
             errors.append(f"receipt_id_mismatch:{kind}")
         expected_receipt_id = expected_receipt_id_by_kind.get(kind)
-        if expected_receipt_id is not None and receipt.get("receipt_id") != expected_receipt_id:
+        if receipt.get("receipt_id") != expected_receipt_id:
             errors.append(f"policy_receipt_id_mismatch:{kind}")
         if receipt.get("chain_id") != chain_id:
             errors.append(f"receipt_chain_id_mismatch:{kind}")
@@ -1140,6 +1175,9 @@ def check_policy(
             errors.append("policy_bundle_digest_must_be_sha256")
         if not _is_sha(code_signing.get("verifier_release_manifest_digest")):
             errors.append("verifier_release_manifest_digest_must_be_sha256")
+        for key in ("code_signing_attestation_receipt", "verifier_release_transparency_log_receipt"):
+            if not _is_sha(code_signing.get(key)):
+                errors.append(f"{key}_must_be_sha256")
 
     sandbox = _obj_field(policy, "sandbox", errors)
     if sandbox:
@@ -1147,7 +1185,7 @@ def check_policy(
         _bool_true(sandbox, "required", errors)
         _bool_true(sandbox, "network_disabled", errors)
         _bool_true(sandbox, "filesystem_readonly", errors)
-        for key in ("deterministic_worker_image_digest", "seccomp_profile_digest"):
+        for key in ("deterministic_worker_image_digest", "seccomp_profile_digest", "sandbox_attestation_receipt"):
             if not _is_sha(sandbox.get(key)):
                 errors.append(f"{key}_must_be_sha256")
         max_input_bytes = _int_field(sandbox, "max_input_bytes", errors, minimum=1, maximum=1_000_000)

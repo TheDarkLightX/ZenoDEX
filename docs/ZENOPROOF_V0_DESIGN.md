@@ -165,6 +165,61 @@ maps `100_000_000 -> 100`, `25_000_000 -> 25`, and `75_000_000 -> 75` in the
 bounded local manager. This is replay evidence for payout authorization logic.
 It does not settle live tokens.
 
+## Production Governance Policy Gate
+
+`tools/check_zenoproof_production_governance_policy.py` is the first
+production-candidate governance checker for the v0 shell. It verifies the
+registry manifest structurally, quarantines `local_static_accept` verifiers as
+devnet-only, enables only subprocess/public-replay verifier IDs for the
+candidate production set, checks distinct proof-kind coverage, and binds the
+registry to governance, code-signing, sandbox, revocation, O4/O5 bridge, and
+reward-settlement controls. It also verifies a local governance receipt bundle
+for policy approval/execution, revocation list/drill, code-signing attestation,
+verifier-release transparency-log observation, and sandbox attestation. The
+code-signing attestation binds a verifier-release manifest covering every
+production-enabled verifier ID, artifact digest, command hash, toolchain hash,
+policy root, deterministic worker image digest, seccomp profile digest, and
+local transparency-log entry. The transparency-log receipt checks the entry
+list, contiguous indices, tree size, and log root against that release manifest.
+These receipts are content-hashed, pinned by receipt id in the governed policy
+references, and bound to the policy static hash plus the registry manifest id.
+The checker fails closed when any required receipt kind lacks a policy-pinned
+receipt id, including code-signing, transparency-log, and sandbox attestations.
+They also carry explicit dependency links: execution names the approval receipt,
+revocation and code signing name the execution receipt, the transparency log
+names the code-signing receipt, and sandbox attestation names the
+transparency-log receipt. The bundle also enforces receipt happens-before order:
+approval precedes execution, execution precedes revocation/code signing, code
+signing precedes transparency-log binding, and the transparency-log binding
+precedes sandbox attestation.
+
+```bash
+python3 tools/check_zenoproof_production_governance_policy.py --format text
+```
+
+Current expected receipt:
+
+```text
+status = accepted
+error_count = 0
+receipt_bundle_status = accepted
+go_live_blocker_count = 7
+production_enabled_verifier_count = 8
+distinct_proof_kind_count = 8
+production_verifier_path_lookup_count = 0
+```
+
+The live gate remains fail-closed:
+
+```bash
+python3 tools/check_zenoproof_production_governance_policy.py --require-live
+```
+
+This rejects with `go_live_blockers_present` until governance execution,
+production verifier code signing, verifier-release transparency-log observation,
+sandbox deployment, live revocation drill, public proof-network soak, and live
+proof-mining token settlement are backed by live replayable evidence.
+
 ## Oracle O4/O5 Bridge
 
 ZenoOracle may upgrade an accepted read from O3 to O4 only when a ZenoProof
