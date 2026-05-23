@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import threading
 from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from src.integration.zeno_ledger_v0 import hash_v0
-from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, check_peer_status_v0, make_node_http_server_v0
+from tools.zeno_ledger_node import NODE_STATUS_SCHEMA, _post_json_url, check_peer_status_v0, make_node_http_server_v0
 
 
 AUTH_TOKEN = "test-node-auth-token-v0"
@@ -157,3 +158,44 @@ def test_peer_status_check_uses_bearer_auth_token(tmp_path: Path) -> None:
     assert accepted["ok"] is True
     assert accepted["peers"][0]["status"] == "accepted"
     assert accepted["peers"][0]["height_relation"] == "same_height"
+
+
+def test_post_json_url_rejects_redirect_when_bearer_token_present() -> None:
+    seen_auth: list[str] = []
+
+    class _RedirectHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path == "/start":
+                self.send_response(HTTPStatus.FOUND)
+                self.send_header("Location", f"http://127.0.0.1:{self.server.server_address[1]}/capture")
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error":"redirect"}')
+                return
+            if self.path == "/capture":
+                seen_auth.append(self.headers.get("Authorization", ""))
+                self.send_response(HTTPStatus.OK)
+                self.end_headers()
+                self.wfile.write(b'{"ok": true}')
+                return
+            self.send_error(HTTPStatus.NOT_FOUND)
+
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RedirectHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        body, status = _post_json_url(
+            f"http://127.0.0.1:{server.server_address[1]}/start",
+            {"hello": "world"},
+            bearer_token=AUTH_TOKEN,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert status == HTTPStatus.FOUND
+    assert body["error"] == "redirect"
+    assert seen_auth == []
