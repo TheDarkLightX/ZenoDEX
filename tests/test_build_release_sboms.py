@@ -37,6 +37,10 @@ def test_build_release_sboms_from_minimal_locks(tmp_path: Path) -> None:
                         "version": "1.2.0",
                         "integrity": "sha512-" + base64.b64encode(digest).decode("ascii"),
                     },
+                    "node_modules/@zenodex/proof-client": {
+                        "link": True,
+                        "resolved": "../../packages/zeno-proof-client",
+                    },
                 }
             }
         ),
@@ -58,6 +62,7 @@ def test_build_release_sboms_from_minimal_locks(tmp_path: Path) -> None:
     assert ui_bom["components"][0]["name"] == "@noble/curves"
     assert ui_bom["components"][0]["hashes"][0]["alg"] == "SHA-512"
     assert ui_bom["components"][0]["hashes"][0]["content"] == digest.hex()
+    assert all(component["version"] != "None" for component in ui_bom["components"])
 
 
 def test_build_release_sboms_cli_outputs_json(tmp_path: Path, capsys) -> None:
