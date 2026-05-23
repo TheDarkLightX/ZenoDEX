@@ -85,6 +85,10 @@ def test_permissionless_proof_mining_manager_packet_cli_build_and_apply(tmp_path
             str(snapshot_path),
             "--output",
             str(packet_path),
+            "--proof-ok",
+            "--binding-ok",
+            "--policy-ok",
+            "--nonce-ok",
         ]
     )
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
@@ -102,6 +106,10 @@ def test_permissionless_proof_mining_manager_packet_cli_build_and_apply(tmp_path
             "--output",
             str(apply_path),
             "--apply",
+            "--proof-ok",
+            "--binding-ok",
+            "--policy-ok",
+            "--nonce-ok",
         ]
     )
     applied = json.loads(apply_path.read_text(encoding="utf-8"))
