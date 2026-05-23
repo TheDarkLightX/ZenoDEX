@@ -79,12 +79,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--snapshot", required=True, help="Manager snapshot JSON path")
     parser.add_argument("--output", required=True, help="Output JSON path")
     parser.add_argument("--apply", action="store_true", help="Execute the kernel step and emit the apply result")
+    parser.add_argument("--proof-ok", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--binding-ok", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--policy-ok", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--nonce-ok", action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args(argv)
 
     claim = _load_json(Path(args.claim))
     snapshot_obj = _load_json(Path(args.snapshot))
     snapshot = _snapshot_from_obj(snapshot_obj)
-    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+    verification_flags = {
+        "proof_ok": bool(args.proof_ok),
+        "binding_ok": bool(args.binding_ok),
+        "policy_ok": bool(args.policy_ok),
+        "nonce_ok": bool(args.nonce_ok),
+    }
+    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=verification_flags)
 
     if not bool(args.apply):
         out = {
@@ -99,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             },
         }
     else:
-        res = apply_submit_proof_packet(packet=packet, snapshot=snapshot)
+        res = apply_submit_proof_packet(packet=packet, snapshot=snapshot, verification_flags=verification_flags)
         out = {
             "schema": "zenodex/proof_mining_manager_apply_result/v1",
             "ok": bool(res.ok),
