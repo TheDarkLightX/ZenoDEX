@@ -28,8 +28,8 @@ REQUIRED_TOKENS = (
     "tools/build_operator_release_bundle.py build",
     "tools/build_zenodex_oracle_release.py",
     "npm pack",
+    "npm version --no-git-tag-version --allow-same-version",
     "npm publish --access public --provenance",
-    "package.json version",
     "NPM_TOKEN",
     "SHA256SUMS",
     "zenodex-release-manifest.json",
@@ -126,6 +126,11 @@ def check_release_publication_workflow(path: Path = DEFAULT_WORKFLOW) -> dict[st
     checks.append({"id": "npm_publish_manual_only", "ok": npm_manual_only})
     if not npm_manual_only:
         errors.append("npm publish must remain manual opt-in")
+
+    containers_manual_only = "if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_containers }}" in containers_job
+    checks.append({"id": "container_publish_manual_only", "ok": containers_manual_only})
+    if not containers_manual_only:
+        errors.append("container publish must remain manual opt-in until GHCR permissions are configured")
 
     manual_defaults = {
         "publish_github_release": "false",

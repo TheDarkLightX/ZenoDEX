@@ -59,6 +59,20 @@ def test_release_publication_workflow_rejects_automatic_npm_publish(tmp_path: Pa
     assert "npm publish must remain manual opt-in" in report["errors"]
 
 
+def test_release_publication_workflow_rejects_automatic_container_publish(tmp_path: Path) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_containers }}",
+        "if: ${{ github.event_name == 'push' || inputs.publish_containers }}",
+    )
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert "container publish must remain manual opt-in until GHCR permissions are configured" in report["errors"]
+
+
 def test_release_publication_workflow_rejects_manual_publish_defaults_true(tmp_path: Path) -> None:
     workflow = tmp_path / "release-publish.yml"
     text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(

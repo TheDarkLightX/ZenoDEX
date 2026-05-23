@@ -121,6 +121,7 @@ jobs:
         run: |
           cd packages/zeno-proof-client
           npm ci
+          npm version --no-git-tag-version --allow-same-version "${{ steps.version.outputs.version }}"
           npm test
           npm pack --pack-destination ../../dist --json | tee "../../dist/zenodex-proof-client-${{ steps.version.outputs.version }}.pack.json"
 
@@ -156,7 +157,7 @@ jobs:
               "files": files,
               "publish_targets": {
                   "github_release": True,
-                  "ghcr": True,
+                  "ghcr": "manual-opt-in",
                   "npm": "manual-opt-in",
               },
               "not_claimed": [
@@ -213,7 +214,7 @@ jobs:
     needs: build-artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ github.event_name == 'push' || inputs.publish_containers }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_containers }}
     permissions:
       contents: read
       packages: write
@@ -291,11 +292,7 @@ jobs:
             exit 2
           fi
           cd packages/zeno-proof-client
-          package_version="$(node -p "require('./package.json').version")"
-          if [[ "${package_version}" != "${{ needs.build-artifacts.outputs.version }}" ]]; then
-            echo "package.json version ${package_version} does not match release version ${{ needs.build-artifacts.outputs.version }}" >&2
-            exit 2
-          fi
           npm ci
+          npm version --no-git-tag-version --allow-same-version "${{ needs.build-artifacts.outputs.version }}"
           npm test
           npm publish --access public --provenance
