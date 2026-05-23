@@ -269,6 +269,29 @@ def _negative_cases_for_action(action: str, policy: Mapping[str, Any]) -> list[d
             reject_reason="revoked_or_expired_key",
         )
     )
+    expired = [*valid]
+    expired[0] = Key(**{**expired[0].__dict__, "status": "expired"})
+    cases.append(
+        _case(
+            name=f"{action}:PKM-G-002:expired_key_rejected",
+            action=action,
+            policy=policy,
+            signers=expired,
+            decision=_admission_decision(
+                action=action,
+                policy=policy,
+                signers=expired,
+                environment="production",
+                timelock_satisfied=True,
+                transparency_receipt_bound=True,
+            ),
+            expected_accept=False,
+            invariant_id="PKM-G-002",
+            primary_axis="status",
+            polarity="negative",
+            reject_reason="revoked_or_expired_key",
+        )
+    )
 
     if policy["critical"] is True:
         single = [_active_key(str(policy["role"]), 0)]
@@ -291,6 +314,31 @@ def _negative_cases_for_action(action: str, policy: Mapping[str, Any]) -> list[d
                 primary_axis="quorum",
                 polarity="negative",
                 reject_reason="threshold_not_met",
+            )
+        )
+        same_custodian = [
+            Key(**{**valid[0].__dict__, "custodian_id": "custodian-shared"}),
+            Key(**{**valid[1].__dict__, "custodian_id": "custodian-shared"}),
+        ]
+        cases.append(
+            _case(
+                name=f"{action}:PKM-G-003:same_custodian_quorum_rejected",
+                action=action,
+                policy=policy,
+                signers=same_custodian,
+                decision=_admission_decision(
+                    action=action,
+                    policy=policy,
+                    signers=same_custodian,
+                    environment="production",
+                    timelock_satisfied=True,
+                    transparency_receipt_bound=True,
+                ),
+                expected_accept=False,
+                invariant_id="PKM-G-003",
+                primary_axis="quorum",
+                polarity="negative",
+                reject_reason="distinct_custodian_quorum_not_met",
             )
         )
 
