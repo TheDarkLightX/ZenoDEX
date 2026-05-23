@@ -14,7 +14,7 @@ This matrix defines the exact conservative RC1 claim boundary for ZenoDEX.
 RC1ClaimOK := CleanTree ∧ ScopeFrozen ∧ ReplayGreen ∧ ExclusionsHonest
 ```
 
-Plain English: RC1 is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.
+Reading: RC1 is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.
 
 Practical consequence: this matrix is configuration-specific. It is not a claim about every file in the repo.
 
@@ -166,8 +166,8 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 
 | Surface | Reason | Paths / claims |
 | --- | --- | --- |
-| Experimental autotrader authority | Autotrader and experimental advisory engines remain experimental and non-authoritative for RC1. | `tools/autotrader_shadow.py`<br>`tools/autotrader_live.py` |
-| Experimental ranking runtime influence | Experimental ranking and execution influence remain advisory-only. | experimental ranking-stage tooling |
+| Experimental autotrader authority | Autotrader and KRR remain experimental and non-authoritative for RC1. | `tools/autotrader_shadow.py`<br>`tools/autotrader_live.py` |
+| ZenoGraph runtime influence | ZenoGraph ranking and execution influence remain advisory-only. | `tools/zenograph_autotrader_ranking_stage.py`<br>`tools/zenograph_autotrader_ranking_review_bundle.py` |
 | Disputed derivatives authorization claims | These claims remain disputed and must stay outside the RC1 authorization surface until resolved. | `smt:funding_rate_market_v1:inductive_z3_cvc5` (disputed)<br>`smt:curve_selection_market_v1:inductive_z3_cvc5` (disputed) |
 | Broad api_server surface | Only the narrow supported HTTP subset is RC1-backed. | `src/integration/api_server.py` |
 | Confidential and alpha-only extensions | Confidential, TEE, sealed-bid, and other alpha-only surfaces remain out of scope for RC1. | `src/core/confidential_extension_receipts.py`<br>`src/core/confidential_extension_live_admission.py` |

@@ -1,0 +1,37 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/ZenoDEXYieldLikeFundingSafety.lean",
+  "claim": "Refines the S-tier passive-yield posture into a typed whitelist: earned service rewards, fee rebates, liquidity service fees, protocol staking security rewards, verified work bounties, treasury operating revenue, liquid-staking pass-through receipts, and deflationary burn sources can be admitted only when source-verified, bounded, non-guaranteed, non-profit-share, non-future-entrant, and reserve-first payout constraints hold.",
+  "file": "lean-mathlib/Proofs/ZenoDEXYieldLikeFundingSafety.lean",
+  "focused_test": "pytest -q tests/formal/test_lean_zenodex_yield_like_funding_safety.py",
+  "non_claims": [
+    "Does not prove legal compliance or securities status.",
+    "Does not prove tax treatment.",
+    "Does not prove oracle truth, cryptographic security, backend refinement, or runtime liveness.",
+    "Does not prove any live production source already instantiates the abstract source assumptions.",
+    "Does not approve guaranteed APY, profit-share rights, hold-to-earn rewards, future-entrant inflow, or discretionary managerial-yield funding."
+  ],
+  "status": "checked",
+  "theorems": [
+    "Proofs.ZenoDEXYieldLikeFundingSafety.admitted_kind_allowed",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.admitted_source_is_bounded",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.admitted_source_has_no_passive_return_right",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.required_work_source_is_earned",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.liquid_staking_pass_through_requires_ministerial",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.hold_to_earn_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.guaranteed_apy_kind_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.profit_share_kind_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.future_entrant_kind_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.discretionary_managerial_yield_kind_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.guaranteed_return_flag_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.profit_share_flag_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.future_entrant_flag_not_admitted",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.allowed_shape_has_admissible_witness",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.positive_yield_like_payout_gate",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.zero_allocable_budget_forces_zero_payment",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.fee_rebate_bounded_by_own_fees",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.fee_pool_distribution_source_bounded",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.service_reward_source_bounded",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.pass_through_receipt_source_bounded",
+    "Proofs.ZenoDEXYieldLikeFundingSafety.burn_amount_source_bounded"
+  ]
+}

@@ -1,4 +1,5 @@
 {
   "apiBase": "",
-  "demoMode": null
+  "demoMode": null,
+  "zenoOracleApiBase": ""
 }

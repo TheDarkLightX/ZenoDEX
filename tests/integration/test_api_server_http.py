@@ -6,11 +6,16 @@ import threading
 from http.client import HTTPConnection
 
 
-def _start_test_server(*, perps_enabled: bool = True, zusd_enabled: bool = False):
+def _start_test_server(
+    *,
+    perps_enabled: bool = True,
+    zusd_enabled: bool = False,
+    cors_origins: set[str] | None = None,
+):
     from src.integration import api_server
 
     httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
-    httpd.cors_origins = set()  # type: ignore[attr-defined]
+    httpd.cors_origins = set(cors_origins or set())  # type: ignore[attr-defined]
     httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
     httpd.perps_api_enabled = bool(perps_enabled)  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = bool(zusd_enabled)  # type: ignore[attr-defined]
@@ -44,6 +49,37 @@ def test_api_server_rejects_non_json_content_type_for_demo_post() -> None:
         parsed = json.loads(body.decode("utf-8"))
         assert parsed["ok"] is False
         assert parsed["error"] == "unsupported_media_type"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_rejects_unsafe_cors_origin_values() -> None:
+    from src.integration import api_server
+
+    parsed = api_server._parse_cors_origins(
+        "https://good.example,https://bad.example\r\nX-Injected: value"
+    )
+
+    assert parsed == {"https://good.example"}
+    assert api_server._safe_cors_origin("https://bad.example\r\nX-Injected: value") is None
+
+
+def test_api_server_access_log_omits_sensitive_request_target(capsys) -> None:
+    secret = "secret-token-should-not-be-logged"
+    httpd, t, host, port = _start_test_server()
+    try:
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request("GET", f"/health?api_key={secret}&authorization=bearer")
+        resp = conn.getresponse()
+        body = resp.read()
+        assert resp.status == 200
+        assert json.loads(body.decode("utf-8"))["status"] == "healthy"
+
+        captured = capsys.readouterr().out
+        assert secret not in captured
+        assert "api_key" not in captured
+        assert "authorization" not in captured
+        assert "/health" not in captured
     finally:
         _stop_test_server(httpd, t)
 

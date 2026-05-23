@@ -1,0 +1,779 @@
+{
+  "schema": "shapeforge/world-model-seed/v1",
+  "repo_root": ".",
+  "world_model_id": "autotrader_shape_reference_v1",
+  "description": "Formal ShapeForge baseline for the ZenoDEX AutoTrader: observation provenance, candidate-set contracts, binary decision certificates, live admission, and system composition.",
+  "evidence_classes": [
+    "proved",
+    "contract",
+    "implemented",
+    "tested_discovery",
+    "hypothesis"
+  ],
+  "slice_axes": [
+    "state_var",
+    "operator",
+    "guard",
+    "observable",
+    "canonical_key",
+    "evidence"
+  ],
+  "slices": [
+    {
+      "slice_id": "autotrader_signal_provenance",
+      "status": "contract",
+      "description": "Observation packets are admissible only when quote receipts, external signals, and ownership bindings remain replayable under explicit provenance guards.",
+      "candidate_family": "autotrader_observation_packet",
+      "state_vars": [
+        {
+          "id": "observation_packet",
+          "type": "AutoTraderObservationPacket",
+          "meaning": "Primary quote receipt plus optional external signals and wallet/session bindings."
+        },
+        {
+          "id": "source_registry",
+          "type": "ExternalSignalSourceRegistry",
+          "meaning": "Registry of admitted external signal sources and trust tiers."
+        }
+      ],
+      "operators": [
+        {
+          "id": "build_observation_packet",
+          "kind": "constructor",
+          "preconditions": [
+            "quote receipt and wallet capability inputs are provided"
+          ],
+          "effects": [
+            "observation_packet exposes binding flags and a deterministic observation hash"
+          ]
+        },
+        {
+          "id": "check_signal_provenance",
+          "kind": "guard",
+          "preconditions": [
+            "observation_packet is available"
+          ],
+          "effects": [
+            "signal provenance guard accepts or rejects the observation packet"
+          ]
+        }
+      ],
+      "guards": [
+        {
+          "id": "primary_binding_ok",
+          "formula": "observation_packet.binding_ok = true",
+          "meaning": "The primary quote receipt must remain bound to the packet surface."
+        },
+        {
+          "id": "external_source_registered",
+          "formula": "forall signal in observation_packet.external_signals. signal.source_id is present in source_registry",
+          "meaning": "External signals are only admissible when the registry explicitly authorizes their source."
+        }
+      ],
+      "observables": [
+        {
+          "id": "observation_hash",
+          "type": "Hash32",
+          "meaning": "Deterministic hash of the observation packet payload."
+        },
+        {
+          "id": "signal_trust_tiers",
+          "type": "List<TrustTier>",
+          "meaning": "Trust and freshness posture of attached external signals."
+        }
+      ],
+      "canonical_keys": [],
+      "evidence": [
+        {
+          "class": "contract",
+          "claim": "Signal provenance is admitted only when the packet binding bit and quote-receipt expectations satisfy the dedicated guard.",
+          "source": "src/kernels/dex/strategy_signal_provenance_guard_v1.yaml"
+        },
+        {
+          "class": "implemented",
+          "claim": "Observation packets carry deterministic hashes and explicit binding flags through the integration layer.",
+          "source": "src/integration/autotrader_signals.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover positive and negative provenance cases for AutoTrader observation packets.",
+          "source": "tests/integration/test_autotrader_signals.py"
+        }
+      ],
+      "sources": [
+        "src/integration/autotrader_signals.py",
+        "src/kernels/dex/strategy_signal_provenance_guard_v1.yaml",
+        "tests/integration/test_autotrader_signals.py"
+      ],
+      "known_gaps": [
+        "The provenance lane is contract-backed, but external trust-tier semantics are not yet promoted into one consolidated live certificate."
+      ],
+      "improvement_targets": [
+        "contract strengthening",
+        "runtime guard alignment",
+        "proof promotion"
+      ]
+    },
+    {
+      "slice_id": "autotrader_candidate_set_contract",
+      "status": "contract",
+      "description": "The binary candidate set binds policy artifact, Tau policy bundle, and observation packet hashes before any decision certificate is meaningful.",
+      "candidate_family": "strategy_decision_candidate_set",
+      "state_vars": [
+        {
+          "id": "candidate_set",
+          "type": "StrategyCandidateSet",
+          "meaning": "Binary candidate set for NO_OP versus EMIT_COMPILED_INTENT."
+        },
+        {
+          "id": "candidate_set_hash",
+          "type": "Hash32",
+          "meaning": "Deterministic hash over the unsigned candidate set payload."
+        }
+      ],
+      "operators": [
+        {
+          "id": "build_strategy_candidate_set",
+          "kind": "constructor",
+          "preconditions": [
+            "policy artifact, Tau policy bundle, and observation packet are available"
+          ],
+          "effects": [
+            "candidate_set exposes deterministic candidate ordering and candidate_set_hash"
+          ]
+        },
+        {
+          "id": "validate_candidate_set",
+          "kind": "contract",
+          "preconditions": [
+            "candidate_set is present"
+          ],
+          "effects": [
+            "candidate_set_ok accepts only well-shaped binary candidate sets with all binding hashes present"
+          ]
+        }
+      ],
+      "guards": [
+        {
+          "id": "candidate_shape_ok",
+          "formula": "candidate_set has exactly candidate 0 = NO_OP and candidate 1 = EMIT_COMPILED_INTENT",
+          "meaning": "The current decision kernel only certifies the binary frontier."
+        },
+        {
+          "id": "artifact_bundle_observation_bound",
+          "formula": "policy_artifact_hash != empty and tau_policy_bundle_hash != empty and observation_hash != empty",
+          "meaning": "The candidate set is only meaningful when all upstream artifacts remain explicitly bound."
+        }
+      ],
+      "observables": [
+        {
+          "id": "emit_requested",
+          "type": "Bool",
+          "meaning": "Whether the EMIT candidate was requested by the controller lane."
+        },
+        {
+          "id": "emit_admissible",
+          "type": "Bool",
+          "meaning": "Whether the EMIT candidate remains admissible before kill-switch refinement."
+        }
+      ],
+      "canonical_keys": [],
+      "evidence": [
+        {
+          "class": "contract",
+          "claim": "The candidate-set contract accepts only well-formed binary candidate sets with all binding hashes present.",
+          "source": "src/kernels/dex/strategy_candidate_set_contract_v1.yaml"
+        },
+        {
+          "class": "implemented",
+          "claim": "Candidate-set construction hashes the policy artifact, Tau bundle, and observation packet into a deterministic candidate_set_hash.",
+          "source": "src/integration/autotrader_decision.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover candidate-set construction and contract rejection edges.",
+          "source": "tests/integration/test_autotrader_decision.py"
+        },
+        {
+          "class": "contract",
+          "claim": "A dedicated bounded multi-action candidate-set contract now accepts only well-formed NO_OP-plus-actions frontiers with required binding hashes, contiguous indices, and unique candidate kinds.",
+          "source": "src/kernels/dex/strategy_multi_action_candidate_set_contract_v1.yaml"
+        },
+        {
+          "class": "implemented",
+          "claim": "The repo now has a parallel bounded multi-action candidate-set surface with deterministic action ordering, an explicit total key, and hash-stable payload verifiers.",
+          "source": "src/integration/autotrader_multiaction_decision.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "Shadow and live assurance reports now expose the bounded multi-action candidate-set contract result whenever the strategy action frontier is unambiguous, and fail closed on ambiguous frontiers.",
+          "source": "src/integration/autotrader_live.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover bounded multi-action winner selection, NO_OP fallback, tie-breaks, and payload tamper rejection.",
+          "source": "tests/integration/test_autotrader_multiaction_decision.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover bounded multi-action candidate-set contract acceptance plus shadow/live assurance-report contract emission and ambiguous-frontier fail-closed behavior.",
+          "source": "tests/integration/test_autotrader_live_cli.py"
+        }
+      ],
+      "sources": [
+        "src/integration/autotrader_decision.py",
+        "src/integration/autotrader_multiaction_decision.py",
+        "src/kernels/dex/strategy_multi_action_candidate_set_contract_v1.yaml",
+        "src/kernels/python/strategy_multi_action_candidate_set_contract_v1_adapter.py",
+        "src/kernels/dex/strategy_candidate_set_contract_v1.yaml",
+        "tests/integration/test_autotrader_decision.py",
+        "tests/integration/test_autotrader_multiaction_decision.py",
+        "tests/integration/test_autotrader_live.py",
+        "tests/integration/test_autotrader_live_cli.py",
+        "tests/integration/test_autotrader_shadow_cli.py"
+      ],
+      "known_gaps": [
+        "The current promoted candidate-set contract still stops at the binary frontier in the runtime decision kernel; the bounded multi-action candidate-set contract now exists in parallel and appears in the shadow and live assurance reports when the strategy action frontier is unambiguous, but it is not yet wired into live admission semantics or promoted into the runtime decision kernel."
+      ],
+      "improvement_targets": [
+        "candidate frontier",
+        "contract strengthening",
+        "proof promotion"
+      ]
+    },
+    {
+      "slice_id": "autotrader_decision_certificate",
+      "status": "contract",
+      "description": "Binary AutoTrader decisions are certified as argmax witnesses only when the candidate-set bindings and kill-switch state agree with the emitted winner.",
+      "candidate_family": "binary_strategy_decision",
+      "state_vars": [
+        {
+          "id": "candidate_set",
+          "type": "StrategyCandidateSet",
+          "meaning": "Binary candidate set bound to policy, bundle, and observation hashes."
+        },
+        {
+          "id": "decision_certificate",
+          "type": "StrategyDecisionCertificate",
+          "meaning": "Winner plus argmax stream steps over the binary candidate set."
+        }
+      ],
+      "operators": [
+        {
+          "id": "choose_binary_decision",
+          "kind": "kernel",
+          "preconditions": [
+            "emit_requested and emit_admissible are derived from the candidate set and kill-switch posture"
+          ],
+          "effects": [
+            "winner_index and winner_key are computed under the binary decision kernel"
+          ]
+        },
+        {
+          "id": "build_strategy_decision_certificate",
+          "kind": "certificate_builder",
+          "preconditions": [
+            "candidate_set is well-formed"
+          ],
+          "effects": [
+            "decision_certificate exposes winner fields and argmax steps with a derived binding bit"
+          ]
+        },
+        {
+          "id": "verify_strategy_decision_certificate",
+          "kind": "certificate_checker",
+          "preconditions": [
+            "candidate_set and decision_certificate are available"
+          ],
+          "effects": [
+            "decision certificate rejects mismatched hashes, kill-switch posture, winner fields, or argmax steps"
+          ]
+        }
+      ],
+      "guards": [
+        {
+          "id": "decision_binding_ok",
+          "formula": "candidate_set_hash, policy_artifact_hash, tau_policy_bundle_hash, observation_hash, and kill_switch_active all agree with the recomputed decision witness",
+          "meaning": "The decision certificate is only authoritative when it is bound to the exact candidate set and kill-switch state."
+        },
+        {
+          "id": "binary_argmax_shape",
+          "formula": "argmax_steps stream the winner pair against each binary candidate under the (key desc, index asc) order",
+          "meaning": "The current certificate surface uses the generic argmax stream proof shape."
+        }
+      ],
+      "observables": [
+        {
+          "id": "winner_index",
+          "type": "U32",
+          "meaning": "0 denotes NO_OP and 1 denotes EMIT_COMPILED_INTENT."
+        },
+        {
+          "id": "winner_key",
+          "type": "U64",
+          "meaning": "Binary priority key emitted by the decision kernel."
+        }
+      ],
+      "canonical_keys": [
+        {
+          "id": "binary_decision_key",
+          "order": "total",
+          "formula": "(-winner_key, winner_index)",
+          "meaning": "The argmax certificate prefers larger keys and breaks ties toward the smaller index, i.e. NO_OP."
+        }
+      ],
+      "evidence": [
+        {
+          "class": "proved",
+          "claim": "Lean proves that the current binary decision kernel has a unique canonical winner under the same `(key desc, index asc)` pair order used by the Tau argmax certificate, including the NO_OP tie-break when emit is blocked.",
+          "source": "lean-mathlib/Proofs/ZenoDEXAutoTraderBinaryDecision.lean"
+        },
+        {
+          "class": "proved",
+          "claim": "Lean proves that, for a fixed binary candidate set and kill-switch posture, the decision certificate verifier accepts exactly the canonical rebuilt certificate and that the verifying certificate is unique, modeling candidate-set hashing as a deterministic function of the unsigned payload.",
+          "source": "lean-mathlib/Proofs/ZenoDEXAutoTraderDecisionBinding.lean"
+        },
+        {
+          "class": "contract",
+          "claim": "The argmax stream certificate checks that the winner pair dominates every streamed candidate pair when binding_ok is asserted.",
+          "source": "src/tau_specs/recommended/argmax_stream_certificate_v1.tau"
+        },
+        {
+          "class": "implemented",
+          "claim": "Decision certificate construction now derives binding_ok from the candidate set, winner pair, and kill-switch state, and the runtime recomputes and verifies that certificate before promotion.",
+          "source": "src/integration/autotrader_decision.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover decision certificate round trips, tampered certificate rejection, and live-path rejection when the certificate binding breaks.",
+          "source": "tests/integration/test_autotrader_decision.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "The repo now has a parallel bounded multi-action winner certificate with an explicit total key and argmax-stream witness steps over NO_OP plus one candidate per allowed action.",
+          "source": "src/integration/autotrader_multiaction_decision.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "Binary and bounded multi-action AutoTrader decision certificates now adapt into the shared DecisionWitness schema, and the shadow and live assurance reports re-verify those witness payloads before exposing them.",
+          "source": "src/integration/decision_witness.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "When Tau is enabled, the bounded multi-action shadow and live sidecars now replay their argmax witness steps against the generic argmax_stream_certificate_v1 Tau contract before reporting the result.",
+          "source": "src/integration/autotrader_live.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover bounded multi-action winner choice, canonical tie-breaks, and decision payload tamper rejection.",
+          "source": "tests/integration/test_autotrader_multiaction_decision.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover binary and bounded multi-action AutoTrader DecisionWitness adapters plus shadow/live assurance-report witness emission and tamper rejection.",
+          "source": "tests/integration/test_autotrader_live.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover Tau-backed bounded multi-action argmax replay and the shadow/live assurance-report Tau contract surfaces.",
+          "source": "tests/integration/test_autotrader_live_cli.py"
+        }
+      ],
+      "sources": [
+        "src/integration/autotrader_decision.py",
+        "src/integration/autotrader_multiaction_decision.py",
+        "src/integration/decision_witness.py",
+        "src/tau_specs/recommended/argmax_stream_certificate_v1.tau",
+        "src/integration/autotrader_live.py",
+        "src/integration/autotrader_shadow.py",
+        "tests/integration/test_autotrader_decision.py",
+        "tests/integration/test_autotrader_multiaction_decision.py",
+        "tests/integration/test_decision_witness_adapters.py",
+        "tests/integration/test_autotrader_live.py",
+        "tests/integration/test_autotrader_shadow_cli.py",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderBinaryDecision.lean",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderDecisionBinding.lean"
+      ],
+      "known_gaps": [
+        "The binary winner/tie-break kernel and the abstract deterministic certificate-rebuild shell are now proved, but the concrete canonical-JSON plus SHA256 implementation of that binding surface is still code-backed rather than formally modeled.",
+        "The promoted live certificate surface is still only binary; the bounded multi-action frontier now exists in parallel with a candidate-set contract, decision certificate, shared DecisionWitness, and optional Tau-backed argmax replay in the shadow and live assurance reports when unambiguous, but it is not yet promoted into the runtime decision kernel."
+      ],
+      "improvement_targets": [
+        "contract strengthening",
+        "proof promotion",
+        "candidate frontier"
+      ]
+    },
+    {
+      "slice_id": "autotrader_live_admission",
+      "status": "contract",
+      "description": "Live AutoTrader emission is admitted only when provenance, execution, oracle freshness, budget, session, wallet, nonce, and tx-envelope guards all remain green.",
+      "candidate_family": "autotrader_live_submission",
+      "state_vars": [
+        {
+          "id": "controller_state",
+          "type": "AutoTraderControllerState",
+          "meaning": "Budget, cadence, and kill-switch state used by the live controller."
+        },
+        {
+          "id": "live_admission_bundle",
+          "type": "BoolBundle",
+          "meaning": "Bundle of runtime guard bits needed before the AutoTrader may prepare live intents."
+        }
+      ],
+      "operators": [
+        {
+          "id": "evaluate_live_admission_bundle",
+          "kind": "bundle_gate",
+          "preconditions": [
+            "provenance, execution, oracle, budget, tx-envelope, session, wallet, and nonce bits are available"
+          ],
+          "effects": [
+            "live_admission_ok accepts or rejects the live emission surface"
+          ]
+        },
+        {
+          "id": "verify_nonce_and_tx_envelope",
+          "kind": "guard",
+          "preconditions": [
+            "signed intent preview and last-used nonce are available"
+          ],
+          "effects": [
+            "nonce_ok and tx_envelope_ok become explicit inputs to live admission"
+          ]
+        }
+      ],
+      "guards": [
+        {
+          "id": "session_capability_binding_ok",
+          "formula": "session_state, session capability, and wallet capability are mutually consistent for the strategy owner and chain id",
+          "meaning": "The live path must stay bound to the expected owner/session scope."
+        },
+        {
+          "id": "nonce_and_tx_envelope_ok",
+          "formula": "nonce_ok and tx_envelope_ok",
+          "meaning": "Prepared intents must remain submit-safe before any live emission is considered admissible."
+        }
+      ],
+      "observables": [
+        {
+          "id": "live_admission_ok",
+          "type": "Bool",
+          "meaning": "Whether the live admission bundle accepts the current preparation step."
+        },
+        {
+          "id": "signed_intent_count",
+          "type": "Nat",
+          "meaning": "Number of signed intents carried into the live path."
+        }
+      ],
+      "canonical_keys": [],
+      "evidence": [
+        {
+          "class": "contract",
+          "claim": "The live admission bundle accepts only when the full runtime guard bundle is green.",
+          "source": "src/kernels/dex/strategy_live_admission_bundle_v1.yaml"
+        },
+        {
+          "class": "implemented",
+          "claim": "The live integration path checks nonce, tx-envelope, Tau receipts, and admission bundles before preparing a live submission.",
+          "source": "src/integration/autotrader_live.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "When the strategy action frontier is unambiguous, the live assurance report now carries a bounded multi-action candidate set, decision certificate, DecisionWitness, and optional Tau-backed argmax replay result as sidecar evidence without changing binary live admission semantics.",
+          "source": "src/integration/autotrader_live.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover successful live preparation and rejection on nonce or Tau-gate failures.",
+          "source": "tests/integration/test_autotrader_live.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover bounded multi-action live-report sidecar emission for unambiguous frontiers and fail-closed ambiguous-frontier behavior.",
+          "source": "tests/integration/test_autotrader_live_cli.py"
+        }
+      ],
+      "sources": [
+        "src/integration/autotrader_live.py",
+        "src/kernels/dex/strategy_live_admission_bundle_v1.yaml",
+        "tests/integration/test_autotrader_live.py"
+      ],
+      "known_gaps": [
+        "Live admission is still a decomposed guard surface rather than a single consolidated certificate artifact.",
+        "The bounded multi-action sidecar is assurance-only; it does not currently alter live admission semantics or replace the binary decision kernel."
+      ],
+      "improvement_targets": [
+        "contract strengthening",
+        "runtime guard alignment",
+        "certificate consolidation"
+      ]
+    },
+    {
+      "slice_id": "autotrader_system_compose",
+      "status": "contract",
+      "description": "AutoTrader release is only system-admissible when policy artifacts, provenance guards, candidate-set/decision surfaces, and live submission guards all compose successfully.",
+      "candidate_family": "autotrader_release_bundle",
+      "state_vars": [
+        {
+          "id": "system_inputs",
+          "type": "ComposeInputs",
+          "meaning": "Policy, provenance, decision, and live submission bits consumed by the system compose kernel."
+        },
+        {
+          "id": "system_compose_ok",
+          "type": "Bool",
+          "meaning": "Whether the AutoTrader release surface is admissible end to end."
+        }
+      ],
+      "operators": [
+        {
+          "id": "check_strategy_system_compose",
+          "kind": "compose_gate",
+          "preconditions": [
+            "all upstream guard and certificate bits are available"
+          ],
+          "effects": [
+            "system_compose_ok accepts or rejects the composed release surface"
+          ]
+        },
+        {
+          "id": "prepare_autotrader_live_quote_receipt",
+          "kind": "shell_adapter",
+          "preconditions": [
+            "quote receipt, strategy, controller state, and signing inputs are provided"
+          ],
+          "effects": [
+            "all intermediate bundles are built and threaded into system compose"
+          ]
+        }
+      ],
+      "guards": [
+        {
+          "id": "decision_and_candidate_contracts_ok",
+          "formula": "candidate_set_ok and decision_ok",
+          "meaning": "A release cannot compose if the candidate or decision surface is unbound."
+        },
+        {
+          "id": "live_submission_ready",
+          "formula": "live_admission_ok and session_state_ok and wallet_capability_ok and nonce_ok and tx_envelope_ok",
+          "meaning": "System composition only admits live releases that are submit-safe."
+        }
+      ],
+      "observables": [
+        {
+          "id": "emit_requested",
+          "type": "Bool",
+          "meaning": "Whether the controller requested a live emission."
+        },
+        {
+          "id": "system_compose_error",
+          "type": "String",
+          "meaning": "Fail-closed reason when the composed release surface rejects."
+        }
+      ],
+      "canonical_keys": [],
+      "evidence": [
+        {
+          "class": "contract",
+          "claim": "The system compose kernel only accepts when all upstream release conditions are satisfied.",
+          "source": "src/kernels/dex/strategy_system_compose_v1.yaml"
+        },
+        {
+          "class": "implemented",
+          "claim": "The live preparation path fails closed on candidate-set, decision-certificate, live-admission, and system-compose rejection surfaces.",
+          "source": "src/integration/autotrader_live.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "The repo now exposes a consolidated live-release certificate builder/verifier and attaches that packet to populated `AutoTraderLiveReport` values, so downstream code can consume one deterministic release artifact instead of manually re-reading every intermediate field.",
+          "source": "src/integration/autotrader_live_release_certificate.py"
+        },
+        {
+          "class": "implemented",
+          "claim": "The repo now exposes a stage-aware AutoTrader certificate builder/verifier and attaches that packet to every `AutoTraderLiveReport`, so early reject paths carry one deterministic certificate surface even before candidate-set and decision hashes exist.",
+          "source": "src/integration/autotrader_stage_certificate.py"
+        },
+        {
+          "class": "proved",
+          "claim": "Lean proves that the stage-aware certificate verifier accepts exactly the canonical rebuilt packet and that stage selection is a deterministic function of the available hash surfaces, abstracting hashes as deterministic inputs.",
+          "source": "lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean"
+        },
+        {
+          "class": "proved",
+          "claim": "Lean proves that the consolidated live-release certificate verifier accepts exactly the canonical rebuilt packet and that the release bit is exactly the conjunction of the submit-time gates, abstracting upstream hashes as deterministic inputs.",
+          "source": "lean-mathlib/Proofs/ZenoDEXAutoTraderLiveReleaseCertificate.lean"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests exercise positive composition and negative release paths for candidate-set, decision, and live-admission failures.",
+          "source": "tests/integration/test_autotrader_live.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover successful live-release certificate construction, fail-closed rejected releases, and mismatch rejection.",
+          "source": "tests/integration/test_autotrader_live_release_certificate.py"
+        },
+        {
+          "class": "tested_discovery",
+          "claim": "Integration tests cover successful, early-reject, and policy-artifact-stage AutoTrader stage certificates plus mismatch rejection.",
+          "source": "tests/integration/test_autotrader_stage_certificate.py"
+        }
+      ],
+      "sources": [
+        "src/integration/autotrader_live.py",
+        "src/integration/autotrader_stage_certificate.py",
+        "src/integration/autotrader_live_release_certificate.py",
+        "src/kernels/dex/strategy_system_compose_v1.yaml",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderLiveReleaseCertificate.lean",
+        "tests/integration/test_autotrader_live.py",
+        "tests/integration/test_autotrader_stage_certificate.py",
+        "tests/integration/test_autotrader_live_release_certificate.py"
+      ],
+      "known_gaps": [
+        "The abstract stage-certificate and live-release packet shells are proved, but the concrete canonical JSON plus SHA256 behavior of both packet surfaces is still code-backed rather than formally modeled.",
+        "The stricter live-release packet still applies only once candidate-set and decision surfaces exist, so downstream consumers must interpret the stage certificate by `highest_stage` on earlier report phases."
+      ],
+      "improvement_targets": [
+        "certificate consolidation",
+        "runtime guard alignment",
+        "proof promotion"
+      ]
+    }
+  ],
+  "cross_slice_invariants": [
+    {
+      "id": "autotrader_candidate_and_decision_share_one_binding_surface",
+      "formula": "A decision certificate is only admissible if its candidate_set_hash, policy_artifact_hash, tau_policy_bundle_hash, and observation_hash all match the candidate set it certifies.",
+      "sources": [
+        "src/integration/autotrader_decision.py",
+        "tests/integration/test_autotrader_decision.py"
+      ]
+    },
+    {
+      "id": "autotrader_binary_decision_requires_total_pair_order",
+      "formula": "Binary AutoTrader winner claims are admissible only when the argmax pair order over (key desc, index asc) remains total on the binary candidate set.",
+      "sources": [
+        "src/tau_specs/recommended/argmax_stream_certificate_v1.tau",
+        "src/kernels/dex/strategy_decision_kernel_v1.yaml",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderBinaryDecision.lean"
+      ]
+    },
+    {
+      "id": "autotrader_stage_certificate_tracks_available_binding_surfaces",
+      "formula": "The stage certificate `highest_stage` is the maximal available binding surface among tau_policy_bundle, policy_artifact, observation, candidate_set, and decision hashes, with `live_release` only when all five hashes are present.",
+      "sources": [
+        "src/integration/autotrader_stage_certificate.py",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean",
+        "tests/integration/test_autotrader_stage_certificate.py"
+      ]
+    },
+    {
+      "id": "autotrader_live_release_requires_provenance_session_wallet_nonce_and_decision",
+      "formula": "Live release is only system-admissible when provenance, session/wallet binding, nonce discipline, candidate_set_ok, decision_ok, and live_admission_ok all hold together.",
+      "sources": [
+        "src/integration/autotrader_live.py",
+        "src/kernels/dex/strategy_live_admission_bundle_v1.yaml",
+        "src/kernels/dex/strategy_system_compose_v1.yaml"
+      ]
+    },
+    {
+      "id": "autotrader_external_signals_require_registry_and_provenance",
+      "formula": "External signals are world-model admissible only if the source registry authorizes them and the observation packet still satisfies the provenance guard.",
+      "sources": [
+        "src/integration/autotrader_signal_registry.py",
+        "src/integration/autotrader_signals.py",
+        "src/kernels/dex/strategy_signal_provenance_guard_v1.yaml"
+      ]
+    }
+  ],
+  "scenario_transforms": [
+    {
+      "scenario_id": "tamper_autotrader_decision_certificate_binding",
+      "slice_id": "autotrader_decision_certificate",
+      "axis": "guard",
+      "perturbation": "Alter the decision certificate hashes or argmax steps so they no longer match the candidate set and kill-switch posture.",
+      "expected_effects": [
+        "verify_strategy_decision_certificate rejects the certificate.",
+        "prepare_autotrader_live_quote_receipt fails closed with a decision_certificate_rejected error.",
+        "The binary argmax proof shape no longer counts as evidence for the emitted winner."
+      ],
+      "improvement_target": "runtime guard alignment",
+      "evidence_required": [
+        "implemented",
+        "tested_discovery"
+      ],
+      "status_if_unproved": "UNKNOWN"
+    },
+    {
+      "scenario_id": "expand_binary_decision_frontier_without_new_total_key",
+      "slice_id": "autotrader_decision_certificate",
+      "axis": "canonical_key",
+      "perturbation": "Add more than the current NO_OP and EMIT_COMPILED_INTENT candidates without redesigning the decision key and certificate surface.",
+      "expected_effects": [
+        "The current binary argmax certificate no longer certifies the full frontier.",
+        "candidate_shape_ok becomes false under the current contract.",
+        "A new total key and frontier certificate are required before promotion."
+      ],
+      "improvement_target": "candidate frontier",
+      "evidence_required": [
+        "contract",
+        "hypothesis"
+      ],
+      "status_if_unproved": "UNKNOWN"
+    },
+    {
+      "scenario_id": "allow_unregistered_external_signal",
+      "slice_id": "autotrader_signal_provenance",
+      "axis": "guard",
+      "perturbation": "Feed an external signal whose source_id is absent from the registry into the observation packet.",
+      "expected_effects": [
+        "The external signal source registry guard rejects the source.",
+        "signal provenance or live admission rejects the live path.",
+        "System composition loses a trusted provenance input."
+      ],
+      "improvement_target": "runtime guard alignment",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "status_if_unproved": "UNKNOWN"
+    },
+    {
+      "scenario_id": "drop_session_capability_binding",
+      "slice_id": "autotrader_live_admission",
+      "axis": "guard",
+      "perturbation": "Let the session state or wallet capability disagree with the strategy owner or chain id.",
+      "expected_effects": [
+        "session capability binding rejects.",
+        "live admission rejects before submission.",
+        "system compose can no longer admit the release surface."
+      ],
+      "improvement_target": "runtime guard alignment",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "status_if_unproved": "UNKNOWN"
+    },
+    {
+      "scenario_id": "treat_system_compose_as_single_certificate",
+      "slice_id": "autotrader_system_compose",
+      "axis": "evidence",
+      "perturbation": "Treat the current decomposed guard bundle as if it were already one end-to-end live certificate packet.",
+      "expected_effects": [
+        "The runtime now exposes a stage-aware certificate on every report and a stricter live-release packet on populated reports.",
+        "Downstream code can consume one deterministic packet for the current report phase instead of re-reading every intermediate field.",
+        "Proof promotion still stops at the concrete hash/serialization boundary until canonical JSON plus SHA256 behavior is formally modeled."
+      ],
+      "improvement_target": "certificate consolidation",
+      "evidence_required": [
+        "contract",
+        "hypothesis"
+      ],
+      "status_if_unproved": "UNKNOWN"
+    }
+  ]
+}

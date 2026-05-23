@@ -1,0 +1,38 @@
+{
+  "schema": "zenodex/energy/replay_source_manifest_builder_receipt/v1",
+  "date": "2026-05-18",
+  "claim": "ZenoEnergy has a fail-closed replay source manifest builder that computes canonical source report hashes, records replay and secret-scan attestations, and validates the manifest before writing it.",
+  "builder_schema": "zenodex/energy/replay_source_manifest_builder/v1",
+  "output_schema": "zenodex/energy/replay_source_manifest/v1",
+  "check_schema": "zenodex/energy/replay_source_manifest_check/v1",
+  "artifacts": [
+    "tools/build_zenoenergy_replay_source_manifest.py",
+    "tests/energy/test_zenoenergy_replay_source_manifest_builder.py",
+    "docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md"
+  ],
+  "safety": {
+    "verifier_authoritative": true,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_settlement_or_trade": false,
+    "model_output_in_state_root": false,
+    "manifest_builder_authorizes_production": false
+  },
+  "fail_closed_rules": [
+    "missing source reports fail",
+    "dirty secret scans fail",
+    "missing deterministic replay attestations fail",
+    "missing no-live-secrets attestations fail",
+    "fixture-like source descriptors fail",
+    "source report hash mismatches fail"
+  ],
+  "limits": [
+    "The builder does not prove external data custody.",
+    "The builder does not prove truthful collection or log completeness.",
+    "The builder does not replace the production promotion gate."
+  ],
+  "negative_knowledge": [
+    "A generated manifest is necessary packaging for real replay, not sufficient production evidence.",
+    "A clean secret-scan attestation is weaker than a complete privacy audit.",
+    "The builder intentionally refuses synthetic, fixture-like, built-in, or generated descriptors."
+  ]
+}

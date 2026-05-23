@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zenodex/metamuse/hypothesis-card/v1",
+  "type": "object",
+  "required": [
+    "hypothesis_id",
+    "mechanism_change",
+    "representation_shift_used",
+    "expected_metric_delta",
+    "null_hypothesis",
+    "falsification_recipe",
+    "support_recipe",
+    "formal_obligations",
+    "risk_modes",
+    "status"
+  ],
+  "properties": {
+    "hypothesis_id": {"type": "string", "minLength": 1},
+    "mechanism_change": {"type": "string", "minLength": 1},
+    "representation_shift_used": {"enum": ["equiv", "reduce", "relax", "restrict", "heuristic"]},
+    "expected_metric_delta": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {"type": "number"}
+    },
+    "null_hypothesis": {"type": "string", "minLength": 1},
+    "falsification_recipe": {"type": "string", "minLength": 1},
+    "support_recipe": {"type": "string", "minLength": 1},
+    "formal_obligations": {"type": "array", "items": {"type": "string"}},
+    "risk_modes": {"type": "array", "items": {"type": "string"}},
+    "status": {"enum": ["proposed", "falsified", "supported", "inconclusive"]}
+  },
+  "additionalProperties": true
+}

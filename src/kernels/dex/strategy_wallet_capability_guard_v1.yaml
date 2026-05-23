@@ -1,0 +1,91 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_wallet_capability_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless live-mode capability guard for the auto-trader shell.
+
+    The guard constrains a delegated signing/session capability:
+    - session must be enabled
+    - signer, chain, assets, and action must be in scope
+    - current epoch must be inside the session window
+    - order amount must fit within the delegated notional remainder
+observables:
+  state_vars: []
+  effects:
+    [
+      "enabled_ok",
+      "scope_ok",
+      "within_window_ok",
+      "notional_ok",
+      "capability_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_wallet_capability"
+    params:
+      - id: "enabled"
+        type: { kind: "bool" }
+      - id: "signer_ok"
+        type: { kind: "bool" }
+      - id: "asset_in_allowed"
+        type: { kind: "bool" }
+      - id: "asset_out_allowed"
+        type: { kind: "bool" }
+      - id: "action_allowed"
+        type: { kind: "bool" }
+      - id: "chain_id_ok"
+        type: { kind: "bool" }
+      - id: "current_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "valid_from_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "valid_until_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "order_amount"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "notional_remaining"
+        type: { kind: "int", min: 0, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "valid_from_epoch" }, { param: "valid_until_epoch" }] }
+        - { op: ">=", args: [{ param: "order_amount" }, { const: 1 }] }
+        - { op: ">=", args: [{ param: "notional_remaining" }, { const: 0 }] }
+    updates: []
+    effects:
+      enabled_ok:
+        param: "enabled"
+      scope_ok:
+        op: "and"
+        args:
+          - { param: "signer_ok" }
+          - { param: "asset_in_allowed" }
+          - { param: "asset_out_allowed" }
+          - { param: "action_allowed" }
+          - { param: "chain_id_ok" }
+      within_window_ok:
+        op: "and"
+        args:
+          - { op: ">=", args: [{ param: "current_epoch" }, { param: "valid_from_epoch" }] }
+          - { op: "<=", args: [{ param: "current_epoch" }, { param: "valid_until_epoch" }] }
+      notional_ok:
+        op: "<="
+        args: [{ param: "order_amount" }, { param: "notional_remaining" }]
+      capability_ok:
+        op: "and"
+        args:
+          - { param: "enabled" }
+          - { param: "signer_ok" }
+          - { param: "asset_in_allowed" }
+          - { param: "asset_out_allowed" }
+          - { param: "action_allowed" }
+          - { param: "chain_id_ok" }
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ param: "current_epoch" }, { param: "valid_from_epoch" }] }
+              - { op: "<=", args: [{ param: "current_epoch" }, { param: "valid_until_epoch" }] }
+          - { op: "<=", args: [{ param: "order_amount" }, { param: "notional_remaining" }] }

@@ -25,6 +25,15 @@ services:
       - tau-local-db:/data
     ports:
       - "${TAU_PORT:-65432}:${TAU_PORT:-65432}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 768m
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=128m
+    init: true
     healthcheck:
       test:
         [

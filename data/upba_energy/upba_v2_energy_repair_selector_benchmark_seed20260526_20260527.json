@@ -1,0 +1,133 @@
+{
+  "candidate_budget": 6,
+  "candidates_per_batch": 24,
+  "deltas": {
+    "learned_minus_full_neighborhood": {
+      "best_weakly_dominates_full_winner_rate": 0.0,
+      "candidate_count_mean": -8.274999999999999,
+      "mean_added_count": -8.275,
+      "mean_calls_until_dominating_candidate_or_exhausted": -0.36250000000000004,
+      "mean_calls_until_full_winner_or_exhausted": -6.225,
+      "mean_volume_regret": 0.0
+    },
+    "learned_minus_hand_selected": {
+      "best_weakly_dominates_full_winner_rate": 0.0,
+      "candidate_count_mean": 0.0,
+      "mean_added_count": 0.0,
+      "mean_calls_until_dominating_candidate_or_exhausted": -0.03750000000000009,
+      "mean_calls_until_full_winner_or_exhausted": 0.0625,
+      "mean_volume_regret": 0.0
+    },
+    "learned_minus_limited": {
+      "best_weakly_dominates_full_winner_rate": 0.7375,
+      "candidate_count_mean": 2.0,
+      "mean_added_count": 2.0,
+      "mean_calls_until_dominating_candidate_or_exhausted": -3.5625,
+      "mean_calls_until_full_winner_or_exhausted": 1.7750000000000004,
+      "mean_volume_regret": -268.27500000000003
+    }
+  },
+  "epochs": 10,
+  "evaluated_batches": 80,
+  "feature_dim": 34,
+  "holdout_batches": 80,
+  "holdout_seed": 20260527,
+  "interpretation": {
+    "negative_knowledge": "The learned selector did not beat the hand-selected proposal subset on mean volume regret.",
+    "positive_knowledge": "The learned selector reduced proposal count while preserving most of the full-neighborhood regret reduction.",
+    "recommendation": "Keep the selector as a bounded research candidate and test cross-seed before promotion."
+  },
+  "learning_rate": 0.05,
+  "margin": 1.0,
+  "max_proposals_per_seed": 6,
+  "model_path": "data/upba_energy/upba_v2_repair_selector_linear_seed20260526.json",
+  "modes": {
+    "full_neighborhood": {
+      "batches": 80,
+      "best_matches_full_winner_rate": 0.025,
+      "best_weakly_dominates_full_winner_rate": 0.9625,
+      "candidate_count_mean": 16.275,
+      "full_winner_present_rate": 0.2625,
+      "invalid_accept_count": 0,
+      "mean_added_count": 10.275,
+      "mean_calls_until_dominating_candidate_or_exhausted": 1.675,
+      "mean_calls_until_full_winner_or_exhausted": 12.875,
+      "mean_surplus_regret": 0,
+      "mean_volume_regret": 3.2,
+      "original_subset_violation_count": 0,
+      "p95_calls_until_dominating_candidate_or_exhausted": 3,
+      "p95_calls_until_full_winner_or_exhausted": 18,
+      "p99_calls_until_dominating_candidate_or_exhausted": 18,
+      "p99_calls_until_full_winner_or_exhausted": 18
+    },
+    "hand_selected": {
+      "batches": 80,
+      "best_matches_full_winner_rate": 0.05,
+      "best_weakly_dominates_full_winner_rate": 0.9625,
+      "candidate_count_mean": 8,
+      "full_winner_present_rate": 0.2625,
+      "invalid_accept_count": 0,
+      "mean_added_count": 2,
+      "mean_calls_until_dominating_candidate_or_exhausted": 1.35,
+      "mean_calls_until_full_winner_or_exhausted": 6.5875,
+      "mean_surplus_regret": 0,
+      "mean_volume_regret": 3.2,
+      "original_subset_violation_count": 0,
+      "p95_calls_until_dominating_candidate_or_exhausted": 3,
+      "p95_calls_until_full_winner_or_exhausted": 8,
+      "p99_calls_until_dominating_candidate_or_exhausted": 8,
+      "p99_calls_until_full_winner_or_exhausted": 8
+    },
+    "learned_selected": {
+      "batches": 80,
+      "best_matches_full_winner_rate": 0.025,
+      "best_weakly_dominates_full_winner_rate": 0.9625,
+      "candidate_count_mean": 8,
+      "full_winner_present_rate": 0.25,
+      "invalid_accept_count": 0,
+      "mean_added_count": 2,
+      "mean_calls_until_dominating_candidate_or_exhausted": 1.3125,
+      "mean_calls_until_full_winner_or_exhausted": 6.65,
+      "mean_surplus_regret": 0,
+      "mean_volume_regret": 3.2,
+      "original_subset_violation_count": 0,
+      "p95_calls_until_dominating_candidate_or_exhausted": 2,
+      "p95_calls_until_full_winner_or_exhausted": 8,
+      "p99_calls_until_dominating_candidate_or_exhausted": 8,
+      "p99_calls_until_full_winner_or_exhausted": 8
+    },
+    "limited": {
+      "batches": 80,
+      "best_matches_full_winner_rate": 0.225,
+      "best_weakly_dominates_full_winner_rate": 0.225,
+      "candidate_count_mean": 6,
+      "full_winner_present_rate": 0.225,
+      "invalid_accept_count": 0,
+      "mean_added_count": 0,
+      "mean_calls_until_dominating_candidate_or_exhausted": 4.875,
+      "mean_calls_until_full_winner_or_exhausted": 4.875,
+      "mean_surplus_regret": 73.65,
+      "mean_volume_regret": 271.475,
+      "original_subset_violation_count": 0,
+      "p95_calls_until_dominating_candidate_or_exhausted": 6,
+      "p95_calls_until_full_winner_or_exhausted": 6,
+      "p99_calls_until_dominating_candidate_or_exhausted": 6,
+      "p99_calls_until_full_winner_or_exhausted": 6
+    }
+  },
+  "parameter_count": 35,
+  "proposal_budget": 2,
+  "repair_seed_count": 4,
+  "safety": {
+    "candidate_source": "synthetic bounded UPBA v2 candidate/proposal generator",
+    "fallback_required": true,
+    "invalid_accept_count": 0,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/upba_v2_repair_selector_benchmark/v1",
+  "step_denominator": 4,
+  "train_batches": 120,
+  "train_seed": 20260526,
+  "training_rows": 1219,
+  "wall_clock_ms": 9763.175087980926
+}

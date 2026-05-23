@@ -1,0 +1,50 @@
+{
+  "schema": "zenodex/energy/replay_coverage_profile_receipt/v1",
+  "date": "2026-05-18",
+  "claim": "ZenoEnergy has a deterministic coverage-profile checker that rejects narrow real replay evidence before advisory ranking promotion.",
+  "profile_schema": "zenodex/energy/replay_coverage_profile/v1",
+  "profile_check_schema": "zenodex/energy/replay_coverage_profile_check/v1",
+  "artifacts": [
+    "tools/check_zenoenergy_replay_coverage_profile.py",
+    "tests/energy/test_zenoenergy_replay_coverage_profile.py",
+    "docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md"
+  ],
+  "thresholds": {
+    "upba": {
+      "min_pool_count": 3,
+      "min_intent_size_bucket_count": 3,
+      "min_candidate_family_count": 4,
+      "min_hard_negative_family_count": 4,
+      "min_batches_per_market_day": 50
+    },
+    "autotrader": {
+      "min_strategy_family_count": 3,
+      "min_guard_family_count": 4,
+      "min_decision_family_count": 3,
+      "min_contexts_per_market_day": 20
+    }
+  },
+  "integrations": [
+    "tools/build_zenoenergy_real_replay_report.py",
+    "tools/check_zenoenergy_production_promotion.py",
+    "tools/build_zenoenergy_production_evidence_bundle.py"
+  ],
+  "safety": {
+    "verifier_authoritative": true,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_settlement_or_trade": false,
+    "model_output_in_state_root": false,
+    "coverage_profile_authorizes_production": false
+  },
+  "limits": [
+    "The checker validates declared breadth counts against the real replay envelope.",
+    "The checker cannot prove that production traffic is representative.",
+    "The checker cannot prove external log custody or complete collection."
+  ],
+  "negative_knowledge": [
+    "Aggregate batch, candidate, context, or row counts are insufficient when coverage is concentrated in one narrow source family.",
+    "A passing coverage profile is not a production authorization path.",
+    "Coverage breadth remains separate from deterministic verifier and policy-guard authority."
+  ],
+  "supported_status": "supported"
+}

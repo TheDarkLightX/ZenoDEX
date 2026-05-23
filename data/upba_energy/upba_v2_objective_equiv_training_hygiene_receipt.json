@@ -1,0 +1,38 @@
+{
+  "schema": "zenodex/energy/upba_v2_objective_equiv_training_hygiene_receipt/v1",
+  "claim": "ZenoEnergy pairwise training can weight every verifier-accepted tied maximum-objective candidate as a positive example, avoiding extra pressure toward the arbitrary hash-selected representative.",
+  "trainer": "tools/train_upba_energy.py",
+  "unit_tests": "tests/energy/test_upba_v2_training_hygiene.py",
+  "positive_class_modes": [
+    "hash-winner",
+    "objective-equivalent"
+  ],
+  "default_positive_class": "hash-winner",
+  "recommended_research_positive_class": "objective-equivalent",
+  "training_rule": {
+    "hash_winner": "winner_pair_weight applies only when label.is_winner is true.",
+    "objective_equivalent": "winner_pair_weight applies to every valid candidate whose (objective_volume, objective_surplus) equals the best valid objective in the batch.",
+    "tie_pairs": "Pairs with equal validity, volume, and surplus remain skipped by the pairwise ordering loss."
+  },
+  "safety": {
+    "verifier_authoritative": true,
+    "scorer_authorizes_settlement": false,
+    "model_output_in_state_root": false,
+    "consensus_import": false
+  },
+  "replay_checks": [
+    {
+      "command": "pytest -q tests/energy/test_upba_v2_training_hygiene.py",
+      "expected_exit_code": 0
+    },
+    {
+      "command": "python3 -m py_compile tools/train_upba_energy.py tests/energy/test_upba_v2_training_hygiene.py tools/check_zenoenergy_research_evidence.py",
+      "expected_exit_code": 0
+    }
+  ],
+  "limits": [
+    "This receipt proves training-target hygiene, not a new benchmark improvement.",
+    "The legacy hash-winner mode remains available for reproducing older model artifacts.",
+    "Objective-equivalent training still uses synthetic verifier-labeled candidates unless paired with a real replay or shadow dataset."
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schema": "zenodex/energy/negative_curriculum/v1",
+  "generated_at": "2026-05-19T03:46:24.698",
+  "source_report": "data/upba_energy/upba_v2_suffix_bound_adversarial_family_stress_seed20260545.json",
+  "source_schema": "zenodex/energy/upba_v2_suffix_bound_adversarial_family_stress/v1",
+  "ok": true,
+  "evaluated_batches": 118,
+  "family_count": 8,
+  "total_cases": 944,
+  "adversary_invalid_count": 944,
+  "adversary_disqualified_count": 944,
+  "with_disqualifiers_certificate_ok_count": 944,
+  "without_disqualifiers_certificate_ok_count": 590,
+  "high_declared_output_forced_fail_count": 118,
+  "family_case_counts": {
+    "all_zero": 118,
+    "fill_coverage": 118,
+    "high_declared_output": 118,
+    "limit_violation": 118,
+    "negative_reserve": 118,
+    "output_mismatch": 118,
+    "price_objective": 118,
+    "schema_policy": 118
+  },
+  "disqualifier_histogram": {
+    "all_zero_fill_vector_flag": 118,
+    "fill_coverage_violation_flag": 118,
+    "invariant_violation_flag": 201,
+    "limit_violation_count": 117,
+    "negative_reserve_flag": 134,
+    "output_mismatch_count": 20,
+    "price_objective_violation_flag": 118,
+    "schema_policy_mismatch_flag": 118
+  },
+  "recommended_disqualifier_sample_weights": {
+    "all_zero_fill_vector_flag": 1.305140,
+    "fill_coverage_violation_flag": 1.305140,
+    "invariant_violation_flag": 1.000000,
+    "limit_violation_count": 1.310705,
+    "negative_reserve_flag": 1.224745,
+    "output_mismatch_count": 3.170173,
+    "price_objective_violation_flag": 1.305140,
+    "schema_policy_mismatch_flag": 1.305140
+  },
+  "bounded_epiplexity_proxy": {
+    "schema": "zenodex/energy/bounded_epiplexity_proxy/v1",
+    "score": 0.358265,
+    "classification": "measurable_bounded_structure",
+    "label_entropy_bits": 2.866122,
+    "max_label_entropy_bits": 3.000000,
+    "normalized_label_entropy": 0.955374,
+    "policy_separation": 0.375000,
+    "rare_label_headroom": 0.900498,
+    "with_disqualifiers_ok_rate": 1.000000,
+    "without_disqualifiers_ok_rate": 0.625000,
+    "boundary": "Diagnostic proxy only; it is not a correctness certificate and does not prove model accuracy, grid completeness, or production readiness."
+  },
+  "recommendations": [
+    "Oversample rare deterministic disqualifiers during candidate generation, especially output_mismatch_count.",
+    "Use the bounded epiplexity proxy as a pre-training data-quality check; measurable structure means the corpus has label diversity and policy separation worth training against.",
+    "Keep the current gap-weighted linear ranker as the default until a curriculum-trained model beats it on cross-seed mean verifier calls.",
+    "Train advisory scorers with pairwise or listwise contrastive losses over verifier-labeled candidates instead of generative EBM likelihood.",
+    "Use Julia for bounded adversarial-family search and feature-coverage sweeps, then replay all proposed candidates through the Python verifier.",
+    "Treat hard-negative mining as model-training data only; deterministic verifier and suffix certificates remain the safety boundary."
+  ],
+  "negative_knowledge": [
+    "Epiplexity telemetry is a steering signal, not a correctness certificate.",
+    "Declared-output-only suffix bounds are insufficient for attractive invalid candidates.",
+    "Multi-family adversarial stress does not prove v2 bounded-grid completeness.",
+    "Synthetic hard negatives can improve training coverage, but real replay is still required before production-adjacent promotion."
+  ]
+}

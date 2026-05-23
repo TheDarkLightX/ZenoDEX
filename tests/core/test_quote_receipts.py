@@ -7,8 +7,18 @@ import pytest
 
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
+    QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE,
+    QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_OK,
+    RouteQuoteReceiptCertificateOutcome,
     _pool_reserves_for_hop,
     _replay_and_apply_hop,
+    _require_receipt_gate_flag,
+    evaluate_route_quote_receipt_certificate_gate,
+    evaluate_route_quote_receipt_hop_replay_gate,
     make_route_quote_receipt,
     pool_state_fingerprint,
     receipt_hash,
@@ -130,6 +140,7 @@ def test_quote_receipt_exact_in_roundtrip() -> None:
     assert q is not None
 
     receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    assert "canonical_route_certificate" in receipt["body"]
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
     assert ok, err
 
@@ -172,15 +183,45 @@ def test_quote_receipt_roundtrip_with_quote_epoch() -> None:
     assert ok, err
 
 
-def test_make_route_quote_receipt_rejects_bad_quote_epoch() -> None:
+def test_quote_receipt_accepts_expected_quote_epoch() -> None:
     pools = {
         "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
     }
     q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
     assert q is not None
 
-    with pytest.raises(ValueError, match="quote_epoch must be a non-negative int"):
-        make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=-1)
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=7)
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=7)
+    assert ok, err
+
+
+def test_quote_receipt_rejects_quote_epoch_session_mismatch() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=7)
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=8)
+    assert not ok
+    assert err == "quote_epoch_mismatch"
+
+
+def test_quote_receipt_rejects_missing_quote_epoch_when_expected() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=7)
+    assert not ok
+    assert err == "missing_quote_epoch"
+
+
+def test_quote_receipt_rejects_bad_expected_quote_epoch() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=-1)
+    assert not ok
+    assert err == "bad_expected_quote_epoch"
 
 
 def test_quote_receipt_exact_out_split_roundtrip() -> None:
@@ -193,8 +234,122 @@ def test_quote_receipt_exact_out_split_roundtrip() -> None:
     assert len(q.legs) == 2
 
     receipt = make_route_quote_receipt(kind="exact_out", quote=q, pools_by_id=pools)
+    assert "canonical_route_certificate" not in receipt["body"]
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
     assert ok, err
+
+
+def test_quote_receipt_rejects_tampered_exact_in_canonical_certificate() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 10),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    body = copy.deepcopy(receipt["body"])
+    cert = dict(body["canonical_route_certificate"])
+    cert["winner_index"] = int(cert["winner_index"]) + 1
+    body["canonical_route_certificate"] = cert
+    bad = {"body": body, "receipt_hash": receipt_hash(body)}
+
+    ok, err = verify_route_quote_receipt(bad, pools_by_id=pools)
+    assert not ok
+    assert err == "bad_canonical_route_certificate:certificate payload mismatch"
+
+
+def test_quote_receipt_rejects_unexpected_canonical_certificate_on_exact_out() -> None:
+    receipt, pools = _single_hop_exact_out_receipt()
+    receipt["body"]["canonical_route_certificate"] = {"winner_quote": {}}
+    receipt["receipt_hash"] = receipt_hash(receipt["body"])
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+    assert not ok
+    assert err == "unexpected_canonical_route_certificate"
+
+
+def test_quote_receipt_rejects_bad_canonical_certificate_winner_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.integration import exact_in_route_certificate as cert_module
+
+    monkeypatch.setattr(
+        cert_module,
+        "verify_exact_in_route_canonical_certificate_payload",
+        lambda _payload: (True, "ok"),
+    )
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 10),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    body = copy.deepcopy(receipt["body"])
+    cert = dict(body["canonical_route_certificate"])
+    cert["winner_quote"] = 7
+    body["canonical_route_certificate"] = cert
+    bad = {"body": body, "receipt_hash": receipt_hash(body)}
+
+    ok, err = verify_route_quote_receipt(bad, pools_by_id=pools)
+    assert not ok
+    assert err == "bad_canonical_route_certificate_winner"
+
+
+def test_quote_receipt_rejects_canonical_certificate_amount_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    from src.integration import exact_in_route_certificate as cert_module
+
+    monkeypatch.setattr(
+        cert_module,
+        "verify_exact_in_route_canonical_certificate_payload",
+        lambda _payload: (True, "ok"),
+    )
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 10),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    body = copy.deepcopy(receipt["body"])
+    cert = dict(body["canonical_route_certificate"])
+    winner = dict(cert["winner_quote"])
+    winner["amount_in"] = int(winner["amount_in"]) + 1
+    cert["winner_quote"] = winner
+    body["canonical_route_certificate"] = cert
+    bad = {"body": body, "receipt_hash": receipt_hash(body)}
+
+    ok, err = verify_route_quote_receipt(bad, pools_by_id=pools)
+    assert not ok
+    assert err == "canonical_route_certificate_amount_in_mismatch"
+
+
+def test_quote_receipt_omits_exact_in_canonical_certificate_for_noncanonical_quote() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1, 0),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 0),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 0),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
+    assert q is not None
+    assert len(q.legs[0].hops) == 2
+
+    noncanonical = RouteQuote(
+        asset_in=q.asset_in,
+        asset_out=q.asset_out,
+        amount_in=q.amount_in,
+        amount_out=max(1, int(q.amount_out) - 1),
+        legs=q.legs,
+    )
+    receipt = make_route_quote_receipt(kind="exact_in", quote=noncanonical, pools_by_id=pools)
+    assert "canonical_route_certificate" not in receipt["body"]
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+    assert not ok
+    assert err in {"hop_quote_mismatch", "totals_mismatch"}
 
 
 def test_quote_receipt_rejects_bad_quote_epoch() -> None:
@@ -588,6 +743,16 @@ def test_make_route_quote_receipt_rejects_missing_pool_for_hop() -> None:
         make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools_without_hop)
 
 
+def test_make_route_quote_receipt_rejects_bad_quote_epoch() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0),
+    }
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert quote is not None
+    with pytest.raises(ValueError, match="quote_epoch must be a non-negative int"):
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=-1)
+
+
 def _mutate_missing_body(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
     mutated = copy.deepcopy(receipt)
     mutated.pop("body", None)
@@ -625,6 +790,15 @@ def _mutate_bad_schema(receipt: dict[str, Any], pools: dict[str, PoolState]) -> 
 def _mutate_bad_body_assets(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
     mutated = copy.deepcopy(receipt)
     mutated["body"]["asset_out"] = mutated["body"]["asset_in"]
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_bad_quote_epoch(
+    receipt: dict[str, Any], pools: dict[str, PoolState]
+) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["quote_epoch"] = -1
     mutated["receipt_hash"] = receipt_hash(mutated["body"])
     return mutated, pools
 
@@ -792,6 +966,7 @@ def _mutate_totals_mismatch(receipt: dict[str, Any], pools: dict[str, PoolState]
         (_mutate_bad_kind, "bad_kind"),
         (_mutate_bad_schema, "bad_schema"),
         (_mutate_bad_body_assets, "bad_body_assets"),
+        (_mutate_bad_quote_epoch, "bad_quote_epoch"),
         (_mutate_bad_pools_shape, "bad_pools"),
         (_mutate_missing_pool, "missing_pool"),
         (_mutate_bad_pool_fingerprint_shape, "bad_pool_fingerprint"),
@@ -894,3 +1069,131 @@ def test_replay_and_apply_hop_fail_closed_on_inconsistent_direction_contract(
     assert not ok
     assert err == "bad_pool_direction"
     assert next_pool is None
+
+@pytest.mark.parametrize(("raw", "expected"), [(0, False), (1, True)])
+def test_require_receipt_gate_flag_accepts_zero_one_ints(raw: int, expected: bool) -> None:
+    assert _require_receipt_gate_flag(raw, name="flag") is expected
+
+
+@pytest.mark.parametrize("raw", [2, -1, "1", None])
+def test_require_receipt_gate_flag_rejects_non_boolish_values(raw: object) -> None:
+    with pytest.raises(ValueError, match="flag must be a bool or 0/1 int"):
+        _require_receipt_gate_flag(raw, name="flag")
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        (
+            {
+                "cert_present": False,
+                "cert_dict_ok": True,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": True,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_OK,
+        ),
+        (
+            {
+                "cert_present": True,
+                "cert_dict_ok": False,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": True,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE,
+        ),
+        (
+            {
+                "cert_present": True,
+                "cert_dict_ok": True,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": False,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": True,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH,
+        ),
+        (
+            {
+                "cert_present": True,
+                "cert_dict_ok": True,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": False,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": True,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH,
+        ),
+        (
+            {
+                "cert_present": True,
+                "cert_dict_ok": True,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": False,
+                "legs_match": True,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
+        ),
+        (
+            {
+                "cert_present": True,
+                "cert_dict_ok": True,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": False,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH,
+        ),
+    ],
+)
+def test_certificate_gate_direct_reject_code_matrix(
+    kwargs: dict[str, bool],
+    expected: str,
+) -> None:
+    outcome = evaluate_route_quote_receipt_certificate_gate(**kwargs)
+    assert isinstance(outcome, RouteQuoteReceiptCertificateOutcome)
+    assert outcome.reject_code == expected
+    assert outcome.certificate_ok is (expected == QUOTE_RECEIPT_CERTIFICATE_OK)
+
+
+@pytest.mark.parametrize(
+    ("next_in", "next_out", "expected"),
+    [
+        (-1, 1, "next_reserve_in must be a non-negative int"),
+        (1, -1, "next_reserve_out must be a non-negative int"),
+        (None, 1, "next_reserve_in must be a non-negative int"),
+        (1, None, "next_reserve_out must be a non-negative int"),
+    ],
+)
+def test_hop_replay_gate_rejects_invalid_next_reserves(
+    next_in: object,
+    next_out: object,
+    expected: str,
+) -> None:
+    with pytest.raises(ValueError, match=expected):
+        evaluate_route_quote_receipt_hop_replay_gate(
+            direction_ok=True,
+            forward_direction=True,
+            swap_ok=True,
+            quote_matches=True,
+            next_reserve_in=next_in,
+            next_reserve_out=next_out,
+        )

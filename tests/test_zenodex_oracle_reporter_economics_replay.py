@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
@@ -39,6 +38,9 @@ def test_reporter_economics_replay_accepts_sample(tmp_path: Path) -> None:
     assert result["dispute_reward_pool_e8"] == 10_000_000
     assert result["treasury_balance_e8"] == 7_000_000
     assert result["burn_balance_e8"] == 3_000_000
+    assert result["total_bond_deposited_e8"] == 750_000_000_000
+    assert result["bond_locked_e8"] == 0
+    assert result["bond_conservation_ok"] is True
     assert result["total_rewards_paid_e8"] == 90_000_000
     assert result["total_slashed_e8"] == 125_000_000_000
     assert result["total_withdrawn_e8"] == 625_000_000_000

@@ -130,22 +130,6 @@ pub struct SwapExactInIntentV1 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SwapExactOutIntentV1 {
-    pub module: String,
-    pub version: String,
-    pub intent_id: String,
-    pub sender_pubkey: String,
-    pub deadline: u64,
-    pub pool_id: String,
-    pub asset_in: String,
-    pub asset_out: String,
-    pub amount_out: u128,
-    pub max_amount_in: u128,
-    pub recipient: String,
-    pub salt: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AddLiquidityIntentV1 {
     pub module: String,
     pub version: String,
@@ -180,7 +164,6 @@ pub struct RemoveLiquidityIntentV1 {
 pub enum DexIntentV1 {
     CreatePool(CreatePoolIntentV1),
     SwapExactIn(SwapExactInIntentV1),
-    SwapExactOut(SwapExactOutIntentV1),
     AddLiquidity(AddLiquidityIntentV1),
     RemoveLiquidity(RemoveLiquidityIntentV1),
 }
@@ -652,9 +635,6 @@ impl DexStateV1 {
             DexIntentV1::SwapExactIn(intent) => {
                 self.apply_swap_exact_in(intent, &tx.sender_pubkey, block_timestamp)
             }
-            DexIntentV1::SwapExactOut(intent) => {
-                self.apply_swap_exact_out(intent, &tx.sender_pubkey, block_timestamp)
-            }
             DexIntentV1::AddLiquidity(intent) => {
                 self.apply_add_liquidity(intent, &tx.sender_pubkey, block_timestamp)
             }
@@ -876,156 +856,6 @@ impl DexStateV1 {
             next_pool.reserve0 = next_pool
                 .reserve0
                 .checked_sub(amount_out)
-                .ok_or(TransitionError::Arithmetic("reserve0 underflow"))?;
-        }
-        self.pools.insert(intent.pool_id.clone(), next_pool);
-        Ok(())
-    }
-
-    fn apply_swap_exact_out(
-        &mut self,
-        intent: &SwapExactOutIntentV1,
-        tx_sender_pubkey: &str,
-        block_timestamp: u64,
-    ) -> Result<(), TransitionError> {
-        if intent.module != "TauSwap" {
-            return Err(TransitionError::InvalidInput(
-                "intent.module must be TauSwap",
-            ));
-        }
-        if intent.kind_str() != "SWAP_EXACT_OUT" {
-            return Err(TransitionError::InvalidInput("intent.kind mismatch"));
-        }
-        if intent.sender_pubkey != tx_sender_pubkey {
-            return Err(TransitionError::InvalidInput(
-                "unsigned intent requires tx sender == intent.sender_pubkey",
-            ));
-        }
-        if intent.deadline < block_timestamp {
-            return Err(TransitionError::InvalidInput("intent expired"));
-        }
-        if intent.amount_out == 0 {
-            return Err(TransitionError::InvalidInput("amount_out must be positive"));
-        }
-        if intent.asset_in == NATIVE_ASSET || intent.asset_out == NATIVE_ASSET {
-            return Err(TransitionError::Unsupported(
-                "native asset unsupported in proof v1",
-            ));
-        }
-
-        let pool = self
-            .pools
-            .get(&intent.pool_id)
-            .cloned()
-            .ok_or(TransitionError::InvalidInput("pool not found"))?;
-        if pool.status != "ACTIVE" {
-            return Err(TransitionError::InvalidInput("pool not active"));
-        }
-        if !((intent.asset_in == pool.asset0 && intent.asset_out == pool.asset1)
-            || (intent.asset_in == pool.asset1 && intent.asset_out == pool.asset0))
-        {
-            return Err(TransitionError::InvalidInput("swap asset pair mismatch"));
-        }
-
-        let (reserve_in, reserve_out) = if intent.asset_in == pool.asset0 {
-            (pool.reserve0, pool.reserve1)
-        } else {
-            (pool.reserve1, pool.reserve0)
-        };
-        if intent.amount_out >= reserve_out {
-            return Err(TransitionError::InvalidInput("cannot drain full reserve"));
-        }
-        if pool.fee_bps >= 10_000 {
-            return Err(TransitionError::InvalidInput("pool fee_bps out of range"));
-        }
-
-        let denom_out = reserve_out
-            .checked_sub(intent.amount_out)
-            .ok_or(TransitionError::Arithmetic("reserve_out underflow"))?;
-        if denom_out == 0 {
-            return Err(TransitionError::InvalidInput("cannot drain full reserve"));
-        }
-        let required_net_in = ceil_div_u128(
-            reserve_in
-                .checked_mul(intent.amount_out)
-                .ok_or(TransitionError::Arithmetic("net_in numerator overflow"))?,
-            denom_out,
-        );
-        let fee_den = 10_000u128
-            .checked_sub(pool.fee_bps as u128)
-            .ok_or(TransitionError::Arithmetic("fee denominator underflow"))?;
-        let amount_in = ceil_div_u128(
-            required_net_in
-                .checked_mul(10_000)
-                .ok_or(TransitionError::Arithmetic("amount_in numerator overflow"))?,
-            fee_den,
-        );
-        if amount_in == 0 {
-            return Err(TransitionError::InvalidInput("amount_in is zero"));
-        }
-        if amount_in > intent.max_amount_in {
-            return Err(TransitionError::InvalidInput("max_amount_in not met"));
-        }
-        if amount_in > self.get_balance(&intent.sender_pubkey, &intent.asset_in) {
-            return Err(TransitionError::InvalidInput("insufficient balance"));
-        }
-
-        let fee_total = ceil_div_u128(
-            amount_in
-                .checked_mul(pool.fee_bps as u128)
-                .ok_or(TransitionError::Arithmetic("fee mul overflow"))?,
-            10_000,
-        );
-        if fee_total > amount_in {
-            return Err(TransitionError::Arithmetic("fee exceeds amount_in"));
-        }
-        let net_in_actual = amount_in - fee_total;
-        let denom_quote = reserve_in
-            .checked_add(net_in_actual)
-            .ok_or(TransitionError::Arithmetic("quote denom overflow"))?;
-        let amount_out_quote = reserve_out
-            .checked_mul(net_in_actual)
-            .ok_or(TransitionError::Arithmetic("quote numerator overflow"))?
-            / denom_quote;
-        if amount_out_quote < intent.amount_out {
-            return Err(TransitionError::InvalidInput(
-                "amount_out quote below requested output",
-            ));
-        }
-        let overdelivery_gap = amount_out_quote - intent.amount_out;
-        let gap_bps = ceil_div_u128(
-            overdelivery_gap
-                .checked_mul(10_000)
-                .ok_or(TransitionError::Arithmetic("gap bps overflow"))?,
-            intent.amount_out,
-        );
-        if gap_bps > 200 {
-            return Err(TransitionError::InvalidInput(
-                "overdelivery gap exceeds policy",
-            ));
-        }
-
-        self.sub_balance(&intent.sender_pubkey, &intent.asset_in, amount_in)?;
-        self.add_balance(&intent.recipient, &intent.asset_out, intent.amount_out)?;
-
-        let mut next_pool = pool.clone();
-        if intent.asset_in == next_pool.asset0 {
-            next_pool.reserve0 = next_pool
-                .reserve0
-                .checked_add(amount_in)
-                .ok_or(TransitionError::Arithmetic("reserve0 overflow"))?;
-            next_pool.reserve1 = next_pool
-                .reserve1
-                .checked_sub(intent.amount_out)
-                .ok_or(TransitionError::Arithmetic("reserve1 underflow"))?;
-        } else {
-            next_pool.reserve1 = next_pool
-                .reserve1
-                .checked_add(amount_in)
-                .ok_or(TransitionError::Arithmetic("reserve1 overflow"))?;
-            next_pool.reserve0 = next_pool
-                .reserve0
-                .checked_sub(intent.amount_out)
                 .ok_or(TransitionError::Arithmetic("reserve0 underflow"))?;
         }
         self.pools.insert(intent.pool_id.clone(), next_pool);
@@ -1263,12 +1093,6 @@ impl SwapExactInIntentV1 {
     }
 }
 
-impl SwapExactOutIntentV1 {
-    fn kind_str(&self) -> &'static str {
-        "SWAP_EXACT_OUT"
-    }
-}
-
 impl AddLiquidityIntentV1 {
     fn kind_str(&self) -> &'static str {
         "ADD_LIQUIDITY"
@@ -1396,21 +1220,6 @@ fn hash_tx_v1(hasher: &mut Sha256, tx: &TauTxV1) {
                     write_str(hasher, &i.asset_out);
                     write_u128(hasher, i.amount_in);
                     write_u128(hasher, i.min_amount_out);
-                    write_str(hasher, &i.recipient);
-                }
-                DexIntentV1::SwapExactOut(i) => {
-                    hasher.update([4u8]);
-                    write_str(hasher, &i.module);
-                    write_str(hasher, &i.version);
-                    write_str(hasher, &i.intent_id);
-                    write_str(hasher, &i.sender_pubkey);
-                    write_u64(hasher, i.deadline);
-                    write_opt_str(hasher, i.salt.as_deref());
-                    write_str(hasher, &i.pool_id);
-                    write_str(hasher, &i.asset_in);
-                    write_str(hasher, &i.asset_out);
-                    write_u128(hasher, i.amount_out);
-                    write_u128(hasher, i.max_amount_in);
                     write_str(hasher, &i.recipient);
                 }
                 DexIntentV1::AddLiquidity(i) => {
@@ -2003,105 +1812,6 @@ mod tests {
             sha256_canonical_dex_snapshot_v1(&post),
             decode_hex_32("168c616c3e9cbc832f9accf6022fcf5153f4611de71115e36a6e540a1230101b"),
         );
-    }
-
-    #[test]
-    fn swap_exact_out_transition_matches_python_fixture() {
-        let mut snapshot = empty_snapshot();
-        snapshot.balances = alloc::vec![DexBalanceEntryV1 {
-            pubkey: SENDER.to_string(),
-            asset: ASSET0.to_string(),
-            amount: 1_000,
-        }];
-        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
-
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let tx = TauTxV1 {
-            sender_pubkey: SENDER.to_string(),
-            app_ops: TauTxAppOpsV1 {
-                has_faucet: false,
-                faucet_mint: Vec::new(),
-                has_intents: true,
-                intents: alloc::vec![SignedIntentV1 {
-                    signature: None,
-                    intent: DexIntentV1::SwapExactOut(SwapExactOutIntentV1 {
-                        module: "TauSwap".to_string(),
-                        version: "v1".to_string(),
-                        intent_id: "swap-exact-out-1".to_string(),
-                        sender_pubkey: SENDER.to_string(),
-                        deadline: 100,
-                        pool_id: POOL_ID.to_string(),
-                        asset_in: ASSET0.to_string(),
-                        asset_out: ASSET1.to_string(),
-                        amount_out: 900,
-                        max_amount_in: 993,
-                        recipient: RECIPIENT.to_string(),
-                        salt: None,
-                    }),
-                }],
-            },
-        };
-
-        state.apply_tx(&tx, 1).unwrap();
-        let post = state.to_snapshot();
-        assert_eq!(state.get_balance(SENDER, ASSET0), 7);
-        assert_eq!(state.get_balance(RECIPIENT, ASSET1), 900);
-        assert_eq!(post.pools.len(), 1);
-        assert_eq!(post.pools[0].reserve0, 10_993);
-        assert_eq!(post.pools[0].reserve1, 9_100);
-        assert_eq!(post.pools[0].lp_supply, 10_000);
-        assert_eq!(
-            sha256_canonical_dex_snapshot_v1(&post),
-            decode_hex_32("bd3752b51dbcc9e0dd893f852f25a9655003042b69def1c70514991eb9274a44"),
-        );
-    }
-
-    #[test]
-    fn swap_exact_out_max_amount_in_rejects_without_mutation() {
-        let mut snapshot = empty_snapshot();
-        snapshot.balances = alloc::vec![DexBalanceEntryV1 {
-            pubkey: SENDER.to_string(),
-            asset: ASSET0.to_string(),
-            amount: 1_000,
-        }];
-        snapshot.pools = alloc::vec![pool_entry(10_000, 10_000)];
-
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let tx = TauTxV1 {
-            sender_pubkey: SENDER.to_string(),
-            app_ops: TauTxAppOpsV1 {
-                has_faucet: false,
-                faucet_mint: Vec::new(),
-                has_intents: true,
-                intents: alloc::vec![SignedIntentV1 {
-                    signature: None,
-                    intent: DexIntentV1::SwapExactOut(SwapExactOutIntentV1 {
-                        module: "TauSwap".to_string(),
-                        version: "v1".to_string(),
-                        intent_id: "swap-exact-out-max-in".to_string(),
-                        sender_pubkey: SENDER.to_string(),
-                        deadline: 100,
-                        pool_id: POOL_ID.to_string(),
-                        asset_in: ASSET0.to_string(),
-                        asset_out: ASSET1.to_string(),
-                        amount_out: 900,
-                        max_amount_in: 992,
-                        recipient: RECIPIENT.to_string(),
-                        salt: None,
-                    }),
-                }],
-            },
-        };
-
-        assert!(matches!(
-            state.apply_tx(&tx, 1),
-            Err(TransitionError::InvalidInput("max_amount_in not met"))
-        ));
-        assert_eq!(state.get_balance(SENDER, ASSET0), 1_000);
-        assert_eq!(state.get_balance(RECIPIENT, ASSET1), 0);
-        let post = state.to_snapshot();
-        assert_eq!(post.pools[0].reserve0, 10_000);
-        assert_eq!(post.pools[0].reserve1, 10_000);
     }
 
     #[test]

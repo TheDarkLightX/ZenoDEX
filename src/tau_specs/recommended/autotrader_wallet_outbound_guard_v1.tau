@@ -1,0 +1,43 @@
+# AutoTrader Wallet Outbound Guard v1
+#
+# PURPOSE: Sender-scoped outbound veto bit for Tau user contracts and local replay.
+#
+# Semantics:
+# - If the policy is disabled, this guard is neutral and allows the transfer.
+# - If the sender does not match the scoped owner, this guard is neutral and allows.
+# - Otherwise, allow only when the transfer amount is within cap and all context flags pass.
+#
+# i1 = amount (bv[32])
+# i2 = max_outbound_amount (bv[32])
+# i3 = sender_id (bv[32])
+# i4 = scoped_sender_id (bv[32])
+# i5 = destination_allowed (sbf)
+# i6 = session_active (sbf)
+# i7 = policy_hash_ok (sbf)
+# i8 = enabled (sbf)
+# o1 = rule_enabled
+# o2 = sender_scope_match
+# o3 = amount_ok
+# o4 = context_ok
+# o5 = outbound_allowed
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i8[t]:sbf = 1:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[32] <= i2[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf))) &&
+  (
+    o5[t]:sbf = 1:sbf <->
+    (
+      (i8[t]:sbf = 0:sbf) ||
+      (!(i3[t]:bv[32] = i4[t]:bv[32])) ||
+      (
+        (i1[t]:bv[32] <= i2[t]:bv[32]) &&
+        (i5[t]:sbf = 1:sbf) &&
+        (i6[t]:sbf = 1:sbf) &&
+        (i7[t]:sbf = 1:sbf)
+      )
+    )
+  ).

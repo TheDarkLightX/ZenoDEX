@@ -33,7 +33,7 @@ DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA = "zenodex/stateful-disaster-search-expans
 DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA = "zenodex/stateful-disaster-search-expansion-receipt/v1"
 
 DEFAULT_TARGET_MANIFEST = REPO_ROOT / "tools" / "acceptance_tcb_dangerous_surfaces.json"
-DEFAULT_WORLD_MODEL = REPO_ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_world_model.seed.json"
+DEFAULT_WORLD_MODEL = REPO_ROOT / "docs" / "zenodex" / "world_model_promoted" / "zenodex_world_model.seed.json"
 DEFAULT_SHAPE_RATCHET = REPO_ROOT / "tools" / "check_shape_v1_ratchet.py"
 
 EVIDENCE_ORDER = {
@@ -82,12 +82,13 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "name": "route_certificate_sequence_witnesses",
                 "artifacts": [
                     "tools/route_certificate_sequence_grammar_fuzz.py",
+                    "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
                     "tests/integration/test_route_certificate_sequence_grammar_fuzz.py",
-                    "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py",
+                    "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py",
                 ],
                 "commands": [
                     ["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"],
-                    ["pytest", "-q", "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py"],
+                    ["pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"],
                 ],
             },
         ],
@@ -123,10 +124,10 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "kind": "fuzz_regression",
                 "name": "route_canonicalization_sequence_witnesses",
                 "artifacts": [
-                    "tools/route_certificate_sequence_grammar_fuzz.py",
-                    "tests/integration/test_route_certificate_sequence_grammar_fuzz.py",
+                    "tools/quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
+                    "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
                 ],
-                "commands": [["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"]],
+                "commands": [["pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"]],
             },
         ],
     },
@@ -189,12 +190,12 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "kind": "fuzz_regression",
                 "name": "quote_receipt_staleness_sequences",
                 "artifacts": [
-                    "tools/quote_receipt_sequence_grammar_fuzz.py",
-                    "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py",
+                    "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
+                    "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py",
                     "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py",
                 ],
                 "commands": [
-                    ["pytest", "-q", "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py"],
+                    ["pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"],
                     ["pytest", "-q", "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"],
                 ],
             },
@@ -223,13 +224,13 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "commands": [["pytest", "-q", "tests/formal/test_lean_settlement_end_to_end_certificate_packet.py"]],
             },
             {
-                "kind": "lean",
-                "name": "settlement_compact_bundle",
+                "kind": "tau",
+                "name": "settlement_proof_gate",
                 "artifacts": [
-                    "lean-mathlib/Proofs/ZenoDEXSettlementCompactBundle.lean",
-                    "tests/formal/test_lean_settlement_compact_bundle.py",
+                    "src/tau_specs/recommended/settlement_v1_proof_gate.tau",
+                    "tests/tau/test_settlement_v1_proof_gate.py",
                 ],
-                "commands": [["pytest", "-q", "tests/formal/test_lean_settlement_compact_bundle.py"]],
+                "commands": [["pytest", "-q", "tests/tau/test_settlement_v1_proof_gate.py"]],
             },
             {
                 "kind": "fuzz_regression",
@@ -254,6 +255,38 @@ CRITICAL_DISASTER_SURFACE_IDS: tuple[str, ...] = (
     "settlement_attestation_policy_boundary",
     "stale_quote_receipt_boundary",
     "stale_settlement_boundary",
+)
+
+CLOSED_DISASTER_SEARCH_AXIS_IDS: tuple[str, ...] = (
+    "epoch_split_brain",
+    "identity_registry_drift",
+    "canonicalization_equivocation",
+    "serialization_width_aliasing",
+    "resource_budget_abort",
+    "repair_after_tamper",
+    "external_state_drift",
+    "atomicity_partial_side_effect",
+    "restart_replay_persistence",
+    "dependency_outage_fail_closed",
+    "reciprocal_netting_pair_forgery",
+    "bounded_advisory_search_envelope",
+    "exact_out_candidate_domain_explosion",
+    "tau_gate_policy_aliasing",
+    "confidential_receipt_attestation_drift",
+    "batch_clearing_fragmentation_ordering",
+    "perp_funding_liquidation_oracle_window",
+    "proof_mining_packet_envelope_replay",
+    "tau_net_client_transport_boundary",
+    "settlement_proof_recompute_gate",
+    "operations_parser_canonical_envelope",
+    "dex_engine_sequence_anomaly_surface",
+    "dex_core_ref_parity_drift",
+    "boundary_concolic_wrapper_consistency",
+    "exact_out_prefilter_winner_repair_boundary",
+    "perp_engine_integration_oracle_bootstrap_boundary",
+    "quote_receipt_transport_intent_boundary",
+    "tau_runner_subprocess_transport_boundary",
+    "dex_settlement_recovery_proof_unit_boundary",
 )
 
 SURFACE_WITNESS_LANGUAGE_REQUIREMENTS: dict[str, dict[str, Any]] = {
@@ -342,7 +375,7 @@ CROSS_SURFACE_WITNESS_PAIRS: tuple[dict[str, Any], ...] = (
         "surface_ids": ("quote_receipt_certificate_boundary", "stale_quote_receipt_boundary"),
         "bounds": {"max_depth": 3, "max_frontier": 32},
         "commands": [
-            ["pytest", "-q", "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py"],
+            ["pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"],
             ["pytest", "-q", "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"],
         ],
     },
@@ -359,7 +392,7 @@ CROSS_SURFACE_WITNESS_PAIRS: tuple[dict[str, Any], ...] = (
         "pair_id": "route_canonicalization_x_quote_certificate",
         "surface_ids": ("route_canonicalization_boundary", "quote_receipt_certificate_boundary"),
         "bounds": {"max_depth": 4, "max_frontier": 48},
-        "commands": [["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"]],
+        "commands": [["pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"]],
     },
     {
         "pair_id": "stale_quote_receipt_x_stale_settlement",
@@ -375,7 +408,7 @@ CROSS_SURFACE_WITNESS_PAIRS: tuple[dict[str, Any], ...] = (
         "surface_ids": ("route_canonicalization_boundary", "stale_settlement_boundary"),
         "bounds": {"max_depth": 4, "max_frontier": 48},
         "commands": [
-            ["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"],
+            ["pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"],
             ["pytest", "-q", "tests/integration/test_stale_settlement_sequence_grammar_fuzz.py"],
         ],
     },
@@ -451,6 +484,7 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "compare candidate-set hash, winner index, and pool-envelope mutations in one sequence",
         ),
         "commands": (
+            ("pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"),
         ),
     },
@@ -474,6 +508,7 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "promote every truncation-dependent survivor into a Tau/witness-language regression",
         ),
         "commands": (
+            ("pytest", "-q", "tests/integration/test_api_server_request_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_tau_gate.py"),
         ),
@@ -498,13 +533,8 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "keep API caps paired with exact-in, exact-out, and slippage regression tests",
         ),
         "commands": (
-            (
-                "pytest",
-                "-q",
-                "tests/integration/test_api_server_dex_api.py",
-                "-k",
-                "oversized or unbounded or excessive_search_space or bad_budget or too_many_slippage_options or mixed_split_above_exhaustive_budget",
-            ),
+            ("pytest", "-q", "tests/integration/test_api_server_dex_api.py"),
+            ("pytest", "-q", "tests/integration/test_api_server_request_grammar_fuzz.py"),
         ),
     },
     {
@@ -528,6 +558,7 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "require minimizers to preserve the deepest reject token, not merely any reject",
         ),
         "commands": (
+            ("pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_stale_settlement_sequence_grammar_fuzz.py"),
         ),
@@ -775,8 +806,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
                 "-q",
                 "tests/core/test_slippage_advisor.py",
                 "tests/integration/test_api_server_dex_api.py",
-                "-k",
-                "slippage or pokayoke_rejects_unbounded_advice_inputs",
             ),
         ),
     },
@@ -803,11 +832,11 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
+                "-k",
+                "not tau_steps_verify_when_tau_is_available",
                 "tests/integration/test_exact_out_route_certificate.py",
                 "tests/integration/test_exact_out_route_certificate_fuzz.py",
                 "tests/core/test_exact_out_many_pool_canonical_domain_v1.py",
-                "-k",
-                "not tau_steps",
             ),
         ),
     },
@@ -1046,11 +1075,10 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
-                "tests/core/test_perp_v2/test_engine.py",
-                "tests/core/test_perp_v2/test_partial_liquidate.py",
-                "tests/integration/test_perp_engine.py",
-                "-k",
-                "funding or liquidat or partial_liquidate or oracle",
+                "tests/core/test_perp_funding_apply_gate.py",
+                "tests/core/test_perp_apply_funding_auto_gate.py",
+                "tests/core/test_perp_liquidation_eligibility_gate.py",
+                "tests/integration/test_perp_engine_partial_liquidate.py",
             ),
         ),
     },
@@ -1077,12 +1105,11 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
+                "tests/core/test_proof_mining_claimability_gate.py",
                 "tests/core/test_proof_mining_manager.py",
-                "tests/integration/test_proof_mining_runtime.py",
                 "tests/integration/test_proof_mining_claimability.py",
-                "tests/integration/test_tau_testnet_dex_plugin.py",
-                "-k",
-                "proof_mining or malformed",
+                "tests/integration/test_proof_mining_runtime.py",
+                "tests/integration/test_proof_mining_context_edges.py",
             ),
         ),
     },
@@ -1202,8 +1229,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
                 "-q",
                 "tests/integration/test_tau_net_client.py",
                 "tests/integration/test_tau_net_signing_optional.py",
-                "-k",
-                "not appstate",
             ),
         ),
     },
@@ -1262,13 +1287,13 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             (
                 "pytest",
                 "-q",
+                "-k",
+                "not tau_bundle_steps_replay",
                 "tests/integration/test_recompute_batch_proof_verifier.py",
                 "tests/integration/test_validation_uses_strong_settlement_gate.py",
                 "tests/integration/test_settlement_certificate_runtime_gate.py",
                 "tests/integration/test_settlement_strong_certificate.py",
                 "tests/integration/test_settlement_end_to_end_certificate_packet.py",
-                "-k",
-                "not tau",
             ),
         ),
     },
@@ -1628,23 +1653,28 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "quote_receipt_transport_boundary",
             "nonce_replay_guard",
         ),
-        "what_if": "State-boundary concolic wrappers disagree about the normalized envelope for the same malformed or replayed input.",
-        "disaster_state_template": "wrapper-valid malformed input reaches a neighboring state boundary",
+        "what_if": "Boundary-concolic wrappers for API, receipt, and state surfaces disagree about the normalized envelope for the same malformed or replayed input.",
+        "disaster_state_template": "wrapper-valid malformed input reaches a neighboring state or receipt boundary",
         "mutation_families": (
-            "state boundary mutation passes replay shape after normalization",
-            "nonce payload canonicalization preserves a malformed batch shape",
-            "state boundary concolic seed becomes valid after envelope repair",
+            "API stateful wrapper normalization hides malformed receipt field",
+            "receipt boundary mutation passes state boundary replay shape",
+            "state boundary concolic seed becomes valid after API envelope repair",
         ),
         "bounded_harness_ideas": (
-            "run stateless and stateful concolic wrappers for state boundaries together",
+            "run stateless and stateful concolic wrappers for API, receipt, and state together",
             "promote cross-wrapper normalization disagreement into a minimized boundary witness",
         ),
         "commands": (
             (
                 "pytest",
                 "-q",
+                "tests/integration/test_api_server_boundary_concolic.py",
+                "tests/integration/test_api_server_boundary_concolic_stateful.py",
+                "tests/integration/test_receipt_boundary_concolic.py",
+                "tests/integration/test_receipt_boundary_concolic_stateful.py",
                 "tests/integration/test_state_boundary_concolic.py",
                 "tests/integration/test_state_boundary_concolic_stateful.py",
+                "tests/integration/test_boundary_concolic_determinism.py",
             ),
         ),
     },
@@ -1951,7 +1981,7 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "transport grammar accepts an equivalent-looking but noncanonical receipt body",
         ),
         "bounded_harness_ideas": (
-            "run quote receipt intents and sequence grammar together",
+            "run quote receipt intents, sequence grammar, and transport grammar together",
             "reject every transport receipt whose intent and body roots do not match the same canonical envelope",
         ),
         "commands": (
@@ -1960,6 +1990,7 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
                 "-q",
                 "tests/integration/test_quote_receipt_intents.py",
                 "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py",
+                "tests/integration/test_quote_receipt_transport_grammar_fuzz.py",
             ),
         ),
     },
@@ -2486,6 +2517,9 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
                 "tests/integration/test_perp_engine_clearinghouse_2p.py",
                 "tests/integration/test_perp_engine_clearinghouse_3p_transfer.py",
                 "tests/integration/test_perp_engine_market_params_clearinghouse.py",
+                "tests/integration/test_perp_engine_runtime_gate.py",
+                "tests/integration/test_perp_engine_signed_surface_guards.py",
+                "tests/integration/test_perp_op_auth_message_parity.py",
                 "tests/integration/test_perps_api.py",
             ),
         ),
@@ -4446,38 +4480,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
     },
 )
 
-CLOSED_DISASTER_SEARCH_AXIS_IDS: tuple[str, ...] = (
-    "epoch_split_brain",
-    "identity_registry_drift",
-    "canonicalization_equivocation",
-    "serialization_width_aliasing",
-    "resource_budget_abort",
-    "repair_after_tamper",
-    "external_state_drift",
-    "atomicity_partial_side_effect",
-    "restart_replay_persistence",
-    "dependency_outage_fail_closed",
-    "reciprocal_netting_pair_forgery",
-    "bounded_advisory_search_envelope",
-    "exact_out_candidate_domain_explosion",
-    "tau_gate_policy_aliasing",
-    "confidential_receipt_attestation_drift",
-    "batch_clearing_fragmentation_ordering",
-    "perp_funding_liquidation_oracle_window",
-    "proof_mining_packet_envelope_replay",
-    "tau_net_client_transport_boundary",
-    "settlement_proof_recompute_gate",
-    "operations_parser_canonical_envelope",
-    "dex_engine_sequence_anomaly_surface",
-    "dex_core_ref_parity_drift",
-    "boundary_concolic_wrapper_consistency",
-    "exact_out_prefilter_winner_repair_boundary",
-    "perp_engine_integration_oracle_bootstrap_boundary",
-    "quote_receipt_transport_intent_boundary",
-    "tau_runner_subprocess_transport_boundary",
-    "dex_settlement_recovery_proof_unit_boundary",
-)
-
 
 def _relpath(path: Path) -> str:
     try:
@@ -5584,6 +5586,125 @@ def _run_obligation_command(command: list[str], *, timeout_s: int) -> dict[str, 
         }
 
 
+def _pytest_group_key(command: list[str]) -> tuple[str | None, tuple[str, ...]] | None:
+    if not command or command[0] != "pytest":
+        return None
+    args = list(command[1:])
+    if args and args[0] == "-q":
+        args = args[1:]
+
+    k_expr: str | None = None
+    paths: list[str] = []
+    idx = 0
+    while idx < len(args):
+        arg = args[idx]
+        if arg == "-k":
+            if k_expr is not None or idx + 1 >= len(args):
+                return None
+            k_expr = args[idx + 1]
+            idx += 2
+            continue
+        if arg.startswith("-"):
+            return None
+        paths.append(arg)
+        idx += 1
+    if not paths:
+        return None
+    return k_expr, tuple(paths)
+
+
+def _run_aggregate_pytest_axes(
+    raw_axes: list[Any],
+    *,
+    selected_axis_ids: set[str] | None,
+    timeout_s: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    axis_commands: list[tuple[dict[str, Any], list[tuple[list[str], str | None]]]] = []
+    group_paths: dict[str | None, set[str]] = {}
+
+    for axis in raw_axes:
+        if not isinstance(axis, dict):
+            return None
+        axis_id = str(axis.get("axis_id") or "")
+        if selected_axis_ids is not None and axis_id not in selected_axis_ids:
+            continue
+        raw_commands = axis.get("commands", [])
+        if not isinstance(raw_commands, list) or not raw_commands:
+            return None
+
+        parsed_commands: list[tuple[list[str], str | None]] = []
+        for command in raw_commands:
+            if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+                return None
+            parsed = _pytest_group_key(command)
+            if parsed is None:
+                return None
+            k_expr, paths = parsed
+            group_paths.setdefault(k_expr, set()).update(paths)
+            parsed_commands.append((command, k_expr))
+        axis_commands.append((axis, parsed_commands))
+
+    if not axis_commands:
+        return None
+
+    aggregate_results_by_key: dict[str | None, dict[str, Any]] = {}
+    aggregate_results: list[dict[str, Any]] = []
+    for k_expr in sorted(group_paths, key=lambda item: "" if item is None else item):
+        command = [sys.executable, "-m", "pytest", "-q"]
+        if k_expr is not None:
+            command.extend(["-k", k_expr])
+        command.extend(sorted(group_paths[k_expr]))
+        result = _run_obligation_command(command, timeout_s=timeout_s)
+        result["aggregate_pytest_group"] = {
+            "k_expr": k_expr,
+            "path_count": len(group_paths[k_expr]),
+        }
+        aggregate_results_by_key[k_expr] = result
+        aggregate_results.append(result)
+
+    axis_results: list[dict[str, Any]] = []
+    for axis, parsed_commands in axis_commands:
+        command_results: list[dict[str, Any]] = []
+        command_statuses: set[str] = set()
+        for command, k_expr in parsed_commands:
+            aggregate = aggregate_results_by_key[k_expr]
+            status = str(aggregate.get("status"))
+            command_statuses.add(status)
+            command_results.append(
+                {
+                    "command": command,
+                    "status": status,
+                    "ok": status == "passed",
+                    "returncode": aggregate.get("returncode"),
+                    "duration_s": aggregate.get("duration_s"),
+                    "stdout": "",
+                    "stderr": "",
+                    "covered_by_aggregate_pytest": True,
+                    "aggregate_command": aggregate.get("command"),
+                    "aggregate_pytest_group": aggregate.get("aggregate_pytest_group"),
+                }
+            )
+        if "failed" in command_statuses:
+            axis_status = "found_or_regressed"
+        elif "inconclusive" in command_statuses:
+            axis_status = "inconclusive"
+        else:
+            axis_status = "unreachable_under_current_bounds"
+        axis_results.append(
+            {
+                "axis_id": str(axis.get("axis_id") or ""),
+                "priority_score": int(axis.get("priority_score", 0) or 0),
+                "surface_ids": axis.get("surface_ids", []),
+                "what_if": axis.get("what_if"),
+                "disaster_state_template": axis.get("disaster_state_template"),
+                "status": axis_status,
+                "ok": axis_status == "unreachable_under_current_bounds",
+                "command_results": command_results,
+            }
+        )
+    return axis_results, aggregate_results
+
+
 def _lane_closure_status(command_results: list[dict[str, Any]]) -> str:
     if not command_results:
         return "inconclusive"
@@ -5613,6 +5734,7 @@ def run_disaster_search_expansion_plan(
     plan: str | Path | dict[str, Any] | None = None,
     axis_ids: list[str] | None = None,
     timeout_s: int = 240,
+    aggregate_pytest: bool = False,
 ) -> dict[str, Any]:
     if plan is None:
         search_plan = build_disaster_search_expansion_plan(axis_ids=axis_ids)
@@ -5637,62 +5759,73 @@ def run_disaster_search_expansion_plan(
         errors.append("axes must be a list")
         raw_axes = []
 
-    for axis in raw_axes:
-        if not isinstance(axis, dict):
-            errors.append("axis entries must be objects")
-            continue
-        axis_id = str(axis.get("axis_id") or "")
-        if selected_axis_ids is not None and axis_id not in selected_axis_ids:
-            continue
-        command_results: list[dict[str, Any]] = []
-        raw_commands = axis.get("commands", [])
-        if not isinstance(raw_commands, list) or not raw_commands:
-            command_results.append(
+    aggregate_command_results: list[dict[str, Any]] = []
+    aggregate_result = None
+    if aggregate_pytest:
+        aggregate_result = _run_aggregate_pytest_axes(
+            raw_axes,
+            selected_axis_ids=selected_axis_ids,
+            timeout_s=timeout_s,
+        )
+    if aggregate_result is not None:
+        axis_results, aggregate_command_results = aggregate_result
+    else:
+        for axis in raw_axes:
+            if not isinstance(axis, dict):
+                errors.append("axis entries must be objects")
+                continue
+            axis_id = str(axis.get("axis_id") or "")
+            if selected_axis_ids is not None and axis_id not in selected_axis_ids:
+                continue
+            command_results: list[dict[str, Any]] = []
+            raw_commands = axis.get("commands", [])
+            if not isinstance(raw_commands, list) or not raw_commands:
+                command_results.append(
+                    {
+                        "command": [],
+                        "status": "inconclusive",
+                        "ok": False,
+                        "returncode": None,
+                        "duration_s": 0,
+                        "stdout": "",
+                        "stderr": "axis has no commands",
+                    }
+                )
+            else:
+                for command in raw_commands:
+                    if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+                        command_results.append(
+                            {
+                                "command": [],
+                                "status": "failed",
+                                "ok": False,
+                                "returncode": None,
+                                "duration_s": 0,
+                                "stdout": "",
+                                "stderr": "axis command must be a list of strings",
+                            }
+                        )
+                        continue
+                    command_results.append(_run_obligation_command(command, timeout_s=timeout_s))
+            command_statuses = {str(result.get("status")) for result in command_results}
+            if "failed" in command_statuses:
+                axis_status = "found_or_regressed"
+            elif "inconclusive" in command_statuses:
+                axis_status = "inconclusive"
+            else:
+                axis_status = "unreachable_under_current_bounds"
+            axis_results.append(
                 {
-                    "command": [],
-                    "status": "inconclusive",
-                    "ok": False,
-                    "returncode": None,
-                    "duration_s": 0,
-                    "stdout": "",
-                    "stderr": "axis has no commands",
+                    "axis_id": axis_id,
+                    "priority_score": int(axis.get("priority_score", 0) or 0),
+                    "surface_ids": axis.get("surface_ids", []),
+                    "what_if": axis.get("what_if"),
+                    "disaster_state_template": axis.get("disaster_state_template"),
+                    "status": axis_status,
+                    "ok": axis_status == "unreachable_under_current_bounds",
+                    "command_results": command_results,
                 }
             )
-        else:
-            for command in raw_commands:
-                if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
-                    command_results.append(
-                        {
-                            "command": [],
-                            "status": "failed",
-                            "ok": False,
-                            "returncode": None,
-                            "duration_s": 0,
-                            "stdout": "",
-                            "stderr": "axis command must be a list of strings",
-                        }
-                    )
-                    continue
-                command_results.append(_run_obligation_command(command, timeout_s=timeout_s))
-        command_statuses = {str(result.get("status")) for result in command_results}
-        if "failed" in command_statuses:
-            axis_status = "found_or_regressed"
-        elif "inconclusive" in command_statuses:
-            axis_status = "inconclusive"
-        else:
-            axis_status = "unreachable_under_current_bounds"
-        axis_results.append(
-            {
-                "axis_id": axis_id,
-                "priority_score": int(axis.get("priority_score", 0) or 0),
-                "surface_ids": axis.get("surface_ids", []),
-                "what_if": axis.get("what_if"),
-                "disaster_state_template": axis.get("disaster_state_template"),
-                "status": axis_status,
-                "ok": axis_status == "unreachable_under_current_bounds",
-                "command_results": command_results,
-            }
-        )
 
     if not axis_results:
         errors.append("no disaster search expansion axes selected")
@@ -5715,6 +5848,7 @@ def run_disaster_search_expansion_plan(
         "unreachable_count": sum(1 for result in axis_results if result.get("status") == "unreachable_under_current_bounds"),
         "failed_count": sum(1 for result in axis_results if result.get("status") == "found_or_regressed"),
         "inconclusive_count": sum(1 for result in axis_results if result.get("status") == "inconclusive"),
+        "aggregate_command_results": aggregate_command_results,
         "axis_results": sorted(axis_results, key=lambda row: (-int(row["priority_score"]), str(row["axis_id"]))),
     }
 

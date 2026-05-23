@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zenodex/metamuse/epoch-packet/v1",
+  "type": "object",
+  "required": ["schema", "lane", "waypoints", "stimuli", "hypotheses", "curated_corpus"],
+  "properties": {
+    "schema": {"const": "zenodex/metamuse-epoch/v1"},
+    "lane": {"type": "object"},
+    "waypoints": {"type": "object"},
+    "stimuli": {"type": "array", "items": {"type": "object"}},
+    "hypotheses": {"type": "array", "items": {"type": "object"}},
+    "curated_corpus": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

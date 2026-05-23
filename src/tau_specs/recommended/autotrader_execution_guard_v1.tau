@@ -1,0 +1,47 @@
+# Auto-trader execution guard v1
+#
+# Purpose: validate epoch-window, cadence, and live-order admission for a
+# policy-constrained auto-trader.
+#
+# Stream mapping:
+# i1 = current_epoch              (bv[32])
+# i2 = valid_from_epoch           (bv[32])
+# i3 = valid_until_epoch          (bv[32])
+# i4 = last_action_known          (sbf)
+# i5 = last_action_epoch          (bv[32])
+# i6 = cadence_epochs             (bv[32])
+# i7 = min_order_spacing_epochs   (bv[32])
+# i8 = projected_live_orders      (bv[32])
+# i9 = max_live_orders            (bv[32])
+#
+# o1 = execution_guard_ok
+
+set charvar off
+
+within_window_ok(current_epoch : bv[32], valid_from_epoch : bv[32], valid_until_epoch : bv[32]) :=
+  (current_epoch >= valid_from_epoch) &&
+  (current_epoch <= valid_until_epoch).
+
+monotone_epoch_ok(last_action_known : sbf, current_epoch : bv[32], last_action_epoch : bv[32]) :=
+  (last_action_known = 0:sbf) ||
+  (current_epoch >= last_action_epoch).
+
+cadence_ok(last_action_known : sbf, current_epoch : bv[32], last_action_epoch : bv[32], cadence_epochs : bv[32], min_order_spacing_epochs : bv[32]) :=
+  (last_action_known = 0:sbf) ||
+  (
+    (current_epoch >= last_action_epoch) &&
+    ((current_epoch - last_action_epoch) >= cadence_epochs) &&
+    ((current_epoch - last_action_epoch) >= min_order_spacing_epochs)
+  ).
+
+live_orders_ok(projected_live_orders : bv[32], max_live_orders : bv[32]) :=
+  projected_live_orders <= max_live_orders.
+
+execution_guard_ok(current_epoch : bv[32], valid_from_epoch : bv[32], valid_until_epoch : bv[32], last_action_known : sbf, last_action_epoch : bv[32], cadence_epochs : bv[32], min_order_spacing_epochs : bv[32], projected_live_orders : bv[32], max_live_orders : bv[32]) :=
+  within_window_ok(current_epoch, valid_from_epoch, valid_until_epoch) &&
+  monotone_epoch_ok(last_action_known, current_epoch, last_action_epoch) &&
+  cadence_ok(last_action_known, current_epoch, last_action_epoch, cadence_epochs, min_order_spacing_epochs) &&
+  live_orders_ok(projected_live_orders, max_live_orders).
+
+always
+  (o1[t]:sbf = 1:sbf <-> execution_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf, i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32])).

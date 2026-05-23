@@ -5,6 +5,7 @@ from typing import Any, Literal, Mapping, TypedDict
 
 from ..integration.autotrader_signals import AutoTraderObservationPacket, SignalTrustTier
 from ..state.pools import PoolState
+from .autotrader_user_rule_bundle import describe_autotrader_strategy_surface_support
 from .route_economic_sanity import build_route_economic_sanity_snapshot
 from .strategy_ir import PolicyBackend, StrategyAction, StrategyIR, StrategyTemplate
 
@@ -19,11 +20,14 @@ class AutoTraderObservationSummary(TypedDict):
     primary_binding_ok: bool
     primary_age_epochs: int
     primary_freshness_ok: bool
+    primary_weighted_trust_score: float
     trusted_signal_count: int
     advisory_signal_count: int
     external_signal_count: int
     trusted_external_signal_count: int
     advisory_external_signal_count: int
+    weighted_trusted_signal_score: float
+    weighted_external_signal_score: float
     source_registry_present: bool
     registered_external_signal_count: int
     source_history_present: bool
@@ -50,6 +54,12 @@ class AutoTraderSourceQualityRow(TypedDict):
     history_reject: int
     history_skip: int
     history_submit_rate: float
+    trust_tier_weight: float
+    registry_weight: float
+    auth_weight: float
+    freshness_weight: float
+    history_weight: float
+    effective_weight: float
     low_reliability: bool
     unseen_history: bool
 
@@ -77,8 +87,31 @@ class AutoTraderRouteRiskSummary(TypedDict):
     extreme_price_impact_present: bool
 
 
-AUTOTRADER_KRR_SCHEMA = "autotrader/strategy_ir/v1"
+class AutoTraderAuthoringSummary(TypedDict):
+    source_form: str | None
+    source_preset_id: str | None
+    authored_via_user_bundle: bool
+    authoring_mode: str
+    fixed_order_size: int | None
+    cadence_epochs: int | None
+    trigger_price: int | None
+    asset_in: str | None
+    asset_out: str | None
+
+
+class AutoTraderSurfaceSupportSummary(TypedDict):
+    phase: str
+    overall_status: str
+    current_phase_supported: bool
+    current_phase_status: str
+    current_phase_executor: str | None
+    current_phase_reject_reason: str | None
+    surface_support_matrix: dict[str, Any]
+
+
+AUTOTRADER_KRR_SCHEMA = "zenodex/autotrader-krr-advice/v1"
 AUTOTRADER_KRR_DEFAULT_BACKEND = "python"
+_USER_RULE_SOURCE_FORM = "autotrader_user_rule_bundle"
 _ROUTE_RISK_CHECKS: tuple[str, ...] = (
     "quote::route_shape_support",
     "quote::route_economic_sanity",
@@ -163,6 +196,7 @@ _AUTOTRADER_CHECK_PRIORS: dict[str, dict[str, Any]] = {
     "tau::signal_provenance_guard": {"score_bias": 0.06, "evidence_total": 7, "evidence_supported": 6.8},
     "tau::wallet_capability_guard": {"score_bias": 0.06, "evidence_total": 7, "evidence_supported": 6.8},
     "tau::nonce_guard": {"score_bias": 0.06, "evidence_total": 7, "evidence_supported": 6.9},
+    "surface::mode_support": {"score_bias": 0.07, "evidence_total": 6, "evidence_supported": 6.0},
 }
 
 _AUTOTRADER_CHECK_FAMILY_PRIORS: dict[str, dict[str, Any]] = {
@@ -172,6 +206,7 @@ _AUTOTRADER_CHECK_FAMILY_PRIORS: dict[str, dict[str, Any]] = {
     "action": {"score_bias": 0.01, "evidence_total": 8, "evidence_supported": 7},
     "live": {"score_bias": 0.04, "evidence_total": 16, "evidence_supported": 15},
     "tau": {"score_bias": 0.05, "evidence_total": 18, "evidence_supported": 17},
+    "surface": {"score_bias": 0.06, "evidence_total": 6, "evidence_supported": 6},
 }
 
 _AUTOTRADER_SEMANTIC_RULES: tuple[dict[str, Any], ...] = (
@@ -311,6 +346,54 @@ _AUTOTRADER_SEMANTIC_RULES: tuple[dict[str, Any], ...] = (
         "score_bias": 0.02,
     },
     {
+        "name": "autotrader_user_rule_bundle_authoring",
+        "if_semantic_contains": ["authored_via_user_bundle=1"],
+        "then_prefer_checks": [
+            "policy::signal_provenance",
+            "policy::cadence_guard",
+            "policy::budget_guard",
+        ],
+        "score_bias": 0.02,
+    },
+    {
+        "name": "autotrader_dca_swap_exact_in_authoring",
+        "if_semantic_contains": ["authoring_mode=dca_swap_exact_in"],
+        "then_prefer_checks": [
+            "action::swap_exact_in",
+            "policy::cadence_guard",
+            "policy::budget_guard",
+        ],
+        "score_bias": 0.02,
+    },
+    {
+        "name": "autotrader_stop_loss_order_intent_authoring",
+        "if_semantic_contains": ["authoring_mode=stop_loss_order_intent"],
+        "then_prefer_checks": [
+            "action::order_intent",
+            "policy::signal_provenance",
+            "policy::oracle_freshness",
+            "quote::receipt_verify",
+        ],
+        "score_bias": 0.03,
+    },
+    {
+        "name": "autotrader_take_profit_order_intent_authoring",
+        "if_semantic_contains": ["authoring_mode=take_profit_order_intent"],
+        "then_prefer_checks": [
+            "action::order_intent",
+            "policy::signal_provenance",
+            "policy::oracle_freshness",
+            "quote::receipt_verify",
+        ],
+        "score_bias": 0.03,
+    },
+    {
+        "name": "autotrader_surface_phase_unsupported",
+        "if_semantic_contains": ["surface_current_phase_supported=0"],
+        "then_prefer_checks": ["surface::mode_support"],
+        "score_bias": 0.08,
+    },
+    {
         "name": "autotrader_budget_pressure",
         "if_semantic_contains": ["budget_pressure=1"],
         "then_prefer_checks": ["policy::budget_guard", "policy::lifetime_cap"],
@@ -395,6 +478,61 @@ def _load_source_history_rows(existing: Mapping[str, Any] | None) -> dict[str, d
     return out
 
 
+def _template_param_int(strategy: StrategyIR, key: str) -> int | None:
+    raw = strategy.template_params.get(key)
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return int(raw)
+    return None
+
+
+def _template_param_text(strategy: StrategyIR, key: str) -> str | None:
+    raw = strategy.template_params.get(key)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text:
+            return text
+    return None
+
+
+def _authoring_summary(
+    *,
+    strategy: StrategyIR,
+    source_form: str | None,
+    source_preset_id: str | None = None,
+) -> AutoTraderAuthoringSummary:
+    authored_via_user_bundle = source_form == _USER_RULE_SOURCE_FORM
+    authoring_mode = "strategy_ir"
+    if authored_via_user_bundle:
+        if (
+            strategy.template is StrategyTemplate.DCA
+            and strategy.allowed_actions == (StrategyAction.PLACE_SWAP_EXACT_IN,)
+        ):
+            authoring_mode = "dca_swap_exact_in"
+        elif (
+            strategy.template is StrategyTemplate.STOP_LOSS
+            and strategy.allowed_actions == (StrategyAction.PLACE_ORDER_INTENT,)
+        ):
+            authoring_mode = "stop_loss_order_intent"
+        elif (
+            strategy.template is StrategyTemplate.TAKE_PROFIT
+            and strategy.allowed_actions == (StrategyAction.PLACE_ORDER_INTENT,)
+        ):
+            authoring_mode = "take_profit_order_intent"
+        else:
+            authoring_mode = "user_rule_bundle_other"
+    return {
+        "source_form": source_form,
+        "source_preset_id": source_preset_id,
+        "authored_via_user_bundle": authored_via_user_bundle,
+        "authoring_mode": authoring_mode,
+        "fixed_order_size": _template_param_int(strategy, "fixed_order_size"),
+        "cadence_epochs": _template_param_int(strategy, "cadence_epochs"),
+        "trigger_price": _template_param_int(strategy, "trigger_price"),
+        "asset_in": _template_param_text(strategy, "asset_in"),
+        "asset_out": _template_param_text(strategy, "asset_out"),
+    }
+
+
 def _build_route_risk_summary(
     *,
     quote_receipt: Mapping[str, Any] | None,
@@ -428,6 +566,33 @@ def _build_route_risk_summary(
         "extreme_input_stress_present": bool(snapshot.extreme_input_stress_present),
         "extreme_output_depletion_present": bool(snapshot.extreme_output_depletion_present),
         "extreme_price_impact_present": bool(snapshot.extreme_price_impact_present),
+    }
+
+
+def _surface_support_summary(
+    *,
+    strategy: StrategyIR,
+    phase: AutoTraderKRRPhase,
+) -> AutoTraderSurfaceSupportSummary:
+    matrix = describe_autotrader_strategy_surface_support(strategy)
+    phase_entry_raw = matrix.get(phase)
+    phase_entry = phase_entry_raw if isinstance(phase_entry_raw, Mapping) else {}
+    return {
+        "phase": str(phase),
+        "overall_status": str(matrix.get("overall_status", "unknown")),
+        "current_phase_supported": bool(phase_entry.get("supported", False)),
+        "current_phase_status": str(phase_entry.get("status", "unknown")),
+        "current_phase_executor": (
+            str(phase_entry.get("current_executor"))
+            if phase_entry.get("current_executor") is not None
+            else None
+        ),
+        "current_phase_reject_reason": (
+            str(phase_entry.get("reject_reason_when_unsupported"))
+            if phase_entry.get("reject_reason_when_unsupported") is not None
+            else None
+        ),
+        "surface_support_matrix": dict(matrix),
     }
 
 
@@ -486,6 +651,7 @@ def autotrader_krr_check_options(
     observation_packet: AutoTraderObservationPacket | None = None,
     route_risk_summary: AutoTraderRouteRiskSummary | None = None,
     history_source_stats: Mapping[str, Any] | None = None,
+    surface_support_summary: AutoTraderSurfaceSupportSummary | None = None,
 ) -> list[str]:
     checks = list(_PHASE_CHECKS[phase])
     if observation_packet is not None:
@@ -515,6 +681,8 @@ def autotrader_krr_check_options(
         checks.append("action::swap_exact_out")
     if StrategyAction.PLACE_ORDER_INTENT in strategy.allowed_actions:
         checks.append("action::order_intent")
+    if surface_support_summary is not None and not surface_support_summary["current_phase_supported"]:
+        checks.append("surface::mode_support")
     if strategy.policy_backend is PolicyBackend.TAU or tau_enabled:
         checks.extend(
             (
@@ -531,6 +699,39 @@ def autotrader_krr_check_options(
         if phase == "live":
             checks.append("tau::nonce_guard")
     return _uniq(checks)
+
+
+def _trust_tier_weight(value: SignalTrustTier) -> float:
+    if value is SignalTrustTier.PROTOCOL:
+        return 1.0
+    if value is SignalTrustTier.VERIFIED:
+        return 0.95
+    if value is SignalTrustTier.ATTESTED:
+        return 0.75
+    return 0.25
+
+
+def _history_submit_weight(*, history_total: int, history_submit_rate: float) -> float:
+    if history_total <= 0:
+        return 0.65
+    rate = _clamp_unit_interval(history_submit_rate)
+    return round(0.25 + (0.75 * rate), 6)
+
+
+def _primary_signal_weight(
+    *,
+    trust_tier: SignalTrustTier,
+    quote_verified: bool,
+    binding_ok: bool,
+    freshness_ok: bool,
+) -> float:
+    quote_weight = 1.0 if quote_verified else 0.35
+    binding_weight = 1.0 if binding_ok else 0.25
+    freshness_weight = 1.0 if freshness_ok else 0.4
+    return round(
+        _trust_tier_weight(trust_tier) * quote_weight * binding_weight * freshness_weight,
+        6,
+    )
 
 
 def _source_quality_summary(
@@ -556,6 +757,20 @@ def _source_quality_summary(
             else 0.0
         )
         low_reliability = history_total >= 2 and history_submit_rate < 0.5
+        trust_tier_weight = _trust_tier_weight(signal.trust_tier)
+        registry_weight = 1.0 if entry is not None else 0.6
+        auth_required = bool(entry.require_auth) if entry is not None else False
+        freshness_required = bool(entry.require_freshness) if entry is not None else False
+        auth_weight = 1.0 if signal.auth_ok else (0.0 if auth_required else 0.85)
+        freshness_weight = 1.0 if signal.freshness_ok else (0.0 if freshness_required else 0.85)
+        history_weight = _history_submit_weight(
+            history_total=history_total,
+            history_submit_rate=history_submit_rate,
+        )
+        effective_weight = round(
+            trust_tier_weight * registry_weight * auth_weight * freshness_weight * history_weight,
+            6,
+        )
         out.append(
             {
                 "source_id": signal.source_id,
@@ -565,8 +780,8 @@ def _source_quality_summary(
                 "auth_ok": bool(signal.auth_ok),
                 "freshness_ok": bool(signal.freshness_ok),
                 "registered": bool(entry is not None),
-                "registry_requires_auth": bool(entry.require_auth) if entry is not None else False,
-                "registry_requires_freshness": bool(entry.require_freshness) if entry is not None else False,
+                "registry_requires_auth": auth_required,
+                "registry_requires_freshness": freshness_required,
                 "registry_allowed_trust_tiers": (
                     [tier.value for tier in entry.allowed_trust_tiers] if entry is not None else []
                 ),
@@ -575,6 +790,12 @@ def _source_quality_summary(
                 "history_reject": int(history_reject),
                 "history_skip": int(history_skip),
                 "history_submit_rate": round(float(history_submit_rate), 6),
+                "trust_tier_weight": round(trust_tier_weight, 6),
+                "registry_weight": round(registry_weight, 6),
+                "auth_weight": round(auth_weight, 6),
+                "freshness_weight": round(freshness_weight, 6),
+                "history_weight": round(history_weight, 6),
+                "effective_weight": effective_weight,
                 "low_reliability": bool(low_reliability),
                 "unseen_history": bool(history_total == 0),
             }
@@ -604,6 +825,20 @@ def _observation_summary(
         observation_packet=observation_packet,
         history_source_stats=history_source_stats,
     )
+    primary_weighted_trust_score = _primary_signal_weight(
+        trust_tier=primary_signal.trust_tier,
+        quote_verified=bool(primary_signal.quote_receipt_verified),
+        binding_ok=bool(primary_signal.binding_ok),
+        freshness_ok=bool(primary_freshness_ok),
+    )
+    weighted_external_signal_score = round(
+        sum(float(row["effective_weight"]) for row in source_quality),
+        6,
+    )
+    weighted_trusted_signal_score = round(
+        primary_weighted_trust_score + weighted_external_signal_score,
+        6,
+    )
     return {
         "current_epoch": int(observation_packet.current_epoch),
         "primary_source_kind": primary_signal.source_kind.value,
@@ -612,11 +847,14 @@ def _observation_summary(
         "primary_binding_ok": bool(primary_signal.binding_ok),
         "primary_age_epochs": int(primary_age_epochs),
         "primary_freshness_ok": bool(primary_freshness_ok),
+        "primary_weighted_trust_score": primary_weighted_trust_score,
         "trusted_signal_count": int(trusted_signal_count),
         "advisory_signal_count": int(advisory_signal_count),
         "external_signal_count": int(len(observation_packet.external_signals)),
         "trusted_external_signal_count": int(trusted_external_signal_count),
         "advisory_external_signal_count": int(advisory_external_signal_count),
+        "weighted_trusted_signal_score": weighted_trusted_signal_score,
+        "weighted_external_signal_score": weighted_external_signal_score,
         "source_registry_present": bool(observation_packet.signal_source_registry is not None),
         "registered_external_signal_count": (
             int(len(observation_packet.external_signals))
@@ -655,8 +893,11 @@ def _advisory_risk_flags(
     *,
     observation_summary: AutoTraderObservationSummary | None,
     route_risk_summary: AutoTraderRouteRiskSummary | None = None,
+    surface_support_summary: AutoTraderSurfaceSupportSummary | None = None,
 ) -> list[str]:
     flags: list[str] = []
+    if surface_support_summary is not None and not surface_support_summary["current_phase_supported"]:
+        flags.append("surface_phase_unsupported")
     if observation_summary is not None:
         if observation_summary["trusted_signal_count"] == 0:
             flags.append("no_trusted_signals")
@@ -672,6 +913,8 @@ def _advisory_risk_flags(
             flags.append("external_sources_unregistered")
         if observation_summary["advisory_external_signal_count"] > 0:
             flags.append("advisory_external_present")
+        if observation_summary["weighted_external_signal_score"] < 0.4 and observation_summary["external_signal_count"] > 0:
+            flags.append("weak_weighted_external_support")
         if observation_summary["low_reliability_external_count"] > 0:
             flags.append("low_reliability_external_present")
         if observation_summary["unseen_external_count"] > 0:
@@ -696,8 +939,11 @@ def _advisory_confidence_cap(
     *,
     observation_summary: AutoTraderObservationSummary | None,
     route_risk_summary: AutoTraderRouteRiskSummary | None = None,
+    surface_support_summary: AutoTraderSurfaceSupportSummary | None = None,
 ) -> float:
     cap = 1.0
+    if surface_support_summary is not None and not surface_support_summary["current_phase_supported"]:
+        cap = min(cap, 0.05)
     if observation_summary is not None:
         if observation_summary["trusted_signal_count"] == 0:
             cap = min(cap, 0.25)
@@ -711,6 +957,8 @@ def _advisory_confidence_cap(
             cap = min(cap, 0.35)
         if observation_summary["external_signal_count"] > 0 and not observation_summary["source_registry_present"]:
             cap = min(cap, 0.5)
+        if observation_summary["external_signal_count"] > 0 and observation_summary["weighted_external_signal_score"] < 0.4:
+            cap = min(cap, 0.45)
         if observation_summary["low_reliability_external_count"] > 0:
             cap = min(cap, 0.55)
         if observation_summary["unseen_external_count"] > 0:
@@ -737,6 +985,7 @@ def autotrader_krr_semantic_signature(
     phase: AutoTraderKRRPhase,
     current_epoch: int,
     source_form: str | None = None,
+    source_preset_id: str | None = None,
     spent_in_window: int = 0,
     lifetime_spent: int = 0,
     live_orders: int = 0,
@@ -746,6 +995,12 @@ def autotrader_krr_semantic_signature(
     route_risk_summary: AutoTraderRouteRiskSummary | None = None,
     history_source_stats: Mapping[str, Any] | None = None,
 ) -> str:
+    authoring_summary = _authoring_summary(
+        strategy=strategy,
+        source_form=source_form,
+        source_preset_id=source_preset_id,
+    )
+    surface_support_summary = _surface_support_summary(strategy=strategy, phase=phase)
     pieces = [
         f"phase={phase}",
         f"template={strategy.template.value}",
@@ -770,6 +1025,11 @@ def autotrader_krr_semantic_signature(
         f"budget_pressure={int((spent_in_window * 10 >= strategy.notional_caps.per_window_max * 8) or (lifetime_spent * 10 >= strategy.notional_caps.lifetime_max * 8))}",
         f"live_order_pressure={int(live_orders + 1 >= strategy.controls.max_live_orders)}",
         f"tau_enabled={int(tau_enabled)}",
+        f"authored_via_user_bundle={int(authoring_summary['authored_via_user_bundle'])}",
+        f"authoring_mode={authoring_summary['authoring_mode']}",
+        f"surface_overall_status={surface_support_summary['overall_status']}",
+        f"surface_current_phase_supported={int(surface_support_summary['current_phase_supported'])}",
+        f"surface_current_phase_status={surface_support_summary['current_phase_status']}",
     ]
     summary = _observation_summary(
         strategy=strategy,
@@ -821,6 +1081,8 @@ def autotrader_krr_semantic_signature(
         )
     if source_form:
         pieces.append(f"source_form={source_form}")
+    if source_preset_id:
+        pieces.append(f"source_preset_id={source_preset_id}")
     if nonce_start is not None:
         pieces.append(f"nonce_start={nonce_start}")
     for key in sorted(strategy.template_params):
@@ -838,6 +1100,7 @@ def advise_autotrader_krr(
     kb: Mapping[str, Any] | None = None,
     history_check_stats: Mapping[str, object] | None = None,
     source_form: str | None = None,
+    source_preset_id: str | None = None,
     spent_in_window: int = 0,
     lifetime_spent: int = 0,
     live_orders: int = 0,
@@ -857,11 +1120,13 @@ def advise_autotrader_krr(
         quote_receipt=quote_receipt,
         pools_by_id=pools_by_id,
     )
+    surface_support_summary = _surface_support_summary(strategy=strategy, phase=phase)
     semantic_signature = autotrader_krr_semantic_signature(
         strategy=strategy,
         phase=phase,
         current_epoch=current_epoch,
         source_form=source_form,
+        source_preset_id=source_preset_id,
         spent_in_window=spent_in_window,
         lifetime_spent=lifetime_spent,
         live_orders=live_orders,
@@ -878,6 +1143,7 @@ def advise_autotrader_krr(
         observation_packet=observation_packet,
         route_risk_summary=route_risk_summary,
         history_source_stats=history_check_stats,
+        surface_support_summary=surface_support_summary,
     )
     loaded_kb = (
         normalize_krr_kb_object(kb, kb_path=kb_path)
@@ -895,6 +1161,11 @@ def advise_autotrader_krr(
         kb=kb,
         backend=backend,
     )
+    authoring_summary = _authoring_summary(
+        strategy=strategy,
+        source_form=source_form,
+        source_preset_id=source_preset_id,
+    )
     observation_summary = _observation_summary(
         strategy=strategy,
         observation_packet=observation_packet,
@@ -909,11 +1180,13 @@ def advise_autotrader_krr(
     confidence_cap = _advisory_confidence_cap(
         observation_summary=observation_summary,
         route_risk_summary=route_risk_summary,
+        surface_support_summary=surface_support_summary,
     )
     effective_confidence = min(ranking_confidence, confidence_cap)
     advisory_risk_flags = _advisory_risk_flags(
         observation_summary=observation_summary,
         route_risk_summary=route_risk_summary,
+        surface_support_summary=surface_support_summary,
     )
     explain = list(out.get("explain", [])) if isinstance(out.get("explain"), list) else []
     if advisory_risk_flags:
@@ -933,6 +1206,8 @@ def advise_autotrader_krr(
     out["explain"] = explain
     out["observation_summary"] = observation_summary
     out["route_risk_summary"] = route_risk_summary
+    out["surface_support_summary"] = surface_support_summary
     out["source_quality_summary"] = source_quality_summary
+    out["authoring_summary"] = authoring_summary
     out["source_history_present"] = bool(source_history)
     return out

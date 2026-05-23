@@ -41,22 +41,6 @@ python3 tools/permissionless_proof_mining_status.py \
 
 The command exits `0` when the claim is submit-ready and nonzero when the claim is not claimable or the API call fails.
 
-Proof-mining claim artifacts are v2 artifacts. The claim hash includes verifier evidence, and the default admissibility threshold is two accepted verifier receipts from two verifier domains. Build tools should pass repeated verifier receipts as `verifier_id:domain_id` pairs, for example:
-
-```bash
-python3 tools/permissionless_solver_proof_mining_claim.py \
-  --round ./verified_round.json \
-  --output ./proof_claim.json \
-  --round-id round-001 \
-  --reward-pool-before 20 \
-  --base-reward 8 \
-  --epoch 1 \
-  --proposal-slot 0 \
-  --prover-id 1 \
-  --verifier 0:0 \
-  --verifier 1:1
-```
-
 ## Request body
 
 ```json
@@ -67,19 +51,7 @@ python3 tools/permissionless_solver_proof_mining_claim.py \
     "0x<sender-pubkey>": 123
   },
   "claim": {
-    "body": {
-      "schema": "zenodex/permissionless_solver_proof_mining_claim/v2",
-      "verifier_evidence": {
-        "schema": "zenodex/proof_mining_verifier_evidence/v1",
-        "min_quorum": 2,
-        "min_domain_diversity": 2,
-        "verifiers": [
-          {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-          {"verifier_id": 1, "domain_id": 1, "accepted": 1}
-        ]
-      },
-      "...": "proof mining claim artifact"
-    },
+    "body": { "...": "proof mining claim artifact" },
     "claim_hash": "sha256:..."
   },
   "proof_mining_context": {
@@ -137,7 +109,7 @@ The endpoint mirrors the runtime path in `src/integration/tau_testnet_dex_plugin
 
 - reward-pool env is configured
 - sender pubkey is canonical
-- claim artifact passes validation, including verifier quorum and verifier-domain diversity evidence
+- claim artifact passes validation
 - `winner.miner_id` matches `tx_sender_pubkey`
 - `claim.proposal_hash` matches `expected_proposal_hash`
 - a verified DEX proof context is present and matches the claim binding

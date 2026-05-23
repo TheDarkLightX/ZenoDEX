@@ -1,0 +1,39 @@
+{
+  "decision": "research_only_future_aware_advisory_score",
+  "jepa": {
+    "action_dim": 4,
+    "balanced_action_tension": 0.3093881057830117,
+    "draining_action_tension": 1.3515909144412004,
+    "future_tension_prefers_balanced": true,
+    "latent_dim": 3,
+    "model_authorizes_settlement": false,
+    "schema": "zenodex/energy/zeno_jepa/v1",
+    "state_feature_dim": 4
+  },
+  "negative_knowledge": [
+    "Future-tension energy is a search feature, not a proof of future market safety.",
+    "ZenoLogic composes advisory energies and does not create a formal verifier.",
+    "EnergyNot can invert hard barriers, so it must not be used over safety predicates.",
+    "Production use still requires deterministic verifier or policy-gate checks and real replay."
+  ],
+  "ok": true,
+  "positive_knowledge": "A latent future-tension score can rank a balanced action ahead of a draining action in a bounded demo.",
+  "safety_contract": {
+    "deterministic_policy_guards_authoritative": true,
+    "deterministic_verifier_authoritative": true,
+    "future_tension_authorizes_settlement": false,
+    "logic_expression_authorizes_settlement": false,
+    "model_authorizes_settlement": false,
+    "model_authorizes_trade": false
+  },
+  "schema": "zenodex/energy/gemini_jepa_logic_boundary_receipt/v1",
+  "zeno_logic": {
+    "and_energy_valid": 0.30000000000000016,
+    "energy_not_invalid_barrier": -1000.0,
+    "energy_not_inverts_barrier": true,
+    "energy_not_valid_barrier": -0.0,
+    "large_or_energy": 1000.0,
+    "or_energy_invalid": 1.2000000000000002,
+    "stable_or_finite": true
+  }
+}

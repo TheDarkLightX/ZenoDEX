@@ -111,18 +111,6 @@ class TestStateFromDict:
         s = state_from_dict(d)
         assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
 
-    def test_epoch_phase_accepts_enum_object(self):
-        d = state_to_dict(initial_state())
-        d["epoch_phase"] = EpochPhase.SETTLED
-        s = state_from_dict(d)
-        assert s.epoch_phase == EpochPhase.SETTLED
-
-    def test_epoch_phase_accepts_string_encoding(self):
-        d = state_to_dict(initial_state())
-        d["epoch_phase"] = "PricePublished"
-        s = state_from_dict(d)
-        assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
-
     def test_epoch_phase_invalid_int_raises(self):
         d = state_to_dict(initial_state())
         d["epoch_phase"] = 3

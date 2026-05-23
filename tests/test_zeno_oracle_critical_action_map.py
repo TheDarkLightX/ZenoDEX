@@ -5,7 +5,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -24,6 +23,7 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
     assert receipt["catalog_profile_count"] == 7
     assert receipt["runtime_wired_count"] == 7
     assert receipt["design_only_backlog_count"] == 0
+    assert receipt["fail_closed_config"]["status"] == "accepted"
     runtime_keys = {surface["key"] for surface in receipt["runtime_surfaces"]}
     assert runtime_keys == {
         "zenodex.perps:settle_epoch",
@@ -34,5 +34,21 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
         "zenodex.settlement:critical_settlement",
         "zenodex.trigger:execute_trigger",
     }
+    surfaces_by_key = {surface["key"]: surface for surface in receipt["runtime_surfaces"]}
+    assert surfaces_by_key["zenodex.zusd:mint"]["details"]["required_controls"] == [
+        "ZUSD_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+    ]
+    assert surfaces_by_key["zenodex.zusd:liquidate_vault"]["details"]["required_controls"] == [
+        "ZUSD_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+    ]
+    assert surfaces_by_key["zenodex.trigger:execute_trigger"]["details"]["required_controls"] == [
+        "check_trigger_execute_oracle_adapter_bridge(required=True)",
+        "check_trigger_execute_oracle_authorization",
+    ]
+    required_controls = set(receipt["fail_closed_config"]["required_controls"])
+    covered_controls = set(receipt["fail_closed_config"]["covered_controls"])
+    assert required_controls <= covered_controls
     backlog_keys = {item["key"] for item in receipt["design_only_backlog"]}
     assert backlog_keys == set()

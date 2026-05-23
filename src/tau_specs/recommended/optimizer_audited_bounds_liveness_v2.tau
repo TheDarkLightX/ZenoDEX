@@ -1,0 +1,43 @@
+set charvar off
+
+budget_facts_ok(selected_domain_budget_respected : sbf, repaired_selection_budget_respected : sbf, full_domain_pool_budget_respected : sbf, full_domain_candidate_budget_respected : sbf, budget_parameters_bound : sbf) :=
+  (selected_domain_budget_respected = 1:sbf) &&
+  (repaired_selection_budget_respected = 1:sbf) &&
+  (full_domain_pool_budget_respected = 1:sbf) &&
+  (full_domain_candidate_budget_respected = 1:sbf) &&
+  (budget_parameters_bound = 1:sbf).
+
+attempt_order_ok(cheap_path_attempted : sbf, cheap_path_success : sbf, fallback_required : sbf, fallback_attempted : sbf) :=
+  (cheap_path_attempted = 1:sbf) &&
+  ((fallback_required = 1:sbf) <-> !(cheap_path_success = 1:sbf)) &&
+  ((fallback_attempted = 1:sbf) <-> (fallback_required = 1:sbf)).
+
+outcome_total(returned_success : sbf, explicit_failure : sbf) :=
+  ((returned_success = 1:sbf) && !(explicit_failure = 1:sbf)) ||
+  (!(returned_success = 1:sbf) && (explicit_failure = 1:sbf)).
+
+success_replayable(returned_success : sbf, effective_quote_present : sbf) :=
+  (returned_success = 1:sbf) -> (effective_quote_present = 1:sbf).
+
+failure_total(explicit_failure : sbf, failure_reason_present : sbf) :=
+  (explicit_failure = 1:sbf) -> (failure_reason_present = 1:sbf).
+
+no_spurious_failure(explicit_failure : sbf, fallback_available : sbf) :=
+  !(explicit_failure = 1:sbf) || !(fallback_available = 1:sbf).
+
+adaptive_liveness_ok(selected_domain_budget_respected : sbf, repaired_selection_budget_respected : sbf, full_domain_pool_budget_respected : sbf, full_domain_candidate_budget_respected : sbf, budget_parameters_bound : sbf, cheap_path_attempted : sbf, cheap_path_success : sbf, fallback_required : sbf, fallback_attempted : sbf, fallback_available : sbf, returned_success : sbf, explicit_failure : sbf, effective_quote_present : sbf, failure_reason_present : sbf) :=
+  budget_facts_ok(selected_domain_budget_respected, repaired_selection_budget_respected, full_domain_pool_budget_respected, full_domain_candidate_budget_respected, budget_parameters_bound) &&
+  attempt_order_ok(cheap_path_attempted, cheap_path_success, fallback_required, fallback_attempted) &&
+  outcome_total(returned_success, explicit_failure) &&
+  success_replayable(returned_success, effective_quote_present) &&
+  failure_total(explicit_failure, failure_reason_present) &&
+  no_spurious_failure(explicit_failure, fallback_available).
+
+always
+  (o1[t]:sbf = 1:sbf <-> budget_facts_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> attempt_order_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> outcome_total(i11[t]:sbf, i12[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> success_replayable(i11[t]:sbf, i13[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> failure_total(i12[t]:sbf, i14[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> no_spurious_failure(i12[t]:sbf, i10[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> adaptive_liveness_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)).

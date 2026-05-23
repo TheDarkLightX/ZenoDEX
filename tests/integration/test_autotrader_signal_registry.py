@@ -10,6 +10,7 @@ from src.integration.autotrader_signal_registry import (
     ExternalSignalSourceRegistryEntry,
     external_signal_source_registry_entry_from_dict,
     external_signal_source_registry_from_object,
+    verify_external_signal_source_registry_payload,
 )
 from src.integration.autotrader_signals import (
     ExternalSignalObservation,
@@ -114,6 +115,21 @@ def test_signal_source_registry_entry_and_loader_roundtrip() -> None:
         {"entries": [entry.to_dict()]}
     )
     assert registry.to_dict()["entry_count"] == 1
+
+
+def test_signal_source_registry_payload_verifier_roundtrip_and_tamper_rejection() -> None:
+    registry = _registry()
+    payload = registry.to_dict()
+
+    ok, error = verify_external_signal_source_registry_payload(payload)
+    assert ok is True
+    assert error is None
+
+    tampered = dict(payload)
+    tampered["entry_count"] = 2
+    ok, error = verify_external_signal_source_registry_payload(tampered)
+    assert ok is False
+    assert error == "external signal source registry payload mismatch"
 
 
 def test_signal_source_registry_helper_type_guards() -> None:
@@ -327,6 +343,7 @@ def test_observation_packet_requires_registry_for_trusted_external_signals() -> 
         signal_source_registry=_registry(),
     )
     encoded = packet.to_dict()
+    assert encoded["signal_source_registry"]["entry_count"] == 1
     assert encoded["signal_source_registry_present"] is True
     assert encoded["registered_external_count"] == 1
 
@@ -349,21 +366,3 @@ def test_observation_packet_requires_registry_for_trusted_external_signals() -> 
             external_signals=(_trusted_external(),),
             signal_source_registry=ExternalSignalSourceRegistry(entries=()),
         )
-
-
-def test_quote_receipt_signal_packet_accepts_legacy_receipt_without_quote_epoch() -> None:
-    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000)}
-    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
-    assert quote is not None
-    legacy_receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
-
-    signal = build_quote_receipt_signal_packet(
-        receipt=legacy_receipt,
-        pools_by_id=pools,
-        current_epoch=9,
-    )
-
-    assert signal.quote_epoch == 9
-    assert signal.quote_epoch_present is True
-    packet = build_autotrader_observation_packet(primary_signal=signal)
-    assert packet.primary_signal.quote_epoch == 9

@@ -1,0 +1,68 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_oracle_freshness_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless oracle/quote freshness guard for the imperative-shell auto-trader.
+
+    The guard does not choose trades and does not mutate balances. It only
+    validates that a quote/receipt snapshot is fresh enough to use under a
+    bounded policy:
+    - quote_epoch must not be from the future
+    - current_epoch - quote_epoch must be <= max_oracle_staleness_epochs
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "quote_epoch_not_future",
+      "freshness_ok",
+      "oracle_guard_ok",
+    ]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "validate_oracle_freshness"
+    params:
+      - id: "current_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "quote_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "max_oracle_staleness_epochs"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "current_epoch" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "quote_epoch" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "max_oracle_staleness_epochs" }, { const: 1 }] }
+    updates: []
+    effects:
+      quote_epoch_not_future:
+        op: "<="
+        args: [{ param: "quote_epoch" }, { param: "current_epoch" }]
+      freshness_ok:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "quote_epoch" }, { param: "current_epoch" }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ param: "current_epoch" }, { param: "quote_epoch" }]
+              - { param: "max_oracle_staleness_epochs" }
+      oracle_guard_ok:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "quote_epoch" }, { param: "current_epoch" }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ param: "current_epoch" }, { param: "quote_epoch" }]
+              - { param: "max_oracle_staleness_epochs" }

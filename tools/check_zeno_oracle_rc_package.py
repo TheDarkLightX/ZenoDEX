@@ -101,6 +101,11 @@ def _file_index(manifest: Mapping[str, Any], errors: list[str]) -> dict[str, Map
     return index
 
 
+def _manifest_contains_path_or_child(file_index: Mapping[str, Mapping[str, Any]], rel_path: str) -> bool:
+    prefix = rel_path.rstrip("/") + "/"
+    return rel_path in file_index or any(path.startswith(prefix) for path in file_index)
+
+
 def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_path: Path | None = None) -> dict[str, Any]:
     errors: list[str] = []
     manifest_path = package_dir / "ZEN_ORACLE_RC_MANIFEST.json"
@@ -174,9 +179,9 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
                                 if rel_path.startswith("/") or ".." in Path(rel_path).parts:
                                     errors.append(f"claims_registry_file_outside_package:{rel_path}")
                                     continue
-                                if rel_path not in file_index:
+                                if not _manifest_contains_path_or_child(file_index, rel_path):
                                     errors.append(f"claims_registry_file_missing_from_manifest:{rel_path}")
-                                if not (package_dir / rel_path).is_file():
+                                if not (package_dir / rel_path).exists():
                                     errors.append(f"claims_registry_file_missing_on_disk:{rel_path}")
             except Exception as exc:
                 errors.append(f"claims_registry_invalid:{exc}")

@@ -1,19 +1,20 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import "./index.css";
-import App from "./App.jsx";
-import { DemoModeProvider } from "./lib/DemoModeProvider.jsx";
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
+import { TransactionCenterProvider } from './lib/TransactionCenterContext.jsx'
 
 async function loadRuntimeConfig() {
-  const base = (import.meta?.env?.BASE_URL || "/").toString();
+  const base = (import.meta?.env?.BASE_URL || '/').toString();
   const configUrl = `${base}zenodex-config.json`;
   try {
-    const res = await fetch(configUrl, { cache: "no-store" });
+    const res = await fetch(configUrl, { cache: 'no-store' });
     if (!res.ok) {
       return;
     }
     const data = await res.json();
-    if (data && typeof data === "object") {
+    if (data && typeof data === 'object') {
       window.__ZENODEX_CONFIG__ = data;
     }
   } catch {
@@ -23,11 +24,13 @@ async function loadRuntimeConfig() {
 
 async function bootstrap() {
   await loadRuntimeConfig();
-  createRoot(document.getElementById("root")).render(
+  createRoot(document.getElementById('root')).render(
     <StrictMode>
-      <DemoModeProvider>
-        <App />
-      </DemoModeProvider>
+      <ErrorBoundary>
+        <TransactionCenterProvider>
+          <App />
+        </TransactionCenterProvider>
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

@@ -1,0 +1,163 @@
+{
+  "dataset": {
+    "batches": 1983,
+    "path": "data/upba_energy/upba_v2_energy_holdout_seed20260518.jsonl",
+    "rows": 39979,
+    "sha256": "sha256:bcf06a210d591f5ab02e05a105db4af6c26d02782f91080e517cb3fb4d634cb7"
+  },
+  "deltas": {
+    "gap_weighted_vs_hand": {
+      "mean_verifier_calls_delta": -0.3449319213313162,
+      "mean_verifier_calls_to_objective_winner_delta": -0.3444276348966213,
+      "top_10_recall_delta": 0.0,
+      "top_1_recall_delta": 0.22037317196167416,
+      "top_5_recall_delta": 0.0035300050428643814
+    },
+    "gemini_vs_gap_weighted": {
+      "mean_verifier_calls_delta": -0.0060514372163387176,
+      "mean_verifier_calls_to_objective_winner_delta": -0.0060514372163387176,
+      "top_10_recall_delta": 0.0,
+      "top_1_recall_delta": 0.006555723651033851,
+      "top_5_recall_delta": 0.0
+    },
+    "gemini_vs_hand": {
+      "mean_verifier_calls_delta": -0.35098335854765494,
+      "mean_verifier_calls_to_objective_winner_delta": -0.35047907211296003,
+      "top_10_recall_delta": 0.0,
+      "top_1_recall_delta": 0.22692889561270801,
+      "top_5_recall_delta": 0.0035300050428643814
+    },
+    "pairwise_gemini_vs_gap_weighted": {
+      "accuracy_delta": 0.00045314368430993124
+    }
+  },
+  "interpretation": {
+    "gemini_beats_gap_weighted_on_mean_calls": true,
+    "gemini_beats_gap_weighted_on_pairwise_accuracy": true,
+    "gemini_beats_gap_weighted_on_top_1_recall": true,
+    "gemini_matches_gap_weighted_top_10_recall": true,
+    "negative_knowledge": "This report compares replayable synthetic holdout performance only. It does not promote Gemini into the retained-best registry or the production gate.",
+    "preferred_measured_checkpoint": "gemini"
+  },
+  "models": {
+    "gap_weighted": {
+      "feature_dim": 96,
+      "parameter_count": 97,
+      "source_path": "data/upba_energy/best_models/upba_v2_linear_gap_weighted_seed20260517.json",
+      "uses_gemini_crosses": false,
+      "uses_set_aware_features": false
+    },
+    "gemini": {
+      "feature_dim": 96,
+      "parameter_count": 97,
+      "source_path": "data/upba_energy/upba_v2_energy_gemini_objective8_seed20260517.json",
+      "uses_gemini_crosses": true,
+      "uses_set_aware_features": false
+    },
+    "hand": {
+      "feature_dim": 96,
+      "parameter_count": 97,
+      "source_path": null,
+      "uses_gemini_crosses": false,
+      "uses_set_aware_features": false
+    }
+  },
+  "modes": {
+    "gap_weighted": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "false_exclusion_rate_objective_top_10": 0.0,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.0166414523449319,
+      "mean_verifier_calls_to_objective_winner": 1.0166414523449319,
+      "mode": "learned",
+      "objective_argmax_class_size_mean": 1.000504286434695,
+      "objective_tie_batch_count": 1,
+      "objective_tie_batch_rate": 0.0005042864346949068,
+      "p95_verifier_calls": 1,
+      "p95_verifier_calls_to_objective_winner": 1,
+      "p99_verifier_calls": 2,
+      "p99_verifier_calls_to_objective_winner": 2,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_objective_recall": 1.0,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.983358547655068,
+      "top_1_recall": 0.983358547655068,
+      "top_25_objective_recall": 1.0,
+      "top_25_recall": 1.0,
+      "top_5_objective_recall": 1.0,
+      "top_5_recall": 1.0
+    },
+    "gemini": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "false_exclusion_rate_objective_top_10": 0.0,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.0105900151285931,
+      "mean_verifier_calls_to_objective_winner": 1.0105900151285931,
+      "mode": "learned",
+      "objective_argmax_class_size_mean": 1.000504286434695,
+      "objective_tie_batch_count": 1,
+      "objective_tie_batch_rate": 0.0005042864346949068,
+      "p95_verifier_calls": 1,
+      "p95_verifier_calls_to_objective_winner": 1,
+      "p99_verifier_calls": 1,
+      "p99_verifier_calls_to_objective_winner": 1,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_objective_recall": 1.0,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.9899142713061019,
+      "top_1_recall": 0.9899142713061019,
+      "top_25_objective_recall": 1.0,
+      "top_25_recall": 1.0,
+      "top_5_objective_recall": 1.0,
+      "top_5_recall": 1.0
+    },
+    "hand": {
+      "batches": 1983,
+      "candidate_count_mean": 19.994957135653053,
+      "false_exclusion_rate_objective_top_10": 0.0,
+      "false_exclusion_rate_top_10": 0.0,
+      "invalid_accept_count": 0,
+      "mean_regret_before_top_10_fallback": 0,
+      "mean_verifier_calls": 1.361573373676248,
+      "mean_verifier_calls_to_objective_winner": 1.3610690872415532,
+      "mode": "hand",
+      "objective_argmax_class_size_mean": 1.000504286434695,
+      "objective_tie_batch_count": 1,
+      "objective_tie_batch_rate": 0.0005042864346949068,
+      "p95_verifier_calls": 3,
+      "p95_verifier_calls_to_objective_winner": 3,
+      "p99_verifier_calls": 4,
+      "p99_verifier_calls_to_objective_winner": 4,
+      "schema": "zenodex/energy/upba_v2_evaluation_report/v1",
+      "top_10_objective_recall": 1.0,
+      "top_10_recall": 1.0,
+      "top_1_objective_recall": 0.7634896621280888,
+      "top_1_recall": 0.7629853756933939,
+      "top_25_objective_recall": 1.0,
+      "top_25_recall": 1.0,
+      "top_5_objective_recall": 0.9964699949571356,
+      "top_5_recall": 0.9964699949571356
+    }
+  },
+  "pairwise_accuracy": {
+    "gap_weighted": {
+      "accuracy": 0.998546164012839,
+      "pairs": 158890
+    },
+    "gemini": {
+      "accuracy": 0.998999307697149,
+      "pairs": 158890
+    },
+    "hand": {
+      "accuracy": 0.9808987349738812,
+      "pairs": 158890
+    }
+  },
+  "schema": "zenodex/energy/upba_v2_gemini_comparison/v1"
+}

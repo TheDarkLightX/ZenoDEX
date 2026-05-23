@@ -21,7 +21,6 @@ FULL_SUPPORTED = importlib.util.find_spec("py_ecc") is not None
 AttestationMode = Literal["policy", "full"]
 
 from src.integration import settlement_price_attestation as attestation_mod
-from src.integration.settlement_attestation_policy import SettlementAttestationPolicy
 from tools.stateful_feedback import (
     ExplorationTargetReport,
     FeedbackMode,
@@ -35,36 +34,8 @@ from tools.stateful_semantics import sequence_action_summary, settlement_attesta
 
 
 ATTESTATION_FILE = (ROOT_DIR / "src/integration/settlement_price_attestation.py").resolve()
-_POLICY_SIGNER_PUBKEY = "0xb928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7"
-_POLICY_ID = "settlement-attestation-policy-v1"
-_POLICY_EPOCH = 1
-_POLICY_CHAIN_ID = 1
-_POLICY_REGISTRY_CONTRACT = "0x" + "12" * 20
-_POLICY_REGISTRY_ROOT = "0x" + "34" * 32
-
-
-def _policy_for_sources(allowed_sources: Sequence[str]) -> SettlementAttestationPolicy:
-    return SettlementAttestationPolicy(
-        policy_id=_POLICY_ID,
-        policy_epoch=_POLICY_EPOCH,
-        chain_id=_POLICY_CHAIN_ID,
-        registry_contract=_POLICY_REGISTRY_CONTRACT,
-        registry_root=_POLICY_REGISTRY_ROOT,
-        effective_from_epoch=99,
-        expires_at_epoch=200,
-        governance_approved=True,
-        timelock_elapsed=True,
-        multisig_approved=True,
-        min_distinct_signers=1,
-        min_distinct_sources=max(1, len(set(allowed_sources))),
-        allowed_signers={_POLICY_SIGNER_PUBKEY: tuple(allowed_sources)},
-    )
-
-
-_BASE_POLICY = _policy_for_sources(("oracle:a", "oracle:b"))
-
 POLICY_ATTESTATION_PAYLOAD: dict[str, Any] = {
-    "schema": attestation_mod.SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA,
+    "schema": "zenodex/settlement-spot-price-attestation/v1",
     "packet": {
         "schema": "zenodex/settlement-spot-price-packet/v1",
         "entries": [
@@ -94,15 +65,9 @@ POLICY_ATTESTATION_PAYLOAD: dict[str, Any] = {
         "all_fresh": True,
         "provenance_ok": True,
     },
-    "signer_pubkey": _POLICY_SIGNER_PUBKEY,
+    "signer_pubkey": "0xb928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7",
     "signed_at_epoch": 100,
     "packet_hash": "0x467af5f90af00f84ce7b065fa7752ed5b04acb32e6caac1fce429d9390d56805",
-    "attestation_policy_id": _BASE_POLICY.policy_id,
-    "attestation_policy_epoch": _BASE_POLICY.policy_epoch,
-    "attestation_policy_chain_id": _BASE_POLICY.chain_id,
-    "attestation_policy_registry_contract": _BASE_POLICY.registry_contract,
-    "attestation_policy_root": _BASE_POLICY.registry_root,
-    "attestation_policy_hash": _BASE_POLICY.policy_hash_hex(),
     "signature": "0xa36b7630385c370e04de314f28bb49158ea82a4d3addcebac84e0989e24d466443c9039786ae6c5e670595d4d28256cf178cdae6ad9e6c25d2b70c94fce6d651793a27e413191407c9235a0f29652dcf5fa1ea89674fd26d25a65a02a2b629ff",
 }
 _POLICY_UNSIGNED = {
@@ -211,29 +176,16 @@ def _verify_payload(
     attestation_mode: AttestationMode,
 ) -> tuple[bool, str | None]:
     verifier = attestation_mod.verify_settlement_spot_price_attestation_payload
-    policy = _policy_for_sources(tuple(allowed_sources))
     kwargs = {
         "payload": attestation_payload,
         "consumer_now_epoch": consumer_now_epoch,
         "max_attestation_age_epochs": 5,
-        "attestation_policy": policy,
+        "allowed_signers": {cast(str, POLICY_ATTESTATION_PAYLOAD["signer_pubkey"]): allowed_sources},
     }
     if attestation_mode == "policy":
         with _policy_verify_patch():
-            ok, err = verifier(**kwargs)
-    else:
-        ok, err = verifier(**kwargs)
-    return ok, _normalize_policy_error(err)
-
-
-def _normalize_policy_error(err: str | None) -> str | None:
-    if err is None:
-        return None
-    prefix = "source_id not allowlisted by attestation policy: "
-    if err.startswith(prefix):
-        source = err[len(prefix) :].split(" ", 1)[0]
-        return f"source_id not allowlisted for signer: {source}"
-    return err
+            return verifier(**kwargs)
+    return verifier(**kwargs)
 
 
 def _sequence_outcome(payload: object, *, attestation_mode: AttestationMode) -> str:

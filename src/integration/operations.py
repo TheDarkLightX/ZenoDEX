@@ -6,7 +6,7 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import List, Dict, Any, Optional
 
 from ..core.domain_limits import (
     DEX_LP_AMOUNT_MAX,
@@ -15,15 +15,18 @@ from ..core.domain_limits import (
     DEX_SWAP_AMOUNT_MAX,
 )
 from ..core.settlement import (
-    BalanceDelta,
-    Fill,
-    FillAction,
-    LPDelta,
-    ReserveDelta,
     Settlement,
+    FillAction,
+    Fill,
+    BalanceDelta,
+    ReserveDelta,
+    LPDelta,
 )
 from ..state.intents import Intent, IntentKind
-from ..state.pools import POOL_FEE_BPS_MAX, POOL_FEE_BPS_MIN, normalize_curve_config
+from ..state.pools import normalize_curve_config
+
+POOL_FEE_BPS_MIN = 0
+POOL_FEE_BPS_MAX = 10_000
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -118,9 +121,8 @@ class SettlementEnvelope:
     oracle_authorization: Optional[Dict[str, Any]] = None
     uniform_batch_certificate: Optional[Dict[str, Any]] = None
     uniform_batch_optimality_certificate: Optional[Dict[str, Any]] = None
-    uniform_batch_price_grid_config: Optional[Dict[str, Any]] = None
-    uniform_batch_price_grid_rows: Optional[List[Dict[str, Any]]] = None
-    uniform_batch_price_grid_witness: Optional[Dict[str, Any]] = None
+    uniform_batch_v2_bounded_grid: Optional[Dict[str, Any]] = None
+    uniform_batch_v3_exact_out_grid: Optional[Dict[str, Any]] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -731,26 +733,11 @@ def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:
 
 def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[SettlementEnvelope]:
     """
-    Parse settlement plus optional proof and oracle authorization payloads from operations["3"].
+    Parse settlement and optional proof payload from operations["3"].
 
     Proof payload is passed through as an opaque JSON object under either:
     - settlement_data["proof"] (preferred: object)
     - settlement_data["zk_proof"] (legacy/alt: object)
-
-    Oracle authorization is passed through as an opaque JSON object under:
-    - settlement_data["oracle_authorization"]
-
-    UPBA v1 certificate payload is passed through as an opaque JSON object under:
-    - settlement_data["uniform_batch_certificate"]
-
-    UPBA bounded optimality certificate payload is passed through as an opaque
-    JSON object under:
-    - settlement_data["uniform_batch_optimality_certificate"]
-
-    UPBA bounded price-grid evidence is passed through as opaque JSON under:
-    - settlement_data["uniform_batch_price_grid_config"]
-    - settlement_data["uniform_batch_price_grid_rows"]
-    - settlement_data["uniform_batch_price_grid_witness"]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -774,63 +761,53 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement proof must be an object")
         proof = raw_proof
 
-    oracle_authorization = None
     raw_oracle_authorization = settlement_data.get("oracle_authorization")
+    oracle_authorization = None
     if raw_oracle_authorization is not None:
         if not isinstance(raw_oracle_authorization, dict):
             raise ValueError("settlement oracle_authorization must be an object")
         oracle_authorization = raw_oracle_authorization
 
-    uniform_batch_certificate = None
     raw_uniform_batch_certificate = settlement_data.get("uniform_batch_certificate")
+    uniform_batch_certificate = None
     if raw_uniform_batch_certificate is not None:
         if not isinstance(raw_uniform_batch_certificate, dict):
             raise ValueError("settlement uniform_batch_certificate must be an object")
         uniform_batch_certificate = raw_uniform_batch_certificate
 
-    uniform_batch_optimality_certificate = None
     raw_uniform_batch_optimality_certificate = settlement_data.get("uniform_batch_optimality_certificate")
+    uniform_batch_optimality_certificate = None
     if raw_uniform_batch_optimality_certificate is not None:
         if not isinstance(raw_uniform_batch_optimality_certificate, dict):
             raise ValueError("settlement uniform_batch_optimality_certificate must be an object")
         uniform_batch_optimality_certificate = raw_uniform_batch_optimality_certificate
 
-    uniform_batch_price_grid_config = None
-    raw_uniform_batch_price_grid_config = settlement_data.get("uniform_batch_price_grid_config")
-    if raw_uniform_batch_price_grid_config is not None:
-        if not isinstance(raw_uniform_batch_price_grid_config, dict):
-            raise ValueError("settlement uniform_batch_price_grid_config must be an object")
-        uniform_batch_price_grid_config = raw_uniform_batch_price_grid_config
+    raw_uniform_batch_v2_bounded_grid = settlement_data.get("uniform_batch_v2_bounded_grid")
+    uniform_batch_v2_bounded_grid = None
+    if raw_uniform_batch_v2_bounded_grid is not None:
+        if not isinstance(raw_uniform_batch_v2_bounded_grid, dict):
+            raise ValueError("settlement uniform_batch_v2_bounded_grid must be an object")
+        uniform_batch_v2_bounded_grid = raw_uniform_batch_v2_bounded_grid
 
-    uniform_batch_price_grid_rows = None
-    raw_uniform_batch_price_grid_rows = settlement_data.get("uniform_batch_price_grid_rows")
-    if raw_uniform_batch_price_grid_rows is not None:
-        if not isinstance(raw_uniform_batch_price_grid_rows, list):
-            raise ValueError("settlement uniform_batch_price_grid_rows must be a list")
-        for row in raw_uniform_batch_price_grid_rows:
-            if not isinstance(row, dict):
-                raise ValueError("settlement uniform_batch_price_grid_rows entries must be objects")
-        uniform_batch_price_grid_rows = raw_uniform_batch_price_grid_rows
-
-    uniform_batch_price_grid_witness = None
-    raw_uniform_batch_price_grid_witness = settlement_data.get("uniform_batch_price_grid_witness")
-    if raw_uniform_batch_price_grid_witness is not None:
-        if not isinstance(raw_uniform_batch_price_grid_witness, dict):
-            raise ValueError("settlement uniform_batch_price_grid_witness must be an object")
-        uniform_batch_price_grid_witness = raw_uniform_batch_price_grid_witness
+    raw_uniform_batch_v3_exact_out_grid = settlement_data.get("uniform_batch_v3_exact_out_grid")
+    uniform_batch_v3_exact_out_grid = None
+    if raw_uniform_batch_v3_exact_out_grid is not None:
+        if not isinstance(raw_uniform_batch_v3_exact_out_grid, dict):
+            raise ValueError("settlement uniform_batch_v3_exact_out_grid must be an object")
+        uniform_batch_v3_exact_out_grid = raw_uniform_batch_v3_exact_out_grid
 
     settlement_data_no_proof = {
         k: v
         for k, v in settlement_data.items()
-        if k not in (
+        if k
+        not in (
             "proof",
             "zk_proof",
             "oracle_authorization",
             "uniform_batch_certificate",
             "uniform_batch_optimality_certificate",
-            "uniform_batch_price_grid_config",
-            "uniform_batch_price_grid_rows",
-            "uniform_batch_price_grid_witness",
+            "uniform_batch_v2_bounded_grid",
+            "uniform_batch_v3_exact_out_grid",
         )
     }
     settlement = _parse_settlement(settlement_data_no_proof)
@@ -840,9 +817,8 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
         oracle_authorization=oracle_authorization,
         uniform_batch_certificate=uniform_batch_certificate,
         uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
-        uniform_batch_price_grid_config=uniform_batch_price_grid_config,
-        uniform_batch_price_grid_rows=uniform_batch_price_grid_rows,
-        uniform_batch_price_grid_witness=uniform_batch_price_grid_witness,
+        uniform_batch_v2_bounded_grid=uniform_batch_v2_bounded_grid,
+        uniform_batch_v3_exact_out_grid=uniform_batch_v3_exact_out_grid,
     )
 
 

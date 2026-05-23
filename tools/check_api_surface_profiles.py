@@ -98,6 +98,11 @@ def run_check() -> dict[str, object]:
     }
 
 
+def check_api_surface_profiles(root: Path = ROOT) -> dict[str, object]:
+    _ = root
+    return run_check()
+
+
 def main() -> int:
     result = run_check()
     print(json.dumps(result, sort_keys=True, indent=2))

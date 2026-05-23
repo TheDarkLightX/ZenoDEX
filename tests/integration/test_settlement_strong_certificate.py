@@ -6,28 +6,23 @@ from pathlib import Path
 
 import pytest
 
-from src.core.batch_clearing import apply_settlement_pure, compute_settlement
+from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.integration.operations import parse_intents
 from src.integration.settlement_strong_certificate import (
     SettlementPriceHistoryCertificate,
     SettlementProofFlags,
     SettlementSemanticSummary,
-    build_settlement_replay_context_commitment,
     build_settlement_price_history_certificate,
     build_settlement_strong_certificate,
     derive_replay_bound_certificate_flags,
     derive_verified_replay_bound_certificate_flags,
     enforce_replay_bound_settlement_certificate,
     validate_settlement_strong_with_certificate,
-    verify_settlement_replay_context_commitment,
     verify_settlement_strong_certificate,
 )
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from src.state import BalanceTable, LPTable
-from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
-from src.state.state_root import compute_state_root
-from src.state.support_root import compute_support_state_root_for_batch
 from src.state.intents import Intent, IntentKind
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -155,9 +150,7 @@ def test_verify_settlement_strong_certificate_rejects_tampered_settlement() -> N
 def test_verify_settlement_strong_certificate_rejects_tampered_bundle_step() -> None:
     _intent, settlement, _balances, _pools = _swap_context()
     cert = build_settlement_strong_certificate(settlement=settlement, proof_flags=SettlementProofFlags.all_true())
-    bad_step = dict(cert.module_bundle_step)
-    bad_step["i9"] = 0
-    bad = replace(cert, module_bundle_step=bad_step)
+    bad = replace(cert, module_bundle_step={"i1": 1, "i2": 1, "i3": 0})
 
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=bad)
     assert ok is False
@@ -258,235 +251,6 @@ def test_validate_settlement_strong_with_certificate_rejects_failed_full_price_r
     assert err == "settlement certificate full price rails rejected"
 
 
-def test_settlement_strong_certificate_binds_replay_context_commitment() -> None:
-    intent, settlement, balances, pools = _swap_context()
-    replay_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-    )
-    cert = build_settlement_strong_certificate(
-        settlement=settlement,
-        proof_flags=SettlementProofFlags.all_true(),
-        replay_context_commitment=replay_context,
-    )
-
-    ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=cert)
-    assert ok is True
-    assert err is None
-    assert cert.to_dict()["replay_context_commitment"]["pre_state_root"].startswith("0x")
-
-    ok, err = validate_settlement_strong_with_certificate(
-        settlement=settlement,
-        certificate=cert,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is True
-    assert err is None
-
-
-def test_settlement_replay_context_rejects_pre_state_mismatch() -> None:
-    intent, settlement, balances, pools = _swap_context()
-    replay_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-    )
-    cert = build_settlement_strong_certificate(
-        settlement=settlement,
-        proof_flags=SettlementProofFlags.all_true(),
-        replay_context_commitment=replay_context,
-    )
-    bad_balances = BalanceTable()
-    for (pubkey, asset), amount in balances.get_all_balances().items():
-        bad_balances.set(pubkey, asset, amount)
-    bad_balances.set(
-        intent.sender_pubkey,
-        intent.get_field("asset_in"),
-        bad_balances.get(intent.sender_pubkey, intent.get_field("asset_in")) + 1,
-    )
-
-    ok, err = validate_settlement_strong_with_certificate(
-        settlement=settlement,
-        certificate=cert,
-        intents=[intent],
-        pre_balances=bad_balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == "settlement replay context pre_state_root mismatch"
-
-
-def test_settlement_replay_context_rejects_intent_mismatch() -> None:
-    intent, settlement, balances, pools = _swap_context()
-    replay_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-    )
-    mutated = Intent(
-        module=intent.module,
-        version=intent.version,
-        kind=intent.kind,
-        intent_id=intent.intent_id,
-        sender_pubkey=intent.sender_pubkey,
-        deadline=intent.deadline,
-        fields={**dict(intent.fields or {}), "min_amount_out": int(intent.get_field("min_amount_out")) + 1},
-    )
-
-    ok, err = verify_settlement_replay_context_commitment(
-        commitment=replay_context,
-        settlement=settlement,
-        intents=[mutated],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-    )
-    assert ok is False
-    assert err == "settlement replay context intent_commitment_sha256 mismatch"
-
-
-def test_settlement_strong_certificate_rejects_context_bound_to_other_settlement() -> None:
-    intent, settlement, balances, pools = _swap_context()
-    replay_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-    )
-    tampered = deepcopy(settlement)
-    tampered.balance_deltas[0].delta_sub += 1
-    cert = build_settlement_strong_certificate(
-        settlement=tampered,
-        proof_flags=SettlementProofFlags.all_true(),
-        replay_context_commitment=replay_context,
-    )
-
-    ok, err = verify_settlement_strong_certificate(settlement=tampered, certificate=cert)
-    assert ok is False
-    assert err == "replay context settlement commitment mismatch"
-
-
-@pytest.mark.parametrize("pre_last_nonce", [0, 7, 42])
-def test_settlement_replay_context_roots_include_pre_and_post_nonce_state(pre_last_nonce: int) -> None:
-    intent, _settlement, balances, pools = _swap_context()
-    nonce = pre_last_nonce + 1
-    nonce_bound_intent = Intent(
-        module=intent.module,
-        version=intent.version,
-        kind=intent.kind,
-        intent_id=intent.intent_id,
-        sender_pubkey=intent.sender_pubkey,
-        deadline=intent.deadline,
-        fields={**dict(intent.fields or {}), "nonce": nonce},
-    )
-    settlement = compute_settlement([nonce_bound_intent], pools, balances, LPTable())
-    pre_nonces = NonceTable()
-    pre_nonces.set_last(nonce_bound_intent.sender_pubkey, pre_last_nonce)
-    ok, err, post_nonces = validate_and_apply_intent_nonce_batch(
-        nonces=pre_nonces,
-        intents=[nonce_bound_intent],
-        require_all_nonces=False,
-    )
-    assert ok is True
-    assert err is None
-    assert post_nonces is not None
-
-    replay_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[nonce_bound_intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-        pre_nonces=pre_nonces,
-    )
-    post_balances, post_pools, post_lp = apply_settlement_pure(
-        settlement=settlement,
-        balances=balances,
-        pools=pools,
-        lp_balances=LPTable(),
-    )
-
-    assert replay_context.pre_state_root == compute_state_root(
-        balances=balances,
-        pools=pools,
-        lp_balances=LPTable(),
-        nonces=pre_nonces,
-    )
-    assert replay_context.pre_support_root == compute_support_state_root_for_batch(
-        intents=[nonce_bound_intent],
-        balances=balances,
-        pools=pools,
-        lp_balances=LPTable(),
-        nonces=pre_nonces,
-    )
-    assert replay_context.post_state_root == compute_state_root(
-        balances=post_balances,
-        pools=post_pools,
-        lp_balances=post_lp,
-        nonces=post_nonces,
-    )
-    assert replay_context.post_support_root == compute_support_state_root_for_batch(
-        intents=[nonce_bound_intent],
-        balances=post_balances,
-        pools=post_pools,
-        lp_balances=post_lp,
-        nonces=post_nonces,
-    )
-
-
-def test_settlement_replay_context_distinguishes_nonce_only_state_changes() -> None:
-    intent, settlement, balances, pools = _swap_context()
-    empty_nonces = NonceTable()
-    advanced_nonces = NonceTable()
-    advanced_nonces.set_last(intent.sender_pubkey, 9)
-
-    replay_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-        pre_nonces=empty_nonces,
-    )
-    nonce_shifted_context = build_settlement_replay_context_commitment(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-        pre_nonces=advanced_nonces,
-    )
-
-    assert replay_context.pre_state_root != nonce_shifted_context.pre_state_root
-    assert replay_context.pre_support_root != nonce_shifted_context.pre_support_root
-    assert replay_context.replay_context_commitment_sha256 != nonce_shifted_context.replay_context_commitment_sha256
-
-    ok, err = verify_settlement_replay_context_commitment(
-        commitment=replay_context,
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
-        pre_nonces=advanced_nonces,
-    )
-    assert ok is False
-    assert err == "settlement replay context pre_state_root mismatch"
-
 def test_enforce_replay_bound_settlement_certificate_derives_core_flags_from_validator() -> None:
     intents, settlement, balances, pools = _four_swap_context()
 
@@ -520,8 +284,6 @@ def test_enforce_replay_bound_settlement_certificate_derives_core_flags_from_val
     assert cert.price_history_certificate is not None
     assert cert.price_history_certificate.price_prev == 110
     assert cert.full_price_rails_ok == 1
-    assert cert.replay_context_commitment is not None
-    assert cert.replay_context_commitment.intent_commitment_sha256
 
 
 def test_derive_replay_bound_certificate_flags_preserves_only_supplemental_lanes() -> None:

@@ -6,13 +6,7 @@ from typing import Optional, Tuple
 
 from ..kernels.python.lp_math_v7 import optimal_liquidity
 from ..state.balances import Amount, AssetId
-from ..state.pools import (
-    POOL_FEE_BPS_MAX,
-    PoolState,
-    PoolStatus,
-    compute_pool_id,
-    normalize_curve_config,
-)
+from ..state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
 from .cpmm import MIN_LP_LOCK, compute_lp_burn, compute_lp_mint
 from .domain_limits import (
     DEX_LP_AMOUNT_MAX,
@@ -52,7 +46,7 @@ def create_pool(
         asset1: Second asset
         amount0: Initial deposit of asset0
         amount1: Initial deposit of asset1
-        fee_bps: Fee in basis points (0-9999)
+        fee_bps: Fee in basis points (0-10000)
         creator_pubkey: Public key of pool creator
         created_at: Block height or timestamp
         
@@ -71,7 +65,7 @@ def create_pool(
 
     require_int_range("amount0", amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
     require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
-    require_int_range("fee_bps", fee_bps, minimum=0, maximum=POOL_FEE_BPS_MAX)
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
     require_int_range("created_at", created_at, minimum=0)
     
     curve_tag_norm, curve_params_norm = normalize_curve_config(curve_tag=curve_tag, curve_params=curve_params)

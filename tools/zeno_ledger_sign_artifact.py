@@ -43,7 +43,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--payload-kind",
         required=True,
-        choices=["watcher_attestation", "mirror_index", "tau_export_packet", "checkpoint"],
+        choices=[
+            "watcher_attestation",
+            "mirror_index",
+            "tau_export_packet",
+            "checkpoint",
+            "oracle_authority_profile",
+        ],
     )
     parser.add_argument("--signer-id", required=True)
     parser.add_argument("--key-id", required=True)

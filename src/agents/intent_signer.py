@@ -685,7 +685,8 @@ def sign_intent(
     """
     if G2Basic is None:
         raise ImportError(
-            "py_ecc not available. Install with: pip install py-ecc"
+            "py_ecc not available. Install with: "
+            "python3 -m pip install --require-hashes -r requirements-dev.lock.txt"
         )
 
     signature = sign_dex_intent_for_engine(
@@ -730,7 +731,8 @@ def verify_intent_signature(
     """
     if G2Basic is None:
         raise ImportError(
-            "py_ecc not available. Install with: pip install py-ecc"
+            "py_ecc not available. Install with: "
+            "python3 -m pip install --require-hashes -r requirements-dev.lock.txt"
         )
 
     try:

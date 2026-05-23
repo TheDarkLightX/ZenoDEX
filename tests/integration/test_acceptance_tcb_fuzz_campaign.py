@@ -280,17 +280,25 @@ def test_witness_specs_are_lane_scoped() -> None:
     assert "dex_engine_settlement_stale_dead_tail" not in fast_ids
     assert "route_certificate_candidate_set_hash_mismatch" not in fast_ids
     assert "route_canonicalization_candidate_set_hash_mismatch" not in fast_ids
+    assert "quote_receipt_route_canonicalization_candidate_set_hash_mismatch" not in fast_ids
+    assert "quote_receipt_missing_pool_fingerprint" not in fast_ids
     assert "settlement_attestation_stale" not in fast_ids
     assert "settlement_attestation_allowlist_drift" not in fast_ids
     assert "settlement_attestation_packet_hash_mismatch" not in fast_ids
     assert "settlement_attestation_signature_invalid" not in fast_ids
     assert "settlement_attestation_future_epoch" not in fast_ids
+    assert "quote_receipt_certificate_amount_out_mismatch" not in fast_ids
+    assert "quote_receipt_transport_repair_then_stale_snapshot" not in fast_ids
     assert "dex_engine_quote_receipt_stale_dead_tail" in deep_ids
     assert "dex_engine_settlement_stale_dead_tail" in deep_ids
     assert "route_certificate_candidate_set_hash_mismatch" in deep_ids
     assert "route_canonicalization_candidate_set_hash_mismatch" in deep_ids
+    assert "quote_receipt_route_canonicalization_candidate_set_hash_mismatch" in deep_ids
+    assert "quote_receipt_missing_pool_fingerprint" in deep_ids
     assert "settlement_attestation_stale" in deep_ids
     assert "settlement_attestation_allowlist_drift" in deep_ids
     assert "settlement_attestation_packet_hash_mismatch" in deep_ids
     assert "settlement_attestation_signature_invalid" in deep_ids
     assert "settlement_attestation_future_epoch" in deep_ids
+    assert "quote_receipt_certificate_amount_out_mismatch" in deep_ids
+    assert "quote_receipt_transport_repair_then_stale_snapshot" in deep_ids

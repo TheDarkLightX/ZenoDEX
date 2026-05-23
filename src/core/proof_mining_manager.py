@@ -6,22 +6,16 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
-try:
-    import yaml
-    from ESSO.ir.schema import CandidateIR
-    from ESSO.kernel.runner import Command, prepare_step_context, step_ctx
-except ModuleNotFoundError:  # pragma: no cover - exercised through public node smoke on minimal installs
-    yaml = None  # type: ignore[assignment]
-    CandidateIR = Any  # type: ignore[misc, assignment]
-    Command = None  # type: ignore[assignment]
-    prepare_step_context = None  # type: ignore[assignment]
-    step_ctx = None  # type: ignore[assignment]
+import yaml
 
-from .proof_mining_claims import schedule_reward_amount, validate_proof_mining_claim_artifact
+from .proof_mining_claims import validate_proof_mining_claim_artifact
 
 
 _PROOF_MINING_MANAGER_MODEL = Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "proof_mining_manager_v1.yaml")
 _MAX_SLOT = 7
+_MAX_BASE_REWARD = 128
+_MAX_POOL_BALANCE = 1000
+PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES = ("proof_ok", "binding_ok", "policy_ok", "nonce_ok")
 
 
 @dataclass(frozen=True)
@@ -95,6 +89,29 @@ def _deep_thaw_jsonish(value: Any) -> Any:
     return value
 
 
+def submit_proof_verification_flags_all_true() -> dict[str, bool]:
+    return {flag: True for flag in PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES}
+
+
+def _validate_verification_flags(verification_flags: Mapping[str, Any]) -> dict[str, bool]:
+    actual: set[str] = set()
+    for key in verification_flags.keys():
+        if not isinstance(key, str):
+            raise TypeError("verification_flags keys must be strings")
+        actual.add(key)
+    expected = set(PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES)
+    missing = sorted(expected - actual)
+    if missing:
+        raise ValueError(f"verification_flags missing keys {missing}")
+    extra = sorted(actual - expected)
+    if extra:
+        raise ValueError(f"verification_flags unknown keys {extra}")
+    return {
+        flag: _require_bool(verification_flags.get(flag), name=f"verification_flags.{flag}")
+        for flag in PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES
+    }
+
+
 def _validate_slot_registry(claimed_slots: Mapping[int, str]) -> dict[int, str]:
     out: dict[int, str] = {}
     seen_hashes: set[str] = set()
@@ -140,10 +157,16 @@ def snapshot_to_kernel_state(snapshot: ProofMiningManagerSnapshot) -> dict[str, 
     total_paid = _require_int(snapshot.total_paid, name="snapshot.total_paid")
     if epoch < 0 or epoch > _MAX_SLOT:
         raise ValueError("snapshot.epoch out of range")
-    if base_reward < 1 or base_reward > 128:
+    if base_reward < 1 or base_reward > _MAX_BASE_REWARD:
         raise ValueError("snapshot.base_reward out of range")
     if initial_pool < 0 or reward_pool_balance < 0 or total_paid < 0:
         raise ValueError("snapshot balances must be non-negative")
+    if initial_pool > _MAX_POOL_BALANCE:
+        raise ValueError("snapshot.initial_pool out of range")
+    if reward_pool_balance > _MAX_POOL_BALANCE:
+        raise ValueError("snapshot.reward_pool_balance out of range")
+    if total_paid > _MAX_POOL_BALANCE:
+        raise ValueError("snapshot.total_paid out of range")
     if total_paid + reward_pool_balance != initial_pool:
         raise ValueError("snapshot pool conservation mismatch")
     out = {
@@ -158,66 +181,48 @@ def snapshot_to_kernel_state(snapshot: ProofMiningManagerSnapshot) -> dict[str, 
     return out
 
 
-def load_proof_mining_manager_ir() -> CandidateIR:
-    if yaml is None:
-        raise RuntimeError("ESSO runtime is unavailable")
+def load_proof_mining_manager_ir() -> Any:
+    from ESSO.ir.schema import CandidateIR  # type: ignore
+
     obj = yaml.safe_load(_PROOF_MINING_MANAGER_MODEL.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
         raise TypeError("proof_mining_manager_v1.yaml must decode to a mapping")
     return CandidateIR.from_json_dict(obj, path=str(_PROOF_MINING_MANAGER_MODEL)).canonicalized()
 
 
-def _apply_submit_proof_packet_python_v0(
-    *,
-    trusted_packet: ProofMiningManagerPacket,
-    snapshot: ProofMiningManagerSnapshot,
-) -> ProofMiningManagerApplyResult:
-    """Deterministic fallback for the submit_proof kernel on minimal installs."""
+def _epoch_reward(*, epoch: int, base_reward: int) -> int:
+    divisor = 1 << min(max(int(epoch), 0), _MAX_SLOT)
+    scheduled = int(base_reward) // divisor
+    return scheduled if scheduled > 0 else 1
 
-    state_before = snapshot_to_kernel_state(snapshot)
-    args = dict(_deep_thaw_jsonish(trusted_packet.command_args))
-    slot = _require_int(args.get("proposal_slot"), name="command_args.proposal_slot")
-    prover_id = _require_int(args.get("prover_id"), name="command_args.prover_id")
-    flags_ok = all(
-        _require_bool(args.get(name), name=f"command_args.{name}") is True
-        for name in ("proof_ok", "binding_ok", "policy_ok", "nonce_ok")
+
+def _apply_submit_proof_native(packet: ProofMiningManagerPacket) -> tuple[dict[str, Any], dict[str, Any]]:
+    state_before = _deep_thaw_jsonish(packet.state_before)
+    command_args = _deep_thaw_jsonish(packet.command_args)
+    slot = _require_int(command_args.get("proposal_slot"), name="command_args.proposal_slot")
+    prover_id = _require_int(command_args.get("prover_id"), name="command_args.prover_id")
+    if slot < 0 or slot > _MAX_SLOT:
+        raise ValueError("proposal_slot out of range")
+    if any(bool(command_args.get(flag)) is not True for flag in PROOF_MINING_MANAGER_VERIFICATION_FLAG_NAMES):
+        raise ValueError("verification flag rejected")
+    if bool(state_before.get(f"claimed_{slot}")):
+        raise ValueError("proposal slot already claimed")
+
+    reward_amount = _epoch_reward(
+        epoch=_require_int(state_before.get("epoch"), name="state_before.epoch"),
+        base_reward=_require_int(state_before.get("base_reward"), name="state_before.base_reward"),
     )
-    reward_amount = schedule_reward_amount(base_reward=snapshot.base_reward, epoch=snapshot.epoch)
-    slot_key = f"claimed_{slot}"
-    if not flags_ok:
-        return ProofMiningManagerApplyResult(
-            ok=False,
-            packet=trusted_packet,
-            state_after=None,
-            effects=None,
-            claimed_slots_after=dict(snapshot.claimed_slots),
-            error_code="StepError",
-            error_message="verification flags rejected",
-        )
-    if bool(state_before.get(slot_key)) is True:
-        return ProofMiningManagerApplyResult(
-            ok=False,
-            packet=trusted_packet,
-            state_after=None,
-            effects=None,
-            claimed_slots_after=dict(snapshot.claimed_slots),
-            error_code="StepError",
-            error_message="proposal slot already claimed",
-        )
-    if _require_int(state_before.get("reward_pool_balance"), name="reward_pool_balance") < reward_amount:
-        return ProofMiningManagerApplyResult(
-            ok=False,
-            packet=trusted_packet,
-            state_after=None,
-            effects=None,
-            claimed_slots_after=dict(snapshot.claimed_slots),
-            error_code="StepError",
-            error_message="insufficient reward pool balance",
-        )
+    reward_pool_balance = _require_int(
+        state_before.get("reward_pool_balance"),
+        name="state_before.reward_pool_balance",
+    )
+    if reward_pool_balance < reward_amount:
+        raise ValueError("insufficient reward pool balance")
+
     state_after = dict(state_before)
-    state_after["reward_pool_balance"] = int(state_after["reward_pool_balance"]) - reward_amount
-    state_after["total_paid"] = int(state_after["total_paid"]) + reward_amount
-    state_after[slot_key] = True
+    state_after["reward_pool_balance"] = reward_pool_balance - reward_amount
+    state_after["total_paid"] = _require_int(state_before.get("total_paid"), name="state_before.total_paid") + reward_amount
+    state_after[f"claimed_{slot}"] = True
     effects = {
         "proposal_slot": slot,
         "prover_id": prover_id,
@@ -225,15 +230,7 @@ def _apply_submit_proof_packet_python_v0(
         "reward_kind": "TreasuryTransfer",
         "paid": True,
     }
-    claimed_after = dict(_validate_slot_registry(snapshot.claimed_slots))
-    claimed_after[int(trusted_packet.assigned_slot)] = str(trusted_packet.proposal_hash)
-    return ProofMiningManagerApplyResult(
-        ok=True,
-        packet=trusted_packet,
-        state_after=state_after,
-        effects=effects,
-        claimed_slots_after=claimed_after,
-    )
+    return state_after, effects
 
 
 def build_submit_proof_packet(
@@ -243,6 +240,8 @@ def build_submit_proof_packet(
     verification_flags: Mapping[str, Any],
 ) -> ProofMiningManagerPacket:
     claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    state_before = snapshot_to_kernel_state(snapshot)
+    flags = _validate_verification_flags(verification_flags)
     if _require_int(claim.get("epoch"), name="claim.epoch") != _require_int(snapshot.epoch, name="snapshot.epoch"):
         raise ValueError("claim epoch does not match snapshot")
     if _require_int(claim.get("base_reward"), name="claim.base_reward") != _require_int(snapshot.base_reward, name="snapshot.base_reward"):
@@ -258,14 +257,14 @@ def build_submit_proof_packet(
     command_args = {
         "proposal_slot": int(assigned_slot),
         "prover_id": _require_int(claim.get("prover_id"), name="claim.prover_id"),
-        "proof_ok": _require_bool(verification_flags.get("proof_ok"), name="verification_flags.proof_ok"),
-        "binding_ok": _require_bool(verification_flags.get("binding_ok"), name="verification_flags.binding_ok"),
-        "policy_ok": _require_bool(verification_flags.get("policy_ok"), name="verification_flags.policy_ok"),
-        "nonce_ok": _require_bool(verification_flags.get("nonce_ok"), name="verification_flags.nonce_ok"),
+        "proof_ok": flags["proof_ok"],
+        "binding_ok": flags["binding_ok"],
+        "policy_ok": flags["policy_ok"],
+        "nonce_ok": flags["nonce_ok"],
     }
     return ProofMiningManagerPacket(
         claim=_deep_thaw_jsonish(claim_artifact),
-        state_before=snapshot_to_kernel_state(snapshot),
+        state_before=state_before,
         command_tag="submit_proof",
         command_args=command_args,
         assigned_slot=int(assigned_slot),
@@ -278,7 +277,7 @@ def apply_submit_proof_packet(
     packet: ProofMiningManagerPacket,
     snapshot: ProofMiningManagerSnapshot,
     verification_flags: Mapping[str, Any],
-    ir: CandidateIR | None = None,
+    ir: Any | None = None,
 ) -> ProofMiningManagerApplyResult:
     try:
         trusted_packet = build_submit_proof_packet(
@@ -312,12 +311,32 @@ def apply_submit_proof_packet(
             error_code="InvalidPacket",
             error_message="packet fields do not match claim and snapshot",
         )
-    if prepare_step_context is None or step_ctx is None or Command is None:
-        return _apply_submit_proof_packet_python_v0(
-            trusted_packet=trusted_packet,
-            snapshot=snapshot,
+    if ir is None:
+        try:
+            state_after, effects = _apply_submit_proof_native(trusted_packet)
+        except (TypeError, ValueError) as exc:
+            return ProofMiningManagerApplyResult(
+                ok=False,
+                packet=trusted_packet,
+                state_after=None,
+                effects=None,
+                claimed_slots_after=dict(snapshot.claimed_slots),
+                error_code="GuardRejected",
+                error_message=str(exc),
+            )
+        claimed_after = dict(_validate_slot_registry(snapshot.claimed_slots))
+        claimed_after[int(trusted_packet.assigned_slot)] = str(trusted_packet.proposal_hash)
+        return ProofMiningManagerApplyResult(
+            ok=True,
+            packet=trusted_packet,
+            state_after=state_after,
+            effects=effects,
+            claimed_slots_after=claimed_after,
         )
-    ctx = prepare_step_context(load_proof_mining_manager_ir() if ir is None else ir)
+
+    from ESSO.kernel.runner import Command, prepare_step_context, step_ctx  # type: ignore
+
+    ctx = prepare_step_context(ir)
     if getattr(ctx, "code", None) is not None and getattr(ctx, "message", None) is not None:
         return ProofMiningManagerApplyResult(
             ok=False,

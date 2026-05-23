@@ -1,0 +1,117 @@
+{
+  "schema": "zenodex.zenocover.regulatory_boundary_manifest.v0",
+  "surface_id": "zenocover_internal_research_v0",
+  "status": "internal_research_only",
+  "launch_allowed": false,
+  "public_marketing_allowed": false,
+  "user_sales_enabled": false,
+  "premium_collection_enabled": false,
+  "external_policy_language_allowed": false,
+  "jurisdictions": [],
+  "operating_model": "unselected",
+  "software_only_boundary": {
+    "user_runs_software_themselves": true,
+    "user_compiles_or_interprets_themselves": true,
+    "user_directly_signs_transactions": true,
+    "project_accepts_or_transmits_value_for_users": false,
+    "project_acts_as_broker_agent_or_intermediary": false,
+    "project_hosts_managed_execution_or_wallet_service": false,
+    "project_is_insurer_or_risk_bearer": false,
+    "project_takes_custody": false,
+    "project_controls_user_keys": false,
+    "project_operates_or_controls_pool": false,
+    "project_collects_or_sets_premiums": false,
+    "project_issues_or_sells_cover_contracts": false,
+    "project_pools_or_mutualizes_user_risk": false,
+    "project_handles_claims_or_adjustment": false,
+    "project_provides_claim_decision_or_discretion": false,
+    "project_guarantees_or_promises_payout": false,
+    "project_gives_personalized_financial_advice": false,
+    "project_recommends_user_action": false,
+    "project_selects_or_recommends_cover_terms": false,
+    "project_sets_or_administers_coverage_terms": false,
+    "project_markets_as_regulated_insurance": false,
+    "project_routes_or_arranges_cover_purchase": false,
+    "project_matches_or_routes_user_orders": false,
+    "project_can_unilaterally_move_user_value": false
+  },
+  "user_disclosures": [
+    "you_run_software_yourself",
+    "you_compile_or_interpret_software_yourself",
+    "you_directly_sign_transactions",
+    "project_never_takes_custody",
+    "project_never_controls_user_keys",
+    "project_never_tells_you_what_to_do_with_money",
+    "project_is_not_an_insurance_company",
+    "no_policy_no_premium_no_claim_adjustment",
+    "no_guaranteed_payout",
+    "not_legal_tax_or_financial_advice"
+  ],
+  "required_reviews": {
+    "insurance_regulatory_counsel": "not_started",
+    "jurisdiction_classification": "not_started",
+    "licensed_carrier_or_approved_model": "not_started",
+    "reserve_capital_accounting": "not_started",
+    "consumer_disclosure_market_conduct": "not_started",
+    "sanctions_aml_kyc": "not_started",
+    "tax_accounting": "not_started",
+    "oracle_basis_risk_disclosure": "not_started"
+  },
+  "regulated_terms": {
+    "insurance": "blocked_for_public_use_without_counsel",
+    "underwriting": "blocked_for_public_use_without_counsel",
+    "policy": "blocked_for_public_use_without_counsel",
+    "premium": "blocked_for_public_use_without_counsel",
+    "policyholder": "blocked_for_public_use_without_counsel",
+    "claims_adjustment": "blocked_for_public_use_without_counsel"
+  },
+  "source_notes": [
+    "OpenCover distinguishes colloquial DeFi insurance language from onchain cover or onchain risk transfer.",
+    "NAIC describes parametric insurance as generally regulated under traditional insurance frameworks where specific parametric rules are absent.",
+    "NAIC McCarran-Ferguson material emphasizes U.S. state primacy in insurance regulation.",
+    "FinCEN 2019 CVC guidance distinguishes hosted wallets where a host has independent control from unhosted wallets where users control funds."
+  ],
+  "source_citations": {
+    "bekemeier_defi_insurability_2023": {
+      "url": "https://link.springer.com/article/10.1007/s42521-023-00093-x",
+      "relevance": "Academic taxonomy of DeFi risk transfer and smart-contract risk insurability; identifies actuarial, oracle, governance, and regulatory-compliance challenges."
+    },
+    "nadler_bekemeier_schar_defi_risk_transfer_2022": {
+      "url": "https://arxiv.org/abs/2212.10308",
+      "relevance": "Academic DeFi risk-transfer protocol design; useful as a technical comparison, not a legal clearance source."
+    },
+    "zhou_zhang_defi_insurance_conundrums_2025": {
+      "url": "https://doi.org/10.1002/ijfe.3154",
+      "relevance": "Journal article identifying liquidity, actuarial, verification, scale, yield, exploitation, cybersecurity, and regulation conundrums in DeFi insurance."
+    },
+    "mik_oracle_problem_insurtech_2023": {
+      "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4390271",
+      "relevance": "Legal/InsurTech analysis of smart contracts, oracle dependence, trigger definition, and parametric payout automation."
+    },
+    "iais_fintech_developments_insurance_2022": {
+      "url": "https://www.iais.org/uploads/2022/12/IAIS-Report-on-FinTech-developments-in-the-insurance-sector.pdf",
+      "relevance": "Insurance-supervisor report noting DeFi protection coverages and uncertainty over insurance classification and regulatory approach."
+    },
+    "eiopa_blockchain_smart_contracts_insurance_2022": {
+      "url": "https://www.eiopa.europa.eu/system/files/2022-05/feedback_statement_-_discussion_paper_on_blockchain_and_smart_contracts_in_insurance.pdf",
+      "relevance": "Insurance-supervisor feedback on blockchain and smart contracts; emphasizes use-case specificity, consumer protection, existing regulatory frameworks, and regulatory sandboxes."
+    },
+    "naic_parametric_disaster_insurance": {
+      "url": "https://content.naic.org/insurance-topics/parametric-disaster-insurance",
+      "relevance": "U.S. insurance-regulator material treating parametric disaster products as insurance policies generally under traditional insurance frameworks where specific rules are absent."
+    },
+    "naic_mccarran_ferguson_state_regulation": {
+      "url": "https://content.naic.org/insurance-topics/mccarran-ferguson-act",
+      "relevance": "U.S. state-based insurance regulation background; supports jurisdiction-by-jurisdiction counsel review."
+    },
+    "fincen_cvc_guidance_2019": {
+      "url": "https://www.fincen.gov/system/files/2019-05/FinCEN%20Guidance%20CVC%20FINAL%20508.pdf",
+      "relevance": "CVC guidance distinguishing hosted and unhosted wallet control and DApp money-transmission risk when accepting and transmitting value."
+    },
+    "opencover_onchain_cover_language": {
+      "url": "https://opencover.com/learn-and-resources/understanding-decentralized-insurance/",
+      "relevance": "Industry wording example distinguishing regulated insurance terminology from onchain cover or onchain risk transfer."
+    }
+  },
+  "decision": "No ZenoCover user sale, launch, premium collection, policy issuance, insurance-language marketing, public underwriting claim, custody, value transmission, broker/intermediary role, cover-term recommendation, user-specific recommendation, claim-adjustment discretion, guaranteed payout, pooled risk-bearing, or operator-run pool is allowed from current artifacts."
+}

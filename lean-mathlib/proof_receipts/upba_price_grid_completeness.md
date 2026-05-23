@@ -33,7 +33,13 @@ Local accepted theorem surface in `lean-mathlib/Proofs/UniformBatchOptimality.le
 - `priceGrid_complete`
 - `priceGridCandidates_complete`
 - `priceGridCandidates_complete_audit_set`
+- `exact_upper_bound_certificate_implies_global_weak_optimal`
 - `price_grid_upper_bound_certificate_implies_global_weak_optimal`
+- `upba_v3_exact_out_exact_grid_upper_bound_certificate_implies_global_weak_optimal`
+- `exactOutFullFillCanonicalGridCandidates_exact_audit_set`
+- `exactOutFullFillCanonicalGridCandidates_eq_singleton_plan`
+- `feasibleExactOutFullFill_iff_singleton_plan`
+- `upba_v3_full_fill_exact_out_grid_upper_bound_certificate_implies_global_weak_optimal`
 
 Core interpretation:
 
@@ -63,3 +69,26 @@ rg -n '\b(sorry|admit|axiom|unsafe|sorryAx)\b' \
 Boundary: the theorem is model-level until runtime candidate generation proves
 or checks that the audited candidate list is exactly `scoreAt(priceGrid)` for the
 configured bounds and deterministic scorer.
+
+The strengthened exact-audit theorem has this premise shape:
+
+```text
+exact audit set
+and upper-bound certificate checks with winner membership
+-> winner globally weakly optimal over the feasible family
+```
+
+The sound half of the exact audit set supplies winner feasibility from winner
+membership, so the v3 exact-out bridge can avoid a separate winner-feasibility
+premise when the deployed audited list is exact.
+
+The full-fill v3 specialization fixes the exact-out plan:
+
+```text
+exact audit set over scoreAt(canonical_price, full_fill_plan)
+and upper-bound certificate checks with winner membership
+-> winner globally weakly optimal over that full-fill bounded grid family
+```
+
+This matches the current runtime helper, which builds one full-fill exact-out
+certificate per canonical reduced price.

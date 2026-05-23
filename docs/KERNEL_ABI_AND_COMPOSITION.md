@@ -157,9 +157,13 @@ We do this with internal effects:
 
 These are additive; they do not modify the original A+ kernels.
 
-- System spec: `src/kernels/dex/zenodex_system_compose_v1.yaml`
-- Compose-friendly wrappers (ABI-compatible, equivalence-verified):
+- System specs:
+  - `src/kernels/dex/zenodex_system_compose_v1.yaml` (legacy; uses `cpmm_swap_compose_v1`)
+  - `src/kernels/dex/zenodex_system_compose_v2.yaml` (preferred; uses `cpmm_swap_compose_v2` for Z3+CVC5 tractability)
+- Compose-friendly wrappers (ABI-compatible):
   - `src/kernels/dex/cpmm_swap_compose_v1.yaml`
+  - `src/kernels/dex/cpmm_swap_compose_v2.yaml`
+- Composition variants:
   - `src/kernels/dex/liquidity_pool_compose_v1.yaml`
   - `src/kernels/dex/vault_manager_compose_v1.yaml`
 - Stake-aware composition variants (new behavior in new files):

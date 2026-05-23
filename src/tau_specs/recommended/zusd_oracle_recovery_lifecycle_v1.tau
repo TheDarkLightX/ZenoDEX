@@ -1,0 +1,33 @@
+set charvar off
+
+healthy_now(current_oracle_env_ok : sbf, current_sync_gate_ok : sbf, sync_aligned_to_current_gate : sbf) :=
+  (current_oracle_env_ok = 1:sbf) &&
+  (current_sync_gate_ok = 1:sbf) &&
+  (sync_aligned_to_current_gate = 1:sbf).
+
+reenabled_requires_healthy(previous_risky_action_blocked : sbf, current_oracle_env_ok : sbf, current_sync_gate_ok : sbf, sync_aligned_to_current_gate : sbf, current_risky_ops_allowed : sbf, risky_ops_reenabled : sbf) :=
+  (risky_ops_reenabled = 0:sbf) ||
+  (
+    (previous_risky_action_blocked = 1:sbf) &&
+    healthy_now(current_oracle_env_ok, current_sync_gate_ok, sync_aligned_to_current_gate) &&
+    (current_risky_ops_allowed = 1:sbf)
+  ).
+
+outcome_total(risky_ops_reenabled : sbf, rejected_with_reason : sbf) :=
+  ((risky_ops_reenabled = 1:sbf) && !(rejected_with_reason = 1:sbf)) ||
+  (!(risky_ops_reenabled = 1:sbf) && (rejected_with_reason = 1:sbf)).
+
+rejection_total(rejected_with_reason : sbf, rejection_reason_present : sbf) :=
+  (rejected_with_reason = 0:sbf) || (rejection_reason_present = 1:sbf).
+
+zusd_oracle_recovery_lifecycle_ok(previous_risky_action_blocked : sbf, current_oracle_env_ok : sbf, current_sync_gate_ok : sbf, sync_aligned_to_current_gate : sbf, current_risky_ops_allowed : sbf, risky_ops_reenabled : sbf, rejected_with_reason : sbf, rejection_reason_present : sbf) :=
+  outcome_total(risky_ops_reenabled, rejected_with_reason) &&
+  reenabled_requires_healthy(previous_risky_action_blocked, current_oracle_env_ok, current_sync_gate_ok, sync_aligned_to_current_gate, current_risky_ops_allowed, risky_ops_reenabled) &&
+  rejection_total(rejected_with_reason, rejection_reason_present).
+
+always
+  (o1[t]:sbf = 1:sbf <-> healthy_now(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> reenabled_requires_healthy(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> outcome_total(i6[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> rejection_total(i7[t]:sbf, i8[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> zusd_oracle_recovery_lifecycle_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)).

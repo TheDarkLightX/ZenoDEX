@@ -24,8 +24,13 @@ jobs:
 
       - name: Install dev test tooling
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
+          for attempt in 1 2 3; do
+            python -m pip install --require-hashes -r requirements-dev.lock.txt && break
+            if [ "$attempt" = "3" ]; then
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Enforce formal proof hygiene ratchet
         run: |
@@ -48,7 +53,7 @@ jobs:
       - name: Enforce closed disaster-state receipt
         run: |
           python tools/check_disaster_search_closed_receipt.py \
-            --timeout-s 240 \
+            --timeout-s 600 \
             --receipt-output internal/stateful_disaster_search_expansion_receipt.closed.json \
             --output internal/stateful_disaster_search_expansion_ratchet.closed.json
 

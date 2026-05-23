@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="430" viewBox="0 0 780 430">
+<rect width="100%" height="100%" fill="#fbfaf7"/>
+<style>
+  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172026; }
+  .title { font-size: 23px; font-weight: 750; }
+  .subtitle { font-size: 13px; fill: #52606d; }
+  .label { font-size: 12px; fill: #36424d; }
+  .value { font-size: 12px; font-weight: 700; fill: #172026; }
+  .tiny { font-size: 10px; fill: #61717f; }
+  .axis { stroke: #cbd5dd; stroke-width: 1; }
+  .grid { stroke: #e3e8ed; stroke-width: 1; }
+</style>
+<text class="title" x="60" y="42">Receipt Guard Outcomes</text>
+<text class="subtitle" x="60" y="65">Accepted rows stay green; deliberately bad rows must reject in orange.</text>
+<rect x="125" y="254" width="76" height="13.81818181818182" rx="3" fill="#c2410c"/>
+<rect x="125" y="267.8181818181818" width="76" height="62.18181818181818" rx="3" fill="#2f855a"/>
+<text class="value" x="117" y="244">9 accepted</text>
+<text class="value" x="117" y="228">2 rejected</text>
+<text class="label" x="103" y="354">v190 fixture</text>
+<rect x="330" y="110" width="76" height="34.375" rx="3" fill="#c2410c"/>
+<rect x="330" y="144.375" width="76" height="185.625" rx="3" fill="#2f855a"/>
+<text class="value" x="322" y="100">27 accepted</text>
+<text class="value" x="322" y="84">5 rejected</text>
+<text class="label" x="308" y="354">v191 stress</text>
+<rect x="535" y="192" width="76" height="13.799999999999997" rx="3" fill="#c2410c"/>
+<rect x="535" y="205.8" width="76" height="124.2" rx="3" fill="#2f855a"/>
+<text class="value" x="527" y="182">18 accepted</text>
+<text class="value" x="527" y="166">2 rejected</text>
+<text class="label" x="513" y="354">v192 execution</text>
+<rect x="560" y="100" width="18" height="18" fill="#2f855a"/><text class="label" x="586" y="114">Accepted</text>
+<rect x="560" y="128" width="18" height="18" fill="#c2410c"/><text class="label" x="586" y="142">Rejected by guard</text>
+<text class="tiny" x="60" y="386">Interpretation: the calibration layer is becoming an adversarial filter, not just a spreadsheet of fees.</text>
+</svg>

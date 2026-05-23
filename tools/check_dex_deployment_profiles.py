@@ -37,8 +37,17 @@ def run_check() -> dict[str, object]:
                 "require_all_nonces": cfg.dex_config.require_all_nonces,
                 "allow_legacy_nonce_free_steps": cfg.dex_config.allow_legacy_nonce_free_steps,
                 "settlement_validation": cfg.dex_config.settlement_validation,
-                "require_uniform_batch_certificate": cfg.require_uniform_batch_certificate,
-                "require_uniform_batch_price_grid_evidence": cfg.require_uniform_batch_price_grid_evidence,
+                "require_uniform_batch_certificate": getattr(
+                    cfg,
+                    "require_uniform_batch_certificate",
+                    cfg.allow_uniform_batch_certificate,
+                ),
+                "require_uniform_batch_price_grid_evidence": getattr(
+                    cfg,
+                    "require_uniform_batch_price_grid_evidence",
+                    cfg.require_uniform_batch_v2_bounded_grid_optimality
+                    or cfg.require_uniform_batch_v3_exact_out_grid_optimality,
+                ),
                 "require_oracle_authorization_for_protected_swaps": (
                     cfg.require_oracle_authorization_for_protected_swaps
                 ),
@@ -52,6 +61,11 @@ def run_check() -> dict[str, object]:
         "ok": ok,
         "profiles": profiles,
     }
+
+
+def check_dex_deployment_profiles(root: Path = ROOT) -> dict[str, object]:
+    _ = root
+    return run_check()
 
 
 def main() -> int:

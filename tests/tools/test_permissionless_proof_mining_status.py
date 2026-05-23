@@ -13,6 +13,28 @@ from src.integration.proof_mining_context import ProofMiningContext, proof_minin
 REPO = Path(__file__).resolve().parents[2]
 
 
+
+def _start_static_status_server(payload: dict):
+    import http.server as _http_server
+
+    class _StaticStatusHandler(_http_server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+            _ = format, args
+
+    httpd = _http_server.ThreadingHTTPServer(("127.0.0.1", 0), _StaticStatusHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    return httpd, thread
+
+
 def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
     from src.core.proof_mining_claims import build_proof_mining_claim
 
@@ -39,10 +61,6 @@ def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
 
 
@@ -216,3 +234,97 @@ def test_permissionless_proof_mining_status_cli_api_mode(tmp_path: Path, monkeyp
         assert body["status"]["claimable"] is True
     finally:
         _stop_test_server(httpd, thread)
+
+def test_permissionless_proof_mining_status_cli_api_mode_rejected_status_returns_nonzero(tmp_path: Path) -> None:
+    sender = "0x" + "34" * 48
+    reward_pool = "0x" + "76" * 48
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    claim_path = tmp_path / "claim.json"
+    balances_path = tmp_path / "balances.json"
+    context_path = tmp_path / "context.json"
+    _write_json(claim_path, claim)
+    _write_json(balances_path, {reward_pool: 20, sender: 0})
+    _write_json(context_path, _context_from_claim(claim))
+
+    httpd, thread = _start_static_status_server(
+        {"ok": True, "status": {"claimable": False, "error": "proof mining manager rejected"}}
+    )
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "tools/permissionless_proof_mining_status.py",
+                "--api-url",
+                f"http://127.0.0.1:{httpd.server_port}",
+                "--claim",
+                str(claim_path),
+                "--chain-balances",
+                str(balances_path),
+                "--tx-sender-pubkey",
+                sender,
+                "--expected-proposal-hash",
+                str(claim["body"]["proposal_hash"]),
+                "--proof-mining-context",
+                str(context_path),
+            ],
+            cwd=REPO,
+            env=dict(os.environ),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2.0)
+
+    assert proc.returncode == 1
+    body = json.loads(proc.stdout)
+    assert body["ok"] is True
+    assert body["status"]["claimable"] is False
+
+
+def test_permissionless_proof_mining_status_cli_api_mode_requires_status_object(tmp_path: Path) -> None:
+    sender = "0x" + "35" * 48
+    reward_pool = "0x" + "75" * 48
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    claim_path = tmp_path / "claim.json"
+    balances_path = tmp_path / "balances.json"
+    context_path = tmp_path / "context.json"
+    _write_json(claim_path, claim)
+    _write_json(balances_path, {reward_pool: 20, sender: 0})
+    _write_json(context_path, _context_from_claim(claim))
+
+    httpd, thread = _start_static_status_server({"ok": True})
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "tools/permissionless_proof_mining_status.py",
+                "--api-url",
+                f"http://127.0.0.1:{httpd.server_port}",
+                "--claim",
+                str(claim_path),
+                "--chain-balances",
+                str(balances_path),
+                "--tx-sender-pubkey",
+                sender,
+                "--expected-proposal-hash",
+                str(claim["body"]["proposal_hash"]),
+                "--proof-mining-context",
+                str(context_path),
+            ],
+            cwd=REPO,
+            env=dict(os.environ),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2.0)
+
+    assert proc.returncode == 1
+    body = json.loads(proc.stdout)
+    assert body == {"ok": True}

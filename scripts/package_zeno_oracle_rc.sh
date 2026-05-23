@@ -35,6 +35,8 @@ cp "${root}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json" "${
 cp "${root}/tools/zeno_oracle_math_witness_sweep.jl" "${stage}/tools/zeno_oracle_math_witness_sweep.jl"
 cp -R "${root}/tools/macos_scout" "${stage}/tools/macos_scout"
 cp -R "${root}/tools/confidential_attestation_verifier_rust" "${stage}/tools/confidential_attestation_verifier_rust"
+cp -R "${root}/tools/intent_lattices" "${stage}/tools/intent_lattices"
+cp -R "${root}/tools/batch_auction_ifql_sources" "${stage}/tools/batch_auction_ifql_sources"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |

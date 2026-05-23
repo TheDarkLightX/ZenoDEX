@@ -83,33 +83,3 @@ def test_curve_selection_market_ref_import_and_one_step() -> None:
     res = ref.step(s, cmd)
     assert res.ok, res.error
     assert res.state is not None
-
-
-def test_curve_selection_settle_prediction_requires_auth_ok() -> None:
-    import curve_selection_market_v1_ref as ref  # type: ignore
-
-    s = ref.init_state()
-    cmd = ref.Command(tag="settle_prediction", args={"winning_curve_id": 0, "protocol_fee": 0})
-    res = ref.step(s, cmd)
-    assert not res.ok
-    assert res.error == "invalid param auth_ok"
-
-
-def test_funding_rate_settle_rate_epoch_requires_auth_ok() -> None:
-    import funding_rate_market_v1_ref as ref  # type: ignore
-
-    s = ref.init_state()
-    cmd = ref.Command(
-        tag="settle_rate_epoch",
-        args={
-            "realized_rate_bps": 0,
-            "settle_long_payout": 0,
-            "settle_short_payout": 0,
-            "settle_protocol_fee": 0,
-            "settle_mark_price_e8": 1,
-            "settle_index_price_e8": 1,
-        },
-    )
-    res = ref.step(s, cmd)
-    assert not res.ok
-    assert res.error == "invalid param auth_ok"

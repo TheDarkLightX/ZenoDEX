@@ -135,9 +135,25 @@ The admission set is still a separate problem. V2 verifies a proposed settlement
 for the admitted set; it does not prove the admitted set is the best or fairest
 set.
 
+The first local admission certificate verifier is now
+`src/core/uniform_batch_admission.py`. It verifies this deterministic policy for
+a known eligible set:
+
+```text
+zenodex/upba_admission_v1/canonical_intent_id_prefix
+```
+
+The policy admits the canonical `intent_id` prefix up to `max_admitted` and
+hash-binds the eligible, admitted, and overflow sets. It now supports homogeneous
+exact-in and exact-out swap sets and rejects mixed-kind or mixed-asset-pair
+sets. This gives a UPBA clearing certificate a deterministic admitted-set source
+after a batch-builder or ledger has defined the eligible set boundary. It still
+does not prove global mempool fairness, censorship resistance, or Sybil
+resistance by itself.
+
 ## Optimality Boundary
 
-The starter model proof in `lean-mathlib/Proofs/UniformBatchOptimality.lean`
+The model proof in `lean-mathlib/Proofs/UniformBatchOptimality.lean`
 formalizes a fixed-price aggregate volume bound:
 
 ```text
@@ -149,10 +165,64 @@ no audited candidate has more volume, and no equal-volume audited candidate has
 more surplus, then the submitted candidate is weakly optimal inside that audited
 set.
 
-This is useful for the next verifier generation. It is not yet a runtime
-optimality claim for UPBA v2 because the current certificate does not carry an
-audited candidate set or a proof that the solver searched every admissible
-price.
+The same file now includes the v2 partial-fill bridge:
+
+```text
+upba_v2_partial_fill_bounded_grid_upper_bound_certificate_implies_global_weak_optimal
+```
+
+This theorem says that an upper-bound certificate proves global weak optimality
+over the bounded v2 candidate family when the audited set enumerates every
+canonical bounded-grid price and every admitted bounded partial-fill plan.
+
+Runtime support comes through the existing
+`uniform_batch_optimality_certificate` envelope field. The checker binds the
+winner id to the v2 UPBA certificate hash, then verifies the finite audited-set
+upper-bound predicate. Completeness of the audited set remains a separate
+obligation carried by the grid/plan enumeration process.
+
+The v2 runtime now has a deterministic table-root helper for that enumeration
+process:
+
+```text
+table_root = H(schema, objective_id, candidate_set_hash, rows)
+```
+
+`build_uniform_batch_v2_bounded_grid_audit_candidates_v1` enumerates a reduced
+positive integer price grid against a supplied finite set of canonical
+partial-fill vectors, keeps only candidates accepted by the v2 certificate
+verifier, and attaches a `fill_vector_hash` to each audit candidate.
+
+`verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1` rebuilds the
+same table, checks an optional expected root, and requires the submitted
+optimality certificate to match the rebuilt complete-domain
+`candidate_set_hash`. If the supplied grid/vector domain contains a better
+accepted candidate that the optimality certificate omitted, the verifier rejects
+before the bound certificate can be used as complete-domain evidence.
+
+The engine also exposes a strict UPBA posture through `DexEngineConfig`:
+
+```python
+DexEngineConfig(
+    allow_uniform_batch_certificate=True,
+    require_uniform_batch_certificate_for_supported_swaps=True,
+    require_uniform_batch_optimality_certificate=True,
+    require_uniform_batch_v2_bounded_grid_optimality=True,
+    require_uniform_batch_v3_exact_out_grid_optimality=True,
+)
+```
+
+For production-candidate wiring, use the named helper:
+
+```python
+make_strict_upba_engine_config()
+```
+
+Under that posture, supported single-pool exact-in and exact-out swap batches
+fail closed if they omit the UPBA certificate, and any UPBA settlement fails
+closed if it omits bound optimality evidence. V2 partial-fill certificates must
+carry bounded-grid evidence, and v3 exact-out certificates must carry exact-out
+grid evidence.
 
 ## Tests
 
@@ -164,11 +234,17 @@ Focused runtime tests cover:
 - all-zero v2 rejection;
 - schema/policy mismatch rejection;
 - v2 permutation invariance over randomized partial fills;
+- optimality-certificate winner binding to a v2 partial-fill certificate;
+- v3 exact-out complete-domain grid evidence;
+- deterministic admission-certificate prefix selection and hash binding;
+- strict UPBA engine posture requiring certificate and bound optimality evidence;
 - engine acceptance when `allow_uniform_batch_certificate=True`.
 
 Replay command:
 
 ```bash
 pytest -q tests/core/test_uniform_batch_clearing.py \
+  tests/core/test_uniform_batch_admission.py \
+  tests/core/test_uniform_batch_optimality.py \
   tests/integration/test_dex_engine_uniform_batch_certificate.py
 ```

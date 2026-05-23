@@ -17,7 +17,7 @@ from typing import Any, Callable, Mapping
 
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
 # Checked by the toolchain's adapter lint step (fail-closed by default).
-IR_HASH = "sha256:34a03d3fc1bfb70a6a2490b769e5a9a8dd2deb8b2c4cb08e103b85ce1d240d5a"
+IR_HASH = "sha256:23a9b8ec0233f3514301be3d347c6f3623db0876559efc00d904d5b0786a0cfe"
 
 
 def _prepare_ctx(ir: Any) -> Any:
@@ -117,4 +117,3 @@ EFFECT_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV3Adapter, str, Any], None
 
 def make_adapter(ir: Any) -> PerpEpochIsolatedV3Adapter:
     return PerpEpochIsolatedV3Adapter(ir=ir)
-

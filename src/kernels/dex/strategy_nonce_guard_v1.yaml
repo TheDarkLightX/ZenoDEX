@@ -1,0 +1,61 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_nonce_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless sequential nonce guard for live auto-trader intents.
+
+    This mirrors the Tau-side replay rule but lives as an ESSO kernel so the
+    live shell can carry the same formal posture as other auto-trader guards.
+observables:
+  state_vars: []
+  effects:
+    [
+      "params_ok",
+      "nonce_fresh",
+      "nonce_sequential",
+      "nonce_guard_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_nonce"
+    params:
+      - id: "intent_nonce"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "last_used_nonce"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "expected_nonce"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "intent_nonce" }, { const: 1 }] }
+        - { op: ">=", args: [{ param: "last_used_nonce" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "expected_nonce" }, { const: 1 }] }
+    updates: []
+    effects:
+      params_ok:
+        op: "="
+        args:
+          - { param: "expected_nonce" }
+          - op: "+"
+            args: [{ param: "last_used_nonce" }, { const: 1 }]
+      nonce_fresh:
+        op: ">"
+        args: [{ param: "intent_nonce" }, { param: "last_used_nonce" }]
+      nonce_sequential:
+        op: "="
+        args: [{ param: "intent_nonce" }, { param: "expected_nonce" }]
+      nonce_guard_ok:
+        op: "and"
+        args:
+          - op: "="
+            args:
+              - { param: "expected_nonce" }
+              - op: "+"
+                args: [{ param: "last_used_nonce" }, { const: 1 }]
+          - { op: ">", args: [{ param: "intent_nonce" }, { param: "last_used_nonce" }] }
+          - { op: "=", args: [{ param: "intent_nonce" }, { param: "expected_nonce" }] }

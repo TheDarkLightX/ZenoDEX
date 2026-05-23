@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chaos_recipe_v1.schema.json",
+  "title": "Chaos Recipe",
+  "description": "A chaos experiment definition following the Popper method.",
+  "type": "object",
+  "required": ["schema", "id", "hypothesis_id", "name", "steady_state", "perturbation"],
+  "properties": {
+    "schema": {
+      "const": "chaos/recipe/v1",
+      "description": "Schema identifier for this artifact type."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Unique recipe identifier (hex hash)."
+    },
+    "hypothesis_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Reference to the hypothesis this recipe tests."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable name for the experiment."
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description of what this experiment does."
+    },
+    "target": {
+      "type": "object",
+      "required": ["module", "component"],
+      "properties": {
+        "module": {
+          "type": "string",
+          "description": "Python module path (e.g., 'src.integration.tau_runner')."
+        },
+        "component": {
+          "type": "string",
+          "description": "Specific component or function being tested."
+        },
+        "version": {
+          "type": "string",
+          "description": "Version or git commit of the target."
+        }
+      },
+      "description": "The target component for this chaos experiment."
+    },
+    "steady_state": {
+      "type": "object",
+      "required": ["probes"],
+      "properties": {
+        "probes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "check"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Probe name."
+              },
+              "type": {
+                "type": "string",
+                "enum": ["python", "http", "tcp", "process"],
+                "description": "Type of probe."
+              },
+              "check": {
+                "type": "object",
+                "description": "Check configuration (type-specific)."
+              },
+              "tolerance": {
+                "type": "object",
+                "description": "Tolerance configuration for the check."
+              }
+            }
+          },
+          "description": "Probes to verify steady state before and after perturbation."
+        },
+        "timeout_s": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Timeout for steady state verification."
+        }
+      },
+      "description": "Steady state hypothesis (baseline that must hold)."
+    },
+    "perturbation": {
+      "type": "object",
+      "required": ["type", "action"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["toxiproxy", "signal", "resource", "mock", "delay"],
+          "description": "Category of perturbation."
+        },
+        "action": {
+          "type": "string",
+          "description": "Specific action (e.g., 'limit_data', 'sigkill', 'flood_stdout')."
+        },
+        "params": {
+          "type": "object",
+          "description": "Action-specific parameters."
+        },
+        "duration_s": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long to apply the perturbation."
+        }
+      },
+      "description": "The chaos perturbation to apply."
+    },
+    "rollback": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": {"type": "string"},
+              "type": {"type": "string"},
+              "params": {"type": "object"}
+            }
+          },
+          "description": "Actions to restore system state after experiment."
+        }
+      },
+      "description": "Rollback configuration to restore steady state."
+    },
+    "refutation_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "check"],
+        "properties": {
+          "criterion": {
+            "type": "string",
+            "description": "Reference to refutation criterion from hypothesis."
+          },
+          "check": {
+            "type": "object",
+            "description": "How to detect this refutation condition."
+          }
+        }
+      },
+      "description": "Checks that would falsify the hypothesis."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "additionalProperties": false
+}

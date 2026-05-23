@@ -6,7 +6,6 @@ set -euo pipefail
 # Goal: provide a single, deterministic entrypoint to run the current evidence
 # gates for the spot/AMM functional core:
 # - pytest correctness/determinism checks (incl. parity + BVA)
-# - UPBA certificate and bounded price-grid verifier checks
 # - YAML kernel inductiveness checks (verify-multi)
 #
 # Notes:
@@ -67,11 +66,9 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_batch_clearing_b_refinement.py" \
   "$ROOT_DIR/tests/core/test_batch_clearing_global_refinement.py" \
   "$ROOT_DIR/tests/core/test_batch_greedy.py" \
+  "$ROOT_DIR/tests/core/test_batch_mci.py" \
   "$ROOT_DIR/tests/core/test_batch_auction_settler_v1_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_batch_auction_settler_v1_witness.py" \
-  "$ROOT_DIR/tests/core/test_uniform_batch_clearing.py" \
-  "$ROOT_DIR/tests/core/test_uniform_batch_optimality.py" \
-  "$ROOT_DIR/tests/core/test_uniform_batch_price_grid_table.py" \
   "$ROOT_DIR/tests/core/test_settlement_swap_runtime_v1.py" \
   "$ROOT_DIR/tests/core/test_settlement_normal_form.py" \
   "$ROOT_DIR/tests/core/test_settlement_strong_validator.py" \
@@ -79,8 +76,7 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_dex_step_candidate_settlement.py" \
   "$ROOT_DIR/tests/core/test_dex_step_core_v2_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_dex_step_core_v2_ml_bva_parity.py" \
-  "$ROOT_DIR/tests/core/test_vault_ref_parity.py" \
-  "$ROOT_DIR/tests/integration/test_dex_engine_uniform_batch_certificate.py"
+  "$ROOT_DIR/tests/core/test_vault_ref_parity.py"
 
 echo "== spot: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \

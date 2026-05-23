@@ -102,6 +102,15 @@ if getattr(sys, "frozen", False):
     ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
 sys.path.insert(0, str(ROOT))
 
+from src.integration.zeno_oracle_authority import (  # noqa: E402
+    build_oracle_authority_exercise_v1,
+    build_oracle_authority_profile_v1,
+    evaluate_oracle_authority_exercise_v1,
+    evaluate_oracle_authority_profile_v1,
+)
+from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0  # noqa: E402
+from tools.operator_report_output import operator_json_dumps, public_storage_json_dumps  # noqa: E402
+
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
@@ -658,21 +667,27 @@ def _load_json(path: Path) -> Any:
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(public_storage_json_dumps(payload) + "\n", encoding="utf-8")
+
+
+def _write_local_identity_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 
 def _append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
+        handle.write(public_storage_json_dumps(payload, indent=None))
         handle.write("\n")
 
 
 def _emit(payload: Mapping[str, Any], *, json_out: bool) -> None:
+    safe_payload = json.loads(operator_json_dumps(payload, indent=None))
     if json_out:
-        print(json.dumps(payload, sort_keys=True, indent=2))
+        print(json.dumps(safe_payload, sort_keys=True, indent=2))
         return
-    for key, value in payload.items():
+    for key, value in safe_payload.items():
         if isinstance(value, (dict, list)):
             print(f"{key}: {json.dumps(value, sort_keys=True)}")
         else:
@@ -761,9 +776,13 @@ def _load_identity(home: Path) -> dict[str, Any]:
     data = _load_json(_key_path(home))
     if not isinstance(data, dict):
         raise SystemExit("identity file must be an object")
-    for key in ("reporter_id", "public_key", "secret_key"):
+    for key in ("reporter_id", "public_key"):
         if not isinstance(data.get(key), str) or not data.get(key):
             raise SystemExit(f"identity is missing {key}")
+    signing_material = data.get("local_signing_material_hex", data.get("secret_key"))
+    if not isinstance(signing_material, str) or not signing_material:
+        raise SystemExit("identity is missing local signing material")
+    data["local_signing_material_hex"] = signing_material
     return data
 
 
@@ -941,8 +960,8 @@ def _key_path(home: Path) -> Path:
     return home / "keys" / "reporter.key.json"
 
 
-def _identity_from_secret(secret_hex: str) -> dict[str, Any]:
-    public_key = hashlib.sha256(bytes.fromhex(secret_hex)).hexdigest()
+def _identity_from_local_material(material_hex: str) -> dict[str, Any]:
+    public_key = hashlib.sha256(bytes.fromhex(material_hex)).hexdigest()
     reporter_id = semantic_hash("zeno_oracle.reporter_id.v1", {"public_key": public_key})
     return {
         "schema": "zeno_oracle.local_reporter_identity.v1",
@@ -961,13 +980,13 @@ def cmd_identity_create(args: argparse.Namespace) -> int:
     path = _key_path(home)
     if path.exists() and not args.force:
         raise SystemExit(f"{path} already exists; pass --force to overwrite")
-    secret_hex = secrets.token_hex(32)
-    identity = _identity_from_secret(secret_hex)
+    signing_material_hex = secrets.token_hex(32)
+    identity = _identity_from_local_material(signing_material_hex)
     payload = {
         **identity,
-        "secret_key": secret_hex,
+        "local_signing_material_hex": signing_material_hex,
     }
-    _write_json(path, payload)
+    _write_local_identity_json(path, payload)
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
     _emit(
         {
@@ -2188,6 +2207,20 @@ def _accepted_read_from_aggregate(
 ) -> dict[str, Any]:
     observed_epoch = int(aggregate["observed_epoch"])
     value_e8 = int(aggregate["value_e8"])
+    query_freshness_window = int(query.get("freshness_window_epochs", 0))
+    try:
+        from src.integration.zeno_oracle_authorization import (
+            CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS,
+        )
+    except Exception:  # pragma: no cover - CLI packaging fallback
+        profile_freshness_window = None
+    else:
+        profile_freshness_window = CRITICAL_PROFILE_MAX_FRESHNESS_WINDOW_EPOCHS.get(profile_id)
+    effective_freshness_window = (
+        query_freshness_window
+        if profile_freshness_window is None
+        else min(query_freshness_window, int(profile_freshness_window))
+    )
     body = {
         "schema": "zeno_oracle.accepted_read.v1",
         "aggregate_id": aggregate["aggregate_id"],
@@ -2203,7 +2236,7 @@ def _accepted_read_from_aggregate(
         "confidence_e8": int(aggregate["confidence_e8"]),
         "deviation_bps": int(aggregate["deviation_bps"]),
         "observed_epoch": observed_epoch,
-        "expires_at_epoch": observed_epoch + int(query.get("freshness_window_epochs", 0)),
+        "expires_at_epoch": observed_epoch + effective_freshness_window,
         "evidence_class": aggregate.get("evidence_class", query.get("evidence_floor", "O3")),
         "production_authority": False,
     }
@@ -2274,7 +2307,7 @@ def cmd_report_submit(args: argparse.Namespace) -> int:
         "reward_e8": reward_e8,
         "reporter_state_at_submit": reporter_state,
         "signature_scheme": "local-dev-sha256:v1",
-        "signature": _sign_local_report(str(identity["secret_key"]), signing_payload_hash),
+        "signature": _sign_local_report(str(identity["local_signing_material_hex"]), signing_payload_hash),
         "production_authority": False,
     }
     if source_state is not None:
@@ -3342,7 +3375,10 @@ def _verify_report_log(home: Path) -> tuple[bool, list[str], dict[str, int], int
         if report.get("report_id") != report_id:
             errors.append(f"reporter {reporter_id} report_id mismatch at sequence {sequence}")
         if identity is not None and identity.get("reporter_id") == reporter_id:
-            expected_signature = _sign_local_report(str(identity["secret_key"]), signing_payload_hash)
+            expected_signature = _sign_local_report(
+                str(identity["local_signing_material_hex"]),
+                signing_payload_hash,
+            )
             if report.get("signature") != expected_signature:
                 errors.append(f"reporter {reporter_id} signature mismatch at sequence {sequence}")
         reward_e8 = report.get("reward_e8")
@@ -3911,8 +3947,148 @@ def cmd_verify_evidence(args: argparse.Namespace) -> int:
     return proc.returncode
 
 
+def _authority_profile_path(home: Path) -> Path:
+    return home / "authority" / "production_authority_profile.json"
+
+
+def _oracle_authority_status(home: Path) -> dict[str, Any]:
+    profile_path = _authority_profile_path(home)
+    if not profile_path.exists():
+        status = evaluate_oracle_authority_profile_v1(None)
+    else:
+        try:
+            payload = _load_json(profile_path)
+        except Exception as exc:
+            status = evaluate_oracle_authority_profile_v1(None)
+            status["readiness_gaps"] = [f"oracle production authority profile unreadable: {exc}"]
+        else:
+            status = evaluate_oracle_authority_profile_v1(payload if isinstance(payload, Mapping) else None)
+    status["profile_path"] = str(profile_path)
+    return status
+
+
+def _oracle_authority_exercise_report(home: Path, body: Mapping[str, Any]) -> dict[str, Any]:
+    authority_status = _oracle_authority_status(home)
+    profile_path = _authority_profile_path(home)
+    profile: Mapping[str, Any] | None = None
+    if profile_path.exists():
+        payload = _load_json(profile_path)
+        if isinstance(payload, Mapping):
+            profile = payload
+    exercise = build_oracle_authority_exercise_v1(
+        chain_id=str(body.get("chain_id") or authority_status.get("chain_id") or ""),
+        authority_id=str(body.get("authority_id") or authority_status.get("authority_id") or ""),
+        target_network=str(body.get("target_network") or "local"),
+        current_epoch=int(body.get("current_epoch", 0)),
+        operator_service_url=str(body.get("operator_service_url") or ""),
+        query_id=str(body.get("query_id") or ""),
+        report_id=str(body.get("report_id") or ""),
+        aggregate_id=str(body.get("aggregate_id") or ""),
+        read_id=str(body.get("read_id") or ""),
+        authorization_id=str(body.get("authorization_id") or ""),
+        reward_receipt_id=str(body.get("reward_receipt_id") or ""),
+        public_broadcast_reference=body.get("public_broadcast_reference"),
+        public_settlement_reference=body.get("public_settlement_reference"),
+    )
+    exercise_status = evaluate_oracle_authority_exercise_v1(
+        profile,
+        exercise,
+        expected_chain_id=str(authority_status.get("chain_id") or "") or None,
+    )
+    return {
+        "schema": "zeno_oracle.api_authority_exercise.v1",
+        "ok": bool(exercise_status.get("ok") is True),
+        "status": exercise_status.get("status"),
+        "authority_exercise": exercise,
+        "authority_exercise_status": exercise_status,
+        "authority_status": authority_status,
+        "production_authority": bool(authority_status.get("production_authority") is True),
+    }
+
+
+def _load_json_mapping(path: Path, *, name: str) -> Mapping[str, Any]:
+    payload = _load_json(path)
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{name} must decode to a JSON object")
+    return payload
+
+
+def _parse_authority_signer_private_key(raw: str) -> tuple[str, str, str]:
+    parts = str(raw).split(":", 2)
+    if len(parts) != 3 or not all(parts):
+        raise ValueError("--signer-private-key must be signer_id:key_id:0x32-byte-hex")
+    return parts[0], parts[1], parts[2]
+
+
+def cmd_authority_status(args: argparse.Namespace) -> int:
+    home = _home(args)
+    status = _oracle_authority_status(home)
+    if args.out:
+        _write_json(Path(args.out), status)
+    _emit(status, json_out=args.json)
+    return 0 if status.get("production_authority") is True else 2
+
+
+def cmd_authority_provision_profile(args: argparse.Namespace) -> int:
+    home = _home(args)
+    key_manager = _load_json_mapping(Path(args.key_manager), name="key_manager")
+    signer_registry = _load_json_mapping(Path(args.signer_registry), name="signer_registry")
+    profile = build_oracle_authority_profile_v1(
+        authority_id=str(args.authority_id),
+        chain_id=str(args.chain_id),
+        stage=str(args.stage),
+        enabled=not bool(args.disabled),
+        key_manager=key_manager,
+        signer_registry=signer_registry,
+        wallet_ux={
+            "external_signer_required": not bool(args.skip_external_signer_required),
+            "key_manager_required": not bool(args.skip_key_manager_required),
+            "device_approval_required": not bool(args.skip_device_approval_required),
+        },
+        proof_profile={
+            "zk_or_proof_required": not bool(args.skip_zk_or_proof_required),
+            "oracle_receipt_replay_required": not bool(args.skip_oracle_receipt_replay_required),
+            "runtime_proof_profile": str(args.runtime_proof_profile),
+        },
+    )
+    signature_envelopes: list[Mapping[str, Any]] = []
+    for index, envelope_path in enumerate(args.signature_envelope or []):
+        signature_envelopes.append(_load_json_mapping(Path(envelope_path), name=f"signature_envelope[{index}]"))
+    for raw_key in args.signer_private_key or []:
+        signer_id, key_id, private_key_hex = _parse_authority_signer_private_key(str(raw_key))
+        signature_envelopes.append(
+            build_bls_signed_artifact_envelope_v0(
+                payload_kind="oracle_authority_profile",
+                payload_hash=str(profile["authority_hash"]),
+                signer_id=signer_id,
+                key_id=key_id,
+                private_key_hex=private_key_hex,
+            )
+        )
+    if signature_envelopes:
+        profile = {**profile, "signature_envelopes": [dict(envelope) for envelope in signature_envelopes]}
+    status = evaluate_oracle_authority_profile_v1(profile)
+    out_path = Path(args.out) if args.out else _authority_profile_path(home)
+    if out_path.exists() and not args.force:
+        raise SystemExit(f"{out_path} already exists; pass --force to overwrite")
+    _write_json(out_path, profile)
+    status["profile_path"] = str(out_path)
+    report = {
+        "schema": SCHEMA,
+        "ok": status.get("production_authority") is True,
+        "status": "accepted" if status.get("production_authority") is True else "blocked",
+        "profile_path": str(out_path),
+        "authority_profile": profile,
+        "authority_status": status,
+        "production_authority": bool(status.get("production_authority") is True),
+    }
+    _emit(report, json_out=args.json)
+    return 0 if report["ok"] else 2
+
+
 def cmd_health(args: argparse.Namespace) -> int:
     home = _home(args)
+    authority_status = _oracle_authority_status(home)
     checks = {
         "home_exists": home.exists(),
         "config_exists": (home / "config.toml").exists(),
@@ -3927,7 +4103,8 @@ def cmd_health(args: argparse.Namespace) -> int:
             "ok": all(checks.values()),
             "home": str(home),
             "checks": checks,
-            "production_authority": False,
+            "authority_status": authority_status,
+            "production_authority": bool(authority_status.get("production_authority") is True),
         },
         json_out=args.json,
     )
@@ -3975,6 +4152,7 @@ def _iter_receipt_dir(home: Path, kind: str) -> list[dict[str, Any]]:
 
 
 def _dashboard_snapshot(home: Path, *, now_epoch: int, recent_limit: int = 50) -> dict[str, Any]:
+    authority_status = _oracle_authority_status(home)
     query_registry = _load_query_registry(home)
     queries = _registry_queries(query_registry)
     reporters = [
@@ -4054,7 +4232,8 @@ def _dashboard_snapshot(home: Path, *, now_epoch: int, recent_limit: int = 50) -
         "recent_reward_receipts": reward_receipts[-recent_limit:],
         "recent_slash_receipts": slash_receipts[-recent_limit:],
         "replay": replay,
-        "production_authority": False,
+        "authority_status": authority_status,
+        "production_authority": bool(authority_status.get("production_authority") is True),
     }
 
 
@@ -4094,6 +4273,8 @@ def _dashboard_endpoint_payload(
     query_params: Mapping[str, list[str]] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     if path == "/api/oracle/verify-receipt":
+        authority_status = _oracle_authority_status(home)
+        production_authority = bool(authority_status.get("production_authority") is True)
         params = query_params or {}
         receipt_id = params.get("id", [""])[0]
         found = _stored_receipt_by_id(home, receipt_id)
@@ -4105,7 +4286,8 @@ def _dashboard_endpoint_payload(
                     "ok": False,
                     "error": "receipt_not_found",
                     "receipt_id": receipt_id,
-                    "production_authority": False,
+                    "authority_status": authority_status,
+                    "production_authority": production_authority,
                 },
             )
         receipt_kind, receipt = found
@@ -4119,18 +4301,25 @@ def _dashboard_endpoint_payload(
                 "stored_receipt_kind": receipt_kind,
                 "receipt_check": check,
                 "receipt": receipt,
-                "production_authority": False,
+                "authority_status": authority_status,
+                "production_authority": production_authority,
             },
         )
 
+    if path == "/api/oracle/authority":
+        return 200, _oracle_authority_status(home)
+
     snapshot = _dashboard_snapshot(home, now_epoch=now_epoch)
+    authority_status = snapshot["authority_status"]
+    production_authority = bool(snapshot.get("production_authority") is True)
     routes: dict[str, Any] = {
         "/api/oracle/health": {
             "schema": "zeno_oracle.api_health.v1",
             "ok": True,
             "home": str(home),
             "replay_ok": snapshot["replay"]["ok"],
-            "production_authority": False,
+            "authority_status": authority_status,
+            "production_authority": production_authority,
         },
         "/api/oracle/dashboard": snapshot,
         "/api/oracle/feeds": {
@@ -4138,69 +4327,69 @@ def _dashboard_endpoint_payload(
             "ok": True,
             "count": len(snapshot["feed_statuses"]),
             "feed_statuses": snapshot["feed_statuses"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/queries": {
             "schema": "zeno_oracle.api_queries.v1",
             "ok": True,
             "count": len(snapshot["queries"]),
             "queries": snapshot["queries"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/reporters": {
             "schema": "zeno_oracle.api_reporters.v1",
             "ok": True,
             "count": len(snapshot["reporters"]),
             "reporters": snapshot["reporters"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/sources": {
             "schema": "zeno_oracle.api_sources.v1",
             "ok": True,
             "count": len(snapshot["sources"]),
             "sources": snapshot["sources"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/disputes": {
             "schema": "zeno_oracle.api_disputes.v1",
             "ok": True,
             "count": len(snapshot["disputes"]),
             "disputes": snapshot["disputes"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/rewards": {
             "schema": "zeno_oracle.api_rewards.v1",
             "ok": True,
             "count": len(snapshot["rewards"]),
             "rewards": snapshot["rewards"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/aggregates": {
             "schema": "zeno_oracle.api_aggregates.v1",
             "ok": True,
             "count": len(snapshot["recent_aggregates"]),
             "aggregates": snapshot["recent_aggregates"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/accepted-reads": {
             "schema": "zeno_oracle.api_accepted_reads.v1",
             "ok": True,
             "count": len(snapshot["recent_accepted_reads"]),
             "accepted_reads": snapshot["recent_accepted_reads"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/authorizations": {
             "schema": "zeno_oracle.api_authorizations.v1",
             "ok": True,
             "count": len(snapshot["recent_authorizations"]),
             "authorizations": snapshot["recent_authorizations"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
         "/api/oracle/replay": {
             "schema": "zeno_oracle.api_replay.v1",
             "ok": snapshot["replay"]["ok"],
             **snapshot["replay"],
-            "production_authority": False,
+            "production_authority": production_authority,
         },
     }
     if path in routes:
@@ -4212,7 +4401,7 @@ def _dashboard_endpoint_payload(
             "ok": False,
             "error": "not_found",
             "path": path,
-            "available_paths": sorted([*routes, "/api/oracle/verify-receipt"]),
+            "available_paths": sorted([*routes, "/api/oracle/authority", "/api/oracle/verify-receipt"]),
             "production_authority": False,
         },
     )
@@ -4258,6 +4447,9 @@ def _list_payload(value: Any) -> list[str]:
 
 
 def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
+    if path == "/api/oracle/authority/exercise/evaluate":
+        payload = _oracle_authority_exercise_report(home, body)
+        return (200 if payload.get("ok") is True else 400, payload)
     if path == "/api/oracle/identity/create":
         return _command_json(
             cmd_identity_create,
@@ -4498,7 +4690,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.send_header("Access-Control-Allow-Origin", args.cors_origin)
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.end_headers()
             self.wfile.write(body)
@@ -4597,6 +4789,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     server = ThreadingHTTPServer((host, port), OracleHandler)
     actual_port = int(server.server_address[1])
+    authority_status = _oracle_authority_status(home)
     ready = {
         "schema": SCHEMA,
         "ok": True,
@@ -4604,6 +4797,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         "url": f"http://{host}:{actual_port}",
         "paths": [
             "/api/oracle/health",
+            "/api/oracle/authority",
             "/api/oracle/dashboard",
             "/api/oracle/feeds",
             "/api/oracle/reporters",
@@ -4617,6 +4811,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         ],
         "write_paths_enabled": bool(args.allow_writes),
         "write_paths": [
+            "/api/oracle/authority/exercise/evaluate",
             "/api/oracle/identity/create",
             "/api/oracle/reporter/register",
             "/api/oracle/reporter/bond",
@@ -4631,9 +4826,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "/api/oracle/authorization/build",
             "/api/oracle/report/submit",
         ] if args.allow_writes else [],
-        "production_authority": False,
+        "authority_status": authority_status,
+        "production_authority": bool(authority_status.get("production_authority") is True),
     }
-    print(json.dumps(ready, sort_keys=True), flush=True)
+    sys.stdout.write(operator_json_dumps(ready, indent=None) + "\n")
+    sys.stdout.flush()
     try:
         if args.once:
             with contextlib.suppress(Exception):
@@ -4935,6 +5132,43 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard_snapshot.add_argument("--now-epoch", type=int)
     dashboard_snapshot.add_argument("--out")
     dashboard_snapshot.set_defaults(func=cmd_dashboard_snapshot)
+
+    authority = sub.add_parser("authority", help="inspect or provision Oracle production authority")
+    authority_sub = authority.add_subparsers(dest="authority_cmd", required=True)
+    authority_status = authority_sub.add_parser("status", help="show production-authority preflight status")
+    authority_status.add_argument("--home", default=str(DEFAULT_HOME))
+    authority_status.add_argument("--out")
+    authority_status.set_defaults(func=cmd_authority_status)
+    authority_provision = authority_sub.add_parser(
+        "provision-profile",
+        help="write authority/production_authority_profile.json from public key and signer policy files",
+    )
+    authority_provision.add_argument("--home", default=str(DEFAULT_HOME))
+    authority_provision.add_argument("--authority-id", required=True)
+    authority_provision.add_argument("--chain-id", required=True)
+    authority_provision.add_argument("--stage", choices=("devnet", "testnet", "production"), default="production")
+    authority_provision.add_argument("--disabled", action="store_true")
+    authority_provision.add_argument("--key-manager", required=True)
+    authority_provision.add_argument("--signer-registry", required=True)
+    authority_provision.add_argument("--runtime-proof-profile", required=True)
+    authority_provision.add_argument("--skip-external-signer-required", action="store_true")
+    authority_provision.add_argument("--skip-key-manager-required", action="store_true")
+    authority_provision.add_argument("--skip-device-approval-required", action="store_true")
+    authority_provision.add_argument("--skip-zk-or-proof-required", action="store_true")
+    authority_provision.add_argument("--skip-oracle-receipt-replay-required", action="store_true")
+    authority_provision.add_argument(
+        "--signature-envelope",
+        action="append",
+        help="prebuilt BLS signed-artifact envelope JSON over the authority profile hash",
+    )
+    authority_provision.add_argument(
+        "--signer-private-key",
+        action="append",
+        help="build a BLS signature envelope as signer_id:key_id:0x32-byte-hex",
+    )
+    authority_provision.add_argument("--out")
+    authority_provision.add_argument("--force", action="store_true")
+    authority_provision.set_defaults(func=cmd_authority_provision_profile)
 
     serve = sub.add_parser("serve", help="serve local ZenoOracle dashboard JSON API")
     serve.add_argument("--home", default=str(DEFAULT_HOME))

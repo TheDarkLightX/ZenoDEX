@@ -37,9 +37,7 @@ def releaseError
     (emitRequested liveAdmissionOk systemComposeOk submitBundleOk emitFinalizeOk : Bool)
     (liveAdmissionError systemComposeError submitBundleError emitFinalizeError : Option Nat) :
     Option Nat :=
-  if !emitRequested then
-    some 5
-  else if !liveAdmissionOk then
+  if !liveAdmissionOk then
     match liveAdmissionError with
     | some err => some err
     | none => some 1
@@ -93,7 +91,8 @@ def buildCertificate
     systemComposeOk := systemComposeOk
     submitBundleOk := submitBundleOk
     emitFinalizeOk := emitFinalizeOk
-    releaseOk := releaseOk emitRequested liveAdmissionOk systemComposeOk submitBundleOk emitFinalizeOk
+    releaseOk :=
+      releaseOk emitRequested liveAdmissionOk systemComposeOk submitBundleOk emitFinalizeOk
     releaseError := releaseError
       emitRequested liveAdmissionOk systemComposeOk submitBundleOk emitFinalizeOk
       liveAdmissionError systemComposeError submitBundleError emitFinalizeError
@@ -118,12 +117,7 @@ theorem releaseOk_iff
       systemComposeOk = true ∧
       submitBundleOk = true ∧
       emitFinalizeOk = true := by
-  cases emitRequested <;>
-    cases liveAdmissionOk <;>
-    cases systemComposeOk <;>
-    cases submitBundleOk <;>
-    cases emitFinalizeOk <;>
-    decide
+  simp [releaseOk, and_assoc]
 
 theorem verifyCertificate_iff
     (inputs : Inputs)
@@ -193,15 +187,6 @@ theorem buildCertificate_releaseError_emitNotRequested
       inputs
       false true true true true
       none none none none).releaseError = some 5 := by
-  simp [buildCertificate, releaseError]
-
-theorem buildCertificate_releaseError_emitNotRequested_overrides_downstream
-    (inputs : Inputs)
-    (liveAdmissionError systemComposeError submitBundleError emitFinalizeError : Option Nat) :
-    (buildCertificate
-      inputs
-      false false false false false
-      liveAdmissionError systemComposeError submitBundleError emitFinalizeError).releaseError = some 5 := by
   simp [buildCertificate, releaseError]
 
 end LiveReleaseCertificate

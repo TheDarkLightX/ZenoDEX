@@ -10,7 +10,6 @@ risc0_zkvm::guest::entry!(main);
 
 pub fn main() {
     let input: StateProofInputV1 = env::read();
-    let journal =
-        execute_state_proof_input_v1(input).expect("ZenoDEX spot proof transition rejected");
+    let journal = execute_state_proof_input_v1(input).expect("tauswap proof transition rejected");
     env::commit(&journal);
 }

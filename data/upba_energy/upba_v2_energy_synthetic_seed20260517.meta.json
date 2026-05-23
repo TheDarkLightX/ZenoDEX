@@ -1,0 +1,10 @@
+{
+  "batches": 10000,
+  "candidates_per_batch": 20,
+  "feature_dim": 96,
+  "rows": 199860,
+  "schema": "zenodex/energy/upba_v2_dataset_metadata/v1",
+  "seed": 20260517,
+  "sha256": "0x0643670a460dc05efc688af9f8dad4e8fafd44d5dba1928ffdd69d0aa689f46f",
+  "source": "synthetic"
+}

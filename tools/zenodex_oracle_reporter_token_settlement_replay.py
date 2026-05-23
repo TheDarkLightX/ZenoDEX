@@ -510,12 +510,7 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
             errors.append(f"settlement_total_mismatch:{reason}:{reason_totals[reason]}!={expected_reason_totals[reason]}")
 
     if economics_result.status == "accepted":
-        expected_bond_escrow = (
-            expected_reason_totals["bond_deposit"]
-            - expected_reason_totals["reporter_slash"]
-            - expected_reason_totals["bond_withdrawal"]
-        )
-        if reason_totals["bond_deposit"] != expected_reason_totals["bond_deposit"]:
+        if reason_totals["bond_deposit"] != int(economics_result.total_bond_deposited_e8 or 0):
             errors.append("bond_deposit_total_mismatch")
         if reason_totals["report_reward_payout"] != int(economics_result.total_rewards_paid_e8 or 0):
             errors.append("report_reward_total_mismatch")
@@ -538,7 +533,7 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
             errors.append("treasury_final_balance_mismatch")
         if balances.get("oracle.burn", 0) != int(economics_result.burn_balance_e8 or 0):
             errors.append("burn_final_balance_mismatch")
-        if balances.get("oracle.bond_escrow", 0) != expected_bond_escrow:
+        if balances.get("oracle.bond_escrow", 0) != int(economics_result.bond_locked_e8 or 0):
             errors.append("bond_escrow_final_balance_mismatch")
 
     token_conservation_ok = total_debits == total_credits

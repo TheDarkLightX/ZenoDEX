@@ -5,14 +5,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
-risc0-zkvm = { version = "2.3.2", default-features = false }
+risc0-zkvm = { version = "1.2", default-features = false }
 tau-state-proof-risc0-shared = { path = "../../shared", default-features = false }
-
-[[bin]]
-name = "tau-state-proof-risc0-guest"
-path = "src/main.rs"
-test = false
 
 [profile.release]
 lto = true
 opt-level = 3
+

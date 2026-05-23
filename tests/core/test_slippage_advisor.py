@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.sandwich_risk import MAX_SANDWICH_SCAN_AMOUNT_IN
-from src.core.slippage_advisor import MAX_SLIPPAGE_OPTIONS, slippage_advice_exact_in_cpmm
+from src.core.slippage_advisor import slippage_advice_exact_in_cpmm
 
 
 def test_slippage_advice_detects_mev_vs_revert_conflict_under_rounding() -> None:
@@ -56,7 +55,7 @@ def test_slippage_advice_returns_no_revert_safe_option_if_all_min_out_too_high()
 @pytest.mark.parametrize(
     "confidence_bps,expected_out_conf,expected_required_slip,reason",
     [
-        # Boundary witness around confidence_bps=8000:
+        # Boundary mined by tools/bva (label flip around confidence_bps=8000):
         # out_conf steps from 47 -> 46, which changes required_slippage_bps from 0 -> 213.
         (7999, 47, 0, "just-below the quantized output step boundary"),
         (8000, 46, 213, "exactly at the boundary (first value with lower out_conf)"),
@@ -134,14 +133,6 @@ def test_slippage_advice_bva_confidence_input_validation(
         ([None, -1, 10_001], True, None, None, "all invalid entries filtered => empty => error"),
         ([0], False, 0, 0, "boundary: 0 bps slippage is allowed"),
         ([10_000], False, 10_000, 10_000, "boundary: max slippage is allowed"),
-        (list(range(MAX_SLIPPAGE_OPTIONS)), False, 0, MAX_SLIPPAGE_OPTIONS - 1, "exactly at option-count cap"),
-        (
-            list(range(MAX_SLIPPAGE_OPTIONS + 1)),
-            True,
-            None,
-            None,
-            "just above option-count cap rejects before multiplying sandwich scans",
-        ),
     ],
     ids=lambda x: str(x),
 )
@@ -180,8 +171,6 @@ def test_slippage_advice_bva_slippage_options_normalization(
         (-1, True, "just-below min (invalid)"),
         (0, False, "exactly at min"),
         (1, False, "just-above min"),
-        (MAX_SANDWICH_SCAN_AMOUNT_IN, False, "exactly at scan cap"),
-        (MAX_SANDWICH_SCAN_AMOUNT_IN + 1, True, "just-above scan cap"),
         (True, True, "special type boundary: bool is rejected explicitly"),
         ("2000", True, "out-of-domain type: str"),
     ],

@@ -24,5 +24,21 @@ def test_route_certificate_sequence_reaches_canonicalization_surface() -> None:
 
 def test_route_certificate_sequence_minimize_case_preserves_candidate_set_hash_mismatch() -> None:
     witness = minimize_case("add_better_candidate")
+    assert witness.target == "route_certificate_sequence"
+    assert witness.derivation == "add_better_candidate"
     assert witness.outcome_label == "reject:step=1:candidate_set_hash mismatch"
+    assert witness.path_id == "78e394d9fa5a75ae"
+    assert witness.path_length == 639
+    assert witness.original_size == 1033
+    assert witness.original_size == witness.minimized_size
+
+
+def test_route_certificate_sequence_minimize_case_preserves_reordered_candidate_set_hash_mismatch() -> None:
+    witness = minimize_case("reorder_candidates")
+    assert witness.target == "route_certificate_sequence"
+    assert witness.derivation == "reorder_candidates"
+    assert witness.outcome_label == "reject:step=1:candidate_set_hash mismatch"
+    assert witness.path_id == "722391bcba709dce"
+    assert witness.path_length == 572
+    assert witness.original_size == 835
     assert witness.original_size == witness.minimized_size

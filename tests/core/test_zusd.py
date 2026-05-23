@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from src.core.zusd import E8, ZUSDCommand, ZUSDState, check_invariants, in_recovery_mode, init_state, step
+from src.core.zusd import (
+    E8,
+    ZUSDCommand,
+    ZUSDState,
+    check_invariants,
+    in_recovery_mode,
+    init_state,
+    step,
+)
 
 
 def _ok(s: ZUSDState, tag: str, **kwargs) -> ZUSDState:
@@ -18,12 +26,12 @@ def test_basic_mint_repay_and_conservation() -> None:
     s = init_state()
     s = _bootstrap(s, price_e8=100 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
-    s = _ok(s, "mint_zusd", amount_e8=100 * E8)
+    s = _ok(s, "mint_zusd", amount_e8=150 * E8)
     s = _ok(s, "deposit_sp", amount_e8=40 * E8)
     s = _ok(s, "repay_zusd", amount_e8=20 * E8)
 
-    assert s.debt_e8 == 80 * E8
-    assert s.free_debt_e8 == 40 * E8
+    assert s.debt_e8 == 130 * E8
+    assert s.free_debt_e8 == 90 * E8
     assert s.sp_debt_e8 == 40 * E8
     assert check_invariants(s) == []
 
@@ -91,6 +99,58 @@ def test_liquidation_under_pending_price_moves_debt_to_sp() -> None:
     assert ns.collateral_e8 == 0
     assert ns.sp_debt_e8 == 0
     assert ns.sp_coll_e8 == 2 * E8
+    assert ns.liquidator_compensation_collateral_cum_e8 == 0
+
+
+def test_liquidation_at_107_percent_cr_uses_current_full_collateral_policy() -> None:
+    s = init_state()
+    s = _bootstrap(s, price_e8=100 * E8)
+    s = _ok(s, "deposit_collateral", amount_e8=107 * E8)
+    s = _ok(s, "mint_zusd", amount_e8=100 * E8)
+    s = _ok(s, "deposit_sp", amount_e8=100 * E8)
+    s = _ok(s, "oracle_report", price_e8=1 * E8, auth_ok=True)
+
+    r = step(s, ZUSDCommand(tag="liquidate", args={}))
+    assert r.ok, r.error
+    assert r.state is not None
+    ns = r.state
+
+    # Current zUSD v1 is SimplexBorrow-aligned, not Liquity V2 penalty parity.
+    # At 107% CR, a 5% penalty design would leave surplus collateral; this policy
+    # moves the whole under-MCR vault collateral into SP collateral accounting.
+    assert ns.debt_e8 == 0
+    assert ns.collateral_e8 == 0
+    assert ns.sp_debt_e8 == 0
+    assert ns.sp_coll_e8 == 107 * E8
+
+
+def test_liquidation_gas_compensation_hook_pays_before_sp_gain() -> None:
+    s = init_state()
+    s = _bootstrap(s, price_e8=100 * E8)
+    s = ZUSDState(
+        **{
+            **s.__dict__,
+            "liquidation_gas_comp_fixed_collateral_e8": 1 * E8,
+            "liquidation_gas_comp_bps": 500,
+        }
+    )
+    s = _ok(s, "deposit_collateral", amount_e8=10 * E8)
+    s = _ok(s, "mint_zusd", amount_e8=500 * E8)
+    s = _ok(s, "deposit_sp", amount_e8=500 * E8)
+    s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
+
+    r = step(s, ZUSDCommand(tag="liquidate", args={}))
+    assert r.ok, r.error
+    assert r.state is not None
+    assert r.effects is not None
+    ns = r.state
+
+    assert r.effects["liquidated_collateral_e8"] == 10 * E8
+    assert r.effects["liquidator_compensation_collateral_e8"] == 150_000_000
+    assert r.effects["sp_collateral_gain_e8"] == 850_000_000
+    assert ns.sp_coll_e8 == 850_000_000
+    assert ns.liquidator_compensation_collateral_cum_e8 == 150_000_000
+    assert check_invariants(ns) == []
 
 
 def test_repay_cannot_exceed_free_debt_balance() -> None:
@@ -103,6 +163,27 @@ def test_repay_cannot_exceed_free_debt_balance() -> None:
     r = step(s, ZUSDCommand(tag="repay_zusd", args={"amount_e8": 80 * E8}))
     assert not r.ok
     assert "free debt" in (r.error or "")
+
+
+def test_repay_and_redemption_cannot_leave_sub_floor_debt() -> None:
+    s = init_state()
+    s = _bootstrap(s, price_e8=100 * E8)
+    s = _ok(s, "deposit_collateral", amount_e8=3 * E8)
+    s = _ok(s, "mint_zusd", amount_e8=150 * E8)
+
+    repay = step(s, ZUSDCommand(tag="repay_zusd", args={"amount_e8": 75 * E8}))
+    assert not repay.ok
+    assert "below min_debt_open_e8" in (repay.error or "")
+
+    redeem = step(s, ZUSDCommand(tag="redeem_zusd", args={"amount_e8": 75 * E8}))
+    assert not redeem.ok
+    assert "below min_debt_open_e8" in (redeem.error or "")
+
+    full = step(s, ZUSDCommand(tag="repay_zusd", args={"amount_e8": 150 * E8}))
+    assert full.ok, full.error
+    assert full.state is not None
+    assert full.state.debt_e8 == 0
+    assert check_invariants(full.state) == []
 
 
 def test_invariant_detection_for_supply_conservation() -> None:
@@ -118,6 +199,37 @@ def test_invariant_detection_for_supply_conservation() -> None:
     )
     violations = check_invariants(bad)
     assert "inv_supply_conservation" in violations
+
+
+def test_invariant_detection_for_sub_floor_debt() -> None:
+    bad = ZUSDState(
+        oracle_seen=True,
+        oracle_last_update_epoch=0,
+        price_e8=100 * E8,
+        price_pending_e8=100 * E8,
+        debt_e8=50 * E8,
+        free_debt_e8=50 * E8,
+        collateral_e8=2 * E8,
+    )
+
+    violations = check_invariants(bad)
+    assert "inv_debt_floor" in violations
+
+
+def test_debt_floor_sequence_grid_for_repay_and_redeem() -> None:
+    for minted_e8 in (100 * E8, 150 * E8, 250 * E8):
+        s = init_state()
+        s = _bootstrap(s, price_e8=100 * E8)
+        s = _ok(s, "deposit_collateral", amount_e8=10 * E8)
+        s = _ok(s, "mint_zusd", amount_e8=minted_e8)
+
+        for amt in tuple(a for a in (25 * E8, 50 * E8, 75 * E8, minted_e8) if a <= minted_e8):
+            post_debt = minted_e8 - amt
+            repay = step(s, ZUSDCommand(tag="repay_zusd", args={"amount_e8": amt}))
+            redeem = step(s, ZUSDCommand(tag="redeem_zusd", args={"amount_e8": amt}))
+            should_accept = post_debt == 0 or post_debt >= s.min_debt_open_e8
+            assert repay.ok is should_accept
+            assert redeem.ok is should_accept
 
 
 def test_borrow_fee_adds_debt_and_tracks_protocol_revenue() -> None:

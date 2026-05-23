@@ -19,13 +19,6 @@ from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 
 
-def _verifier_evidence() -> list[dict[str, int]]:
-    return [
-        {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-        {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-    ]
-
-
 def _claim(*, miner_id: str, reward_pool_before: int, base_reward: int = 8, epoch: int = 1, slot: int = 0):
     return build_proof_mining_claim(
         round_obj={
@@ -50,7 +43,6 @@ def _claim(*, miner_id: str, reward_pool_before: int, base_reward: int = 8, epoc
         prev_state_hash=f"sha256:prev-{slot}",
         batch_hash=f"sha256:batch-{slot}",
         dex_hash_after=f"sha256:after-{slot}",
-        verifier_evidence=_verifier_evidence(),
     )
 
 

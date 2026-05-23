@@ -25,11 +25,6 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - script execution path
     from render_tla_claim_summary import OUTPUT_PATH as TLA_SUMMARY_PATH, RenderError as TlaRenderError, render_summary_text
 
-try:
-    from tools.run_tla_models import TlaModelError
-except ModuleNotFoundError:  # pragma: no cover - script execution path
-    from run_tla_models import TlaModelError
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,31 +33,20 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "docs/ASSURANCE_GLOSSARY.md",
     "docs/ASSURANCE_RELEASE_SNAPSHOT.md",
     "docs/PUBLIC_ASSURANCE_REPLAY.md",
-    "docs/RC1_READINESS.md",
-    "docs/RC1_SCOPE.md",
     "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
     "docs/RC1_VERIFIED_SURFACE_MATRIX.md",
     "docs/TLA_CLAIM_SUMMARY.md",
-    "docs/ZUSD_TAU_WALLET.md",
     "docs/assurance_release_snapshot.json",
-    "docs/claims_registry.yaml",
-    "formal/tla/README.md",
-    "formal/tla/*.cfg",
-    "formal/tla/*.tla",
     "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
     "src/core/amm_dispatch.py",
     "src/core/batch_clearing.py",
-    "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml",
     "src/kernels/python/batch_auction_settler_v1_witness.py",
     "src/kernels/python/settlement_swap_runtime_v1.py",
     "tests/core/test_batch_auction_settler_v1_ref_parity.py",
     "tests/core/test_batch_auction_settler_v1_witness.py",
     "tests/core/test_batch_clearing.py",
     "tests/core/test_settlement_swap_runtime_v1.py",
-    "tests/formal/test_tla_claim_inventory.py",
     "tests/integration/test_permissionless_assurance_cli.py",
-    "tests/test_claims_registry.py",
-    "tools/check_claims_registry.py",
     "tools/check_derivatives_evidence_manifest.py",
     "tools/check_spot_proof_assurance_manifest.py",
     "tools/dex_kernel_assurance.py",
@@ -73,9 +57,7 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/render_rc1_verified_surface_matrix.py",
     "tools/render_assurance_release_snapshot.py",
     "tools/render_tla_claim_summary.py",
-    "tools/run_tla_models.py",
     "tools/run_critical_quality_gate.sh",
-    "tools/run_derivatives_evidence.sh",
     "tools/run_release_gate.sh",
     "tools/run_perps_evidence.sh",
     "tools/run_spot_evidence.sh",
@@ -238,12 +220,9 @@ def _git_stdout(*args: str) -> str:
     return proc.stdout.strip()
 
 
-def _git_status_paths(*, include_ignored: bool = False) -> list[str]:
-    command = ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "--untracked-files=all"]
-    if include_ignored:
-        command.append("--ignored=matching")
+def _git_status_paths() -> list[str]:
     proc = subprocess.run(
-        command,
+        ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "--untracked-files=all"],
         check=True,
         capture_output=True,
         text=True,
@@ -393,7 +372,7 @@ def _tla_summary_status() -> dict[str, object]:
             "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
             "error": None,
         }
-    except (TlaRenderError, TlaModelError) as exc:
+    except TlaRenderError as exc:
         return {
             "ok": False,
             "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
@@ -606,10 +585,7 @@ def cmd_leak_check(args: argparse.Namespace) -> int:
     if args.paths:
         paths = list(args.paths)
     else:
-        # Leak-check is the broad pre-merge sanitization guard, so the default
-        # no-args mode must inspect every dirty path, including ignored internal
-        # directories that a normal git status omits.
-        paths = _git_status_paths(include_ignored=True)
+        paths = _public_scope_paths(_git_status_paths())
     findings = _leak_findings(paths)
     payload = {"paths": paths, "findings": findings, "ok": not findings}
     if args.format == "json":

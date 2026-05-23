@@ -76,6 +76,9 @@ actions:
         - { op: ">", args: [{ param: "amount1" }, { const: 0 }] }
         # Synthesized LP must be positive (checked post-update via invariants)
         - { op: ">", args: [{ var: "lp_supply" }, { const: 0 }] }
+        # Keep post-state within declared state domains.
+        - { op: "<=", args: [{ op: "+", args: [{ var: "reserve0" }, { param: "amount0" }] }, { const: 1000000 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "reserve1" }, { param: "amount1" }] }, { const: 1000000 }] }
     updates:
       - var: "reserve0"
         expr: { op: "+", args: [{ var: "reserve0" }, { param: "amount0" }] }

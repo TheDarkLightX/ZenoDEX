@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-
 REPLAY_SCHEMA = "zenodex.oracle.reporter_economics_replay.v1"
 RESULT_SCHEMA = "zenodex.oracle.reporter_economics_replay_result.v1"
 MAX_REPLAY_BYTES = 500_000
@@ -86,6 +85,9 @@ class ReporterEconomicsReplayResult:
     dispute_reward_pool_e8: int | None = None
     treasury_balance_e8: int | None = None
     burn_balance_e8: int | None = None
+    total_bond_deposited_e8: int | None = None
+    bond_locked_e8: int | None = None
+    bond_conservation_ok: bool | None = None
     total_rewards_paid_e8: int | None = None
     total_slashed_e8: int | None = None
     total_withdrawn_e8: int | None = None
@@ -104,6 +106,9 @@ class ReporterEconomicsReplayResult:
             "dispute_reward_pool_e8": self.dispute_reward_pool_e8,
             "treasury_balance_e8": self.treasury_balance_e8,
             "burn_balance_e8": self.burn_balance_e8,
+            "total_bond_deposited_e8": self.total_bond_deposited_e8,
+            "bond_locked_e8": self.bond_locked_e8,
+            "bond_conservation_ok": self.bond_conservation_ok,
             "total_rewards_paid_e8": self.total_rewards_paid_e8,
             "total_slashed_e8": self.total_slashed_e8,
             "total_withdrawn_e8": self.total_withdrawn_e8,
@@ -295,6 +300,7 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
     reporters: dict[str, dict[str, Any]] = {}
     reports: dict[str, dict[str, Any]] = {}
     disputes: dict[str, dict[str, Any]] = {}
+    total_bond_deposited = 0
     total_rewards_paid = 0
     total_slashed = 0
     total_withdrawn = 0
@@ -340,6 +346,7 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
                 errors.append("bond_deposit_for_unknown_reporter")
             elif amount is not None:
                 reporter["bond"] += amount
+                total_bond_deposited += amount
         elif event_type == "fee_split":
             fee_paid = _amount(event, "fee_paid_e8", errors)
             reporter_delta = _amount(event, "reporter_reward_pool_delta_e8", errors)
@@ -481,6 +488,11 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
                     reporter["bond"] -= amount
                     total_withdrawn += amount
 
+    bond_locked = sum(int(reporter["bond"]) for reporter in reporters.values())
+    bond_conservation_ok = total_bond_deposited == total_slashed + total_withdrawn + bond_locked
+    if not bond_conservation_ok:
+        errors.append("bond_conservation_mismatch")
+
     return ReporterEconomicsReplayResult(
         status="rejected" if errors else "accepted",
         errors=errors,
@@ -491,6 +503,9 @@ def verify_reporter_economics_replay(obj: Mapping[str, Any]) -> ReporterEconomic
         dispute_reward_pool_e8=dispute_reward_pool,
         treasury_balance_e8=treasury_balance,
         burn_balance_e8=burn_balance,
+        total_bond_deposited_e8=total_bond_deposited,
+        bond_locked_e8=bond_locked,
+        bond_conservation_ok=bond_conservation_ok,
         total_rewards_paid_e8=total_rewards_paid,
         total_slashed_e8=total_slashed,
         total_withdrawn_e8=total_withdrawn,

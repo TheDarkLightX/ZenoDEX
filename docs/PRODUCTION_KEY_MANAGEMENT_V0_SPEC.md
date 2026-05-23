@@ -445,7 +445,7 @@ lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean
 Checked surface:
 
 ```bash
-/home/trevormoc/.elan/toolchains/leanprover--lean4---v4.27.0/bin/lean \
+lean \
   lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean
 rg -n -w "sorry|admit|axiom" \
   lean-mathlib/Proofs/ZenoLedgerProductionKeyManagement.lean
