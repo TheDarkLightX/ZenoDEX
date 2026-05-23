@@ -6,9 +6,9 @@ from src.integration.zeno_ledger_scaling_v0 import (
     EXECUTION_JOURNAL_SCHEMA_V0,
     PROOF_METADATA_SCHEMA_V0,
     TRANSITION_RECEIPT_SCHEMA_V0,
-    build_proof_metadata_v0,
     build_execution_journal_from_header_v0,
     build_execution_journal_v0,
+    build_proof_metadata_v0,
     build_transition_receipt_v0,
     execution_journal_hash_v0,
     proof_metadata_hash_v0,
@@ -19,9 +19,13 @@ from src.integration.zeno_ledger_scaling_v0 import (
     validate_proof_metadata_v0,
     validate_transition_receipt_v0,
 )
-from src.integration.zeno_ledger_v0 import build_header_v0, compute_app_hash_v0, hash_v0
+from src.integration.zeno_ledger_v0 import (
+    build_header_v0,
+    canonical_header_hash_v0,
+    compute_app_hash_v0,
+    hash_v0,
+)
 from tools.zeno_ledger_make_transition_receipt import build_transition_receipt_report_v0
-
 
 ZERO_ROOT = "0x" + "00" * 32
 
@@ -261,6 +265,53 @@ def test_header_transition_receipt_binding_accepts_matching_header() -> None:
         proof_commitment=_root("proof"),
     )
     validate_header_transition_receipt_binding_v0(header, receipt)
+
+
+def test_header_transition_receipt_binding_rejects_each_header_commitment_mutation() -> None:
+    header_without_proof = _header()
+    journal = build_execution_journal_from_header_v0(
+        header=header_without_proof,
+        program_id="zenodex.scaling.replay.v0",
+        proof_policy_id="public-testnet-replay-v0",
+        feature_suite_hash=_root("features"),
+        token_registry_hash=_root("tokens"),
+        conflict_schedule_hash=_root("schedule"),
+        rejection_receipt_root=_root("reject"),
+    )
+    header = _header(proof_journal_hash=execution_journal_hash_v0(journal))
+    receipt = build_transition_receipt_v0(
+        execution_journal=build_execution_journal_from_header_v0(
+            header=header,
+            program_id="zenodex.scaling.replay.v0",
+            proof_policy_id="public-testnet-replay-v0",
+            feature_suite_hash=_root("features"),
+            token_registry_hash=_root("tokens"),
+            conflict_schedule_hash=_root("schedule"),
+            rejection_receipt_root=_root("reject"),
+        ),
+        verifier_kind="deterministic_replay_v0",
+        verifier_version="zeno-ledger-replay-0",
+        proof_commitment=_root("proof"),
+    )
+    validate_header_transition_receipt_binding_v0(header, receipt)
+
+    mutations = {
+        "time_ms": 1_778_730_000_001,
+        "prev_header_hash": _root("attacker-prev"),
+        "sequencer_set_hash": _root("attacker-sequencer"),
+        "ingress_root": _root("attacker-ingress"),
+        "tx_root": _root("attacker-tx"),
+        "evidence_root": _root("attacker-evidence"),
+        "config_digest": _root("attacker-config"),
+        "module_versions_digest": _root("attacker-modules"),
+        "signature_set_root": _root("attacker-signatures"),
+    }
+    for field_name, mutated_value in mutations.items():
+        mutated_header = dict(header)
+        mutated_header[field_name] = mutated_value
+        assert canonical_header_hash_v0(mutated_header) != canonical_header_hash_v0(header)
+        with pytest.raises(ValueError, match=field_name):
+            validate_header_transition_receipt_binding_v0(mutated_header, receipt)
 
 
 def test_header_transition_receipt_binding_rejects_mismatched_header() -> None:

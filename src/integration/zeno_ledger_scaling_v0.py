@@ -12,12 +12,10 @@ from typing import Any, Mapping
 
 from src.integration.zeno_ledger_v0 import (
     ROOT_NBYTES,
-    canonical_header_hash_v0,
     hash_v0,
     validate_header_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x
-
 
 EXECUTION_JOURNAL_SCHEMA_V0 = "zenodex/zeno_ledger/execution_journal/v0"
 PROOF_METADATA_SCHEMA_V0 = "zenodex/zeno_ledger/proof_metadata/v0"
@@ -84,6 +82,15 @@ def build_execution_journal_v0(
     data_availability_root: str,
     feature_suite_hash: str,
     token_registry_hash: str,
+    time_ms: int = 0,
+    prev_header_hash: str = ZERO_ROOT_V0,
+    sequencer_set_hash: str = ZERO_ROOT_V0,
+    ingress_root: str = ZERO_ROOT_V0,
+    tx_root: str = ZERO_ROOT_V0,
+    evidence_root: str = ZERO_ROOT_V0,
+    config_digest: str = ZERO_ROOT_V0,
+    module_versions_digest: str = ZERO_ROOT_V0,
+    signature_set_root: str = ZERO_ROOT_V0,
     conflict_schedule_hash: str = ZERO_ROOT_V0,
     rejection_receipt_root: str = ZERO_ROOT_V0,
 ) -> dict[str, Any]:
@@ -91,6 +98,7 @@ def build_execution_journal_v0(
         "schema": EXECUTION_JOURNAL_SCHEMA_V0,
         "chain_id": chain_id,
         "height": height,
+        "time_ms": time_ms,
         "program_id": program_id,
         "proof_policy_id": proof_policy_id,
         "pre_state_root": pre_state_root,
@@ -98,6 +106,14 @@ def build_execution_journal_v0(
         "post_state_root": post_state_root,
         "app_hash": app_hash,
         "data_availability_root": data_availability_root,
+        "prev_header_hash": prev_header_hash,
+        "sequencer_set_hash": sequencer_set_hash,
+        "ingress_root": ingress_root,
+        "tx_root": tx_root,
+        "evidence_root": evidence_root,
+        "config_digest": config_digest,
+        "module_versions_digest": module_versions_digest,
+        "signature_set_root": signature_set_root,
         "conflict_schedule_hash": conflict_schedule_hash,
         "feature_suite_hash": feature_suite_hash,
         "token_registry_hash": token_registry_hash,
@@ -113,6 +129,7 @@ def validate_execution_journal_v0(journal: Mapping[str, Any]) -> None:
         "schema",
         "chain_id",
         "height",
+        "time_ms",
         "program_id",
         "proof_policy_id",
         "pre_state_root",
@@ -120,6 +137,14 @@ def validate_execution_journal_v0(journal: Mapping[str, Any]) -> None:
         "post_state_root",
         "app_hash",
         "data_availability_root",
+        "prev_header_hash",
+        "sequencer_set_hash",
+        "ingress_root",
+        "tx_root",
+        "evidence_root",
+        "config_digest",
+        "module_versions_digest",
+        "signature_set_root",
         "conflict_schedule_hash",
         "feature_suite_hash",
         "token_registry_hash",
@@ -131,6 +156,7 @@ def validate_execution_journal_v0(journal: Mapping[str, Any]) -> None:
         raise ValueError("execution_journal schema mismatch")
     _require_str(obj.get("chain_id"), name="execution_journal.chain_id")
     _require_nonnegative_int(obj.get("height"), name="execution_journal.height")
+    _require_nonnegative_int(obj.get("time_ms"), name="execution_journal.time_ms")
     _require_id(obj.get("program_id"), name="execution_journal.program_id")
     _require_id(obj.get("proof_policy_id"), name="execution_journal.proof_policy_id")
     for key in (
@@ -139,6 +165,14 @@ def validate_execution_journal_v0(journal: Mapping[str, Any]) -> None:
         "post_state_root",
         "app_hash",
         "data_availability_root",
+        "prev_header_hash",
+        "sequencer_set_hash",
+        "ingress_root",
+        "tx_root",
+        "evidence_root",
+        "config_digest",
+        "module_versions_digest",
+        "signature_set_root",
         "conflict_schedule_hash",
         "feature_suite_hash",
         "token_registry_hash",
@@ -242,6 +276,15 @@ def build_execution_journal_from_header_v0(
         post_state_root=str(header["post_state_root"]),
         app_hash=str(header["app_hash"]),
         data_availability_root=str(header["data_availability_root"]),
+        time_ms=int(header["time_ms"]),
+        prev_header_hash=str(header["prev_header_hash"]),
+        sequencer_set_hash=str(header["sequencer_set_hash"]),
+        ingress_root=str(header["ingress_root"]),
+        tx_root=str(header["tx_root"]),
+        evidence_root=str(header["evidence_root"]),
+        config_digest=str(header["config_digest"]),
+        module_versions_digest=str(header["module_versions_digest"]),
+        signature_set_root=str(header["signature_set_root"]),
         conflict_schedule_hash=conflict_schedule_hash,
         feature_suite_hash=feature_suite_hash,
         token_registry_hash=token_registry_hash,
@@ -373,21 +416,27 @@ def validate_header_transition_receipt_binding_v0(
     validate_header_v0(dict(header))
     validate_transition_receipt_v0(receipt)
     journal = _require_mapping(receipt["execution_journal"], name="transition_receipt.execution_journal")
-    header_hash = canonical_header_hash_v0(dict(header))
 
     checks = {
         "chain_id": header["chain_id"],
         "height": header["height"],
+        "time_ms": header["time_ms"],
         "pre_state_root": header["pre_state_root"],
         "ordered_body_root": header["body_root"],
         "post_state_root": header["post_state_root"],
         "app_hash": header["app_hash"],
         "data_availability_root": header["data_availability_root"],
+        "prev_header_hash": header["prev_header_hash"],
+        "sequencer_set_hash": header["sequencer_set_hash"],
+        "ingress_root": header["ingress_root"],
+        "tx_root": header["tx_root"],
+        "evidence_root": header["evidence_root"],
+        "config_digest": header["config_digest"],
+        "module_versions_digest": header["module_versions_digest"],
+        "signature_set_root": header["signature_set_root"],
     }
     for key, expected_value in checks.items():
         if journal[key] != expected_value:
             raise ValueError(f"transition_receipt/header binding mismatch: {key}")
     if header["proof_journal_hash"] != receipt["execution_journal_hash"]:
         raise ValueError("transition_receipt/header binding mismatch: proof_journal_hash")
-    if header_hash == ZERO_ROOT_V0:
-        raise ValueError("header hash must not be zero")
