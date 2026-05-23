@@ -186,3 +186,21 @@ def test_confidential_extension_receipt_rejects_empty_extension_id() -> None:
     ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
     assert not ok
     assert err == "bad_extension_id"
+
+
+def test_confidential_extension_receipt_rejects_whitespace_only_request_id() -> None:
+    receipt = _valid_receipt()
+    receipt["body"]["request_id"] = " "
+    receipt["receipt_hash"] = confidential_extension_receipt_hash(receipt["body"])
+    ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
+    assert not ok
+    assert err == "bad_request_id"
+
+
+def test_confidential_extension_receipt_rejects_padded_request_id() -> None:
+    receipt = _valid_receipt()
+    receipt["body"]["request_id"] = "req-1 "
+    receipt["receipt_hash"] = confidential_extension_receipt_hash(receipt["body"])
+    ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
+    assert not ok
+    assert err == "bad_request_id"
