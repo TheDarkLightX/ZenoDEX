@@ -62,6 +62,40 @@ def test_zenoproof_production_governance_policy_accepts_sample_candidate() -> No
     assert "does_not_claim_live_proof_network" in result["not_claimed"]
 
 
+def test_zenoproof_production_governance_policy_rejects_policy_lowered_production_coverage() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    verifier_id = policy["verifier_policy"]["production_enabled_verifier_ids"][0]
+    policy["verifier_policy"]["production_enabled_verifier_ids"] = [verifier_id]
+    policy["verifier_policy"]["min_production_verifiers"] = 1
+    policy["verifier_policy"]["min_distinct_proof_kinds"] = 1
+    _refresh(policy)
+
+    result = _check(policy, registry)
+
+    assert result["status"] == "rejected"
+    assert result["production_enabled_verifier_count"] == 1
+    assert "min_production_verifiers_below_min:6" in result["errors"]
+    assert "min_distinct_proof_kinds_below_min:6" in result["errors"]
+    assert "production_verifier_count_below_required" in result["errors"]
+    assert "distinct_proof_kind_count_below_required" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_duplicate_production_verifiers() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    verifier_id = policy["verifier_policy"]["production_enabled_verifier_ids"][0]
+    policy["verifier_policy"]["production_enabled_verifier_ids"] = [verifier_id] * 6
+    policy["verifier_policy"]["min_distinct_proof_kinds"] = 1
+    _refresh(policy)
+
+    result = _check(policy, registry)
+
+    assert result["status"] == "rejected"
+    assert result["production_enabled_verifier_count"] == 1
+    assert f"production_verifier_duplicate:{verifier_id}" in result["errors"]
+    assert "distinct_proof_kind_count_below_required" in result["errors"]
+
 def test_zenoproof_production_governance_policy_rejects_static_verifier_not_quarantined() -> None:
     registry = _registry()
     policy = sample_policy(registry)
