@@ -169,6 +169,7 @@ def build_checkpoint_equivocation_slashing_evidence_v0(
             },
             "conflicting_header_hashes": header_hashes,
             "artifact_hashes": checkpoint_hashes,
+            "artifacts": [a, b],
             "recommended_action": "operator_review_then_slash_if_policy_allows",
         }
     )
@@ -288,6 +289,7 @@ def build_watcher_attestation_equivocation_slashing_evidence_v0(
             },
             "conflicting_header_hashes": header_hashes,
             "artifact_hashes": attestation_hashes,
+            "artifacts": [a, b],
             "recommended_action": "operator_review_then_slash_if_policy_allows",
         }
     )
