@@ -214,3 +214,42 @@ def test_oracle_devnet_replay_cli_reads_receipt_store(tmp_path: Path) -> None:
     assert receipt["duplicate_event_sequences"] == []
     assert receipt["event_sequence_errors"] == []
     assert receipt["malformed_events"] == []
+
+
+def test_submit_report_rejects_underbonded_reporter(tmp_path: Path) -> None:
+    sys.path.insert(0, str(REPO / "tools"))
+    from zenodex_oracle_feed_registry import sample_feed_registry
+    from zenodex_oracle_signed_report import G2Basic
+    from zenodex_oracle_devnet_service import OracleDevnetStore, register_feed, register_reporter, submit_report
+
+    store = OracleDevnetStore(tmp_path / "oracle-devnet")
+    registry = sample_feed_registry()
+    query_id = registry["feeds"][0]["query_spec"]["query_id"]
+    source_id = registry["feeds"][0]["source_diversity"]["sources"][0]["source_id"]
+    assert register_feed(store, registry)["status"] == "accepted"
+
+    reporter_id = "reporter.lowbond"
+    private_key = 77
+    reporter_pubkey = "0x" + G2Basic.SkToPk(private_key).hex()
+    registration = register_reporter(
+        store,
+        {
+            "reporter_id": reporter_id,
+            "reporter_pubkey": reporter_pubkey,
+            "required_bond": 100,
+            "bond_amount": 0,
+            "epoch": 1,
+        },
+    )
+    assert registration["status"] == "accepted"
+    submission = _single_report_submission(
+        private_key=private_key,
+        reporter_id=reporter_id,
+        query_id=query_id,
+        source_id=source_id,
+        value_e8=100_000_000,
+        observed_epoch=5,
+    )
+    receipt = submit_report(store, submission)
+    assert receipt["status"] == "rejected"
+    assert any("report_submitted_under_required_bond" in error for error in receipt["errors"])
