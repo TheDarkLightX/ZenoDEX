@@ -81,6 +81,25 @@ def test_trigger_execute_accepts_matching_typed_oracle_authorization() -> None:
     assert result["typed_ok"] is True
 
 
+def test_trigger_execute_rejects_typed_authorization_with_wrong_query_facts() -> None:
+    wrong_query = semantic_hash("test.wrong-trigger-query", {"trigger_id": "typed-gap"})
+    facts = TriggerExecutionFacts(
+        **{
+            **_facts().__dict__,
+            "query_id": wrong_query,
+        }
+    )
+    runtime = trigger_execute_runtime_facts(facts)
+    auth = _authorization_for(runtime)
+
+    result = check_trigger_execute_oracle_authorization(authorization_payload=auth, facts=facts)
+
+    assert result["typed_ok"] is False
+    assert result["opaque_ok"] is False
+    assert "trigger facts query mismatch" in result["typed_errors"]
+    assert result["runtime_action"]["query_id"] == _ORACLE_TRIGGER_REFERENCE_QUERY_ID
+
+
 def test_trigger_execute_rejects_wrong_oracle_value() -> None:
     facts = _facts()
     runtime = trigger_execute_runtime_facts(facts)
