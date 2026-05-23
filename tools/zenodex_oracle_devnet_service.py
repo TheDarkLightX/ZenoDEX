@@ -53,7 +53,6 @@ from zenodex_oracle_feed_registry import verify_feed_registry  # noqa: E402
 from zenodex_oracle_report_admission import (  # noqa: E402
     ADMISSION_SCHEMA,
     admission_content_hash,
-    sample_lifecycle_for_signed_submission,
     verify_report_admission,
 )
 from zenodex_oracle_reporter_lifecycle import (  # noqa: E402
@@ -348,6 +347,25 @@ def _split_single_report_submission(submission: Mapping[str, Any], report: Mappi
     return single
 
 
+def _reporter_lifecycle_for_submission(
+    registered: Mapping[str, Any],
+    single_submission: Mapping[str, Any],
+) -> dict[str, Any]:
+    lifecycle = dict(registered["lifecycle"])
+    events = list(lifecycle["events"])
+    report = dict(single_submission["reports"][0])
+    events.append(
+        {
+            "type": "submit_report",
+            "epoch": int(report["observed_epoch"]),
+            "report_id": str(report["report_id"]),
+            "query_id": str(report["query_id"]),
+            "value_hash": str(report["payload_hash"]),
+        }
+    )
+    return dict(lifecycle, events=events)
+
+
 def submit_report(store: OracleDevnetStore, submission: Mapping[str, Any]) -> dict[str, Any]:
     result = verify_signed_report_submission(submission)
     if result.status != "accepted" or result.submission_id is None:
@@ -388,13 +406,14 @@ def submit_report(store: OracleDevnetStore, submission: Mapping[str, Any]) -> di
         max_staleness_epochs = int(policy.get("freshness_window_epochs", 0))
         evidence_class = str(policy.get("evidence_floor", "O3"))
         single_submission = _split_single_report_submission(submission, report)
+        reporter_lifecycle = _reporter_lifecycle_for_submission(registered, single_submission)
         admission = {
             "schema": ADMISSION_SCHEMA,
             "current_epoch": current_epoch,
             "max_staleness_epochs": max_staleness_epochs,
             "evidence_class": evidence_class,
             "signed_submission": single_submission,
-            "reporter_lifecycle": sample_lifecycle_for_signed_submission(single_submission),
+            "reporter_lifecycle": reporter_lifecycle,
             "source_diversity": dict(source_diversity),
         }
         admission["admission_id"] = admission_content_hash(admission)
