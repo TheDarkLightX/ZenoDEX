@@ -151,6 +151,38 @@ def test_feed_registry_rejects_source_diversity_policy_failure(tmp_path: Path) -
     assert "source_diversity:not_enough_distinct_operators" in result["errors"]
 
 
+
+
+def test_feed_registry_rejects_weak_source_diversity_policy_even_when_self_consistent(tmp_path: Path) -> None:
+    registry = sample_feed_registry()
+    feed = registry["feeds"][0]
+    for source in feed["source_diversity"]["sources"]:
+        source["operator_id"] = "operator.shared"
+        source["venue_id"] = "venue.shared"
+        source["data_family_id"] = "data_family.shared"
+        source["transport_id"] = "transport.shared"
+        source["jurisdiction_id"] = "jurisdiction.shared"
+
+    weak_policy = {
+        "min_operators": 1,
+        "min_venues": 1,
+        "min_data_families": 1,
+        "min_transports": 1,
+        "min_jurisdictions": 1,
+        "max_same_operator": 3,
+        "max_same_venue": 3,
+        "max_same_data_family": 3,
+        "max_same_transport": 3,
+        "max_same_jurisdiction": 3,
+    }
+    feed["source_diversity"].update(weak_policy)
+
+    _refresh_all(registry)
+    code, result = _run_verify(tmp_path, registry)
+
+    assert code == 2
+    assert "source_diversity_below_feed_min_distinct_operators" in result["errors"]
+    assert "source_diversity_above_feed_max_same_operator" in result["errors"]
 def test_feed_registry_rejects_duplicate_feed_id(tmp_path: Path) -> None:
     registry = sample_feed_registry()
     registry["feeds"].append(copy.deepcopy(registry["feeds"][0]))
