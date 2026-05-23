@@ -8,6 +8,8 @@ import json
 import shutil
 import subprocess
 import sys
+import os
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -149,10 +151,27 @@ def _summarize_result(obj: dict[str, Any] | None) -> dict[str, Any]:
     return summary
 
 
+def _ensure_private_new_workdir(root: Path) -> None:
+    """Create a user-requested dry-run workdir as a new private directory."""
+    try:
+        root.mkdir(parents=True, exist_ok=False, mode=0o700)
+    except FileExistsError as exc:
+        raise SystemExit(
+            f"refusing to use existing dry-run workdir {root}; provide a new path"
+        ) from exc
+
+    root_stat = root.stat()
+    mode = stat.S_IMODE(root_stat.st_mode)
+    if root_stat.st_uid != os.getuid():
+        raise SystemExit(f"dry-run workdir must be owned by current user: {root}")
+    if mode & 0o077:
+        raise SystemExit(f"dry-run workdir must not be group/world accessible: {root}")
+
+
 def _dry_run_root(workdir: str | None) -> tuple[Path, tempfile.TemporaryDirectory[str] | None]:
     if workdir:
         root = Path(workdir)
-        root.mkdir(parents=True, exist_ok=True)
+        _ensure_private_new_workdir(root)
         return root, None
     temp = tempfile.TemporaryDirectory(prefix="zeno-oracle-dry-run-")
     return Path(temp.name), temp
