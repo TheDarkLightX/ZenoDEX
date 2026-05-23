@@ -202,6 +202,24 @@ def test_bonded_slashing_rejects_wrong_subject_kind() -> None:
         apply_bonded_slashing_v0(evidence=evidence, bond_registry=registry, policy=_policy_for(evidence))
 
 
+
+
+def test_bonded_slashing_rejects_noncanonical_artifacts_even_with_valid_hash_binding() -> None:
+    evidence = _checkpoint_evidence()
+    forged = dict(evidence)
+    forged["artifacts"] = [
+        _header(height=7, body_label="forged-a"),
+        _header(height=7, body_label="forged-b"),
+    ]
+    forged["evidence_hash"] = hash_v0(
+        "zeno_ledger_slashing_evidence_v0",
+        {key: value for key, value in forged.items() if key != "evidence_hash"},
+    )
+    registry = _registry_for(forged, subject_kind="validator_set")
+
+    with pytest.raises(ValueError):
+        apply_bonded_slashing_v0(evidence=forged, bond_registry=registry, policy=_policy_for(forged))
+
 def test_bonded_slashing_accepts_watcher_equivocation() -> None:
     evidence = _watcher_evidence()
     registry = _registry_for(evidence, subject_kind="watcher_profile")
