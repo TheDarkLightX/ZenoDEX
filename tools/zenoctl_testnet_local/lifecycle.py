@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -116,13 +117,7 @@ def cmd_up(opts: UpOptions) -> int:
     existing_manifest = _load_manifest_if_present(paths.manifest_path)
     if existing_manifest is not None:
         if not opts.force:
-            _log(
-                "preflight",
-                f"existing manifest detected at {paths.manifest_path} "
-                f"(compose_project={existing_manifest.get('compose_project')}). "
-                "Re-run with --force to recreate, or `down` to stop the running stack.",
-            )
-            return 2
+            return _cmd_up_existing(opts=opts, paths=paths, manifest=existing_manifest)
         _log("preflight", f"force reset requested for {paths.out_dir}")
         _reset_stack(paths=paths, engine_name=opts.engine, manifest=existing_manifest)
 
@@ -253,10 +248,8 @@ def cmd_up(opts: UpOptions) -> int:
         )
         _write_json(paths.reports_dir / "api_seed_report.json", seed_report)
 
-        readiness = _collect_lane_readiness(ui_base=ui_base)
+        readiness = _wait_for_lane_readiness(ui_base=ui_base, timeout_s=opts.health_timeout_s)
         _write_json(paths.reports_dir / "readiness_report.json", readiness)
-        if readiness.get("ok") is not True:
-            raise RuntimeError("lane readiness checks failed")
     except Exception as exc:
         _log("failure", f"{type(exc).__name__}: {exc}")
         _tail_service_logs(engine=engine, project=project, env=env)
@@ -270,6 +263,57 @@ def cmd_up(opts: UpOptions) -> int:
         return 1
 
     _log("done", f"stack up: http://127.0.0.1:{opts.ui_port}")
+    sys.stderr.write(_summary_text(manifest))
+    return 0
+
+
+def _cmd_up_existing(*, opts: UpOptions, paths: mf.ManifestPaths, manifest: Mapping[str, Any]) -> int:
+    """Restart an existing local-testnet stack from its saved artifacts.
+
+    The manifest intentionally stores token hashes only. The only place raw
+    local bearer tokens persist is the rendered nginx config inside the
+    operator-selected out-dir. For restart, recover those tokens from the
+    rendered config, verify the writer token hash against the manifest, and
+    rebuild the compose environment without printing secrets.
+    """
+    engine = cm.detect_engine(opts.engine)
+    manifest_port = _manifest_ui_port(manifest)
+    if opts.ui_port != DEFAULT_UI_PORT and opts.ui_port != manifest_port:
+        _log(
+            "preflight",
+            f"existing manifest uses ui_port={manifest_port}; use --force to recreate on {opts.ui_port}",
+        )
+        return 2
+
+    project = str(manifest["compose_project"])
+    env = _runtime_env_for_existing_manifest(manifest=manifest, paths=paths)
+    _log("preflight", f"existing manifest detected; restarting compose project={project}")
+    cm.compose_up(
+        engine=engine,
+        project_name=project,
+        compose_files=[COMPOSE_FILE],
+        env=env,
+        extra_args=["--build"],
+    )
+
+    ui_base = str((manifest.get("service_urls") or {}).get("ui") or f"http://127.0.0.1:{manifest_port}")
+    try:
+        _wait_for_base_services(ui_base=ui_base, timeout_s=opts.health_timeout_s)
+        readiness = _wait_for_lane_readiness(ui_base=ui_base, timeout_s=opts.health_timeout_s)
+        _write_json(paths.reports_dir / "readiness_report.json", readiness)
+    except Exception as exc:
+        _log("failure", f"{type(exc).__name__}: {exc}")
+        _tail_service_logs(engine=engine, project=project, env=env)
+        cm.compose_down(
+            engine=engine,
+            project_name=project,
+            compose_files=[COMPOSE_FILE],
+            remove_volumes=False,
+            env=env,
+        )
+        return 1
+
+    _log("done", f"stack up: {ui_base}")
     sys.stderr.write(_summary_text(manifest))
     return 0
 
@@ -427,6 +471,7 @@ def cmd_reset(opts: ResetOptions) -> int:
 
 
 _LIFECYCLE_PLACEHOLDER = "unused-for-lifecycle-op"
+_BEARER_HEADER_RE = re.compile(r'proxy_set_header\s+Authorization\s+"Bearer\s+([^"]+)";')
 
 # Directories that would be catastrophic to rmtree. We don't try to limit
 # the out-dir to /tmp or ~/ — legitimate operators may use /var/lib or
@@ -552,6 +597,82 @@ def _lifecycle_env_for_compose(manifest: dict[str, Any], paths: mf.ManifestPaths
         "TAU_DEX_ORACLE_PUBKEY": _LIFECYCLE_PLACEHOLDER,
         "TAU_DEX_ZUSD_ORACLE_PUBKEY": _LIFECYCLE_PLACEHOLDER,
     }
+
+
+def _runtime_env_for_existing_manifest(*, manifest: Mapping[str, Any], paths: mf.ManifestPaths) -> dict[str, str]:
+    writer_token, stdlib_token = _recover_tokens_from_rendered_nginx(manifest=manifest, paths=paths)
+    expected_writer_hash = manifest.get("writer_token_sha256")
+    actual_writer_hash = mf.writer_token_sha256(writer_token)
+    if expected_writer_hash != actual_writer_hash:
+        raise ValueError("rendered nginx writer token does not match manifest writer_token_sha256")
+
+    fixture_paths = manifest.get("fixture_paths") if isinstance(manifest.get("fixture_paths"), Mapping) else {}
+    key_bundle_path = Path(str(fixture_paths.get("key_bundle") or (paths.fixtures_dir / "keys.json")))
+    key_bundle = _load_json_file(key_bundle_path, label="key bundle")
+    roles = _role_materials(key_bundle)
+
+    return _compose_env(
+        paths=paths,
+        ui_port=_manifest_ui_port(manifest),
+        chain_id=str(manifest["chain_id"]),
+        network_id=str(manifest["network_id"]),
+        writer_token=writer_token,
+        stdlib_token=stdlib_token,
+        roles=roles,
+    )
+
+
+def _recover_tokens_from_rendered_nginx(*, manifest: Mapping[str, Any], paths: mf.ManifestPaths) -> tuple[str, str]:
+    rendered_paths = manifest.get("rendered_paths") if isinstance(manifest.get("rendered_paths"), Mapping) else {}
+    nginx_path = Path(str(rendered_paths.get("nginx_conf") or paths.rendered_nginx))
+    if not nginx_path.is_file():
+        raise FileNotFoundError(f"rendered nginx config missing: {nginx_path}")
+    rendered = nginx_path.read_text(encoding="utf-8")
+
+    writer_block = _extract_nginx_location_block(rendered, "location = /api/pools")
+    stdlib_block = _extract_nginx_location_block(rendered, "location = /api/health")
+    writer_token = _extract_bearer_token(writer_block, label="writer")
+    stdlib_token = _extract_bearer_token(stdlib_block, label="stdlib")
+    return writer_token, stdlib_token
+
+
+def _extract_nginx_location_block(rendered: str, marker: str) -> str:
+    marker_idx = rendered.find(marker)
+    if marker_idx < 0:
+        raise ValueError(f"rendered nginx config missing {marker!r} location block")
+    brace_idx = rendered.find("{", marker_idx)
+    if brace_idx < 0:
+        raise ValueError(f"rendered nginx config has malformed {marker!r} location block")
+    depth = 0
+    for idx in range(brace_idx, len(rendered)):
+        char = rendered[idx]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return rendered[marker_idx:idx + 1]
+    raise ValueError(f"rendered nginx config has unterminated {marker!r} location block")
+
+
+def _extract_bearer_token(block: str, *, label: str) -> str:
+    match = _BEARER_HEADER_RE.search(block)
+    if not match:
+        raise ValueError(f"rendered nginx {label} bearer token missing")
+    token = match.group(1).strip()
+    if not token:
+        raise ValueError(f"rendered nginx {label} bearer token empty")
+    return token
+
+
+def _manifest_ui_port(manifest: Mapping[str, Any]) -> int:
+    ports = manifest.get("ports")
+    if not isinstance(ports, Mapping):
+        raise ValueError("manifest ports missing")
+    port = ports.get("ui")
+    if not isinstance(port, int) or not (1 <= port <= 65535):
+        raise ValueError(f"manifest ui port invalid: {port!r}")
+    return port
 
 
 def _resolve_fixture_seed(opts: UpOptions) -> bytes:
@@ -964,6 +1085,20 @@ def _wait_for_base_services(*, ui_base: str, timeout_s: float) -> None:
     raise TimeoutError(f"base services did not become ready: {last_error}")
 
 
+def _wait_for_lane_readiness(*, ui_base: str, timeout_s: float) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_s
+    last_report: dict[str, Any] = {"ok": False, "checks": {}, "lanes": {}}
+    while time.monotonic() < deadline:
+        last_report = _collect_lane_readiness(ui_base=ui_base)
+        if last_report.get("ok") is True:
+            return last_report
+        time.sleep(1.0)
+    raise TimeoutError(
+        "lane readiness checks did not pass: "
+        + json.dumps(last_report.get("checks") or {}, sort_keys=True)
+    )
+
+
 def _probe_base_services(*, ui_base: str) -> dict[str, Any]:
     ui_health = _safe_get_json(f"{ui_base}/health")
     api_health = _safe_get_json(f"{ui_base}/api/health")
@@ -1243,6 +1378,23 @@ def _browser_smoke_cases(
             "snippets": ("zUSD Monetary Vault", "preflight accepted"),
         },
         {
+            "name": "zusd_quick_mint_ui",
+            "url": url(
+                {
+                    "tab": "zusd",
+                    "demo": "false",
+                    "zenodexUiSmokeZusdQuickMint": "1",
+                    "ownerPubkey": alice,
+                    "signerPrivkey": alice_priv,
+                    "zusdCollateral": "0",
+                    "zusdMint": "1",
+                    "zusdDeadline": str(deadline),
+                    "zusdAcceptProtocolResponse": "1",
+                }
+            ),
+            "snippets": ("Quick Mint zUSD", "mint request completed"),
+        },
+        {
             "name": "perps_wallet_ui",
             "url": url(
                 {
@@ -1291,7 +1443,7 @@ def _browser_smoke_cases(
                     "zenodexUiSmokeConfidentialVerify": "1",
                 }
             ),
-            "snippets": ("Beta Status", "runtime receipt ready"),
+            "snippets": ("Confidential trading", "Runtime receipt"),
         },
     ]
 

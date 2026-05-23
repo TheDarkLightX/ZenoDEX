@@ -10,11 +10,28 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--space-xl);
+    gap: var(--space-lg);
 }
 
 .pool-header h2 {
     font-size: var(--font-size-2xl);
     font-weight: 600;
+}
+
+.pool-source-line {
+    margin-top: var(--space-xs);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.pool-honesty-banner {
+    margin-bottom: var(--space-lg);
+    padding: var(--space-md);
+    border: 1px solid rgba(255, 184, 107, 0.35);
+    border-radius: var(--radius-md);
+    background: rgba(255, 184, 107, 0.08);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
 }
 
 .pool-stats {
@@ -23,6 +40,7 @@
 
 .pool-table {
     overflow: hidden;
+    overflow-x: auto;
 }
 
 .pool-table table {
@@ -43,14 +61,24 @@
 .pool-table td {
     padding: var(--space-md);
     border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
 }
 
 .pool-table tr:last-child td {
     border-bottom: none;
 }
 
+.pool-table tbody tr {
+    transition: all var(--transition-fast);
+}
+
 .pool-table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.03);
+    transform: translateX(4px);
+}
+
+.pool-table tbody tr:hover td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent-cyan);
 }
 
 .pool-pair {
@@ -73,7 +101,15 @@
 }
 
 .apy-cell {
-    color: var(--accent-green);
+    background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
+}
+
+.pool-na-cell {
+    color: var(--text-muted);
     font-weight: 600;
 }
 
@@ -84,6 +120,19 @@
 .pool-actions {
     display: flex;
     gap: var(--space-sm);
+    justify-content: flex-end;
+    min-width: 96px;
+}
+
+.pool-action-unavailable {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+}
+
+.pool-empty-cell {
+    color: var(--text-muted);
+    text-align: center;
 }
 
 .pool-footer {

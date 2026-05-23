@@ -1,21 +1,27 @@
 import { apiFetchJson } from './api.js';
 
+// Offline fallback for when /api/pools is unreachable. The live token set
+// and pools come from the local testnet via /api/pools.
+// Canonical local testnet tokens: ZDEX, zUSD, TASSET0, TASSET1, TZENO.
 export const FALLBACK_SWAP_POOLS = {
-    'AGRS-USDC': { token0: 'AGRS', token1: 'USDC', asset0: 'AGRS', asset1: 'USDC', reserve0: 1_000_000, reserve1: 2_500_000, feeBps: 30 },
-    'AGRS-WETH': { token0: 'AGRS', token1: 'WETH', asset0: 'AGRS', asset1: 'WETH', reserve0: 1_000_000, reserve1: 500, feeBps: 25 },
-    'USDC-WETH': { token0: 'USDC', token1: 'WETH', asset0: 'USDC', asset1: 'WETH', reserve0: 2_500_000, reserve1: 1_000, feeBps: 35 },
+    'TASSET0-ZDEX': { token0: 'TASSET0', token1: 'ZDEX', asset0: 'TASSET0', asset1: 'ZDEX', reserve0: 1_000_000, reserve1: 500_000, feeBps: 30 },
+    'TASSET0-TASSET1': { token0: 'TASSET0', token1: 'TASSET1', asset0: 'TASSET0', asset1: 'TASSET1', reserve0: 1_000_000, reserve1: 1_000_000, feeBps: 30 },
+    'TASSET1-TZENO': { token0: 'TASSET1', token1: 'TZENO', asset0: 'TASSET1', asset1: 'TZENO', reserve0: 1_000_000, reserve1: 1_000_000, feeBps: 30 },
 };
 
 export const FALLBACK_SWAP_TOKENS = [
-    { symbol: 'AGRS', name: 'Agoras', icon: '✦', decimals: 18 },
-    { symbol: 'USDC', name: 'USD Coin', icon: '💵', decimals: 6 },
-    { symbol: 'WETH', name: 'Wrapped ETH', icon: '⟠', decimals: 18 },
+    { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡', decimals: 18 },
+    { symbol: 'zUSD', name: 'ZenoUSD', icon: '◈', decimals: 18 },
+    { symbol: 'tAGRS', name: 'Test Agoras', icon: '✦', decimals: 18 },
+    { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀', decimals: 18 },
+    { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁', decimals: 18 },
+    { symbol: 'TZENO', name: 'Test Zeno', icon: 'TZ', decimals: 18 },
 ];
 
 export const FALLBACK_SWAP_BALANCES = {
-    AGRS: 1234.56,
-    USDC: 5000.0,
-    WETH: 2.5,
+    ZDEX: 1_000_000,
+    zUSD: 0,
+    tAGRS: 1_000_000,
     TASSET0: 1_000_000,
     TASSET1: 1_000_000,
     TZENO: 1_000_000,
@@ -169,7 +175,7 @@ function normalizePoolsPayload(payload) {
     }
 
     // Map payload form:
-    // { "AGRS-USDC": { reserve0, reserve1, feeBps } }
+    // { "ZDEX-TASSET0": { reserve0, reserve1, feeBps } }
     const out = {};
     for (const [pair, value] of Object.entries(payload)) {
         if (!value || typeof value !== 'object') continue;
@@ -219,17 +225,17 @@ export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
 }
 
 export function resolveWalletTokenBalance(wallet, symbol) {
-    if (!wallet) return 0;
-    const sym = String(symbol || '').toUpperCase();
+    if (!wallet) return null;
     const balances = wallet?.balance || {};
-    if (sym === 'USDC') {
-        const v = Number(balances.USDC ?? balances.USD ?? FALLBACK_SWAP_BALANCES.USDC);
-        return Number.isFinite(v) ? v : 0;
+    const raw = String(symbol || '');
+    // Try exact, upper, and lower-case keys so symbols like `zUSD` resolve
+    // whether wallets store them mixed-case or normalized.
+    const candidates = [raw, raw.toUpperCase(), raw.toLowerCase()];
+    for (const key of candidates) {
+        if (key in balances) {
+            const v = Number(balances[key]);
+            if (Number.isFinite(v)) return v;
+        }
     }
-    if (sym === 'WETH') {
-        const v = Number(balances.WETH ?? balances.ETH ?? FALLBACK_SWAP_BALANCES.WETH);
-        return Number.isFinite(v) ? v : 0;
-    }
-    const v = Number(balances[sym] ?? FALLBACK_SWAP_BALANCES[sym] ?? 0);
-    return Number.isFinite(v) ? v : 0;
+    return null;
 }

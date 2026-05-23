@@ -894,6 +894,159 @@ def test_lifecycle_env_does_not_leak_real_tokens(tmp_path: Path) -> None:
     assert env["ZENO_LEDGER_WRITER_TOKEN"] != "writer-secret-abc"
 
 
+def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: Path) -> None:
+    """Restarting an existing stack must recover the live compose env from
+    saved local artifacts. The manifest stores only the writer-token hash."""
+    from tools.zenoctl_testnet_local import fixtures as fx
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id="zeno-ledger-localtest-v0",
+        network_id="zeno-ledger-localtest-v0",
+        created_at_ms=1000,
+    )
+    writer_token = "writer-secret-abc"
+    stdlib_token = "stdlib-secret-xyz"
+    rendered = ng.render_nginx_conf(
+        ng.NginxRenderInputs(
+            writer_upstream="zeno-ledger-writer:8787",
+            stdlib_upstream="zenodex-api:8000",
+            oracle_upstream="zenodex-oracle:9100",
+            writer_token=writer_token,
+            stdlib_token=stdlib_token,
+        )
+    )
+    ng.write_rendered_conf(rendered, out_path=paths.rendered_nginx)
+
+    body = mf.build_manifest(
+        **{
+            **_valid_manifest_kwargs(tmp_path),
+            "fixture_paths": bundle.as_manifest_paths(),
+            "writer_token": writer_token,
+        }
+    )
+    env = lc._runtime_env_for_existing_manifest(manifest=body, paths=paths)
+
+    assert env["ZENO_LEDGER_WRITER_TOKEN"] == writer_token
+    assert env["DEMO_API_TOKEN"] == stdlib_token
+    assert env["UI_PORT"] == "18080"
+    assert env["CHAIN_ID"] == "zeno-ledger-localtest-v0"
+    assert env["TAU_DEX_TOKEN_OPERATOR_PUBKEY"]
+    assert env["TAU_DEX_ORACLE_PUBKEY"]
+    assert env["TAU_DEX_ZUSD_ORACLE_PUBKEY"]
+
+
+def test_runtime_env_for_existing_manifest_rejects_writer_hash_mismatch(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import fixtures as fx
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id="zeno-ledger-localtest-v0",
+        network_id="zeno-ledger-localtest-v0",
+        created_at_ms=1000,
+    )
+    rendered = ng.render_nginx_conf(
+        ng.NginxRenderInputs(
+            writer_upstream="zeno-ledger-writer:8787",
+            stdlib_upstream="zenodex-api:8000",
+            oracle_upstream="zenodex-oracle:9100",
+            writer_token="rendered-writer-token",
+            stdlib_token="stdlib-secret-xyz",
+        )
+    )
+    ng.write_rendered_conf(rendered, out_path=paths.rendered_nginx)
+
+    body = mf.build_manifest(
+        **{
+            **_valid_manifest_kwargs(tmp_path),
+            "fixture_paths": bundle.as_manifest_paths(),
+            "writer_token": "different-manifest-token",
+        }
+    )
+    with pytest.raises(ValueError, match="writer_token_sha256"):
+        lc._runtime_env_for_existing_manifest(manifest=body, paths=paths)
+
+
+def test_cmd_up_restarts_existing_manifest_without_force(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A stopped stack with a valid manifest should be restartable without
+    destroying fixtures or forcing a fresh network."""
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    mf.save_manifest(body, paths.manifest_path)
+
+    calls: list[str] = []
+
+    class Engine:
+        binary = "docker"
+
+    def fake_compose_up(**kwargs):
+        calls.append("compose_up")
+        assert kwargs["project_name"] == body["compose_project"]
+        assert kwargs["env"]["ZENO_LEDGER_WRITER_TOKEN"] == "writer-secret-abc"
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda engine: Engine())
+    monkeypatch.setattr(
+        lc,
+        "_runtime_env_for_existing_manifest",
+        lambda *, manifest, paths: {
+            "ZENO_LEDGER_WRITER_TOKEN": "writer-secret-abc",
+            "DEMO_API_TOKEN": "stdlib-secret-xyz",
+            "UI_PORT": "18080",
+            "CHAIN_ID": "zeno-ledger-localtest-v0",
+            "NETWORK_ID": "zeno-ledger-localtest-v0",
+            "RENDERED_NGINX_CONF_PATH": str(paths.rendered_nginx),
+            "RENDERED_RUNTIME_CONFIG_PATH": str(paths.rendered_runtime_config),
+            "FIXTURES_DIR": str(paths.fixtures_dir),
+            "ORACLE_HOME_DIR": str(paths.oracle_home_dir),
+            "HOST_UID": "1000",
+            "HOST_GID": "1000",
+            "TAU_DEX_TOKEN_OPERATOR_PUBKEY": "operator",
+            "TAU_DEX_ORACLE_PUBKEY": "oracle",
+            "TAU_DEX_ZUSD_ORACLE_PUBKEY": "zusd",
+        },
+    )
+    monkeypatch.setattr(lc.cm, "compose_up", fake_compose_up)
+    monkeypatch.setattr(lc, "_wait_for_base_services", lambda **kwargs: None)
+    monkeypatch.setattr(lc, "_collect_lane_readiness", lambda **kwargs: {"ok": True, "lanes": {}})
+    monkeypatch.setattr(lc, "_summary_text", lambda manifest: "")
+
+    rc = lc.cmd_up(lc.UpOptions(out_dir=tmp_path))
+    assert rc == 0
+    assert calls == ["compose_up"]
+
+
+def test_wait_for_lane_readiness_retries_until_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    reports = [
+        {"ok": False, "checks": {"spot": False}, "lanes": {}},
+        {"ok": True, "checks": {"spot": True}, "lanes": {}},
+    ]
+    sleeps: list[float] = []
+
+    monkeypatch.setattr(lc, "_collect_lane_readiness", lambda *, ui_base: reports.pop(0))
+    monkeypatch.setattr(lc.time, "sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(lc.time, "monotonic", lambda: 0.0)
+
+    result = lc._wait_for_lane_readiness(ui_base="http://127.0.0.1:18080", timeout_s=10)
+    assert result["ok"] is True
+    assert sleeps == [1.0]
+
+
 def test_compose_overlay_zenodex_nginx_has_build_block() -> None:
     """zenodex:local must be buildable from the local-testnet overlay alone
     (so `compose up` doesn't fail with `image not found` on a fresh host)."""
