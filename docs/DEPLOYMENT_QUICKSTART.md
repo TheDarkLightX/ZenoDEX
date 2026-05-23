@@ -255,7 +255,64 @@ python3 tools/zenoctl.py testnet up --profile docker-two-node --dry-run
 This uses `docker-compose.two-node.yml` and the hash-locked
 `Dockerfile.operator-tools` image.
 
-## 7. Gate Split
+## 7. Join A Published Public Testnet
+
+Once an operator publishes `public_network_config.json` at a stable HTTPS URL,
+join through `zenoctl`:
+
+```bash
+python3 tools/zenoctl.py testnet join \
+  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
+  --node-id operator-laptop \
+  --serve
+```
+
+This is a thin wrapper over `tools/zeno_ledger_node.py join-network`. It:
+
+- downloads the published network config;
+- syncs and verifies the indexed bundle from the advertised mirror;
+- writes the local join artifacts under the chosen bundle/data directories;
+- optionally serves local node status when `--serve` is set.
+
+Safe defaults:
+
+- `--bundle-root ~/.zenodex/testnet/bundle`
+- `--data-dir ~/.zenodex/testnet/node`
+- `--host 127.0.0.1`
+
+Useful overrides:
+
+```bash
+python3 tools/zenoctl.py testnet join \
+  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
+  --node-id operator-server-1 \
+  --bundle-root /var/lib/zenodex/testnet/bundle \
+  --data-dir /var/lib/zenodex/testnet/node \
+  --host 0.0.0.0 \
+  --port 8788 \
+  --poll-seconds 5 \
+  --serve
+```
+
+Preview the delegated command:
+
+```bash
+python3 tools/zenoctl.py testnet join \
+  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
+  --node-id operator-laptop \
+  --dry-run
+```
+
+This command does not create the hosted testnet by itself. The shared testnet
+still depends on external operator infrastructure:
+
+- seed/writer nodes;
+- a published bundle mirror plus `public_network_config.json`;
+- public read endpoints for the UI;
+- faucet and test-collateral operations;
+- monitoring and status pages.
+
+## 8. Gate Split
 
 Use the narrow gate while editing:
 
@@ -293,7 +350,7 @@ Use the release wrapper for the full release gate:
 bash tools/gate_release_full.sh
 ```
 
-## 8. Light Client Checkpoint Verification
+## 9. Light Client Checkpoint Verification
 
 Light clients should verify a checkpoint range plus an external finality quorum
 instead of running a full node:

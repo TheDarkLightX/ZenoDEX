@@ -5,6 +5,8 @@ import json
 import tarfile
 from pathlib import Path
 
+import pytest
+
 from tools import zenoctl
 from tools.check_deployment_profiles import validate_deployment_profile, validate_profile_dir
 from tools.check_docker_hashlocked_install import evaluate_dockerfile
@@ -243,6 +245,48 @@ def test_zenoctl_testnet_demo_smoke_dry_run(capfd) -> None:
     assert rc == 0
     output = capfd.readouterr().out
     assert "tools/zenoctl.py testnet up --profile docker-two-node" in output
+
+
+def test_zenoctl_testnet_join_dry_run(capfd) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "join",
+            "--config-url",
+            "https://example.test/public_network_config.json",
+            "--node-id",
+            "operator-laptop",
+            "--bundle-root",
+            "/tmp/zenodex-bundle",
+            "--data-dir",
+            "/tmp/zenodex-node",
+            "--serve",
+            "--port",
+            "8788",
+            "--poll-seconds",
+            "5",
+            "--dry-run",
+        ]
+    )
+
+    assert rc == 0
+    output = capfd.readouterr().out
+    assert "tools/zeno_ledger_node.py join-network" in output
+    assert "--config-url https://example.test/public_network_config.json" in output
+    assert "--node-id operator-laptop" in output
+    assert "--bundle-root /tmp/zenodex-bundle" in output
+    assert "--data-dir /tmp/zenodex-node" in output
+    assert "--host 127.0.0.1" in output
+    assert "--serve" in output
+
+
+def test_zenoctl_testnet_help_lists_join(capfd) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        zenoctl.main(["testnet", "--help"])
+
+    assert excinfo.value.code == 0
+    output = capfd.readouterr().out
+    assert "{init,up,demo,join,evidence,verify-evidence}" in output
 
 
 def test_multidocker_plan_uses_hashes_for_all_nodes() -> None:
