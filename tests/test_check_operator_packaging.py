@@ -16,6 +16,7 @@ def test_operator_packaging_check_passes_current_checkout() -> None:
     assert report["schema"] == "zenodex.operator_packaging_readiness.v0"
     assert report["ok"] is True
     assert "light-client-checkpoint-verifier" in report["supported_operator_paths"]
+    assert "single-command-local-testnet" in report["supported_operator_paths"]
 
 
 def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> None:
@@ -28,10 +29,14 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "tools/build_operator_release_bundle.py",
         "Dockerfile.hashlocked",
         "Dockerfile.operator-tools",
+        ".docker/Dockerfile.tau-local",
+        ".docker/nginx.local-testnet.conf.template",
+        "docker-compose.local-testnet.yml",
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
         ".github/workflows/release-integrity.yml",
         "docs/DEPLOYMENT_QUICKSTART.md",
+        "docs/LOCAL_TESTNET_QUICKSTART.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
     ):
         src = ROOT / relpath
@@ -65,3 +70,4 @@ def test_posix_installer_dry_run() -> None:
     assert proc.returncode == 0
     assert "would install /tmp/zenodex-bin/zenoctl" in proc.stdout
     assert "would install /tmp/zenodex-bin/zenodex-node" in proc.stdout
+    assert "would install /tmp/zenodex-bin/zenodex-local-testnet" in proc.stdout

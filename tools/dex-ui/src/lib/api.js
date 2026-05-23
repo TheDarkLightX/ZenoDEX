@@ -55,9 +55,9 @@ function normalizeApiBase(raw) {
 }
 
 function getZenoOracleApiBase() {
-  const runtimeBase = normalizeApiBase(getRuntimeConfig().zenoOracleApiBase);
-  if (runtimeBase) {
-    return runtimeBase;
+  const runtimeConfig = getRuntimeConfig();
+  if (Object.prototype.hasOwnProperty.call(runtimeConfig, 'zenoOracleApiBase')) {
+    return normalizeApiBase(runtimeConfig.zenoOracleApiBase);
   }
   const v = normalizeApiBase(import.meta?.env?.VITE_ZENO_ORACLE_API_URL ?? '');
   return v || DEFAULT_ZENO_ORACLE_API_BASE;

@@ -29,7 +29,6 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.pools import compute_pool_id
-from tools.zeno_ledger_chaos_harness import run_chaos_harness
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_ASSET0,
@@ -86,6 +85,15 @@ def _require_http_base_url(value: str, *, name: str) -> str:
 
 def _join_endpoint(base_url: str, endpoint: str) -> str:
     return urljoin(_require_http_base_url(base_url, name="base_url") + "/", endpoint.lstrip("/"))
+
+
+def _run_chaos_harness_v0() -> dict[str, Any]:
+    from tools.zeno_ledger_chaos_harness import run_chaos_harness
+
+    result = run_chaos_harness()
+    if isinstance(result, dict):
+        return result
+    return {"ok": False, "error": "chaos_harness_returned_non_object"}
 
 
 def _read_bounded_response(response: Any, *, max_bytes: int, url: str) -> bytes:
@@ -560,7 +568,11 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
 
     def post(path: str, body: dict[str, Any], *, url: str = writer_url) -> dict[str, Any]:
         status, response = _post_json(_join_endpoint(url, path), body, token=token, timeout=30.0)
-        accepted = status == HTTPStatus.OK and response.get("ok") is True
+        accepted = (
+            status == HTTPStatus.OK
+            and response.get("ok") is True
+            and _append_response_accepted_v0(path=path, response=response)
+        )
         steps.append({"path": path, "url": url, "status": status, "ok": accepted, "response": response})
         if not accepted:
             raise RuntimeError(f"valid scenario step failed: {url}{path} status={status} response={response}")
@@ -643,6 +655,27 @@ def _valid_trade_series(writer_url: str, forwarder_url: str | None, *, token: st
             "forwarded_faucet": forwarded_faucet.get("height") if forwarded_faucet else None,
         },
     }
+
+
+def _append_response_accepted_v0(*, path: str, response: dict[str, Any]) -> bool:
+    """Return whether a live append response actually accepted the operation.
+
+    ZenoLedger append endpoints can return HTTP 200 with ``ok=true`` while the
+    transaction receipt rejects the operation. The multi-node live scenario is
+    a success-path controller, so it must fail on those receipt-level rejects.
+    """
+    if response.get("tx_accepted") is False:
+        return False
+    receipt = response.get("receipt")
+    if isinstance(receipt, dict) and receipt.get("accepted") is False:
+        return False
+    if path == "/tx":
+        return response.get("tx_accepted") is True or (
+            isinstance(receipt, dict) and receipt.get("accepted") is True
+        )
+    if path == "/faucet":
+        return not isinstance(receipt, dict) or receipt.get("accepted") is True
+    return True
 
 
 def _adversarial_http_checks(
@@ -767,7 +800,7 @@ def run_controller_v0(
         for data_dir in node_data_dirs[1:]
         if data_dir.exists()
     ]
-    chaos = run_chaos_harness()
+    chaos = _run_chaos_harness_v0()
     errors: list[str] = []
     if not adversarial["ok"]:
         errors.append("one or more adversarial HTTP checks failed")

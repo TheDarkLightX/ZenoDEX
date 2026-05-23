@@ -6,8 +6,9 @@ usage() {
 Usage: scripts/install_zenodex.sh [--bin-dir DIR] [--dry-run]
 
 Installs small command wrappers for this checkout:
-  zenoctl       -> tools/zenoctl.py
-  zenodex-node  -> tools/zeno_ledger_node.py
+  zenoctl                 -> tools/zenoctl.py
+  zenodex-node            -> tools/zeno_ledger_node.py
+  zenodex-local-testnet   -> tools/zenoctl.py testnet local
 
 The script does not install system services, write secrets, or edit shell
 profiles. Add the chosen bin directory to PATH yourself if needed.
@@ -50,26 +51,32 @@ repo_dir=$(CDPATH= cd -- "${script_dir}/.." && pwd)
 
 install_wrapper() {
   name="$1"
-  target="$2"
+  shift
   out="${bin_dir}/${name}"
   if [ "$dry_run" -eq 1 ]; then
-    echo "would install ${out} -> ${target}"
+    echo "would install ${out} -> $*"
     return 0
   fi
   mkdir -p "$bin_dir"
-  target_quoted=$(printf "%s" "$target" | sed "s/'/'\\\\''/g")
   {
     printf '%s\n' '#!/usr/bin/env sh'
     printf '%s\n' 'set -eu'
-    printf "exec python3 '%s' \"\$@\"\n" "$target_quoted"
+    printf 'exec'
+    for arg in "$@"; do
+      arg_quoted=$(printf "%s" "$arg" | sed "s/'/'\\\\''/g")
+      printf " '%s'" "$arg_quoted"
+    done
+    printf ' "$@"\n'
   } > "$out"
   chmod 755 "$out"
   echo "installed ${out}"
 }
 
-install_wrapper "zenoctl" "${repo_dir}/tools/zenoctl.py"
-install_wrapper "zenodex-node" "${repo_dir}/tools/zeno_ledger_node.py"
+install_wrapper "zenoctl" python3 "${repo_dir}/tools/zenoctl.py"
+install_wrapper "zenodex-node" python3 "${repo_dir}/tools/zeno_ledger_node.py"
+install_wrapper "zenodex-local-testnet" python3 "${repo_dir}/tools/zenoctl.py" testnet local
 
 if [ "$dry_run" -eq 0 ]; then
   echo "run: ${bin_dir}/zenoctl doctor --engine none --strict"
+  echo "run: ${bin_dir}/zenodex-local-testnet up --out-dir /tmp/zenodex-local"
 fi

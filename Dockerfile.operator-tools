@@ -18,6 +18,10 @@ RUN groupadd -g "${ZENODEX_GID}" -r zenodex \
 COPY src/ ./src/
 COPY tools/ ./tools/
 COPY generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py ./generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
+COPY generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py ./generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
+COPY generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py ./generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py
+COPY generated/perp_python/perp_epoch_isolated_v2_ref.py ./generated/perp_python/perp_epoch_isolated_v2_ref.py
+COPY generated/perp_python/perp_epoch_isolated_v3_ref.py ./generated/perp_python/perp_epoch_isolated_v3_ref.py
 COPY docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json ./docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
 COPY docs/claims_registry.yaml ./docs/claims_registry.yaml
 

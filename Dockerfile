@@ -32,7 +32,6 @@ RUN python -m pip install --no-cache-dir --require-hashes -r requirements-core.l
 
 # Copy source code
 COPY src/ ./src/
-COPY tests/ ./tests/
 
 # =============================================================================
 # Stage 3: Production Image

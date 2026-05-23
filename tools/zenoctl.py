@@ -783,6 +783,11 @@ def main(argv: list[str] | None = None) -> int:
     verify_evidence.add_argument("file", type=Path, help="path to the evidence JSON file to verify")
     verify_evidence.set_defaults(func=_cmd_testnet_verify_evidence)
 
+    # `testnet local up/down/status` — full local-testnet stack (3-node
+    # ledger + Tau + Oracle + UI/API). See docs/LOCAL_TESTNET_QUICKSTART.md.
+    from tools.zenoctl_testnet_local.cli import register_subparser as _register_local_testnet
+    _register_local_testnet(testnet_sub)
+
     node = sub.add_parser("node", help="node operator views")
     node_sub = node.add_subparsers(dest="node_command", required=True)
     status = node_sub.add_parser("status", help="render node operator status")

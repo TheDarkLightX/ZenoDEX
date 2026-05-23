@@ -46,7 +46,8 @@ For Windows PowerShell:
 
 These wrappers install `zenoctl` and `zenodex-node`. They call this checkout's
 Python tools directly and do not install services, write secrets, or modify
-shell profiles.
+shell profiles. They also install `zenodex-local-testnet`, a short wrapper for
+`zenoctl testnet local`.
 
 Run the packaging readiness check:
 
@@ -126,6 +127,39 @@ python3 tools/zenoctl.py testnet up \
 
 This uses `tools/zeno_ledger_public_network_smoke.py` and writes a replayable
 JSON report.
+
+## 4a. Full Local Testnet (UI + Backends, One Command)
+
+For exercising the mounted UI against live local backends (3-node ledger +
+Tau + Oracle + stdlib API), use the dedicated `local` subcommand:
+
+```bash
+python3 tools/zenoctl.py testnet local up --out-dir /tmp/zen-local
+```
+
+Open <http://127.0.0.1:18080> when bring-up reports `phase=done`. Every UI
+tab hits a real local backend. See
+[docs/LOCAL_TESTNET_QUICKSTART.md](LOCAL_TESTNET_QUICKSTART.md) for the
+full guide (lifecycle, fixture locations, what each tab is wired to,
+security posture).
+
+Installed operator-bundle form:
+
+```bash
+zenodex-local-testnet up --out-dir /tmp/zen-local
+zenodex-local-testnet smoke --out-dir /tmp/zen-local --browser required
+```
+
+Lifecycle:
+
+```bash
+python3 tools/zenoctl.py testnet local status --out-dir /tmp/zen-local
+python3 tools/zenoctl.py testnet local smoke  --out-dir /tmp/zen-local --browser required
+python3 tools/zenoctl.py testnet local down   --out-dir /tmp/zen-local
+```
+
+Requires Docker (or Podman) and `external/tau-testnet/` cloned into the
+repo.
 
 ## 5. Full Public-Testnet Candidate Gate
 

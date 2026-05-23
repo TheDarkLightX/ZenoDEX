@@ -19,6 +19,7 @@ def _minimal_repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     for relpath in (
         "bin/zenoctl",
+        "bin/zenodex-local-testnet",
         "scripts/install_zenodex.sh",
         "scripts/install_zenodex.ps1",
         "src/__init__.py",
@@ -35,9 +36,17 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "Dockerfile.production-hashlocked",
         "docker-compose.yml",
         "docker-compose.local.yml",
+        "docker-compose.local-testnet.yml",
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
         "docker-compose.permissionless.yml",
+        "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
+        "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
+        "generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py",
+        "generated/perp_python/perp_epoch_isolated_v2_ref.py",
+        "generated/perp_python/perp_epoch_isolated_v3_ref.py",
+        "packages/zeno-proof-client/package.json",
+        "packages/zeno-proof-client/src/index.js",
         "requirements-core.lock.txt",
         "requirements-dev.lock.txt",
         "requirements-agents.lock.txt",
@@ -46,10 +55,13 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "README.md",
         "docs/DEPLOYMENT_QUICKSTART.md",
         "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
+        "docs/LOCAL_TESTNET_QUICKSTART.md",
         "docs/PERMISSIONLESS_HOSTING.md",
+        "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
         "docs/assurance/README.md",
+        "docs/claims_registry.yaml",
         "docs/tau_supported_runtime_contract.json",
     ):
         _write(root / relpath, f"{relpath}\n")
@@ -75,11 +87,18 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     paths = {item["path"] for item in manifest["files"]}
     assert "bin/zenoctl" in paths
+    assert "bin/zenodex-local-testnet" in paths
     assert "scripts/install_zenodex.sh" in paths
     assert "tools/zenoctl.py" in paths
     assert "tools/check_zeno_ledger_light_client_checkpoint.py" in paths
     assert "tools/build_operator_release_bundle.py" in paths
     assert "Dockerfile.hashlocked" in paths
+    assert "docker-compose.local-testnet.yml" in paths
+    assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
+    assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
+    assert "docs/claims_registry.yaml" in paths
+    assert "packages/zeno-proof-client/package.json" in paths
+    assert "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py" in paths
     assert "docs/assurance/README.md" in paths
     assert all(not path.startswith("tests/") for path in paths)
     assert all("internal/" not in path for path in paths)
@@ -103,6 +122,7 @@ def test_operator_release_bundle_archive_members_are_prefixed(tmp_path: Path) ->
     assert names
     assert all(name.startswith("zenodex-operator-prefixed/") for name in names)
     assert "zenodex-operator-prefixed/bin/zenoctl" in names
+    assert "zenodex-operator-prefixed/bin/zenodex-local-testnet" in names
 
 
 def test_operator_release_bundle_is_deterministic_for_same_checkout(tmp_path: Path) -> None:
