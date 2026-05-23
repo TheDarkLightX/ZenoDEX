@@ -370,6 +370,31 @@ settlement replay.
 
 ## Quick Start
 
+Fastest browser demo for new testnet users:
+
+```bash
+python3 tools/zenoctl.py testnet demo up
+```
+
+Then open:
+
+```text
+http://127.0.0.1:3000
+```
+
+This starts a local-only UI/API stack for trying the DEX, proof-mining status
+flow, zUSD, and perps preview surfaces. Stop it with:
+
+```bash
+python3 tools/zenoctl.py testnet demo down
+```
+
+Run the bounded two-node ZenoLedger smoke from the same entrypoint:
+
+```bash
+python3 tools/zenoctl.py testnet demo smoke
+```
+
 Install Python dependencies:
 
 ```bash

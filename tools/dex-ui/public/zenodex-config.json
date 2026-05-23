@@ -1,5 +1,7 @@
 {
   "apiBase": "",
+  "apiToken": "",
   "demoMode": null,
+  "perpsPreviewWrites": false,
   "zenoOracleApiBase": ""
 }

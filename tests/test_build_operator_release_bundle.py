@@ -22,6 +22,8 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "bin/zenoctl",
         "scripts/install_zenodex.sh",
         "scripts/install_zenodex.ps1",
+        "scripts/zenodex_testnet_demo.sh",
+        "scripts/zenodex_testnet_demo.ps1",
         "src/__init__.py",
         "src/integration/__init__.py",
         "tools/zenoctl.py",
@@ -30,7 +32,9 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "tools/build_operator_release_bundle.py",
         "config/deploy/local-dev.yaml",
         "formal/property/production_key_management_v0.json",
+        ".dockerignore",
         ".docker/entrypoint.sh",
+        ".docker/nginx.conf",
         "Dockerfile",
         "Dockerfile.hashlocked",
         "Dockerfile.operator-tools",
@@ -40,6 +44,7 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
         "docker-compose.permissionless.yml",
+        "docker-compose.testnet-demo.yml",
         "requirements-core.lock.txt",
         "requirements-dev.lock.txt",
         "requirements-agents.lock.txt",
@@ -78,10 +83,13 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     paths = {item["path"] for item in manifest["files"]}
     assert "bin/zenoctl" in paths
     assert "scripts/install_zenodex.sh" in paths
+    assert "scripts/zenodex_testnet_demo.sh" in paths
+    assert "docker-compose.testnet-demo.yml" in paths
     assert "tools/zenoctl.py" in paths
     assert "tools/check_zeno_ledger_light_client_checkpoint.py" in paths
     assert "tools/build_operator_release_bundle.py" in paths
     assert "Dockerfile.hashlocked" in paths
+    assert ".dockerignore" in paths
     assert "formal/property/production_key_management_v0.json" in paths
     assert "docs/assurance/README.md" in paths
     assert all(not path.startswith("tests/") for path in paths)

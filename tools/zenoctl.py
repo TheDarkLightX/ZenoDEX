@@ -59,6 +59,7 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
         _check_file(repo_root, "docker-compose.local.yml"),
         _check_file(repo_root, "docker-compose.two-node.yml"),
         _check_file(repo_root, "docker-compose.multimachine.yml"),
+        _check_file(repo_root, "docker-compose.testnet-demo.yml"),
         _check_file(repo_root, "requirements-core.lock.txt"),
         _check_file(repo_root, "requirements-dev.lock.txt"),
         _check_file(repo_root, "tools/zeno_ledger_node.py"),
@@ -77,6 +78,8 @@ def build_doctor_report(*, repo_root: Path, engine: str = "auto", strict: bool =
         _check_file(repo_root, "bin/zenoctl"),
         _check_file(repo_root, "scripts/install_zenodex.sh"),
         _check_file(repo_root, "scripts/install_zenodex.ps1"),
+        _check_file(repo_root, "scripts/zenodex_testnet_demo.sh"),
+        _check_file(repo_root, "scripts/zenodex_testnet_demo.ps1"),
         _check_file(repo_root, "config/proof_profiles/zeno_ledger_profiles.json"),
         _check_file(repo_root, "config/upba/policy_balanced.json"),
     ]
@@ -383,6 +386,46 @@ def _cmd_testnet_verify_evidence(args: argparse.Namespace) -> int:
         }
         print(json.dumps(report, indent=2, sort_keys=True))
         return 1
+
+
+def _cmd_testnet_demo(args: argparse.Namespace) -> int:
+    if os.name == "nt":
+        command = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "scripts/zenodex_testnet_demo.ps1",
+            args.demo_action,
+            "-Engine",
+            args.engine,
+            "-UiPort",
+            str(args.ui_port),
+            "-ApiToken",
+            args.api_token,
+        ]
+        if args.with_tau:
+            command.append("-WithTau")
+        if args.dry_run:
+            command.append("-DryRun")
+    else:
+        command = [
+            "bash",
+            "scripts/zenodex_testnet_demo.sh",
+            args.demo_action,
+            "--engine",
+            args.engine,
+            "--ui-port",
+            str(args.ui_port),
+            "--api-token",
+            args.api_token,
+        ]
+        if args.with_tau:
+            command.append("--with-tau")
+        if args.dry_run:
+            command.append("--dry-run")
+    return _run(command)
 
 
 def derive_node_hash_v0(
@@ -772,6 +815,15 @@ def main(argv: list[str] | None = None) -> int:
     up.add_argument("--chain-id", default="zeno-ledger-testnet-v0")
     up.add_argument("--dry-run", action="store_true")
     up.set_defaults(func=_cmd_testnet_up)
+
+    demo = testnet_sub.add_parser("demo", help="run the local UI/API testnet demo stack")
+    demo.add_argument("demo_action", choices=["up", "down", "logs", "status", "smoke"], nargs="?", default="up")
+    demo.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
+    demo.add_argument("--ui-port", type=int, default=3000)
+    demo.add_argument("--api-token", default="zenodex-local-demo-token")
+    demo.add_argument("--with-tau", action="store_true")
+    demo.add_argument("--dry-run", action="store_true")
+    demo.set_defaults(func=_cmd_testnet_demo)
 
     evidence = testnet_sub.add_parser("evidence", help="assemble two-machine ZenoLedger evidence archive")
     evidence.add_argument("--data-dir", type=Path, required=True, help="path to directory containing node artifacts")
