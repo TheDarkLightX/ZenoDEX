@@ -102,7 +102,8 @@ def _package_manifest(version: str) -> tuple[bool, dict[str, Any] | None, str]:
 def run_audit(*, run_gate: bool) -> dict[str, Any]:
     doctor_ok, doctor, doctor_error = _run_json([str(BIN), "doctor"], timeout_s=30)
     with tempfile.TemporaryDirectory(prefix="zeno-oracle-completion-audit-") as tmp:
-        dry_ok, dry_run, dry_error = _run_json([str(BIN), "dry-run", "--workdir", tmp], timeout_s=180)
+        dry_workdir = Path(tmp) / "dry-run"
+        dry_ok, dry_run, dry_error = _run_json([str(BIN), "dry-run", "--workdir", str(dry_workdir)], timeout_s=180)
 
     package_ok, manifest, package_error = _package_manifest("zeno-oracle-audit-rc")
     gate_ok = False

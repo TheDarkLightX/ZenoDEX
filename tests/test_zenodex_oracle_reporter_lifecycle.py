@@ -17,6 +17,7 @@ def _trace(events: list[dict], **overrides: object) -> dict:
     obj = {
         "schema": "zenodex.oracle.reporter_lifecycle.v1",
         "reporter_id": "reporter.sample",
+        "reporter_pubkey": "0x" + ("11" * 48),
         "required_bond": 100,
         "events": events,
     }

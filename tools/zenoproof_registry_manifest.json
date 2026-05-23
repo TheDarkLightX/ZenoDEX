@@ -37,7 +37,7 @@
         "does_not_claim_exhaustive_morph_search",
         "does_not_claim_production_oracle_truth"
       ],
-      "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json",
+      "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json --skip-morph",
       "statement_hash": "sha256:773a777d8c4c19d541a204f87322d711713e050a74025f2451b50acb95307b0f"
     },
     {

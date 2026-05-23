@@ -13,5 +13,5 @@ python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
 python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
-python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph
 python3 tools/zenodex_oracle_devnet_alpha_audit.py

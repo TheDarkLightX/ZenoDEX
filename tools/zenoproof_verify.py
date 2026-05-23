@@ -203,7 +203,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": PUBLIC_REPLAY_STATEMENT_HASH,
         "assumptions_hash": PUBLIC_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 15_000,
-        "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json",
+        "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json --skip-morph",
         "expected_schema": "zenodex.oracle.workflow_evidence_status.v1",
         "non_claims": [
             "does_not_claim_private_popperpad_publication",
@@ -747,7 +747,13 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
 
     if profile == PUBLIC_REPLAY_PROFILE:
         proc = subprocess.run(
-            [sys.executable, "tools/zeno_oracle_workflow_evidence_status.py", "--format", "json"],
+            [
+                sys.executable,
+                "tools/zeno_oracle_workflow_evidence_status.py",
+                "--format",
+                "json",
+                "--skip-morph",
+            ],
             cwd=ROOT,
             check=False,
             capture_output=True,

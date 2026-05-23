@@ -380,6 +380,10 @@ def submit_report(store: OracleDevnetStore, submission: Mapping[str, Any]) -> di
         errors.append("reporter_not_registered")
     elif registered.get("reporter_pubkey") != result.reporter_pubkey:
         errors.append("reporter_pubkey_mismatch")
+    if errors:
+        receipt = _json_response("rejected", errors, operation="submit_report", verifier=result.to_json_obj())
+        store.append_event(event_type="report.submit", status="rejected", artifact_id=None, artifact_path=None, receipt=receipt)
+        return receipt
 
     reports = submission.get("reports", [])
     if not isinstance(reports, list):

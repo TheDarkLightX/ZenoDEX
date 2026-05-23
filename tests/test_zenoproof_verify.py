@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import importlib.util
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,20 @@ def _manifest() -> dict[str, Any]:
 def _rehash(artifact: dict[str, Any]) -> dict[str, Any]:
     artifact["proof_id"] = zv.artifact_content_hash(artifact)
     return artifact
+
+
+def _public_replay_profile_available(profile: str) -> bool:
+    if profile == zv.JULIA_REPLAY_PROFILE and shutil.which("julia") is None:
+        return False
+    if profile == zv.LEAN_REPLAY_PROFILE and not (ROOT / "external" / "mathlib4").is_dir():
+        return False
+    if profile == zv.TLA_REPLAY_PROFILE and not (ROOT / "external" / "tla-tools" / "tla2tools.jar").is_file():
+        return False
+    if profile in {zv.LTLF_REPLAY_PROFILE, zv.ESSO_REPLAY_PROFILE} and not (ROOT / "external" / "ESSO").is_dir():
+        return False
+    if profile == zv.MORPH_REPLAY_PROFILE and importlib.util.find_spec("morph") is None:
+        return False
+    return True
 
 
 def test_manifest_accepts_sample_artifact_and_oracle_bridge() -> None:
@@ -60,6 +76,8 @@ def test_manifest_accepts_sample_artifact_and_oracle_bridge() -> None:
     assert reward_result.checks["reward_pool_has_budget"] is True
 
     for profile in zv.PUBLIC_REPLAY_PROFILE_CONFIGS:
+        if not _public_replay_profile_available(profile):
+            continue
         public_replay_result = zv.verify_zenoproof_artifact(
             zv.sample_public_replay_artifact(profile),
             registry,

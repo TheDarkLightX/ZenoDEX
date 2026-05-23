@@ -183,7 +183,7 @@ def _popperpad_case() -> dict[str, Any]:
     }
 
 
-def build_status() -> dict[str, Any]:
+def build_status(*, include_morph: bool = True) -> dict[str, Any]:
     lanes = [
         _artifact_case(
             "tla_oracle_recovery_lifecycle",
@@ -214,9 +214,10 @@ def build_status() -> dict[str, Any]:
             replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
             evidence_class="esso_public_replay",
         ),
-        _morph_case(),
         _popperpad_case(),
     ]
+    if include_morph:
+        lanes.insert(3, _morph_case())
     failed = [lane for lane in lanes if not lane["ok"]]
     return {
         "schema": SCHEMA,
@@ -238,12 +239,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--format", choices=("json", "text"), default="json")
     parser.add_argument("--output")
+    parser.add_argument(
+        "--skip-morph",
+        action="store_true",
+        help="Exclude the strict Morph smoke lane; default includes it and fails closed if Morph is unavailable.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    status = build_status()
+    status = build_status(include_morph=not args.skip_morph)
     text = json.dumps(status, indent=2, sort_keys=True) + "\n"
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")
