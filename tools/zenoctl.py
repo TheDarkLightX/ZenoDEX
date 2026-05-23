@@ -428,6 +428,35 @@ def _cmd_testnet_demo(args: argparse.Namespace) -> int:
     return _run(command)
 
 
+def _cmd_testnet_join(args: argparse.Namespace) -> int:
+    command = [
+        sys.executable,
+        "tools/zeno_ledger_node.py",
+        "join-network",
+        "--config-url",
+        args.config_url,
+        "--node-id",
+        args.node_id,
+        "--bundle-root",
+        str(args.bundle_root.expanduser()),
+        "--data-dir",
+        str(args.data_dir.expanduser()),
+        "--host",
+        args.host,
+    ]
+    if args.port is not None:
+        command.extend(["--port", str(args.port)])
+    if args.poll_seconds is not None:
+        command.extend(["--poll-seconds", str(args.poll_seconds)])
+    if args.serve:
+        command.append("--serve")
+    if args.write_auth_token_env:
+        command.extend(["--write-auth-token-env", args.write_auth_token_env])
+    if args.submit_peer_auth_token_env:
+        command.extend(["--submit-peer-auth-token-env", args.submit_peer_auth_token_env])
+    return _run(command, dry_run=args.dry_run)
+
+
 def derive_node_hash_v0(
     *,
     network_id: str,
@@ -824,6 +853,20 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument("--with-tau", action="store_true")
     demo.add_argument("--dry-run", action="store_true")
     demo.set_defaults(func=_cmd_testnet_demo)
+
+    join = testnet_sub.add_parser("join", help="join a published public testnet from one config URL")
+    join.add_argument("--config-url", required=True, help="URL of public_network_config.json")
+    join.add_argument("--node-id", required=True, help="stable operator-local node identifier")
+    join.add_argument("--bundle-root", type=Path, default=Path("~/.zenodex/testnet/bundle"))
+    join.add_argument("--data-dir", type=Path, default=Path("~/.zenodex/testnet/node"))
+    join.add_argument("--serve", action="store_true", help="serve local node status and optional testnet intake")
+    join.add_argument("--host", default="127.0.0.1", help="host for --serve; use 0.0.0.0 only intentionally")
+    join.add_argument("--port", type=int)
+    join.add_argument("--poll-seconds", type=int)
+    join.add_argument("--write-auth-token-env")
+    join.add_argument("--submit-peer-auth-token-env")
+    join.add_argument("--dry-run", action="store_true")
+    join.set_defaults(func=_cmd_testnet_join)
 
     evidence = testnet_sub.add_parser("evidence", help="assemble two-machine ZenoLedger evidence archive")
     evidence.add_argument("--data-dir", type=Path, required=True, help="path to directory containing node artifacts")

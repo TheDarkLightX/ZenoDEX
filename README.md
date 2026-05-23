@@ -502,6 +502,15 @@ python3 tools/zeno_ledger_node.py join-network \
   --serve
 ```
 
+The same public-testnet join path is available through the operator wrapper:
+
+```bash
+python3 tools/zenoctl.py testnet join \
+  --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
+  --node-id operator-b \
+  --serve
+```
+
 For a remote operator, use a join config to combine sync, replay, peer checking,
 and serving when a public network config has not been published:
 
