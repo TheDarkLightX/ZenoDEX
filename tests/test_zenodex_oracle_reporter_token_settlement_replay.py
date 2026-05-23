@@ -155,3 +155,39 @@ def test_reporter_token_settlement_replay_self_test_accepts() -> None:
     assert proc.returncode == 0, proc.stderr
     result = json.loads(proc.stdout)
     assert result["status"] == "accepted"
+
+
+def test_reporter_token_settlement_replay_rejects_victim_funded_bond_deposit(tmp_path: Path) -> None:
+    replay = sample_settlement_replay()
+    replay["initial_balances_e8"]["victim.whale"] = 750_000_000_000
+    for reporter in ("reporter.alpha", "reporter.beta", "reporter.gamma"):
+        replay["initial_balances_e8"][reporter] = 0
+    for transfer in replay["transfers"]:
+        if transfer["reason"] == "bond_deposit":
+            transfer["debit"] = "victim.whale"
+
+    code, result = _run_verify(tmp_path, replay)
+
+    assert code == 2
+    assert "settlement_identity_mismatch:bond_deposit:victim.whale->oracle.bond_escrow:750000000000!=0" in result["errors"]
+    assert "settlement_identity_mismatch:bond_deposit:reporter.alpha->oracle.bond_escrow:0!=250000000000" in result["errors"]
+    assert "settlement_identity_mismatch:bond_deposit:reporter.beta->oracle.bond_escrow:0!=250000000000" in result["errors"]
+    assert "settlement_identity_mismatch:bond_deposit:reporter.gamma->oracle.bond_escrow:0!=250000000000" in result["errors"]
+
+
+def test_reporter_token_settlement_replay_rejects_attacker_credited_payouts(tmp_path: Path) -> None:
+    replay = sample_settlement_replay()
+    replay["initial_balances_e8"]["attacker.eve"] = 0
+    for transfer in replay["transfers"]:
+        if transfer["reason"] == "report_reward_payout" and transfer["credit"] == "reporter.alpha":
+            transfer["credit"] = "attacker.eve"
+        if transfer["reason"] == "bond_withdrawal" and transfer["credit"] == "reporter.alpha":
+            transfer["credit"] = "attacker.eve"
+
+    code, result = _run_verify(tmp_path, replay)
+
+    assert code == 2
+    assert "settlement_identity_mismatch:report_reward_payout:oracle.reporter_reward_pool->attacker.eve:30000000!=0" in result["errors"]
+    assert "settlement_identity_mismatch:report_reward_payout:oracle.reporter_reward_pool->reporter.alpha:0!=30000000" in result["errors"]
+    assert "settlement_identity_mismatch:bond_withdrawal:oracle.bond_escrow->attacker.eve:125000000000!=0" in result["errors"]
+    assert "settlement_identity_mismatch:bond_withdrawal:oracle.bond_escrow->reporter.alpha:0!=125000000000" in result["errors"]

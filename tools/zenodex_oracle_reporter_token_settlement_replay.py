@@ -75,6 +75,20 @@ ALLOWED_REASONS = {
     "dispute_reward_payout",
     "bond_withdrawal",
 }
+ORACLE_BOND_ESCROW = "oracle.bond_escrow"
+ORACLE_REPORTER_REWARD_POOL = "oracle.reporter_reward_pool"
+ORACLE_DISPUTE_REWARD_POOL = "oracle.dispute_reward_pool"
+ORACLE_TREASURY = "oracle.treasury"
+ORACLE_BURN = "oracle.burn"
+ORACLE_SLASH_POOL = "oracle.slash_pool"
+IDENTITY_BOUND_REASONS = {
+    "bond_deposit",
+    "report_reward_payout",
+    "reporter_slash",
+    "dispute_reward_payout",
+    "bond_withdrawal",
+}
+
 REASON_TOTAL_FIELDS = {
     "bond_deposit": "bond_deposit_settled_e8",
     "fee_split_reporter_reward_pool": "fee_reward_pool_settled_e8",
@@ -187,108 +201,108 @@ def sample_settlement_replay() -> dict[str, Any]:
             "reporter.beta": 250_000_000_000,
             "reporter.gamma": 250_000_000_000,
             "consumer.fee_payer": 100_000_000,
-            "oracle.dispute_reward_pool": 20_000_000,
-            "oracle.bond_escrow": 0,
-            "oracle.reporter_reward_pool": 0,
-            "oracle.treasury": 0,
-            "oracle.burn": 0,
-            "oracle.slash_pool": 0,
+            ORACLE_DISPUTE_REWARD_POOL: 20_000_000,
+            ORACLE_BOND_ESCROW: 0,
+            ORACLE_REPORTER_REWARD_POOL: 0,
+            ORACLE_TREASURY: 0,
+            ORACLE_BURN: 0,
+            ORACLE_SLASH_POOL: 0,
             "challenger.sample": 0,
         },
         "transfers": [
             {
                 "debit": "reporter.alpha",
-                "credit": "oracle.bond_escrow",
+                "credit": ORACLE_BOND_ESCROW,
                 "amount_e8": 250_000_000_000,
                 "reason": "bond_deposit",
                 "policy_id": policy_id,
             },
             {
                 "debit": "reporter.beta",
-                "credit": "oracle.bond_escrow",
+                "credit": ORACLE_BOND_ESCROW,
                 "amount_e8": 250_000_000_000,
                 "reason": "bond_deposit",
                 "policy_id": policy_id,
             },
             {
                 "debit": "reporter.gamma",
-                "credit": "oracle.bond_escrow",
+                "credit": ORACLE_BOND_ESCROW,
                 "amount_e8": 250_000_000_000,
                 "reason": "bond_deposit",
                 "policy_id": policy_id,
             },
             {
                 "debit": "consumer.fee_payer",
-                "credit": "oracle.reporter_reward_pool",
+                "credit": ORACLE_REPORTER_REWARD_POOL,
                 "amount_e8": 90_000_000,
                 "reason": "fee_split_reporter_reward_pool",
                 "policy_id": policy_id,
             },
             {
                 "debit": "consumer.fee_payer",
-                "credit": "oracle.treasury",
+                "credit": ORACLE_TREASURY,
                 "amount_e8": 7_000_000,
                 "reason": "fee_split_treasury",
                 "policy_id": policy_id,
             },
             {
                 "debit": "consumer.fee_payer",
-                "credit": "oracle.burn",
+                "credit": ORACLE_BURN,
                 "amount_e8": 3_000_000,
                 "reason": "fee_split_burn",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.reporter_reward_pool",
+                "debit": ORACLE_REPORTER_REWARD_POOL,
                 "credit": "reporter.alpha",
                 "amount_e8": 30_000_000,
                 "reason": "report_reward_payout",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.reporter_reward_pool",
+                "debit": ORACLE_REPORTER_REWARD_POOL,
                 "credit": "reporter.beta",
                 "amount_e8": 30_000_000,
                 "reason": "report_reward_payout",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.reporter_reward_pool",
+                "debit": ORACLE_REPORTER_REWARD_POOL,
                 "credit": "reporter.gamma",
                 "amount_e8": 30_000_000,
                 "reason": "report_reward_payout",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.bond_escrow",
-                "credit": "oracle.slash_pool",
+                "debit": ORACLE_BOND_ESCROW,
+                "credit": ORACLE_SLASH_POOL,
                 "amount_e8": 125_000_000_000,
                 "reason": "reporter_slash",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.dispute_reward_pool",
+                "debit": ORACLE_DISPUTE_REWARD_POOL,
                 "credit": "challenger.sample",
                 "amount_e8": 10_000_000,
                 "reason": "dispute_reward_payout",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.bond_escrow",
+                "debit": ORACLE_BOND_ESCROW,
                 "credit": "reporter.alpha",
                 "amount_e8": 125_000_000_000,
                 "reason": "bond_withdrawal",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.bond_escrow",
+                "debit": ORACLE_BOND_ESCROW,
                 "credit": "reporter.beta",
                 "amount_e8": 250_000_000_000,
                 "reason": "bond_withdrawal",
                 "policy_id": policy_id,
             },
             {
-                "debit": "oracle.bond_escrow",
+                "debit": ORACLE_BOND_ESCROW,
                 "credit": "reporter.gamma",
                 "amount_e8": 250_000_000_000,
                 "reason": "bond_withdrawal",
@@ -399,27 +413,109 @@ def _transfers(obj: Mapping[str, Any], errors: list[str]) -> list[Mapping[str, A
     return transfers
 
 
+def _add_amount(totals: dict[str, int], key: str, amount: object) -> None:
+    if isinstance(amount, int) and not isinstance(amount, bool):
+        totals[key] = totals.get(key, 0) + int(amount)
+
+
+def _add_obligation(
+    obligations: dict[tuple[str, str, str], int],
+    reason: str,
+    debit: object,
+    credit: object,
+    amount: object,
+) -> None:
+    """DbC: accepted obligations require token-like actors and positive integer amounts."""
+    if not all(isinstance(value, str) for value in (debit, credit)):
+        return
+    if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
+        return
+    key = (reason, str(debit), str(credit))
+    obligations[key] = obligations.get(key, 0) + int(amount)
+
+
 def _event_reason_totals(replay: Mapping[str, Any]) -> dict[str, int]:
     totals = {reason: 0 for reason in ALLOWED_REASONS}
     for event in replay.get("events", []):
         if not isinstance(event, Mapping):
             continue
-        event_type = event.get("type")
-        if event_type == "deposit_bond":
-            totals["bond_deposit"] += int(event.get("amount_e8", 0))
-        elif event_type == "fee_split":
-            totals["fee_split_reporter_reward_pool"] += int(event.get("reporter_reward_pool_delta_e8", 0))
-            totals["fee_split_treasury"] += int(event.get("treasury_delta_e8", 0))
-            totals["fee_split_burn"] += int(event.get("burn_delta_e8", 0))
-        elif event_type == "submit_report":
-            totals["report_reward_payout"] += int(event.get("reward_e8", 0))
-        elif event_type == "slash_reporter":
-            totals["reporter_slash"] += int(event.get("amount_e8", 0))
-        elif event_type == "pay_dispute_reward":
-            totals["dispute_reward_payout"] += int(event.get("amount_e8", 0))
-        elif event_type == "withdraw_bond":
-            totals["bond_withdrawal"] += int(event.get("amount_e8", 0))
+        _add_event_reason_total(totals, event)
     return totals
+
+
+def _add_event_reason_total(totals: dict[str, int], event: Mapping[str, Any]) -> None:
+    event_type = event.get("type")
+    if event_type == "deposit_bond":
+        _add_amount(totals, "bond_deposit", event.get("amount_e8"))
+    if event_type == "fee_split":
+        _add_amount(totals, "fee_split_reporter_reward_pool", event.get("reporter_reward_pool_delta_e8"))
+        _add_amount(totals, "fee_split_treasury", event.get("treasury_delta_e8"))
+        _add_amount(totals, "fee_split_burn", event.get("burn_delta_e8"))
+    if event_type == "submit_report":
+        _add_amount(totals, "report_reward_payout", event.get("reward_e8"))
+    if event_type == "slash_reporter":
+        _add_amount(totals, "reporter_slash", event.get("amount_e8"))
+    if event_type == "pay_dispute_reward":
+        _add_amount(totals, "dispute_reward_payout", event.get("amount_e8"))
+    if event_type == "withdraw_bond":
+        _add_amount(totals, "bond_withdrawal", event.get("amount_e8"))
+
+
+def _event_identity_obligations(replay: Mapping[str, Any]) -> dict[tuple[str, str, str], int]:
+    obligations: dict[tuple[str, str, str], int] = {}
+    for event in replay.get("events", []):
+        if isinstance(event, Mapping):
+            _add_event_identity_obligation(obligations, event)
+    return obligations
+
+
+def _add_event_identity_obligation(obligations: dict[tuple[str, str, str], int], event: Mapping[str, Any]) -> None:
+    event_type = event.get("type")
+    if event_type == "deposit_bond":
+        _add_obligation(obligations, "bond_deposit", event.get("reporter_id"), ORACLE_BOND_ESCROW, event.get("amount_e8"))
+    if event_type == "submit_report":
+        _add_obligation(
+            obligations,
+            "report_reward_payout",
+            ORACLE_REPORTER_REWARD_POOL,
+            event.get("reporter_id"),
+            event.get("reward_e8"),
+        )
+    if event_type == "slash_reporter":
+        _add_obligation(obligations, "reporter_slash", ORACLE_BOND_ESCROW, ORACLE_SLASH_POOL, event.get("amount_e8"))
+    if event_type == "pay_dispute_reward":
+        _add_obligation(
+            obligations,
+            "dispute_reward_payout",
+            ORACLE_DISPUTE_REWARD_POOL,
+            event.get("recipient_id"),
+            event.get("amount_e8"),
+        )
+    if event_type == "withdraw_bond":
+        _add_obligation(obligations, "bond_withdrawal", ORACLE_BOND_ESCROW, event.get("reporter_id"), event.get("amount_e8"))
+
+
+def _transfer_identity_obligations(transfers: list[tuple[str, str, str, int]]) -> dict[tuple[str, str, str], int]:
+    obligations: dict[tuple[str, str, str], int] = {}
+    for reason, debit, credit, amount in transfers:
+        if reason in IDENTITY_BOUND_REASONS:
+            _add_obligation(obligations, reason, debit, credit, amount)
+    return obligations
+
+
+def _append_identity_obligation_errors(
+    actual: Mapping[tuple[str, str, str], int],
+    expected: Mapping[tuple[str, str, str], int],
+    errors: list[str],
+) -> None:
+    for key in sorted(set(actual) | set(expected)):
+        actual_amount = int(actual.get(key, 0))
+        expected_amount = int(expected.get(key, 0))
+        if actual_amount != expected_amount:
+            reason, debit, credit = key
+            errors.append(
+                f"settlement_identity_mismatch:{reason}:{debit}->{credit}:{actual_amount}!={expected_amount}"
+            )
 
 
 def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementResult:
@@ -473,6 +569,7 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
                         errors.append("slash_exceeds_governance_policy")
 
     reason_totals = {reason: 0 for reason in ALLOWED_REASONS}
+    identity_bound_transfers: list[tuple[str, str, str, int]] = []
     total_debits = 0
     total_credits = 0
     for index, transfer in enumerate(transfers):
@@ -503,11 +600,16 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
         total_debits += amount
         total_credits += amount
         reason_totals[str(reason)] += amount
+        identity_bound_transfers.append((str(reason), debit, credit, amount))
 
     expected_reason_totals = _event_reason_totals(economics)
     for reason in sorted(ALLOWED_REASONS):
         if reason_totals[reason] != expected_reason_totals[reason]:
             errors.append(f"settlement_total_mismatch:{reason}:{reason_totals[reason]}!={expected_reason_totals[reason]}")
+
+    expected_identity_obligations = _event_identity_obligations(economics)
+    actual_identity_obligations = _transfer_identity_obligations(identity_bound_transfers)
+    _append_identity_obligation_errors(actual_identity_obligations, expected_identity_obligations, errors)
 
     if economics_result.status == "accepted":
         expected_bond_escrow = (
@@ -530,15 +632,15 @@ def verify_reporter_token_settlement(obj: Mapping[str, Any]) -> TokenSettlementR
         )
         if fee_split_total != int(economics_result.total_fees_paid_e8 or 0):
             errors.append("fee_split_total_mismatch")
-        if balances.get("oracle.reporter_reward_pool", 0) != int(economics_result.reward_pool_e8 or 0):
+        if balances.get(ORACLE_REPORTER_REWARD_POOL, 0) != int(economics_result.reward_pool_e8 or 0):
             errors.append("reward_pool_final_balance_mismatch")
-        if balances.get("oracle.dispute_reward_pool", 0) != int(economics_result.dispute_reward_pool_e8 or 0):
+        if balances.get(ORACLE_DISPUTE_REWARD_POOL, 0) != int(economics_result.dispute_reward_pool_e8 or 0):
             errors.append("dispute_reward_pool_final_balance_mismatch")
-        if balances.get("oracle.treasury", 0) != int(economics_result.treasury_balance_e8 or 0):
+        if balances.get(ORACLE_TREASURY, 0) != int(economics_result.treasury_balance_e8 or 0):
             errors.append("treasury_final_balance_mismatch")
-        if balances.get("oracle.burn", 0) != int(economics_result.burn_balance_e8 or 0):
+        if balances.get(ORACLE_BURN, 0) != int(economics_result.burn_balance_e8 or 0):
             errors.append("burn_final_balance_mismatch")
-        if balances.get("oracle.bond_escrow", 0) != expected_bond_escrow:
+        if balances.get(ORACLE_BOND_ESCROW, 0) != expected_bond_escrow:
             errors.append("bond_escrow_final_balance_mismatch")
 
     token_conservation_ok = total_debits == total_credits
