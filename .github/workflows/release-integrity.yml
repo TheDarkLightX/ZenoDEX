@@ -13,7 +13,7 @@ jobs:
   release-integrity:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
     steps:
@@ -150,7 +150,7 @@ jobs:
           set -euo pipefail
           mkdir -p internal/release_artifacts/operator
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            version="${GITHUB_REF_NAME}"
+            version="${GITHUB_REF_NAME#v}"
           else
             short_sha="${GITHUB_SHA:0:8}"
             version="dev-${short_sha:-local}"
@@ -196,70 +196,3 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: "internal/release_artifacts/operator/zenodex-operator-*.tar.gz"
-
-      - name: Stage GitHub Release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          set -euo pipefail
-          mkdir -p internal/release_artifacts/release_assets
-          tag="${GITHUB_REF_NAME}"
-          cp \
-            "internal/release_artifacts/operator/zenodex-operator-${tag}.tar.gz" \
-            "internal/release_artifacts/operator/zenodex-operator-${tag}.tar.gz.manifest.json" \
-            "internal/release_artifacts/checksums/SHA256SUMS" \
-            internal/release_artifacts/release_assets/
-          for sbom in internal/release_artifacts/sbom/*.cdx.json; do
-            [ -f "$sbom" ] && cp "$sbom" internal/release_artifacts/release_assets/
-          done
-          ls -la internal/release_artifacts/release_assets/
-
-      - name: Create or update GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          prerelease_flag=""
-          case "${tag}" in
-            *-*) prerelease_flag="--prerelease" ;;
-          esac
-          notes_file="$(mktemp)"
-          {
-            echo "ZenoDEX operator release ${tag}"
-            echo
-            echo "## Assets"
-            echo
-            echo "- \`zenodex-operator-${tag}.tar.gz\` — operator bundle (Python source, shell wrappers, Dockerfiles, lockfiles)"
-            echo "- \`zenodex-operator-${tag}.tar.gz.manifest.json\` — per-file SHA-256 manifest produced by \`tools/build_operator_release_bundle.py\`"
-            echo "- \`SHA256SUMS\` — checksums for tarball, manifest, and SBOMs"
-            echo "- \`*.cdx.json\` — CycloneDX SBOMs for core, agents, and (when present) dex-ui dependencies"
-            echo
-            echo "## Verify"
-            echo
-            echo '```'
-            echo "sha256sum -c SHA256SUMS"
-            echo "python3 tools/build_operator_release_bundle.py verify \\"
-            echo "  --manifest zenodex-operator-${tag}.tar.gz.manifest.json"
-            echo '```'
-            echo
-            echo "Release-integrity workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } > "${notes_file}"
-
-          if gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release edit "${tag}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --notes-file "${notes_file}" \
-              ${prerelease_flag}
-            gh release upload "${tag}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --clobber \
-              internal/release_artifacts/release_assets/*
-          else
-            gh release create "${tag}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --title "ZenoDEX operator ${tag}" \
-              --notes-file "${notes_file}" \
-              ${prerelease_flag} \
-              internal/release_artifacts/release_assets/*
-          fi
