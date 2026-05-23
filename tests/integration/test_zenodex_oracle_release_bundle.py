@@ -59,6 +59,9 @@ def test_build_zenodex_oracle_release_bundle_includes_cli_and_branding(tmp_path:
     assert result["archive_sha256"].startswith("sha256:")
     assert by_path["zenodex-oracle"]["executable"] is True
     assert by_path["tools/zenodex_oracle.py"]["sha256"].startswith("sha256:")
+    assert by_path["tools/operator_report_output.py"]["sha256"].startswith("sha256:")
+    assert by_path["src/integration/zeno_oracle_authority.py"]["sha256"].startswith("sha256:")
+    assert by_path["src/state/canonical.py"]["sha256"].startswith("sha256:")
     assert by_path["assets/branding/zeno-oracle/zeno_oracle_icon_512.png"]["sha256"].startswith("sha256:")
 
     version = subprocess.run(
