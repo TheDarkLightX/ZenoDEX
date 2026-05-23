@@ -251,6 +251,20 @@ def test_oracle_cli_dry_run_exercises_local_mvp_flow(tmp_path: Path) -> None:
     assert (workdir / "store" / "signed_reports").is_dir()
 
 
+
+def test_oracle_cli_dry_run_rejects_existing_workdir(tmp_path: Path) -> None:
+    workdir = tmp_path / "dry-run"
+    workdir.mkdir()
+    proc = subprocess.run(
+        [*CLI, "dry-run", "--workdir", str(workdir)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode != 0
+    assert "refusing to use existing dry-run workdir" in proc.stderr
+
 def test_oracle_cli_rejects_unknown_surface() -> None:
     proc = subprocess.run(
         [*CLI, "sample", "unknown-surface"],
