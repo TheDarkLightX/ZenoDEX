@@ -153,6 +153,8 @@ REQUIRED_NOT_CLAIMS = {
 }
 STATIC_EXECUTION_MODES = {"local_static_accept"}
 PRODUCTION_EXECUTION_MODES = {"subprocess_json"}
+MIN_PRODUCTION_VERIFIER_COUNT = 6
+MIN_DISTINCT_PROOF_KIND_COUNT = 6
 BASE_GO_LIVE_BLOCKERS = [
     "proof_governance_execution_not_verified_onchain",
     "production_verifier_code_signing_not_verified",
@@ -282,6 +284,24 @@ def _registry_verifiers(registry: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     if not isinstance(verifiers, list):
         return []
     return [verifier for verifier in verifiers if isinstance(verifier, Mapping)]
+
+
+def _duplicate_strings(values: list[str]) -> list[str]:
+    """Return duplicated strings without trusting caller-provided ordering or counts.
+
+    Contract:
+    - Precondition: values already passed boundary type validation.
+    - Invariant: each returned duplicate appears at least twice in values.
+    - Postcondition: duplicate output is deterministic for audit logs.
+    """
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+            continue
+        seen.add(value)
+    return sorted(duplicates)
 
 
 def _registry_id(registry: Mapping[str, Any]) -> str:
@@ -667,8 +687,8 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "forbidden_execution_modes": sorted(STATIC_EXECUTION_MODES),
             "devnet_only_verifier_ids": devnet_only,
             "production_enabled_verifier_ids": production_enabled,
-            "min_production_verifiers": 6,
-            "min_distinct_proof_kinds": 6,
+            "min_production_verifiers": MIN_PRODUCTION_VERIFIER_COUNT,
+            "min_distinct_proof_kinds": MIN_DISTINCT_PROOF_KIND_COUNT,
             "path_lookup_mode": "disabled",
         },
         "oracle_bridge_policy": {
@@ -1155,8 +1175,27 @@ def check_policy(
         forbidden_modes = set(_string_list(verifier_policy, "forbidden_execution_modes", errors))
         devnet_only_ids = _string_list(verifier_policy, "devnet_only_verifier_ids", errors)
         production_enabled_ids = _string_list(verifier_policy, "production_enabled_verifier_ids", errors)
-        min_production_verifiers = _int_field(verifier_policy, "min_production_verifiers", errors, minimum=1)
-        min_distinct_proof_kinds = _int_field(verifier_policy, "min_distinct_proof_kinds", errors, minimum=1)
+        min_production_verifiers = _int_field(
+            verifier_policy,
+            "min_production_verifiers",
+            errors,
+            minimum=MIN_PRODUCTION_VERIFIER_COUNT,
+        )
+        min_distinct_proof_kinds = _int_field(
+            verifier_policy,
+            "min_distinct_proof_kinds",
+            errors,
+            minimum=MIN_DISTINCT_PROOF_KIND_COUNT,
+        )
+        required_production_verifiers = MIN_PRODUCTION_VERIFIER_COUNT
+        if isinstance(min_production_verifiers, int):
+            required_production_verifiers = max(min_production_verifiers, MIN_PRODUCTION_VERIFIER_COUNT)
+        required_distinct_proof_kinds = MIN_DISTINCT_PROOF_KIND_COUNT
+        if isinstance(min_distinct_proof_kinds, int):
+            required_distinct_proof_kinds = max(min_distinct_proof_kinds, MIN_DISTINCT_PROOF_KIND_COUNT)
+        production_enabled_unique_ids = list(dict.fromkeys(production_enabled_ids))
+        for duplicate_id in _duplicate_strings(production_enabled_ids):
+            errors.append(f"production_verifier_duplicate:{duplicate_id}")
         if not STATIC_EXECUTION_MODES.issubset(forbidden_modes):
             errors.append("static_execution_modes_must_be_forbidden")
         path_lookup_mode = verifier_policy.get("path_lookup_mode")
@@ -1176,7 +1215,7 @@ def check_policy(
                 errors.append(f"static_verifier_not_marked_devnet_only:{verifier_id}")
         if set(devnet_only_ids) & set(production_enabled_ids):
             errors.append("devnet_only_verifier_enabled_for_production")
-        for verifier_id in production_enabled_ids:
+        for verifier_id in production_enabled_unique_ids:
             verifier = verifier_by_id.get(verifier_id)
             if verifier is None:
                 errors.append(f"production_verifier_unknown:{verifier_id}")
@@ -1200,10 +1239,10 @@ def check_policy(
                 raw_timeout = verifier.get("timeout_ms")
                 if not isinstance(raw_timeout, int) or isinstance(raw_timeout, bool) or raw_timeout > max_timeout_ms:
                     errors.append(f"production_verifier_timeout_exceeds_policy:{verifier_id}")
-        if isinstance(min_production_verifiers, int) and len(production_enabled_ids) < min_production_verifiers:
-            errors.append("production_verifier_count_below_policy")
-        if isinstance(min_distinct_proof_kinds, int) and len(distinct_proof_kinds) < min_distinct_proof_kinds:
-            errors.append("distinct_proof_kind_count_below_policy")
+        if len(production_enabled_unique_ids) < required_production_verifiers:
+            errors.append("production_verifier_count_below_required")
+        if len(distinct_proof_kinds) < required_distinct_proof_kinds:
+            errors.append("distinct_proof_kind_count_below_required")
 
     release_manifest = production_verifier_release_manifest(registry, policy)
     if code_signing and _is_sha(code_signing.get("verifier_release_manifest_digest")):
@@ -1262,7 +1301,7 @@ def check_policy(
         "reward_payout_status": active_reward_status.get("status"),
         "receipt_bundle_status": receipt_result["status"],
         "receipt_bundle_kind_count": len(receipt_result.get("receipt_kinds", [])),
-        "production_enabled_verifier_count": len(production_enabled_ids),
+        "production_enabled_verifier_count": len(set(production_enabled_ids)),
         "devnet_only_verifier_count": len(devnet_only_ids),
         "distinct_proof_kind_count": len(distinct_proof_kinds),
         "verifier_release_entry_count": len(release_manifest["verifiers"]),
