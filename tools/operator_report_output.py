@@ -29,12 +29,13 @@ _MATERIAL_KEY_TERMS = (
     "passwd",
     "privkey",
     "private_key",
-    "secret_key",
+    "secret",
     "api_key",
+    "authorization",
+    "signing_material",
 )
 
 _MATERIAL_KEY_EXACT = {
-    "secret",
     "token",
     "auth_token",
     "bearer_token",
@@ -132,10 +133,6 @@ def _redacted_marker(value: Any) -> Any:
     if value in (None, "", False):
         return value
     if isinstance(value, bool):
-        return value
-    if isinstance(value, int) and not isinstance(value, bool):
-        return value
-    if isinstance(value, float):
         return value
     return "[redacted]"
 
