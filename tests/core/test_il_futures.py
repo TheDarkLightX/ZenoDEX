@@ -9,9 +9,30 @@ from src.core.il_futures import (
     ILFAction,
     ILFActionParams,
     ILFState,
+    compute_twap_reference_commitment,
     step,
 )
 from src.core.il_futures_math import compute_il_bps, compute_payout
+
+
+def _twap_commitment(
+    *,
+    reserve_x: int,
+    reserve_y: int,
+    elapsed: int = 1,
+    window: int = 10,
+    action: ILFAction = ILFAction.SETTLE_IL_EPOCH,
+    epoch: int = 0,
+) -> str:
+    return compute_twap_reference_commitment(
+        source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=window,
+        reference_elapsed_blocks=elapsed,
+        reserve_x=reserve_x,
+        reserve_y=reserve_y,
+        action_kind=action.value,
+        epoch=epoch,
+    )
 
 # ---------------------------------------------------------------------------
 # IL Math
@@ -207,7 +228,16 @@ def test_snapshot_no_auth_rejected() -> None:
 
 
 def test_snapshot_requires_twap_reference_when_hardened_mode_enabled() -> None:
-    s = ILFState(require_twap_reference=True, min_twap_window_blocks=10)
+    commitment = _twap_commitment(
+        reserve_x=1000000,
+        reserve_y=1000000,
+        action=ILFAction.SNAPSHOT_EPOCH_START,
+    )
+    s = ILFState(
+        require_twap_reference=True,
+        min_twap_window_blocks=10,
+        accepted_twap_reference_commitments=frozenset({commitment}),
+    )
 
     spot = step(s, ILFActionParams(
         action=ILFAction.SNAPSHOT_EPOCH_START,
@@ -215,6 +245,15 @@ def test_snapshot_requires_twap_reference_when_hardened_mode_enabled() -> None:
         reserve_y=1000000,
         auth_ok=True,
         reference_source_kind="spot",
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+    ))
+    unbound_twap = step(s, ILFActionParams(
+        action=ILFAction.SNAPSHOT_EPOCH_START,
+        reserve_x=1000000,
+        reserve_y=1000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
         twap_window_blocks=10,
         reference_elapsed_blocks=1,
     ))
@@ -226,9 +265,11 @@ def test_snapshot_requires_twap_reference_when_hardened_mode_enabled() -> None:
         reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
         twap_window_blocks=10,
         reference_elapsed_blocks=1,
+        reference_commitment=commitment,
     ))
 
     assert not spot.accepted
+    assert not unbound_twap.accepted
     assert twap.accepted
     assert twap.state is not None
     assert twap.state.snapshot_taken is True
@@ -284,6 +325,89 @@ def test_settle_no_auth_rejected() -> None:
 
 
 def test_settle_requires_elapsed_twap_reference_when_hardened_mode_enabled() -> None:
+    commitment = _twap_commitment(reserve_x=500000, reserve_y=2000000)
+    s = ILFState(
+        snapshot_taken=True,
+        pool_snapshot_reserve_x=1000000,
+        pool_snapshot_reserve_y=1000000,
+        long_exposure=100000,
+        short_exposure=200000,
+        premium_pool=5000,
+        margin_pool=200000,
+        require_twap_reference=True,
+        min_twap_window_blocks=10,
+        min_reference_elapsed_blocks=1,
+        accepted_twap_reference_commitments=frozenset({commitment}),
+    )
+
+    same_block = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500000,
+        current_reserve_y=2000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=0,
+    ))
+    unbound_elapsed = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500000,
+        current_reserve_y=2000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+    ))
+    elapsed = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500000,
+        current_reserve_y=2000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+        reference_commitment=commitment,
+    ))
+
+    assert not same_block.accepted
+    assert not unbound_elapsed.accepted
+    assert elapsed.accepted
+    assert elapsed.state is not None
+    assert elapsed.state.realized_il_bps > 0
+
+
+def test_settle_rejects_twap_commitment_bound_to_different_reserves() -> None:
+    commitment = _twap_commitment(reserve_x=1000000, reserve_y=1000000)
+    s = ILFState(
+        snapshot_taken=True,
+        pool_snapshot_reserve_x=1000000,
+        pool_snapshot_reserve_y=1000000,
+        long_exposure=100000,
+        short_exposure=200000,
+        premium_pool=5000,
+        margin_pool=200000,
+        require_twap_reference=True,
+        min_twap_window_blocks=10,
+        min_reference_elapsed_blocks=1,
+        accepted_twap_reference_commitments=frozenset({commitment}),
+    )
+
+    r = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500000,
+        current_reserve_y=2000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+        reference_commitment=commitment,
+    ))
+
+    assert not r.accepted
+
+
+def test_settle_rejects_self_attested_unaccepted_twap_commitment() -> None:
+    commitment = _twap_commitment(reserve_x=500000, reserve_y=2000000)
     s = ILFState(
         snapshot_taken=True,
         pool_snapshot_reserve_x=1000000,
@@ -297,16 +421,7 @@ def test_settle_requires_elapsed_twap_reference_when_hardened_mode_enabled() -> 
         min_reference_elapsed_blocks=1,
     )
 
-    same_block = step(s, ILFActionParams(
-        action=ILFAction.SETTLE_IL_EPOCH,
-        current_reserve_x=500000,
-        current_reserve_y=2000000,
-        auth_ok=True,
-        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
-        twap_window_blocks=10,
-        reference_elapsed_blocks=0,
-    ))
-    elapsed = step(s, ILFActionParams(
+    r = step(s, ILFActionParams(
         action=ILFAction.SETTLE_IL_EPOCH,
         current_reserve_x=500000,
         current_reserve_y=2000000,
@@ -314,12 +429,39 @@ def test_settle_requires_elapsed_twap_reference_when_hardened_mode_enabled() -> 
         reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
         twap_window_blocks=10,
         reference_elapsed_blocks=1,
+        reference_commitment=commitment,
     ))
 
-    assert not same_block.accepted
-    assert elapsed.accepted
-    assert elapsed.state is not None
-    assert elapsed.state.realized_il_bps > 0
+    assert not r.accepted
+
+
+def test_twap_reference_commitment_changes_when_any_bound_field_changes() -> None:
+    baseline = _twap_commitment(reserve_x=500000, reserve_y=2000000)
+
+    variants = {
+        _twap_commitment(reserve_x=500001, reserve_y=2000000),
+        _twap_commitment(reserve_x=500000, reserve_y=2000001),
+        _twap_commitment(reserve_x=500000, reserve_y=2000000, window=11),
+        _twap_commitment(reserve_x=500000, reserve_y=2000000, elapsed=2),
+        compute_twap_reference_commitment(
+            source_kind="spot",
+            twap_window_blocks=10,
+            reference_elapsed_blocks=1,
+            reserve_x=500000,
+            reserve_y=2000000,
+            action_kind=ILFAction.SETTLE_IL_EPOCH.value,
+            epoch=0,
+        ),
+        _twap_commitment(
+            reserve_x=500000,
+            reserve_y=2000000,
+            action=ILFAction.SNAPSHOT_EPOCH_START,
+        ),
+        _twap_commitment(reserve_x=500000, reserve_y=2000000, epoch=1),
+    }
+
+    assert baseline not in variants
+    assert len(variants) == 7
 
 
 def test_settle_before_snapshot_rejected() -> None:
