@@ -86,6 +86,11 @@ def _ceil_div(num: int, den: int) -> int:
     return (num + den - 1) // den
 
 
+def _reciprocal_loss_multiplier(*, price_scale: int, min_price_scaled: int) -> int:
+    # Preconditions: positive scale and min price guaranteed by field validation.
+    return _ceil_div(price_scale * price_scale, min_price_scaled)
+
+
 def _int_field(
     obj: Mapping[str, Any],
     key: str,
@@ -373,7 +378,22 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
             max_active_intents * half_fill_quantum_atoms * economic_max_price_scaled,
             economic_price_scale,
         )
-        absolute_loss_bound_atoms = price_grid_loss_atoms + fill_quantum_loss_atoms + rounding_loss_atoms
+        reciprocal_loss_multiplier = _reciprocal_loss_multiplier(
+            price_scale=economic_price_scale,
+            min_price_scaled=economic_min_price_scaled,
+        )
+        reciprocal_price_grid_loss_atoms = _ceil_div(
+            max_total_executed_input_atoms * half_tick_error_scaled * reciprocal_loss_multiplier,
+            economic_price_scale,
+        )
+        reciprocal_fill_quantum_loss_atoms = _ceil_div(
+            max_active_intents * half_fill_quantum_atoms * reciprocal_loss_multiplier,
+            economic_price_scale,
+        )
+        absolute_loss_bound_atoms = max(
+            price_grid_loss_atoms + fill_quantum_loss_atoms,
+            reciprocal_price_grid_loss_atoms + reciprocal_fill_quantum_loss_atoms,
+        ) + rounding_loss_atoms
         relative_loss_ppm = _ceil_div(absolute_loss_bound_atoms * PPM_DENOM, min_notional_output_atoms)
         derived.update(
             {
@@ -383,6 +403,9 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
                 "price_grid_loss_atoms": price_grid_loss_atoms,
                 "half_fill_quantum_atoms": half_fill_quantum_atoms,
                 "fill_quantum_loss_atoms": fill_quantum_loss_atoms,
+                "reciprocal_loss_multiplier": reciprocal_loss_multiplier,
+                "reciprocal_price_grid_loss_atoms": reciprocal_price_grid_loss_atoms,
+                "reciprocal_fill_quantum_loss_atoms": reciprocal_fill_quantum_loss_atoms,
                 "absolute_loss_bound_atoms": absolute_loss_bound_atoms,
                 "relative_loss_ppm": relative_loss_ppm,
             }
