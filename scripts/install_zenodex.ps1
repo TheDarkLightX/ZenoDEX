@@ -37,6 +37,21 @@ function Install-Wrapper {
 Install-Wrapper -Name "zenoctl" -Target (Join-Path $RepoDir "tools\zenoctl.py")
 Install-Wrapper -Name "zenodex-node" -Target (Join-Path $RepoDir "tools\zeno_ledger_node.py")
 
+$LocalTestnetOut = Join-Path $BinDir "zenodex-local-testnet.cmd"
+if ($DryRun) {
+  Write-Output "would install $LocalTestnetOut -> tools\zenoctl.py testnet local"
+} else {
+  New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+  $ZenoctlTarget = Join-Path $RepoDir "tools\zenoctl.py"
+  $Content = @(
+    "@echo off",
+    "$python `"$ZenoctlTarget`" testnet local %*"
+  )
+  Set-Content -Path $LocalTestnetOut -Value $Content -Encoding ASCII
+  Write-Output "installed $LocalTestnetOut"
+}
+
 if (-not $DryRun) {
   Write-Output "run: $BinDir\zenoctl.cmd doctor --engine none --strict"
+  Write-Output "run: $BinDir\zenodex-local-testnet.cmd up --out-dir %TEMP%\zenodex-local"
 }
