@@ -2193,6 +2193,9 @@ def _public_network_config_to_join_config_v0(
     recommended = network_config.get("recommended_node")
     if not isinstance(recommended, Mapping):
         recommended = {}
+    submit_peer_url = str(recommended.get("submit_peer_url", writer_urls[0]))
+    if submit_peer_url not in writer_urls:
+        raise ValueError("public network config recommended_node.submit_peer_url must match an admitted writer URL")
     effective_port = port if port is not None else int(recommended.get("port", 8788))
     effective_poll = poll_seconds if poll_seconds is not None else int(recommended.get("poll_seconds", 5))
     return {
@@ -2208,7 +2211,7 @@ def _public_network_config_to_join_config_v0(
         "poll_seconds": effective_poll,
         "enable_testnet_intake": bool(recommended.get("enable_testnet_intake", True)),
         "enable_testnet_faucet": bool(recommended.get("enable_testnet_faucet", True)),
-        "submit_peer_url": str(recommended.get("submit_peer_url", writer_urls[0])),
+        "submit_peer_url": submit_peer_url,
     }
 
 
