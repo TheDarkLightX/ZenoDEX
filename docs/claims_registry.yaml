@@ -2535,6 +2535,52 @@ claims:
         - tests/test_zenodex_campaign5_disaster_class_corpus.py
         - docs/ZENOPROOF_V0_DESIGN.md
 
+  - id: py:zenoproof:production_governance_policy_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoProof production-candidate governance policy checker binds the
+      public verifier registry manifest to governance timelock/quorum controls,
+      verifier code-signing requirements, deterministic sandbox limits,
+      revocation receipts, devnet-only quarantine for local static verifiers,
+      production-enabled public replay verifier IDs with executable path lookup
+      disabled, O3/O5 bridge controls, bounded no-mint reward settlement replay,
+      a local receipt bundle for
+      governance execution, revocation drill/list, code-signing attestation with
+      verifier-release manifest binding, verifier-release transparency-log root
+      binding, sandbox image/seccomp digest binding for every signed verifier
+      release entry, sandbox attestation, policy-pinned receipt IDs for every
+      required receipt kind, and explicit receipt-dependency links from approval
+      to execution to revocation/code-signing to transparency-log to sandbox
+      attestation, and explicit non-claims. It
+      rejects static verifier promotion, devnet verifier production enablement,
+      production verifier path-lookup enablement, weak bridge or sandbox
+      controls, bad governance or reward controls, missing non-claims, missing
+      receipt bundles, early governance execution, sandbox attestation drift,
+      verifier-release entry drift, verifier release/sandbox digest drift,
+      missing transparency-log observation, transparency-log root drift,
+      forged attestation receipt replacement, receipt dependency drift,
+      receipt happens-before drift, and failed
+      reward-payout replay. The normal
+      checker accepts the current
+      production-candidate policy; `--require-live` rejects while proof-network,
+      code-signing, sandbox, revocation, and live proof-mining token-settlement
+      blockers remain.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zenoproof_production_governance_policy.py --format text
+        - cmd: pytest -q tests/test_check_zenoproof_production_governance_policy.py
+      files:
+        - tools/check_zenoproof_production_governance_policy.py
+        - tests/test_check_zenoproof_production_governance_policy.py
+        - tools/zenoproof_registry_manifest.json
+        - tools/zenoproof_verify.py
+        - tools/zenoproof_reward_payout_replay.py
+        - src/core/proof_mining_claim_gate.py
+        - docs/ZENOPROOF_V0_DESIGN.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: lean:zenodex:s_tier_disaster_math_v1
     status: supported
     layer: assurance
