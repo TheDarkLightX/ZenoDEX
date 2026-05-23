@@ -5586,6 +5586,125 @@ def _run_obligation_command(command: list[str], *, timeout_s: int) -> dict[str, 
         }
 
 
+def _pytest_group_key(command: list[str]) -> tuple[str | None, tuple[str, ...]] | None:
+    if not command or command[0] != "pytest":
+        return None
+    args = list(command[1:])
+    if args and args[0] == "-q":
+        args = args[1:]
+
+    k_expr: str | None = None
+    paths: list[str] = []
+    idx = 0
+    while idx < len(args):
+        arg = args[idx]
+        if arg == "-k":
+            if k_expr is not None or idx + 1 >= len(args):
+                return None
+            k_expr = args[idx + 1]
+            idx += 2
+            continue
+        if arg.startswith("-"):
+            return None
+        paths.append(arg)
+        idx += 1
+    if not paths:
+        return None
+    return k_expr, tuple(paths)
+
+
+def _run_aggregate_pytest_axes(
+    raw_axes: list[Any],
+    *,
+    selected_axis_ids: set[str] | None,
+    timeout_s: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    axis_commands: list[tuple[dict[str, Any], list[tuple[list[str], str | None]]]] = []
+    group_paths: dict[str | None, set[str]] = {}
+
+    for axis in raw_axes:
+        if not isinstance(axis, dict):
+            return None
+        axis_id = str(axis.get("axis_id") or "")
+        if selected_axis_ids is not None and axis_id not in selected_axis_ids:
+            continue
+        raw_commands = axis.get("commands", [])
+        if not isinstance(raw_commands, list) or not raw_commands:
+            return None
+
+        parsed_commands: list[tuple[list[str], str | None]] = []
+        for command in raw_commands:
+            if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+                return None
+            parsed = _pytest_group_key(command)
+            if parsed is None:
+                return None
+            k_expr, paths = parsed
+            group_paths.setdefault(k_expr, set()).update(paths)
+            parsed_commands.append((command, k_expr))
+        axis_commands.append((axis, parsed_commands))
+
+    if not axis_commands:
+        return None
+
+    aggregate_results_by_key: dict[str | None, dict[str, Any]] = {}
+    aggregate_results: list[dict[str, Any]] = []
+    for k_expr in sorted(group_paths, key=lambda item: "" if item is None else item):
+        command = [sys.executable, "-m", "pytest", "-q"]
+        if k_expr is not None:
+            command.extend(["-k", k_expr])
+        command.extend(sorted(group_paths[k_expr]))
+        result = _run_obligation_command(command, timeout_s=timeout_s)
+        result["aggregate_pytest_group"] = {
+            "k_expr": k_expr,
+            "path_count": len(group_paths[k_expr]),
+        }
+        aggregate_results_by_key[k_expr] = result
+        aggregate_results.append(result)
+
+    axis_results: list[dict[str, Any]] = []
+    for axis, parsed_commands in axis_commands:
+        command_results: list[dict[str, Any]] = []
+        command_statuses: set[str] = set()
+        for command, k_expr in parsed_commands:
+            aggregate = aggregate_results_by_key[k_expr]
+            status = str(aggregate.get("status"))
+            command_statuses.add(status)
+            command_results.append(
+                {
+                    "command": command,
+                    "status": status,
+                    "ok": status == "passed",
+                    "returncode": aggregate.get("returncode"),
+                    "duration_s": aggregate.get("duration_s"),
+                    "stdout": "",
+                    "stderr": "",
+                    "covered_by_aggregate_pytest": True,
+                    "aggregate_command": aggregate.get("command"),
+                    "aggregate_pytest_group": aggregate.get("aggregate_pytest_group"),
+                }
+            )
+        if "failed" in command_statuses:
+            axis_status = "found_or_regressed"
+        elif "inconclusive" in command_statuses:
+            axis_status = "inconclusive"
+        else:
+            axis_status = "unreachable_under_current_bounds"
+        axis_results.append(
+            {
+                "axis_id": str(axis.get("axis_id") or ""),
+                "priority_score": int(axis.get("priority_score", 0) or 0),
+                "surface_ids": axis.get("surface_ids", []),
+                "what_if": axis.get("what_if"),
+                "disaster_state_template": axis.get("disaster_state_template"),
+                "status": axis_status,
+                "ok": axis_status == "unreachable_under_current_bounds",
+                "command_results": command_results,
+            }
+        )
+    return axis_results, aggregate_results
+
+
 def _lane_closure_status(command_results: list[dict[str, Any]]) -> str:
     if not command_results:
         return "inconclusive"
@@ -5615,6 +5734,7 @@ def run_disaster_search_expansion_plan(
     plan: str | Path | dict[str, Any] | None = None,
     axis_ids: list[str] | None = None,
     timeout_s: int = 240,
+    aggregate_pytest: bool = False,
 ) -> dict[str, Any]:
     if plan is None:
         search_plan = build_disaster_search_expansion_plan(axis_ids=axis_ids)
@@ -5639,62 +5759,73 @@ def run_disaster_search_expansion_plan(
         errors.append("axes must be a list")
         raw_axes = []
 
-    for axis in raw_axes:
-        if not isinstance(axis, dict):
-            errors.append("axis entries must be objects")
-            continue
-        axis_id = str(axis.get("axis_id") or "")
-        if selected_axis_ids is not None and axis_id not in selected_axis_ids:
-            continue
-        command_results: list[dict[str, Any]] = []
-        raw_commands = axis.get("commands", [])
-        if not isinstance(raw_commands, list) or not raw_commands:
-            command_results.append(
+    aggregate_command_results: list[dict[str, Any]] = []
+    aggregate_result = None
+    if aggregate_pytest:
+        aggregate_result = _run_aggregate_pytest_axes(
+            raw_axes,
+            selected_axis_ids=selected_axis_ids,
+            timeout_s=timeout_s,
+        )
+    if aggregate_result is not None:
+        axis_results, aggregate_command_results = aggregate_result
+    else:
+        for axis in raw_axes:
+            if not isinstance(axis, dict):
+                errors.append("axis entries must be objects")
+                continue
+            axis_id = str(axis.get("axis_id") or "")
+            if selected_axis_ids is not None and axis_id not in selected_axis_ids:
+                continue
+            command_results: list[dict[str, Any]] = []
+            raw_commands = axis.get("commands", [])
+            if not isinstance(raw_commands, list) or not raw_commands:
+                command_results.append(
+                    {
+                        "command": [],
+                        "status": "inconclusive",
+                        "ok": False,
+                        "returncode": None,
+                        "duration_s": 0,
+                        "stdout": "",
+                        "stderr": "axis has no commands",
+                    }
+                )
+            else:
+                for command in raw_commands:
+                    if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+                        command_results.append(
+                            {
+                                "command": [],
+                                "status": "failed",
+                                "ok": False,
+                                "returncode": None,
+                                "duration_s": 0,
+                                "stdout": "",
+                                "stderr": "axis command must be a list of strings",
+                            }
+                        )
+                        continue
+                    command_results.append(_run_obligation_command(command, timeout_s=timeout_s))
+            command_statuses = {str(result.get("status")) for result in command_results}
+            if "failed" in command_statuses:
+                axis_status = "found_or_regressed"
+            elif "inconclusive" in command_statuses:
+                axis_status = "inconclusive"
+            else:
+                axis_status = "unreachable_under_current_bounds"
+            axis_results.append(
                 {
-                    "command": [],
-                    "status": "inconclusive",
-                    "ok": False,
-                    "returncode": None,
-                    "duration_s": 0,
-                    "stdout": "",
-                    "stderr": "axis has no commands",
+                    "axis_id": axis_id,
+                    "priority_score": int(axis.get("priority_score", 0) or 0),
+                    "surface_ids": axis.get("surface_ids", []),
+                    "what_if": axis.get("what_if"),
+                    "disaster_state_template": axis.get("disaster_state_template"),
+                    "status": axis_status,
+                    "ok": axis_status == "unreachable_under_current_bounds",
+                    "command_results": command_results,
                 }
             )
-        else:
-            for command in raw_commands:
-                if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
-                    command_results.append(
-                        {
-                            "command": [],
-                            "status": "failed",
-                            "ok": False,
-                            "returncode": None,
-                            "duration_s": 0,
-                            "stdout": "",
-                            "stderr": "axis command must be a list of strings",
-                        }
-                    )
-                    continue
-                command_results.append(_run_obligation_command(command, timeout_s=timeout_s))
-        command_statuses = {str(result.get("status")) for result in command_results}
-        if "failed" in command_statuses:
-            axis_status = "found_or_regressed"
-        elif "inconclusive" in command_statuses:
-            axis_status = "inconclusive"
-        else:
-            axis_status = "unreachable_under_current_bounds"
-        axis_results.append(
-            {
-                "axis_id": axis_id,
-                "priority_score": int(axis.get("priority_score", 0) or 0),
-                "surface_ids": axis.get("surface_ids", []),
-                "what_if": axis.get("what_if"),
-                "disaster_state_template": axis.get("disaster_state_template"),
-                "status": axis_status,
-                "ok": axis_status == "unreachable_under_current_bounds",
-                "command_results": command_results,
-            }
-        )
 
     if not axis_results:
         errors.append("no disaster search expansion axes selected")
@@ -5717,6 +5848,7 @@ def run_disaster_search_expansion_plan(
         "unreachable_count": sum(1 for result in axis_results if result.get("status") == "unreachable_under_current_bounds"),
         "failed_count": sum(1 for result in axis_results if result.get("status") == "found_or_regressed"),
         "inconclusive_count": sum(1 for result in axis_results if result.get("status") == "inconclusive"),
+        "aggregate_command_results": aggregate_command_results,
         "axis_results": sorted(axis_results, key=lambda row: (-int(row["priority_score"]), str(row["axis_id"]))),
     }
 
