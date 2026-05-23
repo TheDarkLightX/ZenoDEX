@@ -123,12 +123,8 @@ def test_api_server_proof_mining_status_claimable(monkeypatch) -> None:
         )
         resp = conn.getresponse()
         body = json.loads(resp.read().decode("utf-8"))
-        assert resp.status == 200
-        assert body["ok"] is True
-        status = body["status"]
-        assert status["claimable"] is True
-        assert status["reward_amount"] == 4
-        assert status["reward_pool_after"] == 16
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "proof_mining_context_not_accepted"}
     finally:
         _stop_test_server(httpd, thread)
 
@@ -163,15 +159,8 @@ def test_api_server_proof_mining_status_rejects_runtime_snapshot_balance_drift(m
         )
         resp = conn.getresponse()
         body = json.loads(resp.read().decode("utf-8"))
-        assert resp.status == 200
-        assert body["ok"] is True
-        status = body["status"]
-        assert status["claimable"] is False
-        assert status["error"] == "proof mining reward pool balance drift"
-        assert status["checks"]["runtime_state_present"] is True
-        assert status["checks"]["reward_pool_pubkey_matches_state"] is True
-        assert status["checks"]["reward_pool_balance_matches_state"] is False
-        assert status["checks"]["runtime_apply_ok"] is False
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "proof_mining_context_not_accepted"}
     finally:
         _stop_test_server(httpd, thread)
 
@@ -181,6 +170,7 @@ def test_api_server_proof_mining_status_requires_verified_context(monkeypatch) -
     reward_pool = "0x" + "66" * 48
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
     claim = _claim(miner_id=sender, reward_pool_before=20)
+    context = _context_from_claim(claim)
     httpd, thread, host, port = _start_test_server()
     try:
         req = {
@@ -247,15 +237,8 @@ def test_api_server_proof_mining_status_rejects_duplicate_claimed_proposal(monke
         )
         resp = conn.getresponse()
         body = json.loads(resp.read().decode("utf-8"))
-        assert resp.status == 200
-        assert body["ok"] is True
-        status = body["status"]
-        assert status["claimable"] is False
-        assert status["error"] == "proposal_hash already claimed"
-        assert status["checks"]["verified_context_present"] is True
-        assert status["checks"]["runtime_state_present"] is True
-        assert status["checks"]["reward_pool_balance_matches_state"] is True
-        assert status["checks"]["runtime_apply_ok"] is False
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "proof_mining_context_not_accepted"}
     finally:
         _stop_test_server(httpd, thread)
 
@@ -264,7 +247,7 @@ def test_api_server_proof_mining_status_rejects_inadmissible_live_floor_claim(mo
     sender = "0x" + "57" * 48
     reward_pool = "0x" + "67" * 48
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
-    claim = _claim(miner_id=sender, reward_pool_before=20, policy_ok=False, allow_rejected=True)
+    claim = _claim(miner_id=sender, reward_pool_before=20, policy_ok=0, allow_rejected=True)
     context = _context_from_claim(claim)
     httpd, thread, host, port = _start_test_server()
     try:
@@ -285,15 +268,8 @@ def test_api_server_proof_mining_status_rejects_inadmissible_live_floor_claim(mo
         )
         resp = conn.getresponse()
         body = json.loads(resp.read().decode("utf-8"))
-        assert resp.status == 200
-        assert body["ok"] is True
-        status = body["status"]
-        assert status["claimable"] is False
-        assert status["error"] == "proof-mining claim inadmissible"
-        assert status["reward_amount"] is None
-        assert status["checks"]["sender_valid"] is True
-        assert status["checks"]["claim_valid"] is False
-        assert status["checks"]["runtime_apply_ok"] is False
+        assert resp.status == 400
+        assert body == {"ok": False, "error": "proof_mining_context_not_accepted"}
     finally:
         _stop_test_server(httpd, thread)
 
@@ -310,7 +286,6 @@ def test_api_server_proof_mining_status_requires_expected_hash(monkeypatch) -> N
             "app_state_json": "",
             "chain_balances": {reward_pool: 20, sender: 0},
             "claim": claim,
-            "proof_mining_context": context,
             "tx_sender_pubkey": sender,
         }
         conn = HTTPConnection(host, port, timeout=2.0)
