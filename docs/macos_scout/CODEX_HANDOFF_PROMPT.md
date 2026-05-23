@@ -140,7 +140,9 @@ explicit work output, with caps and replayable evidence.
 
 The detailed loop is in `docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md`. Follow
 that file as the source of truth for what to run, how to interpret outputs, and
-what to commit or push back.
+what to commit or push back. Its first step requires checking out and verifying
+a reviewed 40-hex handoff commit before running local scout scripts; do not use
+a mutable branch name as execution authority.
 
 ## Optimization Requirement For The Receiving Agent
 
