@@ -1,205 +1,340 @@
 #!/usr/bin/env python3
-"""Build and verify a small operator release bundle."""
+"""Build a deterministic ZenoDEX operator release bundle."""
 
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
-import io
 import json
-import re
 import sys
 import tarfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "zenodex.operator_release_bundle.v0"
-DEFAULT_INCLUDE = (
-    "bin/zenoctl",
-    "tools/zenoctl.py",
-    "tools/zeno_ledger_node.py",
+
+INCLUDE_PATHS = (
+    "bin",
+    "scripts",
+    "src",
+    "tools",
+    "config",
+    "formal",
+    ".docker",
+    "Dockerfile",
     "Dockerfile.hashlocked",
     "Dockerfile.operator-tools",
+    "Dockerfile.production-hashlocked",
+    "docker-compose.yml",
+    "docker-compose.local.yml",
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
-    "scripts/install_zenodex.sh",
-    "scripts/install_zenodex.ps1",
+    "docker-compose.permissionless.yml",
+    "requirements-core.lock.txt",
+    "requirements-dev.lock.txt",
+    "requirements-agents.lock.txt",
+    "pyproject.toml",
+    "pytest.ini",
+    "README.md",
     "docs/DEPLOYMENT_QUICKSTART.md",
+    "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
+    "docs/PERMISSIONLESS_HOSTING.md",
+    "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
+    "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
+    "docs/assurance",
+    "docs/tau_supported_runtime_contract.json",
 )
-DEFAULT_OUT_DIR = ROOT / "dist"
-SAFE_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+EXCLUDED_PARTS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tau_history",
+    "__pycache__",
+    "build",
+    "dist",
+    "external",
+    "internal",
+    "mutants",
+    "node_modules",
+    "runs",
+    "target",
+    "_secbin",
+    ".venv",
+    "venv",
+}
+
+EXCLUDED_SUFFIXES = (
+    ".pyc",
+    ".pyo",
+    ".log",
+    ".tmp",
+    ".tau_history",
+)
+
+
+@dataclass(frozen=True)
+class BundleFile:
+    relative_path: str
+    size_bytes: int
+    sha256: str
+
+
+def build_operator_release_bundle(
+    *,
+    root: Path = ROOT,
+    out_dir: Path,
+    version: str,
+) -> dict[str, Any]:
+    root = root.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    files = _collect_bundle_files(root)
+    if not files:
+        raise ValueError("operator release bundle would be empty")
+
+    archive_name = f"zenodex-operator-{_safe_version(version)}.tar.gz"
+    archive_path = out_dir / archive_name
+    _write_tar_gz(root=root, files=files, archive_path=archive_path, prefix=f"zenodex-operator-{version}")
+    archive_sha256 = _sha256_file(archive_path)
+
+    manifest_body = {
+        "schema": SCHEMA,
+        "version": version,
+        "archive_name": archive_name,
+        "archive_sha256": archive_sha256,
+        "file_count": len(files),
+        "total_size_bytes": sum(item.size_bytes for item in files),
+        "files": [
+            {
+                "path": item.relative_path,
+                "size_bytes": item.size_bytes,
+                "sha256": item.sha256,
+            }
+            for item in files
+        ],
+    }
+    manifest_path = out_dir / f"{archive_name}.manifest.json"
+    manifest_path.write_text(json.dumps(manifest_body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest_sha256 = _sha256_file(manifest_path)
+    return {
+        "schema": "zenodex.operator_release_bundle.build_report.v0",
+        "ok": True,
+        "version": version,
+        "archive": str(archive_path),
+        "archive_path": str(archive_path),
+        "manifest": str(manifest_path),
+        "manifest_path": str(manifest_path),
+        "archive_sha256": archive_sha256,
+        "manifest_sha256": manifest_sha256,
+        "file_count": len(files),
+        "total_size_bytes": manifest_body["total_size_bytes"],
+    }
+
+
+def verify_operator_release_manifest(*, manifest_path: Path, archive_path: Path | None = None) -> dict[str, Any]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    errors: list[str] = []
+    if not isinstance(manifest, dict):
+        return _verify_report(["manifest must be a JSON object"])
+    if manifest.get("schema") != SCHEMA:
+        errors.append("manifest schema mismatch")
+    files = manifest.get("files")
+    if not isinstance(files, list) or not files:
+        errors.append("manifest files must be a non-empty list")
+    if not isinstance(manifest.get("file_count"), int) or manifest.get("file_count") != len(files or []):
+        errors.append("manifest file_count mismatch")
+
+    archive = archive_path or manifest_path.parent / str(manifest.get("archive_name", ""))
+    if not archive.is_file():
+        errors.append(f"archive missing: {archive}")
+    else:
+        actual_sha = _sha256_file(archive)
+        if actual_sha != manifest.get("archive_sha256"):
+            errors.append("archive_sha256 mismatch")
+
+    seen: set[str] = set()
+    for index, item in enumerate(files if isinstance(files, list) else []):
+        if not isinstance(item, dict):
+            errors.append(f"files[{index}] must be an object")
+            continue
+        relpath = item.get("path")
+        if not isinstance(relpath, str) or not relpath:
+            errors.append(f"files[{index}].path must be non-empty")
+            continue
+        if relpath in seen:
+            errors.append(f"duplicate file path: {relpath}")
+        seen.add(relpath)
+        if not _is_safe_relative_path(relpath):
+            errors.append(f"unsafe file path: {relpath}")
+        if not isinstance(item.get("size_bytes"), int) or item.get("size_bytes") < 0:
+            errors.append(f"invalid file size: {relpath}")
+        if not _looks_sha256(item.get("sha256")):
+            errors.append(f"invalid file sha256: {relpath}")
+
+    if archive.is_file() and not errors:
+        errors.extend(_verify_archive_members(archive=archive, manifest=manifest))
+
+    return _verify_report(errors)
+
+
+def _verify_report(errors: list[str]) -> dict[str, Any]:
+    return {
+        "schema": "zenodex.operator_release_bundle.verify_report.v0",
+        "ok": not errors,
+        "status": "verify",
+        "errors": errors,
+    }
+
+
+def _collect_bundle_files(root: Path) -> list[BundleFile]:
+    relpaths: set[str] = set()
+    for include in INCLUDE_PATHS:
+        path = root / include
+        if path.is_file():
+            relpaths.add(include)
+        elif path.is_dir():
+            for child in sorted(path.rglob("*")):
+                if child.is_file():
+                    rel = child.relative_to(root).as_posix()
+                    if _include_file(rel):
+                        relpaths.add(rel)
+
+    files: list[BundleFile] = []
+    for rel in sorted(relpaths):
+        path = root / rel
+        files.append(BundleFile(relative_path=rel, size_bytes=path.stat().st_size, sha256=_sha256_file(path)))
+    return files
+
+
+def _include_file(relpath: str) -> bool:
+    path = Path(relpath)
+    if not _is_safe_relative_path(relpath):
+        return False
+    if any(part in EXCLUDED_PARTS for part in path.parts):
+        return False
+    if relpath.endswith(EXCLUDED_SUFFIXES):
+        return False
+    return True
+
+
+def _is_safe_relative_path(relpath: str) -> bool:
+    path = Path(relpath)
+    return relpath != "" and not path.is_absolute() and ".." not in path.parts
+
+
+def _write_tar_gz(*, root: Path, files: Iterable[BundleFile], archive_path: Path, prefix: str) -> None:
+    with archive_path.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as gz:
+            with tarfile.open(fileobj=gz, mode="w", format=tarfile.PAX_FORMAT) as tar:
+                for item in files:
+                    path = root / item.relative_path
+                    arcname = f"{prefix}/{item.relative_path}"
+                    info = tar.gettarinfo(str(path), arcname=arcname)
+                    info.uid = 0
+                    info.gid = 0
+                    info.uname = ""
+                    info.gname = ""
+                    info.mtime = 0
+                    with path.open("rb") as fh:
+                        tar.addfile(info, fh)
+
+
+def _verify_archive_members(*, archive: Path, manifest: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    expected = {str(item["path"]): item for item in manifest["files"]}
+    prefix = f"zenodex-operator-{manifest.get('version')}/"
+    with tarfile.open(archive, "r:gz") as tar:
+        members = [member for member in tar.getmembers() if member.isfile()]
+        observed: set[str] = set()
+        for member in members:
+            if not member.name.startswith(prefix):
+                errors.append(f"archive member outside bundle prefix: {member.name}")
+                continue
+            relpath = member.name[len(prefix) :]
+            observed.add(relpath)
+            expected_item = expected.get(relpath)
+            if expected_item is None:
+                errors.append(f"archive contains unexpected file: {relpath}")
+                continue
+            extracted = tar.extractfile(member)
+            if extracted is None:
+                errors.append(f"archive member could not be read: {relpath}")
+                continue
+            payload = extracted.read()
+            if len(payload) != expected_item["size_bytes"]:
+                errors.append(f"archive member size mismatch: {relpath}")
+            if hashlib.sha256(payload).hexdigest() != expected_item["sha256"]:
+                errors.append(f"archive member sha256 mismatch: {relpath}")
+        missing = sorted(set(expected) - observed)
+        for relpath in missing:
+            errors.append(f"archive missing manifest file: {relpath}")
+    return errors
 
 
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
-    return "sha256:" + digest.hexdigest()
+    return digest.hexdigest()
 
 
-def _file_entry(root: Path, relpath: str) -> dict[str, Any]:
-    path = root / relpath
-    if not path.is_file():
-        raise FileNotFoundError(relpath)
-    return {
-        "path": relpath,
-        "size": path.stat().st_size,
-        "sha256": _sha256_file(path),
-    }
+def _looks_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(char in "0123456789abcdef" for char in value)
 
 
-def _require_safe_version(version: str) -> str:
-    if not SAFE_VERSION_RE.fullmatch(version):
-        raise ValueError(
-            "version must be 1-128 chars and contain only letters, numbers, dot, underscore, or dash"
-        )
+def _safe_version(version: str) -> str:
+    if not version or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-" for char in version):
+        raise ValueError("version must contain only ASCII letters, digits, dot, underscore, or dash")
     return version
 
 
-def build_manifest(root: Path = ROOT, include: tuple[str, ...] = DEFAULT_INCLUDE) -> dict[str, Any]:
-    files = [_file_entry(root, relpath) for relpath in include]
-    body = {
-        "schema": SCHEMA,
-        "files": files,
-    }
-    encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return {**body, "manifest_sha256": "sha256:" + hashlib.sha256(encoded).hexdigest()}
-
-
-def verify_manifest(manifest: dict[str, Any], root: Path = ROOT) -> None:
-    if manifest.get("schema") != SCHEMA:
-        raise ValueError("manifest schema mismatch")
-    for entry in manifest.get("files", []):
-        relpath = str(entry["path"])
-        expected = _file_entry(root, relpath)
-        if entry != expected:
-            raise ValueError(f"manifest file binding mismatch: {relpath}")
-    rebuilt = build_manifest(root, tuple(str(entry["path"]) for entry in manifest["files"]))
-    for key in ("schema", "files", "manifest_sha256"):
-        if manifest.get(key) != rebuilt[key]:
-            raise ValueError("manifest hash mismatch")
-    allowed_extra = {"archive", "archive_sha256"}
-    extra_keys = set(manifest) - set(rebuilt)
-    if not extra_keys <= allowed_extra:
-        raise ValueError("manifest hash mismatch")
-    archive = manifest.get("archive")
-    archive_sha256 = manifest.get("archive_sha256")
-    if archive is not None or archive_sha256 is not None:
-        if not isinstance(archive, str) or not isinstance(archive_sha256, str):
-            raise ValueError("archive metadata must include archive and archive_sha256 strings")
-        archive_path = Path(archive)
-        if archive_path.is_file() and _sha256_file(archive_path) != archive_sha256:
-            raise ValueError("archive hash mismatch")
-
-
-def build_archive(root: Path, out: Path) -> dict[str, Any]:
-    manifest = build_manifest(root)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    manifest_bytes = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
-    with tarfile.open(out, "w:gz") as archive:
-        for entry in manifest["files"]:
-            archive.add(root / str(entry["path"]), arcname=str(entry["path"]))
-        info = tarfile.TarInfo("operator_release_manifest.json")
-        info.size = len(manifest_bytes)
-        archive.addfile(info, fileobj=io.BytesIO(manifest_bytes))
-    archive_sha256 = _sha256_file(out)
-    return {**manifest, "archive": str(out), "archive_sha256": archive_sha256}
-
-
-def build_versioned_archive(*, root: Path, out_dir: Path, version: str) -> dict[str, Any]:
-    safe_version = _require_safe_version(version)
-    archive = out_dir / f"zenodex-operator-{safe_version}.tar.gz"
-    result = build_archive(root, archive)
-    manifest_path = archive.with_suffix(archive.suffix + ".manifest.json")
-    manifest_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {
-        "schema": "zenodex.operator_release_bundle.result.v0",
-        "ok": True,
-        "version": safe_version,
-        "archive": str(archive),
-        "archive_sha256": result["archive_sha256"],
-        "manifest": str(manifest_path),
-        "manifest_sha256": result["manifest_sha256"],
-    }
-
-
-def verify_manifest_file(path: Path, root: Path = ROOT) -> dict[str, Any]:
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    verify_manifest(manifest, root)
-    return {
-        "schema": "zenodex.operator_release_bundle.result.v0",
-        "ok": True,
-        "status": "verify",
-        "manifest": str(path),
-        "manifest_sha256": manifest["manifest_sha256"],
-    }
-
-
-def _print_json(payload: dict[str, Any], *, compact: bool) -> None:
+def _print_json(report: dict[str, Any], *, compact: bool) -> None:
     if compact:
-        print(json.dumps(payload, sort_keys=True))
+        print(json.dumps(report, sort_keys=True))
     else:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command")
-
-    build = subparsers.add_parser("build", help="build a versioned operator tarball")
-    build.add_argument("--repo-root", type=Path, default=ROOT)
-    build.add_argument("--version", required=True)
-    build.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
-    build.add_argument("--json", action="store_true")
-
-    verify = subparsers.add_parser("verify", help="verify an operator bundle manifest")
-    verify.add_argument("--repo-root", type=Path, default=ROOT)
-    verify.add_argument("--manifest", type=Path, required=True)
-    verify.add_argument("--json", action="store_true")
-
-    parser.add_argument("--repo-root", type=Path, default=ROOT, help=argparse.SUPPRESS)
-    parser.add_argument("--out", type=Path, help=argparse.SUPPRESS)
-    parser.add_argument("--verify", type=Path, help=argparse.SUPPRESS)
-    return parser
+        print(json.dumps(report, indent=2, sort_keys=True))
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = _build_parser()
-    args = parser.parse_args(argv)
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
 
+    build = sub.add_parser("build", help="build an operator release bundle")
+    build.add_argument("--repo-root", type=Path, default=ROOT)
+    build.add_argument("--out-dir", type=Path, required=True)
+    build.add_argument("--version", default="dev")
+    build.add_argument("--json", action="store_true")
+
+    verify = sub.add_parser("verify", help="verify an operator release bundle manifest")
+    verify.add_argument("--repo-root", type=Path, default=ROOT, help=argparse.SUPPRESS)
+    verify.add_argument("--manifest", type=Path, required=True)
+    verify.add_argument("--archive", type=Path)
+    verify.add_argument("--json", action="store_true")
+
+    args = parser.parse_args(argv)
     try:
         if args.command == "build":
-            payload = build_versioned_archive(
-                root=args.repo_root.resolve(),
+            report = build_operator_release_bundle(
+                root=args.repo_root,
                 out_dir=args.out_dir,
                 version=args.version,
             )
-            _print_json(payload, compact=args.json)
+            _print_json(report, compact=bool(args.json))
             return 0
-
         if args.command == "verify":
-            payload = verify_manifest_file(args.manifest, args.repo_root.resolve())
-            _print_json(payload, compact=args.json)
-            return 0
-
-        # Backwards-compatible legacy flags.
-        if args.verify is not None:
-            payload = verify_manifest_file(args.verify, args.repo_root.resolve())
-            print(json.dumps({"schema": SCHEMA, "ok": payload["ok"], "status": "verify"}, sort_keys=True))
-            return 0
-
-        if args.out is None:
-            payload = build_manifest(args.repo_root.resolve())
-        else:
-            payload = build_archive(args.repo_root.resolve(), args.out)
-        _print_json(payload, compact=False)
-        return 0
+            report = verify_operator_release_manifest(manifest_path=args.manifest, archive_path=args.archive)
+            _print_json(report, compact=bool(args.json))
+            return 0 if report["ok"] else 1
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    raise AssertionError(args.command)
 
 
 if __name__ == "__main__":

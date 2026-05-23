@@ -1,0 +1,92 @@
+{
+  "kernels": [
+    {
+      "ce_corpus_path": "src/kernels/dex/ce_corpus_cpmm_swap.jsonl",
+      "ce_corpus_sha256": "0a97f7a5ebe6843e2071e9d11227173cee0e4493b37f7a07a453c6b49ab2bd76",
+      "corpus_stats": {
+        "boundary_per_action": {
+          "swap_x_for_y": 162,
+          "swap_y_for_x": 140
+        },
+        "per_action": {
+          "swap_x_for_y": 162,
+          "swap_y_for_x": 140
+        },
+        "total": 302,
+        "unique_ids": 302,
+        "unique_signature_ratio": 1.0,
+        "unique_signatures": 302
+      },
+      "ir_hash": "sha256:95dd8740ce38b990736bdf59d060104a5626f429181a3414b0a6085101f71d73",
+      "kernel_path": "src/kernels/dex/cpmm_swap.yaml",
+      "model_id": "cpmm_swap",
+      "verification": {
+        "determinism_trials": 20,
+        "fingerprint": "9f207ee6a98f4fa776fb7b428b741551135e17de726de320624a3e42ecf8f966",
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "timeout_ms": 30000,
+        "tool_versions": {
+          "solvers": {
+            "cvc5": "This is cvc5 version 1.1.2"
+          }
+        }
+      }
+    },
+    {
+      "ce_corpus_path": "src/kernels/dex/ce_corpus_liquidity_pool.jsonl",
+      "ce_corpus_sha256": "46c87303844550abf4179d3b2e1f075ec8478e893940c73cf9ce27cdb100e37b",
+      "corpus_stats": {
+        "boundary_per_action": {
+          "add_liquidity": 154,
+          "remove_liquidity": 140
+        },
+        "per_action": {
+          "add_liquidity": 154,
+          "remove_liquidity": 140
+        },
+        "total": 294,
+        "unique_ids": 294,
+        "unique_signature_ratio": 1.0,
+        "unique_signatures": 294
+      },
+      "ir_hash": "sha256:3db4b93a7dec89a2d5b84b76997eec165d03f2b6c74033185a1f15a12471cc46",
+      "kernel_path": "src/kernels/dex/liquidity_pool.yaml",
+      "model_id": "liquidity_pool",
+      "verification": {
+        "determinism_trials": 20,
+        "fingerprint": "f0eaf601fc4fd83b51ef84114fb352ef4f5e8aea389d40d8f6bc0b4de1019dbb",
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "timeout_ms": 30000,
+        "tool_versions": {
+          "solvers": {
+            "cvc5": "This is cvc5 version 1.1.2"
+          }
+        }
+      }
+    }
+  ],
+  "manifest": "tools/kernel_assurance_manifest.json",
+  "manifest_sha256": "4e6bbb5a05b9209c600709bd9ee82fc24fa4d8a3c653b701e5965316573c7028",
+  "ok": true,
+  "private_toolchain_source_included": false,
+  "receipt_sha256": "eb58c6f6d2e772f249fa4b79f8a6084678601cb3ff08ae216884be531afc77d3",
+  "schema": "zenodex.kernel_assurance.public_receipt.v1",
+  "source_report_sha256": "5b70b87406d4876a437e39c5fd78955d0862c6a5e0e31ad20fc7b85a2ec2caea",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_dirty": true,
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336"
+  }
+}
