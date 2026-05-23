@@ -115,7 +115,7 @@ the artifact binds to an allowed public replay profile and the profile's public
 replay command returns an accepted receipt.
 
 ```bash
-python3 tools/zeno_oracle_workflow_evidence_status.py --format json
+python3 tools/zeno_oracle_workflow_evidence_status.py --format json --skip-morph
 julia tools/zeno_oracle_math_witness_sweep.jl --json
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py
@@ -130,10 +130,11 @@ ID, input commitment root, and output commitment root. The output root is the
 canonical hash of the accepted profile receipt. For the Lean profile, the
 receipt also requires a clean placeholder scan over the witness anchor and root
 import file. For the TLA, LTLf, and ESSO profiles, the receipt is a normalized
-wrapper around the corresponding public pytest replay command. For the Morph
-profile, the receipt requires both `check` and `check2` to pass on the
-oracle-clamp envelope domain. For the SMT profile, the receipt requires Z3 and
-CVC5 to return `unsat` for each Oracle freshness safety query.
+wrapper around the corresponding public pytest replay command. The aggregate
+workflow-evidence profile explicitly skips Morph; the separate Morph profile
+requires both `check` and `check2` to pass on the oracle-clamp envelope domain
+and fails closed when Morph is unavailable. For the SMT profile, the receipt
+requires Z3 and CVC5 to return `unsat` for each Oracle freshness safety query.
 
 ## Proof Mining Reward Gate
 

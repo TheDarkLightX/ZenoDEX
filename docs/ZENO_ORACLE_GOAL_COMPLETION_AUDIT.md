@@ -29,7 +29,7 @@ registry/verifier layer for O4/O5 claims.
 | Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 23 axes into 15 antichain classes and includes `proof_independence` as a required obligation atom. | First shell complete |
 | Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, source cartel, dispute griefing, reward conservation, split-brain, and O5 independence-witness cases. | Bounded witness |
 | Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides a first witness anchor for bounded arithmetic plus Prop-level O4/O5 binding and O5 independence-witness projections. `lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean` adds a checked generalized boundary layer for deviation closure, freshness/sync laws, reward-pool composition, O5 independence requirements, typed authorization binding, receipt-borrowing rejection, and stale-oracle rejection. Executable DAG closure, concrete runtime instantiation, and broader generalized median/economics theorem families remain open. | Partial |
-| ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. Private PopperPad content and deeper Morph campaigns remain outside public claims. | First shell complete |
+| ESSO/TLA/LTLf/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py --skip-morph` reports 4 accepted first-shell lanes. The default Morph lane fails closed when Morph is unavailable; private PopperPad content and Morph replay verification remain outside this aggregate claim. | First shell complete |
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
 | ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, verifier governance fields, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
 | Devnet alpha package | `scripts/package_zeno_oracle_rc.sh` and `tools/check_zeno_oracle_rc_package.py` build and validate the devnet alpha package, docs, whitepaper, branding, manifest, receipt, and devnet integrity signature. | Devnet complete |
@@ -42,7 +42,7 @@ python3 tools/check_zeno_oracle_critical_action_map.py
 python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
-python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph
 cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json

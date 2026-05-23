@@ -130,7 +130,7 @@ python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_ora
 julia tools/zeno_oracle_math_witness_sweep.jl
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
-python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph
 ```
 
 The gate evidence is devnet evidence. It does not claim production oracle truth,
@@ -337,15 +337,16 @@ Workflow lane:
 The first public status checker is:
 
 ```bash
-python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph
 pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
 ```
 
 It checks the presence and replay boundaries for the Oracle recovery TLA/LTLf
-lanes, the ESSO zUSD oracle recovery lane, a Morph oracle-clamp smoke check,
-and a temporary PopperPad append-only smoke. Broader Morph campaigns and
-private PopperPad ledgers remain internal until promoted through public replay
-commands.
+lanes, the ESSO zUSD oracle recovery lane, and a temporary PopperPad
+append-only smoke. The strict Morph oracle-clamp smoke remains available in the
+default command and fails closed when Morph is unavailable. Broader Morph
+campaigns and private PopperPad ledgers remain internal until promoted through
+public replay commands.
 
 ### 7. Public Claim Promotion
 

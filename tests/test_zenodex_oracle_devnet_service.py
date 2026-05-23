@@ -216,6 +216,30 @@ def test_oracle_devnet_replay_cli_reads_receipt_store(tmp_path: Path) -> None:
     assert receipt["malformed_events"] == []
 
 
+def test_submit_report_rejects_unregistered_reporter_without_exception(tmp_path: Path) -> None:
+    sys.path.insert(0, str(REPO / "tools"))
+    from zenodex_oracle_feed_registry import sample_feed_registry
+    from zenodex_oracle_devnet_service import OracleDevnetStore, register_feed, submit_report
+
+    store = OracleDevnetStore(tmp_path / "oracle-devnet")
+    registry = sample_feed_registry()
+    query_id = registry["feeds"][0]["query_spec"]["query_id"]
+    source_id = registry["feeds"][0]["source_diversity"]["sources"][0]["source_id"]
+    assert register_feed(store, registry)["status"] == "accepted"
+
+    submission = _single_report_submission(
+        private_key=77,
+        reporter_id="reporter.unregistered",
+        query_id=query_id,
+        source_id=source_id,
+        value_e8=100_000_000,
+        observed_epoch=5,
+    )
+    receipt = submit_report(store, submission)
+    assert receipt["status"] == "rejected"
+    assert "reporter_not_registered" in receipt["errors"]
+
+
 def test_submit_report_rejects_underbonded_reporter(tmp_path: Path) -> None:
     sys.path.insert(0, str(REPO / "tools"))
     from zenodex_oracle_feed_registry import sample_feed_registry

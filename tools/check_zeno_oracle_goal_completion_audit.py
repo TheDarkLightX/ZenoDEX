@@ -288,7 +288,7 @@ def build_audit() -> dict[str, Any]:
                 "tools/popper_pad.py",
             ],
             replay_commands=[
-                "python3 tools/zeno_oracle_workflow_evidence_status.py --format text",
+                "python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph",
                 "python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format text",
                 "python3 tools/zeno_oracle_tla_recovery_replay.py --format text",
                 "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format text",
