@@ -133,6 +133,7 @@ Important derivatives note:
   `funding_rate_settlement_witness_v1_1` for settlement arithmetic, both in the release-backed assurance lane.
 - The monolithic `funding_rate_market_v1_1` kernel remains useful as a parity/reference artifact, but it is not part of the published formal release claim.
 - `funding_rate_market_v1` and `curve_selection_market_v1` remain `disputed` in the claims registry for settlement authorization semantics and should not be treated as authorization-complete public settlement guarantees.
+- The derivative authorization coverage matrix records the current covered/open boundary: [docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.md](docs/derivatives/DERIVATIVES_AUTHORIZATION_COVERAGE_MATRIX.md). Replay it with `python3 tools/check_derivatives_authorization_matrix.py`.
 - The bounded TLC/TLA+ claim surface is summarized in [docs/TLA_CLAIM_SUMMARY.md](docs/TLA_CLAIM_SUMMARY.md) and release-checked via `python3 tools/render_tla_claim_summary.py --check`.
 
 Release vocabulary:
@@ -216,84 +217,101 @@ does not claim that every production actor game is solved.
 
 ### ZenoEnergy Advisory Ranking Research
 
-ZenoEnergy is an isolated research scorer for UPBA v2 candidate search. It uses
-a tiny energy/ranking model to order candidate settlements before deterministic
+ZenoEnergy is an isolated research scorer for UPBA v2 candidate search. A
+small energy/ranking model orders candidate settlements before deterministic
 verification. The verifier remains the settlement authority:
 
 ```text
 Model proposes; verifier decides.
 ```
 
-Current bounded synthetic evidence is strong: the preferred 97-parameter
+**Headline result on bounded synthetic data.** The preferred 97-parameter
 gap-weighted ranker reaches 100% top-10 recall on committed holdout and
 cross-seed synthetic receipts, reduces mean verifier-winner position versus
-hand energy, and records zero invalid accepts. Production ranking remains gated
-by real or production-shadow replay. The latest research adds a runtime
-dominance-cover certificate prototype and a WES bridge that ranks
-dominance-cover checker work while deterministic UPBA verification remains
-authoritative. A follow-up dominance-prefix audit shows the current learned and
+hand energy, and records zero invalid accepts. Learned and hybrid orderings
+average 1.008 verifier calls on the bounded synthetic run and 1.013 verifier
+calls across a 3-seed by 3-candidate-count stress grid. The multi-family
+adversarial suffix stress extends this to 944 verifier-invalid cases across 8
+invalidity families with zero invalid accepts.
+
+**Recent surfaces.** A runtime dominance-cover certificate prototype and a WES
+bridge rank dominance-cover checker work while deterministic UPBA verification
+remains authoritative. A dominance-prefix audit shows current learned and
 hybrid rankers reaching a finite-list dominance-cover certificate after the
-first checked candidate on the committed bounded run. The latest suffix-bound
-early-stop certificate adds a deterministic unchecked-suffix objective bound,
-with learned and hybrid orderings averaging 1.008 verifier calls on the
-bounded synthetic run and 1.013 verifier calls across a 3-seed by
-3-candidate-count bounded synthetic stress grid. The adversarial suffix stress
-shows declared-output-only bounds fail on injected high-output invalid suffixes,
+first checked candidate on the committed bounded run. The suffix-bound
+early-stop certificate adds a deterministic unchecked-suffix objective bound;
+declared-output-only bounds fail on injected high-output invalid suffixes,
 while deterministic disqualifiers preserve the certificate.
-The multi-family adversarial suffix stress extends this to 944 verifier-invalid
-cases across 8 invalidity families with zero invalid accepts.
-A Julia negative-curriculum lane now converts those hard negatives into
-sampling weights and a bounded epiplexity proxy, so training can prioritize
-rare deterministic disqualifiers while preserving verifier authority.
-The epiplexity literature note adds the task-relevance gate: the proxy can
-guide data selection only after heldout ranking metrics prove it helps. The
-first bounded rare-disqualifier curriculum ranker did not beat the
-gap-weighted default, so the default stays promoted for research.
-The energy-order-alone Lean boundary now records the formal counterexample:
-ranking by low energy alone is not an optimality certificate.
-The data-scaling probe shows raw same-generator synthetic volume helps from
-small budgets but saturates below the current gap-weighted checkpoint, so the
-next data work should target coverage quality and rare hard families.
-The quality-selection probe sharpens this: winner-bearing hard-batch selection
-beats raw winner-bearing sampling at medium budgets, while tiny hard-only
-budgets can overfocus on rare current-model misses.
-The best-model registry now pins the preferred UPBA checkpoint and the three
-deterministically regenerated AutoTrader hard synthetic models with sha256
-hashes, so future experiments have stable advisory baselines.
 
-Primary entry points:
+**Curriculum and data.** A Julia negative-curriculum lane converts hard
+negatives into sampling weights and a bounded epiplexity proxy so training can
+prioritize rare deterministic disqualifiers while preserving verifier
+authority. The first bounded rare-disqualifier curriculum ranker did not beat
+the gap-weighted default, so the default stays promoted for research. The
+data-scaling probe shows raw same-generator synthetic volume helps from small
+budgets but saturates below the current checkpoint. The quality-selection
+probe sharpens this: winner-bearing hard-batch selection beats raw
+winner-bearing sampling at medium budgets, while tiny hard-only budgets can
+overfocus on rare current-model misses. The ensemble probe adds six-member
+advisory energy ensembles and Borda-style rank disagreement; it preserves
+top-10 recall and zero invalid accepts but does not beat the current
+checkpoint on mean verifier calls, so ensemble disagreement stays diagnostic
+rather than a promoted default. The best-model registry pins the preferred
+UPBA checkpoint and the three deterministically regenerated AutoTrader hard
+synthetic models with sha256 hashes, so future experiments have stable
+advisory baselines.
 
-- [docs/ZENO_ENERGY_V0.md](docs/ZENO_ENERGY_V0.md)
-- [docs/ZENO_ENERGY_RESULTS.md](docs/ZENO_ENERGY_RESULTS.md)
-- [docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md](docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md)
-- [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md)
-- [docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
-- [docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md)
-- [docs/ZENO_ENERGY_CURRICULUM_RANKER.md](docs/ZENO_ENERGY_CURRICULUM_RANKER.md)
-- [docs/ZENO_ENERGY_DATA_SCALING.md](docs/ZENO_ENERGY_DATA_SCALING.md)
-- [docs/ZENO_ENERGY_QUALITY_SELECTION.md](docs/ZENO_ENERGY_QUALITY_SELECTION.md)
-- [docs/ZENO_ENERGY_BEST_MODELS.md](docs/ZENO_ENERGY_BEST_MODELS.md)
-- [docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
-- [docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)
-- [docs/ZENO_ENERGY_PRODUCTION_GATE.md](docs/ZENO_ENERGY_PRODUCTION_GATE.md)
-- [docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md)
-- [docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md)
-- [docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md](docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md)
-- [docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
-- [docs/ZENO_ENERGY_DOMINANCE_COVER.md](docs/ZENO_ENERGY_DOMINANCE_COVER.md)
-- [docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md](docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md)
-- [docs/ZENO_ENERGY_DOMINANCE_PREFIX.md](docs/ZENO_ENERGY_DOMINANCE_PREFIX.md)
-- [docs/ZENO_ENERGY_SUFFIX_BOUND.md](docs/ZENO_ENERGY_SUFFIX_BOUND.md)
-- [docs/papers/zenoenergy-v0/paper.md](docs/papers/zenoenergy-v0/paper.md)
+**Honest boundaries.**
 
-The replay secret scanner catches obvious key material before packaging. The
-source manifest builder packages real replay reports with canonical hashes and
-secret-scan attestations. The replay coverage profile checker rejects narrow
-real replay evidence before promotion. The production evidence bundle then
-assembles source-manifested, coverage-profiled UPBA and AutoTrader real replay
-reports and runs the fail-closed advisory ranking promotion gate. These tools
-cannot authorize settlement, change policy predicates, or turn synthetic
-fixtures into production evidence.
+- Production ranking remains gated by real or production-shadow replay.
+- Ranking by low energy alone is not an optimality certificate (formal Lean
+  counterexample at
+  [docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md)).
+- The epiplexity proxy can guide data selection only after heldout ranking
+  metrics prove it helps.
+- All of the above is bounded synthetic evidence. The replay tooling below
+  cannot authorize settlement, change policy predicates, or turn synthetic
+  fixtures into production evidence.
+
+**Replay and promotion tooling.** The replay secret scanner catches obvious
+key material before packaging. The source manifest builder packages real
+replay reports with canonical hashes and secret-scan attestations. The replay
+coverage profile checker rejects narrow real replay evidence before promotion.
+The production evidence bundle then assembles source-manifested,
+coverage-profiled UPBA and AutoTrader real replay reports and runs the
+fail-closed advisory ranking promotion gate.
+
+**References.**
+
+- Model and results:
+  [V0 spec](docs/ZENO_ENERGY_V0.md),
+  [results](docs/ZENO_ENERGY_RESULTS.md),
+  [paper](docs/papers/zenoenergy-v0/paper.md)
+- Suffix bound:
+  [main](docs/ZENO_ENERGY_SUFFIX_BOUND.md),
+  [cross-seed](docs/ZENO_ENERGY_SUFFIX_BOUND_CROSS_SEED.md),
+  [adversarial](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_STRESS.md),
+  [family stress](docs/ZENO_ENERGY_SUFFIX_BOUND_ADVERSARIAL_FAMILY_STRESS.md)
+- Dominance:
+  [cover](docs/ZENO_ENERGY_DOMINANCE_COVER.md),
+  [WES search](docs/ZENO_ENERGY_WES_DOMINANCE_SEARCH.md),
+  [prefix audit](docs/ZENO_ENERGY_DOMINANCE_PREFIX.md)
+- Curriculum and data:
+  [negative curriculum](docs/ZENO_ENERGY_NEGATIVE_CURRICULUM.md),
+  [curriculum ranker](docs/ZENO_ENERGY_CURRICULUM_RANKER.md),
+  [data scaling](docs/ZENO_ENERGY_DATA_SCALING.md),
+  [quality selection](docs/ZENO_ENERGY_QUALITY_SELECTION.md),
+  [ensemble](docs/ZENO_ENERGY_ENSEMBLE.md),
+  [best models](docs/ZENO_ENERGY_BEST_MODELS.md)
+- Formal and theoretical:
+  [energy-order-alone Lean counterexample](docs/ZENO_ENERGY_ENERGY_ORDER_ALONE_FORMAL.md),
+  [epiplexity literature note](docs/ZENO_ENERGY_EPIPLEXITY_LITERATURE.md)
+- Production gate and replay:
+  [gate](docs/ZENO_ENERGY_PRODUCTION_GATE.md),
+  [secret scan](docs/ZENO_ENERGY_REPLAY_SECRET_SCAN.md),
+  [source manifest](docs/ZENO_ENERGY_REPLAY_SOURCE_MANIFEST_BUILDER.md),
+  [coverage profile](docs/ZENO_ENERGY_REPLAY_COVERAGE_PROFILE.md),
+  [evidence bundle](docs/ZENO_ENERGY_PRODUCTION_EVIDENCE_BUNDLE.md)
 
 ### ZenoProof, FIRE, And Certified Financial Math Objects
 
