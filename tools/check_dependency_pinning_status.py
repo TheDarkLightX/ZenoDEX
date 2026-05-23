@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
@@ -16,6 +15,8 @@ RESULT_SCHEMA = "zenodex.dependency_pinning_status_check.v1"
 STATUS_SCHEMA = "zenodex.dependency_pinning_status.v1"
 
 _EXACT_PIN_RE = re.compile(r"^[A-Za-z0-9_.-]+(\[[A-Za-z0-9_,.-]+\])?==[^=<>!~]+$")
+_SHORT_REQUIREMENT_INCLUDE_OPTION = "-r"
+_LONG_REQUIREMENT_INCLUDE_OPTION = "--requirement"
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -47,10 +48,64 @@ def _requirement_lines(path: Path) -> list[str]:
     out: list[str] = []
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.split("#", 1)[0].strip()
-        if not line or line.startswith("-r ") or line.startswith("--"):
+        if not line or _include_path(line) is not None or line.startswith("--"):
             continue
         out.append(line)
     return out
+
+
+def _include_path(line: str) -> str | None:
+    for option in (_SHORT_REQUIREMENT_INCLUDE_OPTION, _LONG_REQUIREMENT_INCLUDE_OPTION):
+        include_path = _include_path_value(line, option)
+        if include_path is not None:
+            return include_path
+    return None
+
+
+def _include_path_value(line: str, option: str) -> str | None:
+    if not line.startswith(option) or len(line) == len(option):
+        return None
+    separator = line[len(option)]
+    if separator != "=" and not separator.isspace():
+        return None
+    return line[len(option) + 1 :].strip() or None
+
+
+def _repo_relpath(path: Path) -> str:
+    """Return a repository-relative path after enforcing the repository boundary."""
+
+    resolved_root = ROOT.resolve()
+    resolved_path = path.resolve()
+    if not resolved_path.is_relative_to(resolved_root):
+        raise ValueError(f"requirements include escapes repository: {path}")
+    return resolved_path.relative_to(resolved_root).as_posix()
+
+
+def _requirement_entries(path: Path, visited: set[Path]) -> list[tuple[str, str]]:
+    """Collect direct and recursively included requirements with their source file.
+
+    Precondition: ``path`` is expected to name a requirements file under ``ROOT``.
+    Invariant: each resolved requirements file is parsed at most once.
+    Postcondition: returned entries preserve the repository-relative source path.
+    """
+
+    resolved_path = path.resolve()
+    if resolved_path in visited:
+        return []
+    visited.add(resolved_path)
+
+    entries: list[tuple[str, str]] = []
+    relpath = _repo_relpath(resolved_path)
+    for raw_line in resolved_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        include_path = _include_path(line)
+        if include_path is not None:
+            entries.extend(_requirement_entries(resolved_path.parent / include_path, visited))
+            continue
+        if not line or line.startswith("--"):
+            continue
+        entries.append((relpath, line))
+    return entries
 
 
 def _is_exact_pin(requirement: str) -> bool:
@@ -59,11 +114,12 @@ def _is_exact_pin(requirement: str) -> bool:
 
 def _actual_unpinned(files: list[str]) -> list[str]:
     found: list[str] = []
+    visited: set[Path] = set()
     for relpath in files:
         path = ROOT / relpath
-        for requirement in _requirement_lines(path):
+        for source_relpath, requirement in _requirement_entries(path, visited):
             if not _is_exact_pin(requirement):
-                found.append(f"{relpath}:{requirement}")
+                found.append(f"{source_relpath}:{requirement}")
     return sorted(found)
 
 
