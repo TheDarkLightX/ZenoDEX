@@ -1,0 +1,146 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "optimizer_audited_bounds_liveness_v2"
+  created_by: "zenodex"
+  notes: |
+    Stateless exact-out adaptive liveness shell for the opt-in audited-bounds lane.
+
+    This v2 shell checks bounded branch coherence:
+    - budget facts remain bound
+    - cheap path is always attempted
+    - fallback is attempted iff the cheap path failed
+    - outcomes are total: success xor explicit failure
+    - success requires a replayable quote
+    - explicit failure requires an explicit reason
+    - explicit failure cannot occur when a repaired fallback quote is available
+
+    It does not prove unbounded progress, throughput, or step-count bounds.
+observables:
+  state_vars: []
+  effects:
+    [
+      "budget_facts_ok",
+      "attempt_order_ok",
+      "outcome_total",
+      "success_replayable",
+      "failure_total",
+      "no_spurious_failure",
+      "liveness_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "compose_adaptive_liveness"
+    params:
+      - id: "selected_domain_budget_respected"
+        type: { kind: "bool" }
+      - id: "repaired_selection_budget_respected"
+        type: { kind: "bool" }
+      - id: "full_domain_pool_budget_respected"
+        type: { kind: "bool" }
+      - id: "full_domain_candidate_budget_respected"
+        type: { kind: "bool" }
+      - id: "budget_parameters_bound"
+        type: { kind: "bool" }
+      - id: "cheap_path_attempted"
+        type: { kind: "bool" }
+      - id: "cheap_path_success"
+        type: { kind: "bool" }
+      - id: "fallback_required"
+        type: { kind: "bool" }
+      - id: "fallback_attempted"
+        type: { kind: "bool" }
+      - id: "fallback_available"
+        type: { kind: "bool" }
+      - id: "returned_success"
+        type: { kind: "bool" }
+      - id: "explicit_failure"
+        type: { kind: "bool" }
+      - id: "effective_quote_present"
+        type: { kind: "bool" }
+      - id: "failure_reason_present"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      budget_facts_ok:
+        op: "and"
+        args:
+          - { param: "selected_domain_budget_respected" }
+          - { param: "repaired_selection_budget_respected" }
+          - { param: "full_domain_pool_budget_respected" }
+          - { param: "full_domain_candidate_budget_respected" }
+          - { param: "budget_parameters_bound" }
+      attempt_order_ok:
+        op: "and"
+        args:
+          - { param: "cheap_path_attempted" }
+          - op: "="
+            args:
+              - { param: "fallback_required" }
+              - op: "not"
+                args: [{ param: "cheap_path_success" }]
+          - op: "="
+            args:
+              - { param: "fallback_attempted" }
+              - { param: "fallback_required" }
+      outcome_total:
+        op: "xor"
+        args:
+          - { param: "returned_success" }
+          - { param: "explicit_failure" }
+      success_replayable:
+        op: "=>"
+        args:
+          - { param: "returned_success" }
+          - { param: "effective_quote_present" }
+      failure_total:
+        op: "=>"
+        args:
+          - { param: "explicit_failure" }
+          - { param: "failure_reason_present" }
+      no_spurious_failure:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "explicit_failure" }]
+          - op: "not"
+            args: [{ param: "fallback_available" }]
+      liveness_ok:
+        op: "and"
+        args:
+          - { param: "selected_domain_budget_respected" }
+          - { param: "repaired_selection_budget_respected" }
+          - { param: "full_domain_pool_budget_respected" }
+          - { param: "full_domain_candidate_budget_respected" }
+          - { param: "budget_parameters_bound" }
+          - { param: "cheap_path_attempted" }
+          - op: "="
+            args:
+              - { param: "fallback_required" }
+              - op: "not"
+                args: [{ param: "cheap_path_success" }]
+          - op: "="
+            args:
+              - { param: "fallback_attempted" }
+              - { param: "fallback_required" }
+          - op: "xor"
+            args:
+              - { param: "returned_success" }
+              - { param: "explicit_failure" }
+          - op: "=>"
+            args:
+              - { param: "returned_success" }
+              - { param: "effective_quote_present" }
+          - op: "=>"
+            args:
+              - { param: "explicit_failure" }
+              - { param: "failure_reason_present" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "explicit_failure" }]
+              - op: "not"
+                args: [{ param: "fallback_available" }]

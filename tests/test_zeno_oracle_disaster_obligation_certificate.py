@@ -23,37 +23,34 @@ def test_zeno_oracle_obligation_certificate_passes() -> None:
     result = evaluate_manifest(manifest)
     check_result_against_manifest(result, manifest)
 
-    assert result["axis_count"] == 24
+    assert result["axis_count"] == 23
     assert "proof_independence" in result["required_obligations"]
-    assert "cross_domain_finality" in result["required_obligations"]
     assert "proof_independence_gate" in result["selected_guard_set"]
-    assert "cross_domain_finality_gate" in result["selected_guard_set"]
     assert result["selected_guard_set_covers_required_obligations"] is True
     assert result["private_certificate_proves_cardinality_optimality"] is True
 
 
-def test_zeno_oracle_finality_probe_is_covered_by_manifest_axis() -> None:
+def test_zeno_oracle_new_atom_probe_is_not_silently_covered() -> None:
     manifest = _load_manifest()
     result = evaluate_manifest(manifest)
     probes = {probe["name"]: probe for probe in result["candidate_probes"]}
 
     finality = probes["cross_domain_finality_oracle_variant"]
-    assert finality["classification"] == "dominated_by_existing_class"
-    assert finality["missing_obligations"] == []
-    assert finality["matched_class_ids"]
+    assert finality["classification"] == "new_atom_required"
+    assert finality["missing_obligations"] == ["cross_domain_finality"]
 
 
 def test_zeno_oracle_certificate_detects_uncovered_new_obligation() -> None:
     manifest = _load_manifest()
     manifest["axes"].append(
         {
-            "name": "external_bridge_attestation_reorg_feeds_oracle_read",
-            "obligations": ["bridge_attestation", "critical_action_bound", "receipt_dag_closed"],
+            "name": "external_finality_reorg_feeds_oracle_read",
+            "obligations": ["critical_action_bound", "cross_domain_finality", "receipt_dag_closed"],
         }
     )
 
     result = evaluate_manifest(manifest)
-    assert "bridge_attestation" in result["required_obligations"]
+    assert "cross_domain_finality" in result["required_obligations"]
     assert result["selected_guard_set_covers_required_obligations"] is False
 
     try:

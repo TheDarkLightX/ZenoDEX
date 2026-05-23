@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-
 REJECT_OK = "Ok"
 REJECT_NO_PERP_STREAM = "NoPerpStream"
 REJECT_LEGACY_DEX_CONFLICT = "LegacyDexConflict"

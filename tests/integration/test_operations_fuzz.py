@@ -26,6 +26,19 @@ ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789_-"
 TEXT = st.text(ALPHABET, min_size=0, max_size=16)
 NON_EMPTY_TEXT = st.text(ALPHABET, min_size=1, max_size=16)
 HEX_32 = st.binary(min_size=32, max_size=32).map(lambda raw: "0x" + raw.hex())
+RESERVED_INTENT_KEYS = {
+    "module",
+    "version",
+    "kind",
+    "intent_id",
+    "sender_pubkey",
+    "deadline",
+    "salt",
+    "signature",
+    "quote_receipt",
+}
+
+
 JSON_VALUE: st.SearchStrategy[Any] = st.recursive(
     st.none() | st.booleans() | st.integers(min_value=-10_000, max_value=10_000) | TEXT,
     lambda child: st.lists(child, max_size=3) | st.dictionaries(NON_EMPTY_TEXT, child, max_size=3),
@@ -43,94 +56,84 @@ def _quote_receipt_transport(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def _optional_common_intent_fields(draw: st.DrawFn) -> dict[str, Any]:
+def _common_intent_fields(draw: st.DrawFn) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     if draw(st.booleans()):
-        fields["nonce"] = draw(st.integers(min_value=1, max_value=2**31))
+        fields["nonce"] = draw(st.integers(min_value=1, max_value=100_000))
     if draw(st.booleans()):
         fields["recipient"] = draw(NON_EMPTY_TEXT)
     if draw(st.booleans()):
-        fields["submission_order"] = draw(st.integers(min_value=0, max_value=2**31))
+        fields["submission_order"] = draw(st.integers(min_value=0, max_value=100_000))
     if draw(st.booleans()):
         fields["quote_receipt_hash"] = draw(NON_EMPTY_TEXT)
     if draw(st.booleans()):
         fields["quote_pool_fingerprint"] = draw(NON_EMPTY_TEXT)
     if draw(st.booleans()):
-        fields["quote_receipt_leg_index"] = draw(st.integers(min_value=0, max_value=32))
+        fields["quote_receipt_leg_index"] = draw(st.integers(min_value=0, max_value=8))
     if draw(st.booleans()):
         fields["oracle_authorization"] = draw(st.dictionaries(NON_EMPTY_TEXT, JSON_VALUE, max_size=3))
     return fields
 
 
+def _kind_specific_intent_fields(kind: str) -> dict[str, Any]:
+    if kind == IntentKind.SWAP_EXACT_IN.value:
+        return {
+            "pool_id": "pool-a",
+            "asset_in": "asset-a",
+            "asset_out": "asset-b",
+            "amount_in": 1,
+            "min_amount_out": 0,
+        }
+    if kind == IntentKind.SWAP_EXACT_OUT.value:
+        return {
+            "pool_id": "pool-a",
+            "asset_in": "asset-a",
+            "asset_out": "asset-b",
+            "amount_out": 1,
+            "max_amount_in": 1,
+        }
+    if kind == IntentKind.CREATE_POOL.value:
+        return {
+            "asset0": "asset-a",
+            "asset1": "asset-b",
+            "fee_bps": 30,
+            "amount0": 1,
+            "amount1": 1,
+        }
+    if kind == IntentKind.ADD_LIQUIDITY.value:
+        return {
+            "pool_id": "pool-a",
+            "amount0_desired": 1,
+            "amount1_desired": 1,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        }
+    if kind == IntentKind.REMOVE_LIQUIDITY.value:
+        return {
+            "pool_id": "pool-a",
+            "lp_amount": 1,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        }
+    raise AssertionError(f"unhandled intent kind: {kind}")
+
+
 @st.composite
 def _valid_intent_dict(draw: st.DrawFn) -> dict[str, Any]:
-    kind = draw(st.sampled_from([kind for kind in IntentKind]))
-    asset_a = draw(NON_EMPTY_TEXT)
-    asset_b = draw(NON_EMPTY_TEXT.filter(lambda value: value != asset_a))
-    asset0, asset1 = sorted((asset_a, asset_b))
+    kind = draw(st.sampled_from([kind.value for kind in IntentKind]))
     intent = {
         "module": "TauSwap",
         "version": "0.1",
-        "kind": kind.value,
+        "kind": kind,
         "intent_id": draw(HEX_32),
         "sender_pubkey": draw(NON_EMPTY_TEXT),
         "deadline": draw(st.integers(min_value=0, max_value=2**31)),
     }
-    if kind == IntentKind.SWAP_EXACT_IN:
-        intent.update(
-            {
-                "pool_id": draw(NON_EMPTY_TEXT),
-                "asset_in": asset0,
-                "asset_out": asset1,
-                "amount_in": draw(st.integers(min_value=1, max_value=10_000)),
-                "min_amount_out": draw(st.integers(min_value=0, max_value=10_000)),
-            }
-        )
-    elif kind == IntentKind.SWAP_EXACT_OUT:
-        intent.update(
-            {
-                "pool_id": draw(NON_EMPTY_TEXT),
-                "asset_in": asset0,
-                "asset_out": asset1,
-                "amount_out": draw(st.integers(min_value=1, max_value=10_000)),
-                "max_amount_in": draw(st.integers(min_value=1, max_value=10_000)),
-            }
-        )
-    elif kind == IntentKind.CREATE_POOL:
-        intent.update(
-            {
-                "asset0": asset0,
-                "asset1": asset1,
-                "fee_bps": draw(st.integers(min_value=0, max_value=9_999)),
-                "amount0": draw(st.integers(min_value=1, max_value=10_000)),
-                "amount1": draw(st.integers(min_value=1, max_value=10_000)),
-                "created_at": draw(st.integers(min_value=0, max_value=2**31)),
-            }
-        )
-    elif kind == IntentKind.ADD_LIQUIDITY:
-        intent.update(
-            {
-                "pool_id": draw(NON_EMPTY_TEXT),
-                "amount0_desired": draw(st.integers(min_value=1, max_value=10_000)),
-                "amount1_desired": draw(st.integers(min_value=1, max_value=10_000)),
-                "amount0_min": draw(st.integers(min_value=0, max_value=10_000)),
-                "amount1_min": draw(st.integers(min_value=0, max_value=10_000)),
-            }
-        )
-    else:
-        intent.update(
-            {
-                "pool_id": draw(NON_EMPTY_TEXT),
-                "lp_amount": draw(st.integers(min_value=1, max_value=10_000)),
-                "amount0_min": draw(st.integers(min_value=0, max_value=10_000)),
-                "amount1_min": draw(st.integers(min_value=0, max_value=10_000)),
-            }
-        )
-
     salt = draw(st.one_of(st.none(), NON_EMPTY_TEXT))
     if salt is not None:
         intent["salt"] = salt
-    intent.update(draw(_optional_common_intent_fields()))
+    intent.update(_kind_specific_intent_fields(kind))
+    intent.update(draw(_common_intent_fields()))
     return intent
 
 

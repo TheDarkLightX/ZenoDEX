@@ -1,0 +1,52 @@
+# AutoTrader Signal Provenance Guard v1
+#
+# PURPOSE: Validate that a host-built signal packet is admissible for execution.
+#
+# i1 = source_kind_code (bv[32])       # 1=route_quote_receipt
+# i2 = trust_tier_code (bv[32])        # 0=advisory,1=attested,2=verified,3=protocol
+# i3 = quote_receipt_present (sbf)
+# i4 = quote_receipt_verified (sbf)
+# i5 = quote_epoch_present (sbf)
+# i6 = binding_ok (sbf)
+# i7 = auth_ok (sbf)
+# i8 = source_available (sbf)
+# i9 = require_quote_receipts (sbf)
+# o1 = source_kind_ok
+# o2 = trust_tier_ok
+# o3 = quote_receipt_ok
+# o4 = provenance_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i1[t]:bv[32] = { #x00000001 }:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[32] >= { #x00000002 }:bv[32])) &&
+  (
+    o3[t]:sbf = 1:sbf <->
+    (
+      (i9[t]:sbf = 0:sbf) ||
+      (
+        (i3[t]:sbf = 1:sbf) &&
+        (i4[t]:sbf = 1:sbf) &&
+        (i5[t]:sbf = 1:sbf)
+      )
+    )
+  ) &&
+  (
+    o4[t]:sbf = 1:sbf <->
+    (
+      (i8[t]:sbf = 1:sbf) &&
+      (i7[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf) &&
+      (i1[t]:bv[32] = { #x00000001 }:bv[32]) &&
+      (i2[t]:bv[32] >= { #x00000002 }:bv[32]) &&
+      (
+        (i9[t]:sbf = 0:sbf) ||
+        (
+          (i3[t]:sbf = 1:sbf) &&
+          (i4[t]:sbf = 1:sbf) &&
+          (i5[t]:sbf = 1:sbf)
+        )
+      )
+    )
+  ).

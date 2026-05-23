@@ -1,0 +1,338 @@
+# [FORGE] UX Slippage Recommender v1 (Adaptive Slippage Recommendation Safety)
+#
+# Purpose:
+# - Models the Adaptive Slippage Recommender (ASR) algorithm's safety invariant:
+#   the min_output from the recommended slippage is always ≤ the confirmed output.
+# - Single atomic action computes all outputs from input parameters.
+#
+# Key Safety Property:
+#   best_output * (BPS - recommended_slippage_bps) / BPS ≤ confirmed_output
+#   Proven in Lean: lean-mathlib/Proofs/UXAlgorithms.lean (slippage_safety)
+#
+# Companion Evidence:
+# - Python tests: experiments/algorithm_innovation_ux/adaptive_slippage/test_asr.py (573 total)
+
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "ux_slippage_recommender_v1"
+  description: "Adaptive Slippage Recommender safety model"
+  version: "1.1.0"
+
+observables:
+  state_vars:
+    - reserve_in
+    - reserve_out
+    - amount_in
+    - pending_volume
+    - fee_bps
+    - best_output
+    - confirmed_output
+    - recommended_slippage_bps
+    - min_output
+
+state_vars:
+  - id: reserve_in
+    role: data
+    type: {kind: int, min: 1, max: 100000}
+    description: "Input token reserve"
+
+  - id: reserve_out
+    role: data
+    type: {kind: int, min: 1, max: 100000}
+    description: "Output token reserve"
+
+  - id: amount_in
+    role: data
+    type: {kind: int, min: 1, max: 50000}
+    description: "Trade input amount"
+
+  - id: pending_volume
+    role: data
+    type: {kind: int, min: 0, max: 20000}
+    description: "Pending volume in pool (worst-case)"
+
+  - id: fee_bps
+    role: data
+    type: {kind: int, min: 0, max: 500}
+    description: "Pool fee in basis points"
+
+  - id: best_output
+    role: control
+    type: {kind: int, min: 0, max: 100000}
+    description: "CPMM output at current reserves"
+
+  - id: confirmed_output
+    role: control
+    type: {kind: int, min: 0, max: 100000}
+    description: "CPMM output after pending volume absorbed"
+
+  - id: recommended_slippage_bps
+    role: control
+    type: {kind: int, min: 0, max: 500}
+    description: "Recommended slippage in bps (capped at 500)"
+
+  - id: min_output
+    role: control
+    type: {kind: int, min: 0, max: 100000}
+    description: "Minimum output = best * (BPS - slippage) / BPS"
+
+invariants:
+  # Core safety: min_output ≤ confirmed_output WHEN cap is not hit.
+  # When cap IS hit (slippage == 500), it signals "reconsider trade" — safety is N/A.
+  - id: inv_slippage_safety
+    kind: safety
+    description: "When slippage is below cap, min_output never exceeds confirmed output"
+    expr:
+      op: "or"
+      args:
+        - {op: "=", args: [{var: recommended_slippage_bps}, {const: 500}]}
+        - {op: "<=", args: [{var: min_output}, {var: confirmed_output}]}
+
+  # Slippage bounded
+  - id: inv_slippage_bounded
+    kind: safety
+    description: "Slippage recommendation never exceeds MAX_SLIPPAGE_BPS"
+    expr:
+      op: "<="
+      args:
+        - {var: recommended_slippage_bps}
+        - {const: 500}
+
+  # Best ≥ confirmed (pending volume only hurts)
+  - id: inv_best_ge_confirmed
+    kind: safety
+    description: "Best-case output is at least as good as confirmed"
+    expr:
+      op: ">="
+      args:
+        - {var: best_output}
+        - {var: confirmed_output}
+
+  # Min ≤ best (slippage only reduces)
+  - id: inv_min_le_best
+    kind: safety
+    description: "Min output with slippage is at most best output"
+    expr:
+      op: "<="
+      args:
+        - {var: min_output}
+        - {var: best_output}
+
+init:
+  - var: reserve_in
+    expr: {const: 10000}
+  - var: reserve_out
+    expr: {const: 10000}
+  - var: amount_in
+    expr: {const: 500}
+  - var: pending_volume
+    expr: {const: 0}
+  - var: fee_bps
+    expr: {const: 30}
+  - var: best_output
+    expr: {const: 0}
+  - var: confirmed_output
+    expr: {const: 0}
+  - var: recommended_slippage_bps
+    expr: {const: 0}
+  - var: min_output
+    expr: {const: 0}
+
+actions:
+  # Single atomic action: set parameters AND compute all outputs
+  - id: recommend_slippage
+    description: "Set trade params and atomically compute slippage recommendation"
+    params:
+      - id: ri
+        type: {kind: int, min: 1, max: 100000}
+      - id: ro
+        type: {kind: int, min: 1, max: 100000}
+      - id: ai
+        type: {kind: int, min: 1, max: 50000}
+      - id: pv
+        type: {kind: int, min: 0, max: 20000}
+      - id: fee
+        type: {kind: int, min: 0, max: 500}
+    guard:
+      op: "and"
+      args:
+        - {op: ">", args: [{param: ri}, {const: 0}]}
+        - {op: ">", args: [{param: ro}, {const: 0}]}
+        - {op: ">", args: [{param: ai}, {const: 0}]}
+    updates:
+      - var: reserve_in
+        expr: {param: ri}
+      - var: reserve_out
+        expr: {param: ro}
+      - var: amount_in
+        expr: {param: ai}
+      - var: pending_volume
+        expr: {param: pv}
+      - var: fee_bps
+        expr: {param: fee}
+      # best_output = ro * ai * (10000 - fee) / (ri * 10000 + ai * (10000 - fee))
+      - var: best_output
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - {param: ro}
+                - op: "*"
+                  args:
+                    - {param: ai}
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+            - op: "+"
+              args:
+                - op: "*"
+                  args: [{param: ri}, {const: 10000}]
+                - op: "*"
+                  args:
+                    - {param: ai}
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+      # confirmed_output = ro * ai * (10000 - fee) / ((ri + pv) * 10000 + ai * (10000 - fee))
+      - var: confirmed_output
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - {param: ro}
+                - op: "*"
+                  args:
+                    - {param: ai}
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - op: "+"
+                      args: [{param: ri}, {param: pv}]
+                    - {const: 10000}
+                - op: "*"
+                  args:
+                    - {param: ai}
+                    - op: "-"
+                      args: [{const: 10000}, {param: fee}]
+      # recommended_slippage_bps = max(0, min(500, ceil((best - conf) * 10000 / best)))
+      # CEILING division: ceil(a/b) = (a + b - 1) / b
+      # max(0,...) guards against best=0 underflow (best-1 = -1 in integer math).
+      - var: recommended_slippage_bps
+        expr:
+          op: "max"
+          args:
+            - {const: 0}
+            - op: "min"
+              args:
+                - {const: 500}
+                - op: "div"
+                  args:
+                    # Numerator: gap * 10000 + best - 1  (ceiling trick)
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args:
+                                # best_output inline
+                                - &best_expr
+                                  op: "div"
+                                  args:
+                                    - op: "*"
+                                      args:
+                                        - {param: ro}
+                                        - op: "*"
+                                          args:
+                                            - {param: ai}
+                                            - op: "-"
+                                              args: [{const: 10000}, {param: fee}]
+                                    - op: "+"
+                                      args:
+                                        - op: "*"
+                                          args: [{param: ri}, {const: 10000}]
+                                        - op: "*"
+                                          args:
+                                            - {param: ai}
+                                            - op: "-"
+                                              args: [{const: 10000}, {param: fee}]
+                                # confirmed_output inline
+                                - &conf_expr
+                                  op: "div"
+                                  args:
+                                    - op: "*"
+                                      args:
+                                        - {param: ro}
+                                        - op: "*"
+                                          args:
+                                            - {param: ai}
+                                            - op: "-"
+                                              args: [{const: 10000}, {param: fee}]
+                                    - op: "+"
+                                      args:
+                                        - op: "*"
+                                          args:
+                                            - op: "+"
+                                              args: [{param: ri}, {param: pv}]
+                                            - {const: 10000}
+                                        - op: "*"
+                                          args:
+                                            - {param: ai}
+                                            - op: "-"
+                                              args: [{const: 10000}, {param: fee}]
+                            - {const: 10000}
+                        # + best - 1 for ceiling
+                        - op: "-"
+                          args:
+                            - *best_expr
+                            - {const: 1}
+                    # Denominator: max(1, best)
+                    - op: "max"
+                      args:
+                        - {const: 1}
+                        - *best_expr
+      # min_output = best * (10000 - slippage_ceil) / 10000
+      # Uses ceiling-based slippage via YAML anchors (matches recommended_slippage_bps)
+      # max(0,...) on slippage guards against best=0 underflow
+      - var: min_output
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - *best_expr
+                # (10000 - slippage) where slippage = max(0, min(500, ceil_div))
+                - op: "-"
+                  args:
+                    - {const: 10000}
+                    - op: "max"
+                      args:
+                        - {const: 0}
+                        - op: "min"
+                          args:
+                            - {const: 500}
+                            - op: "div"
+                              args:
+                                # Numerator: gap * 10000 + best - 1  (ceiling trick)
+                                - op: "+"
+                                  args:
+                                    - op: "*"
+                                      args:
+                                        - op: "-"
+                                          args:
+                                            - *best_expr
+                                            - *conf_expr
+                                        - {const: 10000}
+                                    - op: "-"
+                                      args:
+                                        - *best_expr
+                                        - {const: 1}
+                                # Denominator: max(1, best)
+                                - op: "max"
+                                  args:
+                                    - {const: 1}
+                                    - *best_expr
+            - {const: 10000}

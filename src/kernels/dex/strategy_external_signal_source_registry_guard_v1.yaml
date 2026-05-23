@@ -1,0 +1,169 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_external_signal_source_registry_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless contract binding an external signal observation to an allowlisted
+    source-registry entry.
+
+    This kernel is intentionally small:
+    - source_id lookup is performed in the host layer
+    - the kernel only checks the matched entry's policy against the observed
+      source_kind/trust/auth/freshness/advisory flags
+observables:
+  state_vars: []
+  effects:
+    [
+      "registry_entry_found",
+      "registry_enabled_ok",
+      "source_kind_matches",
+      "trust_tier_allowed",
+      "advisory_mode_allowed",
+      "auth_requirement_ok",
+      "freshness_requirement_ok",
+      "source_registry_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_external_signal_source_registry"
+    params:
+      - id: "registry_entry_present"
+        type: { kind: "bool" }
+      - id: "registry_entry_enabled"
+        type: { kind: "bool" }
+      - id: "observed_source_kind_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "observed_trust_tier_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "advisory_only"
+        type: { kind: "bool" }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+      - id: "freshness_ok"
+        type: { kind: "bool" }
+      - id: "registered_source_kind_code"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "allow_advisory"
+        type: { kind: "bool" }
+      - id: "allow_attested"
+        type: { kind: "bool" }
+      - id: "allow_verified"
+        type: { kind: "bool" }
+      - id: "allow_protocol"
+        type: { kind: "bool" }
+      - id: "require_advisory_only"
+        type: { kind: "bool" }
+      - id: "require_auth"
+        type: { kind: "bool" }
+      - id: "require_freshness"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      registry_entry_found: { param: "registry_entry_present" }
+      registry_enabled_ok:
+        op: "and"
+        args:
+          - { param: "registry_entry_present" }
+          - { param: "registry_entry_enabled" }
+      source_kind_matches:
+        op: "and"
+        args:
+          - { param: "registry_entry_present" }
+          - op: "="
+            args:
+              - { param: "observed_source_kind_code" }
+              - { param: "registered_source_kind_code" }
+      trust_tier_allowed:
+        op: "and"
+        args:
+          - { param: "registry_entry_present" }
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 0 }] }
+                  - { param: "allow_advisory" }
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 1 }] }
+                      - { param: "allow_attested" }
+                  - op: "or"
+                    args:
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 2 }] }
+                          - { param: "allow_verified" }
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 3 }] }
+                          - { param: "allow_protocol" }
+      advisory_mode_allowed:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "require_advisory_only" }]
+          - { param: "advisory_only" }
+      auth_requirement_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "require_auth" }]
+          - { param: "auth_ok" }
+      freshness_requirement_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "require_freshness" }]
+          - { param: "freshness_ok" }
+      source_registry_ok:
+        op: "and"
+        args:
+          - { param: "registry_entry_present" }
+          - { param: "registry_entry_enabled" }
+          - op: "="
+            args:
+              - { param: "observed_source_kind_code" }
+              - { param: "registered_source_kind_code" }
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 0 }] }
+                  - { param: "allow_advisory" }
+              - op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 1 }] }
+                      - { param: "allow_attested" }
+                  - op: "or"
+                    args:
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 2 }] }
+                          - { param: "allow_verified" }
+                      - op: "and"
+                        args:
+                          - { op: "=", args: [{ param: "observed_trust_tier_code" }, { const: 3 }] }
+                          - { param: "allow_protocol" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "require_advisory_only" }]
+              - { param: "advisory_only" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "require_auth" }]
+              - { param: "auth_ok" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "require_freshness" }]
+              - { param: "freshness_ok" }

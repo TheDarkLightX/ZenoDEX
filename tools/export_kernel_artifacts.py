@@ -52,6 +52,8 @@ DEFAULT_EXPORTS: tuple[KernelExport, ...] = (
     KernelExport(KERNEL_DIR / "lp_ratio_calculator_v7.yaml", GENERATED_DIR / "dex_v7_python"),
     KernelExport(KERNEL_DIR / "circuit_breaker_v7.yaml", GENERATED_DIR / "dex_v7_python"),
     KernelExport(KERNEL_DIR / "cpmm_swap_v8.yaml", GENERATED_DIR / "dex_v8_python"),
+    # Proof target for src/core/dex.step (bounded, inductive kernel).
+    KernelExport(KERNEL_DIR / "dex_step_core_v2.yaml", GENERATED_DIR / "dex_v8_python"),
     KernelExport(KERNEL_DIR / "vault_manager.yaml", GENERATED_DIR / "vault_python"),
     KernelExport(KERNEL_DIR / "perp_epoch_isolated_v2.yaml", GENERATED_DIR / "perp_python"),
     KernelExport(KERNEL_DIR / "perp_epoch_clearinghouse_2p_v0_1.yaml", GENERATED_DIR / "perp_python"),
@@ -108,7 +110,7 @@ def _format_rust(crate_dirs: Iterable[Path]) -> None:
 
 
 def _patch_toolchain_header(python_out_dir: Path) -> None:
-    generated_by_new = "Generated from the YAML kernel spec by the repo's optional kernel export toolchain."
+    generated_by_new = "Generated from the YAML kernel spec by the repo's optional private toolchain."
     standalone_new = "This file is standalone and has no runtime dependency on the generator/toolchain."
     for p in sorted(python_out_dir.glob("*.py")):
         try:

@@ -9,10 +9,10 @@ from typing import Any, Mapping
 import pytest
 
 from src.core import DexConfig, DexState, dex_step
-from src.core.settlement import FillAction
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.core.settlement import FillAction
 
 
 def _import_kernel(module_name: str, rel_path: str) -> Any:
@@ -294,11 +294,7 @@ def test_dex_step_core_v2_ml_bva_cases_match_python_core() -> None:
 
         py_pre = _python_state_from_ref(ref_pre)
         py_intent = _intent_from_kernel_action(action=str(action), params=params, intent_id=_iid(10_000 + i))
-        py_out = dex_step(
-            DexConfig(require_all_nonces=False, allow_legacy_nonce_free_steps=True),
-            py_pre,
-            [py_intent],
-        )
+        py_out = dex_step(DexConfig(), py_pre, [py_intent])
 
         assert py_out.ok, py_out.error
         assert py_out.state is not None

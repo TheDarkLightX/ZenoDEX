@@ -75,12 +75,30 @@ The Python verifier binds the Lean model boundary to runtime by requiring:
 - aggregate CPMM invariant preservation;
 - settlement equality at the engine boundary.
 
-The scoped production-candidate helper
-`make_upba_v1_bounded_price_grid_engine_config()` in
-`src/integration/upba_production_config.py` turns the checker into the required
-swap-batch posture. It requires a UPBA certificate for swap intents and requires
-the bounded price-grid table evidence bundle for every accepted UPBA
-certificate.
+## Grid Economic Profile
+
+The bounded-grid theorem is exact over the configured finite grid. Economic
+sufficiency of a grid resolution is a separate deployment profile.
+
+`tools/upba_v1_grid_economic_profile.py` evaluates built-in candidate profiles
+with this conservative bound:
+
+```text
+epsilon_price = 1 / (2D)
+abs_error(p, D) <= epsilon_price
+relative_error_bps <= ceil(10_000 / (2D * p_min))
+output_error_units <= ceil(max_gross_input_per_fill / (2D)) + 1
+```
+
+The first built-in profiles are documented in
+`docs/UPBA_V1_GRID_ECONOMIC_PROFILES.md`. They define price bands, maximum
+gross input per fill, and thresholds for when the rational-grid approximation is
+small enough for the scoped profile. The checker also emits exact nearest-grid
+witnesses for representative rational prices in each band, so the replay
+artifact records the finite-grid approximation boundary directly.
+It also emits an explicit interval-cover certificate for the whole declared
+rational band, binding the assumptions `p_min * D >= 1` and
+`ceil(p_max * D) <= max_grid_num` to the nearest-grid epsilon bound.
 
 ## Verification Commands
 
@@ -89,6 +107,13 @@ Focused runtime checks:
 ```bash
 pytest -q tests/core/test_uniform_batch_clearing.py \
   tests/integration/test_dex_engine_uniform_batch_certificate.py
+```
+
+Grid-profile replay:
+
+```bash
+python3 tools/upba_v1_grid_economic_profile.py --json
+pytest -q tests/tools/test_upba_v1_grid_economic_profile.py
 ```
 
 Nearby integration checks:

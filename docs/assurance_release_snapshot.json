@@ -1,16 +1,16 @@
 {
   "schema": "zenodex/assurance-release-snapshot/v1",
   "snapshot_label": "Pinned release snapshot for this tree",
-  "as_of_date": "2026-05-16",
+  "as_of_date": "2026-04-06",
   "metrics": [
     {
       "label": "acceptance TCB",
-      "value": "373 passed",
-      "branch_coverage": "93%"
+      "value": "385 passed",
+      "branch_coverage": "98.8%"
     },
     {
       "label": "critical gate",
-      "value": "745 passed, 1 skipped",
+      "value": "1424 passed",
       "branch_coverage": "99%"
     },
     {
@@ -19,19 +19,19 @@
     },
     {
       "label": "mutation gate",
-      "value": "7 killed, 0 survived, 0 inconclusive"
+      "value": "5 killed, 2 inconclusive"
     },
     {
       "label": "fuzz gate",
-      "value": "11 passed"
+      "value": "58 passed"
     },
     {
       "label": "snapshot recovery",
-      "value": "19 passed"
+      "value": "17 passed"
     },
     {
       "label": "Tau syntax",
-      "value": "62/62"
+      "value": "60/60"
     },
     {
       "label": "Tau traces",

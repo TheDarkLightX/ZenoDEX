@@ -1,0 +1,130 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_execution_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless execution-admission guard for the imperative-shell auto-trader.
+
+    The kernel does not choose trades and does not mutate balances. It only
+    validates that an already-selected order may be emitted under a bounded
+    policy:
+    - current epoch is inside the strategy window
+    - epoch progression is monotone when a previous action exists
+    - cadence and minimum spacing are both satisfied
+    - projected live orders do not exceed the policy cap
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "within_window_ok",
+      "monotone_epoch_ok",
+      "cadence_ok",
+      "live_orders_ok",
+      "execution_ok",
+    ]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "validate_execution"
+    params:
+      - id: "current_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "valid_from_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "valid_until_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "last_action_known"
+        type: { kind: "bool" }
+      - id: "last_action_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "cadence_epochs"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "min_order_spacing_epochs"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "projected_live_orders"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "max_live_orders"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "current_epoch" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "valid_from_epoch" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "valid_until_epoch" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "last_action_epoch" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "cadence_epochs" }, { const: 1 }] }
+        - { op: ">=", args: [{ param: "min_order_spacing_epochs" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "projected_live_orders" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "max_live_orders" }, { const: 1 }] }
+    updates: []
+    effects:
+      within_window_ok:
+        op: "and"
+        args:
+          - { op: ">=", args: [{ param: "current_epoch" }, { param: "valid_from_epoch" }] }
+          - { op: "<=", args: [{ param: "current_epoch" }, { param: "valid_until_epoch" }] }
+      monotone_epoch_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "last_action_known" }]
+          - { op: ">=", args: [{ param: "current_epoch" }, { param: "last_action_epoch" }] }
+      cadence_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "last_action_known" }]
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ param: "current_epoch" }, { param: "last_action_epoch" }] }
+              - op: ">="
+                args:
+                  - op: "-"
+                    args: [{ param: "current_epoch" }, { param: "last_action_epoch" }]
+                  - { param: "cadence_epochs" }
+              - op: ">="
+                args:
+                  - op: "-"
+                    args: [{ param: "current_epoch" }, { param: "last_action_epoch" }]
+                  - { param: "min_order_spacing_epochs" }
+      live_orders_ok:
+        op: "<="
+        args: [{ param: "projected_live_orders" }, { param: "max_live_orders" }]
+      execution_ok:
+        op: "and"
+        args:
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ param: "current_epoch" }, { param: "valid_from_epoch" }] }
+              - { op: "<=", args: [{ param: "current_epoch" }, { param: "valid_until_epoch" }] }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "last_action_known" }]
+              - { op: ">=", args: [{ param: "current_epoch" }, { param: "last_action_epoch" }] }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "last_action_known" }]
+              - op: "and"
+                args:
+                  - { op: ">=", args: [{ param: "current_epoch" }, { param: "last_action_epoch" }] }
+                  - op: ">="
+                    args:
+                      - op: "-"
+                        args: [{ param: "current_epoch" }, { param: "last_action_epoch" }]
+                      - { param: "cadence_epochs" }
+                  - op: ">="
+                    args:
+                      - op: "-"
+                        args: [{ param: "current_epoch" }, { param: "last_action_epoch" }]
+                      - { param: "min_order_spacing_epochs" }
+          - { op: "<=", args: [{ param: "projected_live_orders" }, { param: "max_live_orders" }] }

@@ -1,0 +1,142 @@
+{
+  "schema": "shapeforge/negative-knowledge-seed/v1",
+  "repo_root": ".",
+  "context_key": "autotrader_shape_negative_frontier_v1",
+  "world_model_id": "autotrader_shape_reference_v1",
+  "world_model_path": "docs/zenodex/shapeforge_promoted/autotrader_world_model.seed.json",
+  "description": "Typed negative knowledge for the current AutoTrader ShapeForge world model: blocked promotions, scope boundaries, implementation accidents, and missing consolidated certificate surfaces.",
+  "records": [
+    {
+      "hypothesis_id": "autotrader_binary_argmax_is_general_frontier_v1",
+      "context_key": "autotrader_shape_negative_frontier_v1",
+      "world_model_id": "autotrader_shape_reference_v1",
+      "slice_id": "autotrader_decision_certificate",
+      "scenario_id": "expand_binary_decision_frontier_without_new_total_key",
+      "axis": "canonical_key",
+      "improvement_target": "candidate frontier",
+      "negative_kind": "scope_boundary",
+      "status": "blocked",
+      "claim": "The current binary AutoTrader argmax certificate already certifies a general strategy frontier.",
+      "current_evidence_class": "contract",
+      "target_evidence_class": "proved",
+      "preconditions": [
+        "The candidate set currently contains only NO_OP and EMIT_COMPILED_INTENT.",
+        "The decision kernel and certificate surface use the current binary key."
+      ],
+      "trigger": "Adding richer strategy actions without redesigning the key and certificate surface invalidates the current binary candidate-shape contract.",
+      "source_surfaces": [
+        "src/integration/autotrader_decision.py",
+        "src/kernels/dex/strategy_candidate_set_contract_v1.yaml",
+        "src/kernels/dex/strategy_decision_kernel_v1.yaml",
+        "src/tau_specs/recommended/argmax_stream_certificate_v1.tau"
+      ],
+      "related_invariants": [
+        "autotrader_binary_decision_requires_total_pair_order"
+      ],
+      "evidence_or_falsifier": "The current promoted runtime candidate-set contract explicitly fixes the binary frontier. The repo now has a parallel bounded multi-action candidate-set contract plus key/certificate/witness surfaces for unambiguous shadow/live assurance reports, but promotion to a general live frontier is still blocked until the runtime model version, live admission semantics, and decision kernel widen together.",
+      "replacement_claim": "Current support certifies the binary NO_OP versus EMIT_COMPILED_INTENT runtime frontier, plus a bounded multi-action sidecar frontier for unambiguous shadow/live assurance reports.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/autotrader_world_model.seed.json#scenario_id=expand_binary_decision_frontier_without_new_total_key"
+    },
+    {
+      "hypothesis_id": "autotrader_live_bundle_is_single_end_to_end_certificate_v1",
+      "context_key": "autotrader_shape_negative_frontier_v1",
+      "world_model_id": "autotrader_shape_reference_v1",
+      "slice_id": "autotrader_system_compose",
+      "scenario_id": "treat_system_compose_as_single_certificate",
+      "axis": "evidence",
+      "improvement_target": "certificate consolidation",
+      "negative_kind": "blocked_promotion",
+      "status": "narrowed",
+      "claim": "The current AutoTrader live path already exposes one end-to-end certificate surface that downstream code can consume directly.",
+      "current_evidence_class": "contract",
+      "target_evidence_class": "proved",
+      "preconditions": [
+        "System compose, live admission, nonce, tx-envelope, and decision surfaces are all present.",
+        "Downstream consumers want a single release certificate rather than a bag of intermediate receipts."
+      ],
+      "trigger": "The repo now exposes a stage-aware certificate on every report, attaches the stricter live-release certificate to populated reports, and Lean proves both abstract rebuild shells; the remaining gap is concrete packet hashing/serialization modeling.",
+      "source_surfaces": [
+        "src/integration/autotrader_live.py",
+        "src/integration/autotrader_stage_certificate.py",
+        "src/integration/autotrader_live_release_certificate.py",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderLiveReleaseCertificate.lean",
+        "src/kernels/dex/strategy_live_admission_bundle_v1.yaml",
+        "src/kernels/dex/strategy_system_compose_v1.yaml",
+        "tests/integration/test_autotrader_live.py",
+        "tests/integration/test_autotrader_stage_certificate.py",
+        "tests/integration/test_autotrader_live_release_certificate.py"
+      ],
+      "related_invariants": [
+        "autotrader_stage_certificate_tracks_available_binding_surfaces",
+        "autotrader_live_release_requires_provenance_session_wallet_nonce_and_decision"
+      ],
+      "evidence_or_falsifier": "The runtime still fails closed across the decomposed live bundle, the repo now attaches a deterministic stage-aware certificate to every report and a stricter live-release certificate to populated reports, and Lean proves both abstract rebuild shells. ShapeForge keeps this narrowed rather than discharged because the concrete canonical JSON plus SHA256 behavior of those packet surfaces remains code-backed.",
+      "replacement_claim": "Current support provides a first-class stage-aware certificate on every report, a stricter live-release packet on populated reports, and abstract shell proofs for both; the remaining open work is concrete hash/serialization modeling rather than packet availability.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/autotrader_world_model.seed.json#scenario_id=treat_system_compose_as_single_certificate"
+    },
+    {
+      "hypothesis_id": "autotrader_observation_hash_alone_is_full_provenance_v1",
+      "context_key": "autotrader_shape_negative_frontier_v1",
+      "world_model_id": "autotrader_shape_reference_v1",
+      "slice_id": "autotrader_signal_provenance",
+      "scenario_id": "allow_unregistered_external_signal",
+      "axis": "guard",
+      "improvement_target": "runtime guard alignment",
+      "negative_kind": "missing_guard",
+      "status": "blocked",
+      "claim": "A deterministic observation hash alone is enough to establish semantic provenance for external signals.",
+      "current_evidence_class": "implemented",
+      "target_evidence_class": "proved",
+      "preconditions": [
+        "Observation packets can carry external signals.",
+        "External signal sources have independent registry and trust-tier posture."
+      ],
+      "trigger": "Allowing an unregistered external signal shows that hashing the packet is not equivalent to proving the source is authorized or trustworthy.",
+      "source_surfaces": [
+        "src/integration/autotrader_signal_registry.py",
+        "src/integration/autotrader_signals.py",
+        "src/kernels/dex/strategy_signal_provenance_guard_v1.yaml",
+        "tests/integration/test_autotrader_signals.py"
+      ],
+      "related_invariants": [
+        "autotrader_external_signals_require_registry_and_provenance"
+      ],
+      "evidence_or_falsifier": "The observation hash is necessary for deterministic binding, but the world model still requires registry authorization and provenance guards before external signals become admissible.",
+      "replacement_claim": "Observation hashing, source registry, and provenance guards are all part of the admissible external-signal surface.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/autotrader_world_model.seed.json#scenario_id=allow_unregistered_external_signal"
+    },
+    {
+      "hypothesis_id": "autotrader_runtime_decision_binding_is_just_a_convention_v1",
+      "context_key": "autotrader_shape_negative_frontier_v1",
+      "world_model_id": "autotrader_shape_reference_v1",
+      "slice_id": "autotrader_decision_certificate",
+      "scenario_id": "tamper_autotrader_decision_certificate_binding",
+      "axis": "guard",
+      "improvement_target": "proof promotion",
+      "negative_kind": "implementation_accident",
+      "status": "falsified",
+      "claim": "The AutoTrader decision certificate still relies on a convention-level binding bit rather than a recomputed binding surface.",
+      "current_evidence_class": "proved",
+      "target_evidence_class": "proved",
+      "preconditions": [
+        "The runtime builds and consumes a binary decision certificate.",
+        "Decision promotion depends on candidate/artifact/observation bindings and kill-switch posture."
+      ],
+      "trigger": "The runtime derives binding_ok and recomputes the expected decision certificate before promotion, and Lean now proves the deterministic rebuild/verification shell for the binary candidate set.",
+      "source_surfaces": [
+        "src/integration/autotrader_decision.py",
+        "src/integration/autotrader_live.py",
+        "lean-mathlib/Proofs/ZenoDEXAutoTraderDecisionBinding.lean",
+        "tests/integration/test_autotrader_decision.py",
+        "tests/integration/test_autotrader_live.py"
+      ],
+      "related_invariants": [
+        "autotrader_candidate_and_decision_share_one_binding_surface"
+      ],
+      "evidence_or_falsifier": "The previous hardcoded binding bit is gone, the binary winner/tie-break kernel is proved, and the repo now also has a Lean proof that the decision verifier accepts exactly the canonical rebuilt certificate for a fixed binary candidate set and kill-switch posture. The remaining open boundary is narrower: concrete canonical JSON plus SHA256 hashing is still implemented, not Lean-modeled.",
+      "replacement_claim": "The current runtime derives and verifies the binary decision binding surface locally, and Lean now proves the abstract deterministic rebuild shell; the remaining proof gap is concrete hash/serialization modeling rather than convention-level binding.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/autotrader_world_model.seed.json#scenario_id=tamper_autotrader_decision_certificate_binding"
+    }
+  ]
+}

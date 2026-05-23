@@ -41,7 +41,13 @@ The active workspace now has:
   shells from `origin/main`;
 - runtime `oracle_adapter_bridge` compatibility hooks for perps settlement,
   standalone perps liquidation, zUSD mint/liquidation, guarded routing, and
-  trigger execution, plus typed trigger and critical-settlement authorization;
+  trigger execution, plus typed zUSD mint/liquidation, trigger execution, and
+  critical-settlement authorization;
+- a runtime-shell assurance gate at `tools/run_runtime_shell_assurance_gate.sh`
+  with a pinned manifest at `tools/runtime_shell_assurance_manifest.json`;
+  the lane now pins isolated perps v3 settlement to a fresh, positive Oracle
+  snapshot and replays ESSO shell-lint/verify-shell checks for the perps,
+  proof-mining, and global-conservation shell adapters;
 - the critical-action map now reports `7` catalog profiles, `7`
   runtime-wired profiles, and `0` design-only backlog profiles;
 - a local reporter/validator bundle builder in
@@ -59,23 +65,18 @@ The active workspace now has:
   public sample verifier manifest at `tools/zenoproof_registry_manifest.json`;
   the shell now checks Oracle O5 bridges with an independence witness requiring
   distinct verifier IDs, distinct proof kinds, shared Oracle input/output
-  roots, and claim-DAG dependency closure.
+  roots, and claim-DAG dependency closure, and its registry validator rejects
+  malformed verifier budgets, unsupported or duplicate proof kinds, duplicate
+  toolchains, and unsafe verifier command shapes.
 - ZenoProof public replay verifier roots at
   `tools/zenoproof_public_replay_verifier.py` for workflow-evidence status,
-  Julia witness-sweep, Lean witness-anchor, deterministic bounded TLA Oracle
-  recovery, deterministic bounded LTLf Oracle recovery, deterministic bounded
-  ESSO zUSD Oracle recovery, Morph oracle-clamp, and SMT Oracle freshness
-  profiles.
+  Julia witness-sweep, Lean witness-anchor, TLA Oracle recovery, LTLf Oracle
+  recovery, ESSO zUSD Oracle recovery, Morph oracle-clamp, and SMT Oracle
+  freshness profiles.
 - a bounded ZenoProof reward-payout replay bridge at
   `tools/zenoproof_reward_payout_replay.py`, which takes an accepted local
   reward gate through proof-mining claim construction, manager execution, and
   claimability checks.
-- a ZenoProof production-candidate governance policy gate at
-  `tools/check_zenoproof_production_governance_policy.py`, which binds the
-  verifier registry to governance, code-signing, sandbox, revocation, O4/O5
-  bridge, reward-settlement controls, verifier-release transparency-log roots,
-  and explicit receipt-dependency links from approval to execution to
-  revocation/code-signing to transparency-log to sandbox attestation.
 - a devnet RC package validator at `tools/check_zeno_oracle_rc_package.py`,
   which checks the package manifest, launcher, docs, whitepaper, branding,
   receipt, and devnet integrity signature.
@@ -87,50 +88,24 @@ The active workspace now has:
   griefing, registry drift, verifier spoofing, O5 independence spoofing,
   proof-timeout fail-closed behavior, replay integrity, and cross-module
   split-brain first-shell checks.
-- a Julia witness sweep at
+- a first Julia witness sweep at
   `tools/zeno_oracle_math_witness_sweep.jl` for median
-  deviation, monotone deviation-bound widening, source cartel, dispute
-  griefing, reward-pool conservation, live-economics settlement-execution total
-  matching/drift rejection, live-economics receipt-dependency chain
-  acceptance/rejection, live-economics and production-network receipt-chain
-  chronology acceptance/rejection, production-network receipt-dependency chain
-  acceptance/rejection, budget-widening preservation, and split-brain boundary
-  cases, plus O5 independence-witness acceptance/rejection, O5
-  proof/window/proof-kind/root drift rejection, and O3 sync-window composition
-  preservation.
-- a Lean witness anchor at `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for
-  the same bounded median/deviation, reward-pool, live-economics
-  settlement-execution total, source-cartel, and split-brain arithmetic, plus
-  restricted general theorems for median-bound monotonicity,
-  settlement-budget widening, receipt-position transitivity/asymmetry,
-  live-economics and production-network receipt-chain chronology,
-  live-economics and production-network receipt-dependency chain
-  projection/rejection, O3
-  sync-window composition, Prop-level
-  live-economics receipt, restricted perps snapshot usability,
-  O4/O5 Oracle-use binding, O4/O5 iff decomposition,
-  and full O5 independence-witness obligation decomposition and rejection.
+  deviation, source cartel, dispute griefing, reward-pool conservation, and
+  split-brain boundary cases, plus O5 independence-witness acceptance and
+  missing-distinct-verifier rejection.
+- a first Lean witness anchor at
+  `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for the same bounded
+  median/deviation, reward-pool, source-cartel, and split-brain arithmetic,
+  plus Prop-level O4/O5 Oracle-use binding and O5 independence-witness
+  projections.
+- a promoted generalized Lean boundary layer at
+  `lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean` for deviation
+  component closure and rejection, freshness/sync laws, reward-pool
+  composition, O5 independence requirements, typed authorization binding,
+  receipt-borrowing rejection, and stale-oracle rejection.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
-  ESSO, Morph smoke, and PopperPad smoke lanes. The ESSO, TLA, and LTLf lanes
-  have deterministic bounded public replay at
-  `tools/zeno_oracle_esso_zusd_recovery_replay.py`,
-  `tools/zeno_oracle_tla_recovery_replay.py` and
-  `tools/zeno_oracle_ltlf_recovery_replay.py`.
-- a production-candidate network config receipt gate at
-  `tools/check_zeno_oracle_production_network_config.py` that validates local
-  reporter-registry deployment, feed-governance deployment, feed-governance
-  approval/execution, signed release artifact, signed-release transparency-log
-  root binding, critical runtime-control attestation receipts, including
-  protected-swap typed authorization, and explicit
-  receipt-dependency links from registry deployment to governance deployment to
-  approval/execution to signed release to transparency log to runtime controls
-  while keeping live chain and public soak verification outside the claim.
-- a production-candidate live economics policy gate at
-  `tools/check_zeno_oracle_live_economics_policy.py` that binds reporter
-  economics replay to token, escrow, governance approval/execution, escrow
-  funding, and settlement execution receipts while keeping live chain
-  settlement outside the claim.
+  ESSO, Morph smoke, and PopperPad smoke lanes.
 
 Current public gate evidence:
 
@@ -142,16 +117,19 @@ pytest -q tests/test_zenodex_oracle_devnet_service.py tests/test_zenodex_oracle_
 python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
 python3 tools/zenodex_oracle_devnet_alpha_audit.py
 python3 tools/check_claims_registry.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
+PYTHONPATH=external/ESSO python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_isolated_v3.yaml --solvers z3,cvc5
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text
 bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
 python3 tools/check_zeno_oracle_rc_package.py --package-dir dist/zeno-oracle-devnet-alpha-rc1 --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json --sig dist/zeno-oracle-devnet-alpha-rc1.sig
 python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
-python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
 julia tools/zeno_oracle_math_witness_sweep.jl
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
+cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
 python3 tools/zeno_oracle_workflow_evidence_status.py --format text
 ```
 
@@ -166,15 +144,15 @@ still open. The remaining completion work is:
 - connect the local reporter economics replay to production token settlement
   and on-chain governance once those surfaces exist;
 - deepen the current SMT, TLA, ESSO, Lean, Julia, and Morph ZenoProof roots
-  beyond bounded witness anchors;
+  beyond bounded witness anchors and abstract boundary theorems;
 - promote the bounded local ZenoProof reward-payout replay to live proof-mining
   token settlement once that settlement surface exists;
 - add deterministic Julia witnesses for quorum, median deviation, slash
   economics, and any new oracle benefit/search cases beyond the first witness
   sweep;
-- add Lean/TLA/LTLf gates for median/deviation laws, action binding,
-  receipt-borrowing exclusion, terminal DAG closure, budget inequalities, and
-  cross-module sync;
+- add Lean/TLA/LTLf gates for concrete runtime instantiation, terminal DAG
+  closure, broader median/economics families, and cross-module sync beyond the
+  promoted abstract boundary layer;
 - keep extending the disaster-obligation antichain and named-class corpus when
   new axes are found;
 - build a production package with on-chain feed governance, production signing,
@@ -275,14 +253,10 @@ streams:
 ```bash
 python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
 pytest -q tests/test_zenodex_oracle_reporter_economics_replay.py
-python3 tools/check_zeno_oracle_live_economics_policy.py --format text
-pytest -q tests/test_check_zeno_oracle_live_economics_policy.py
 ```
 
-The production-candidate policy gate binds the replay to local governance
-approval/execution, escrow funding, and settlement execution receipts. Live
-token settlement can follow once governance, signing, deployment, and on-chain
-receipt replay surfaces are stable.
+Production token settlement can follow once governance, signing, and deployment
+surfaces are stable.
 
 ### 5. Disaster-State Antichain
 
@@ -295,10 +269,10 @@ python3 tools/check_disaster_obligation_certificate.py \
 
 Current manifest scope:
 
-- `24` Oracle disaster axes;
-- `21` quotient classes;
-- `16` antichain representatives;
-- `10` selected guard families;
+- `23` Oracle disaster axes;
+- `20` quotient classes;
+- `15` antichain representatives;
+- `9` selected guard families;
 - private-obligation witnesses for every selected guard.
 
 New axes must be classified as existing, dominated, incomparable, dominating,
@@ -321,7 +295,7 @@ Lean discovery/proof work remains open.
 
 Julia lane:
 
-- witness sweep:
+- first witness sweep:
 
 ```bash
 julia tools/zeno_oracle_math_witness_sweep.jl
@@ -334,17 +308,24 @@ julia tools/zeno_oracle_math_witness_sweep.jl
 
 Lean lane:
 
-- bounded and restricted theorem anchor:
+- first bounded witness anchor:
 
 ```bash
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 ```
 
-- complete median and deviation theorem families;
-- action binding and receipt-borrowing exclusion;
+- generalized boundary layer:
+
+```bash
+cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
+```
+
+- concrete runtime instantiation for typed authorization predicates;
 - terminal DAG closure;
-- economic budget and deterrence inequalities;
-- cross-module sync beyond the current restricted composition theorem scope.
+- broader median and economics theorem families;
+- deterrence inequalities;
+- cross-module sync including epoch-lag composition beyond the current theorem
+  scope.
 
 Workflow lane:
 
@@ -362,10 +343,9 @@ pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
 
 It checks the presence and replay boundaries for the Oracle recovery TLA/LTLf
 lanes, the ESSO zUSD oracle recovery lane, a Morph oracle-clamp smoke check,
-and a temporary PopperPad append-only smoke. The ESSO/TLA/LTLf lanes replay the
-bounded Oracle recovery models locally. Broader Morph campaigns, external
-TLC/ESSO synthesis, and private PopperPad ledgers remain internal until
-promoted through public replay commands.
+and a temporary PopperPad append-only smoke. Broader Morph campaigns and
+private PopperPad ledgers remain internal until promoted through public replay
+commands.
 
 ### 7. Public Claim Promotion
 
@@ -406,15 +386,14 @@ Before marking the goal complete, audit each item below against real artifacts:
 - named disaster-class corpus passes for the current first-shell named classes;
 - Julia witness sweep passes, and Morph witnesses are captured as deterministic
   tests or artifacts as they are promoted;
-- Lean/TLA/LTLf gates pass for promoted formal claims;
+- Lean/TLA/LTLf gates pass for promoted formal claims, including the
+  generalized Lean boundary layer;
 - workflow evidence status checker passes for promoted public workflow lanes;
 - public claims registry validates;
 - ZenoProof v0 design, verifier shell, registry manifest, Oracle O4 bridge,
   and Oracle O5 independence-witness bridge
-  sample pass replay, including the workflow-evidence, Julia, Lean,
-  deterministic bounded TLA, deterministic bounded LTLf, deterministic bounded
+  sample pass replay, including the workflow-evidence, Julia, Lean, TLA, LTLf,
   ESSO, Morph, and SMT public replay verifiers and the local proof-mining
-  reward gate plus bounded reward-payout replay and the production-candidate
-  verifier governance policy gate;
+  reward gate plus bounded reward-payout replay;
 - devnet alpha package builds and validates its manifest, launcher, docs,
   replay, whitepaper, branding, receipt, integrity signature, and non-claims.

@@ -1,0 +1,31 @@
+# Auto-trader budget guard v1
+#
+# Purpose: validate a single budget-consumption step for a policy-constrained
+# auto-trader. This does not choose a trade; it only checks that the proposed
+# notional fits the per-order limit, the rolling window budget, and the
+# kill-switch posture.
+#
+# Stream mapping:
+# i1 = spent_before          (bv[32])
+# i2 = order_amount          (bv[32])
+# i3 = per_order_limit       (bv[32])
+# i4 = window_budget         (bv[32])
+# i5 = spent_after           (bv[32])
+# i6 = kill_switch_active    (sbf)
+# o1 = budget_step_valid
+#
+# @rule o1:
+#   order is admissible iff kill switch is off, amount is positive, amount is
+#   within per-order limit, spent_after is the no-wrap sum of spent_before and
+#   order_amount, and spent_after stays within the window budget.
+
+set charvar off
+
+is_positive_32(x : bv[32]) := x > { #x00000000 }:bv[32].
+
+add_no_wrap(a : bv[32], b : bv[32], sum : bv[32]) := (sum = (a + b)) && (sum >= a) && (sum >= b).
+
+budget_step_valid(spent_before : bv[32], order_amount : bv[32], per_order_limit : bv[32], window_budget : bv[32], spent_after : bv[32], kill_switch_active : sbf) := (kill_switch_active = 0:sbf) && is_positive_32(order_amount) && (order_amount <= per_order_limit) && add_no_wrap(spent_before, order_amount, spent_after) && (spent_after <= window_budget).
+
+always
+  (o1[t]:sbf = 1:sbf <-> budget_step_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf)).

@@ -7,7 +7,6 @@ import pytest
 from src.core.cpmm import swap_exact_in, swap_exact_out
 from src.integration.tau_runner import split_u32
 from src.integration.tau_witness import (
-    build_settlement_signer_registry_anchor_gate_v1_step,
     build_swap_exact_in_v1_step,
     build_swap_exact_out_v1_step,
     build_zusd_mint_guard_v1_step,
@@ -134,26 +133,3 @@ def test_build_zusd_supply_conservation_v2_step_rejects_out_of_u64_range() -> No
             sp_after=0,
             total_after=0,
         )
-
-
-def test_build_settlement_signer_registry_anchor_gate_v1_step_maps_fields() -> None:
-    step = build_settlement_signer_registry_anchor_gate_v1_step(
-        exec_req=1,
-        snapshot_present=1,
-        anchor_present=1,
-        request_binding_ok=1,
-        anchor_binding_ok=1,
-        policy_binding_ok=1,
-        proof_ok=1,
-        policy_epoch=513,
-        anchor_block_number=1027,
-    )
-    assert step["i1"] == 1
-    assert step["i2"] == 1
-    assert step["i3"] == 1
-    assert step["i4"] == 1
-    assert step["i5"] == 1
-    assert step["i6"] == 1
-    assert step["i7"] == 1
-    assert (step["i8"], step["i9"]) == split_u32(513)
-    assert (step["i10"], step["i11"]) == split_u32(1027)

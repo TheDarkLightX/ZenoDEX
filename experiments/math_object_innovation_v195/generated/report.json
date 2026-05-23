@@ -1,0 +1,367 @@
+{
+  "atom_count": 8,
+  "discovery_domain": {
+    "atom_count": 8,
+    "atoms": [
+      "domain_ok",
+      "surface_binding_ok",
+      "cap_reference_ok",
+      "assumption_nonce_fresh",
+      "signer_threshold_ok",
+      "registry_root_ok",
+      "epoch_freshness_ok",
+      "no_user_net_ack_ok"
+    ],
+    "packet_count": 13
+  },
+  "forced_atom_count": 8,
+  "holdout_domain": "none; bounded adversarial override-packet corpus",
+  "invalid_packet_count": 11,
+  "minimal_exact_atom_count": 8,
+  "minimal_exact_language_count": 1,
+  "minimal_exact_languages": [
+    {
+      "atom_count": 8,
+      "atoms": [
+        "domain_ok",
+        "surface_binding_ok",
+        "cap_reference_ok",
+        "assumption_nonce_fresh",
+        "signer_threshold_ok",
+        "registry_root_ok",
+        "epoch_freshness_ok",
+        "no_user_net_ack_ok"
+      ],
+      "exact": true,
+      "false_accept_count": 0,
+      "false_accepts": [],
+      "false_reject_count": 0,
+      "false_rejects": []
+    }
+  ],
+  "model_audit": {
+    "full_guard_false_accept_count": 0,
+    "full_guard_false_reject_count": 0,
+    "missing_private_witness_count": 0,
+    "non_full_minimal_exact_language_count": 0,
+    "total_override_language_invariant_failures": 0
+  },
+  "named_language_stats": {
+    "authority_only": {
+      "atom_count": 2,
+      "atoms": [
+        "signer_threshold_ok",
+        "registry_root_ok"
+      ],
+      "exact": false,
+      "false_accept_count": 8,
+      "false_accepts": [
+        "wrong_domain_bad",
+        "surface_mismatch_bad",
+        "stale_cap_reference_bad",
+        "replayed_assumption_id_bad",
+        "expired_override_bad",
+        "missing_ack_bad",
+        "fresh_signature_wrong_cap_bad",
+        "fresh_cap_wrong_surface_bad"
+      ],
+      "false_reject_count": 0,
+      "false_rejects": []
+    },
+    "cap_and_ack_only": {
+      "atom_count": 3,
+      "atoms": [
+        "surface_binding_ok",
+        "cap_reference_ok",
+        "no_user_net_ack_ok"
+      ],
+      "exact": false,
+      "false_accept_count": 6,
+      "false_accepts": [
+        "wrong_domain_bad",
+        "replayed_assumption_id_bad",
+        "threshold_drift_bad",
+        "registry_root_drift_bad",
+        "expired_override_bad",
+        "text_right_but_no_authority_bad"
+      ],
+      "false_reject_count": 0,
+      "false_rejects": []
+    },
+    "fresh_authority_only": {
+      "atom_count": 4,
+      "atoms": [
+        "assumption_nonce_fresh",
+        "signer_threshold_ok",
+        "registry_root_ok",
+        "epoch_freshness_ok"
+      ],
+      "exact": false,
+      "false_accept_count": 6,
+      "false_accepts": [
+        "wrong_domain_bad",
+        "surface_mismatch_bad",
+        "stale_cap_reference_bad",
+        "missing_ack_bad",
+        "fresh_signature_wrong_cap_bad",
+        "fresh_cap_wrong_surface_bad"
+      ],
+      "false_reject_count": 0,
+      "false_rejects": []
+    },
+    "full_override_packet_guard": {
+      "atom_count": 8,
+      "atoms": [
+        "domain_ok",
+        "surface_binding_ok",
+        "cap_reference_ok",
+        "assumption_nonce_fresh",
+        "signer_threshold_ok",
+        "registry_root_ok",
+        "epoch_freshness_ok",
+        "no_user_net_ack_ok"
+      ],
+      "exact": true,
+      "false_accept_count": 0,
+      "false_accepts": [],
+      "false_reject_count": 0,
+      "false_rejects": []
+    },
+    "text_only": {
+      "atom_count": 4,
+      "atoms": [
+        "domain_ok",
+        "surface_binding_ok",
+        "cap_reference_ok",
+        "no_user_net_ack_ok"
+      ],
+      "exact": false,
+      "false_accept_count": 5,
+      "false_accepts": [
+        "replayed_assumption_id_bad",
+        "threshold_drift_bad",
+        "registry_root_drift_bad",
+        "expired_override_bad",
+        "text_right_but_no_authority_bad"
+      ],
+      "false_reject_count": 0,
+      "false_rejects": []
+    }
+  },
+  "non_claims": [
+    "This is a bounded witness-language result, not a cryptographic signature implementation.",
+    "The corpus does not prove all governance override attacks are impossible.",
+    "The language still depends on truthful upstream cap and registry roots."
+  ],
+  "object": "assumption_change_override_packet_language_v1",
+  "oracle_dependent": true,
+  "packet_count": 13,
+  "packets": [
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": true,
+      "failed_atoms": [],
+      "no_user_net_ack_ok": true,
+      "packet_id": "valid_route_override",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": true,
+      "failed_atoms": [],
+      "no_user_net_ack_ok": true,
+      "packet_id": "valid_uncapped_surface_override",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": false,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "domain_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "wrong_domain_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "surface_binding_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "surface_mismatch_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": false
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": false,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "cap_reference_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "stale_cap_reference_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": false,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "assumption_nonce_fresh"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "replayed_assumption_id_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "signer_threshold_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "threshold_drift_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": false,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "registry_root_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "registry_root_drift_bad",
+      "registry_root_ok": false,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": false,
+      "expected_good": false,
+      "failed_atoms": [
+        "epoch_freshness_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "expired_override_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "no_user_net_ack_ok"
+      ],
+      "no_user_net_ack_ok": false,
+      "packet_id": "missing_ack_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "registry_root_ok",
+        "signer_threshold_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "text_right_but_no_authority_bad",
+      "registry_root_ok": false,
+      "signer_threshold_ok": false,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": false,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "cap_reference_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "fresh_signature_wrong_cap_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": true
+    },
+    {
+      "assumption_nonce_fresh": true,
+      "cap_reference_ok": true,
+      "domain_ok": true,
+      "epoch_freshness_ok": true,
+      "expected_good": false,
+      "failed_atoms": [
+        "surface_binding_ok"
+      ],
+      "no_user_net_ack_ok": true,
+      "packet_id": "fresh_cap_wrong_surface_bad",
+      "registry_root_ok": true,
+      "signer_threshold_ok": true,
+      "surface_binding_ok": false
+    }
+  ],
+  "private_witnesses": {
+    "assumption_nonce_fresh": "replayed_assumption_id_bad",
+    "cap_reference_ok": "stale_cap_reference_bad",
+    "domain_ok": "wrong_domain_bad",
+    "epoch_freshness_ok": "expired_override_bad",
+    "no_user_net_ack_ok": "missing_ack_bad",
+    "registry_root_ok": "registry_root_drift_bad",
+    "signer_threshold_ok": "threshold_drift_bad",
+    "surface_binding_ok": "surface_mismatch_bad"
+  },
+  "schema": "zenodex/math-object-innovation-v195-report/v1",
+  "strongest_claim": "On the bounded adversarial override-packet corpus, every atom in the eight-field assumption-change language is forced by a private negative witness, and the unique minimal exact language is the full packet guard.",
+  "tier": "symbolic_state_compiler",
+  "valid_packet_count": 2
+}

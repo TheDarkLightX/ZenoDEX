@@ -1,0 +1,15 @@
+# Optional Linux/AppArmor hardening overlay.
+#
+# AppArmor profiles are host policy, so this file is intentionally not part of
+# the default compose path. Load the profile first:
+#
+#   sudo apparmor_parser -r .docker/apparmor/zenodex
+#
+# Then run:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.apparmor.yml up -d
+
+services:
+  zenodex:
+    security_opt:
+      - apparmor:zenodex

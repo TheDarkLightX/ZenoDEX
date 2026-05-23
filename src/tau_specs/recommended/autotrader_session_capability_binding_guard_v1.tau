@@ -1,0 +1,49 @@
+# AutoTrader Session Capability Binding Guard v1
+#
+# PURPOSE: Keep delegated live-session capabilities narrower than the compiled
+# strategy scope.
+#
+# i1 = session_present
+# i2 = owner_binding_ok
+# i3 = chain_binding_ok
+# i4 = asset_scope_ok
+# i5 = action_scope_ok
+# i6 = capability_valid_from_epoch
+# i7 = capability_valid_until_epoch
+# i8 = strategy_valid_from_epoch
+# i9 = strategy_valid_until_epoch
+# o1 = session_present_ok
+# o2 = owner_binding_ok
+# o3 = chain_binding_ok
+# o4 = asset_scope_ok
+# o5 = action_scope_ok
+# o6 = strategy_window_binding_ok
+# o7 = session_capability_binding_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i1[t]:sbf = 1:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> (i2[t]:sbf = 1:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> (i3[t]:sbf = 1:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> (i4[t]:sbf = 1:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> (i5[t]:sbf = 1:sbf)) &&
+  (
+    o6[t]:sbf = 1:sbf <->
+    (
+      (i6[t]:bv[32] >= i8[t]:bv[32]) &&
+      (i7[t]:bv[32] <= i9[t]:bv[32])
+    )
+  ) &&
+  (
+    o7[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 1:sbf) &&
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:bv[32] >= i8[t]:bv[32]) &&
+      (i7[t]:bv[32] <= i9[t]:bv[32])
+    )
+  ).

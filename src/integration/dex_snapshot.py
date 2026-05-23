@@ -39,9 +39,9 @@ from ..state.canonical import (
 )
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
-from ..state.pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus
+from ..state.pools import PoolState, PoolStatus
 
-DEX_SNAPSHOT_VERSION = 2
+DEX_SNAPSHOT_VERSION = 4
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -125,6 +125,25 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         for (pk, pool_id), amount in state.lp_balances.get_all_balances().items()
     ]
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+
+    lp_mint_timestamp_entries = [
+        {"pubkey": pk, "pool_id": pool_id, "last_mint_timestamp": int(timestamp)}
+        for (pk, pool_id), timestamp in state.lp_balances.get_all_last_mint_timestamps().items()
+    ]
+    lp_mint_timestamp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+
+    lp_duration_risk_entries = []
+    for (pk, pool_id), metadata in state.lp_balances.get_all_duration_risk_metadata().items():
+        lp_duration_risk_entries.append(
+            {
+                "pubkey": pk,
+                "pool_id": pool_id,
+                "last_remove_timestamp": metadata.last_remove_timestamp,
+                "churn_tier": int(metadata.churn_tier),
+                "last_churn_update_timestamp": metadata.last_churn_update_timestamp,
+            }
+        )
+    lp_duration_risk_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
     nonce_entries = [{"pubkey": pk, "last_nonce": int(last)} for pk, last in state.nonces.get_all().items()]
     nonce_entries.sort(key=lambda e: e["pubkey"])
@@ -213,6 +232,8 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
+        "lp_mint_timestamps": lp_mint_timestamp_entries,
+        "lp_duration_risk": lp_duration_risk_entries,
         "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,
@@ -234,6 +255,7 @@ def state_from_snapshot(
     max_perp_markets: int = 10_000,
     max_perp_accounts: int = 200_000,
     max_str_len: int = 4096,
+    require_lp_mint_timestamps: bool = False,
 ) -> DexState:
     if not isinstance(snapshot, Mapping):
         raise TypeError("snapshot must be a mapping")
@@ -261,7 +283,7 @@ def state_from_snapshot(
     version = snapshot.get("version", DEX_SNAPSHOT_VERSION)
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("snapshot.version must be a positive int")
-    if version not in (1, 2):
+    if version not in (1, 2, 3, 4):
         raise ValueError(f"unsupported snapshot version: {version}")
 
     balances = BalanceTable()
@@ -313,7 +335,7 @@ def state_from_snapshot(
         except ValueError as exc:
             raise ValueError(f"invalid pool status: {status_raw}") from exc
         fee_bps = _require_int(entry.get("fee_bps", 0), name="fee_bps")
-        if fee_bps > POOL_FEE_BPS_MAX:
+        if fee_bps > 10_000:
             raise ValueError(f"fee_bps out of range for pool {pool_id}: {fee_bps}")
         pools[pool_id] = PoolState(
             pool_id=pool_id,
@@ -353,6 +375,92 @@ def state_from_snapshot(
             raise ValueError("duplicate lp entry (pubkey, pool_id)")
         seen_lp.add(key)
         lp_balances.set(pk_s, pool_id_s, amount)
+
+    lp_mint_timestamp_entries = snapshot.get("lp_mint_timestamps")
+    if version >= 3 and lp_mint_timestamp_entries is None:
+        raise ValueError("snapshot.lp_mint_timestamps is required for snapshot v3+")
+    if lp_mint_timestamp_entries is None:
+        lp_mint_timestamp_entries = []
+    if not isinstance(lp_mint_timestamp_entries, list):
+        raise TypeError("snapshot.lp_mint_timestamps must be a list")
+    if len(lp_mint_timestamp_entries) > max_lp_balances:
+        raise ValueError(
+            f"too many lp_mint_timestamps entries: {len(lp_mint_timestamp_entries)} > {max_lp_balances}"
+        )
+    seen_lp_mint: set[tuple[str, str]] = set()
+    for entry in lp_mint_timestamp_entries:
+        if not isinstance(entry, Mapping):
+            raise TypeError("snapshot.lp_mint_timestamps entries must be objects")
+        pk = entry.get("pubkey")
+        pool_id_raw = entry.get("pool_id")
+        timestamp = entry.get("last_mint_timestamp")
+        pk_s = _require_str(pk, name="lp_mint.pubkey", non_empty=True, max_len=min(512, max_str_len))
+        pool_id_s = _require_str(
+            pool_id_raw,
+            name="lp_mint.pool_id",
+            non_empty=True,
+            max_len=min(256, max_str_len),
+        )
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
+            raise ValueError("invalid lp_mint_timestamps entry (last_mint_timestamp)")
+        key = (pk_s, pool_id_s)
+        if key in seen_lp_mint:
+            raise ValueError("duplicate lp_mint_timestamps entry (pubkey, pool_id)")
+        seen_lp_mint.add(key)
+        lp_balances.set_last_mint_timestamp(pk_s, pool_id_s, timestamp)
+
+    lp_duration_risk_entries = snapshot.get("lp_duration_risk")
+    if version >= 4 and lp_duration_risk_entries is None:
+        raise ValueError("snapshot.lp_duration_risk is required for snapshot v4")
+    if lp_duration_risk_entries is None:
+        lp_duration_risk_entries = []
+    if not isinstance(lp_duration_risk_entries, list):
+        raise TypeError("snapshot.lp_duration_risk must be a list")
+    if len(lp_duration_risk_entries) > max_lp_balances:
+        raise ValueError(f"too many lp_duration_risk entries: {len(lp_duration_risk_entries)} > {max_lp_balances}")
+    seen_lp_duration: set[tuple[str, str]] = set()
+    for entry in lp_duration_risk_entries:
+        if not isinstance(entry, Mapping):
+            raise TypeError("snapshot.lp_duration_risk entries must be objects")
+        pk = entry.get("pubkey")
+        pool_id_raw = entry.get("pool_id")
+        pk_s = _require_str(pk, name="lp_duration.pubkey", non_empty=True, max_len=min(512, max_str_len))
+        pool_id_s = _require_str(
+            pool_id_raw,
+            name="lp_duration.pool_id",
+            non_empty=True,
+            max_len=min(256, max_str_len),
+        )
+        key = (pk_s, pool_id_s)
+        if key in seen_lp_duration:
+            raise ValueError("duplicate lp_duration_risk entry (pubkey, pool_id)")
+        seen_lp_duration.add(key)
+        last_remove = entry.get("last_remove_timestamp")
+        if last_remove is not None:
+            lp_balances.set_last_remove_timestamp(
+                pk_s,
+                pool_id_s,
+                _require_int(last_remove, name="lp_duration.last_remove_timestamp"),
+            )
+        churn_tier = _require_int(entry.get("churn_tier", 0), name="lp_duration.churn_tier")
+        lp_balances.set_churn_tier(pk_s, pool_id_s, churn_tier)
+        last_churn_update = entry.get("last_churn_update_timestamp")
+        if last_churn_update is not None:
+            lp_balances.set_last_churn_update_timestamp(
+                pk_s,
+                pool_id_s,
+                _require_int(last_churn_update, name="lp_duration.last_churn_update_timestamp"),
+            )
+
+    if require_lp_mint_timestamps:
+        missing_lp_age = [
+            (pk, pool_id)
+            for (pk, pool_id), amount in lp_balances.get_all_balances().items()
+            if amount > 0 and lp_balances.get_last_mint_timestamp(pk, pool_id) is None
+        ]
+        if missing_lp_age:
+            pk, pool_id = sorted(missing_lp_age)[0]
+            raise ValueError(f"missing lp_mint_timestamps entry for positive LP balance: {pk}:{pool_id}")
 
     nonces = NonceTable()
     nonce_entries = snapshot.get("nonces")

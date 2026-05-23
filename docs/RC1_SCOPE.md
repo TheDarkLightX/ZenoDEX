@@ -149,18 +149,18 @@ Out of scope:
 
 - `tools/autotrader_shadow.py` as an authority surface
 - `tools/autotrader_live.py` as a general-user live feature
-- experimental advisory engines as execution authority
+- KRR as an execution authority
 - any claim of safe/profitable autonomous trading
 
 These remain advanced experimental tooling only.
 
-### 2. Experimental ranking runtime influence
+### 2. ZenoGraph runtime influence
 
 Out of scope:
 
-- experimental ranking influence
-- experimental ranking execution influence
-- any claim that signed experimental ranking bundles improve live decisions
+- ZenoGraph ranking influence
+- ZenoGraph execution influence
+- any claim that signed ZenoGraph packs improve live decisions
 
 Current posture:
 

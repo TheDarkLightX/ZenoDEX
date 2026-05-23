@@ -1,0 +1,110 @@
+/* LoadingSkeleton.css - Styles for loading skeleton components */
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton-line {
+    background: linear-gradient(90deg,
+            var(--card-bg, #12131a) 0%,
+            rgba(99, 102, 241, 0.1) 50%,
+            var(--card-bg, #12131a) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-line:last-child {
+    margin-bottom: 0;
+}
+
+.skeleton-spacer {
+    height: 0.75rem;
+}
+
+.skeleton-spacer-lg {
+    height: 1.5rem;
+}
+
+/* Skeleton Card */
+.skeleton-card {
+    padding: 1.25rem;
+}
+
+/* Skeleton Table */
+.skeleton-table {
+    padding: 0;
+    overflow: hidden;
+}
+
+.skeleton-header {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--card-bg, #12131a);
+    border-bottom: 1px solid var(--border-color, #2a2b35);
+}
+
+.skeleton-header .skeleton-line {
+    flex: 1;
+    margin: 0;
+}
+
+.skeleton-row {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color, #2a2b35);
+}
+
+.skeleton-row:last-child {
+    border-bottom: none;
+}
+
+.skeleton-row .skeleton-line {
+    flex: 1;
+    margin: 0;
+}
+
+/* Skeleton Swap */
+.skeleton-swap {
+    padding: 1.5rem;
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+.skeleton-input-box {
+    padding: 1rem;
+    background: var(--card-bg, #12131a);
+    border-radius: 12px;
+}
+
+.skeleton-swap-arrow {
+    display: flex;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.skeleton-swap-arrow .skeleton-line {
+    border-radius: 50%;
+    margin: 0;
+}
+
+/* Skeleton Stats */
+.skeleton-stats {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.skeleton-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}

@@ -17,17 +17,13 @@ from src.integration.zeno_ledger_profile import (  # noqa: E402
     validate_checkpoint_admission_v0,
     validate_zeno_ledger_profile_v0,
 )
-from src.integration.zeno_ledger_verifier_registry_v0 import (  # noqa: E402
-    validate_proof_metadata_against_verifier_registry_v0,
-    validate_verifier_registry_v0,
-)
-from src.integration.zeno_ledger_v0 import (
+from src.integration.zeno_ledger_v0 import (  # noqa: E402
     canonical_header_hash_v0,
     validate_checkpoint_header_binding_v0,
     validate_header_body_roots_v0,
     validate_header_v0,
-    validate_proof_metadata_v0,
     validate_proof_metadata_header_binding_v0,
+    validate_proof_metadata_v0,
 )
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -54,7 +50,6 @@ def verify_zeno_ledger_v0(
     trusted_prev_header_hash: str = ZERO_ROOT,
     proof_metadata_dir: Path | None = None,
     proof_verification_report_dir: Path | None = None,
-    verifier_registry_path: Path | None = None,
     require_proof_verification_report: bool = False,
 ) -> dict[str, Any]:
     errors: list[str] = []
@@ -82,18 +77,6 @@ def verify_zeno_ledger_v0(
         errors.append("require_proof_verification_report_requires_dir")
     if proof_verification_report_dir is not None and proof_metadata_dir is None:
         errors.append("proof_verification_report_requires_proof_metadata_dir")
-    if verifier_registry_path is not None and proof_metadata_dir is None:
-        errors.append("verifier_registry_requires_proof_metadata_dir")
-    verifier_registry: dict[str, Any] | None = None
-    if verifier_registry_path is not None:
-        if not verifier_registry_path.is_file():
-            errors.append("verifier_registry_missing")
-        else:
-            try:
-                verifier_registry = dict(_load_json_object(verifier_registry_path))
-                validate_verifier_registry_v0(verifier_registry)
-            except Exception as exc:
-                errors.append(f"verifier_registry_invalid:{exc}")
     profile: dict[str, Any] | None = None
     if profile_path is not None:
         if checkpoints_dir is None:
@@ -149,11 +132,6 @@ def verify_zeno_ledger_v0(
                     raise ValueError(f"proof metadata missing at height {height}")
                 proof_metadata = dict(_load_json_object(proof_metadata_path))
                 validate_proof_metadata_header_binding_v0(proof_metadata, header)
-                if verifier_registry is not None:
-                    validate_proof_metadata_against_verifier_registry_v0(
-                        proof_metadata=proof_metadata,
-                        registry=verifier_registry,
-                    )
                 proof_metadata_checked_heights.append(height)
                 if proof_verification_report_dir is not None:
                     report_path = proof_verification_report_dir / f"{height}.json"
@@ -248,7 +226,7 @@ def validate_proof_verification_report_v0(
         raise ValueError("proof_verification_report must be accepted")
     if _require_bool(obj.get("header_bound"), name="proof_verification_report.header_bound") is not True:
         raise ValueError("proof_verification_report must be header-bound")
-    for key in ("proof_kind", "program_id", "verifier_id"):
+    for key in ("proof_kind", "program_id", "verifier_id", "toolchain_lock_hash"):
         if obj.get(key) != metadata.get(key):
             raise ValueError(f"proof_verification_report/metadata {key} mismatch")
     if obj["proof_journal_hash"] != header["proof_journal_hash"]:
@@ -283,7 +261,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--checkpoints-dir", type=Path)
     parser.add_argument("--proof-metadata-dir", type=Path)
     parser.add_argument("--proof-verification-report-dir", type=Path)
-    parser.add_argument("--verifier-registry", type=Path)
     parser.add_argument("--require-proof-verification-report", action="store_true")
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--from-height", required=True, type=int)
@@ -301,7 +278,6 @@ def main(argv: list[str] | None = None) -> int:
         trusted_prev_header_hash=args.trusted_prev_header_hash,
         proof_metadata_dir=args.proof_metadata_dir,
         proof_verification_report_dir=args.proof_verification_report_dir,
-        verifier_registry_path=args.verifier_registry,
         require_proof_verification_report=bool(args.require_proof_verification_report),
     )
     print(json.dumps(result, indent=2, sort_keys=True))

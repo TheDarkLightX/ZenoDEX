@@ -1,0 +1,37 @@
+microtheories:
+  - id: OnChainFacts
+    priority: 100
+  - id: ExecutionMicrostructure
+    priority: 90
+    activation_any:
+      - route_guard_required
+      - execution_path_active
+  - id: RiskPolicy
+    priority: 80
+    activation_any:
+      - risk_policy_present
+      - drawdown_lock_active
+  - id: UserPolicy
+    priority: 80
+    activation_any:
+      - user_policy_present
+      - automation_enabled
+  - id: MarketRegime
+    priority: 70
+    activation_any:
+      - regime_signals_present
+      - volatility_signal_present
+  - id: SourceTrust
+    priority: 70
+    activation_any:
+      - source_registry_present
+      - external_signals_present
+  - id: StrategyLibrary
+    priority: 60
+    activation_all:
+      - strategy_templates_present
+  - id: TaxPolicy
+    priority: 60
+    activation_any:
+      - taxable_account_present
+      - tax_lot_state_present

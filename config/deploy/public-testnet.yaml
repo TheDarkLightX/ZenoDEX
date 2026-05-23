@@ -1,0 +1,24 @@
+schema: zenodex/deployment_profile/v1
+profile_id: public-testnet
+threat_model: public testnet with signed writes and operator evidence
+allowed_routes:
+  - health
+  - signed_intents
+  - public_bundle
+  - peer_check
+required_auth:
+  public_api: bearer_token
+  write_api: signed_intent_or_operator_token
+key_policy:
+  raw_private_key_flags_allowed: false
+  production_key_receipts_required: false
+proof_policy:
+  proof_metadata_required: true
+upba_policy: balanced
+peer_policy:
+  public_peer_admission_allowed: true
+  dynamic_peer_cap_required: true
+gossip_policy:
+  transport_auth_required: true
+observability_policy:
+  metrics_required: true

@@ -11,18 +11,15 @@ Date: 2026-05-15
 ```text
 ZenoLedgerZkTeeProofComposition.accepted_metadata_binds_header_roots
 ZenoLedgerZkTeeProofComposition.accepted_metadata_unique_under_digest_injective
-ZenoLedgerZkTeeProofComposition.accepted_bound_chain_bridge_nonempty
 ZenoLedgerZkTeeProofComposition.apply_chunks_perm_invariant
 ```
 
-The accepted theorem set covers four deterministic proof-composition facts:
+The accepted theorem set covers three deterministic proof-composition facts:
 
 - accepted proof metadata exposes the same pre-state, post-state, transaction,
   evidence, and body roots as the ZenoLedger header;
 - two proof metadata objects bound to the same header are equal when the metadata
   digest is injective;
-- a non-empty chain of accepted header-bound metadata segments exposes accepted
-  first and last proof metadata whose roots match the aggregate chain endpoints;
 - pairwise-commuting proof chunks can be reordered without changing the final
   state.
 
@@ -47,8 +44,7 @@ COMPLETE_WITH_ERRORS
 The returned `AristotleTask.lean` checked locally and had a clean Lean placeholder
 scan. I accepted the recursive-chain witness theorem and chunk permutation
 invariance structure, then strengthened the local repo artifact with the missing
-runtime-style proof metadata binding, kind-specific fail-closed theorems, named
-header-binding projection lemmas, and an accepted-bound-chain endpoint theorem.
+runtime-style proof metadata binding and kind-specific fail-closed theorems.
 
 ## Replay
 

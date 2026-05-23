@@ -113,40 +113,27 @@ disabled, misconfigured, timeout, oversize, malformed, and bad-exit paths.
 verifier roots in the v0 registry. It accepts a ZenoProof artifact only when
 the artifact binds to an allowed public replay profile and the profile's public
 replay command returns an accepted receipt.
-The production-candidate registry invokes these public replay verifier entries
-through `/usr/bin/python3` with executable path lookup disabled. The verifier
-command hash and the disabled path-lookup bit are included in the
-verifier-release manifest checked by the governance policy gate.
 
 ```bash
 python3 tools/zeno_oracle_workflow_evidence_status.py --format json
 julia tools/zeno_oracle_math_witness_sweep.jl --json
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
-python3 tools/zeno_oracle_tla_recovery_replay.py --format json
-python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json
-python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format json
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py
 python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'
 python3 tools/zeno_oracle_smt_freshness_replay.py --format json
 ```
 
 The verifier checks the profile claim ID, verifier ID, policy root, toolchain
-ID, input commitment root, and output commitment root. Every profile declares
-the source/spec files it depends on; their file digests are included in the
-input root and added to the accepted profile receipt before the output root is
-computed. For the Lean profile, the receipt also binds the witness-anchor file
-digest and root-import file digest and requires a clean placeholder scan over
-both files. For the TLA profile, the receipt comes from
-`tools/zeno_oracle_tla_recovery_replay.py` and requires zero invariant
-violations and zero failed fair-liveness properties over the bounded reachable
-graph. For the LTLf profile, the receipt comes from
-`tools/zeno_oracle_ltlf_recovery_replay.py` and requires the bounded Oracle
-recovery goal family to have zero failed goals. For the ESSO profile, the
-receipt comes from `tools/zeno_oracle_esso_zusd_recovery_replay.py` and
-requires all 256 boolean assignments to match the ESSO-IR effect semantics plus
-zero failed lifecycle witness cases. For the Morph profile, the receipt
-requires both `check` and `check2` to pass on the oracle-clamp envelope domain.
-For the SMT profile, the receipt requires Z3 and CVC5 to return `unsat` for
-each Oracle freshness safety query.
+ID, input commitment root, and output commitment root. The output root is the
+canonical hash of the accepted profile receipt. For the Lean profile, the
+receipt also requires a clean placeholder scan over the witness anchor and root
+import file. For the TLA, LTLf, and ESSO profiles, the receipt is a normalized
+wrapper around the corresponding public pytest replay command. For the Morph
+profile, the receipt requires both `check` and `check2` to pass on the
+oracle-clamp envelope domain. For the SMT profile, the receipt requires Z3 and
+CVC5 to return `unsat` for each Oracle freshness safety query.
 
 ## Proof Mining Reward Gate
 
@@ -167,40 +154,6 @@ The no-minting default remains preferred: rewards come from a bounded pool, and
 proof churn is rejected or unpaid when it does not add a new useful claim,
 counterexample, or proof obligation.
 
-## Proof Market Safety
-
-ZenoProof can support a proof market only through an escrowed acceptance gate.
-The market can let users buy and sell proofs, but payment authority is separate
-from social reputation and presentation quality.
-
-```text
-SellerPayable :=
-  verifier_accepts
-  and theorem_binding_matches
-  and artifact_hash_matches
-  and public_inputs_hash_matches
-  and assumptions_hash_matches
-  and non_vacuity_witness
-  and proposal_hash_unclaimed
-  and buyer_signoff_ok
-  and escrow_funded
-```
-
-The rule blocks the main proof-market disaster states:
-
-- a copied proof cannot earn a second payment for the same canonical proposal;
-- a vacuous proof cannot be paid without a non-vacuity witness;
-- reputation and stars are advisory and cannot override verifier rejection;
-- human signoff, when required by policy, is bound before payment;
-- the full proof payload is not released until payment is finalized or escrow is
-  locked.
-
-`src/core/proof_market_policy.py` is the first local gate for these boundaries,
-with public regressions in `tests/core/test_proof_market_policy.py`. The Lean
-anchor `lean-mathlib/Proofs/ProofMarketSafety.lean` proves the propositional
-shape: payable proofs imply verifier acceptance, non-vacuity, uniqueness, and
-escrow funding, and a full payload reveal implies payment lock.
-
 `tools/zenoproof_reward_payout_replay.py` is the v0 local payout bridge. It
 verifies an accepted ZenoProof reward gate, scales the e8 reward budget into the
 bounded proof-mining model, builds an explicit `proof_mining_claim`, executes
@@ -211,58 +164,6 @@ The current replay uses `unit_scale_e8 = 1_000_000`, so the sample reward gate
 maps `100_000_000 -> 100`, `25_000_000 -> 25`, and `75_000_000 -> 75` in the
 bounded local manager. This is replay evidence for payout authorization logic.
 It does not settle live tokens.
-
-## Production Governance Policy Gate
-
-`tools/check_zenoproof_production_governance_policy.py` is the first
-production-candidate governance checker for the v0 shell. It verifies the
-registry manifest structurally, quarantines `local_static_accept` verifiers as
-devnet-only, enables only subprocess/public-replay verifier IDs for the
-candidate production set, checks distinct proof-kind coverage, and binds the
-registry to governance, code-signing, sandbox, revocation, O4/O5 bridge, and
-reward-settlement controls. It also verifies a local governance receipt bundle
-for policy approval/execution, revocation list/drill, code-signing attestation,
-verifier-release transparency-log observation, and sandbox attestation. The
-code-signing attestation binds a verifier-release manifest covering every
-production-enabled verifier ID, artifact digest, command hash, toolchain hash,
-policy root, deterministic worker image digest, seccomp profile digest, and
-local transparency-log entry. The transparency-log receipt checks the entry
-list, contiguous indices, tree size, and log root against that release manifest.
-These receipts are content-hashed and bound to the policy static hash plus the
-registry manifest id. They also carry explicit dependency links: execution
-names the approval receipt, revocation and code signing name the execution
-receipt, the transparency log names the code-signing receipt, and sandbox
-attestation names the transparency-log receipt. The bundle also enforces
-receipt happens-before order: approval precedes execution, execution precedes
-revocation/code signing, code signing precedes transparency-log binding, and
-the transparency-log binding precedes sandbox attestation.
-
-```bash
-python3 tools/check_zenoproof_production_governance_policy.py --format text
-```
-
-Current expected receipt:
-
-```text
-status = accepted
-error_count = 0
-receipt_bundle_status = accepted
-go_live_blocker_count = 6
-production_enabled_verifier_count = 8
-distinct_proof_kind_count = 8
-production_verifier_path_lookup_count = 0
-```
-
-The live gate remains fail-closed:
-
-```bash
-python3 tools/check_zenoproof_production_governance_policy.py --require-live
-```
-
-This rejects with `go_live_blockers_present` until governance execution,
-production verifier code signing, sandbox deployment, live revocation drill,
-public proof-network soak, and live proof-mining token settlement are backed by
-live replayable evidence.
 
 ## Oracle O4/O5 Bridge
 
@@ -324,9 +225,8 @@ The repo-local v0 shell includes:
    as the public replay command for the sample verifier shell, Oracle O4 bridge,
    Oracle O5 bridge, local reward gate, workflow-evidence public replay verifier, Julia
    witness-sweep public replay verifier, Lean witness-anchor public replay
-   verifier, deterministic bounded TLA public replay verifier, deterministic
-   bounded LTLf public replay verifier, deterministic bounded ESSO public
-   replay verifier, Morph public replay verifier, and SMT public replay
+   verifier, TLA public replay verifier, LTLf public replay verifier, and ESSO
+   public replay verifier, Morph public replay verifier, and SMT public replay
    verifier.
 
 The local reward gate accepts only when the ZenoProof artifact is accepted,
@@ -339,6 +239,5 @@ RewardAmount = RewardPoolBefore - RewardPoolAfter
 
 Remaining production work: deepen the SMT, TLA, ESSO, Lean, Julia, and Morph
 lanes beyond the current bounded anchors, promote the bounded local payout
-replay to live proof-mining token settlement, execute production verifier
-governance/revocation, and promote O4/O5 claims only when their replay commands
-use public artifacts.
+replay to live proof-mining token settlement, and promote O4/O5 claims only
+when their replay commands use public artifacts.

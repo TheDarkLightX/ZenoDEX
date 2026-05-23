@@ -28,6 +28,7 @@ from src.state.state_root import compute_state_root
 HEADER_SCHEMA_V0 = "zenodex/zeno_ledger/header/v0"
 BODY_SCHEMA_V0 = "zenodex/zeno_ledger/body/v0"
 CHECKPOINT_SCHEMA_V0 = "zenodex/zeno_ledger/checkpoint/v0"
+VALIDATOR_SET_SCHEMA_V0 = "zenodex/zeno_ledger/validator_set/v0"
 BATCH_CUTOFF_SCHEMA_V0 = "zenodex/zeno_ledger/batch_cutoff/v0"
 INGRESS_RECEIPT_SCHEMA_V0 = "zenodex/zeno_ledger/ingress_receipt/v0"
 FORCED_INCLUSION_REQUEST_SCHEMA_V0 = "zenodex/zeno_ledger/forced_inclusion_request/v0"
@@ -765,6 +766,251 @@ def build_header_v0(
     }
     validate_header_v0(header)
     return header
+
+
+def _normalized_validator_set_body_v0(validator_set: Mapping[str, Any]) -> dict[str, Any]:
+    obj = _require_mapping(validator_set, name="validator_set")
+    expected = {"schema", "chain_id", "epoch", "validators"}
+    if set(obj.keys()) != expected:
+        raise ValueError("validator set keys mismatch")
+    if obj.get("schema") != VALIDATOR_SET_SCHEMA_V0:
+        raise ValueError("validator set schema mismatch")
+    chain_id = _require_str(obj.get("chain_id"), name="validator_set.chain_id")
+    epoch = _require_nonnegative_int(obj.get("epoch"), name="validator_set.epoch")
+    validators = _require_list(obj.get("validators"), name="validator_set.validators")
+    if not validators:
+        raise ValueError("validator set validators must be non-empty")
+
+    normalized: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for index, raw in enumerate(validators):
+        entry = _require_mapping(raw, name=f"validator_set.validators[{index}]")
+        validator_id = _require_str(
+            entry.get("validator_id"),
+            name=f"validator_set.validators[{index}].validator_id",
+        )
+        if validator_id in seen_ids:
+            raise ValueError("duplicate validator_id")
+        seen_ids.add(validator_id)
+        public_key = canonical_hex_fixed_allow_0x(
+            _require_str(
+                entry.get("public_key"),
+                name=f"validator_set.validators[{index}].public_key",
+            ),
+            nbytes=48,
+            name=f"validator_set.validators[{index}].public_key",
+        )
+        voting_power = entry.get("voting_power")
+        if not isinstance(voting_power, int) or isinstance(voting_power, bool) or voting_power <= 0:
+            raise ValueError("validator voting_power must be positive")
+        normalized.append(
+            {
+                "validator_id": validator_id,
+                "public_key": public_key,
+                "voting_power": voting_power,
+            }
+        )
+
+    normalized.sort(key=lambda item: str(item["validator_id"]))
+    return {
+        "schema": VALIDATOR_SET_SCHEMA_V0,
+        "chain_id": chain_id,
+        "epoch": epoch,
+        "validators": normalized,
+    }
+
+
+def validate_validator_set_v0(validator_set: Mapping[str, Any]) -> None:
+    _normalized_validator_set_body_v0(validator_set)
+
+
+def validator_set_hash_v0(validator_set: Mapping[str, Any]) -> str:
+    return hash_v0("validator_set_v0", _normalized_validator_set_body_v0(validator_set))
+
+
+def scheduled_validator_id_for_height_v0(
+    validator_set: Mapping[str, Any],
+    *,
+    height: int,
+) -> str:
+    if not isinstance(height, int) or isinstance(height, bool) or height < 0:
+        raise ValueError("height must be a non-negative int")
+    body = _normalized_validator_set_body_v0(validator_set)
+    total_power = sum(int(entry["voting_power"]) for entry in body["validators"])
+    slot = height % total_power
+    cursor = 0
+    for entry in body["validators"]:
+        cursor += int(entry["voting_power"])
+        if slot < cursor:
+            return str(entry["validator_id"])
+    raise AssertionError("validator schedule cursor exhausted")
+
+
+def validate_header_validator_set_hash_v0(
+    header: Mapping[str, Any],
+    validator_set: Mapping[str, Any],
+) -> None:
+    header_obj = dict(_require_mapping(header, name="header"))
+    validate_header_v0(header_obj)
+    body = _normalized_validator_set_body_v0(validator_set)
+    if header_obj["chain_id"] != body["chain_id"]:
+        raise ValueError("header/validator set chain_id mismatch")
+    expected_hash = validator_set_hash_v0(body)
+    if header_obj["sequencer_set_hash"] != expected_hash:
+        raise ValueError("header sequencer_set_hash mismatch")
+
+
+def validate_header_chain_linkage_v0(
+    headers: Sequence[Mapping[str, Any]],
+    *,
+    expected_prev_header_hash: str | None = None,
+) -> None:
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    if not headers:
+        raise ValueError("header chain must be non-empty")
+    if expected_prev_header_hash is not None:
+        _require_root(expected_prev_header_hash, name="expected_prev_header_hash")
+
+    chain = [dict(_require_mapping(header, name=f"headers[{index}]")) for index, header in enumerate(headers)]
+    for header in chain:
+        validate_header_v0(header)
+
+    chain_ids = {str(header["chain_id"]) for header in chain}
+    if len(chain_ids) != 1:
+        raise ValueError("headers must share one chain_id")
+
+    heights = [int(header["height"]) for header in chain]
+    if len(set(heights)) != len(heights):
+        raise ValueError("headers must have unique heights")
+    if heights != list(range(heights[0], heights[0] + len(heights))):
+        raise ValueError("headers must have consecutive heights")
+
+    if expected_prev_header_hash is not None and chain[0]["prev_header_hash"] != expected_prev_header_hash:
+        raise ValueError("first header prev_header_hash mismatch")
+    for index in range(1, len(chain)):
+        expected_prev = canonical_header_hash_v0(chain[index - 1])
+        if chain[index]["prev_header_hash"] != expected_prev:
+            raise ValueError("header prev_header_hash mismatch")
+
+
+def detect_header_equivocations_v0(
+    headers: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    grouped: dict[tuple[str, int], set[str]] = {}
+    for index, raw in enumerate(headers):
+        header = dict(_require_mapping(raw, name=f"headers[{index}]"))
+        validate_header_v0(header)
+        grouped.setdefault((str(header["chain_id"]), int(header["height"])), set()).add(
+            canonical_header_hash_v0(header)
+        )
+    reports: list[dict[str, Any]] = []
+    for (chain_id, height), hashes in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1])):
+        if len(hashes) > 1:
+            reports.append(
+                {
+                    "chain_id": chain_id,
+                    "height": height,
+                    "header_hashes": sorted(hashes),
+                }
+            )
+    return reports
+
+
+def _anchored_header_chain_v0(
+    tip_hash: str,
+    *,
+    headers_by_hash: Mapping[str, Mapping[str, Any]],
+    expected_prev_header_hash: str,
+) -> list[dict[str, Any]] | None:
+    visited: set[str] = set()
+    chain_reversed: list[dict[str, Any]] = []
+    current_hash = tip_hash
+    while True:
+        if current_hash in visited:
+            return None
+        visited.add(current_hash)
+        header = dict(headers_by_hash[current_hash])
+        chain_reversed.append(header)
+        prev_hash = str(header["prev_header_hash"])
+        if prev_hash == expected_prev_header_hash:
+            return list(reversed(chain_reversed))
+        parent = headers_by_hash.get(prev_hash)
+        if parent is None:
+            return None
+        if str(parent["chain_id"]) != str(header["chain_id"]):
+            raise ValueError("parent chain_id mismatch")
+        if int(parent["height"]) != int(header["height"]) - 1:
+            raise ValueError("parent height mismatch")
+        current_hash = prev_hash
+
+
+def evaluate_header_fork_choice_v0(
+    headers: Sequence[Mapping[str, Any]],
+    *,
+    expected_prev_header_hash: str = ZERO_ROOT_V0,
+) -> dict[str, Any]:
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    if not headers:
+        raise ValueError("headers must be non-empty")
+    _require_root(expected_prev_header_hash, name="expected_prev_header_hash")
+
+    headers_by_hash: dict[str, dict[str, Any]] = {}
+    for index, raw in enumerate(headers):
+        header = dict(_require_mapping(raw, name=f"headers[{index}]"))
+        validate_header_v0(header)
+        headers_by_hash[canonical_header_hash_v0(header)] = header
+
+    anchored: list[tuple[str, list[dict[str, Any]]]] = []
+    orphan_hashes: list[str] = []
+    for header_hash in sorted(headers_by_hash):
+        chain = _anchored_header_chain_v0(
+            header_hash,
+            headers_by_hash=headers_by_hash,
+            expected_prev_header_hash=expected_prev_header_hash,
+        )
+        if chain is None:
+            orphan_hashes.append(header_hash)
+        else:
+            anchored.append((header_hash, chain))
+
+    if not anchored:
+        raise ValueError("no anchored header chain")
+
+    canonical_tip_hash, canonical_chain = min(
+        anchored,
+        key=lambda item: (-int(item[1][-1]["height"]), item[0]),
+    )
+    return {
+        "schema": "zenodex/zeno_ledger/header_fork_choice/v0",
+        "ok": True,
+        "status": "accepted",
+        "policy": "highest_height_lowest_tip_hash_v0",
+        "canonical_tip_hash": canonical_tip_hash,
+        "canonical_tip_height": int(canonical_chain[-1]["height"]),
+        "canonical_chain_hashes": [canonical_header_hash_v0(header) for header in canonical_chain],
+        "anchored_chain_count": len(anchored),
+        "orphan_header_hashes": sorted(orphan_hashes),
+    }
+
+
+def select_canonical_header_chain_v0(
+    headers: Sequence[Mapping[str, Any]],
+    *,
+    expected_prev_header_hash: str = ZERO_ROOT_V0,
+) -> list[dict[str, Any]]:
+    report = evaluate_header_fork_choice_v0(
+        headers,
+        expected_prev_header_hash=expected_prev_header_hash,
+    )
+    headers_by_hash = {
+        canonical_header_hash_v0(dict(_require_mapping(header, name="header"))): dict(header)
+        for header in headers
+    }
+    return [headers_by_hash[header_hash] for header_hash in report["canonical_chain_hashes"]]
 
 
 def expected_header_roots_from_body_v0(body: dict[str, Any]) -> dict[str, str]:

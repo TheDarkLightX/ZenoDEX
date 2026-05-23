@@ -7,12 +7,8 @@ from typing import Any, Mapping, Optional
 
 from src.core.settlement import Settlement
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment
-from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
-from src.state.state_root import compute_state_root
-from src.state.support_root import compute_support_state_root_for_batch
 
 from .operations import create_settlement_operation
-from .operations import create_intent_operation
 from ..core.settlement_strong_validator import validate_settlement_strong
 from .tau_witness import (
     SETTLEMENT_MODULE_FLAG_BUNDLE_V1,
@@ -28,7 +24,6 @@ from .tau_witness import (
 
 SETTLEMENT_STRONG_CERTIFICATE_SCHEMA = "zenodex/settlement-strong-certificate/v1"
 SETTLEMENT_PRICE_HISTORY_CERTIFICATE_SCHEMA = "zenodex/settlement-price-history-certificate/v1"
-SETTLEMENT_REPLAY_CONTEXT_COMMITMENT_SCHEMA = "zenodex/settlement-replay-context-commitment/v1"
 
 
 @dataclass(frozen=True)
@@ -139,48 +134,6 @@ class SettlementPriceHistoryCertificate:
 
 
 @dataclass(frozen=True)
-class SettlementReplayContextCommitment:
-    intent_commitment_sha256: str
-    settlement_commitment_sha256: str
-    pre_state_root: str
-    pre_support_root: str
-    post_state_root: str
-    post_support_root: str
-    replay_context_commitment_sha256: str
-    schema: str = SETTLEMENT_REPLAY_CONTEXT_COMMITMENT_SCHEMA
-
-    def __post_init__(self) -> None:
-        if self.schema != SETTLEMENT_REPLAY_CONTEXT_COMMITMENT_SCHEMA:
-            raise ValueError(f"unsupported replay context schema: {self.schema!r}")
-        _require_hex_digest(self.intent_commitment_sha256, name="intent_commitment_sha256")
-        _require_hex_digest(self.settlement_commitment_sha256, name="settlement_commitment_sha256")
-        _require_state_root(self.pre_state_root, name="pre_state_root")
-        _require_state_root(self.pre_support_root, name="pre_support_root")
-        _require_state_root(self.post_state_root, name="post_state_root")
-        _require_state_root(self.post_support_root, name="post_support_root")
-        _require_hex_digest(self.replay_context_commitment_sha256, name="replay_context_commitment_sha256")
-        expected = _sha256_json(self.to_unsigned_dict())
-        if self.replay_context_commitment_sha256 != expected:
-            raise ValueError("replay_context_commitment_sha256 mismatch")
-
-    def to_unsigned_dict(self) -> dict[str, Any]:
-        return {
-            "schema": self.schema,
-            "intent_commitment_sha256": self.intent_commitment_sha256,
-            "settlement_commitment_sha256": self.settlement_commitment_sha256,
-            "pre_state_root": self.pre_state_root,
-            "pre_support_root": self.pre_support_root,
-            "post_state_root": self.post_state_root,
-            "post_support_root": self.post_support_root,
-        }
-
-    def to_dict(self) -> dict[str, Any]:
-        out = self.to_unsigned_dict()
-        out["replay_context_commitment_sha256"] = self.replay_context_commitment_sha256
-        return out
-
-
-@dataclass(frozen=True)
 class SettlementStrongCertificate:
     settlement_commitment_sha256: str
     delta_commitment_sha256: str
@@ -199,7 +152,6 @@ class SettlementStrongCertificate:
     compact_bundle_ok: Optional[int] = None
     full_price_rails_step: Optional[dict[str, int]] = None
     full_price_rails_ok: Optional[int] = None
-    replay_context_commitment: Optional[SettlementReplayContextCommitment] = None
     schema: str = SETTLEMENT_STRONG_CERTIFICATE_SCHEMA
     module_bundle_spec_id: str = SETTLEMENT_MODULE_FLAG_BUNDLE_V1.spec_id
     proof_binding_spec_id: str = "settlement_proof_binding_bundle_v1"
@@ -229,11 +181,6 @@ class SettlementStrongCertificate:
             raise ValueError(
                 "semantic_summary and price_history_certificate must either both be present or both be absent"
             )
-        if self.replay_context_commitment is not None and not isinstance(
-            self.replay_context_commitment,
-            SettlementReplayContextCommitment,
-        ):
-            raise TypeError("replay_context_commitment must be a SettlementReplayContextCommitment")
         if self.semantic_summary is not None and self.price_history_certificate is not None:
             if self.price_history_certificate.schema != SETTLEMENT_PRICE_HISTORY_CERTIFICATE_SCHEMA:
                 raise ValueError("price history certificate schema mismatch")
@@ -270,8 +217,6 @@ class SettlementStrongCertificate:
             out["compact_bundle_ok"] = int(self.compact_bundle_ok or 0)
             out["full_price_rails_step"] = dict(self.full_price_rails_step or {})
             out["full_price_rails_ok"] = int(self.full_price_rails_ok or 0)
-        if self.replay_context_commitment is not None:
-            out["replay_context_commitment"] = self.replay_context_commitment.to_dict()
         return out
 
 
@@ -300,7 +245,6 @@ def build_settlement_strong_certificate(
     settlement: Settlement,
     proof_flags: SettlementProofFlags,
     semantic_summary: Optional[SettlementSemanticSummary] = None,
-    replay_context_commitment: Optional[SettlementReplayContextCommitment] = None,
 ) -> SettlementStrongCertificate:
     normalized = _normalized_settlement_dict(settlement)
     settlement_digest = _sha256_json(normalized)
@@ -338,15 +282,9 @@ def build_settlement_strong_certificate(
         binding_ok=proof_flags.binding_ok,
     )
     module_bundle_step = build_settlement_module_flag_bundle_v1_step(
-        cpmm_ok=proof_flags.cpmm_ok,
-        balance_ok=proof_flags.balance_ok,
-        token_ok=proof_flags.token_ok,
-        buyback_floor_ok=proof_flags.buyback_floor_ok,
-        buyback_floor_fixedpoint_ok=proof_flags.buyback_floor_fixedpoint_ok,
-        rebate_ok=proof_flags.rebate_ok,
-        lock_weight_ok=proof_flags.lock_weight_ok,
-        proof_ok=proof_flags.proof_ok,
-        binding_ok=proof_flags.binding_ok,
+        core_module_ok=core_module_ok,
+        feature_extension_ok=feature_extension_ok,
+        proof_binding_ok=proof_binding_ok,
     )
 
     compact_bundle_step: Optional[dict[str, int]] = None
@@ -430,87 +368,6 @@ def build_settlement_strong_certificate(
         compact_bundle_ok=compact_bundle_ok,
         full_price_rails_step=full_price_rails_step,
         full_price_rails_ok=full_price_rails_ok,
-        replay_context_commitment=replay_context_commitment,
-    )
-
-
-def build_settlement_replay_context_commitment(
-    *,
-    settlement: Settlement,
-    intents: list[Any],
-    pre_balances: Any,
-    pre_pools: Mapping[str, Any],
-    pre_lp_balances: Optional[Any] = None,
-    pre_nonces: Optional[NonceTable] = None,
-) -> SettlementReplayContextCommitment:
-    from src.core.batch_clearing import apply_settlement_pure
-    from src.state.lp import LPTable
-
-    # DbC precondition: supplied nonce state must be canonical so replay roots
-    # bind to the same replay-protection state enforced by the DEX engine.
-    nonce_table = NonceTable() if pre_nonces is None else pre_nonces
-    if not isinstance(nonce_table, NonceTable):
-        raise TypeError("pre_nonces must be a NonceTable")
-    ok, err, post_nonces = validate_and_apply_intent_nonce_batch(
-        nonces=nonce_table,
-        intents=list(intents),
-        require_all_nonces=False,
-    )
-    if not ok or post_nonces is None:
-        raise ValueError(err or "invalid replay nonce state")
-
-    lp_balances = LPTable() if pre_lp_balances is None else pre_lp_balances
-    intent_commitment = _sha256_json(create_intent_operation(list(intents)))
-    settlement_commitment = _sha256_json(_normalized_settlement_dict(settlement))
-    pre_state_root = compute_state_root(
-        balances=pre_balances,
-        pools=dict(pre_pools),
-        lp_balances=lp_balances,
-        nonces=nonce_table,
-    )
-    pre_support_root = compute_support_state_root_for_batch(
-        intents=list(intents),
-        balances=pre_balances,
-        pools=dict(pre_pools),
-        lp_balances=lp_balances,
-        nonces=nonce_table,
-    )
-    post_balances, post_pools, post_lp = apply_settlement_pure(
-        settlement=settlement,
-        balances=pre_balances,
-        pools=dict(pre_pools),
-        lp_balances=lp_balances,
-    )
-    post_state_root = compute_state_root(
-        balances=post_balances,
-        pools=post_pools,
-        lp_balances=post_lp,
-        nonces=post_nonces,
-    )
-    post_support_root = compute_support_state_root_for_batch(
-        intents=list(intents),
-        balances=post_balances,
-        pools=post_pools,
-        lp_balances=post_lp,
-        nonces=post_nonces,
-    )
-    unsigned = {
-        "schema": SETTLEMENT_REPLAY_CONTEXT_COMMITMENT_SCHEMA,
-        "intent_commitment_sha256": intent_commitment,
-        "settlement_commitment_sha256": settlement_commitment,
-        "pre_state_root": pre_state_root,
-        "pre_support_root": pre_support_root,
-        "post_state_root": post_state_root,
-        "post_support_root": post_support_root,
-    }
-    return SettlementReplayContextCommitment(
-        intent_commitment_sha256=intent_commitment,
-        settlement_commitment_sha256=settlement_commitment,
-        pre_state_root=pre_state_root,
-        pre_support_root=pre_support_root,
-        post_state_root=post_state_root,
-        post_support_root=post_support_root,
-        replay_context_commitment_sha256=_sha256_json(unsigned),
     )
 
 
@@ -544,7 +401,6 @@ def build_replay_bound_settlement_strong_certificate(
     settlement: Settlement,
     proof_flags: SettlementProofFlags,
     price_history: tuple[int, int, int],
-    replay_context_commitment: Optional[SettlementReplayContextCommitment] = None,
 ) -> SettlementStrongCertificate:
     return build_settlement_strong_certificate(
         settlement=settlement,
@@ -553,7 +409,6 @@ def build_replay_bound_settlement_strong_certificate(
             settlement=settlement,
             price_history=price_history,
         ),
-        replay_context_commitment=replay_context_commitment,
     )
 
 
@@ -620,18 +475,11 @@ def verify_settlement_strong_certificate(
         settlement=settlement,
         proof_flags=certificate.proof_flags,
         semantic_summary=certificate.semantic_summary,
-        replay_context_commitment=certificate.replay_context_commitment,
     )
     if certificate.settlement_commitment_sha256 != expected.settlement_commitment_sha256:
         return False, "settlement commitment mismatch"
     if certificate.delta_commitment_sha256 != expected.delta_commitment_sha256:
         return False, "delta commitment mismatch"
-    if (
-        certificate.replay_context_commitment is not None
-        and certificate.replay_context_commitment.settlement_commitment_sha256
-        != expected.settlement_commitment_sha256
-    ):
-        return False, "replay context settlement commitment mismatch"
     if certificate.core_module_step != expected.core_module_step:
         return False, "core module bundle step mismatch"
     if certificate.feature_extension_step != expected.feature_extension_step:
@@ -661,41 +509,6 @@ def verify_settlement_strong_certificate(
     return True, None
 
 
-def verify_settlement_replay_context_commitment(
-    *,
-    commitment: SettlementReplayContextCommitment,
-    settlement: Settlement,
-    intents: list[Any],
-    pre_balances: Any,
-    pre_pools: Mapping[str, Any],
-    pre_lp_balances: Optional[Any] = None,
-    pre_nonces: Optional[NonceTable] = None,
-) -> tuple[bool, Optional[str]]:
-    try:
-        expected = build_settlement_replay_context_commitment(
-            settlement=settlement,
-            intents=intents,
-            pre_balances=pre_balances,
-            pre_pools=pre_pools,
-            pre_lp_balances=pre_lp_balances,
-            pre_nonces=pre_nonces,
-        )
-    except Exception as exc:
-        return False, f"settlement replay context commitment recompute failed: {exc}"
-    for field in (
-        "intent_commitment_sha256",
-        "settlement_commitment_sha256",
-        "pre_state_root",
-        "pre_support_root",
-        "post_state_root",
-        "post_support_root",
-        "replay_context_commitment_sha256",
-    ):
-        if getattr(commitment, field) != getattr(expected, field):
-            return False, f"settlement replay context {field} mismatch"
-    return True, None
-
-
 def validate_settlement_strong_with_certificate(
     *,
     settlement: Settlement,
@@ -704,7 +517,6 @@ def validate_settlement_strong_with_certificate(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Optional[Any] = None,
-    pre_nonces: Optional[NonceTable] = None,
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
@@ -712,18 +524,6 @@ def validate_settlement_strong_with_certificate(
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
     if not ok:
         return False, err
-    if certificate.replay_context_commitment is not None:
-        ok, err = verify_settlement_replay_context_commitment(
-            commitment=certificate.replay_context_commitment,
-            settlement=settlement,
-            intents=intents,
-            pre_balances=pre_balances,
-            pre_pools=pre_pools,
-            pre_lp_balances=pre_lp_balances,
-            pre_nonces=pre_nonces,
-        )
-        if not ok:
-            return False, err
     if certificate.module_bundle_ok != 1:
         return False, "settlement certificate module bundle rejected"
     if certificate.semantic_summary is not None and certificate.full_price_rails_ok != 1:
@@ -749,7 +549,6 @@ def enforce_replay_bound_settlement_certificate(
     pre_balances: Any,
     pre_pools: Mapping[str, Any],
     pre_lp_balances: Optional[Any] = None,
-    pre_nonces: Optional[NonceTable] = None,
     mode: str = "strong_replay",
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
@@ -767,23 +566,11 @@ def enforce_replay_bound_settlement_certificate(
     if not ok:
         return False, err, None
     effective_flags = derive_replay_bound_certificate_flags(external_proof_flags)
-    try:
-        replay_context_commitment = build_settlement_replay_context_commitment(
-            settlement=settlement,
-            intents=intents,
-            pre_balances=pre_balances,
-            pre_pools=pre_pools,
-            pre_lp_balances=pre_lp_balances,
-            pre_nonces=pre_nonces,
-        )
-    except Exception as exc:
-        return False, f"settlement replay context commitment failed: {exc}", None
 
     certificate = build_replay_bound_settlement_strong_certificate(
         settlement=settlement,
         proof_flags=effective_flags,
         price_history=price_history,
-        replay_context_commitment=replay_context_commitment,
     )
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=certificate)
     if not ok:
@@ -825,15 +612,6 @@ def _require_hex_digest(value: str, *, name: str) -> None:
         int(value, 16)
     except ValueError as exc:
         raise ValueError(f"{name} must be a 64-char sha256 hex digest") from exc
-
-
-def _require_state_root(value: str, *, name: str) -> None:
-    if not isinstance(value, str) or len(value) != 66 or not value.startswith("0x"):
-        raise ValueError(f"{name} must be a 0x-prefixed 32-byte hash")
-    try:
-        int(value[2:], 16)
-    except ValueError as exc:
-        raise ValueError(f"{name} must be a 0x-prefixed 32-byte hash") from exc
 
 
 def _intent_id_to_u16(intent_id: str) -> int:

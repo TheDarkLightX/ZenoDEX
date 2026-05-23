@@ -1,0 +1,57 @@
+
+# CPMM Mathematical Constraints
+# Validates Constant Product Market Maker swap calculations
+#
+# Architecture: External computation pattern
+# - Python computes full 256-bit CPMM math
+# - Tau validates constraints on results (bv[16] comparisons)
+
+# Input streams (external computation results)
+reserve_in_lo : bv[16] = in console.
+reserve_in_hi : bv[16] = in console.
+reserve_out_lo : bv[16] = in console.
+reserve_out_hi : bv[16] = in console.
+amount_in_lo : bv[16] = in console.
+amount_in_hi : bv[16] = in console.
+fee_bps : bv[16] = in console.
+amount_out_lo : bv[16] = in console.
+amount_out_hi : bv[16] = in console.
+
+# Output streams
+swap_valid : sbf = out console.
+
+# Constants
+ZERO_16 := { #x0000 }:bv[16].
+MAX_FEE_BPS := { #x2710 }:bv[16].
+ONE_16 := { #x0001 }:bv[16].
+
+# Helper predicates
+is_non_negative(hi, lo) := (hi > ZERO_16) || (hi = ZERO_16 && lo >= ZERO_16).
+is_positive(hi, lo) := (hi > ZERO_16) || (hi = ZERO_16 && lo > ZERO_16).
+value_gte(hi1, lo1, hi2, lo2) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+fee_bps_valid(fee) := (fee >= ZERO_16) && (fee <= MAX_FEE_BPS).
+
+swap_constraints(
+	reserve_in_hi_arg, reserve_in_lo_arg,
+	reserve_out_hi_arg, reserve_out_lo_arg,
+	amount_in_hi_arg, amount_in_lo_arg,
+	fee_bps_arg,
+	amount_out_hi_arg, amount_out_lo_arg
+) :=
+	is_positive(reserve_in_hi_arg, reserve_in_lo_arg) &&
+	is_positive(reserve_out_hi_arg, reserve_out_lo_arg) &&
+	is_positive(amount_in_hi_arg, amount_in_lo_arg) &&
+	fee_bps_valid(fee_bps_arg) &&
+	is_positive(amount_out_hi_arg, amount_out_lo_arg) &&
+	value_gte(reserve_out_hi_arg, reserve_out_lo_arg,
+		amount_out_hi_arg, amount_out_lo_arg).
+
+always (
+	swap_valid[t] = 1:sbf <-> swap_constraints(
+		reserve_in_hi[t], reserve_in_lo[t],
+		reserve_out_hi[t], reserve_out_lo[t],
+		amount_in_hi[t], amount_in_lo[t],
+		fee_bps[t],
+		amount_out_hi[t], amount_out_lo[t]
+	)
+).

@@ -116,7 +116,7 @@ def test_settlement_event_replay_lane_rejects_drift() -> None:
 
 def test_create_pool_fee_bps_bound_lane_rejects_invalid_fee_bps() -> None:
     _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
-    invalid_fee_intent = replace(intent, fields={**(intent.fields or {}), "fee_bps": 10_000})
+    invalid_fee_intent = replace(intent, fields={**(intent.fields or {}), "fee_bps": 10_001})
 
     ok, err = validate_settlement_strong(
         settlement=settlement,

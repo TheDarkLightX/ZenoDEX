@@ -5,6 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Mapping
 
+from ..agents.autotrader_client_policy_bundle import (
+    AutoTraderClientPolicyBundle,
+    verify_autotrader_client_policy_bundle_signature,
+)
+from ..agents.autotrader_local_guard_evaluator import (
+    AutoTraderLocalGuardEvaluation,
+    AutoTraderLocalGuardInputs,
+    evaluate_autotrader_local_guards,
+)
+from ..agents.autotrader_user_rule_bundle import (
+    describe_autotrader_strategy_surface_support,
+    describe_autotrader_user_rule_preset,
+)
 from ..agents.intent_signer import sign_intent
 from ..agents.krr_policy_advisor import advise_autotrader_krr
 from ..agents.policy_artifacts import (
@@ -14,7 +27,7 @@ from ..agents.policy_artifacts import (
     build_tau_policy_bundle,
     sign_strategy_policy_artifact,
 )
-from ..agents.strategy_ir import PolicyBackend, StrategyAction, StrategyIR
+from ..agents.strategy_ir import PolicyBackend, StrategyAction, StrategyIR, StrategyTemplate
 from ..agents.tau_policy_adapter import (
     TauPolicyReceipt,
     build_compile_contract_tau_policy_receipt,
@@ -162,6 +175,11 @@ class AutoTraderLiveReport:
     chain_id: str
     last_used_nonce_before: int
     last_used_nonce_after: int
+    local_guard_evaluation: AutoTraderLocalGuardEvaluation | None = None
+    client_policy_bundle: AutoTraderClientPolicyBundle | None = None
+    client_policy_bundle_ok: bool | None = None
+    client_policy_bundle_error: str | None = None
+    client_policy_bundle_signature_ok: bool | None = None
     live_admission_ok: bool | None = None
     live_admission_error: str | None = None
     wallet_capability: AutoTraderWalletCapability | None = None
@@ -201,6 +219,11 @@ class AutoTraderLiveReport:
     kill_switch_ok: bool | None = None
     kill_switch_error: str | None = None
     krr_advice: dict[str, Any] | None = None
+    krr_advice_error: str | None = None
+    krr_explanation: dict[str, Any] | None = None
+    user_rule_summary: dict[str, Any] | None = None
+    actionability_explanation: dict[str, Any] | None = None
+    actionability_summary: dict[str, Any] | None = None
     signed_intents: tuple[SignedIntentEnvelope, ...] = ()
     operations: dict[str, Any] = field(default_factory=dict)
     nonce_tau_receipts: tuple[AutoTraderNonceTauReceipt, ...] = ()
@@ -221,7 +244,11 @@ class AutoTraderLiveReport:
 
 
 def _finalize_live_report(**kwargs: Any) -> AutoTraderLiveReport:
-    report = AutoTraderLiveReport(**kwargs)
+    report = _attach_actionability_summary(
+        _attach_actionability_explanation(
+            _attach_user_rule_summary(_attach_krr_explanation(AutoTraderLiveReport(**kwargs)))
+        )
+    )
     try:
         stage_certificate = build_autotrader_stage_certificate(report)
     except Exception as exc:
@@ -248,6 +275,507 @@ def _finalize_live_report(**kwargs: Any) -> AutoTraderLiveReport:
         report,
         live_release_certificate=certificate,
         live_release_certificate_error=None,
+    )
+
+
+def _attach_local_guard_evaluation(
+    report: AutoTraderLiveReport,
+    evaluation: AutoTraderLocalGuardEvaluation | None,
+) -> AutoTraderLiveReport:
+    if evaluation is None:
+        return report
+    return _attach_actionability_summary(
+        _attach_actionability_explanation(
+            replace(report, local_guard_evaluation=evaluation)
+        )
+    )
+
+
+def _summarize_actionability_reason(reason: object) -> str | None:
+    if not isinstance(reason, str):
+        return None
+    reason_text = reason.strip()
+    if not reason_text:
+        return None
+    if reason_text == "policy_guard_passed":
+        return "ok"
+    return reason_text
+
+
+def _safe_advise_autotrader_krr(**kwargs: Any) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        return advise_autotrader_krr(**kwargs), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}:{exc}"
+
+
+def _build_krr_explanation(krr_advice: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(krr_advice, Mapping):
+        return None
+
+    authoring_raw = krr_advice.get("authoring_summary")
+    observation_raw = krr_advice.get("observation_summary")
+    route_raw = krr_advice.get("route_risk_summary")
+    source_quality_raw = krr_advice.get("source_quality_summary")
+
+    authoring = authoring_raw if isinstance(authoring_raw, Mapping) else {}
+    observation = observation_raw if isinstance(observation_raw, Mapping) else {}
+    route = route_raw if isinstance(route_raw, Mapping) else None
+
+    low_reliability_sources: list[str] = []
+    unseen_sources: list[str] = []
+    registered_sources: list[str] = []
+    if isinstance(source_quality_raw, list):
+        for row in source_quality_raw:
+            if not isinstance(row, Mapping):
+                continue
+            source_id = str(row.get("source_id", "")).strip()
+            if not source_id:
+                continue
+            if bool(row.get("registered", False)):
+                registered_sources.append(source_id)
+            if bool(row.get("low_reliability", False)):
+                low_reliability_sources.append(source_id)
+            if bool(row.get("unseen_history", False)):
+                unseen_sources.append(source_id)
+
+    advisory_risk_flags_raw = krr_advice.get("advisory_risk_flags")
+    advisory_risk_flags: list[str] = []
+    if isinstance(advisory_risk_flags_raw, list):
+        advisory_risk_flags = [str(flag) for flag in advisory_risk_flags_raw if str(flag).strip()]
+    ranking_confidence = float(krr_advice.get("ranking_confidence", 0.0) or 0.0)
+    effective_confidence = float(krr_advice.get("confidence", 0.0) or 0.0)
+    confidence_cap = float(krr_advice.get("confidence_cap", 0.0) or 0.0)
+    discounted = effective_confidence < ranking_confidence
+    discount_reasons = list(advisory_risk_flags)
+    if discounted:
+        discount_reasons.append("confidence_capped")
+
+    asset_in = authoring.get("asset_in")
+    asset_out = authoring.get("asset_out")
+    asset_pair = None
+    if isinstance(asset_in, str) and isinstance(asset_out, str) and asset_in.strip() and asset_out.strip():
+        asset_pair = f"{asset_in}/{asset_out}"
+
+    extreme_flags: list[str] = []
+    if route is not None:
+        if bool(route.get("extreme_input_stress_present", False)):
+            extreme_flags.append("extreme_input_stress")
+        if bool(route.get("extreme_output_depletion_present", False)):
+            extreme_flags.append("extreme_output_depletion")
+        if bool(route.get("extreme_price_impact_present", False)):
+            extreme_flags.append("extreme_price_impact")
+
+    preset_profile = describe_autotrader_user_rule_preset(
+        authoring.get("source_preset_id") if isinstance(authoring.get("source_preset_id"), str) else None
+    )
+
+    return {
+        "authoring_posture": {
+            "source_form": authoring.get("source_form"),
+            "source_preset_id": authoring.get("source_preset_id"),
+            "preset_profile": preset_profile,
+            "authored_via_user_bundle": bool(authoring.get("authored_via_user_bundle", False)),
+            "authoring_mode": str(authoring.get("authoring_mode", "unknown")),
+            "fixed_order_size": authoring.get("fixed_order_size"),
+            "cadence_epochs": authoring.get("cadence_epochs"),
+            "trigger_price": authoring.get("trigger_price"),
+            "asset_pair": asset_pair,
+        },
+        "trust_posture": {
+            "primary_trust_tier": observation.get("primary_trust_tier"),
+            "trusted_signal_count": int(observation.get("trusted_signal_count", 0) or 0),
+            "primary_weighted_trust_score": float(observation.get("primary_weighted_trust_score", 0.0) or 0.0),
+            "weighted_trusted_signal_score": float(observation.get("weighted_trusted_signal_score", 0.0) or 0.0),
+            "weighted_external_signal_score": float(observation.get("weighted_external_signal_score", 0.0) or 0.0),
+            "source_registry_present": bool(observation.get("source_registry_present", False)),
+            "source_history_present": bool(observation.get("source_history_present", False)),
+            "registered_source_count": len(registered_sources),
+            "low_reliability_sources": low_reliability_sources,
+            "unseen_sources": unseen_sources,
+        },
+        "route_posture": {
+            "route_risk_present": route is not None,
+            "receipt_verified": None if route is None else bool(route.get("receipt_verified", False)),
+            "route_shape_supported": None if route is None else bool(route.get("route_shape_supported_for_intents", False)),
+            "multi_hop_present": None if route is None else bool(route.get("multi_hop_present", False)),
+            "extreme_flags": extreme_flags,
+        },
+        "confidence_posture": {
+            "effective_confidence": effective_confidence,
+            "ranking_confidence": ranking_confidence,
+            "confidence_cap": confidence_cap,
+            "discounted": discounted,
+            "discount_reasons": discount_reasons,
+        },
+    }
+
+
+def _strategy_from_report(report: AutoTraderLiveReport) -> StrategyIR | None:
+    if report.client_policy_bundle is not None:
+        return report.client_policy_bundle.client_policy_surface.strategy
+    if report.policy_artifact is not None:
+        return report.policy_artifact.strategy
+    return None
+
+
+def _source_form_from_report(report: AutoTraderLiveReport) -> str | None:
+    if report.client_policy_bundle is not None:
+        return report.client_policy_bundle.client_policy_surface.source_form
+    if report.krr_explanation is not None:
+        authoring_posture = report.krr_explanation.get("authoring_posture")
+        if isinstance(authoring_posture, Mapping):
+            raw = authoring_posture.get("source_form")
+            if isinstance(raw, str) and raw.strip():
+                return raw
+    return None
+
+
+def _source_preset_id_from_report(report: AutoTraderLiveReport) -> str | None:
+    if report.client_policy_bundle is not None:
+        raw = report.client_policy_bundle.client_policy_surface.source_preset_id
+        if raw is not None:
+            return raw
+    if report.krr_explanation is not None:
+        authoring_posture = report.krr_explanation.get("authoring_posture")
+        if isinstance(authoring_posture, Mapping):
+            raw = authoring_posture.get("source_preset_id")
+            if isinstance(raw, str) and raw.strip():
+                return raw
+    return None
+
+
+def _authoring_mode_from_report(report: AutoTraderLiveReport) -> str:
+    if report.krr_explanation is not None:
+        authoring_posture = report.krr_explanation.get("authoring_posture")
+        if isinstance(authoring_posture, Mapping):
+            raw = authoring_posture.get("authoring_mode")
+            if isinstance(raw, str) and raw.strip():
+                return raw
+    strategy = _strategy_from_report(report)
+    if _source_form_from_report(report) == "autotrader_user_rule_bundle" and strategy is not None:
+        if (
+            strategy.template is StrategyTemplate.DCA
+            and strategy.allowed_actions == (StrategyAction.PLACE_SWAP_EXACT_IN,)
+        ):
+            return "dca_swap_exact_in"
+        if (
+            strategy.template is StrategyTemplate.STOP_LOSS
+            and strategy.allowed_actions == (StrategyAction.PLACE_ORDER_INTENT,)
+        ):
+            return "stop_loss_order_intent"
+        if (
+            strategy.template is StrategyTemplate.TAKE_PROFIT
+            and strategy.allowed_actions == (StrategyAction.PLACE_ORDER_INTENT,)
+        ):
+            return "take_profit_order_intent"
+        return "user_rule_bundle_other"
+    return "strategy_ir"
+
+
+def _build_user_rule_summary(report: AutoTraderLiveReport) -> dict[str, Any] | None:
+    strategy = _strategy_from_report(report)
+    if strategy is None:
+        return None
+
+    asset_in = strategy.template_params.get("asset_in")
+    asset_out = strategy.template_params.get("asset_out")
+    asset_pair = None
+    if isinstance(asset_in, str) and isinstance(asset_out, str) and asset_in.strip() and asset_out.strip():
+        asset_pair = f"{asset_in}/{asset_out}"
+    elif len(strategy.asset_universe) >= 2:
+        asset_pair = f"{strategy.asset_universe[0]}/{strategy.asset_universe[1]}"
+
+    fixed_order_size = strategy.template_params.get("fixed_order_size")
+    cadence_epochs = strategy.template_params.get("cadence_epochs")
+    trigger_price = strategy.template_params.get("trigger_price")
+    preset_id = _source_preset_id_from_report(report)
+    preset_profile = describe_autotrader_user_rule_preset(preset_id)
+    surface_support_matrix = describe_autotrader_strategy_surface_support(strategy)
+
+    return {
+        "source_form": _source_form_from_report(report),
+        "preset_id": preset_id,
+        "preset_profile": preset_profile,
+        "authoring_mode": _authoring_mode_from_report(report),
+        "overall_support_status": surface_support_matrix["overall_status"],
+        "surface_support_matrix": surface_support_matrix,
+        "intent": {
+            "template": strategy.template.value,
+            "asset_pair": asset_pair,
+            "allowed_actions": [action.value for action in strategy.allowed_actions],
+        },
+        "sizing": {
+            "fixed_order_size": fixed_order_size if isinstance(fixed_order_size, int) else None,
+            "cadence_epochs": cadence_epochs if isinstance(cadence_epochs, int) else None,
+            "per_order_max": int(strategy.notional_caps.per_order_max),
+        },
+        "trigger": {
+            "trigger_price": trigger_price if isinstance(trigger_price, int) else None,
+        },
+        "budget": {
+            "per_window_max": int(strategy.notional_caps.per_window_max),
+            "lifetime_max": int(strategy.notional_caps.lifetime_max),
+        },
+        "risk": {
+            "max_slippage_bps": int(strategy.risk_limits.max_slippage_bps),
+            "max_oracle_staleness_epochs": int(strategy.risk_limits.max_oracle_staleness_epochs),
+            "require_quote_receipts": bool(strategy.risk_limits.require_quote_receipts),
+        },
+        "window": {
+            "valid_from_epoch": int(strategy.strategy_window.valid_from_epoch),
+            "valid_until_epoch": int(strategy.strategy_window.valid_until_epoch),
+            "min_order_spacing_epochs": int(strategy.strategy_window.min_order_spacing_epochs),
+        },
+        "controls": {
+            "kill_switch_enabled": bool(strategy.controls.kill_switch_enabled),
+            "max_live_orders": int(strategy.controls.max_live_orders),
+        },
+    }
+
+
+def _attach_user_rule_summary(report: AutoTraderLiveReport) -> AutoTraderLiveReport:
+    summary = _build_user_rule_summary(report)
+    if summary is None:
+        return report
+    return replace(report, user_rule_summary=summary)
+
+
+def _attach_krr_explanation(report: AutoTraderLiveReport) -> AutoTraderLiveReport:
+    explanation = _build_krr_explanation(report.krr_advice)
+    if explanation is None:
+        return report
+    return replace(report, krr_explanation=explanation)
+
+
+def _build_actionability_explanation(report: AutoTraderLiveReport) -> dict[str, Any] | None:
+    if report.user_rule_summary is None and report.local_guard_evaluation is None and report.krr_explanation is None:
+        return None
+
+    blocking_reasons: list[str] = []
+    blocking_layer: str | None = None
+    if report.local_guard_evaluation is not None and not report.local_guard_evaluation.ok:
+        blocking_layer = "local_guards"
+        first_reason = report.local_guard_evaluation.first_blocking_reason
+        if first_reason is not None:
+            blocking_reasons.append(first_reason)
+    elif report.live_admission_ok is False:
+        blocking_layer = "live_admission"
+
+    if report.live_admission_error is not None and report.live_admission_error not in blocking_reasons:
+        blocking_reasons.append(report.live_admission_error)
+
+    trust_posture: dict[str, Any] | None = None
+    route_posture: dict[str, Any] | None = None
+    confidence_posture: dict[str, Any] | None = None
+    if report.krr_explanation is not None:
+        trust_posture_raw = report.krr_explanation.get("trust_posture")
+        route_posture_raw = report.krr_explanation.get("route_posture")
+        confidence_posture_raw = report.krr_explanation.get("confidence_posture")
+        if isinstance(trust_posture_raw, dict):
+            trust_posture = dict(trust_posture_raw)
+        if isinstance(route_posture_raw, dict):
+            route_posture = dict(route_posture_raw)
+        if isinstance(confidence_posture_raw, dict):
+            confidence_posture = dict(confidence_posture_raw)
+            discount_reasons_raw = confidence_posture.get("discount_reasons")
+            if isinstance(discount_reasons_raw, list):
+                for reason in discount_reasons_raw:
+                    if isinstance(reason, str) and reason and reason not in blocking_reasons:
+                        blocking_reasons.append(reason)
+
+    actionable = (
+        report.decision.tag is AutoTraderDecisionTag.SUBMIT
+        and report.live_admission_ok is True
+        and (report.local_guard_evaluation is None or report.local_guard_evaluation.ok)
+    )
+
+    summary = report.user_rule_summary
+    intent_summary = None if summary is None else summary.get("intent")
+    sizing_summary = None if summary is None else summary.get("sizing")
+    trigger_summary = None if summary is None else summary.get("trigger")
+    risk_summary = None if summary is None else summary.get("risk")
+
+    return {
+        "authoring": None
+        if summary is None
+        else {
+            "source_form": summary.get("source_form"),
+            "preset_id": summary.get("preset_id"),
+            "preset_profile": summary.get("preset_profile"),
+            "authoring_mode": summary.get("authoring_mode"),
+            "overall_support_status": summary.get("overall_support_status"),
+            "surface_support_matrix": summary.get("surface_support_matrix"),
+        },
+        "intent": intent_summary,
+        "sizing": sizing_summary,
+        "trigger": trigger_summary,
+        "risk": risk_summary,
+        "actionability": {
+            "actionable": actionable,
+            "decision_tag": report.decision.tag.value,
+            "decision_reason": report.decision.reason,
+            "live_admission_ok": report.live_admission_ok,
+            "live_admission_error": report.live_admission_error,
+            "blocking_layer": blocking_layer,
+            "blocking_reasons": blocking_reasons,
+        },
+        "guard_posture": None
+        if report.local_guard_evaluation is None
+        else {
+            "ok": report.local_guard_evaluation.ok,
+            "blocking_families": list(report.local_guard_evaluation.blocking_families),
+            "blocking_reason_codes": list(report.local_guard_evaluation.blocking_reason_codes),
+            "first_blocking_reason": report.local_guard_evaluation.first_blocking_reason,
+        },
+        "trust_posture": trust_posture,
+        "route_posture": route_posture,
+        "confidence_posture": confidence_posture,
+    }
+
+
+def _attach_actionability_explanation(report: AutoTraderLiveReport) -> AutoTraderLiveReport:
+    explanation = _build_actionability_explanation(report)
+    if explanation is None:
+        return report
+    return replace(report, actionability_explanation=explanation)
+
+
+def _build_actionability_summary(report: AutoTraderLiveReport) -> dict[str, Any] | None:
+    explanation = report.actionability_explanation
+    if not isinstance(explanation, Mapping):
+        return None
+
+    authoring = explanation.get("authoring")
+    actionability = explanation.get("actionability")
+    trust_posture = explanation.get("trust_posture")
+    confidence_posture = explanation.get("confidence_posture")
+    if not isinstance(actionability, Mapping):
+        return None
+
+    sentences: list[str] = []
+    preset_summary: str | None = None
+    blocking_summary: str | None = None
+    trust_summary: str | None = None
+    confidence_summary: str | None = None
+
+    if isinstance(authoring, Mapping):
+        preset_profile = authoring.get("preset_profile")
+        if isinstance(preset_profile, Mapping):
+            label = preset_profile.get("label")
+            summary = preset_profile.get("summary")
+            optimize_for = preset_profile.get("optimize_for")
+            if isinstance(label, str) and label.strip() and isinstance(summary, str) and summary.strip():
+                preset_summary = f"{label}: {summary}"
+                if isinstance(optimize_for, str) and optimize_for.strip():
+                    preset_summary += f" Primary objective: {optimize_for}."
+                sentences.append(preset_summary)
+
+    actionable = bool(actionability.get("actionable", False))
+    decision_tag = actionability.get("decision_tag")
+    decision_reason = actionability.get("decision_reason")
+    blocking_layer = actionability.get("blocking_layer")
+    blocking_reasons_raw = actionability.get("blocking_reasons")
+    blocking_reasons: list[str] = []
+    if isinstance(blocking_reasons_raw, list):
+        blocking_reasons = [str(reason) for reason in blocking_reasons_raw if str(reason).strip()]
+
+    if actionable:
+        reason_text = _summarize_actionability_reason(decision_reason) or ""
+        headline = f"Actionable: {decision_tag}." if isinstance(decision_tag, str) and decision_tag else "Actionable."
+        if reason_text:
+            headline = headline[:-1] + f" because {reason_text}."
+    else:
+        if blocking_layer == "local_guards" and blocking_reasons:
+            blocking_summary = f"Blocked by local guards: {blocking_reasons[0]}."
+        elif blocking_layer == "live_admission" and blocking_reasons:
+            blocking_summary = f"Blocked by live admission: {blocking_reasons[0]}."
+        elif isinstance(decision_reason, str) and decision_reason.strip():
+            blocking_summary = f"Not actionable: {decision_reason}."
+        else:
+            blocking_summary = "Not actionable."
+        headline = blocking_summary
+    sentences.append(headline)
+
+    if isinstance(trust_posture, Mapping):
+        tier = trust_posture.get("primary_trust_tier")
+        trusted_signal_count = trust_posture.get("trusted_signal_count")
+        registry_present = trust_posture.get("source_registry_present")
+        primary_weighted = trust_posture.get("primary_weighted_trust_score")
+        weighted_trusted = trust_posture.get("weighted_trusted_signal_score")
+        weighted_external = trust_posture.get("weighted_external_signal_score")
+        if isinstance(tier, str) and tier.strip():
+            trusted_text = trusted_signal_count if isinstance(trusted_signal_count, int) else 0
+            registry_text = "with registry support" if bool(registry_present) else "without registry support"
+            trust_summary = (
+                f"Trust posture: primary tier {tier} from {trusted_text} trusted signal"
+                f"{'s' if trusted_text != 1 else ''} {registry_text}."
+            )
+            weighted_parts: list[str] = []
+            if isinstance(primary_weighted, (int, float)):
+                weighted_parts.append(f"primary={float(primary_weighted):.2f}")
+            if isinstance(weighted_trusted, (int, float)):
+                weighted_parts.append(f"trusted={float(weighted_trusted):.2f}")
+            if isinstance(weighted_external, (int, float)) and float(weighted_external) > 0.0:
+                weighted_parts.append(f"external={float(weighted_external):.2f}")
+            if weighted_parts:
+                trust_summary += f" Weighted support: {', '.join(weighted_parts)}."
+            sentences.append(trust_summary)
+
+    if isinstance(confidence_posture, Mapping):
+        discounted = bool(confidence_posture.get("discounted", False))
+        effective_confidence = confidence_posture.get("effective_confidence")
+        ranking_confidence = confidence_posture.get("ranking_confidence")
+        discount_reasons_raw = confidence_posture.get("discount_reasons")
+        discount_reasons: list[str] = []
+        if isinstance(discount_reasons_raw, list):
+            discount_reasons = [str(reason) for reason in discount_reasons_raw if str(reason).strip()]
+        if discounted:
+            confidence_summary = (
+                f"Confidence discounted from {ranking_confidence} to {effective_confidence}"
+                + (f" due to {', '.join(discount_reasons)}." if discount_reasons else ".")
+            )
+            sentences.append(confidence_summary)
+        elif effective_confidence is not None:
+            confidence_summary = f"Confidence stable at {effective_confidence}."
+            sentences.append(confidence_summary)
+
+    return {
+        "headline": headline,
+        "preset_summary": preset_summary,
+        "blocking_summary": blocking_summary,
+        "trust_summary": trust_summary,
+        "confidence_summary": confidence_summary,
+        "sentences": sentences,
+    }
+
+
+def _attach_actionability_summary(report: AutoTraderLiveReport) -> AutoTraderLiveReport:
+    summary = _build_actionability_summary(report)
+    if summary is None:
+        return report
+    return replace(report, actionability_summary=summary)
+
+
+def _attach_client_policy_bundle_context(
+    report: AutoTraderLiveReport,
+    bundle: AutoTraderClientPolicyBundle | None,
+    *,
+    bundle_ok: bool | None,
+    bundle_error: str | None,
+    bundle_signature_ok: bool | None,
+) -> AutoTraderLiveReport:
+    if bundle is None and bundle_ok is None and bundle_error is None and bundle_signature_ok is None:
+        return report
+    updated = replace(
+        report,
+        client_policy_bundle=bundle,
+        client_policy_bundle_ok=bundle_ok,
+        client_policy_bundle_error=bundle_error,
+        client_policy_bundle_signature_ok=bundle_signature_ok,
+    )
+    return _attach_actionability_summary(
+        _attach_actionability_explanation(_attach_user_rule_summary(updated))
     )
 
 
@@ -873,19 +1401,30 @@ def prepare_autotrader_live_quote_receipt(
     *,
     strategy: StrategyIR,
     controller_state: AutoTraderControllerState,
+    controller_state_load_error: str | None = None,
     receipt: Mapping[str, object],
+    receipt_load_error: str | None = None,
     pools_by_id: Mapping[str, PoolState],
+    pools_load_error: str | None = None,
     current_epoch: int,
     intent_deadline: int,
     signer_privkey: str | int | bytes | bytearray,
     last_used_nonce: int,
     chain_id: str = "tau-net-alpha",
     wallet_capability: AutoTraderWalletCapability | None = None,
+    wallet_capability_load_error: str | None = None,
     session_state: AutoTraderSessionState | None = None,
+    session_state_load_error: str | None = None,
     external_signals: tuple[ExternalSignalObservation, ...] = (),
+    external_signals_load_error: str | None = None,
     signal_source_registry: ExternalSignalSourceRegistry | None = None,
+    signal_source_registry_load_error: str | None = None,
     policy_artifact: StrategyPolicyArtifact | None = None,
+    policy_artifact_load_error: str | None = None,
     tau_policy_bundle: TauPolicyBundle | None = None,
+    tau_policy_bundle_load_error: str | None = None,
+    client_policy_bundle: AutoTraderClientPolicyBundle | None = None,
+    client_policy_bundle_load_error: str | None = None,
     slippage_bps: int | None = None,
     tau_config: AutoTraderTauConfig | None = None,
     krr_backend: str = "off",
@@ -925,6 +1464,114 @@ def prepare_autotrader_live_quote_receipt(
     asset_out = str(strategy.template_params.get("asset_out", "")).strip()
     if not asset_in or not asset_out:
         raise ValueError("strategy template params must define asset_in and asset_out")
+    effective_wallet_capability = wallet_capability
+    effective_session_state = session_state
+    effective_client_policy_bundle = client_policy_bundle
+    client_policy_bundle_ok: bool | None = None
+    client_policy_bundle_error: str | None = None
+    client_policy_bundle_signature_ok: bool | None = None
+
+    def finalize_report(**kwargs: Any) -> AutoTraderLiveReport:
+        return _attach_client_policy_bundle_context(
+            _finalize_live_report(**kwargs),
+            effective_client_policy_bundle,
+            bundle_ok=client_policy_bundle_ok,
+            bundle_error=client_policy_bundle_error,
+            bundle_signature_ok=client_policy_bundle_signature_ok,
+        )
+
+    if receipt_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="receipt_file_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={receipt_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="receipt_file_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+        )
+
+    if controller_state_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="controller_state_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={controller_state_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="controller_state_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+        )
+
+    if wallet_capability_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="wallet_capability_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={wallet_capability_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="wallet_capability_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+        )
+
+    if session_state_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="session_state_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={session_state_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="session_state_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+        )
+
     effective_wallet_capability = wallet_capability or build_wallet_capability_from_strategy(
         strategy=strategy,
         chain_id=chain_id,
@@ -933,6 +1580,256 @@ def prepare_autotrader_live_quote_receipt(
     effective_session_state = session_state or build_session_state_from_capability(
         capability=effective_wallet_capability
     )
+
+    if signal_source_registry_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="signal_source_registry_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={signal_source_registry_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="signal_source_registry_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            signal_source_registry=None,
+            source_registry_ok=False,
+            external_signals=tuple(external_signals),
+        )
+
+    if external_signals_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="external_signals_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={external_signals_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="external_signals_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+            signal_source_registry=signal_source_registry,
+            source_registry_ok=(signal_source_registry is not None),
+            external_signals=(),
+        )
+
+    if tau_policy_bundle_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="tau_policy_bundle_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={tau_policy_bundle_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="tau_policy_bundle_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            tau_policy_bundle_ok=False,
+            tau_policy_bundle_error="tau_policy_bundle_load_rejected",
+            session_state=effective_session_state,
+        )
+
+    if policy_artifact_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="policy_artifact_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={policy_artifact_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="policy_artifact_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            policy_artifact_ok=False,
+            policy_artifact_error="policy_artifact_load_rejected",
+            session_state=effective_session_state,
+        )
+
+    if pools_load_error is not None:
+        reject = _reject(
+            state=controller_state,
+            reason="pools_file_load_rejected",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={pools_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="pools_file_load_rejected",
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+        )
+
+    if client_policy_bundle_load_error is not None:
+        client_policy_bundle_ok = False
+        client_policy_bundle_error = "client_policy_bundle_load_rejected"
+        reject = _reject(
+            state=controller_state,
+            reason=client_policy_bundle_error,
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"backend={strategy.policy_backend.value}",
+                f"chain_id={chain_id}",
+                f"load_error={client_policy_bundle_load_error}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error=client_policy_bundle_error,
+            wallet_capability=effective_wallet_capability,
+            session_state=effective_session_state,
+        )
+
+    if effective_client_policy_bundle is not None:
+        if effective_client_policy_bundle.strategy_hash != strategy.strategy_hash_hex():
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_strategy_hash_mismatch"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+            )
+        if effective_client_policy_bundle.owner_pubkey != strategy.owner_pubkey:
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_owner_pubkey_mismatch"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+            )
+        if effective_client_policy_bundle.signature is None:
+            client_policy_bundle_signature_ok = False
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_signature_missing"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+            )
+        client_policy_bundle_signature_ok = verify_autotrader_client_policy_bundle_signature(
+            effective_client_policy_bundle
+        )
+        if not client_policy_bundle_signature_ok:
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_signature_invalid"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                session_state=effective_session_state,
+            )
+        client_policy_bundle_ok = True
+
     compile_contract_ok = check_strategy_compile_contract(strategy).ok
     effective_tau_policy_bundle = tau_policy_bundle
     if effective_tau_policy_bundle is None:
@@ -951,7 +1848,7 @@ def prepare_autotrader_live_quote_receipt(
                 f"chain_id={chain_id}",
             ),
         )
-        return _finalize_live_report(
+        return finalize_report(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -973,6 +1870,95 @@ def prepare_autotrader_live_quote_receipt(
             effective_policy_artifact,
             privkey=signer_privkey,
         )
+    if effective_client_policy_bundle is not None:
+        bundle_surface = effective_client_policy_bundle.client_policy_surface
+        if (
+            bundle_surface.source_artifact_hash is not None
+            and bundle_surface.source_artifact_hash != effective_policy_artifact.source_artifact_hash
+        ):
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_source_artifact_hash_mismatch"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                policy_artifact=effective_policy_artifact,
+                tau_policy_bundle=effective_tau_policy_bundle,
+                tau_policy_bundle_ok=True,
+                session_state=effective_session_state,
+            )
+        if (
+            bundle_surface.tau_policy_bundle_hash is not None
+            and bundle_surface.tau_policy_bundle_hash != effective_tau_policy_bundle.tau_policy_bundle_hash_hex()
+        ):
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_tau_policy_bundle_hash_mismatch"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                policy_artifact=effective_policy_artifact,
+                tau_policy_bundle=effective_tau_policy_bundle,
+                tau_policy_bundle_ok=True,
+                session_state=effective_session_state,
+            )
+        if (
+            bundle_surface.policy_artifact_hash is not None
+            and bundle_surface.policy_artifact_hash != effective_policy_artifact.policy_artifact_hash_hex()
+        ):
+            client_policy_bundle_ok = False
+            client_policy_bundle_error = "client_policy_bundle_policy_artifact_hash_mismatch"
+            reject = _reject(
+                state=controller_state,
+                reason=client_policy_bundle_error,
+                explain=(
+                    f"strategy_id={strategy.strategy_id}",
+                    f"backend={strategy.policy_backend.value}",
+                    f"chain_id={chain_id}",
+                ),
+            )
+            return finalize_report(
+                decision=reject,
+                signer_pubkey=signer_pubkey,
+                chain_id=chain_id,
+                last_used_nonce_before=last_used_nonce,
+                last_used_nonce_after=last_used_nonce,
+                live_admission_ok=False,
+                live_admission_error=client_policy_bundle_error,
+                wallet_capability=effective_wallet_capability,
+                policy_artifact=effective_policy_artifact,
+                tau_policy_bundle=effective_tau_policy_bundle,
+                tau_policy_bundle_ok=True,
+                session_state=effective_session_state,
+            )
     policy_artifact_result = check_strategy_policy_artifact_contract(
         effective_policy_artifact,
         tau_policy_bundle=effective_tau_policy_bundle,
@@ -987,7 +1973,7 @@ def prepare_autotrader_live_quote_receipt(
                 f"chain_id={chain_id}",
             ),
         )
-        return _finalize_live_report(
+        return finalize_report(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1000,6 +1986,33 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_bundle=effective_tau_policy_bundle,
             tau_policy_bundle_ok=True,
             session_state=effective_session_state,
+        )
+    if not (
+        strategy.template is StrategyTemplate.DCA
+        and StrategyAction.PLACE_SWAP_EXACT_IN in strategy.allowed_actions
+    ):
+        reject = _reject(
+            state=controller_state,
+            reason="unsupported_live_strategy_mode",
+            explain=(
+                f"strategy_id={strategy.strategy_id}",
+                f"template={strategy.template.value}",
+                f"allowed_actions={','.join(action.value for action in strategy.allowed_actions)}",
+                f"chain_id={chain_id}",
+            ),
+        )
+        return finalize_report(
+            decision=reject,
+            signer_pubkey=signer_pubkey,
+            chain_id=chain_id,
+            last_used_nonce_before=last_used_nonce,
+            last_used_nonce_after=last_used_nonce,
+            live_admission_ok=False,
+            live_admission_error="unsupported_live_strategy_mode",
+            policy_artifact=effective_policy_artifact,
+            policy_artifact_ok=True,
+            tau_policy_bundle=effective_tau_policy_bundle,
+            tau_policy_bundle_ok=True,
         )
     observation_packet = None
     observation_packet_error: str | None = None
@@ -1065,7 +2078,7 @@ def prepare_autotrader_live_quote_receipt(
                     f"chain_id={chain_id}",
                 ),
             )
-            return _finalize_live_report(
+            return finalize_report(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1102,7 +2115,7 @@ def prepare_autotrader_live_quote_receipt(
                         f"chain_id={chain_id}",
                     ),
                 )
-                return _finalize_live_report(
+                return finalize_report(
                     decision=reject,
                     signer_pubkey=signer_pubkey,
                     chain_id=chain_id,
@@ -1140,7 +2153,7 @@ def prepare_autotrader_live_quote_receipt(
                 ),
                 tau_policy_receipt=session_capability_tau_receipt,
             )
-            return _finalize_live_report(
+            return finalize_report(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1180,7 +2193,7 @@ def prepare_autotrader_live_quote_receipt(
                 ),
                 tau_policy_receipt=session_state_tau_receipt,
             )
-            return _finalize_live_report(
+            return finalize_report(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1225,7 +2238,7 @@ def prepare_autotrader_live_quote_receipt(
                 ),
                 tau_policy_receipt=wallet_capability_tau_receipt,
             )
-            return _finalize_live_report(
+            return finalize_report(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1256,7 +2269,7 @@ def prepare_autotrader_live_quote_receipt(
             ),
             tau_policy_receipt=session_state_tau_receipt,
         )
-        return _finalize_live_report(
+        return finalize_report(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1287,7 +2300,7 @@ def prepare_autotrader_live_quote_receipt(
             ),
             tau_policy_receipt=session_capability_tau_receipt,
         )
-        return _finalize_live_report(
+        return finalize_report(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1319,7 +2332,7 @@ def prepare_autotrader_live_quote_receipt(
             ),
             tau_policy_receipt=wallet_capability_tau_receipt,
         )
-        return _finalize_live_report(
+        return finalize_report(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1338,7 +2351,15 @@ def prepare_autotrader_live_quote_receipt(
             session_capability_tau_receipt=session_capability_tau_receipt,
             wallet_capability_tau_receipt=wallet_capability_tau_receipt,
         )
-    krr_advice = advise_autotrader_krr(
+    krr_source_form = "compiled_strategy_ir"
+    krr_source_preset_id: str | None = None
+    if (
+        effective_client_policy_bundle is not None
+        and effective_client_policy_bundle.client_policy_surface.source_form is not None
+    ):
+        krr_source_form = effective_client_policy_bundle.client_policy_surface.source_form
+        krr_source_preset_id = effective_client_policy_bundle.client_policy_surface.source_preset_id
+    krr_advice, krr_advice_error = _safe_advise_autotrader_krr(
         strategy=strategy,
         phase="live",
         current_epoch=current_epoch,
@@ -1346,6 +2367,8 @@ def prepare_autotrader_live_quote_receipt(
         kb_path=krr_kb_path,
         kb=krr_kb,
         history_check_stats=history_check_stats,
+        source_form=krr_source_form,
+        source_preset_id=krr_source_preset_id,
         spent_in_window=controller_state.budget_state.spent_in_window,
         lifetime_spent=controller_state.lifetime_spent,
         live_orders=controller_state.live_orders,
@@ -1390,7 +2413,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return finalize_report(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1418,7 +2441,27 @@ def prepare_autotrader_live_quote_receipt(
                 kill_switch_ok=None,
                 kill_switch_error=packet_error,
                 krr_advice=krr_advice,
+                krr_advice_error=krr_advice_error,
             )
+    local_guard_evaluation = evaluate_autotrader_local_guards(
+        strategy=strategy,
+        inputs=AutoTraderLocalGuardInputs(
+            current_epoch=current_epoch,
+            order_amount=effective_observation_packet.primary_signal.amount_in,
+            projected_live_orders=controller_state.live_orders + 1,
+            lifetime_spent=controller_state.lifetime_spent,
+            spent_in_window=controller_state.budget_state.spent_in_window,
+            budget_window_id=controller_state.budget_state.window_id,
+            kill_switch_active=controller_state.budget_state.kill_switch_on,
+            last_action_epoch=controller_state.last_action_epoch,
+            slippage_bps=slippage_bps,
+            signal_packet=effective_observation_packet.primary_signal,
+        ),
+    )
+
+    def finalize_with_local_guard(**kwargs: Any) -> AutoTraderLiveReport:
+        return _attach_local_guard_evaluation(finalize_report(**kwargs), local_guard_evaluation)
+
     kill_switch = check_strategy_kill_switch_guard(
         kill_switch_enabled=strategy.controls.kill_switch_enabled,
         kill_switch_active=controller_state.budget_state.kill_switch_on,
@@ -1469,7 +2512,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1503,6 +2546,7 @@ def prepare_autotrader_live_quote_receipt(
             kill_switch_ok=kill_switch.ok,
             kill_switch_error=kill_switch.error,
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
         )
     bounded_multiaction_sidecar = _build_bounded_multiaction_live_sidecar(
         strategy=strategy,
@@ -1535,7 +2579,7 @@ def prepare_autotrader_live_quote_receipt(
             wallet_capability_ok=wallet_capability_result.ok,
             nonce_ok=True,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=decision,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1575,6 +2619,7 @@ def prepare_autotrader_live_quote_receipt(
             kill_switch_ok=kill_switch.ok,
             kill_switch_error=kill_switch.error,
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
         )
 
     intents = tuple(decision.intents)
@@ -1592,7 +2637,7 @@ def prepare_autotrader_live_quote_receipt(
             explain=decision.explain,
             tau_policy_receipt=decision.tau_policy_receipt,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1613,6 +2658,7 @@ def prepare_autotrader_live_quote_receipt(
             system_compose_ok=False,
             system_compose_error="nonce_rejected",
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
         )
 
     nonce_tau_receipts = _build_nonce_tau_receipts(
@@ -1643,7 +2689,7 @@ def prepare_autotrader_live_quote_receipt(
                 explain=decision.explain,
                 tau_policy_receipt=decision.tau_policy_receipt,
             )
-            return _finalize_live_report(
+            return finalize_with_local_guard(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1662,6 +2708,7 @@ def prepare_autotrader_live_quote_receipt(
                 session_capability_tau_receipt=session_capability_tau_receipt,
                 wallet_capability_tau_receipt=wallet_capability_tau_receipt,
                 krr_advice=krr_advice,
+                krr_advice_error=krr_advice_error,
                 nonce_tau_receipts=nonce_tau_receipts,
             )
         if tx_requested:
@@ -1685,7 +2732,7 @@ def prepare_autotrader_live_quote_receipt(
                     explain=decision.explain,
                     tau_policy_receipt=decision.tau_policy_receipt,
                 )
-                return _finalize_live_report(
+                return finalize_with_local_guard(
                     decision=reject,
                     signer_pubkey=signer_pubkey,
                     chain_id=chain_id,
@@ -1706,6 +2753,7 @@ def prepare_autotrader_live_quote_receipt(
                     system_compose_ok=False,
                     system_compose_error="tx_envelope_rejected",
                     krr_advice=krr_advice,
+                    krr_advice_error=krr_advice_error,
                     nonce_tau_receipts=nonce_tau_receipts,
                     tx_envelope_tau_receipt=tx_envelope_tau_receipt,
                 )
@@ -1723,7 +2771,7 @@ def prepare_autotrader_live_quote_receipt(
                     explain=decision.explain,
                     tau_policy_receipt=decision.tau_policy_receipt,
                 )
-                return _finalize_live_report(
+                return finalize_with_local_guard(
                     decision=reject,
                     signer_pubkey=signer_pubkey,
                     chain_id=chain_id,
@@ -1744,6 +2792,7 @@ def prepare_autotrader_live_quote_receipt(
                     system_compose_ok=False,
                     system_compose_error="nonce_rejected",
                     krr_advice=krr_advice,
+                    krr_advice_error=krr_advice_error,
                     nonce_tau_receipts=nonce_tau_receipts,
                     tx_envelope_tau_receipt=tx_envelope_tau_receipt,
                 )
@@ -1791,7 +2840,7 @@ def prepare_autotrader_live_quote_receipt(
                 explain=decision.explain,
                 tau_policy_receipt=decision.tau_policy_receipt,
             )
-            return _finalize_live_report(
+            return finalize_with_local_guard(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1812,6 +2861,7 @@ def prepare_autotrader_live_quote_receipt(
                 system_compose_ok=False,
                 system_compose_error="live_admission_tau_rejected",
                 krr_advice=krr_advice,
+                krr_advice_error=krr_advice_error,
                 nonce_tau_receipts=nonce_tau_receipts,
                 tx_envelope_tau_receipt=tx_envelope_tau_receipt,
                 live_admission_tau_receipt=live_admission_tau_receipt,
@@ -1824,7 +2874,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1845,6 +2895,7 @@ def prepare_autotrader_live_quote_receipt(
             system_compose_ok=False,
             system_compose_error=live_admission.error,
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
             nonce_tau_receipts=nonce_tau_receipts,
             tx_envelope_tau_receipt=tx_envelope_tau_receipt,
             live_admission_tau_receipt=live_admission_tau_receipt,
@@ -1909,7 +2960,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return finalize_with_local_guard(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1930,6 +2981,7 @@ def prepare_autotrader_live_quote_receipt(
                 system_compose_ok=False,
                 system_compose_error="system_compose_tau_rejected",
                 krr_advice=krr_advice,
+                krr_advice_error=krr_advice_error,
                 nonce_tau_receipts=nonce_tau_receipts,
                 tx_envelope_tau_receipt=tx_envelope_tau_receipt,
                 live_admission_tau_receipt=live_admission_tau_receipt,
@@ -1943,7 +2995,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1964,6 +3016,7 @@ def prepare_autotrader_live_quote_receipt(
             system_compose_ok=False,
             system_compose_error=system_compose.error,
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
             nonce_tau_receipts=nonce_tau_receipts,
             tx_envelope_tau_receipt=tx_envelope_tau_receipt,
             live_admission_tau_receipt=live_admission_tau_receipt,
@@ -2030,7 +3083,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return finalize_with_local_guard(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -2051,6 +3104,7 @@ def prepare_autotrader_live_quote_receipt(
                 system_compose_ok=system_compose.ok,
                 system_compose_error=system_compose.error,
                 krr_advice=krr_advice,
+                krr_advice_error=krr_advice_error,
                 signed_intents=signed_intents,
                 operations=operations,
                 nonce_tau_receipts=nonce_tau_receipts,
@@ -2070,7 +3124,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -2091,6 +3145,7 @@ def prepare_autotrader_live_quote_receipt(
             system_compose_ok=system_compose.ok,
             system_compose_error=system_compose.error,
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
             signed_intents=signed_intents,
             operations=operations,
             nonce_tau_receipts=nonce_tau_receipts,
@@ -2131,7 +3186,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return finalize_with_local_guard(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -2152,6 +3207,7 @@ def prepare_autotrader_live_quote_receipt(
                 system_compose_ok=system_compose.ok,
                 system_compose_error=system_compose.error,
                 krr_advice=krr_advice,
+                krr_advice_error=krr_advice_error,
                 signed_intents=signed_intents,
                 operations=operations,
                 nonce_tau_receipts=nonce_tau_receipts,
@@ -2174,7 +3230,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return finalize_with_local_guard(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -2195,6 +3251,7 @@ def prepare_autotrader_live_quote_receipt(
             system_compose_ok=system_compose.ok,
             system_compose_error=system_compose.error,
             krr_advice=krr_advice,
+            krr_advice_error=krr_advice_error,
             signed_intents=signed_intents,
             operations=operations,
             nonce_tau_receipts=nonce_tau_receipts,
@@ -2210,7 +3267,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_tx_payload=tau_tx_payload,
         )
 
-    return _finalize_live_report(
+    return finalize_with_local_guard(
         decision=decision,
         signer_pubkey=signer_pubkey,
         chain_id=chain_id,
@@ -2250,6 +3307,7 @@ def prepare_autotrader_live_quote_receipt(
         kill_switch_ok=kill_switch.ok,
         kill_switch_error=kill_switch.error,
         krr_advice=krr_advice,
+        krr_advice_error=krr_advice_error,
         signed_intents=signed_intents,
         operations=operations,
         nonce_tau_receipts=nonce_tau_receipts,

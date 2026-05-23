@@ -1,0 +1,23 @@
+schema: zenodex/deployment_profile/v1
+profile_id: production-strict
+threat_model: live-value production operation
+allowed_routes:
+  - health
+  - signed_intents
+  - peer_check
+required_auth:
+  public_api: bearer_token_or_reverse_proxy
+  write_api: signed_intent_and_production_key_receipt
+key_policy:
+  raw_private_key_flags_allowed: false
+  production_key_receipts_required: true
+proof_policy:
+  proof_metadata_required: true
+upba_policy: conservative
+peer_policy:
+  public_peer_admission_allowed: true
+  dynamic_peer_cap_required: true
+gossip_policy:
+  transport_auth_required: true
+observability_policy:
+  metrics_required: true

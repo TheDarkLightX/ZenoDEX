@@ -14,12 +14,12 @@ sys.path.insert(0, str(ROOT))
 
 from src.integration.tau_runner import ROOT, extract_stream_types, normalize_spec_text
 from tools.check_tau_formal_plan import DEFAULT_PLAN, validate_tau_formal_plan
+from tools.tau_semantic_contract_lint import DEFAULT_CONTRACT_PATH
 
 
 DEFAULT_CENSUS_PATH = ROOT / "formal" / "tau" / "recommended_execution_census_best.json"
 DEFAULT_HARD_SPECS_PATH = ROOT / "formal" / "tau" / "remaining_execution_hard_specs.json"
 DEFAULT_CONFIRMED_PATH = ROOT / "formal" / "tau" / "confirmed_semantic_findings.md"
-DEFAULT_CONTRACT_PATH = ROOT / "src" / "tau_specs" / "recommended" / "semantic_contracts.json"
 DEFAULT_FORMAL_CONTRACTS_DIR = ROOT / "formal" / "tau" / "contracts"
 DEFAULT_OUT_JSON = ROOT / "formal" / "tau" / "semantic_understanding_status.json"
 DEFAULT_OUT_MD = ROOT / "formal" / "tau" / "semantic_understanding_status.md"

@@ -27,13 +27,13 @@ The key insight: A valid batch settlement must satisfy BOTH:
                     │  Batch Settlement │
                     └────────┬──────────┘
                              │
-              ┌──────────────┼──────────────┐
+              ┌──────────┼──────────┐
               │              │              │
               ▼              │              ▼
-     ┌─────────────┐         │      ┌─────────────┐
+     ┌───────────┐  │  ┌───────────┐
      │ Conservation│         │      │  Optimality │
      │   Δ ≥ 0     │         │      │  max(A,B)   │
-     └─────────────┘         │      └─────────────┘
+     └───────────┘  │  └───────────┘
                              │
                              ▼
                     ┌───────────────────┐
@@ -70,7 +70,9 @@ structure BatchSettlement where
 def BatchSettlement.empty : BatchSettlement := ⟨[]⟩
 
 /-- Single intent batch -/
-def BatchSettlement.single (i : BatchOptimality.Intent) (o : BatchOptimality.ValidOutcome i) : BatchSettlement :=
+def BatchSettlement.single
+    (i : BatchOptimality.Intent)
+    (o : BatchOptimality.ValidOutcome i) : BatchSettlement :=
   ⟨[⟨i, o⟩]⟩
 
 /-- Combine two batches -/
@@ -87,7 +89,9 @@ Each executed intent contributes to the total settlement.
     Pattern-matches on ValidOutcome to align with CBC design:
     - unfilled → zero settlement
     - filled → cpmmSwapToSettlement amt_in output -/
-def pairToSettlement (io : Sigma fun i : BatchOptimality.Intent => BatchOptimality.ValidOutcome i) : Settlement :=
+def pairToSettlement
+    (io : Sigma fun i : BatchOptimality.Intent =>
+      BatchOptimality.ValidOutcome i) : Settlement :=
   match io.2 with
   | .unfilled => (0 : Settlement)
   | .filled output _ => cpmmSwapToSettlement io.1.amt_in output
@@ -132,7 +136,9 @@ theorem zero_settlement_safe : (0 : Settlement).isSafe := by
 
 /-- A pair is safe if amt_in ≥ output (when executed).
     Matches ValidOutcome pattern: unfilled is trivially safe. -/
-def pairIsSafe (io : Sigma fun i : BatchOptimality.Intent => BatchOptimality.ValidOutcome i) : Prop :=
+def pairIsSafe
+    (io : Sigma fun i : BatchOptimality.Intent =>
+      BatchOptimality.ValidOutcome i) : Prop :=
   match io.2 with
   | .unfilled => True
   | .filled output _ => io.1.amt_in ≥ output
@@ -142,7 +148,9 @@ def batchIsSafe (b : BatchSettlement) : Prop :=
   ∀ io ∈ b.pairs, pairIsSafe io
 
 /-- Safe pair produces safe settlement -/
-theorem safe_pair_safe_settlement (io : Sigma fun i : BatchOptimality.Intent => BatchOptimality.ValidOutcome i)
+theorem safe_pair_safe_settlement
+    (io : Sigma fun i : BatchOptimality.Intent =>
+      BatchOptimality.ValidOutcome i)
     (h : pairIsSafe io) : (pairToSettlement io).isSafe := by
   cases io with | mk i o =>
   cases o with
@@ -226,7 +234,11 @@ enabling compositional reasoning about batches.
 theorem foldl_settlement_shift (start : Settlement)
     (pairs : List (Sigma fun i : BatchOptimality.Intent => BatchOptimality.ValidOutcome i)) :
     List.foldl (fun acc io => acc ∘ₛ pairToSettlement io) start pairs =
-    start ∘ₛ List.foldl (fun acc io => acc ∘ₛ pairToSettlement io) (0 : Settlement) pairs := by
+    start ∘ₛ
+      List.foldl
+        (fun acc io => acc ∘ₛ pairToSettlement io)
+        (0 : Settlement)
+        pairs := by
   induction pairs generalizing start with
   | nil => simp only [List.foldl_nil, Settlement.comp, add_zero]
   | cons hd tl ih =>
@@ -237,7 +249,8 @@ theorem foldl_settlement_shift (start : Settlement)
 
 /-- batchToSettlement is homomorphic over append -/
 theorem batchToSettlement_append (b₁ b₂ : BatchSettlement) :
-    batchToSettlement (b₁.append b₂) = batchToSettlement b₁ ∘ₛ batchToSettlement b₂ := by
+    batchToSettlement (b₁.append b₂) =
+      batchToSettlement b₁ ∘ₛ batchToSettlement b₂ := by
   simp only [batchToSettlement, BatchSettlement.append]
   rw [List.foldl_append]
   rw [foldl_settlement_shift]
@@ -508,9 +521,11 @@ def isParetoEfficient (b : BatchSettlement) (candidates : List BatchSettlement) 
 /-- Witness: Concrete batch with computable (A,B) -/
 theorem witness_batch_ab :
     let i₁ : BatchOptimality.Intent := ⟨100, 90⟩
-    let o₁ : BatchOptimality.ValidOutcome i₁ := BatchOptimality.ValidOutcome.filled 95 (by decide)
+    let o₁ : BatchOptimality.ValidOutcome i₁ :=
+      BatchOptimality.ValidOutcome.filled 95 (by decide)
     let i₂ : BatchOptimality.Intent := ⟨50, 45⟩
-    let o₂ : BatchOptimality.ValidOutcome i₂ := BatchOptimality.ValidOutcome.filled 48 (by decide)
+    let o₂ : BatchOptimality.ValidOutcome i₂ :=
+      BatchOptimality.ValidOutcome.filled 48 (by decide)
     let b := BatchSettlement.mk [⟨i₁, o₁⟩, ⟨i₂, o₂⟩]
     batchAB b = (150, 8) := by
   native_decide
@@ -540,12 +555,15 @@ theorem witness_batch_dominance :
 /-- Witness: batchToSettlement is homomorphic over append -/
 theorem witness_batchToSettlement_append :
     let i₁ : BatchOptimality.Intent := ⟨100, 90⟩
-    let o₁ : BatchOptimality.ValidOutcome i₁ := BatchOptimality.ValidOutcome.filled 95 (by decide)
+    let o₁ : BatchOptimality.ValidOutcome i₁ :=
+      BatchOptimality.ValidOutcome.filled 95 (by decide)
     let i₂ : BatchOptimality.Intent := ⟨50, 45⟩
-    let o₂ : BatchOptimality.ValidOutcome i₂ := BatchOptimality.ValidOutcome.filled 48 (by decide)
+    let o₂ : BatchOptimality.ValidOutcome i₂ :=
+      BatchOptimality.ValidOutcome.filled 48 (by decide)
     let b₁ := BatchSettlement.mk [⟨i₁, o₁⟩]
     let b₂ := BatchSettlement.mk [⟨i₂, o₂⟩]
-    batchToSettlement (b₁.append b₂) = batchToSettlement b₁ ∘ₛ batchToSettlement b₂ := by
+    batchToSettlement (b₁.append b₂) =
+      batchToSettlement b₁ ∘ₛ batchToSettlement b₂ := by
   exact batchToSettlement_append _ _
 
 /-- Witness: Compositional K-monotonicity — all hypotheses satisfied and conclusion holds -/
@@ -572,7 +590,7 @@ theorem witness_batch_reserves :
 | Layer | Invariant | Proved Where |
 |-------|-----------|--------------|
 | **K-Monotonicity** | `K(new) ≥ K(old)` per swap and per batch | `executeBatchSwaps_K_mono` |
-| **Scalar Flow** | `Δ(batch) ≥ 0` when each `amt_in ≥ amt_out` | `batch_safe_implies_settlement_safe` |
+| **Scalar Flow** | pair safety composes | `batch_safe_implies_settlement_safe` |
 | **Optimality** | `AB(b₁++b₂) = AB(b₁)+AB(b₂)` | `batchAB_append` |
 
 ### Key Properties (Proved)
@@ -580,17 +598,17 @@ theorem witness_batch_reserves :
 | Property | Formula | Status |
 |----------|---------|--------|
 | **K-gap exact** | `K(swap) = K(old) + (y*a) % (x+a)` | Proved (`executeSwap_K_gap_exact`) |
-| **K-gap telescoping** | `K(batch) = K(init) + Σ remainders` | Proved (`executeBatchSwaps_K_gap_sum`) |
+| **K-gap telescoping** | batch K-gap is a sum | Proved (`executeBatchSwaps_K_gap_sum`) |
 | K-mono (single) | `K(executeSwap s a) ≥ K(s)` | Proved (`executeSwap_K_mono`) |
 | K-mono (batch) | `K(executeBatchSwaps s as) ≥ K(s)` | Proved (`executeBatchSwaps_K_mono`) |
-| Reserves stay positive | Reserves > 0 propagates through batch | Proved (`executeSwap_reserves_pos`) |
-| Settlement homomorphism | `batchToSettlement(b₁++b₂) = batchToSettlement(b₁) + batchToSettlement(b₂)` | Proved (`batchToSettlement_append`) |
-| Safety splits | `batchIsSafe(b₁++b₂) ↔ batchIsSafe(b₁) ∧ batchIsSafe(b₂)` | Proved (`batchIsSafe_append`) |
-| Compositional Δ-safety | all safe → batch safe | Proved (`batch_safe_implies_settlement_safe`) |
+| Reserves stay positive | positivity propagates | Proved (`executeSwap_reserves_pos`) |
+| Settlement homomorphism | settlement fold respects append | Proved (`batchToSettlement_append`) |
+| Safety splits | append safety iff both safe | Proved (`batchIsSafe_append`) |
+| Compositional Δ-safety | all safe → batch safe | Proved |
 | AB additive | `AB(b₁++b₂) = AB(b₁)+AB(b₂)` | Proved (`batchAB_append`) |
-| **Refinement bridge** | `realizeBatch` final state = `executeBatchSwaps` | Proved (`realizeBatch_final_state`) |
-| **Unified safety** | K-mono + K-gap + reserve tracking in one theorem | Proved (`unified_batch_safety`) |
-| **Reserve tracking** | `reserve_in(final) = reserve_in(init) + Σ amounts` | Proved (`executeBatchSwaps_reserve_in`) |
+| **Refinement bridge** | realization equals batch execution | Proved (`realizeBatch_final_state`) |
+| **Unified safety** | K-mono + K-gap + reserve tracking | Proved (`unified_batch_safety`) |
+| **Reserve tracking** | input reserves accumulate | Proved (`executeBatchSwaps_reserve_in`) |
 | Dominance | lexLt comparison | Defined, witnesses provided |
 | Pareto / argmax | lex-max over candidates | **Not proved** (future work) |
 

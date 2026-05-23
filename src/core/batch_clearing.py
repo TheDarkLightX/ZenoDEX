@@ -42,7 +42,7 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, POOL_FEE_BPS_MAX, PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import MIN_LP_LOCK, compute_fee_total
 from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
@@ -55,7 +55,6 @@ from .settlement import (
     ReserveDelta,
     Settlement,
 )
-from .settlement_admission import admit_settlement_intents
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -77,8 +76,8 @@ _SWAP_ORDERING_CHOICES = frozenset({
 })
 
 # Bounded brute-force safety cap for AB-optimal ordering.
-# For N > this limit, fall back to limit-price ordering.
-_MAX_SWAP_ORDERING_BRUTE_FORCE_N = 7
+# For N > this limit, greedy_ab should be used instead.
+_MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 # Global pair-swap refinement can be expensive; cap intent count for this mode.
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 # MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.
@@ -122,9 +121,21 @@ def compute_settlement(
 
     events: List[Dict[str, Any]] = []
 
-    admission = admit_settlement_intents(intents)
-    intents_by_pool = admission.intents_by_pool()
-    create_pool_intents = list(admission.create_pool_intents)
+    # Group intents by pool
+    intents_by_pool: Dict[str, List[Intent]] = defaultdict(list)
+    create_pool_intents: List[Intent] = []
+    non_pool_intents: List[Intent] = []
+
+    for intent in intents:
+        if intent.kind == IntentKind.CREATE_POOL:
+            create_pool_intents.append(intent)
+            continue
+
+        pool_id = intent.get_field("pool_id")
+        if isinstance(pool_id, str) and pool_id:
+            intents_by_pool[pool_id].append(intent)
+        else:
+            non_pool_intents.append(intent)
     
     # Process each pool's intents
     all_fills: List[Fill] = []
@@ -200,11 +211,10 @@ def compute_settlement(
 
         pool_states[pool_id] = pool_state
     
-    # Process non-pool intents (invalid/malformed) after pool-scoped lanes to
-    # preserve the legacy settlement ordering.
-    for rejected in admission.rejected_intents:
-        included_intents.append((rejected.intent.intent_id, FillAction.REJECT))
-        all_fills.append(rejected.to_fill())
+    # Process non-pool intents (invalid/malformed)
+    for intent in non_pool_intents:
+        included_intents.append((intent.intent_id, FillAction.REJECT))
+        all_fills.append(Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_INTENT"))
     
     # Create settlement
     # Invariant chunking: aggregate deltas in bounded chunks to reduce payload
@@ -245,6 +255,9 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
     copied = LPTable()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
         copied.set(pubkey, pool_id, amount)
+    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
+        if copied.get(pubkey, pool_id) > 0:
+            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
     return copied
 
 
@@ -264,11 +277,7 @@ def _parse_create_pool_event_payload(
         raise ValueError("Invalid CREATE_POOL event: missing pool_id")
     if not isinstance(asset0, str) or not isinstance(asset1, str):
         raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
-    if (
-        not isinstance(fee_bps, int)
-        or isinstance(fee_bps, bool)
-        or not (0 <= fee_bps <= POOL_FEE_BPS_MAX)
-    ):
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
         raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
     if not isinstance(curve_tag, str) or not curve_tag:
         raise ValueError(f"Invalid CREATE_POOL curve_tag for pool: {pool_id}")
@@ -393,7 +402,7 @@ def _try_create_pool(
             None,
             "asset ids must be strings",
         )
-    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= POOL_FEE_BPS_MAX):
+    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
             None,

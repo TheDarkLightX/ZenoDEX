@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -33,10 +34,6 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     validate_proof_metadata_header_binding_v0,
 )
-from src.integration.zeno_ledger_verifier_registry_v0 import (
-    make_verifier_registry_entry_v0,
-    make_verifier_registry_v0,
-)
 from src.integration.zeno_ledger_watcher import validate_watcher_attestation_v0
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -65,7 +62,7 @@ VERIFY_ARTIFACT_SIGNATURE_SCRIPT = ROOT / "tools" / "zeno_ledger_verify_artifact
 PUBLISH_MIRROR_SCRIPT = ROOT / "tools" / "zeno_ledger_publish_mirror.py"
 OPERATOR_REHEARSAL_SCRIPT = ROOT / "tools" / "zeno_ledger_operator_rehearsal.py"
 ZERO_ROOT = "0x" + "00" * 32
-TEST_SIGNING_SECRET = "0x" + "42" * 32
+TEST_SIGNING_KEY_HEX = "0x" + "42" * 32
 TEST_BLS_PRIVATE_KEY = "0x" + "01" * 32
 TEST_BLS_PRIVATE_KEY_2 = "0x" + "02" * 32
 
@@ -197,7 +194,12 @@ def _header(body: dict[str, object], *, prev_header_hash: str) -> dict[str, obje
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+    payload = json.dumps(value, indent=2, sort_keys=True).encode("utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, payload)
+    finally:
+        os.close(fd)
 
 
 def _manifest_relative_path(manifest_path: Path, value: object) -> Path:
@@ -692,52 +694,6 @@ def test_run_local_builds_structured_proof_metadata(tmp_path: Path) -> None:
     assert verify_with_metadata_payload["proof_metadata_checked_heights"] == [1]
 
 
-def test_run_local_proof_mode_requires_nonzero_metadata_roots(tmp_path: Path) -> None:
-    body = _body(1)
-    body_path = tmp_path / "input_body.json"
-    out_dir = tmp_path / "ledger"
-    _write_json(body_path, body)
-
-    proc = _run_local(
-        "--body",
-        str(body_path),
-        "--out-dir",
-        str(out_dir),
-        "--time-ms",
-        "1778730000001",
-        "--pre-state-root",
-        _root("pre-state"),
-        "--post-state-root",
-        _root("post-state"),
-        "--sequencer-set-hash",
-        _root("sequencer-set"),
-        "--config-digest",
-        _root("config"),
-        "--module-versions-digest",
-        _root("modules"),
-        "--proof-kind",
-        "risc0_zkvm_v0",
-        "--proof-program-id",
-        "risc0:zenodex-spot-transition-v1",
-        "--proof-verifier-id",
-        "risc0:receipt-verifier-v1",
-        "--proof-commitment",
-        _root("proof-commitment"),
-        "--proof-public-input-hash",
-        _root("public-input"),
-        "--proof-raw-journal-hash",
-        _root("raw-journal"),
-    )
-
-    assert proc.returncode == 1
-    payload = json.loads(proc.stdout)
-    assert payload["ok"] is False
-    assert payload["errors"] == [
-        "--conflict-schedule-hash, --feature-suite-hash, --dependency-lock-hash "
-        "must be nonzero when --proof-kind is supplied"
-    ]
-
-
 def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None:
     body = _body(1)
     body_path = tmp_path / "input_body.json"
@@ -881,17 +837,6 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     payload = json.loads(proc.stdout)
     header = json.loads(Path(str(payload["header_path"])).read_text(encoding="utf-8"))
     metadata = json.loads(Path(str(payload["proof_metadata_path"])).read_text(encoding="utf-8"))
-    registry_path = tmp_path / "verifier_registry.json"
-    registry = make_verifier_registry_v0(
-        entries=[
-            make_verifier_registry_entry_v0(
-                proof_kind=str(metadata["proof_kind"]),
-                program_id=str(metadata["program_id"]),
-                verifier_id=str(metadata["verifier_id"]),
-            )
-        ]
-    )
-    _write_json(registry_path, registry)
     _write_json(
         report_dir / "1.json",
         {
@@ -902,6 +847,7 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
             "proof_kind": metadata["proof_kind"],
             "program_id": metadata["program_id"],
             "verifier_id": metadata["verifier_id"],
+            "toolchain_lock_hash": metadata["toolchain_lock_hash"],
             "header_bound": True,
             "body_checked": True,
             "post_app_hash_checked": True,
@@ -945,53 +891,6 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     with_report_payload = json.loads(with_report.stdout)
     assert with_report_payload["proof_metadata_checked_heights"] == [1]
     assert with_report_payload["proof_verification_checked_heights"] == [1]
-
-    with_registry = _run_verify(
-        "--headers-dir",
-        str(out_dir / "headers"),
-        "--bodies-dir",
-        str(out_dir / "bodies"),
-        "--proof-metadata-dir",
-        str(out_dir / "proof_metadata"),
-        "--verifier-registry",
-        str(registry_path),
-        "--from-height",
-        "1",
-        "--to-height",
-        "1",
-    )
-    assert with_registry.returncode == 0, with_registry.stderr
-    with_registry_payload = json.loads(with_registry.stdout)
-    assert with_registry_payload["proof_metadata_checked_heights"] == [1]
-
-    bad_registry_path = tmp_path / "bad_verifier_registry.json"
-    bad_registry = make_verifier_registry_v0(
-        entries=[
-            make_verifier_registry_entry_v0(
-                proof_kind=str(metadata["proof_kind"]),
-                program_id=str(metadata["program_id"]),
-                verifier_id="risc0:other-verifier",
-            )
-        ]
-    )
-    _write_json(bad_registry_path, bad_registry)
-    rejected_registry = _run_verify(
-        "--headers-dir",
-        str(out_dir / "headers"),
-        "--bodies-dir",
-        str(out_dir / "bodies"),
-        "--proof-metadata-dir",
-        str(out_dir / "proof_metadata"),
-        "--verifier-registry",
-        str(bad_registry_path),
-        "--from-height",
-        "1",
-        "--to-height",
-        "1",
-    )
-    assert rejected_registry.returncode == 1
-    rejected_registry_payload = json.loads(rejected_registry.stdout)
-    assert "proof metadata verifier is not admitted by registry" in rejected_registry_payload["errors"][0]
 
     bad = json.loads((report_dir / "1.json").read_text(encoding="utf-8"))
     bad["risc0_verified"] = False
@@ -2671,10 +2570,6 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
     duplicate_claim = build_proof_mining_claim(
         round_obj={
@@ -2699,10 +2594,6 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
-        verifier_evidence=[
-            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
-            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
-        ],
     )
     _write_json(profile_path, profile)
     _write_json(proof_mining_state_path, proof_mining_runtime_state_to_obj(runtime_state))
@@ -3964,7 +3855,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(attestation_envelope_path),
     )
@@ -3982,7 +3873,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(mirror_envelope_path),
     )
@@ -3998,7 +3889,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--payload-kind",
         "watcher_attestation",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
     )
     assert watcher_verify.returncode == 0, watcher_verify.stderr
     watcher_verify_report = json.loads(watcher_verify.stdout)
@@ -4012,7 +3903,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         "--payload-kind",
         "mirror_index",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
     )
     assert mirror_verify.returncode == 0, mirror_verify.stderr
     mirror_verify_report = json.loads(mirror_verify.stdout)
@@ -4024,7 +3915,7 @@ def test_signed_artifact_envelope_binds_watcher_attestation_and_mirror_index(tmp
         envelope=envelope,
         expected_payload_kind="watcher_attestation",
         expected_payload_hash=attestation["attestation_hash"],
-        secret_hex=TEST_SIGNING_SECRET,
+        secret_hex=TEST_SIGNING_KEY_HEX,
     )
 
 
@@ -4050,7 +3941,7 @@ def test_signed_artifact_envelope_rejects_tampered_artifact_hash(tmp_path: Path)
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(attestation_envelope_path),
     )
@@ -4069,7 +3960,7 @@ def test_signed_artifact_envelope_rejects_tampered_artifact_hash(tmp_path: Path)
         "--payload-kind",
         "watcher_attestation",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
     )
     assert verify.returncode == 1
     verify_report = json.loads(verify.stdout)
@@ -4264,7 +4155,7 @@ def test_publish_mirror_copies_indexed_artifacts_and_extra_signature(tmp_path: P
         "--key-id",
         "testnet-key-0",
         "--secret-hex",
-        TEST_SIGNING_SECRET,
+        TEST_SIGNING_KEY_HEX,
         "--out",
         str(signature_path),
     )

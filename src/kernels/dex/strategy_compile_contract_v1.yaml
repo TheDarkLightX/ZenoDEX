@@ -1,0 +1,170 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_compile_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless compile-contract guard for StrategyIR.
+
+    This kernel keeps compile-time policy admission small and explicit. It does
+    not parse text or choose trades. It only checks that a compiled strategy is
+    inside the supported bounded contract:
+    - supported backend/template
+    - strategy/owner identity fields present
+    - asset scope and required template params present
+    - allowed-action set matches the supported template
+    - notional/risk/window/control bounds are internally coherent
+    - Tau backend binds the canonical policy bundle
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "backend_ok",
+      "template_ok",
+      "strategy_id_ok",
+      "owner_binding_ok",
+      "asset_scope_ok",
+      "required_params_ok",
+      "action_scope_ok",
+      "notional_chain_ok",
+      "slippage_ok",
+      "oracle_window_ok",
+      "strategy_window_ok",
+      "controls_ok",
+      "tau_bundle_ok",
+      "compile_ok",
+    ]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "validate_strategy_compile"
+    params:
+      - id: "backend_code"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "template_code"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "strategy_id_present"
+        type: { kind: "bool" }
+      - id: "owner_pubkey_present"
+        type: { kind: "bool" }
+      - id: "asset_count"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "asset_in_present"
+        type: { kind: "bool" }
+      - id: "asset_out_present"
+        type: { kind: "bool" }
+      - id: "required_params_present"
+        type: { kind: "bool" }
+      - id: "action_scope_ok"
+        type: { kind: "bool" }
+      - id: "per_order_max"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "per_window_max"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "lifetime_max"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "max_slippage_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "max_oracle_staleness_epochs"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "valid_from_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "valid_until_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "min_order_spacing_epochs"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "max_live_orders"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "tau_bundle_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      backend_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ param: "backend_code" }, { const: 0 }] }
+          - { op: "=", args: [{ param: "backend_code" }, { const: 1 }] }
+      template_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ param: "template_code" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ param: "template_code" }, { const: 2 }] }
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ param: "template_code" }, { const: 3 }] }
+                  - { op: "=", args: [{ param: "template_code" }, { const: 4 }] }
+      strategy_id_ok: { param: "strategy_id_present" }
+      owner_binding_ok: { param: "owner_pubkey_present" }
+      asset_scope_ok:
+        op: "and"
+        args:
+          - { op: ">=", args: [{ param: "asset_count" }, { const: 2 }] }
+          - { param: "asset_in_present" }
+          - { param: "asset_out_present" }
+      required_params_ok: { param: "required_params_present" }
+      action_scope_ok: { param: "action_scope_ok" }
+      notional_chain_ok:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "per_order_max" }, { param: "per_window_max" }] }
+          - { op: "<=", args: [{ param: "per_window_max" }, { param: "lifetime_max" }] }
+      slippage_ok:
+        op: "<="
+        args: [{ param: "max_slippage_bps" }, { const: 10000 }]
+      oracle_window_ok:
+        op: ">="
+        args: [{ param: "max_oracle_staleness_epochs" }, { const: 1 }]
+      strategy_window_ok:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "valid_from_epoch" }, { param: "valid_until_epoch" }] }
+          - { op: ">=", args: [{ param: "min_order_spacing_epochs" }, { const: 0 }] }
+      controls_ok:
+        op: ">="
+        args: [{ param: "max_live_orders" }, { const: 1 }]
+      tau_bundle_ok: { param: "tau_bundle_ok" }
+      compile_ok:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { op: "=", args: [{ param: "backend_code" }, { const: 0 }] }
+              - { op: "=", args: [{ param: "backend_code" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ param: "template_code" }, { const: 1 }] }
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ param: "template_code" }, { const: 2 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ param: "template_code" }, { const: 3 }] }
+                      - { op: "=", args: [{ param: "template_code" }, { const: 4 }] }
+          - { param: "strategy_id_present" }
+          - { param: "owner_pubkey_present" }
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ param: "asset_count" }, { const: 2 }] }
+              - { param: "asset_in_present" }
+              - { param: "asset_out_present" }
+          - { param: "required_params_present" }
+          - { param: "action_scope_ok" }
+          - op: "and"
+            args:
+              - { op: "<=", args: [{ param: "per_order_max" }, { param: "per_window_max" }] }
+              - { op: "<=", args: [{ param: "per_window_max" }, { param: "lifetime_max" }] }
+          - { op: "<=", args: [{ param: "max_slippage_bps" }, { const: 10000 }] }
+          - { op: ">=", args: [{ param: "max_oracle_staleness_epochs" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { op: "<=", args: [{ param: "valid_from_epoch" }, { param: "valid_until_epoch" }] }
+              - { op: ">=", args: [{ param: "min_order_spacing_epochs" }, { const: 0 }] }
+          - { op: ">=", args: [{ param: "max_live_orders" }, { const: 1 }] }
+          - { param: "tau_bundle_ok" }

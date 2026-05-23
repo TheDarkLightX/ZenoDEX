@@ -9,7 +9,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
-from zenodex_oracle import sample_hash  # noqa: E402
+from zenodex_oracle import receipt_content_hash, sample_hash, verify_bundle  # noqa: E402
 from zenodex_oracle_adapter import (  # noqa: E402
     profile_content_hash,
     sample_action_and_bundle,
@@ -128,6 +128,25 @@ def test_oracle_adapter_rejects_action_id_mismatch(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, action, bundle)
     assert code == 2
     assert "adapter_action_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_accepted_bundle_borrowed_across_action(tmp_path: Path) -> None:
+    action, bundle = sample_action_and_bundle()
+    borrowed_bundle = json.loads(json.dumps(bundle))
+    borrowed_action_receipt = next(
+        receipt for receipt in borrowed_bundle["receipts"] if receipt["type"] == "consumer_action_receipt"
+    )
+    borrowed_action_receipt["action_id"] = sample_hash("borrowed-downstream-action")
+    borrowed_action_receipt["id"] = receipt_content_hash(borrowed_action_receipt)
+    borrowed_bundle["terminal"]["consumer_action_receipt_id"] = borrowed_action_receipt["id"]
+
+    assert verify_bundle(borrowed_bundle).status == "accepted"
+
+    code, result = _run_verify(tmp_path, action, borrowed_bundle)
+
+    assert code == 2
+    assert "adapter_action_id_mismatch" in result["errors"]
+    assert "adapter_consumer_action_receipt_id_mismatch" in result["errors"]
 
 
 def test_oracle_adapter_rejects_action_epoch_mismatch(tmp_path: Path) -> None:

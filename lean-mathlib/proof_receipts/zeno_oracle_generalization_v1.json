@@ -1,0 +1,41 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean",
+  "claim": "Promotes the Aristotle Lean 4.28 ZenoOracle generalization packet into public Lean: max-deviation component closure, one-sided deviation rejection, epoch lag/freshness laws, reward-pool conservation, O5 independence requirements, typed authorization action/pre-state binding, and critical-runtime stale-oracle rejection.",
+  "file": "lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean",
+  "source_job": "Aristotle job b8aff901-3f38-40aa-8974-c457c17d5d6e, locally audited from internal/aristotle/results/zeno_oracle_generalization_v1_lean428 and adapted to repo namespace with the unused-hypothesis warning removed.",
+  "status": "checked",
+  "proof_quality": {
+    "grade": "S",
+    "score": "100/100",
+    "scan": "python3 ~/.codex/skills/proof-quality-curation/scripts/lean_proof_quality_scan.py lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean",
+    "summary": "placeholders=0, trust=0, broad_auto=0, cases=1, simp=3, simp_only=0"
+  },
+  "theorems": [
+    "Proofs.ZenoOracleGeneralizationV1.max_deviation_le_iff_components",
+    "Proofs.ZenoOracleGeneralizationV1.max_deviation_exceeds_if_lower_exceeds",
+    "Proofs.ZenoOracleGeneralizationV1.max_deviation_exceeds_if_upper_exceeds",
+    "Proofs.ZenoOracleGeneralizationV1.max_deviation_zero_when_all_equal",
+    "Proofs.ZenoOracleGeneralizationV1.divergence_self_zero",
+    "Proofs.ZenoOracleGeneralizationV1.epoch_lag_symmetric",
+    "Proofs.ZenoOracleGeneralizationV1.epoch_lag_zero_iff_eq",
+    "Proofs.ZenoOracleGeneralizationV1.stale_epoch_rejected",
+    "Proofs.ZenoOracleGeneralizationV1.fresh_at_monotone_max_lag",
+    "Proofs.ZenoOracleGeneralizationV1.budget_step_reward_le_before",
+    "Proofs.ZenoOracleGeneralizationV1.budget_step_after_le_before",
+    "Proofs.ZenoOracleGeneralizationV1.positive_reward_strictly_decreases_pool",
+    "Proofs.ZenoOracleGeneralizationV1.two_step_budget_conservation",
+    "Proofs.ZenoOracleGeneralizationV1.o5_witness_ok_requires_distinct_verifiers",
+    "Proofs.ZenoOracleGeneralizationV1.o5_witness_rejects_missing_dag_closure",
+    "Proofs.ZenoOracleGeneralizationV1.typed_authorization_ok_requires_action_binding",
+    "Proofs.ZenoOracleGeneralizationV1.typed_authorization_rejects_receipt_borrowing",
+    "Proofs.ZenoOracleGeneralizationV1.critical_runtime_ok_requires_all_boundaries",
+    "Proofs.ZenoOracleGeneralizationV1.critical_runtime_rejects_stale_oracle"
+  ],
+  "non_claims": [
+    "Does not prove live oracle truth.",
+    "Does not prove cryptographic signature security.",
+    "Does not prove production code signing.",
+    "Does not prove every Python runtime path instantiates these abstract predicates.",
+    "Does not prove live governance, production settlement, or proof-network liveness."
+  ]
+}

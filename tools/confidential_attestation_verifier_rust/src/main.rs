@@ -36,14 +36,12 @@ fn read_payload() -> Result<Map<String, Value>, String> {
     io::stdin()
         .read_to_string(&mut input)
         .map_err(|err| format!("failed to read stdin: {err}"))?;
-    let value: Value =
-        serde_json::from_str(&input).map_err(|err| format!("invalid input json: {err}"))?;
+    let value: Value = serde_json::from_str(&input).map_err(|err| format!("invalid input json: {err}"))?;
     require_object(&value, "payload").cloned()
 }
 
 fn write_response(response: &Value) -> Result<(), String> {
-    let bytes = serde_json::to_vec(response)
-        .map_err(|err| format!("failed to encode output json: {err}"))?;
+    let bytes = serde_json::to_vec(response).map_err(|err| format!("failed to encode output json: {err}"))?;
     io::stdout()
         .write_all(&bytes)
         .map_err(|err| format!("failed to write stdout: {err}"))
@@ -86,10 +84,7 @@ fn require_object<'a>(value: &'a Value, name: &str) -> Result<&'a Map<String, Va
     Err(format!("{name} must be an object"))
 }
 
-fn require_object_field<'a>(
-    mapping: &'a Map<String, Value>,
-    key: &str,
-) -> Result<&'a Map<String, Value>, String> {
+fn require_object_field<'a>(mapping: &'a Map<String, Value>, key: &str) -> Result<&'a Map<String, Value>, String> {
     let value = mapping
         .get(key)
         .ok_or_else(|| format!("{key} must be an object"))?;
@@ -163,9 +158,7 @@ fn nitro_measurement(summary: &Map<String, Value>) -> Result<String, String> {
     Ok(format!("nitro:pcr0:{pcr0}:pcr8:{pcr8}"))
 }
 
-fn azure_measurement_and_policy_digest(
-    claims: &Map<String, Value>,
-) -> Result<(String, String), String> {
+fn azure_measurement_and_policy_digest(claims: &Map<String, Value>) -> Result<(String, String), String> {
     let attestation_type = require_string_field(claims, "x-ms-attestation-type")?.to_lowercase();
     if attestation_type != "sevsnpvm" {
         return Err("x-ms-attestation-type must be sevsnpvm".to_string());

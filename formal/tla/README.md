@@ -667,3 +667,32 @@ python3 tools/check_tau_shadow_assurance.py
 ```
 
 The release gate treats unresolved semantic deltas on release-blocking properties as a blocker.
+
+## Zeno SDK wallet-sync checkpoint shadow
+
+Files:
+
+- `formal/tla/ZenoSdkWalletSyncCheckpoint.tla`
+- `formal/tla/ZenoSdkWalletSyncCheckpoint.cfg`
+
+What it models:
+
+- browser/mobile wallet sync over proof-carrying checkpoint bundles,
+- host-computed bundle validation as a Boolean predicate,
+- host-computed current-state hash validation as a Boolean predicate,
+- accepted initial sync, accepted height advance, accepted same-height refresh,
+- and fail-closed rejection for invalid current state, invalid bundle, chain
+  mismatch, rollback, and same-height app/checkpoint drift.
+
+The key safety claims are:
+
+- accepted updates require a validated bundle,
+- accepted updates from an existing state require a valid current state hash,
+- accepted updates never decrease checkpoint height,
+- accepted updates cannot change chain id after initial sync,
+- same-height accepted updates cannot change app or checkpoint commitments,
+- rejected updates do not mutate the wallet-sync state.
+
+This model is intentionally abstract. It does not encode JSON parsing, BLS
+signature arithmetic, full ledger replay, wallet signing, or transaction
+execution authority.

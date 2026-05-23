@@ -1,0 +1,108 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the normalized confidential-extension receipt numeric gate. Update only alongside a successful run of tools/run_confidential_extension_receipt_gate_assurance_gate.sh and tools/check_confidential_extension_receipt_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/confidential_extension_receipt_gate_v1.yaml",
+      "sha256": "4d995c227b3a8e06b32a4e7491914bb8d03bfe06cf69a9ddf9b834d4788f515a"
+    },
+    {
+      "path": "src/core/confidential_extension_receipts.py",
+      "sha256": "924933356ae58d9b81a50db27b5dfc3841a3fcac4107f3b8fbf5d8004f1457d9"
+    },
+    {
+      "path": "src/kernels/python/confidential_extension_receipt_gate_v1_native_adapter.py",
+      "sha256": "cf77b1c8e55aac9d82df951d4d9fb1584fb5ed7abccce3be1fa356eccef20cc1"
+    },
+    {
+      "path": "tests/core/test_confidential_extension_receipt_gate.py",
+      "sha256": "086b6f0b55d4058d61384367d334e38c6331eebc15af8c2e532b2cda7d31ccc2"
+    },
+    {
+      "path": "tests/core/test_confidential_extension_receipts.py",
+      "sha256": "d1c48fc211bae3322d21ab095ec8b3f3566d1d929257da6aa3f624457845453f"
+    },
+    {
+      "path": "tests/kernels/test_confidential_extension_receipt_gate_v1_native_adapter.py",
+      "sha256": "35168da9020d6d33ac3a5f6f736df37217749dbee3ac97e2137d126bc11d1f7e"
+    },
+    {
+      "path": "tools/run_confidential_extension_receipt_gate_assurance_gate.sh",
+      "sha256": "111e093e26e72a701e6ac7a7f61461cfb8b7bfd70c9d9bdd8142a22826dea4db"
+    },
+    {
+      "path": "tools/check_confidential_extension_receipt_gate_assurance_manifest.py",
+      "sha256": "857958cac44b297bb1010d4b08343e996da2b92b5540fd736cd5ae833547db55"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/confidential_extension_receipt_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/confidential_extension_receipt_gate_v1.yaml",
+    "ir_hash": "sha256:f1c91a81414d061d10332a77d5aa865a78aec221a2c3a56391c0b036c20b3943"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/confidential_extension_receipt_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.confidential_extension_receipt_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:f1c91a81414d061d10332a77d5aa865a78aec221a2c3a56391c0b036c20b3943",
+    "actions": [
+      "evaluate_confidential_extension_receipt_gate"
+    ],
+    "effects": [
+      "accounting_ok",
+      "fresh_attestation_ok",
+      "host_guards_ok",
+      "receipt_admissible"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/confidential_extension_receipt_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/confidential_extension_receipt_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.confidential_extension_receipt_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:f1c91a81414d061d10332a77d5aa865a78aec221a2c3a56391c0b036c20b3943",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:76cbb44e7ac394165476dd7fb09ccab84c8fc07be16dfc1634d6b4a57738bbda"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/confidential_extension_receipt_gate_v1/verification_report.json",
+    "model_id": "confidential_extension_receipt_gate_v1",
+    "ir_hash_short": "f1c91a81414d061d",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_confidential_extension_receipt_gate.py",
+    "tests/core/test_confidential_extension_receipts.py",
+    "tests/kernels/test_confidential_extension_receipt_gate_v1_native_adapter.py"
+  ]
+}

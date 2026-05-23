@@ -1,0 +1,91 @@
+{
+  "attack_queries": [
+    {
+      "condition": "one signer can move treasury funds alone",
+      "expected_result": "rejected",
+      "id": "single_signer_compromise",
+      "mitigation": "strict-majority threshold signing and no single-key treasury"
+    },
+    {
+      "condition": "Tau Net wallet software signs or displays a different transaction than the signer intended",
+      "expected_result": "bounded",
+      "id": "wallet_software_bug",
+      "mitigation": "transaction simulation, canonical transaction previews, live wallet cap, and staged funding"
+    },
+    {
+      "condition": "an attacker tricks signers into approving a malicious treasury transfer",
+      "expected_result": "bounded",
+      "id": "social_engineering",
+      "mitigation": "timelock, dual-control review, signer runbooks, and out-of-band transaction hash verification"
+    },
+    {
+      "condition": "a governance vote attempts to drain or redirect the treasury before review",
+      "expected_result": "bounded",
+      "id": "governance_capture",
+      "mitigation": "timelock, spending caps, emergency freeze, and staged disbursement"
+    },
+    {
+      "condition": "a hot wallet holding treasury funds is compromised",
+      "expected_result": "bounded",
+      "id": "hot_wallet_drain",
+      "mitigation": "max live treasury wallet cap and no full treasury live funding"
+    },
+    {
+      "condition": "a signer coalition reaches threshold and signs an unauthorized transfer",
+      "expected_result": "bounded",
+      "id": "signer_collusion",
+      "mitigation": "independent signers, public audit log, timelock, emergency freeze, and signer rotation"
+    },
+    {
+      "condition": "Tau Net does not yet have mature threshold custody tooling for production treasury operations",
+      "expected_result": "bounded",
+      "id": "immature_tau_wallet_dependency",
+      "mitigation": "treat Tau Net threshold custody as unproven and keep full treasury live funding disabled"
+    }
+  ],
+  "controls": [
+    "threshold_multisig_or_threshold_signature",
+    "independent_signers",
+    "signer_geographic_separation",
+    "hardware_or_hardened_signing",
+    "transaction_simulation",
+    "timelock",
+    "spending_caps",
+    "dual_control_release",
+    "emergency_freeze",
+    "signer_rotation",
+    "audit_log",
+    "no_demo_keys",
+    "no_single_key_treasury",
+    "staged_funding"
+  ],
+  "counsel_review_required": true,
+  "counsel_review_status": "required_not_complete",
+  "custody_params": {
+    "emergency_freeze_threshold": 2,
+    "key_rotation_days": 180,
+    "max_epoch_disbursement_token": 2000000,
+    "max_live_treasury_wallet_token": 5000000,
+    "max_single_disbursement_token": 1000000,
+    "signer_count": 7,
+    "signer_threshold": 5,
+    "timelock_hours": 48,
+    "total_treasury_allocation_token": 250000000
+  },
+  "full_treasury_live_funding_allowed": false,
+  "promotion_boundary": {
+    "claim_registry_entry_allowed": false,
+    "non_claims": [
+      "no_tau_net_multisig_maturity_claim",
+      "no_public_treasury_launch_readiness",
+      "no_custody_security_complete",
+      "no_legal_clearance",
+      "no_single_wallet_full_treasury"
+    ],
+    "public_claim_allowed": false
+  },
+  "public_claims_allowed": false,
+  "schema": "zenodex.treasury_custody_boundary.v0",
+  "status": "internal_research_only",
+  "tau_net_multisig_wallet_maturity": "unproven"
+}

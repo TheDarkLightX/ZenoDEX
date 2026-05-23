@@ -55,8 +55,9 @@ def AuditedEmittedMinimality
     domainInputs.allCandidatesWithinAuditPoolIds = true ∧
     domainInputs.candidateCountWithinBudget = true ∧
     guardInputs.runtimeChoice ∈ guardInputs.first :: guardInputs.rest ∧
-    ∀ x ∈ guardInputs.first :: guardInputs.rest,
-      ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x
+    (∀ x ∈ guardInputs.first :: guardInputs.rest,
+      ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x) ∧
+    guardInputs.projectionCoverHolds = true
 
 theorem verifyPacket_iff (inputs : Inputs) (packet : Packet) :
     verifyPacket inputs packet ↔ packet = buildPacket inputs := by
@@ -92,16 +93,17 @@ theorem packetOk_iff_audited_emitted_minimality
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount⟩
     have hMin :
         guardInputs.runtimeChoice ∈ guardInputs.first :: guardInputs.rest ∧
-          ∀ x ∈ guardInputs.first :: guardInputs.rest,
-            ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x :=
+          (∀ x ∈ guardInputs.first :: guardInputs.rest,
+            ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x) ∧
+          guardInputs.projectionCoverHolds = true :=
       (ExactOutManyPoolGuardedQuotePacket.guardOk_iff_mem_and_keyLe_all guardInputs).1 hGuard
     exact
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
-        hMin.1, hMin.2⟩
+        hMin.1, hMin.2.1, hMin.2.2⟩
   · intro hAuditMin
     rcases hAuditMin with
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
-        hMem, hMin⟩
+        hMem, hMin, hCover⟩
     have hDomain :
         (ExactOutManyPoolCandidateDomainContract.buildContract domainInputs).contractOk = true :=
       (ExactOutManyPoolCandidateDomainContract.contractOk_iff domainInputs).2
@@ -109,7 +111,7 @@ theorem packetOk_iff_audited_emitted_minimality
     have hGuard :
         (ExactOutManyPoolGuardedQuotePacket.buildPacket guardInputs).guardOk = true :=
       (ExactOutManyPoolGuardedQuotePacket.guardOk_iff_mem_and_keyLe_all guardInputs).2
-        ⟨hMem, hMin⟩
+        ⟨hMem, hMin, hCover⟩
     exact (packetOk_iff (ofDomainAndGuard domainInputs guardInputs)).2 ⟨hDomain, hGuard⟩
 
 theorem packetOk_iff_audited_domain_and_quote
@@ -130,12 +132,12 @@ theorem packetOk_iff_audited_domain_and_quote
   · intro hPacket
     rcases (packetOk_iff_audited_emitted_minimality domainInputs guardInputs).1 hPacket with
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
-        hMem, hMin⟩
+        hMem, hMin, hCover⟩
     have hQuote :
         (ExactOutManyPoolGuardedQuotePacket.buildPacket guardInputs).quote =
           some guardInputs.runtimeChoice :=
       (TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_runtimeChoice_iff_mem_and_keyLe_all
-        guardInputs).2 ⟨hMem, hMin⟩
+        guardInputs).2 ⟨hMem, hMin, hCover⟩
     exact
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
         hQuote⟩
@@ -145,13 +147,14 @@ theorem packetOk_iff_audited_domain_and_quote
         hQuote⟩
     have hMin :
         guardInputs.runtimeChoice ∈ guardInputs.first :: guardInputs.rest ∧
-          ∀ x ∈ guardInputs.first :: guardInputs.rest,
-            ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x :=
+          (∀ x ∈ guardInputs.first :: guardInputs.rest,
+            ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x) ∧
+          guardInputs.projectionCoverHolds = true :=
       (TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_runtimeChoice_iff_mem_and_keyLe_all
         guardInputs).1 hQuote
     exact (packetOk_iff_audited_emitted_minimality domainInputs guardInputs).2
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
-        hMin.1, hMin.2⟩
+        hMin.1, hMin.2.1, hMin.2.2⟩
 
 theorem packetOk_iff_audited_domain_and_quote_eq_canonicalWinner
     (domainInputs : DomainInputs)
@@ -171,12 +174,12 @@ theorem packetOk_iff_audited_domain_and_quote_eq_canonicalWinner
   · intro hPacket
     rcases (packetOk_iff_audited_emitted_minimality domainInputs guardInputs).1 hPacket with
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
-        hMem, hMin⟩
+        hMem, hMin, hCover⟩
     have hQuote :
         (ExactOutManyPoolGuardedQuotePacket.buildPacket guardInputs).quote =
           some (ExactOutManyPoolOracleContract.canonicalWinner guardInputs) :=
       (TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_canonicalWinner_iff_mem_and_keyLe_all
-        guardInputs).2 ⟨hMem, hMin⟩
+        guardInputs).2 ⟨hMem, hMin, hCover⟩
     exact
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
         hQuote⟩
@@ -186,13 +189,14 @@ theorem packetOk_iff_audited_domain_and_quote_eq_canonicalWinner
         hQuote⟩
     have hMin :
         guardInputs.runtimeChoice ∈ guardInputs.first :: guardInputs.rest ∧
-          ∀ x ∈ guardInputs.first :: guardInputs.rest,
-            ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x :=
+          (∀ x ∈ guardInputs.first :: guardInputs.rest,
+            ExactOutRouteCertificate.keyLe guardInputs.runtimeChoice x) ∧
+          guardInputs.projectionCoverHolds = true :=
       (TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_canonicalWinner_iff_mem_and_keyLe_all
         guardInputs).1 hQuote
     exact (packetOk_iff_audited_emitted_minimality domainInputs guardInputs).2
       ⟨hSorted, hBudget, hNonempty, hComplete, hLegBounded, hLegSorted, hWithin, hCount,
-        hMin.1, hMin.2⟩
+        hMin.1, hMin.2.1, hMin.2.2⟩
 
 end ExactOutManyPoolCertifiedWinnerPacket
 end Routing

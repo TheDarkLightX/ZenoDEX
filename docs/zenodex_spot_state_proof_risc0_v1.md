@@ -95,7 +95,6 @@ useful subset:
 - Supported intent kinds:
   - `CREATE_POOL`
   - `SWAP_EXACT_IN`
-  - `SWAP_EXACT_OUT`
   - `ADD_LIQUIDITY`
   - `REMOVE_LIQUIDITY`
 - Faucet op:
@@ -136,7 +135,6 @@ Risc0 receipts for:
 - `faucet_mint`
 - `create_pool`
 - `swap_exact_in`
-- `swap_exact_out`
 - `add_liquidity`
 - `remove_liquidity`
 - `spot_block_liquidity_cycle`
@@ -145,12 +143,6 @@ The `spot_block_liquidity_cycle` case proves one multi-transaction block that
 creates a pool, adds liquidity, swaps exact-in, removes liquidity, and binds the
 pre-app hash, transaction commitment, post-app hash, state hash, and block
 timestamp through the host verifier.
-
-`docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json` is the tracked scope matrix
-for these required cases. Its checker also records the remaining production ZK
-gaps, including multi-hop routing, UPBA batch clearing inside the guest,
-rejected-receipt semantics, full runtime equivalence, native-asset sync, and
-recursive aggregation.
 
 For each case, the smoke also emits a synthetic ZenoLedger v0 body, a bound
 header, and Risc0 proof metadata. With `--require-proof-files`, the archive

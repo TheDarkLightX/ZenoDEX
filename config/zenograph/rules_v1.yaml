@@ -1,0 +1,57 @@
+rules:
+  - id: allow_dca_default
+    microtheory: StrategyLibrary
+    if_all:
+      - predicate: tactic
+        op: eq
+        value: dca
+    then:
+      decision: tactic_admissible
+      reason: default_dca_allowed
+
+  - id: block_on_governance_risk
+    microtheory: RiskPolicy
+    if_all:
+      - predicate: fact
+        subject: protocol
+        key: governance_attack_risk
+        op: eq
+        value: elevated
+      - predicate: tactic
+        op: in
+        value: [dca, onchain_flow_follow, event_accumulation]
+    then:
+      decision: invalidate_tactic
+      reason: governance_risk_elevated
+
+  - id: allow_onchain_flow_follow
+    microtheory: StrategyLibrary
+    if_all:
+      - predicate: tactic
+        op: eq
+        value: onchain_flow_follow
+      - predicate: signal
+        key: smart_money_accumulation
+        op: eq
+        value: true
+      - predicate: source_trust
+        op: ge
+        value: trusted
+      - predicate: liquidity_state
+        op: neq
+        value: thin
+    then:
+      decision: tactic_admissible
+      reason: trusted_accumulation_signal
+
+  - id: drawdown_lock
+    microtheory: UserPolicy
+    if_all:
+      - predicate: user_state
+        key: drawdown_lock
+        op: eq
+        value: true
+    then:
+      decision: allowed_templates_only
+      value: [dca, rebalance, cash_preserve]
+      reason: drawdown_lock_active

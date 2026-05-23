@@ -31,7 +31,7 @@ This repo now includes a deterministic receipt format for that boundary:
 
 A bounded sealed-bid private-state experiment now exists in the repo:
 - `src/core/sealed_bid_auction.py`
-- internal sealed-bid evaluation workflow (not published in this repo)
+- `tools/metamuse_sealed_bid_lane.py`
 - `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
 - `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
 

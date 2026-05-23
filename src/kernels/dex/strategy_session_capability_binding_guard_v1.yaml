@@ -1,0 +1,79 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_session_capability_binding_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless strategy-scoped session/capability binding guard.
+
+    This guard keeps delegated live-session authority narrower than the
+    compiled strategy:
+    - a non-empty session id must be present
+    - capability ownership and chain scope must match the strategy context
+    - capability asset/action scope must not exceed the strategy scope
+    - capability time window must stay inside the strategy window
+observables:
+  state_vars: []
+  effects:
+    [
+      "session_present_ok",
+      "owner_binding_ok",
+      "chain_binding_ok",
+      "asset_scope_ok",
+      "action_scope_ok",
+      "strategy_window_binding_ok",
+      "session_capability_binding_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_session_capability_binding"
+    params:
+      - id: "session_present"
+        type: { kind: "bool" }
+      - id: "owner_binding_ok"
+        type: { kind: "bool" }
+      - id: "chain_binding_ok"
+        type: { kind: "bool" }
+      - id: "asset_scope_ok"
+        type: { kind: "bool" }
+      - id: "action_scope_ok"
+        type: { kind: "bool" }
+      - id: "capability_valid_from_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "capability_valid_until_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "strategy_valid_from_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "strategy_valid_until_epoch"
+        type: { kind: "int", min: 0, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "capability_valid_from_epoch" }, { param: "capability_valid_until_epoch" }] }
+        - { op: "<=", args: [{ param: "strategy_valid_from_epoch" }, { param: "strategy_valid_until_epoch" }] }
+    updates: []
+    effects:
+      session_present_ok: { param: "session_present" }
+      owner_binding_ok: { param: "owner_binding_ok" }
+      chain_binding_ok: { param: "chain_binding_ok" }
+      asset_scope_ok: { param: "asset_scope_ok" }
+      action_scope_ok: { param: "action_scope_ok" }
+      strategy_window_binding_ok:
+        op: "and"
+        args:
+          - { op: ">=", args: [{ param: "capability_valid_from_epoch" }, { param: "strategy_valid_from_epoch" }] }
+          - { op: "<=", args: [{ param: "capability_valid_until_epoch" }, { param: "strategy_valid_until_epoch" }] }
+      session_capability_binding_ok:
+        op: "and"
+        args:
+          - { param: "session_present" }
+          - { param: "owner_binding_ok" }
+          - { param: "chain_binding_ok" }
+          - { param: "asset_scope_ok" }
+          - { param: "action_scope_ok" }
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ param: "capability_valid_from_epoch" }, { param: "strategy_valid_from_epoch" }] }
+              - { op: "<=", args: [{ param: "capability_valid_until_epoch" }, { param: "strategy_valid_until_epoch" }] }

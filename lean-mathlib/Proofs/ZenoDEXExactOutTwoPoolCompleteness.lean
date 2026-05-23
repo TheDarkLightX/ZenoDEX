@@ -5,7 +5,7 @@ import Proofs.ZenoDEXExactOutBruteforceCompleteness
 /-!
 # Exact-Out Two-Pool Search Completeness
 
-**world-model promotion**: `exact_out_two_pool_completeness` (TESTED_ONLY → PROVED)
+**ShapeForge promotion**: `exact_out_two_pool_completeness` (TESTED_ONLY → PROVED)
 
 **THEOREM**: For two-pool exact-out routing with demand Q and per-pool capacity
 bounds max₀, max₁, the integer interval `[Q - max₁, min(Q, max₀)]` captures

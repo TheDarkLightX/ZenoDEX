@@ -1,0 +1,81 @@
+{
+  "blocked_reasons": [
+    "operator must explicitly enable advisory ranking-only promotion",
+    "missing real UPBA replay report",
+    "missing real AutoTrader shadow report"
+  ],
+  "decision": "blocked",
+  "negative_knowledge": "Current ZenoEnergy evidence remains research-grade until real UPBA replay and real AutoTrader shadow reports satisfy this gate.",
+  "obligations": [
+    {
+      "id": "research_replay_clean",
+      "observed": {
+        "autotrader_invalid_accept_count_total": 0,
+        "failed_count": 0,
+        "fallback_invalid_accept_count": 0,
+        "learned_permutation_violation_count": 0,
+        "learned_top_10_recall": 1.0,
+        "ok": true,
+        "shadow_invalid_accept_count_total": 0
+      },
+      "passed": true,
+      "reason": "research replay, fallback, and invalid-accept receipts must be clean"
+    },
+    {
+      "id": "operator_ranking_only_enable",
+      "observed": {
+        "operator_release_enabled": false,
+        "scope": "advisory_ranking_only"
+      },
+      "passed": false,
+      "reason": "operator must explicitly enable advisory ranking-only promotion"
+    },
+    {
+      "id": "upba_real_replay_coverage",
+      "observed": {
+        "present": false
+      },
+      "passed": false,
+      "reason": "missing real UPBA replay report"
+    },
+    {
+      "id": "autotrader_real_shadow_coverage",
+      "observed": {
+        "present": false
+      },
+      "passed": false,
+      "reason": "missing real AutoTrader shadow report"
+    }
+  ],
+  "operator_release_enabled": false,
+  "promotion_allowed": false,
+  "safety_contract": {
+    "deterministic_fallback_required": true,
+    "model_output_in_state_root": false,
+    "policy_guards_authoritative": true,
+    "scorer_authorizes_settlement_or_trade": false,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/production_promotion_gate/v1",
+  "scope": "advisory_ranking_only",
+  "source_paths": {
+    "autotrader_real_shadow": null,
+    "research_replay": "data/upba_energy/zenoenergy_research_evidence_replay_receipt.json",
+    "upba_real_replay": null
+  },
+  "thresholds": {
+    "min_autotrader_decision_family_count": 3,
+    "min_autotrader_guard_family_count": 4,
+    "min_autotrader_real_contexts": 500,
+    "min_autotrader_real_rows": 5000,
+    "min_autotrader_strategy_family_count": 3,
+    "min_real_market_days": 7,
+    "min_top25_recall": 0.99,
+    "min_upba_candidate_family_count": 4,
+    "min_upba_hard_negative_family_count": 4,
+    "min_upba_intent_size_bucket_count": 3,
+    "min_upba_pool_count": 3,
+    "min_upba_real_batches": 1000,
+    "min_upba_real_candidates": 20000
+  }
+}

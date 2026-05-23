@@ -46,10 +46,6 @@ USER_FACING_JSX_HINTS = (
     ">",
 )
 
-STRUCTURAL_ATTRIBUTE_RE = re.compile(
-    r"""\b(?:className|class|id|key)\s*=\s*(?:"[^"]*"|'[^']*'|`[^`]*`|\{[^}]*\})"""
-)
-
 
 @dataclass(frozen=True)
 class Rule:
@@ -179,26 +175,23 @@ def scan_file(path: Path) -> list[Finding]:
             continue
         if path.suffix == ".css" and "content:" not in stripped:
             continue
-        if stripped.startswith(("//", "/*", "*/")):
+        if stripped.startswith(("//", "/*", "*", "*/")):
             continue
-        if path.suffix != ".md" and stripped.startswith("*"):
-            continue
-        scan_text = STRUCTURAL_ATTRIBUTE_RE.sub("", stripped)
-        if not scan_text.strip():
+        if re.search(r"\b(className|class|id|key)\s*=", stripped):
             continue
         if path.suffix in {".js", ".jsx", ".ts", ".tsx"} and not any(
-            hint in scan_text for hint in USER_FACING_JSX_HINTS
+            hint in stripped for hint in USER_FACING_JSX_HINTS
         ):
             continue
         for rule in RULES:
-            if rule.pattern.search(scan_text):
+            if rule.pattern.search(stripped):
                 findings.append(
                     Finding(
                         path=str(path),
                         line=line_no,
                         rule_id=rule.rule_id,
                         severity=rule.severity,
-                        text=scan_text.strip()[:240],
+                        text=stripped[:240],
                         why=rule.why,
                         safer_shape=rule.safer_shape,
                     )

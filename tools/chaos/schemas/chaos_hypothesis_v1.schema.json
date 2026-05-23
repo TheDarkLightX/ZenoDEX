@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chaos_hypothesis_v1.schema.json",
+  "title": "Chaos Hypothesis",
+  "description": "A falsifiable resilience claim for chaos engineering experiments (Popper method).",
+  "type": "object",
+  "required": ["schema", "id", "claim", "test", "created_at", "status"],
+  "properties": {
+    "schema": {
+      "const": "chaos/hypothesis/v1",
+      "description": "Schema identifier for this artifact type."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{16,64}$",
+      "description": "Unique hypothesis identifier (hex hash)."
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 10,
+      "description": "The falsifiable resilience claim being tested."
+    },
+    "test": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Description of how the claim will be tested/falsified."
+    },
+    "target": {
+      "type": "string",
+      "description": "The target component (e.g., 'tau_runner.py', 'tau_net_client.py')."
+    },
+    "perturbation_type": {
+      "type": "string",
+      "enum": ["process_fault", "network_fault", "http_fault", "resource_exhaustion", "timing_fault"],
+      "description": "Category of chaos perturbation."
+    },
+    "refutation_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "description"],
+        "properties": {
+          "criterion": {
+            "type": "string",
+            "description": "Machine-readable criterion code."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what falsifies the hypothesis."
+          }
+        }
+      },
+      "description": "Conditions under which this hypothesis is falsified."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when hypothesis was created."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "corroborated", "falsified", "superseded"],
+      "description": "Current status of the hypothesis."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence level (0-1). Note: 'supported' never 'proven'."
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain or subsystem this hypothesis belongs to."
+    },
+    "agent": {
+      "type": "string",
+      "description": "Agent or system that created this hypothesis."
+    },
+    "references": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Paths or URIs to related artifacts."
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Free-form tags for filtering/grouping."
+    }
+  },
+  "additionalProperties": false
+}

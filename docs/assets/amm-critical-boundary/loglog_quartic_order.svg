@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="720" viewBox="0 0 1080 720" role="img" aria-label="Log-log order check">
+<title>Log-log order check</title>
+<desc>The boundary curve tracks a slope-four reference line, visualizing quartic order.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="92" y="34" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">Log-log order check</text>
+<text x="92" y="58" font-family="Inter, Arial, sans-serif" font-size="14" fill="#4b5563">The boundary curve tracks a slope-four reference line, visualizing quartic order.</text>
+<line x1="92" y1="628" x2="1042" y2="628" stroke="#374151" stroke-width="1.5"/>
+<line x1="92" y1="628" x2="92" y2="76" stroke="#374151" stroke-width="1.5"/>
+<line x1="145.52112676056342" y1="628" x2="145.52112676056342" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="145.52112676056342" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-4</text>
+<line x1="413.12676056338034" y1="628" x2="413.12676056338034" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="413.12676056338034" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-3</text>
+<line x1="680.7323943661971" y1="628" x2="680.7323943661971" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="680.7323943661971" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-2</text>
+<line x1="948.3380281690141" y1="628" x2="948.3380281690141" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="948.3380281690141" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-1</text>
+<line x1="92" y1="629.1019733620075" x2="1042" y2="629.1019733620075" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="633.1019733620075" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-18.9</text>
+<line x1="92" y1="535.0752099948011" x2="1042" y2="535.0752099948011" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="539.0752099948011" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-16.1</text>
+<line x1="92" y1="444.40654531928044" x2="1042" y2="444.40654531928044" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="448.40654531928044" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-13.4</text>
+<line x1="92" y1="350.3797819520739" x2="1042" y2="350.3797819520739" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="354.3797819520739" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-10.6</text>
+<line x1="92" y1="259.71111727655335" x2="1042" y2="259.71111727655335" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="263.71111727655335" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-7.9</text>
+<line x1="92" y1="169.04245260103278" x2="1042" y2="169.04245260103278" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="173.04245260103278" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-5.2</text>
+<line x1="92" y1="75.01568923382622" x2="1042" y2="75.01568923382622" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="79.01568923382622" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-2.4</text>
+<text x="567.0" y="690" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#111827">log10(|d|)</text>
+<text transform="translate(28 352.0) rotate(-90)" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#111827">log10(|ΔCurv_norm(2/3,d)|)</text>
+<polyline points="92.000,589.931 99.364,586.235 106.729,582.538 114.093,578.841 121.457,575.145 128.822,571.448 136.186,567.752 143.550,564.055 150.915,560.359 158.279,556.662 165.643,552.966 173.008,549.269 180.372,545.573 187.736,541.876 195.101,538.180 202.465,534.483 209.829,530.787 217.194,527.090 224.558,523.394 231.922,519.697 239.287,516.001 246.651,512.304 254.016,508.608 261.380,504.911 268.744,501.215 276.109,497.518 283.473,493.822 290.837,490.125 298.202,486.429 305.566,482.732 312.930,479.036 320.295,475.339 327.659,471.643 335.023,467.946 342.388,464.250 349.752,460.553 357.116,456.857 364.481,453.160 371.845,449.464 379.209,445.767 386.574,442.071 393.938,438.374 401.302,434.678 408.667,430.981 416.031,427.285 423.395,423.588 430.760,419.892 438.124,416.195 445.488,412.499 452.853,408.802 460.217,405.105 467.581,401.409 474.946,397.712 482.310,394.016 489.674,390.319 497.039,386.623 504.403,382.926 511.767,379.230 519.132,375.533 526.496,371.837 533.860,368.140 541.225,364.444 548.589,360.748 555.953,357.051 563.318,353.355 570.682,349.658 578.047,345.962 585.411,342.265 592.775,338.569 600.140,334.872 607.504,331.176 614.868,327.479 622.233,323.783 629.597,320.086 636.961,316.390 644.326,312.694 651.690,308.997 659.054,305.301 666.419,301.605 673.783,297.908 681.147,294.212 688.512,290.516 695.876,286.820 703.240,283.123 710.605,279.427 717.969,275.731 725.333,272.035 732.698,268.339 740.062,264.643 747.426,260.948 754.791,257.252 762.155,253.557 769.519,249.861 776.884,246.166 784.248,242.471 791.612,238.776 798.977,235.081 806.341,231.387 813.705,227.692 821.070,223.999 828.434,220.305 835.798,216.612 843.163,212.919 850.527,209.227 857.891,205.536 865.256,201.845 872.620,198.155 879.984,194.465 887.349,190.777 894.713,187.090 902.078,183.404 909.442,179.720 916.806,176.037 924.171,172.356 931.535,168.677 938.899,165.000 946.264,161.327 953.628,157.656 960.992,153.989 968.357,150.325 975.721,146.666 983.085,143.013 990.450,139.365 997.814,135.723 1005.178,132.089 1012.543,128.463 1019.907,124.847 1027.271,121.242 1034.636,117.648 1042.000,114.069" fill="none" stroke="#7c3aed" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="92.000,589.931 1042.000,113.081" fill="none" stroke="#dc2626" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="8 7"/>
+<line x1="720" y1="92" x2="750" y2="92" stroke="#7c3aed" stroke-width="3"/>
+<text x="760" y="97" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">computed |ΔCurv|</text>
+<line x1="720" y1="116" x2="750" y2="116" stroke="#dc2626" stroke-width="3" stroke-dasharray="8 7"/>
+<text x="760" y="121" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">slope 4 reference</text>
+</svg>

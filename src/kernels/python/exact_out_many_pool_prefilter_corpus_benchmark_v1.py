@@ -2,22 +2,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
-from typing import Optional, Sequence
+from typing import Sequence
 
 from ...state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus, normalize_curve_config
 from .exact_out_many_pool_prefilter_contraction_audit_v1 import (
     audit_exact_out_many_pool_prefilter_contraction,
     audit_exact_out_many_pool_selected_subset_contraction,
 )
-from .exact_out_many_pool_prefilter_subset_search_v1 import (
-    search_exact_out_many_pool_prefilter_subset,
-)
 from .exact_out_many_pool_repaired_prefilter_v1 import (
     build_many_pool_repaired_prefilter_selection,
 )
+from .exact_out_many_pool_prefilter_subset_search_v1 import (
+    search_exact_out_many_pool_prefilter_subset,
+)
+
 
 ReservePair = tuple[int, int]
-CurveTemplate = tuple[ReservePair, str, Optional[object]]
+CurveTemplate = tuple[ReservePair, str, object | None]
 
 
 @dataclass(frozen=True)

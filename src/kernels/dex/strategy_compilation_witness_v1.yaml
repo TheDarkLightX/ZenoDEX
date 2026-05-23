@@ -1,0 +1,102 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_compilation_witness_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless witness contract for the trusted compiler surface.
+
+    The raw text front-end is advisory only. The trusted compiler is the
+    bounded mapping from a canonical source artifact to a StrategyIR. This
+    kernel validates the replayable witness booleans for that mapping.
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "source_form_ok",
+      "strategy_hash_match",
+      "owner_match",
+      "backend_match",
+      "template_match",
+      "asset_universe_match",
+      "allowed_actions_match",
+      "notional_caps_match",
+      "risk_limits_match",
+      "strategy_window_match",
+      "controls_match",
+      "template_params_match",
+      "tau_policy_specs_match",
+      "compile_contract_ok",
+      "compilation_witness_ok",
+    ]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "validate_compilation_witness"
+    params:
+      - id: "source_form_ok"
+        type: { kind: "bool" }
+      - id: "strategy_hash_match"
+        type: { kind: "bool" }
+      - id: "owner_match"
+        type: { kind: "bool" }
+      - id: "backend_match"
+        type: { kind: "bool" }
+      - id: "template_match"
+        type: { kind: "bool" }
+      - id: "asset_universe_match"
+        type: { kind: "bool" }
+      - id: "allowed_actions_match"
+        type: { kind: "bool" }
+      - id: "notional_caps_match"
+        type: { kind: "bool" }
+      - id: "risk_limits_match"
+        type: { kind: "bool" }
+      - id: "strategy_window_match"
+        type: { kind: "bool" }
+      - id: "controls_match"
+        type: { kind: "bool" }
+      - id: "template_params_match"
+        type: { kind: "bool" }
+      - id: "tau_policy_specs_match"
+        type: { kind: "bool" }
+      - id: "compile_contract_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      source_form_ok: { param: "source_form_ok" }
+      strategy_hash_match: { param: "strategy_hash_match" }
+      owner_match: { param: "owner_match" }
+      backend_match: { param: "backend_match" }
+      template_match: { param: "template_match" }
+      asset_universe_match: { param: "asset_universe_match" }
+      allowed_actions_match: { param: "allowed_actions_match" }
+      notional_caps_match: { param: "notional_caps_match" }
+      risk_limits_match: { param: "risk_limits_match" }
+      strategy_window_match: { param: "strategy_window_match" }
+      controls_match: { param: "controls_match" }
+      template_params_match: { param: "template_params_match" }
+      tau_policy_specs_match: { param: "tau_policy_specs_match" }
+      compile_contract_ok: { param: "compile_contract_ok" }
+      compilation_witness_ok:
+        op: "and"
+        args:
+          - { param: "source_form_ok" }
+          - { param: "strategy_hash_match" }
+          - { param: "owner_match" }
+          - { param: "backend_match" }
+          - { param: "template_match" }
+          - { param: "asset_universe_match" }
+          - { param: "allowed_actions_match" }
+          - { param: "notional_caps_match" }
+          - { param: "risk_limits_match" }
+          - { param: "strategy_window_match" }
+          - { param: "controls_match" }
+          - { param: "template_params_match" }
+          - { param: "tau_policy_specs_match" }
+          - { param: "compile_contract_ok" }

@@ -1,0 +1,3546 @@
+{
+  "accepted_count": 54,
+  "case_count": 108,
+  "cases": [
+    {
+      "accepted": false,
+      "case_id": "clean::stale_oracle_spike::none",
+      "guard_mode": "none",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::stale_oracle_spike::exact",
+      "guard_mode": "exact",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::stale_oracle_spike::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "settlement_freeze"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::stale_oracle_spike::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::receipt_replay_attempt::none",
+      "guard_mode": "none",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::receipt_replay_attempt::exact",
+      "guard_mode": "exact",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::receipt_replay_attempt::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "receipt_epoch_binding"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::receipt_replay_attempt::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::authority_override_drift::none",
+      "guard_mode": "none",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::authority_override_drift::exact",
+      "guard_mode": "exact",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::authority_override_drift::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "registry_quorum"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::authority_override_drift::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::liquidity_withdrawal_shock::none",
+      "guard_mode": "none",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::liquidity_withdrawal_shock::exact",
+      "guard_mode": "exact",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::liquidity_withdrawal_shock::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "liquidity_circuit"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::liquidity_withdrawal_shock::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 23,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::resource_spike::none",
+      "guard_mode": "none",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 15,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::resource_spike::exact",
+      "guard_mode": "exact",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 15,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::resource_spike::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 15,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "rate_limit"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::resource_spike::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 15,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::route_ambiguity_drift::none",
+      "guard_mode": "none",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::route_ambiguity_drift::exact",
+      "guard_mode": "exact",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::route_ambiguity_drift::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::route_ambiguity_drift::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 20,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::budget_leak::none",
+      "guard_mode": "none",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 21,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::budget_leak::exact",
+      "guard_mode": "exact",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 21,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::budget_leak::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 21,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::budget_leak::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 21,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::catastrophic_compound::none",
+      "guard_mode": "none",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 72,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::catastrophic_compound::exact",
+      "guard_mode": "exact",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 72,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::catastrophic_compound::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 72,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "clean::catastrophic_compound::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 72,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::settlement_repair::none",
+      "guard_mode": "none",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": 0,
+      "risk_nonincrease": true,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::settlement_repair::exact",
+      "guard_mode": "exact",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": 0,
+      "risk_nonincrease": true,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::settlement_repair::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": 0,
+      "risk_nonincrease": true,
+      "state_id": "clean"
+    },
+    {
+      "accepted": true,
+      "case_id": "clean::settlement_repair::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 0,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": 0,
+      "risk_nonincrease": true,
+      "state_id": "clean"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::stale_oracle_spike::none",
+      "guard_mode": "none",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 5,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::stale_oracle_spike::exact",
+      "guard_mode": "exact",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 5,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::stale_oracle_spike::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 5,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "settlement_freeze"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::stale_oracle_spike::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 5,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::receipt_replay_attempt::none",
+      "guard_mode": "none",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::receipt_replay_attempt::exact",
+      "guard_mode": "exact",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::receipt_replay_attempt::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "receipt_epoch_binding"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::receipt_replay_attempt::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 3,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::authority_override_drift::none",
+      "guard_mode": "none",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::authority_override_drift::exact",
+      "guard_mode": "exact",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::authority_override_drift::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "registry_quorum"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::authority_override_drift::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::liquidity_withdrawal_shock::none",
+      "guard_mode": "none",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 1
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::liquidity_withdrawal_shock::exact",
+      "guard_mode": "exact",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 1
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::liquidity_withdrawal_shock::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 1
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "liquidity_circuit"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::liquidity_withdrawal_shock::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 38,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 1
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::resource_spike::none",
+      "guard_mode": "none",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 30,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::resource_spike::exact",
+      "guard_mode": "exact",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 30,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::resource_spike::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 30,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "rate_limit"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::resource_spike::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 30,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 5,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::route_ambiguity_drift::none",
+      "guard_mode": "none",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 5,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::route_ambiguity_drift::exact",
+      "guard_mode": "exact",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 5,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::route_ambiguity_drift::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 5,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::route_ambiguity_drift::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 5,
+        "stale_data": 2,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::budget_leak::none",
+      "guard_mode": "none",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 36,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 3
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::budget_leak::exact",
+      "guard_mode": "exact",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 36,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 3
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::budget_leak::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 36,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 3
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::budget_leak::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 36,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 1,
+        "stale_data": 2,
+        "value_loss": 3
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::catastrophic_compound::none",
+      "guard_mode": "none",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 87,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 3,
+        "stale_data": 4,
+        "value_loss": 2
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::catastrophic_compound::exact",
+      "guard_mode": "exact",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 87,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 3,
+        "stale_data": 4,
+        "value_loss": 2
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::catastrophic_compound::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 87,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 3,
+        "stale_data": 4,
+        "value_loss": 2
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_stale::catastrophic_compound::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 87,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 2,
+        "resource_load": 2,
+        "semantic_ambiguity": 3,
+        "stale_data": 4,
+        "value_loss": 2
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::settlement_repair::none",
+      "guard_mode": "none",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -15,
+      "risk_nonincrease": true,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::settlement_repair::exact",
+      "guard_mode": "exact",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -15,
+      "risk_nonincrease": true,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::settlement_repair::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -15,
+      "risk_nonincrease": true,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_stale::settlement_repair::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 0,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 0,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 15,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -15,
+      "risk_nonincrease": true,
+      "state_id": "edge_stale"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::stale_oracle_spike::none",
+      "guard_mode": "none",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::stale_oracle_spike::exact",
+      "guard_mode": "exact",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::stale_oracle_spike::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "settlement_freeze"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::stale_oracle_spike::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "stale_oracle_spike",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 3,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "oracle_freshness_proof",
+        "settlement_freeze"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::receipt_replay_attempt::none",
+      "guard_mode": "none",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 4,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::receipt_replay_attempt::exact",
+      "guard_mode": "exact",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 4,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::receipt_replay_attempt::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 4,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "receipt_epoch_binding"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::receipt_replay_attempt::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "receipt_replay_attempt",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 4,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "nonce_binding",
+        "receipt_epoch_binding"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::authority_override_drift::none",
+      "guard_mode": "none",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::authority_override_drift::exact",
+      "guard_mode": "exact",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::authority_override_drift::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "registry_quorum"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::authority_override_drift::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "authority_override_drift",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 3,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 1,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "override_packet_v195",
+        "registry_quorum"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::liquidity_withdrawal_shock::none",
+      "guard_mode": "none",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::liquidity_withdrawal_shock::exact",
+      "guard_mode": "exact",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::liquidity_withdrawal_shock::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "liquidity_circuit"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::liquidity_withdrawal_shock::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "liquidity_withdrawal_shock",
+      "post_risk_score": 35,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 4,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 1
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "drawdown_receipt",
+        "liquidity_circuit"
+      ],
+      "risk_delta": 23,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::resource_spike::none",
+      "guard_mode": "none",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 27,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 7,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::resource_spike::exact",
+      "guard_mode": "exact",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 27,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 7,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::resource_spike::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 27,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 7,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "rate_limit"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::resource_spike::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "resource_spike",
+      "post_risk_score": 27,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 7,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "resource_budget",
+        "rate_limit"
+      ],
+      "risk_delta": 15,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::route_ambiguity_drift::none",
+      "guard_mode": "none",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::route_ambiguity_drift::exact",
+      "guard_mode": "exact",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::route_ambiguity_drift::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::route_ambiguity_drift::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "route_ambiguity_drift",
+      "post_risk_score": 32,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 4,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "canonical_witness",
+        "bruteforce_receipt"
+      ],
+      "risk_delta": 20,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::budget_leak::none",
+      "guard_mode": "none",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 33,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::budget_leak::exact",
+      "guard_mode": "exact",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 33,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::budget_leak::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 33,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::budget_leak::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "budget_leak",
+      "post_risk_score": 33,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 1,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 3
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [
+        "budget_guard",
+        "sink_cap"
+      ],
+      "risk_delta": 21,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::catastrophic_compound::none",
+      "guard_mode": "none",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 84,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 3,
+        "resource_load": 4,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::catastrophic_compound::exact",
+      "guard_mode": "exact",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 84,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 3,
+        "resource_load": 4,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::catastrophic_compound::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 84,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 3,
+        "resource_load": 4,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": false,
+      "case_id": "edge_resource::catastrophic_compound::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "catastrophic_compound",
+      "post_risk_score": 84,
+      "post_vector": {
+        "authority_drift": 2,
+        "liquidity_shock": 2,
+        "replay_exposure": 3,
+        "resource_load": 4,
+        "semantic_ambiguity": 2,
+        "stale_data": 2,
+        "value_loss": 2
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": false,
+      "required_guards": [
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "risk_delta": 72,
+      "risk_nonincrease": false,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::settlement_repair::none",
+      "guard_mode": "none",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 6,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -6,
+      "risk_nonincrease": true,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::settlement_repair::exact",
+      "guard_mode": "exact",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 6,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -6,
+      "risk_nonincrease": true,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::settlement_repair::missing_first",
+      "guard_mode": "missing_first",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 6,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -6,
+      "risk_nonincrease": true,
+      "state_id": "edge_resource"
+    },
+    {
+      "accepted": true,
+      "case_id": "edge_resource::settlement_repair::all_known",
+      "guard_mode": "all_known",
+      "morphism_id": "settlement_repair",
+      "post_risk_score": 6,
+      "post_vector": {
+        "authority_drift": 0,
+        "liquidity_shock": 0,
+        "replay_exposure": 0,
+        "resource_load": 2,
+        "semantic_ambiguity": 0,
+        "stale_data": 0,
+        "value_loss": 0
+      },
+      "pre_risk_score": 12,
+      "provided_guards": [
+        "bruteforce_receipt",
+        "budget_guard",
+        "canonical_witness",
+        "drawdown_receipt",
+        "liquidity_circuit",
+        "nonce_binding",
+        "oracle_freshness_proof",
+        "override_packet_v195",
+        "rate_limit",
+        "receipt_epoch_binding",
+        "registry_quorum",
+        "resource_budget",
+        "settlement_freeze",
+        "sink_cap"
+      ],
+      "recovery_certificate": true,
+      "required_guards": [],
+      "risk_delta": -6,
+      "risk_nonincrease": true,
+      "state_id": "edge_resource"
+    }
+  ],
+  "catastrophic_rejection_count": 12,
+  "certified_recovery_count": 42,
+  "direct_repair_count": 12,
+  "discovery_domain": {
+    "guard_mode_count": 4,
+    "morphism_count": 9,
+    "recovery_cap": 48,
+    "risk_components": [
+      "value_loss",
+      "replay_exposure",
+      "stale_data",
+      "authority_drift",
+      "liquidity_shock",
+      "resource_load",
+      "semantic_ambiguity"
+    ],
+    "state_count": 3
+  },
+  "holdout_domain": "none; bounded chaos-morphism corpus",
+  "model_audit": {
+    "accepted_increasing_without_certificate": 0,
+    "certified_recovery_over_cap": 0,
+    "rejected_nonincreasing_transition": 0,
+    "total_disaster_potential_invariant_failures": 0
+  },
+  "non_claims": [
+    "The weighted potential is a research model, not a complete production risk metric.",
+    "The bounded chaos corpus does not prove every disaster state unreachable.",
+    "Recovery certificates still depend on truthful guard receipts."
+  ],
+  "object": "disaster_potential_chaos_morphism_v1",
+  "oracle_dependent": true,
+  "rejected_count": 54,
+  "risk_weights": {
+    "authority_drift": 6,
+    "liquidity_shock": 4,
+    "replay_exposure": 6,
+    "resource_load": 3,
+    "semantic_ambiguity": 5,
+    "stale_data": 5,
+    "value_loss": 7
+  },
+  "schema": "zenodex/math-object-innovation-v198-report/v1",
+  "strongest_claim": "A bounded chaos-morphism harness can classify transitions by a weighted disaster potential: accepted risk-increasing transitions require the morphism's recovery certificate and must remain below the recovery cap; direct repairs are accepted by potential nonincrease.",
+  "tier": "symbolic_state_compiler"
+}

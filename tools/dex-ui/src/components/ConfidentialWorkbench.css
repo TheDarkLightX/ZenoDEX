@@ -153,9 +153,65 @@
   color: var(--accent-green);
 }
 
+.confidential-status-bounded {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+}
+
+.confidential-status-alpha {
+  background: rgba(76, 201, 240, 0.14);
+  color: var(--accent-blue);
+}
+
 .confidential-proof {
   color: var(--text-muted);
   font-size: var(--font-size-xs);
+}
+
+.confidential-claim-scope {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+}
+
+.confidential-action-button {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: rgba(76, 201, 240, 0.12);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.confidential-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.confidential-attestation-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.confidential-attestation-result span {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 5px 8px;
 }
 
 .confidential-phase-row {

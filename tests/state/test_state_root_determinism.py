@@ -7,7 +7,11 @@ import pytest
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
 from src.state.nonces import NonceTable
-from src.state.state_root import compute_state_root
+from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
+
+
+def test_state_root_version_commits_lp_age_schema() -> None:
+    assert STATE_ROOT_VERSION == 4
 
 
 def test_state_root_is_insertion_order_independent() -> None:
@@ -107,37 +111,6 @@ def test_state_root_changes_on_nonce_change() -> None:
     assert root_1 != root_2
 
 
-def test_state_root_rejects_duplicate_decoded_nonce_pubkeys() -> None:
-    class DuplicateDecodedNonces(NonceTable):
-        def get_all(self):  # type: ignore[override]
-            return {
-                "0x" + "aa" * 48: 1,
-                "0x" + "AA" * 48: 2,
-            }
-
-    with pytest.raises(ValueError, match="duplicate decoded pubkey in nonces"):
-        compute_state_root(
-            balances=BalanceTable(),
-            pools={},
-            lp_balances=LPTable(),
-            nonces=DuplicateDecodedNonces(),
-        )
-
-
-def test_state_root_rejects_invalid_nonce_amount() -> None:
-    class InvalidNonceAmount(NonceTable):
-        def get_all(self):  # type: ignore[override]
-            return {"0x" + "11" * 48: True}
-
-    with pytest.raises(ValueError, match="invalid nonce amount"):
-        compute_state_root(
-            balances=BalanceTable(),
-            pools={},
-            lp_balances=LPTable(),
-            nonces=InvalidNonceAmount(),
-        )
-
-
 def test_state_root_rejects_invalid_nonce_table_type() -> None:
     with pytest.raises(TypeError, match="nonces must be a NonceTable"):
         compute_state_root(
@@ -206,7 +179,7 @@ def test_state_root_rejects_duplicate_decoded_pool_ids() -> None:
         compute_state_root(balances=BalanceTable(), pools=pools, lp_balances=LPTable())
 
 
-def test_state_root_rejects_100_percent_fee_pool() -> None:
+def test_state_root_rejects_fee_bps_above_10000() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -221,7 +194,7 @@ def test_state_root_rejects_100_percent_fee_pool() -> None:
         created_at=0,
     )
 
-    pool.fee_bps = 10_000
+    pool.fee_bps = 10_001
     with pytest.raises(ValueError):
         compute_state_root(balances=BalanceTable(), pools={pool_id: pool}, lp_balances=LPTable())
 

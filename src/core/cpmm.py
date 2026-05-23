@@ -11,8 +11,6 @@ Algorithm Design:
 - Invariant: After each swap, x' * y' >= k (where k = x * y before swap, adjusted for fees)
 """
 
-from __future__ import annotations
-
 from typing import Tuple
 
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _kernel_compute_fee_total_v8

@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
-from .pools import POOL_FEE_BPS_MAX, POOL_FEE_BPS_MIN
 
 
 class IntentKind(Enum):
@@ -139,8 +138,8 @@ class CreatePoolIntent(Intent):
         if asset0 >= asset1:
             raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
         
-        if fee_bps is None or not (POOL_FEE_BPS_MIN <= fee_bps <= POOL_FEE_BPS_MAX):
-            raise ValueError(f"fee_bps must be in [0, 9999]: {fee_bps}")
+        if fee_bps is None or not (0 <= fee_bps <= 10000):
+            raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
         
         if amount0 is None or amount0 <= 0:
             raise ValueError("amount0 must be positive")

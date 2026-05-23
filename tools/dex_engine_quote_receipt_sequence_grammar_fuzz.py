@@ -232,6 +232,7 @@ def _make_split_ops(
     nonce_start: int,
     duplicate_leg: bool = False,
     incomplete: bool = False,
+    swapped_leg_indices: bool = False,
 ) -> dict[str, Any]:
     route = best_route_exact_in_2hop(
         pools_by_id={key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in {"p1", "p2"}},
@@ -257,6 +258,11 @@ def _make_split_ops(
     if incomplete:
         envs = envs[:1]
     ops = create_signed_intent_operation(envs)
+    if swapped_leg_indices and len(ops["2"]) >= 2:
+        first = ops["2"][0]["quote_receipt_leg_index"]
+        second = ops["2"][1]["quote_receipt_leg_index"]
+        ops["2"][0]["quote_receipt_leg_index"] = second
+        ops["2"][1]["quote_receipt_leg_index"] = first
     if duplicate_leg:
         duplicate = dict(ops["2"][0])
         duplicate["intent_id"] = "0x" + "de" * 32
@@ -356,6 +362,7 @@ def _split_cases() -> tuple[GrammarCase, ...]:
     split_ok_2 = {"operations": _make_split_ops(nonce_start=2)}
     split_dup_2 = {"operations": _make_split_ops(nonce_start=2, duplicate_leg=True)}
     split_incomplete_2 = {"operations": _make_split_ops(nonce_start=2, incomplete=True)}
+    split_swapped_leg_indices_2 = {"operations": _make_split_ops(nonce_start=2, swapped_leg_indices=True)}
     return (
         GrammarCase("SplitSeq->WarmupThenSplitValid", {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_ok_2)]}),
         GrammarCase(
@@ -365,6 +372,10 @@ def _split_cases() -> tuple[GrammarCase, ...]:
         GrammarCase(
             "SplitSeq->WarmupThenSplitIncompleteCoverage",
             {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_incomplete_2)]},
+        ),
+        GrammarCase(
+            "SplitSeq->WarmupThenSplitSwappedLegIndices",
+            {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_swapped_leg_indices_2)]},
         ),
     )
 

@@ -121,13 +121,7 @@ from ..core.perp_submission_auth_gate import (
 from ..state.balances import BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.nonces import NonceTable
-from .zeno_oracle_authorization import (
-    ORACLE_PERPS_INDEX_QUERY_ID as _ORACLE_PERPS_INDEX_QUERY_ID,
-    ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID as _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
-    ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID as _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-    check_critical_consumer_authorization,
-    semantic_hash,
-)
+from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 
 PERP_OP_MODULE = "TauPerp"
@@ -182,6 +176,39 @@ _ASCII_TOKEN_CHARS_MODULE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO
 _ASCII_TOKEN_CHARS_VERSION = frozenset("0123456789.")
 _ASCII_TOKEN_CHARS_ACTION = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _ASCII_TOKEN_CHARS_MARKET_ID = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_PERPS_INDEX_QUERY_ID = (
+    "sha256:"
+    + hashlib.sha256("zenodex.oracle.query.perps.index_price_e8".encode("utf-8")).hexdigest()
+)
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    return "sha256:" + hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+                "consumer_module": "zenodex.perps",
+                "action_kind": action_kind,
+                "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+                "required_evidence_floor": "O3",
+                "max_freshness_window_epochs": int(max_freshness_window_epochs),
+                "critical": True,
+            }
+        )
+    ).hexdigest()
+
+
+_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="settle_epoch",
+    max_freshness_window_epochs=2,
+)
+_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="liquidate_account",
+    max_freshness_window_epochs=1,
+)
+
+
 def _require_ascii_token(value: Any, *, name: str, max_len: int, allowed: frozenset[str]) -> str:
     s = _require_str(value, name=name, non_empty=True, max_len=max_len)
     if s != s.strip():
@@ -381,16 +408,7 @@ def _apply_clearinghouse_market_params(
         position_base_c=int(state.get("position_base_c", 0)),
         old_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
         new_liquidation_penalty_bps=int(new_state.get("liquidation_penalty_bps", 0)),
-        old_max_oracle_move_bps=int(state.get("max_oracle_move_bps", 0)),
-        new_max_oracle_move_bps=int(new_state.get("max_oracle_move_bps", 0)),
-        old_max_oracle_staleness_epochs=int(state.get("max_oracle_staleness_epochs", 0)),
-        new_max_oracle_staleness_epochs=int(new_state.get("max_oracle_staleness_epochs", 0)),
-        old_initial_margin_bps=int(state.get("initial_margin_bps", 0)),
-        new_initial_margin_bps=int(new_state.get("initial_margin_bps", 0)),
-        old_maintenance_margin_bps=int(state.get("maintenance_margin_bps", 0)),
         new_maintenance_margin_bps=int(new_state.get("maintenance_margin_bps", 0)),
-        old_max_position_abs=int(state.get("max_position_abs", 0)),
-        new_max_position_abs=int(new_state.get("max_position_abs", 0)),
     )
     if not guard.admission_ok:
         raise ValueError(perp_clearinghouse_market_params_guard_error(guard) or "invalid clearinghouse market params")
@@ -567,9 +585,6 @@ class PerpEngineConfig:
     # Optional production bridge: require a typed ZenoOracle authorization before
     # isolated perps settlement can consume the current oracle/index snapshot.
     require_oracle_authorization_for_isolated_settle: bool = False
-    # Backward-compatible public config spelling that matches the settle_epoch
-    # adapter control names used by production policy docs/tests.
-    require_oracle_authorization_for_isolated_settle_epoch: bool = False
 
 
 @dataclass(frozen=True)
@@ -722,10 +737,7 @@ def _check_isolated_settle_oracle_authorization(
 ) -> Optional[str]:
     authorization = op.data.get("oracle_authorization")
     if authorization is None:
-        if (
-            ctx.config.require_oracle_authorization_for_isolated_settle
-            or ctx.config.require_oracle_authorization_for_isolated_settle_epoch
-        ):
+        if ctx.config.require_oracle_authorization_for_isolated_settle:
             return "oracle_authorization_required"
         return None
     if not isinstance(authorization, Mapping):
@@ -747,8 +759,6 @@ def _check_isolated_settle_oracle_authorization(
             query_id=str(runtime["query_id"]),
             runtime_value_e8=int(runtime["runtime_value_e8"]),
             now_epoch=int(runtime["now_epoch"]),
-            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            max_freshness_window_epochs=2,
         )
     except Exception as exc:
         return f"oracle_authorization_rejected: {exc}"
@@ -1515,16 +1525,7 @@ def _apply_ch2p_op(
             position_base_c=0,
             old_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
             new_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
-            old_max_oracle_move_bps=int(ch2p_market.state.get("max_oracle_move_bps", 0)),
-            new_max_oracle_move_bps=int(ch2p_market.state.get("max_oracle_move_bps", 0)),
-            old_max_oracle_staleness_epochs=int(ch2p_market.state.get("max_oracle_staleness_epochs", 0)),
-            new_max_oracle_staleness_epochs=int(ch2p_market.state.get("max_oracle_staleness_epochs", 0)),
-            old_initial_margin_bps=int(ch2p_market.state.get("initial_margin_bps", 0)),
-            new_initial_margin_bps=int(ch2p_market.state.get("initial_margin_bps", 0)),
-            old_maintenance_margin_bps=int(ch2p_market.state.get("maintenance_margin_bps", 0)),
             new_maintenance_margin_bps=int(ch2p_market.state.get("maintenance_margin_bps", 0)),
-            old_max_position_abs=int(ch2p_market.state.get("max_position_abs", 0)),
-            new_max_position_abs=int(ch2p_market.state.get("max_position_abs", 0)),
         )
         pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
         if pre_guard_error is not None:
@@ -1575,7 +1576,7 @@ def _apply_ch2p_op(
         amount_e8 = int(amount) * _E8_SCALE
 
         if action == "deposit_collateral":
-            if balances.get(tx_sender_pubkey, ch2p_market.quote_asset) < amount:
+            if balances.get(account_pubkey, ch2p_market.quote_asset) < amount:
                 return "insufficient balance for deposit"
             tag = "deposit_collateral_a" if role == "a" else "deposit_collateral_b"
             try:
@@ -1586,7 +1587,7 @@ def _apply_ch2p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.subtract(tx_sender_pubkey, ch2p_market.quote_asset, amount)
+            balances.subtract(account_pubkey, ch2p_market.quote_asset, amount)
         else:
             tag = "withdraw_collateral_a" if role == "a" else "withdraw_collateral_b"
             try:
@@ -1597,7 +1598,7 @@ def _apply_ch2p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.add(tx_sender_pubkey, ch2p_market.quote_asset, amount)
+            balances.add(account_pubkey, ch2p_market.quote_asset, amount)
 
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})
@@ -1879,16 +1880,7 @@ def _apply_ch3p_op(
             position_base_c=int(ch3p_market.state.get("position_base_c", 0)),
             old_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
             new_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
-            old_max_oracle_move_bps=int(ch3p_market.state.get("max_oracle_move_bps", 0)),
-            new_max_oracle_move_bps=int(ch3p_market.state.get("max_oracle_move_bps", 0)),
-            old_max_oracle_staleness_epochs=int(ch3p_market.state.get("max_oracle_staleness_epochs", 0)),
-            new_max_oracle_staleness_epochs=int(ch3p_market.state.get("max_oracle_staleness_epochs", 0)),
-            old_initial_margin_bps=int(ch3p_market.state.get("initial_margin_bps", 0)),
-            new_initial_margin_bps=int(ch3p_market.state.get("initial_margin_bps", 0)),
-            old_maintenance_margin_bps=int(ch3p_market.state.get("maintenance_margin_bps", 0)),
             new_maintenance_margin_bps=int(ch3p_market.state.get("maintenance_margin_bps", 0)),
-            old_max_position_abs=int(ch3p_market.state.get("max_position_abs", 0)),
-            new_max_position_abs=int(ch3p_market.state.get("max_position_abs", 0)),
         )
         pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
         if pre_guard_error is not None:
@@ -1938,7 +1930,7 @@ def _apply_ch3p_op(
         amount_e8 = int(amount) * _E8_SCALE
 
         if action == "deposit_collateral":
-            if balances.get(tx_sender_pubkey, ch3p_market.quote_asset) < amount:
+            if balances.get(account_pubkey, ch3p_market.quote_asset) < amount:
                 return "insufficient balance for deposit"
             tag = f"deposit_collateral_{role}"
             try:
@@ -1949,7 +1941,7 @@ def _apply_ch3p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.subtract(tx_sender_pubkey, ch3p_market.quote_asset, amount)
+            balances.subtract(account_pubkey, ch3p_market.quote_asset, amount)
         else:
             tag = f"withdraw_collateral_{role}"
             try:
@@ -1960,7 +1952,7 @@ def _apply_ch3p_op(
                 )
             except Exception as exc:
                 return str(exc)
-            balances.add(tx_sender_pubkey, ch3p_market.quote_asset, amount)
+            balances.add(account_pubkey, ch3p_market.quote_asset, amount)
 
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
         ctx.effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})

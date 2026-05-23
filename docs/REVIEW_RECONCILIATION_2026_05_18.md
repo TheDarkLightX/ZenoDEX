@@ -146,10 +146,8 @@ Smoke report:
 }
 ```
 
-This is fresh local Docker/two-node public-testnet candidate evidence for the
-current checkout. It supports the public-testnet rehearsal claim. It does not
-close open production-network work for validator scheduling, open P2P gossip,
-or fork-choice.
+This is fresh local public-testnet candidate evidence for the current checkout.
+It does not replace physical two-machine evidence from separate hosts.
 
 ## Current Grade Implication
 
@@ -158,12 +156,6 @@ local evidence is stronger than two of its listed blockers. A current internal
 score should treat dependency hash locks and UPBA v2 bounded-grid evidence as
 green for this checkout, subject to the residual limits above.
 
-Mainnet/live-value claims still need closure for:
-
-1. Economic sufficiency and production grid policy for UPBA bounded grids.
-2. Clean integration of hash-lock closure and dependency-change approval into a
-   normal main or release branch.
-3. Full production ZK spot-block scope beyond the current supported spot v1
-   lane: exact-out, multi-hop, UPBA batch clearing, rejected receipts,
-   production ingress semantics, Python-runtime equivalence, and recursion.
-4. ZenoLedger validator scheduling, open P2P gossip, and production fork-choice.
+Mainnet/live-value claims still need additional evidence for physical
+multi-machine rehearsal on latest main, validator/P2P/fork-choice hardening,
+and complete spot-block proof-of-execution coverage.

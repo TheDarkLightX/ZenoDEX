@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from src.core.cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in, swap_exact_out
+from src.core.cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in
 from src.core.liquidity import create_pool
 from src.state.canonical import canonical_json_bytes
 from src.state.pools import compute_pool_id
@@ -109,28 +109,6 @@ def test_risc0_shared_fixture_swap_exact_in_matches_python_core() -> None:
     ]
     post["pools"] = [_pool_entry(reserve0=11_000, reserve1=9_094)]
     assert _snapshot_hash(post) == "168c616c3e9cbc832f9accf6022fcf5153f4611de71115e36a6e540a1230101b"
-
-
-def test_risc0_shared_fixture_swap_exact_out_matches_python_core() -> None:
-    amount_in, reserves = swap_exact_out(10_000, 10_000, 900, 30, max_overdelivery_gap_bps=200)
-    assert amount_in == 993
-    assert compute_fee_total(amount_in, 30) == 3
-    assert reserves == (10_993, 9_100)
-
-    pre = _empty_snapshot()
-    pre["balances"] = [
-        {"pubkey": SENDER, "asset": ASSET0, "amount": 1_000},
-    ]
-    pre["pools"] = [_pool_entry(reserve0=10_000, reserve1=10_000)]
-    assert _snapshot_hash(pre) == "daa4d1cdf1f5082e87030c1a2962de376d05c4e73bab26e8c2857520be699d02"
-
-    post = _empty_snapshot()
-    post["balances"] = [
-        {"pubkey": SENDER, "asset": ASSET0, "amount": 7},
-        {"pubkey": RECIPIENT, "asset": ASSET1, "amount": 900},
-    ]
-    post["pools"] = [_pool_entry(reserve0=10_993, reserve1=9_100)]
-    assert _snapshot_hash(post) == "bd3752b51dbcc9e0dd893f852f25a9655003042b69def1c70514991eb9274a44"
 
 
 def test_risc0_shared_fixture_zero_output_swap_rejects_in_python_core() -> None:

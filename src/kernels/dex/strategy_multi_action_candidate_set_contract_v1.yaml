@@ -1,0 +1,80 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_multi_action_candidate_set_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless candidate-set contract for the bounded AutoTrader multi-action
+    frontier: NO_OP plus one candidate per allowed action under deterministic
+    action ordering.
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "policy_artifact_hash_ok",
+      "tau_policy_bundle_hash_ok",
+      "observation_hash_ok",
+      "decision_model_version_ok",
+      "candidate_count_ok",
+      "noop_head_ok",
+      "indices_contiguous_ok",
+      "kinds_unique_ok",
+      "candidate_shape_ok",
+      "candidate_set_ok",
+    ]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "validate_candidate_set"
+    params:
+      - id: "policy_artifact_hash_present"
+        type: { kind: "bool" }
+      - id: "tau_policy_bundle_hash_present"
+        type: { kind: "bool" }
+      - id: "observation_hash_present"
+        type: { kind: "bool" }
+      - id: "decision_model_version_present"
+        type: { kind: "bool" }
+      - id: "candidate_count_valid"
+        type: { kind: "bool" }
+      - id: "noop_head_valid"
+        type: { kind: "bool" }
+      - id: "indices_contiguous"
+        type: { kind: "bool" }
+      - id: "kinds_unique"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      policy_artifact_hash_ok: { param: "policy_artifact_hash_present" }
+      tau_policy_bundle_hash_ok: { param: "tau_policy_bundle_hash_present" }
+      observation_hash_ok: { param: "observation_hash_present" }
+      decision_model_version_ok: { param: "decision_model_version_present" }
+      candidate_count_ok: { param: "candidate_count_valid" }
+      noop_head_ok: { param: "noop_head_valid" }
+      indices_contiguous_ok: { param: "indices_contiguous" }
+      kinds_unique_ok: { param: "kinds_unique" }
+      candidate_shape_ok:
+        op: "and"
+        args:
+          - { param: "candidate_count_valid" }
+          - { param: "noop_head_valid" }
+          - { param: "indices_contiguous" }
+          - { param: "kinds_unique" }
+      candidate_set_ok:
+        op: "and"
+        args:
+          - { param: "policy_artifact_hash_present" }
+          - { param: "tau_policy_bundle_hash_present" }
+          - { param: "observation_hash_present" }
+          - { param: "decision_model_version_present" }
+          - op: "and"
+            args:
+              - { param: "candidate_count_valid" }
+              - { param: "noop_head_valid" }
+              - { param: "indices_contiguous" }
+              - { param: "kinds_unique" }

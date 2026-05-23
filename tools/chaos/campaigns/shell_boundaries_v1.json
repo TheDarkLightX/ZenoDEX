@@ -1,0 +1,26 @@
+{
+  "schema": "chaos/campaign/v1",
+  "id": "shell_boundaries_v1",
+  "description": "Primary repo shell-boundary campaign: always run local process/HTTP faults and include Tau RPC network faults when Toxiproxy is available.",
+  "target_areas": [
+    "tau_runner",
+    "proof_verifier",
+    "tau_net_client",
+    "api_server"
+  ],
+  "required_experiments": [
+    "tau_runner_sigkill",
+    "tau_runner_stdout_flood",
+    "proof_verifier_timeout",
+    "api_server_oversized_body"
+  ],
+  "optional_experiments": [
+    "tau_net_truncated_tcp",
+    "tau_net_reset_peer"
+  ],
+  "required_prerequisites": [],
+  "optional_prerequisites": [
+    "toxiproxy"
+  ],
+  "max_recommended_blast_radius": 0.35
+}

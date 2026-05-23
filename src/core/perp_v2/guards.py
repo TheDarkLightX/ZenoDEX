@@ -9,18 +9,17 @@ These are direct translations of the guard blocks in
 
 from __future__ import annotations
 
+from ..perp_funding_apply_gate import evaluate_perp_funding_apply_gate
+from ..perp_liquidation_eligibility_gate import evaluate_perp_liquidation_eligibility_gate
 from .math import (
     BPS_SCALE,
     MAX_COLLATERAL,
     MAX_EPOCH,
-    MAX_FUNDING_CUMULATIVE,
     abs_val,
     compute_partial_close_fraction,
-    funding_payment,
     init_margin_req,
     is_liquidatable,
     is_oracle_fresh,
-    is_settle_oracle_usable,
     liq_penalty_capped,
     maint_margin_req,
     partial_liq_penalty_capped,
@@ -58,14 +57,6 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
     if state.clearing_price_epoch != state.now_epoch:
         return False
     if state.oracle_last_update_epoch >= state.now_epoch:
-        return False
-    if not is_settle_oracle_usable(
-        state.now_epoch,
-        state.oracle_last_update_epoch,
-        state.max_oracle_staleness_epochs,
-        state.oracle_seen,
-        state.index_price_e8,
-    ):
         return False
 
     sp = settle_price(
@@ -205,37 +196,24 @@ def guard_apply_funding(state: PerpState, params: ActionParams) -> bool:
     - the funding rate is within the configured cap,
     - and the resulting collateral still satisfies maintenance margin.
     """
-    if state.epoch_phase not in (EpochPhase.OPEN, EpochPhase.PRICE_PUBLISHED):
-        return False
-    if not params.auth_ok:
-        return False
-    # Fail-closed on malformed oracle snapshots.
-    if state.index_price_e8 <= 0:
-        return False
-    if not is_oracle_fresh(
-        state.now_epoch, state.oracle_last_update_epoch,
-        state.max_oracle_staleness_epochs, state.oracle_seen,
-    ):
-        return False
-    if state.funding_last_applied_epoch >= state.now_epoch:
-        return False
-    if not (-state.funding_cap_bps <= params.new_rate_bps <= state.funding_cap_bps):
-        return False
-    if state.position_base == 0:
-        return False
-
-    fp = funding_payment(state.position_base, state.index_price_e8, params.new_rate_bps)
-    coll_after = state.collateral_quote - fp
-    if coll_after < 0 or coll_after > MAX_COLLATERAL:
-        return False
-    if coll_after < maint_margin_req(
-        state.position_base, state.index_price_e8,
-        state.maintenance_margin_bps, state.depeg_buffer_bps,
-    ):
-        return False
-
-    new_cumulative = state.funding_paid_cumulative + fp
-    return -MAX_FUNDING_CUMULATIVE <= new_cumulative <= MAX_FUNDING_CUMULATIVE
+    outcome = evaluate_perp_funding_apply_gate(
+        now_epoch=state.now_epoch,
+        epoch_phase=state.epoch_phase,
+        auth_ok=params.auth_ok,
+        index_price_e8=state.index_price_e8,
+        oracle_last_update_epoch=state.oracle_last_update_epoch,
+        max_oracle_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
+        funding_last_applied_epoch=state.funding_last_applied_epoch,
+        funding_cap_bps=state.funding_cap_bps,
+        new_rate_bps=params.new_rate_bps,
+        position_base=state.position_base,
+        collateral_quote=state.collateral_quote,
+        maintenance_margin_bps=state.maintenance_margin_bps,
+        depeg_buffer_bps=state.depeg_buffer_bps,
+        funding_paid_cumulative=state.funding_paid_cumulative,
+    )
+    return outcome.funding_apply_allowed
 
 
 def guard_deposit_insurance(state: PerpState, params: ActionParams) -> bool:
@@ -272,28 +250,22 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     - The resulting collateral after penalty must stay non-negative
       and within bounds.
     """
-    if state.epoch_phase != EpochPhase.OPEN:
-        return False
-    if not params.auth_ok:
-        return False
-    if state.position_base == 0:
-        return False
-    if state.index_price_e8 <= 0:
-        return False
-    if not is_oracle_fresh(
-        state.now_epoch, state.oracle_last_update_epoch,
-        state.max_oracle_staleness_epochs, state.oracle_seen,
-    ):
-        return False
-
-    # Position must actually be liquidatable at current index price.
-    if not is_liquidatable(
-        state.position_base, state.collateral_quote, state.index_price_e8,
-        state.maintenance_margin_bps, state.depeg_buffer_bps,
-    ):
+    outcome = evaluate_perp_liquidation_eligibility_gate(
+        now_epoch=state.now_epoch,
+        epoch_phase=state.epoch_phase,
+        auth_ok=params.auth_ok,
+        position_base=state.position_base,
+        index_price_e8=state.index_price_e8,
+        oracle_last_update_epoch=state.oracle_last_update_epoch,
+        max_oracle_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
+        collateral_quote=state.collateral_quote,
+        maintenance_margin_bps=state.maintenance_margin_bps,
+        depeg_buffer_bps=state.depeg_buffer_bps,
+    )
+    if not outcome.partial_liquidation_allowed:
         return False
 
-    # Resolve fraction_bps: 0 means auto-compute.
     fraction = params.fraction_bps
     if fraction == 0:
         fraction = compute_partial_close_fraction(
@@ -304,7 +276,6 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     if fraction < 1 or fraction > BPS_SCALE:
         return False
 
-    # Check collateral bounds after penalty.
     penalty = partial_liq_penalty_capped(
         state.collateral_quote, state.position_base, fraction,
         state.index_price_e8, state.liquidation_penalty_bps,
@@ -314,7 +285,6 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     if new_collateral < 0 or new_collateral > MAX_COLLATERAL:
         return False
 
-    # Fee/insurance overflow checks.
     new_fee_pool = state.fee_pool_quote + penalty
     if new_fee_pool > MAX_COLLATERAL:
         return False
@@ -325,8 +295,6 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     if new_insurance > MAX_COLLATERAL:
         return False
 
-    # After partial close, remaining position must satisfy maint margin
-    # (unless fully closed).
     remaining = remaining_position_signed(state.position_base, fraction)
     if remaining != 0:
         mreq = maint_margin_req(

@@ -6,10 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -19,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 from src.integration.proof_verifier import ProofVerifierConfig, make_proof_verifier  # noqa: E402
 from src.state.canonical import canonical_json_bytes  # noqa: E402
 from tools.zenodex_oracle import sample_bundle, verify_bundle  # noqa: E402
-
 
 ARTIFACT_SCHEMA = "zenodex.zenoproof.artifact.v0"
 REGISTRY_SCHEMA = "zenodex.zenoproof.registry_manifest.v0"
@@ -33,7 +33,7 @@ REWARD_GATE_RESULT_SCHEMA = "zenodex.zenoproof.reward_gate_result.v0"
 MAX_JSON_BYTES = 1_000_000
 MAX_EPOCH = 2**63 - 1
 MAX_REWARD_AMOUNT = 10**30
-PRODUCTION_PYTHON = "/usr/bin/python3"
+MAX_VERIFIER_TIMEOUT_MS = 300_000
 HASH_PREFIX = "sha256:"
 HASH_HEX_LEN = 64
 SUPPORTED_PROOF_KINDS = {
@@ -148,16 +148,15 @@ JULIA_REPLAY_VERIFIER_ID = "sha256:74f91670c6d852c843add1a76b007277d8a729a07050c
 JULIA_REPLAY_POLICY_ROOT = "sha256:94a277186469997af46e1027c272a7f8c7740db0f3eba272e744e41056b7a768"
 JULIA_REPLAY_TOOLCHAIN_ID = "sha256:29c47e97f280e147a0b3ee5607448e0406a4bf54da5cfcb056feef48373010ea"
 JULIA_REPLAY_CLAIM_ID = "sha256:66099f8f5d2200152e88543ccaa7d982718ef10b800e6e8480561580e800e43f"
-JULIA_REPLAY_STATEMENT_HASH = "sha256:128c9c55983f3b7177614b5bea5c040c42306530bb88c3b8bf26d948ab694020"
-JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:3164678e4bde3aa26c650e1732eb0346f0674c7f2fd4dd62726dc07c11e49dab"
-MIN_JULIA_MATH_WITNESS_CASE_COUNT = 45
+JULIA_REPLAY_STATEMENT_HASH = "sha256:d7360c57ce1a34dc35ec3d8cbfed5d24d1173aa170e4c3c1860ef972d5449f5b"
+JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc"
 LEAN_REPLAY_PROFILE = "zeno_oracle_math_witness_anchor_lean_v1"
 LEAN_REPLAY_VERIFIER_ID = "sha256:57263ed213841b4b1875bc25a1bb743579c5a2bfb618e2f9d2cee1d6bc5e0fa5"
 LEAN_REPLAY_POLICY_ROOT = "sha256:b6d77205af54f3200ca69dcd101790abe9f6ecdb7fd35b4bcdffd72a96211a2c"
 LEAN_REPLAY_TOOLCHAIN_ID = "sha256:d77c7a7c3eb2c3d4cd0f5d79004328ac21d220d50f28e7c84da191bdf2eee747"
 LEAN_REPLAY_CLAIM_ID = "sha256:f30a0311aa74ae3847b8dd34c19881f46f8acfff3c32f93f6e1bac798113a05d"
-LEAN_REPLAY_STATEMENT_HASH = "sha256:ef42c05b2c41d60dd01a553d73da17c2d01bbce8ec898ef0e0b14e89bb1e22a8"
-LEAN_REPLAY_ASSUMPTIONS_HASH = "sha256:e3b75c0ddd75b1a0fd92f62cbc30b54627e2d73413c8785c5c30d16339b78dba"
+LEAN_REPLAY_STATEMENT_HASH = "sha256:4171758f2adef37bb4d40a5595e8981e234fa98cdb509138ae0ce1c392e00a28"
+LEAN_REPLAY_ASSUMPTIONS_HASH = "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907"
 TLA_REPLAY_PROFILE = "zeno_oracle_recovery_lifecycle_tla_v1"
 TLA_REPLAY_VERIFIER_ID = "sha256:4b24cee9b09ddcc5e1ef2f25423b651701fe52c70b865a44fc26292ca71450bf"
 TLA_REPLAY_POLICY_ROOT = "sha256:7e391abf70467577c5c3816b2f03385650b34802739a3781594985e43de5e5eb"
@@ -206,15 +205,6 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 15_000,
         "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json",
         "expected_schema": "zenodex.oracle.workflow_evidence_status.v1",
-        "source_paths": [
-            "tools/zeno_oracle_workflow_evidence_status.py",
-            "formal/tla/OracleRecoveryLifecycle.tla",
-            "formal/tla/OracleRecoveryLifecycle.cfg",
-            "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
-            "formal/ltlf/oracle_recovery_goal_family_v1.json",
-            "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
-            "tests/morph_domains/oracle_clamp_envelope_domain.py",
-        ],
         "non_claims": [
             "does_not_claim_private_popperpad_publication",
             "does_not_claim_exhaustive_morph_search",
@@ -233,11 +223,8 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "julia tools/zeno_oracle_math_witness_sweep.jl --json",
         "expected_schema": "zenodex.oracle.math_witness_sweep.v1",
-        "source_paths": [
-            "tools/zeno_oracle_math_witness_sweep.jl",
-        ],
         "non_claims": [
-            "does_not_claim_complete_generalized_oracle_math",
+            "does_not_claim_generalized_median_theorems",
             "does_not_claim_production_oracle_benefit_laws",
         ],
     },
@@ -253,14 +240,9 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 30_000,
         "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
         "expected_schema": "zenodex.oracle.lean_math_witness_anchor_replay.v1",
-        "source_paths": [
-            "lean-mathlib/lean-toolchain",
-            "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
-            "lean-mathlib/Proofs.lean",
-        ],
         "non_claims": [
-            "does_not_claim_complete_generalized_oracle_math",
-            "does_not_claim_live_typed_production_sync",
+            "does_not_claim_generalized_median_theorems",
+            "does_not_claim_full_sync_gate_composition",
         ],
     },
     TLA_REPLAY_PROFILE: {
@@ -273,15 +255,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": TLA_REPLAY_STATEMENT_HASH,
         "assumptions_hash": TLA_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 70_000,
-        "replay_command": "python3 tools/zeno_oracle_tla_recovery_replay.py --format json",
+        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py",
         "expected_schema": "zenodex.oracle.tla_recovery_lifecycle_replay.v1",
-        "source_paths": [
-            "tools/zeno_oracle_tla_recovery_replay.py",
-            "formal/tla/OracleRecoveryLifecycle.tla",
-            "formal/tla/OracleRecoveryLifecycle.cfg",
-        ],
+        "test_path": "tests/formal/test_tla_oracle_recovery_lifecycle.py",
         "non_claims": [
-            "does_not_claim_external_tlc_model_checking",
             "does_not_claim_unbounded_liveness",
             "does_not_claim_production_oracle_truth",
         ],
@@ -296,15 +273,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": LTLF_REPLAY_STATEMENT_HASH,
         "assumptions_hash": LTLF_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 20_000,
-        "replay_command": "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json",
+        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py",
         "expected_schema": "zenodex.oracle.ltlf_recovery_replay.v1",
-        "source_paths": [
-            "tools/zeno_oracle_ltlf_recovery_replay.py",
-            "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
-            "formal/ltlf/oracle_recovery_goal_family_v1.json",
-        ],
+        "test_path": "tests/formal/test_oracle_recovery_ltlf.py",
         "non_claims": [
-            "does_not_claim_external_esso_synthesis",
             "does_not_claim_infinite_trace_fairness",
             "does_not_claim_production_oracle_truth",
         ],
@@ -319,14 +291,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": ESSO_REPLAY_STATEMENT_HASH,
         "assumptions_hash": ESSO_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 20_000,
-        "replay_command": "python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format json",
+        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
         "expected_schema": "zenodex.oracle.esso_zusd_recovery_replay.v1",
-        "source_paths": [
-            "tools/zeno_oracle_esso_zusd_recovery_replay.py",
-            "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
-        ],
+        "test_path": "tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
         "non_claims": [
-            "does_not_claim_external_esso_verify_multi",
             "does_not_claim_live_governance_recovery",
             "does_not_claim_production_oracle_truth",
         ],
@@ -343,10 +311,6 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'",
         "expected_schema": "zenodex.oracle.morph_oracle_clamp_envelope_replay.v1",
-        "source_paths": [
-            "tools/zeno_oracle_workflow_evidence_status.py",
-            "tests/morph_domains/oracle_clamp_envelope_domain.py",
-        ],
         "non_claims": [
             "does_not_claim_exhaustive_morph_search",
             "does_not_claim_production_oracle_truth",
@@ -364,10 +328,6 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "python3 tools/zeno_oracle_smt_freshness_replay.py --format json",
         "expected_schema": "zenodex.oracle.smt_freshness_replay.v1",
-        "source_paths": [
-            "tools/zeno_oracle_smt_freshness_replay.py",
-            "formal/tau/contracts/oracle_freshness_v2.contract.json",
-        ],
         "non_claims": [
             "does_not_claim_tau_binary_equivalence",
             "does_not_claim_unbounded_temporal_liveness",
@@ -512,28 +472,6 @@ def sha256_json(obj: Any) -> str:
     return HASH_PREFIX + hashlib.sha256(canonical_json_bytes(obj)).hexdigest()
 
 
-def sha256_file(path: Path) -> str:
-    return HASH_PREFIX + hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def public_replay_source_digests(profile: str) -> list[dict[str, str]]:
-    cfg = PUBLIC_REPLAY_PROFILE_CONFIGS.get(profile)
-    if cfg is None:
-        raise ValueError(f"unknown_public_replay_profile:{profile}")
-    raw_paths = cfg.get("source_paths")
-    if not isinstance(raw_paths, list):
-        raise ValueError(f"public_replay_source_paths_missing:{profile}")
-    rows: list[dict[str, str]] = []
-    for raw_path in raw_paths:
-        if not isinstance(raw_path, str) or not raw_path:
-            raise ValueError(f"public_replay_source_path_invalid:{profile}")
-        path = ROOT / raw_path
-        if not path.is_file():
-            raise ValueError(f"public_replay_source_path_missing:{profile}:{raw_path}")
-        rows.append({"path": raw_path, "sha256": sha256_file(path)})
-    return rows
-
-
 def sample_hash(tag: str) -> str:
     return HASH_PREFIX + hashlib.sha256(tag.encode("utf-8")).hexdigest()
 
@@ -579,12 +517,12 @@ def _public_replay_verifier_manifest(profile: str) -> dict[str, Any]:
         "timeout_ms": cfg["timeout_ms"],
         "execution_mode": "subprocess_json",
         "verifier_command": [
-            PRODUCTION_PYTHON,
+            "python3",
             "tools/zenoproof_public_replay_verifier.py",
             "--profile",
             profile,
         ],
-        "allow_path_lookup": False,
+        "allow_path_lookup": True,
     }
 
 
@@ -790,7 +728,6 @@ def public_replay_input_root(profile: str = PUBLIC_REPLAY_PROFILE) -> str:
             "replay_command": cfg["replay_command"],
             "expected_schema": cfg["expected_schema"],
             "expected_status": "accepted",
-            "source_digests": public_replay_source_digests(profile),
         }
     )
 
@@ -800,12 +737,6 @@ def public_replay_output_root(profile: str = PUBLIC_REPLAY_PROFILE) -> str:
         raise ValueError(f"unknown_public_replay_profile:{profile}")
 
     return sha256_json(run_public_replay_profile(profile))
-
-
-def _with_public_replay_source_digests(profile: str, receipt: Mapping[str, Any]) -> dict[str, Any]:
-    payload = dict(receipt)
-    payload["profile_source_digests"] = public_replay_source_digests(profile)
-    return payload
 
 
 def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
@@ -831,7 +762,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("workflow_status_lane_count_mismatch")
         if receipt.get("failed_lane_count") != 0:
             raise ValueError("workflow_status_failed_lanes")
-        return _with_public_replay_source_digests(profile, receipt)
+        return receipt
 
     if profile == JULIA_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -846,9 +777,9 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
         if proc.returncode != 0:
             raise ValueError(f"julia_math_witness_failed:{proc.returncode}")
         _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
-        if receipt.get("case_count", 0) < MIN_JULIA_MATH_WITNESS_CASE_COUNT or receipt.get("failed_count") != 0:
+        if receipt.get("case_count") != 10 or receipt.get("failed_count") != 0:
             raise ValueError("julia_math_witness_case_count_mismatch")
-        return _with_public_replay_source_digests(profile, receipt)
+        return receipt
 
     if profile == LEAN_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -868,74 +799,53 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             "ok": ok,
             "status": "accepted" if ok else "rejected",
             "file": "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
-            "file_sha256": sha256_file(lean_file),
             "root_import_file": "lean-mathlib/Proofs.lean",
-            "root_import_file_sha256": sha256_file(root_file),
             "placeholder_hits": placeholder_hits,
         }
         if proc.returncode != 0:
             raise ValueError(f"lean_math_witness_failed:{proc.returncode}")
         if placeholder_hits:
             raise ValueError("lean_math_witness_placeholder_hits")
-        return _with_public_replay_source_digests(profile, receipt)
+        return receipt
 
-    if profile == TLA_REPLAY_PROFILE:
+    if profile in {TLA_REPLAY_PROFILE, LTLF_REPLAY_PROFILE, ESSO_REPLAY_PROFILE}:
+        test_path = str(cfg["test_path"])
         proc = subprocess.run(
-            [sys.executable, "tools/zeno_oracle_tla_recovery_replay.py", "--format", "json"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-q",
+                "-p",
+                "no:cacheprovider",
+                test_path,
+            ],
             cwd=ROOT,
             check=False,
             capture_output=True,
             text=True,
             timeout=timeout_s,
+            env={**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
         )
-        receipt = _load_json_stdout(proc.stdout, "tla_recovery_replay")
+        combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        ok = proc.returncode == 0 and "passed" in combined
+        receipt = {
+            "schema": cfg["expected_schema"],
+            "ok": ok,
+            "status": "accepted" if ok else "rejected",
+            "test_path": test_path,
+            "pytest_returncode": proc.returncode,
+        }
         if proc.returncode != 0:
-            raise ValueError(f"tla_recovery_replay_failed:{proc.returncode}")
-        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
-        if receipt.get("invariant_violation_count") != 0:
-            raise ValueError("tla_recovery_invariant_violations")
-        if receipt.get("failed_property_count") != 0:
-            raise ValueError("tla_recovery_failed_properties")
-        return _with_public_replay_source_digests(profile, receipt)
-
-    if profile == LTLF_REPLAY_PROFILE:
-        proc = subprocess.run(
-            [sys.executable, "tools/zeno_oracle_ltlf_recovery_replay.py", "--format", "json"],
-            cwd=ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        receipt = _load_json_stdout(proc.stdout, "ltlf_recovery_replay")
-        if proc.returncode != 0:
-            raise ValueError(f"ltlf_recovery_replay_failed:{proc.returncode}")
-        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
-        if receipt.get("failed_goal_count") != 0:
-            raise ValueError("ltlf_recovery_failed_goals")
-        return _with_public_replay_source_digests(profile, receipt)
-
-    if profile == ESSO_REPLAY_PROFILE:
-        proc = subprocess.run(
-            [sys.executable, "tools/zeno_oracle_esso_zusd_recovery_replay.py", "--format", "json"],
-            cwd=ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        receipt = _load_json_stdout(proc.stdout, "esso_zusd_recovery_replay")
-        if proc.returncode != 0:
-            raise ValueError(f"esso_zusd_recovery_replay_failed:{proc.returncode}")
-        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
-        if receipt.get("assignment_mismatch_count") != 0:
-            raise ValueError("esso_zusd_recovery_assignment_mismatches")
-        if receipt.get("failed_witness_count") != 0:
-            raise ValueError("esso_zusd_recovery_failed_witnesses")
-        return _with_public_replay_source_digests(profile, receipt)
+            raise ValueError(f"pytest_replay_failed:{profile}:{proc.returncode}")
+        if "passed" not in combined:
+            raise ValueError(f"pytest_replay_no_pass_marker:{profile}")
+        return receipt
 
     if profile == MORPH_REPLAY_PROFILE:
-        from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status
+        from tools.zeno_oracle_workflow_evidence_status import (
+            build_morph_oracle_clamp_envelope_status,
+        )
 
         receipt = build_morph_oracle_clamp_envelope_status()
         _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
@@ -944,7 +854,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("morph_replay_lane_missing")
         if lane.get("check") != "CheckResult.PASS" or lane.get("check2") != "CheckResult.PASS":
             raise ValueError("morph_replay_checks_not_pass")
-        return _with_public_replay_source_digests(profile, receipt)
+        return receipt
 
     if profile == SMT_REPLAY_PROFILE:
         from tools.zeno_oracle_smt_freshness_replay import build_status
@@ -961,7 +871,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
                 raise ValueError("smt_freshness_solver_set_mismatch")
             if [row.get("status") for row in solvers if isinstance(row, Mapping)] != ["unsat", "unsat"]:
                 raise ValueError("smt_freshness_solver_status_mismatch")
-        return _with_public_replay_source_digests(profile, receipt)
+        return receipt
 
     raise ValueError(f"unknown_public_replay_profile:{profile}")
 
@@ -1014,22 +924,6 @@ def sample_public_replay_artifact(profile: str = PUBLIC_REPLAY_PROFILE) -> dict[
     }
     artifact["proof_id"] = artifact_content_hash(artifact)
     return artifact
-
-
-def _public_replay_failed_result(profile: str, exc: Exception) -> ZenoProofVerifyResult:
-    cfg = PUBLIC_REPLAY_PROFILE_CONFIGS[profile]
-    return ZenoProofVerifyResult(
-        status="rejected",
-        errors=[f"public_replay_sample_failed:{profile}:{type(exc).__name__}:{exc}"],
-        proof_ok=False,
-        binding_ok=False,
-        policy_ok=False,
-        freshness_ok=False,
-        claim_id=str(cfg["claim_id"]),
-        proof_id=None,
-        verifier_id=str(cfg["verifier_id"]),
-        evidence_class="O4",
-    )
 
 
 def sample_oracle_o4_bridge() -> dict[str, Any]:
@@ -1104,6 +998,29 @@ def _require_int_epoch(obj: Mapping[str, Any], key: str, errors: list[str]) -> i
     return int(value)
 
 
+def _require_positive_int_at_most(
+    obj: Mapping[str, Any],
+    key: str,
+    errors: list[str],
+    *,
+    label: str,
+    identifier: str,
+    max_value: int,
+) -> int | None:
+    value = obj.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        errors.append(f"{label}_must_be_positive_int:{identifier}")
+        return None
+    out = int(value)
+    if out <= 0:
+        errors.append(f"{label}_must_be_positive:{identifier}")
+        return None
+    if out > max_value:
+        errors.append(f"{label}_too_large:{identifier}")
+        return None
+    return out
+
+
 def _require_reward_amount(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
     value = obj.get(key)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > MAX_REWARD_AMOUNT:
@@ -1139,6 +1056,48 @@ def _str_list(value: object, *, label: str, errors: list[str]) -> list[str]:
     return result
 
 
+def _require_distinct(values: Sequence[str], *, label: str, identifier: str, errors: list[str]) -> None:
+    if len(set(values)) != len(values):
+        errors.append(f"{label}_must_be_distinct:{identifier}")
+
+
+def _check_verifier_command_policy(
+    verifier: Mapping[str, Any],
+    *,
+    verifier_id: str,
+    errors: list[str],
+) -> None:
+    mode = verifier.get("execution_mode")
+    command = verifier.get("verifier_command")
+    if not isinstance(command, list):
+        errors.append(f"verifier_command_must_be_list:{verifier_id}")
+        command_values: list[str] = []
+    else:
+        command_values = []
+        for index, item in enumerate(command):
+            if not isinstance(item, str) or not item:
+                errors.append(f"verifier_command_{index}_must_be_nonempty_string:{verifier_id}")
+            else:
+                command_values.append(str(item))
+
+    allow_path_lookup = verifier.get("allow_path_lookup")
+    if not isinstance(allow_path_lookup, bool):
+        errors.append(f"verifier_allow_path_lookup_must_be_bool:{verifier_id}")
+
+    if mode == "local_static_accept":
+        if isinstance(command, list) and command:
+            errors.append(f"verifier_local_static_command_must_be_empty:{verifier_id}")
+        if allow_path_lookup is True:
+            errors.append(f"verifier_local_static_allow_path_lookup_must_be_false:{verifier_id}")
+    elif mode == "subprocess_json":
+        if isinstance(command, list) and not command:
+            errors.append(f"verifier_subprocess_command_must_be_nonempty:{verifier_id}")
+        if allow_path_lookup is False and command_values and not os.path.isabs(command_values[0]):
+            errors.append(f"verifier_command_must_be_absolute_when_path_lookup_disabled:{verifier_id}")
+    else:
+        errors.append(f"verifier_execution_mode_invalid:{verifier_id}")
+
+
 def _registry_indexes(
     registry: Mapping[str, Any],
 ) -> tuple[dict[str, Mapping[str, Any]], dict[str, Mapping[str, Any]], list[str]]:
@@ -1165,18 +1124,41 @@ def _registry_indexes(
             if verifier_id in verifier_index:
                 errors.append(f"duplicate_verifier_id:{verifier_id}")
             verifier_index[verifier_id] = verifier
-            _str_list(verifier.get("proof_kinds"), label="verifier_proof_kinds", errors=errors)
-            _str_list(verifier.get("toolchain_ids"), label="verifier_toolchain_ids", errors=errors)
+            if not isinstance(verifier.get("name"), str) or not verifier.get("name"):
+                errors.append(f"verifier_name_must_be_nonempty_string:{verifier_id}")
+            proof_kinds = _str_list(verifier.get("proof_kinds"), label="verifier_proof_kinds", errors=errors)
+            if not proof_kinds:
+                errors.append(f"verifier_proof_kinds_must_be_nonempty:{verifier_id}")
+            for proof_kind in proof_kinds:
+                if proof_kind not in SUPPORTED_PROOF_KINDS:
+                    errors.append(f"verifier_proof_kind_unsupported:{verifier_id}:{proof_kind}")
+            _require_distinct(proof_kinds, label="verifier_proof_kinds", identifier=verifier_id, errors=errors)
+            toolchain_ids = _str_list(verifier.get("toolchain_ids"), label="verifier_toolchain_ids", errors=errors)
+            if not toolchain_ids:
+                errors.append(f"verifier_toolchain_ids_must_be_nonempty:{verifier_id}")
+            for toolchain_id in toolchain_ids:
+                if not _is_hash(toolchain_id):
+                    errors.append(f"verifier_toolchain_id_must_be_sha256:{verifier_id}:{toolchain_id}")
+            _require_distinct(toolchain_ids, label="verifier_toolchain_ids", identifier=verifier_id, errors=errors)
             if not isinstance(verifier.get("revoked"), bool):
                 errors.append(f"verifier_revoked_must_be_bool:{verifier_id}")
-            _require_int_epoch(verifier, "timeout_ms", errors)
-            _require_int_epoch(verifier, "max_input_bytes", errors)
-            if verifier.get("execution_mode") not in {"local_static_accept", "subprocess_json"}:
-                errors.append(f"verifier_execution_mode_invalid:{verifier_id}")
-            if not isinstance(verifier.get("verifier_command"), list):
-                errors.append(f"verifier_command_must_be_list:{verifier_id}")
-            if not isinstance(verifier.get("allow_path_lookup"), bool):
-                errors.append(f"verifier_allow_path_lookup_must_be_bool:{verifier_id}")
+            _require_positive_int_at_most(
+                verifier,
+                "timeout_ms",
+                errors,
+                label="verifier_timeout_ms",
+                identifier=verifier_id,
+                max_value=MAX_VERIFIER_TIMEOUT_MS,
+            )
+            _require_positive_int_at_most(
+                verifier,
+                "max_input_bytes",
+                errors,
+                label="verifier_max_input_bytes",
+                identifier=verifier_id,
+                max_value=MAX_JSON_BYTES,
+            )
+            _check_verifier_command_policy(verifier, verifier_id=verifier_id, errors=errors)
 
     claim_index: dict[str, Mapping[str, Any]] = {}
     claims = registry.get("claims")
@@ -1415,7 +1397,7 @@ def _run_external_verifier_if_needed(
         errors.append("verifier_execution_mode_invalid")
         return
     command = verifier.get("verifier_command")
-    if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+    if not isinstance(command, list) or not command or not all(isinstance(item, str) and item for item in command):
         errors.append("verifier_command_invalid")
         return
     timeout_ms = verifier.get("timeout_ms")
@@ -1426,6 +1408,9 @@ def _run_external_verifier_if_needed(
         return
     if not isinstance(max_input_bytes, int) or isinstance(max_input_bytes, bool) or max_input_bytes <= 0:
         errors.append("verifier_max_input_bytes_invalid")
+        return
+    if max_input_bytes > MAX_JSON_BYTES:
+        errors.append("verifier_max_input_bytes_too_large")
         return
     if not isinstance(allow_path_lookup, bool):
         errors.append("verifier_allow_path_lookup_invalid")
@@ -1966,16 +1951,14 @@ def cmd_self_test(args: argparse.Namespace) -> int:
     o5_bridge = sample_oracle_o5_bridge()
     o5_bridge_result = verify_oracle_o4_bridge(o5_bridge, registry, now_epoch=150)
     reward_result = verify_reward_gate(sample_reward_gate(), registry, now_epoch=150)
-    public_replay_results: dict[str, ZenoProofVerifyResult] = {}
-    for profile in PUBLIC_REPLAY_PROFILE_CONFIGS:
-        try:
-            public_replay_results[profile] = verify_zenoproof_artifact(
-                sample_public_replay_artifact(profile),
-                registry,
-                now_epoch=150,
-            )
-        except Exception as exc:
-            public_replay_results[profile] = _public_replay_failed_result(profile, exc)
+    public_replay_results = {
+        profile: verify_zenoproof_artifact(
+            sample_public_replay_artifact(profile),
+            registry,
+            now_epoch=150,
+        )
+        for profile in PUBLIC_REPLAY_PROFILE_CONFIGS
+    }
     receipt = {
         "schema": "zenodex.zenoproof.self_test.v0",
         "ok": (

@@ -1,0 +1,1022 @@
+{
+  "batches_per_config": 60,
+  "candidate_counts": [
+    20,
+    32,
+    50
+  ],
+  "configs": [
+    {
+      "candidate_count": 20,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 20,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 59,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260541,
+        "skipped_without_winner": 1,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.12225691347011597,
+            "mean_suffix_disqualified_count": 15.11864406779661,
+            "mean_verifier_calls": 2.440677966101695,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 5.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "hand": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 4,
+            "mean_checked_ratio": 0.06619090098126673,
+            "mean_suffix_disqualified_count": 15.11864406779661,
+            "mean_verifier_calls": 1.3220338983050848,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 3.0,
+            "p99_verifier_calls": 4.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "hybrid": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.05008920606601249,
+            "mean_suffix_disqualified_count": 15.11864406779661,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "learned": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.05008920606601249,
+            "mean_suffix_disqualified_count": 15.11864406779661,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "random": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 2,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 20,
+            "mean_checked_ratio": 0.523907225691347,
+            "mean_suffix_disqualified_count": 7.372881355932203,
+            "mean_verifier_calls": 10.457627118644067,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 19.0,
+            "p99_verifier_calls": 20.0,
+            "stopped_by_suffix_bound_count": 57
+          }
+        },
+        "wall_clock_ms": 8711.158731020987
+      },
+      "seed": 20260541
+    },
+    {
+      "candidate_count": 20,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 20,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 60,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260542,
+        "skipped_without_winner": 0,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.12083333333333333,
+            "mean_suffix_disqualified_count": 14.716666666666667,
+            "mean_verifier_calls": 2.4166666666666665,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 5.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hand": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 5,
+            "mean_checked_ratio": 0.07416666666666667,
+            "mean_suffix_disqualified_count": 14.716666666666667,
+            "mean_verifier_calls": 1.4833333333333334,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 3.0,
+            "p99_verifier_calls": 5.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hybrid": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.050833333333333335,
+            "mean_suffix_disqualified_count": 14.716666666666667,
+            "mean_verifier_calls": 1.0166666666666666,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "learned": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.050833333333333335,
+            "mean_suffix_disqualified_count": 14.716666666666667,
+            "mean_verifier_calls": 1.0166666666666666,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "random": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 7,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 20,
+            "mean_checked_ratio": 0.5925,
+            "mean_suffix_disqualified_count": 6.183333333333334,
+            "mean_verifier_calls": 11.85,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 20.0,
+            "p99_verifier_calls": 20.0,
+            "stopped_by_suffix_bound_count": 53
+          }
+        },
+        "wall_clock_ms": 9614.431397989392
+      },
+      "seed": 20260542
+    },
+    {
+      "candidate_count": 20,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 20,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 57,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260543,
+        "skipped_without_winner": 3,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 57,
+            "count": 57,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 7,
+            "mean_checked_ratio": 0.12114496768236381,
+            "mean_suffix_disqualified_count": 15.473684210526315,
+            "mean_verifier_calls": 2.4210526315789473,
+            "objective_equiv_accept_count": 57,
+            "p95_verifier_calls": 5.0,
+            "p99_verifier_calls": 7.0,
+            "stopped_by_suffix_bound_count": 57
+          },
+          "hand": {
+            "certificate_ok_count": 57,
+            "count": 57,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.07373037857802402,
+            "mean_suffix_disqualified_count": 15.473684210526315,
+            "mean_verifier_calls": 1.4736842105263157,
+            "objective_equiv_accept_count": 57,
+            "p95_verifier_calls": 4.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 57
+          },
+          "hybrid": {
+            "certificate_ok_count": 57,
+            "count": 57,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.05004616805170822,
+            "mean_suffix_disqualified_count": 15.473684210526315,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 57,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 57
+          },
+          "learned": {
+            "certificate_ok_count": 57,
+            "count": 57,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.05004616805170822,
+            "mean_suffix_disqualified_count": 15.473684210526315,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 57,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 57
+          },
+          "random": {
+            "certificate_ok_count": 57,
+            "count": 57,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 19,
+            "mean_checked_ratio": 0.5016620498614959,
+            "mean_suffix_disqualified_count": 8.087719298245615,
+            "mean_verifier_calls": 10.017543859649123,
+            "objective_equiv_accept_count": 57,
+            "p95_verifier_calls": 19.0,
+            "p99_verifier_calls": 19.0,
+            "stopped_by_suffix_bound_count": 57
+          }
+        },
+        "wall_clock_ms": 8103.8741688244045
+      },
+      "seed": 20260543
+    },
+    {
+      "candidate_count": 32,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 32,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 60,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260541,
+        "skipped_without_winner": 0,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.07190860215053764,
+            "mean_suffix_disqualified_count": 26.933333333333334,
+            "mean_verifier_calls": 2.3,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 4.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hand": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 5,
+            "mean_checked_ratio": 0.04116263440860215,
+            "mean_suffix_disqualified_count": 26.933333333333334,
+            "mean_verifier_calls": 1.3166666666666667,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 3.0,
+            "p99_verifier_calls": 5.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hybrid": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.031266801075268816,
+            "mean_suffix_disqualified_count": 26.933333333333334,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "learned": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.031266801075268816,
+            "mean_suffix_disqualified_count": 26.933333333333334,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "random": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 1,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 32,
+            "mean_checked_ratio": 0.41656586021505376,
+            "mean_suffix_disqualified_count": 16.166666666666668,
+            "mean_verifier_calls": 13.316666666666666,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 25.0,
+            "p99_verifier_calls": 32.0,
+            "stopped_by_suffix_bound_count": 59
+          }
+        },
+        "wall_clock_ms": 15303.519506007433
+      },
+      "seed": 20260541
+    },
+    {
+      "candidate_count": 32,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 32,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 59,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260542,
+        "skipped_without_winner": 1,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 5,
+            "mean_checked_ratio": 0.07733050847457627,
+            "mean_suffix_disqualified_count": 27.35593220338983,
+            "mean_verifier_calls": 2.4745762711864407,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 5.0,
+            "p99_verifier_calls": 5.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "hand": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 5,
+            "mean_checked_ratio": 0.05031779661016949,
+            "mean_suffix_disqualified_count": 27.35593220338983,
+            "mean_verifier_calls": 1.6101694915254237,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 3.0,
+            "p99_verifier_calls": 5.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "hybrid": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.03177966101694915,
+            "mean_suffix_disqualified_count": 27.35593220338983,
+            "mean_verifier_calls": 1.0169491525423728,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "learned": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.03177966101694915,
+            "mean_suffix_disqualified_count": 27.35593220338983,
+            "mean_verifier_calls": 1.0169491525423728,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "random": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 1,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 32,
+            "mean_checked_ratio": 0.4703389830508475,
+            "mean_suffix_disqualified_count": 14.847457627118644,
+            "mean_verifier_calls": 15.05084745762712,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 30.0,
+            "p99_verifier_calls": 32.0,
+            "stopped_by_suffix_bound_count": 58
+          }
+        },
+        "wall_clock_ms": 15967.694960068911
+      },
+      "seed": 20260542
+    },
+    {
+      "candidate_count": 32,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 32,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 60,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260543,
+        "skipped_without_winner": 0,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.06875,
+            "mean_suffix_disqualified_count": 27.316666666666666,
+            "mean_verifier_calls": 2.2,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 4.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hand": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 3,
+            "mean_checked_ratio": 0.03697916666666667,
+            "mean_suffix_disqualified_count": 27.316666666666666,
+            "mean_verifier_calls": 1.1833333333333333,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 2.0,
+            "p99_verifier_calls": 3.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hybrid": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.03125,
+            "mean_suffix_disqualified_count": 27.316666666666666,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "learned": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 1,
+            "mean_checked_ratio": 0.03125,
+            "mean_suffix_disqualified_count": 27.316666666666666,
+            "mean_verifier_calls": 1,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 1.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "random": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 2,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 32,
+            "mean_checked_ratio": 0.5484375,
+            "mean_suffix_disqualified_count": 12.716666666666667,
+            "mean_verifier_calls": 17.55,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 31.0,
+            "p99_verifier_calls": 32.0,
+            "stopped_by_suffix_bound_count": 58
+          }
+        },
+        "wall_clock_ms": 16254.423110280186
+      },
+      "seed": 20260543
+    },
+    {
+      "candidate_count": 50,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 50,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 58,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260541,
+        "skipped_without_winner": 2,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 58,
+            "count": 58,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.047241379310344826,
+            "mean_suffix_disqualified_count": 45.5,
+            "mean_verifier_calls": 2.3620689655172415,
+            "objective_equiv_accept_count": 58,
+            "p95_verifier_calls": 5.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 58
+          },
+          "hand": {
+            "certificate_ok_count": 58,
+            "count": 58,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.02689655172413793,
+            "mean_suffix_disqualified_count": 45.5,
+            "mean_verifier_calls": 1.3448275862068966,
+            "objective_equiv_accept_count": 58,
+            "p95_verifier_calls": 3.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 58
+          },
+          "hybrid": {
+            "certificate_ok_count": 58,
+            "count": 58,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 4,
+            "mean_checked_ratio": 0.02103448275862069,
+            "mean_suffix_disqualified_count": 45.5,
+            "mean_verifier_calls": 1.0517241379310345,
+            "objective_equiv_accept_count": 58,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 4.0,
+            "stopped_by_suffix_bound_count": 58
+          },
+          "learned": {
+            "certificate_ok_count": 58,
+            "count": 58,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 4,
+            "mean_checked_ratio": 0.02103448275862069,
+            "mean_suffix_disqualified_count": 45.5,
+            "mean_verifier_calls": 1.0517241379310345,
+            "objective_equiv_accept_count": 58,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 4.0,
+            "stopped_by_suffix_bound_count": 58
+          },
+          "random": {
+            "certificate_ok_count": 58,
+            "count": 58,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 47,
+            "mean_checked_ratio": 0.44275862068965516,
+            "mean_suffix_disqualified_count": 25.74137931034483,
+            "mean_verifier_calls": 22.137931034482758,
+            "objective_equiv_accept_count": 58,
+            "p95_verifier_calls": 46.0,
+            "p99_verifier_calls": 47.0,
+            "stopped_by_suffix_bound_count": 58
+          }
+        },
+        "wall_clock_ms": 27617.893610149622
+      },
+      "seed": 20260541
+    },
+    {
+      "candidate_count": 50,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 50,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 60,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260542,
+        "skipped_without_winner": 0,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 6,
+            "mean_checked_ratio": 0.049680272108843536,
+            "mean_suffix_disqualified_count": 45.31666666666667,
+            "mean_verifier_calls": 2.4833333333333334,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 5.0,
+            "p99_verifier_calls": 6.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hand": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 4,
+            "mean_checked_ratio": 0.02734013605442177,
+            "mean_suffix_disqualified_count": 45.31666666666667,
+            "mean_verifier_calls": 1.3666666666666667,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 3.0,
+            "p99_verifier_calls": 4.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "hybrid": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.020340136054421767,
+            "mean_suffix_disqualified_count": 45.31666666666667,
+            "mean_verifier_calls": 1.0166666666666666,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "learned": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.020340136054421767,
+            "mean_suffix_disqualified_count": 45.31666666666667,
+            "mean_verifier_calls": 1.0166666666666666,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 60
+          },
+          "random": {
+            "certificate_ok_count": 60,
+            "count": 60,
+            "full_fallback_count": 2,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 50,
+            "mean_checked_ratio": 0.5568775510204081,
+            "mean_suffix_disqualified_count": 20.7,
+            "mean_verifier_calls": 27.833333333333332,
+            "objective_equiv_accept_count": 60,
+            "p95_verifier_calls": 48.0,
+            "p99_verifier_calls": 50.0,
+            "stopped_by_suffix_bound_count": 58
+          }
+        },
+        "wall_clock_ms": 33205.09207714349
+      },
+      "seed": 20260542
+    },
+    {
+      "candidate_count": 50,
+      "report": {
+        "batches": 60,
+        "candidates_per_batch": 50,
+        "certificate_schema": "zenodex/energy/upba_v2_suffix_bound_certificate/v1",
+        "evaluated_batches": 59,
+        "learned_model_present": true,
+        "limits": [
+          "This benchmark uses bounded synthetic finite candidate lists.",
+          "The suffix bound is deterministic, but a production bounded-grid claim still needs candidate-family coverage.",
+          "Attractive invalid unchecked candidates can force more verifier calls because their declared outputs remain upper bounds until checked."
+        ],
+        "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+        "ok": true,
+        "safety": {
+          "deterministic_suffix_bound_required": true,
+          "invalid_accept_count": 0,
+          "model_output_in_state_root": false,
+          "scorer_authorizes_settlement": false,
+          "verifier_authoritative": true
+        },
+        "schema": "zenodex/energy/upba_v2_suffix_bound_benchmark/v1",
+        "seed": 20260543,
+        "skipped_without_winner": 1,
+        "summary": {
+          "exhaustive": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 5,
+            "mean_checked_ratio": 0.04339674852992044,
+            "mean_suffix_disqualified_count": 45.28813559322034,
+            "mean_verifier_calls": 2.169491525423729,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 4.0,
+            "p99_verifier_calls": 5.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "hand": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 5,
+            "mean_checked_ratio": 0.028820477343479766,
+            "mean_suffix_disqualified_count": 45.28813559322034,
+            "mean_verifier_calls": 1.4406779661016949,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 4.0,
+            "p99_verifier_calls": 5.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "hybrid": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.020345901072293324,
+            "mean_suffix_disqualified_count": 45.28813559322034,
+            "mean_verifier_calls": 1.0169491525423728,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "learned": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 0,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 2,
+            "mean_checked_ratio": 0.020345901072293324,
+            "mean_suffix_disqualified_count": 45.28813559322034,
+            "mean_verifier_calls": 1.0169491525423728,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 1.0,
+            "p99_verifier_calls": 2.0,
+            "stopped_by_suffix_bound_count": 59
+          },
+          "random": {
+            "certificate_ok_count": 59,
+            "count": 59,
+            "full_fallback_count": 1,
+            "invalid_accept_count": 0,
+            "max_verifier_calls": 50,
+            "mean_checked_ratio": 0.5140574195780007,
+            "mean_suffix_disqualified_count": 22.45762711864407,
+            "mean_verifier_calls": 25.694915254237287,
+            "objective_equiv_accept_count": 59,
+            "p95_verifier_calls": 48.0,
+            "p99_verifier_calls": 50.0,
+            "stopped_by_suffix_bound_count": 58
+          }
+        },
+        "wall_clock_ms": 30679.496981203556
+      },
+      "seed": 20260543
+    }
+  ],
+  "model_path": "data/upba_energy/upba_v2_energy_linear_gap_weighted_seed20260517.json",
+  "negative_knowledge": [
+    "Cross-seed suffix-bound stress remains bounded synthetic evidence.",
+    "A stable suffix-bound stress result still does not prove candidate-family coverage."
+  ],
+  "ok": true,
+  "safety": {
+    "deterministic_suffix_bound_required": true,
+    "invalid_accept_count_total": 0,
+    "model_output_in_state_root": false,
+    "scorer_authorizes_settlement": false,
+    "verifier_authoritative": true
+  },
+  "schema": "zenodex/energy/upba_v2_suffix_bound_cross_seed/v1",
+  "seeds": [
+    20260541,
+    20260542,
+    20260543
+  ],
+  "summary": {
+    "exhaustive": {
+      "certificate_ok_rate_min": 1.0,
+      "configs": 9,
+      "evaluated_batches_total": 532,
+      "full_fallback_count_total": 0,
+      "invalid_accept_count_total": 0,
+      "max_verifier_calls_max": 7.0,
+      "mean_checked_ratio_mean": 0.08028252500667064,
+      "mean_suffix_disqualified_count_mean": 29.22441437869627,
+      "mean_verifier_calls_max": 2.4833333333333334,
+      "mean_verifier_calls_mean": 2.363096373312006,
+      "objective_equiv_accept_rate_min": 1.0,
+      "p95_verifier_calls_max": 5.0,
+      "p99_verifier_calls_max": 7.0,
+      "suffix_stop_rate_min": 1.0
+    },
+    "hand": {
+      "certificate_ok_rate_min": 1.0,
+      "configs": 9,
+      "evaluated_batches_total": 532,
+      "full_fallback_count_total": 0,
+      "invalid_accept_count_total": 0,
+      "max_verifier_calls_max": 6.0,
+      "mean_checked_ratio_mean": 0.04728941211482613,
+      "mean_suffix_disqualified_count_mean": 29.22441437869627,
+      "mean_verifier_calls_max": 1.6101694915254237,
+      "mean_verifier_calls_mean": 1.393488128073935,
+      "objective_equiv_accept_rate_min": 1.0,
+      "p95_verifier_calls_max": 4.0,
+      "p99_verifier_calls_max": 6.0,
+      "suffix_stop_rate_min": 1.0
+    },
+    "hybrid": {
+      "certificate_ok_rate_min": 1.0,
+      "configs": 9,
+      "evaluated_batches_total": 532,
+      "full_fallback_count_total": 0,
+      "invalid_accept_count_total": 0,
+      "max_verifier_calls_max": 4.0,
+      "mean_checked_ratio_mean": 0.03410952104762309,
+      "mean_suffix_disqualified_count_mean": 29.22441437869627,
+      "mean_verifier_calls_max": 1.0517241379310345,
+      "mean_verifier_calls_mean": 1.0132173084832348,
+      "objective_equiv_accept_rate_min": 1.0,
+      "p95_verifier_calls_max": 1.0,
+      "p99_verifier_calls_max": 4.0,
+      "suffix_stop_rate_min": 1.0
+    },
+    "learned": {
+      "certificate_ok_rate_min": 1.0,
+      "configs": 9,
+      "evaluated_batches_total": 532,
+      "full_fallback_count_total": 0,
+      "invalid_accept_count_total": 0,
+      "max_verifier_calls_max": 4.0,
+      "mean_checked_ratio_mean": 0.03410952104762309,
+      "mean_suffix_disqualified_count_mean": 29.22441437869627,
+      "mean_verifier_calls_max": 1.0517241379310345,
+      "mean_verifier_calls_mean": 1.0132173084832348,
+      "objective_equiv_accept_rate_min": 1.0,
+      "p95_verifier_calls_max": 1.0,
+      "p99_verifier_calls_max": 4.0,
+      "suffix_stop_rate_min": 1.0
+    },
+    "random": {
+      "certificate_ok_rate_min": 1.0,
+      "configs": 9,
+      "evaluated_batches_total": 532,
+      "full_fallback_count_total": 16,
+      "invalid_accept_count_total": 0,
+      "max_verifier_calls_max": 50.0,
+      "mean_checked_ratio_mean": 0.507456134456312,
+      "mean_suffix_disqualified_count_mean": 14.919303486328003,
+      "mean_verifier_calls_max": 27.833333333333332,
+      "mean_verifier_calls_mean": 17.100984969404482,
+      "objective_equiv_accept_rate_min": 1.0,
+      "p95_verifier_calls_max": 48.0,
+      "p99_verifier_calls_max": 50.0,
+      "suffix_stop_rate_min": 0.8833333333333333
+    }
+  },
+  "synthetic_batches_requested": 540,
+  "synthetic_candidates_requested": 18360
+}

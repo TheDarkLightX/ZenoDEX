@@ -1,0 +1,53 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_policy_bundle_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless contract over the Tau policy bundle metadata.
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "strategy_hash_ok",
+      "owner_binding_ok",
+      "canonical_specs_ok",
+      "compile_contract_ok",
+      "decision_model_version_ok",
+      "bundle_ok",
+    ]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "validate_policy_bundle"
+    params:
+      - id: "strategy_hash_present"
+        type: { kind: "bool" }
+      - id: "owner_binding_present"
+        type: { kind: "bool" }
+      - id: "canonical_specs_ok"
+        type: { kind: "bool" }
+      - id: "compile_contract_ok"
+        type: { kind: "bool" }
+      - id: "decision_model_version_present"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      strategy_hash_ok: { param: "strategy_hash_present" }
+      owner_binding_ok: { param: "owner_binding_present" }
+      canonical_specs_ok: { param: "canonical_specs_ok" }
+      compile_contract_ok: { param: "compile_contract_ok" }
+      decision_model_version_ok: { param: "decision_model_version_present" }
+      bundle_ok:
+        op: "and"
+        args:
+          - { param: "strategy_hash_present" }
+          - { param: "owner_binding_present" }
+          - { param: "canonical_specs_ok" }
+          - { param: "compile_contract_ok" }
+          - { param: "decision_model_version_present" }

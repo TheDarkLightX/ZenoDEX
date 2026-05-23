@@ -1,0 +1,155 @@
+// Temporal Fairness Properties for TauSwap DEX
+// Based on provably fair gaming concepts from:
+// https://github.com/taumorrow/provably_fair_gaming
+
+// These properties prove long-term fairness over infinite time,
+// not just per-block correctness
+
+// ============================================================
+// 1. Long-Term Price Fairness
+// ============================================================
+
+// Prove no participant consistently gets worse prices
+// avg_slippage[player, t] = mean of all slippage values for player from time 0 to t
+// eventually (abs(avg_slippage[player1, t] - avg_slippage[player2, t]) < epsilon)
+
+// Price impact fairness: large swaps should not systematically favor any direction
+// always (
+//   (price_impact[t] = abs(price_after[t] - price_before[t]) / price_before[t]) &&
+//   (price_impact[t] < max_price_impact)
+// )
+
+// ============================================================
+// 2. MEV Fairness Over Time
+// ============================================================
+
+// MEV extraction should be bounded and fair across all participants
+// always (
+//   (mev_extracted[t] = solver_profit[t] - protocol_fee[t]) &&
+//   (mev_per_swap[t] = mev_extracted[t] / num_swaps[t]) &&
+//   (mev_per_swap[t] < max_mev_per_swap)
+// )
+
+// Prove MEV doesn't systematically favor certain participants
+// eventually (
+//   (mev_share[participant1, t] / total_volume[participant1, t]) ≈
+//   (mev_share[participant2, t] / total_volume[participant2, t])
+// )
+
+// ============================================================
+// 3. Liquidity Provider Fairness
+// ============================================================
+
+// LP rewards should be proportional to contribution over time
+// always (
+//   (lp_reward[pool, t] = fees_collected[pool, 0..t] * lp_share[account, pool, t]) &&
+//   (lp_share[account, pool, t] = lp_balance[account, pool, t] / lp_supply[pool, t])
+// )
+
+// Prove no LP is systematically disadvantaged
+// eventually (
+//   (return_rate[lp1, t] ≈ return_rate[lp2, t]) ||
+//   (return_rate[lp1, t] > return_rate[lp2, t] && risk[lp1, t] > risk[lp2, t])
+// )
+
+// ============================================================
+// 4. Settlement Ordering Fairness
+// ============================================================
+
+// Settlement ordering should not systematically favor any participant
+// always (
+//   (order[t] = deterministic_sort(intents[t], seed[t])) &&
+//   (seed[t] = multi_party_xor(commitments[t])) &&
+//   (no_participant_controls_seed[t])
+// )
+
+// Prove ordering is fair over time
+// eventually (
+//   (fill_rate[participant1, t] ≈ fill_rate[participant2, t]) ||
+//   (fill_rate difference explained by price/amount differences)
+// )
+
+// ============================================================
+// 5. Price Manipulation Resistance
+// ============================================================
+
+// Track price history to prevent manipulation
+// always (
+//   (price[t] = reserve1[t] / reserve0[t]) &&
+//   (price_change[t] = abs(price[t] - price[t-1]) / price[t-1]) &&
+//   (price_change[t] < max_change || reject_swap[t])
+// )
+
+// Prove price stability over time
+// eventually (
+//   (volatility[t] = stddev(price[0..t]) < max_volatility)
+// )
+
+// ============================================================
+// 6. Autonomous Agent Fairness
+// ============================================================
+
+// Agents should be able to verify their execution was fair
+// agent_swap_fair[t] :=
+//   (executed_price[t] >= min_expected_price[t]) &&
+//   (executed_price[t] <= max_expected_price[t]) &&
+//   (slippage[t] <= max_slippage[t]) &&
+//   (no_front_running[t])
+
+// Prove agents are not systematically disadvantaged
+// always (
+//   (agent_execution[t] = valid && agent_swap_fair[t]) ||
+//   (agent_execution[t] = rejected && reason[t] = valid_reason)
+// )
+
+// ============================================================
+// 7. Self-Modifying Governance Fairness
+// ============================================================
+
+// Governance changes should maintain fairness
+// always (
+//   (fee_bps[t] = voted_fee[t] || fee_bps[t-1]) &&
+//   (consistent(fee_bps[t-1], fee_bps[t])) &&
+//   (fairness_preserved(fee_bps[t-1], fee_bps[t]))
+// )
+
+// Prove governance doesn't systematically favor any group
+// eventually (
+//   (impact[group1, t] ≈ impact[group2, t]) ||
+//   (impact difference is democratically decided)
+// )
+
+// ============================================================
+// 8. Infinite-Time Convergence Properties
+// ============================================================
+
+// Prove system converges to fair state
+// eventually (
+//   (avg_slippage[t] converges to market_rate) &&
+//   (mev_extraction[t] converges to minimum_necessary) &&
+//   (lp_returns[t] converge to risk_adjusted_rate)
+// )
+
+// Prove no participant can gain unbounded advantage
+// always (
+//   (advantage[participant, t] = benefit[participant, t] - fair_share[t]) &&
+//   (advantage[participant, t] < max_advantage)
+// )
+
+// ============================================================
+// Implementation Notes
+// ============================================================
+
+// These temporal properties use Tau's unique capabilities:
+// 1. Decidable temporal quantification (GSSOTC)
+// 2. History-dependent state (temporal counting)
+// 3. Infinite-time properties (eventually, always)
+// 4. Self-referential specifications (NSO)
+
+// Unlike traditional formal methods, Tau can prove these properties
+// in real-time (sub-second) while maintaining decidability.
+
+// For v0.1: Basic invariants (balance, conservation)
+// For v0.2: Add temporal fairness tracking
+// For v0.3: Full temporal fairness proofs
+

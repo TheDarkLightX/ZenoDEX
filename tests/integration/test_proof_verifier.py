@@ -25,7 +25,7 @@ def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     return {
         "module": intent.module,
         "version": intent.version,
-        "kind": intent.kind.value.lower(),
+        "kind": intent.kind.value,
         "intent_id": intent.intent_id,
         "sender_pubkey": intent.sender_pubkey,
         "deadline": intent.deadline,

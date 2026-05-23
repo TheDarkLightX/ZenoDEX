@@ -32,12 +32,16 @@ services:
       - zenodex-data:/app/data # Persistent data (optional)
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 512m
     read_only: true
     tmpfs:
-      - /tmp:mode=1777
-      - /var/run:uid=10001,gid=10001,mode=755
-      - /var/cache/nginx:uid=10001,gid=10001,mode=755
-      - /var/log/nginx:uid=10001,gid=10001,mode=755
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=64m
+      - /var/run:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=16m
+      - /var/cache/nginx:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=64m
+      - /var/log/nginx:uid=10001,gid=10001,mode=755,noexec,nosuid,nodev,size=16m
     healthcheck:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()" ]
       interval: 30s
@@ -54,7 +58,7 @@ services:
   # zenodex-ui-dev:
   #   image: node:20-alpine
   #   working_dir: /app
-  #   command: npm run dev -- --host 0.0.0.0
+  #   command: npm run dev -- --host 127.0.0.1
   #   ports:
   #     - "5173:5173"
   #   volumes:

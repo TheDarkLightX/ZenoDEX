@@ -81,13 +81,21 @@ def check_dependencies() -> int:
         import agents
         checks.append(("✅", "openai-agents", "installed"))
     except ImportError:
-        checks.append(("❌", "openai-agents", "NOT INSTALLED - run: pip install openai-agents"))
+        checks.append((
+            "❌",
+            "openai-agents",
+            "NOT INSTALLED - run: python3 -m pip install --require-hashes -r requirements-dev.lock.txt",
+        ))
 
     try:
         import dotenv
         checks.append(("✅", "python-dotenv", "installed"))
     except ImportError:
-        checks.append(("❌", "python-dotenv", "NOT INSTALLED - run: pip install python-dotenv"))
+        checks.append((
+            "❌",
+            "python-dotenv",
+            "NOT INSTALLED - run: python3 -m pip install --require-hashes -r requirements-dev.lock.txt",
+        ))
 
     # Check OPENAI_API_KEY
     import os

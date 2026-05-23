@@ -1,0 +1,20 @@
+{
+  "schema": "chaos/campaign/v1",
+  "id": "safe_local_v1",
+  "description": "Local-only imperative-shell falsification campaign with no external network fault injector requirements.",
+  "target_areas": [
+    "tau_runner",
+    "proof_verifier",
+    "api_server"
+  ],
+  "required_experiments": [
+    "tau_runner_sigkill",
+    "tau_runner_stdout_flood",
+    "proof_verifier_timeout",
+    "api_server_oversized_body"
+  ],
+  "optional_experiments": [],
+  "required_prerequisites": [],
+  "optional_prerequisites": [],
+  "max_recommended_blast_radius": 0.25
+}

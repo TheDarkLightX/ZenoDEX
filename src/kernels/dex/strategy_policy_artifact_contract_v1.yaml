@@ -1,0 +1,58 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_policy_artifact_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless contract over the signed local policy artifact.
+
+observables:
+  state_vars: []
+  effects:
+    [
+      "strategy_hash_ok",
+      "owner_binding_ok",
+      "tau_policy_bundle_hash_ok",
+      "decision_model_version_ok",
+      "signature_present",
+      "signature_valid",
+      "policy_artifact_ok",
+    ]
+
+types: []
+state_vars: []
+init: []
+invariants: []
+
+actions:
+  - id: "validate_policy_artifact"
+    params:
+      - id: "strategy_hash_ok"
+        type: { kind: "bool" }
+      - id: "owner_binding_ok"
+        type: { kind: "bool" }
+      - id: "tau_policy_bundle_hash_ok"
+        type: { kind: "bool" }
+      - id: "decision_model_version_ok"
+        type: { kind: "bool" }
+      - id: "signature_present"
+        type: { kind: "bool" }
+      - id: "signature_valid"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      strategy_hash_ok: { param: "strategy_hash_ok" }
+      owner_binding_ok: { param: "owner_binding_ok" }
+      tau_policy_bundle_hash_ok: { param: "tau_policy_bundle_hash_ok" }
+      decision_model_version_ok: { param: "decision_model_version_ok" }
+      signature_present: { param: "signature_present" }
+      signature_valid: { param: "signature_valid" }
+      policy_artifact_ok:
+        op: "and"
+        args:
+          - { param: "strategy_hash_ok" }
+          - { param: "owner_binding_ok" }
+          - { param: "tau_policy_bundle_hash_ok" }
+          - { param: "decision_model_version_ok" }
+          - { param: "signature_present" }
+          - { param: "signature_valid" }

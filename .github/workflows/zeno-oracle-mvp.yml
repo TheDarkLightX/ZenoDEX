@@ -25,8 +25,7 @@ jobs:
 
       - name: Install Oracle verifier dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
+          python -m pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Run Zeno Oracle MVP plus Devnet Alpha replay gate
         run: bash scripts/check_zeno_oracle_devnet_alpha.sh

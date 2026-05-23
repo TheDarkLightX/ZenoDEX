@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
+import hashlib
 
+from src.state.intents import Intent, IntentKind
+from src.state.pools import PoolState, PoolStatus
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 from src.core.batch_clearing import (
     _SWAP_ORDERING_GREEDY_AB,
     _SWAP_ORDERING_LIMIT_PRICE,
@@ -12,14 +16,6 @@ from src.core.batch_clearing import (
     compute_settlement,
 )
 from src.core.settlement import FillAction
-from src.state.balances import BalanceTable
-from src.state.intents import Intent, IntentKind
-from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
-
-
-def _intent_id_hex(label: str) -> str:
-    return "0x" + sha256(label.encode("utf-8")).hexdigest()
 
 
 def _make_pool(reserve0: int = 1_000_000, reserve1: int = 1_000_000, fee_bps: int = 30) -> PoolState:
@@ -36,6 +32,10 @@ def _make_pool(reserve0: int = 1_000_000, reserve1: int = 1_000_000, fee_bps: in
     )
 
 
+def _intent_hex_id(label: str) -> str:
+    return "0x" + hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
 def _make_swap(
     intent_id: str,
     sender: str,
@@ -47,7 +47,7 @@ def _make_swap(
     return Intent(
         module="TauSwap",
         version="0.1",
-        intent_id=_intent_id_hex(intent_id),
+        intent_id=_intent_hex_id(intent_id),
         sender_pubkey=sender,
         kind=IntentKind.SWAP_EXACT_IN,
         deadline=999999999,
@@ -265,7 +265,7 @@ def test_greedy_insufficient_balance_skips() -> None:
     )
     filled = [f for f in fills if f.action == FillAction.FILL]
     assert len(filled) == 1
-    assert filled[0].intent_id == _intent_id_hex("s1")
+    assert filled[0].intent_id == _intent_hex_id("s1")
 
 
 # ---------------------------------------------------------------------------

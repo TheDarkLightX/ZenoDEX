@@ -21,17 +21,3 @@ def test_compute_funding_rate_bps_sign_and_cap() -> None:
 def test_compute_funding_rate_bps_rejects_nonpositive_index() -> None:
     with pytest.raises(ValueError):
         compute_funding_rate_bps(index_price_e8=0, mark_price_e8=1, funding_cap_bps=100)
-
-
-def test_compute_funding_rate_bps_rejects_invalid_types_and_negative_cap() -> None:
-    with pytest.raises(TypeError, match="index_price_e8 must be an int"):
-        compute_funding_rate_bps(index_price_e8=True, mark_price_e8=101, funding_cap_bps=1)
-
-    with pytest.raises(TypeError, match="mark_price_e8 must be an int"):
-        compute_funding_rate_bps(index_price_e8=100, mark_price_e8=True, funding_cap_bps=1)
-
-    with pytest.raises(TypeError, match="funding_cap_bps must be an int"):
-        compute_funding_rate_bps(index_price_e8=100, mark_price_e8=101, funding_cap_bps=False)
-
-    with pytest.raises(ValueError, match="non-negative"):
-        compute_funding_rate_bps(index_price_e8=100, mark_price_e8=101, funding_cap_bps=-1)

@@ -174,6 +174,11 @@ The candidate-set hash sorts candidate ids before hashing. The certificate body
 itself requires candidates to be sorted by `candidate_id`, so its hash remains
 canonical.
 
+`build_uniform_batch_optimality_certificate_v1` is the deterministic local
+builder for this shape. It sorts candidates by `candidate_id`, selects the
+winner by volume first and surplus second, and uses the lowest `candidate_id` as
+the tie-break when volume and surplus are equal.
+
 ## Runtime Checks
 
 The verifier enforces:
@@ -239,6 +244,12 @@ It proves:
   bounded grid prices;
 - upper-bound certificates over complete bounded price-grid lists imply global
   weak optimality over that bounded grid-generated family;
+- UPBA v2 partial-fill candidates get the same bridge when the audit set
+  enumerates every canonical bounded-grid price and every admitted bounded
+  partial-fill plan;
+- UPBA v3 exact-out candidates get the same bridge when the audit set enumerates
+  every canonical bounded-grid price and every admitted bounded exact-out fill
+  plan;
 - incomplete audit sets can certify a local winner while omitting a better
   candidate.
 
@@ -252,8 +263,96 @@ The bound verifier implements the next runtime obligation:
 winner_id = candidate_id_for(uniform_batch_certificate_hash)
 ```
 
+For the v2 partial-fill surface,
+`build_uniform_batch_v2_bounded_grid_audit_candidates_v1` constructs the
+accepted candidate set over a configured reduced positive integer price grid
+and a supplied finite set of canonical fill vectors. Each accepted candidate is
+scored by:
+
+```text
+volume  = sum(executed_out)
+surplus = sum(executed_out - ceil(min_amount_out * executed_in / amount_in))
+```
+
+Exact-in surplus is measured in output units above the pro-rata limit-price
+floor required by the partial fill. Zero fills contribute zero volume and zero
+surplus.
+
+The v2 table root is:
+
+```text
+table_root = H(schema, objective_id, candidate_set_hash, rows)
+```
+
+Each row binds `(price_num, price_den, fill_vector_hash, candidate)`, with rows
+sorted by price, fill-vector hash, and candidate id. The complete-domain
+verifier `verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1`
+rebuilds that table, checks an optional expected root, and rejects an optimality
+certificate whose `candidate_set_hash` omits any accepted candidate in the
+supplied grid/vector domain.
+
+For the v3 exact-out surface, `build_uniform_batch_exact_out_grid_audit_candidates_v1`
+constructs that audited candidate set over a configured reduced positive
+integer price grid. It builds a full-fill exact-out certificate for each grid
+price, keeps only candidates accepted by the v3 settlement verifier, and scores
+each accepted certificate by:
+
+```text
+volume  = sum(executed_out)
+surplus = sum(max_amount_in - executed_in)
+```
+
+The resulting candidates can be passed directly into the optimality certificate
+checker. The claim remains bounded by the configured grid and by the v3 exact-out
+runtime policy.
+
+The complete-domain verifier
+`verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1` rebuilds this
+candidate set before accepting an optimality certificate. It rejects a
+`candidate_set_hash` mismatch and requires the declared winner certificate to use
+the v3 policy and schema. The engine uses this verifier when a settlement
+supplies `uniform_batch_v3_exact_out_grid`; strict UPBA mode can require that
+evidence for v3 exact-out certificates. That evidence object is closed over
+`max_price_num` and `max_price_den`.
+
+The Lean theorem
+`upba_v3_exact_out_exact_grid_upper_bound_certificate_implies_global_weak_optimal`
+uses exact audit-set soundness to derive winner feasibility from winner
+membership, then lifts the upper-bound certificate to global weak optimality over
+the bounded v3 exact-out candidate family.
+
+The theorem
+`upba_v3_full_fill_exact_out_grid_upper_bound_certificate_implies_global_weak_optimal`
+specializes that bridge to the current full-fill runtime surface, where the
+admitted intent set fixes one deterministic exact-out plan and the bounded
+candidate search ranges only over canonical price-grid entries. The singleton
+bridge lemmas prove that this full-fill candidate list and feasible predicate
+are exactly the singleton-plan instance of the general v3 exact-out model.
+
+The regression
+`test_uniform_batch_exact_out_grid_candidates_match_independent_reduced_grid_replay`
+independently rebuilds every reduced price candidate in a small bounded grid,
+verifies each candidate through the public v3 verifier, and checks exact equality
+with the helper's emitted candidate set. This is replay evidence for the
+runtime side of the Lean bounded-grid completeness premise. It also checks that
+every helper and independent grid certificate has the same non-price full-fill
+projection `(intent_id, executed_out)`, matching the singleton-plan premise in
+the full-fill Lean theorem.
+
 This is a hash-binding obligation, so it is kept in Python rather than modeled
 as arithmetic in Lean.
+
+The admission verifier in `src/core/uniform_batch_admission.py` implements a
+separate local obligation:
+
+```text
+admitted set = canonical intent-id prefix of a known eligible set
+```
+
+It hash-binds the eligible, admitted, and overflow sets. That helps justify the
+`admitted bounded partial-fill plans` premise when the batch-builder or ledger
+provides a concrete eligible set. It does not prove that the eligible set was
+globally fair or complete.
 
 ## Non-Claims
 
@@ -263,6 +362,7 @@ This certificate does not prove:
 - the configured price grid covers every economically relevant rational price;
 - the solver searched every admissible price;
 - the admission set is fair;
+- the eligible set is complete;
 - censorship resistance;
 - oracle safety;
 - global MEV elimination.
@@ -280,6 +380,17 @@ given this finite audited candidate set,
 the declared winner is weakly optimal by volume first and surplus second
 ```
 
+For UPBA v2 partial fills, the stronger bounded-grid claim needs the extra
+premise:
+
+```text
+audited set = canonical bounded prices x admitted bounded partial-fill plans
+```
+
+For UPBA v3 exact-out fills, replace the second factor with admitted bounded
+exact-out fill plans. That premise is what turns the finite audited-set check
+into a bounded global claim for the corresponding candidate family.
+
 ## Replay
 
 ```bash
@@ -290,6 +401,7 @@ Adjacent UPBA checks:
 
 ```bash
 pytest -q tests/core/test_uniform_batch_clearing.py \
+  tests/core/test_uniform_batch_admission.py \
   tests/core/test_uniform_batch_optimality.py \
   tests/integration/test_dex_engine_uniform_batch_certificate.py
 ```

@@ -1616,7 +1616,7 @@ def test_autotrader_controller_rejects_adversarial_prompt_injection() -> None:
         pools_by_id=pools,
         current_epoch=5,
         intent_deadline=99,
-        slippage_bps=50, # Valid slippage
+        slippage_bps=50,  # Valid slippage
     )
 
     assert decision_budget.tag is AutoTraderDecisionTag.REJECT

@@ -1,24 +1,25 @@
+from __future__ import annotations
+
 """Shared deterministic semantic-state feedback helpers for weird-machine exploration.
 
 These helpers stay in the tooling layer. They do not participate in functional-
 core execution or consensus-critical semantics.
 """
 
-from __future__ import annotations
-
 import copy
 import hashlib
 import json
-import re
 import time
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal, TypedDict, Union, cast
+from typing import Any, Callable, Literal, TypedDict, cast
+import re
+
 
 FeedbackMode = Literal["legacy", "stateful"]
 MutationFn = Callable[[object], object]
 ExpandableFn = Callable[[object], bool]
-TraceResult = Union[tuple[str, str, int], tuple[str, str, int, tuple[str, ...]]]
+TraceResult = tuple[str, str, int] | tuple[str, str, int, tuple[str, ...]]
 TraceFn = Callable[[object], TraceResult]
 SemanticStateFn = Callable[[object, str, str, tuple[str, ...], tuple[str, ...], tuple[str, ...], str], object]
 ActionSummaryFn = Callable[[object, object, str], object]

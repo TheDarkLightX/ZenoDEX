@@ -20,8 +20,8 @@ fi
 # shellcheck disable=SC1090
 source "$VENV_DIR/bin/activate"
 
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r "$ROOT/requirements.txt" -r "$ROOT/external/tau-testnet/requirements.txt"
+python -m pip install --require-hashes -r "$ROOT/requirements-dev.lock.txt"
+python -m pip install -r "$ROOT/external/tau-testnet/requirements.txt"
 
 ARGS=(
   tools/tau_testnet_local_e2e.py

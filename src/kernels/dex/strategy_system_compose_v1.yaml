@@ -1,0 +1,166 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "strategy_system_compose_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless end-to-end compose contract for the shell auto-trader emit path.
+
+    The property is intentionally narrow and fail-closed:
+    the shell may emit live intents only when compile admission and all runtime
+    guards are satisfied. A non-emitting decision is always permitted.
+observables:
+  state_vars: []
+  effects:
+    [
+      "signer_binding_ok",
+      "policy_artifact_ok",
+      "tau_policy_bundle_ok",
+      "compile_ok",
+      "source_registry_ok",
+      "signal_provenance_ok",
+      "execution_ok",
+      "oracle_freshness_ok",
+      "budget_ok",
+      "candidate_set_ok",
+      "decision_ok",
+      "kill_switch_ok",
+      "tx_envelope_ok",
+      "session_state_ok",
+      "session_capability_binding_ok",
+      "wallet_capability_ok",
+      "nonce_ok",
+      "guard_bundle_ok",
+      "emit_allowed",
+      "system_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "validate_system_compose"
+    params:
+      - id: "emit_requested"
+        type: { kind: "bool" }
+      - id: "signer_binding_ok"
+        type: { kind: "bool" }
+      - id: "policy_artifact_ok"
+        type: { kind: "bool" }
+      - id: "tau_policy_bundle_ok"
+        type: { kind: "bool" }
+      - id: "compile_ok"
+        type: { kind: "bool" }
+      - id: "source_registry_ok"
+        type: { kind: "bool" }
+      - id: "signal_provenance_ok"
+        type: { kind: "bool" }
+      - id: "execution_ok"
+        type: { kind: "bool" }
+      - id: "oracle_freshness_ok"
+        type: { kind: "bool" }
+      - id: "budget_ok"
+        type: { kind: "bool" }
+      - id: "candidate_set_ok"
+        type: { kind: "bool" }
+      - id: "decision_ok"
+        type: { kind: "bool" }
+      - id: "kill_switch_ok"
+        type: { kind: "bool" }
+      - id: "tx_envelope_ok"
+        type: { kind: "bool" }
+      - id: "session_state_ok"
+        type: { kind: "bool" }
+      - id: "session_capability_binding_ok"
+        type: { kind: "bool" }
+      - id: "wallet_capability_ok"
+        type: { kind: "bool" }
+      - id: "nonce_ok"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      signer_binding_ok: { param: "signer_binding_ok" }
+      policy_artifact_ok: { param: "policy_artifact_ok" }
+      tau_policy_bundle_ok: { param: "tau_policy_bundle_ok" }
+      compile_ok: { param: "compile_ok" }
+      source_registry_ok: { param: "source_registry_ok" }
+      signal_provenance_ok: { param: "signal_provenance_ok" }
+      execution_ok: { param: "execution_ok" }
+      oracle_freshness_ok: { param: "oracle_freshness_ok" }
+      budget_ok: { param: "budget_ok" }
+      candidate_set_ok: { param: "candidate_set_ok" }
+      decision_ok: { param: "decision_ok" }
+      kill_switch_ok: { param: "kill_switch_ok" }
+      tx_envelope_ok: { param: "tx_envelope_ok" }
+      session_state_ok: { param: "session_state_ok" }
+      session_capability_binding_ok: { param: "session_capability_binding_ok" }
+      wallet_capability_ok: { param: "wallet_capability_ok" }
+      nonce_ok: { param: "nonce_ok" }
+      guard_bundle_ok:
+        op: "and"
+        args:
+          - { param: "policy_artifact_ok" }
+          - { param: "tau_policy_bundle_ok" }
+          - { param: "compile_ok" }
+          - { param: "source_registry_ok" }
+          - { param: "signer_binding_ok" }
+          - { param: "signal_provenance_ok" }
+          - { param: "execution_ok" }
+          - { param: "oracle_freshness_ok" }
+          - { param: "budget_ok" }
+          - { param: "candidate_set_ok" }
+          - { param: "decision_ok" }
+          - { param: "kill_switch_ok" }
+          - { param: "tx_envelope_ok" }
+          - { param: "session_state_ok" }
+          - { param: "session_capability_binding_ok" }
+          - { param: "wallet_capability_ok" }
+          - { param: "nonce_ok" }
+      emit_allowed:
+        op: "and"
+        args:
+          - { param: "emit_requested" }
+          - op: "and"
+            args:
+              - { param: "policy_artifact_ok" }
+              - { param: "tau_policy_bundle_ok" }
+              - { param: "compile_ok" }
+              - { param: "source_registry_ok" }
+              - { param: "signer_binding_ok" }
+              - { param: "signal_provenance_ok" }
+              - { param: "execution_ok" }
+              - { param: "oracle_freshness_ok" }
+              - { param: "budget_ok" }
+              - { param: "candidate_set_ok" }
+              - { param: "decision_ok" }
+              - { param: "kill_switch_ok" }
+              - { param: "tx_envelope_ok" }
+              - { param: "session_state_ok" }
+              - { param: "session_capability_binding_ok" }
+              - { param: "wallet_capability_ok" }
+              - { param: "nonce_ok" }
+      system_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args:
+              - { param: "emit_requested" }
+          - op: "and"
+            args:
+              - { param: "policy_artifact_ok" }
+              - { param: "tau_policy_bundle_ok" }
+              - { param: "compile_ok" }
+              - { param: "source_registry_ok" }
+              - { param: "signer_binding_ok" }
+              - { param: "signal_provenance_ok" }
+              - { param: "execution_ok" }
+              - { param: "oracle_freshness_ok" }
+              - { param: "budget_ok" }
+              - { param: "candidate_set_ok" }
+              - { param: "decision_ok" }
+              - { param: "kill_switch_ok" }
+              - { param: "tx_envelope_ok" }
+              - { param: "session_state_ok" }
+              - { param: "session_capability_binding_ok" }
+              - { param: "wallet_capability_ok" }
+              - { param: "nonce_ok" }

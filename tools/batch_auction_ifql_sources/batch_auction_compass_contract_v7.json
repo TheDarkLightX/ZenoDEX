@@ -1,0 +1,184 @@
+{
+  "schema": "esso-compass-contract/v1",
+  "contract_id": "dex.batch_auction_settler",
+  "contract_version": "7.0.0",
+  "criticality": "high",
+  "semantics_profile": "bounded_int_checked_v1",
+  "style_profile": "default_pretty_v1",
+  "glossary": {
+    "batch": "A collection of swap intents settled together at a uniform clearing price",
+    "solver": "External party that proposes clearing prices for batches",
+    "fairness": "Users receive at least their minimum guaranteed output"
+  },
+  "modules": [
+    {
+      "module_id": "batch_settler",
+      "req": {
+        "schema": "foundry-req/v1",
+        "state": {
+          "phase": ["Collecting", "Solving", "Settling", "Complete"],
+          "intent_count": {"type": "int", "min": 0, "max": 4},
+          "settled_count": {"type": "int", "min": 0, "max": 4}
+        },
+        "actions": [
+          {
+            "name": "add_intent",
+            "params": {},
+            "pre": ["phase == Collecting", "intent_count < 4"],
+            "eff": ["intent_count = intent_count + 1"]
+          },
+          {
+            "name": "close_collection",
+            "params": {},
+            "pre": ["phase == Collecting", "intent_count > 0"],
+            "eff": ["phase = Solving"]
+          },
+          {
+            "name": "submit_solution",
+            "params": {},
+            "pre": ["phase == Solving"],
+            "eff": []
+          },
+          {
+            "name": "finalize_winner",
+            "params": {},
+            "pre": ["phase == Solving"],
+            "eff": ["phase = Settling"]
+          },
+          {
+            "name": "execute_fill",
+            "params": {},
+            "pre": ["phase == Settling", "settled_count < intent_count"],
+            "eff": ["settled_count = settled_count + 1"]
+          },
+          {
+            "name": "complete_batch",
+            "params": {},
+            "pre": ["phase == Settling", "settled_count == intent_count"],
+            "eff": ["phase = Complete"]
+          },
+          {
+            "name": "start_new_batch",
+            "params": {},
+            "pre": ["phase == Complete"],
+            "eff": ["phase = Collecting", "intent_count = 0", "settled_count = 0"]
+          },
+          {
+            "name": "revert_batch",
+            "params": {},
+            "pre": ["phase == Solving or phase == Settling"],
+            "eff": ["phase = Collecting", "intent_count = 0", "settled_count = 0"]
+          }
+        ],
+        "invariants": [
+          {"id": "inv_settle_bound", "expr": "settled_count <= intent_count"}
+        ],
+        "observations": [
+          {"name": "public", "exprs": ["phase", "intent_count", "settled_count"]}
+        ]
+      },
+      "verification": {
+        "dev": {"max_steps": 16},
+        "release": {"claim_required": "K_INDUCTION", "max_steps": 64}
+      },
+      "upgrade_policy": {"obs_stability": "none", "allowed_divergences": [], "schema_change": "deny"}
+    }
+  ],
+  "temporal": {
+    "schema": "esso-compass-temporal/v1",
+    "policy": {"monitor_mode": "none"},
+    "assumptions": [],
+    "properties": [],
+    "ltlf_goals": [
+      {
+        "id": "G1_full_batch_liveness",
+        "kind": "reachability",
+        "scope": "module:batch_settler",
+        "description": "LIVENESS: If intents collected, eventually reach Complete. Uses explicit_end_action to prevent trivial satisfaction.",
+        "formula": "G (state.has_intents_collecting -> F state.complete)",
+        "env_actions": ["add_intent"],
+        "ctrl_actions": ["close_collection", "finalize_winner", "execute_fill", "complete_batch"],
+        "environment_first": true,
+        "required_in_release": true,
+        "termination": "explicit_end_action",
+        "end_action": "complete_batch",
+        "state_predicates": {
+          "has_intents_collecting": {
+            "op": "and",
+            "args": [
+              {"op": "=", "args": [{"var": "phase"}, {"enum": "Collecting"}]},
+              {"op": ">", "args": [{"var": "intent_count"}, {"const": 0}]}
+            ]
+          },
+          "complete": {"op": "=", "args": [{"var": "phase"}, {"enum": "Complete"}]}
+        }
+      },
+      {
+        "id": "G2_solving_liveness",
+        "kind": "reachability",
+        "scope": "module:batch_settler",
+        "description": "LIVENESS: From Solving, eventually reach Settling. Uses explicit_end_action.",
+        "formula": "G (state.solving -> F state.settling)",
+        "env_actions": ["add_intent"],
+        "ctrl_actions": ["close_collection", "finalize_winner"],
+        "environment_first": true,
+        "required_in_release": true,
+        "termination": "explicit_end_action",
+        "end_action": "finalize_winner",
+        "state_predicates": {
+          "solving": {"op": "=", "args": [{"var": "phase"}, {"enum": "Solving"}]},
+          "settling": {"op": "=", "args": [{"var": "phase"}, {"enum": "Settling"}]}
+        }
+      },
+      {
+        "id": "G3_settling_liveness",
+        "kind": "reachability",
+        "scope": "module:batch_settler",
+        "description": "LIVENESS: From Settling, eventually reach Complete. Uses explicit_end_action.",
+        "formula": "G (state.settling -> F state.complete)",
+        "env_actions": ["add_intent"],
+        "ctrl_actions": ["close_collection", "finalize_winner", "execute_fill", "complete_batch"],
+        "environment_first": true,
+        "required_in_release": true,
+        "termination": "explicit_end_action",
+        "end_action": "complete_batch",
+        "state_predicates": {
+          "settling": {"op": "=", "args": [{"var": "phase"}, {"enum": "Settling"}]},
+          "complete": {"op": "=", "args": [{"var": "phase"}, {"enum": "Complete"}]}
+        }
+      },
+      {
+        "id": "G4_complete_safety",
+        "kind": "reachability",
+        "scope": "module:batch_settler",
+        "description": "SAFETY: Complete phase implies all intents settled. Uses environment_can_end for adversarial testing.",
+        "formula": "G (state.complete -> state.all_settled)",
+        "env_actions": ["add_intent"],
+        "ctrl_actions": ["close_collection", "submit_solution", "finalize_winner", "execute_fill", "complete_batch", "start_new_batch", "revert_batch"],
+        "environment_first": true,
+        "required_in_release": true,
+        "termination": "environment_can_end",
+        "state_predicates": {
+          "complete": {"op": "=", "args": [{"var": "phase"}, {"enum": "Complete"}]},
+          "all_settled": {"op": "=", "args": [{"var": "settled_count"}, {"var": "intent_count"}]}
+        }
+      },
+      {
+        "id": "G5_settle_bound_safety",
+        "kind": "reachability",
+        "scope": "module:batch_settler",
+        "description": "SAFETY: Cannot overfill - settled_count <= intent_count always. Uses environment_can_end.",
+        "formula": "G state.settle_bound_ok",
+        "env_actions": ["add_intent"],
+        "ctrl_actions": ["close_collection", "submit_solution", "finalize_winner", "execute_fill", "complete_batch", "start_new_batch", "revert_batch"],
+        "environment_first": true,
+        "required_in_release": true,
+        "termination": "environment_can_end",
+        "state_predicates": {
+          "settle_bound_ok": {"op": "<=", "args": [{"var": "settled_count"}, {"var": "intent_count"}]}
+        }
+      }
+    ]
+  },
+  "acceptance": {"user_approved": true, "approved_at": "v7-gemini-feedback", "approval_hash": null}
+}

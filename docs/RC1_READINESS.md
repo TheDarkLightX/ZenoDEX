@@ -27,7 +27,7 @@ For the proposed include/exclude release surface, see [RC1_SCOPE.md](RC1_SCOPE.m
 **Exclude**
 
 - experimental autotrader live authority
-- experimental advisory / ranking influence
+- KRR / ZenoGraph ranking influence
 - experimental advisory/research shells
 - disputed derivatives settlement authorization claims
 
@@ -94,7 +94,7 @@ RC1 should not ship with:
 - undocumented TLA models
 - broken public replay lanes
 
-A TLA claim-summary drift around an excluded experimental host/local acceptance model was a real example of the kind of issue that must be closed before RC1.
+The TLA claim-summary drift around `ZenoGraphHostLocalAcceptance` was a real example of the kind of issue that must be closed before RC1.
 
 ### 4. Resolve or defer disputed derivatives claims
 
@@ -169,7 +169,7 @@ The deep lane should remain part of campaign evidence and periodic replay, not d
 For RC1:
 
 - autotrader should remain advanced/experimental
-- experimental ranking systems should remain advisory-only
+- ZenoGraph should remain advisory-only
 - ranking influence should remain blocked until the signed replay gate actually passes
 
 This is both a product-scope boundary and a safety boundary.
@@ -197,4 +197,4 @@ RC1 is honest when all of the following are true:
 3. Freeze and check the verified surface matrix and supported runtime-path artifact.
 4. Re-run the public release gate from that candidate tree.
 5. If derivatives are in scope, settle the disputed-claim posture before calling it RC1.
-6. Keep experimental advisory and ranking systems outside runtime authority for RC1.
+6. Keep autotrader and ZenoGraph outside runtime authority for RC1.

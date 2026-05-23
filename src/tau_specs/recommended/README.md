@@ -1,9 +1,3 @@
----
-title: README
-type: note
-permalink: autonomous-tau-dex-review/src/tau-specs/recommended/readme
----
-
 # Recommended Tau Specs - Profiles (Risk and Performance)
 
 This folder contains Tau specs intended for reuse and integration.
