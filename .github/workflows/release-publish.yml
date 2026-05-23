@@ -161,7 +161,7 @@ jobs:
               "files": files,
               "publish_targets": {
                   "github_release": True,
-                  "ghcr": "manual-opt-in",
+                  "ghcr": "tag-push-or-manual-opt-in",
                   "npm": "manual-opt-in",
               },
               "not_claimed": [
@@ -218,7 +218,7 @@ jobs:
     needs: build-artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_containers }}
+    if: ${{ github.event_name == 'push' || inputs.publish_containers }}
     permissions:
       contents: read
       packages: write
