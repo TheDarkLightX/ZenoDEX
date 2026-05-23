@@ -21,6 +21,7 @@ from zenodex_oracle_signed_report import (  # noqa: E402
     signing_payload,
     submission_content_hash,
 )
+from zenodex_oracle_source_diversity import source_set_content_hash  # noqa: E402
 
 
 def _refresh_aggregate_id(aggregate: dict) -> None:
@@ -147,6 +148,18 @@ def test_admitted_median3_rejects_admission_epoch_mismatch(tmp_path: Path) -> No
     code, result = _run_verify(tmp_path, aggregate)
     assert code == 2
     assert "admission_current_epoch_mismatch:0" in result["errors"]
+
+
+def test_admitted_median3_rejects_mismatched_source_set_ids(tmp_path: Path) -> None:
+    aggregate = sample_admitted_median3_aggregate()
+    receipt = aggregate["report_admissions"][2]["source_diversity"]
+    receipt["min_distinct_operators"] = 1
+    receipt["source_set_id"] = source_set_content_hash(receipt)
+    _refresh_admission_id(aggregate, 2)
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "admission_source_set_mismatch" in result["errors"]
 
 
 def test_admitted_median3_rejects_deviation_over_policy(tmp_path: Path) -> None:
