@@ -140,7 +140,7 @@ replay:
 
 ```text
 bin/zenodex-oracle doctor
-bin/zenodex-oracle dry-run --workdir /tmp/zeno-oracle-dry-run
+bin/zenodex-oracle dry-run --workdir "$(mktemp -d -t zeno-oracle-dry-run-XXXXXX)"
 python3 tools/zenodex_oracle_cli.py doctor
 python3 tools/zenodex_oracle_cli.py sample feed --output /tmp/zeno-oracle-feed-registry.json
 python3 tools/zenodex_oracle_cli.py verify feed /tmp/zeno-oracle-feed-registry.json
