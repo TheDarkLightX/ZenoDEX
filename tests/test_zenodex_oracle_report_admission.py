@@ -118,6 +118,15 @@ def test_report_admission_rejects_reporter_mismatch(tmp_path: Path) -> None:
     assert "reporter_lifecycle_reporter_id_mismatch" in result["errors"]
 
 
+def test_report_admission_rejects_reporter_pubkey_mismatch(tmp_path: Path) -> None:
+    admission = sample_report_admission()
+    admission["reporter_lifecycle"]["reporter_pubkey"] = "0x" + ("22" * 48)
+    _refresh_admission_id(admission)
+    code, result = _run_verify(tmp_path, admission)
+    assert code == 2
+    assert "reporter_lifecycle_reporter_pubkey_mismatch" in result["errors"]
+
+
 def test_report_admission_rejects_missing_lifecycle_submit(tmp_path: Path) -> None:
     admission = sample_report_admission()
     admission["reporter_lifecycle"]["events"] = admission["reporter_lifecycle"]["events"][:-1]
