@@ -56,7 +56,7 @@ def test_zenoproof_production_governance_policy_accepts_sample_candidate() -> No
     assert result["verifier_release_entry_count"] == 8
     assert result["devnet_only_verifier_count"] == 2
     assert result["production_verifier_path_lookup_count"] == 0
-    assert "production_verifier_release_transparency_log_not_verified" not in result["go_live_blockers"]
+    assert "production_verifier_release_transparency_log_not_verified" in result["go_live_blockers"]
     assert "live_proof_mining_token_settlement_not_enabled" in result["go_live_blockers"]
     assert "public_replay_verifiers_still_allow_path_lookup" not in result["go_live_blockers"]
     assert "does_not_claim_live_proof_network" in result["not_claimed"]
