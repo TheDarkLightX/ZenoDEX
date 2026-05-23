@@ -92,13 +92,13 @@ underlying `tools/zenodex_oracle_signed_report.py` script.
 Run the local happy path from one command:
 
 ```bash
-bin/zenodex-oracle dry-run --workdir /tmp/zeno-oracle-dry-run
+bin/zenodex-oracle dry-run --workdir "$(mktemp -d -t zeno-oracle-dry-run-XXXXXX)"
 ```
 
 The same command through Python is:
 
 ```bash
-python3 tools/zenodex_oracle_cli.py dry-run --workdir /tmp/zeno-oracle-dry-run
+python3 tools/zenodex_oracle_cli.py dry-run --workdir "$(mktemp -d -t zeno-oracle-dry-run-XXXXXX)"
 ```
 
 The dry run generates and verifies a sample feed registry, signed report,
