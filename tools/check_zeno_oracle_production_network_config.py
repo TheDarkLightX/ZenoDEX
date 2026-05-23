@@ -941,6 +941,19 @@ def check_receipt_bundle(config: Mapping[str, Any], receipt_bundle: Mapping[str,
         if payload is not None and expected is not None and payload.get(key) != expected:
             errors.append(error)
 
+    approval_payload = _payload("feed_governance_approval")
+    execution_payload = _payload("feed_governance_execution")
+    if approval_payload is not None and execution_payload is not None:
+        approval_executable_after = approval_payload.get("executable_after_timestamp")
+        execution_executable_after = execution_payload.get("executable_after_timestamp")
+        if (
+            isinstance(approval_executable_after, int)
+            and not isinstance(approval_executable_after, bool)
+            and isinstance(execution_executable_after, int)
+            and not isinstance(execution_executable_after, bool)
+            and execution_executable_after != approval_executable_after
+        ):
+            errors.append("feed_governance_execution_executable_after_mismatch")
     for kind, key, expected_kind, error in (
         (
             "feed_governance_deployment",
