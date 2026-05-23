@@ -270,6 +270,24 @@ def test_production_network_config_rejects_early_feed_governance_execution() -> 
     assert result["status"] == "rejected"
     assert "receipt:feed_governance_execution_before_timelock" in result["errors"]
 
+def test_production_network_config_rejects_feed_governance_execution_executable_after_drift() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    execution = next(
+        receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "feed_governance_execution"
+    )
+    payload = execution["payload"]
+    assert isinstance(payload, dict)
+    payload["executable_after_timestamp"] = int(payload["executable_after_timestamp"]) - 1
+    execution["receipt_id"] = receipt_content_hash(execution)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:feed_governance_execution_executable_after_mismatch" in result["errors"]
+
 
 def test_production_network_config_rejects_feed_governance_proposal_drift() -> None:
     config = sample_config()
