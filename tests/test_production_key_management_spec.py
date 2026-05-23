@@ -49,3 +49,10 @@ def test_production_key_management_property_model() -> None:
         if case["polarity"] == "negative":
             assert case["reject_reason"]
     assert result["counterexamples"] == []
+
+    case_names = {case["name"] for case in result["cases"]}
+    assert any(name.endswith(":PKM-G-002:expired_key_rejected") for name in case_names)
+    assert any(
+        name.endswith(":PKM-G-003:same_custodian_quorum_rejected")
+        for name in case_names
+    )
