@@ -19,7 +19,48 @@ import {
     loadSwapPools,
     resolveWalletTokenBalance,
 } from '../lib/swapData.js';
+import VerifiedBySpec from './VerifiedBySpec.jsx';
 import './SwapInterface.css';
+
+// SVGs
+const SettingsIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+);
+
+const RefreshIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+        <path d="M16 21v-5h5" />
+    </svg>
+);
+
+const SwapDirectionIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <polyline points="19 12 12 19 5 12"/>
+    </svg>
+);
+
+const InfoIcon = ({ className = "icon" }) => (
+    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+);
+
+const AlertIcon = ({ className = "icon" }) => (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+);
 
 // Tooltip component
 function Tooltip({ text, children }) {
@@ -459,8 +500,8 @@ function SwapInterface({ wallet }) {
     );
 
     // Get user balance for from token
-    const fromBalance = wallet ? resolveWalletTokenBalance(wallet, fromToken.symbol) : 0;
-    const toBalance = wallet ? resolveWalletTokenBalance(wallet, toToken.symbol) : 0;
+    const fromBalance = wallet ? resolveWalletTokenBalance(wallet, fromToken.symbol) : null;
+    const toBalance = wallet ? resolveWalletTokenBalance(wallet, toToken.symbol) : null;
 
     // Incremental quote DAG (performance-oriented quote path)
     const swapQuote = useMemo(() => {
@@ -647,7 +688,7 @@ function SwapInterface({ wallet }) {
             return { ok: false, error: 'Enter a valid amount' };
         }
 
-        if (wallet && input > fromBalance) {
+        if (wallet && fromBalance != null && input > fromBalance) {
             return { ok: false, error: `Insufficient ${fromToken.symbol} balance` };
         }
 
@@ -748,14 +789,17 @@ function SwapInterface({ wallet }) {
     };
 
     const handleMaxAmount = () => {
-        if (wallet && fromBalance > 0) {
-            // Leave a small amount for gas if native token
-            const maxAmount = fromToken.symbol === 'AGRS'
-                ? Math.max(0, fromBalance - 0.01)
-                : fromBalance;
-            setAmountIn(maxAmount.toString());
+        if (wallet && fromBalance != null && fromBalance > 0) {
+            setAmountIn(String(fromBalance));
             setQuoteError('');
         }
+    };
+
+    const handlePresetFraction = (fraction) => {
+        if (!wallet || fromBalance == null || fromBalance <= 0) return;
+        const amount = fromBalance * fraction;
+        setAmountIn(amount > 0 ? String(amount) : '');
+        setQuoteError('');
     };
 
     const handleSwapClick = () => {
@@ -781,7 +825,7 @@ function SwapInterface({ wallet }) {
             setPokayokeHeavySuggestions(null);
             setPokayokeHeavySuggestError('');
             setConfirmConfig({
-                title: '⚠️ Confirm Swap',
+                title: 'Confirm Swap',
                 messages: Array.isArray(gate.messages) ? gate.messages : [],
                 reasons: Array.isArray(gate.reasons) ? gate.reasons : [],
                 requireTyped: String(gate.action) === 'typed_confirm',
@@ -800,7 +844,7 @@ function SwapInterface({ wallet }) {
             setPokayokeHeavySuggestions(null);
             setPokayokeHeavySuggestError('');
             setConfirmConfig({
-                title: '⚠️ Confirm Swap',
+                title: 'Confirm Swap',
                 messages: ['High price impact. Consider trading a smaller amount or adding liquidity.'],
                 reasons: ['legacy_high_impact'],
                 requireTyped: false,
@@ -1084,17 +1128,24 @@ function SwapInterface({ wallet }) {
     return (
         <div className="swap-panel panel">
             <div className="swap-header">
-                <h2>Swap</h2>
+                <div className="swap-header-titles">
+                    <h2>Swap</h2>
+                    <VerifiedBySpec
+                        spec="cpmm_v2"
+                        kind="tau"
+                        title="Swap execution is verified by Tau spec cpmm_v2 with deterministic CPMM math."
+                    />
+                </div>
                 <div className="swap-header-actions">
                     <span className={`refresh-indicator ${isRefreshing ? 'active' : ''}`} title="Prices refresh every 15s">
-                        🔄
+                        <RefreshIcon />
                     </span>
                     <button
                         className="settings-btn"
                         onClick={() => setShowSettings(!showSettings)}
                         title="Transaction settings"
                     >
-                        ⚙️
+                        <SettingsIcon />
                     </button>
                 </div>
             </div>
@@ -1104,7 +1155,7 @@ function SwapInterface({ wallet }) {
                     <div className="settings-row">
                         <span className="label">
                             <Tooltip text="Maximum price movement you're willing to accept">
-                                Slippage Tolerance ℹ️
+                                <span className="label-with-icon">Slippage Tolerance <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         {suggestedSlippage !== slippage && (
@@ -1137,7 +1188,7 @@ function SwapInterface({ wallet }) {
                     <div className="settings-row">
                         <span className="label">
                             <Tooltip text="Enable experimental mistake-proofing interlocks (confirm/typed confirm) driven by deterministic MEV + revert-safety signals">
-                                Safety Interlocks (Experimental) ℹ️
+                                <span className="label-with-icon">Safety Interlocks (Experimental) <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         <button
@@ -1152,7 +1203,7 @@ function SwapInterface({ wallet }) {
                     <div className="settings-row">
                         <span className="label">
                             <Tooltip text="Enable experimental route optimization and quote certificates">
-                                Advanced Mode ℹ️
+                                <span className="label-with-icon">Advanced Mode <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         <button
@@ -1170,7 +1221,7 @@ function SwapInterface({ wallet }) {
                             <div className="settings-row">
                                 <span className="label">
                                     <Tooltip text="Deterministic route policy frontier: Latency ↔ Quality">
-                                        Route Profile ℹ️
+                                        <span className="label-with-icon">Route Profile <InfoIcon /></span>
                                     </Tooltip>
                                 </span>
                                 <button
@@ -1215,8 +1266,8 @@ function SwapInterface({ wallet }) {
                 <div className="swap-input-header">
                     <span className="label">From</span>
                     <span className="balance" onClick={handleMaxAmount} style={{ cursor: wallet ? 'pointer' : 'default' }}>
-                        Balance: {wallet ? formatNumber(fromBalance) : '-'}
-                        {wallet && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
+                        Balance: {wallet ? (fromBalance == null ? 'N/A' : formatNumber(fromBalance)) : '-'}
+                        {wallet && fromBalance != null && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
                     </span>
                 </div>
                 <div className="swap-input-row">
@@ -1234,6 +1285,38 @@ function SwapInterface({ wallet }) {
                         <span>{fromToken.symbol}</span>
                     </div>
                 </div>
+                {wallet && fromBalance != null && fromBalance > 0 && (
+                    <div className="swap-presets" role="group" aria-label="Quick fill from balance">
+                        <button
+                            type="button"
+                            className="swap-preset-btn"
+                            onClick={() => handlePresetFraction(0.25)}
+                        >
+                            25%
+                        </button>
+                        <button
+                            type="button"
+                            className="swap-preset-btn"
+                            onClick={() => handlePresetFraction(0.5)}
+                        >
+                            50%
+                        </button>
+                        <button
+                            type="button"
+                            className="swap-preset-btn"
+                            onClick={() => handlePresetFraction(0.75)}
+                        >
+                            75%
+                        </button>
+                        <button
+                            type="button"
+                            className="swap-preset-btn swap-preset-max"
+                            onClick={handleMaxAmount}
+                        >
+                            MAX
+                        </button>
+                    </div>
+                )}
                 {validation.error && amountIn && (
                     <div className="input-error-hint">{validation.error}</div>
                 )}
@@ -1242,7 +1325,7 @@ function SwapInterface({ wallet }) {
             {/* Swap Direction Button */}
             <div className="swap-direction">
                 <button className="swap-direction-btn" onClick={handleSwapTokens} title="Swap tokens">
-                    ↕️
+                    <SwapDirectionIcon />
                 </button>
             </div>
 
@@ -1250,7 +1333,7 @@ function SwapInterface({ wallet }) {
             <div className="swap-input-container">
                 <div className="swap-input-header">
                     <span className="label">To (estimated)</span>
-                    <span className="balance">Balance: {wallet ? formatNumber(toBalance) : '-'}</span>
+                    <span className="balance">Balance: {wallet ? (toBalance == null ? 'N/A' : formatNumber(toBalance)) : '-'}</span>
                 </div>
                 <div className="swap-input-row">
                     <input
@@ -1282,7 +1365,7 @@ function SwapInterface({ wallet }) {
                         </Tooltip>
                         <span className={`impact-${impactSeverity}`}>
                             {formatPercent(activePreview.priceImpact)}
-                            {impactSeverity === 'high' && ' ⚠️'}
+                            {impactSeverity === 'high' && <AlertIcon className="icon-warning" />}
                         </span>
                     </div>
                     <div className="swap-detail-row">
@@ -1359,32 +1442,32 @@ function SwapInterface({ wallet }) {
             {/* High Impact Warning */}
             {activePreview && impactSeverity === 'high' && (
                 <div className="swap-warning">
-                    ⚠️ High price impact! Consider trading a smaller amount or adding liquidity.
+                    <AlertIcon /> <span>High price impact! Consider trading a smaller amount or adding liquidity.</span>
                 </div>
             )}
 
             {/* Medium Impact Notice */}
             {activePreview && impactSeverity === 'medium' && (
                 <div className="swap-notice">
-                    ℹ️ Moderate price impact ({formatPercent(activePreview.priceImpact)})
+                    <InfoIcon /> <span>Moderate price impact ({formatPercent(activePreview.priceImpact)})</span>
                 </div>
             )}
 
             {poolFeed.source !== 'api' && (
                 <div className="swap-notice">
-                    ℹ️ Live pool feed unavailable. Using a reference reserve snapshot for preview quotes.
+                    <InfoIcon /> <span>Live pool feed unavailable. Using a reference reserve snapshot for preview quotes.</span>
                 </div>
             )}
 
             {advancedMode && activePreview && !certificateCheck.ok && (
                 <div className="swap-warning">
-                    ⚠️ Quote certificate check failed: {certificateCheck.reason}. Refresh quote before swapping.
+                    <AlertIcon /> <span>Quote certificate check failed: {certificateCheck.reason}. Refresh quote before swapping.</span>
                 </div>
             )}
 
             {quoteError && (
                 <div className="swap-warning">
-                    ⚠️ {quoteError}
+                    <AlertIcon /> <span>{quoteError}</span>
                 </div>
             )}
 
@@ -1412,7 +1495,7 @@ function SwapInterface({ wallet }) {
                     }}
                 >
                     <div className="confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3>{confirmConfig?.title || '⚠️ Confirm Swap'}</h3>
+                        <h3 className="confirm-title"><AlertIcon /> {confirmConfig?.title || 'Confirm Swap'}</h3>
                         <p>This swap has a <strong className="impact-high">{formatPercent(activePreview.priceImpact)}</strong> price impact.</p>
                         <div className="confirm-details">
                             <div className="confirm-row">

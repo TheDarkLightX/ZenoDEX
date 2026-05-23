@@ -13,6 +13,7 @@ import PerpInsuranceFundPanel from './PerpInsuranceFundPanel.jsx';
 import PerpTradeHistory from './PerpTradeHistory.jsx';
 import PerpLiveWalletSurface from './PerpLiveWalletSurface.jsx';
 import { useDemoMode } from '../../lib/DemoModeContext.jsx';
+import VerifiedBySpec from '../VerifiedBySpec.jsx';
 import './PerpTradingView.css';
 
 /**
@@ -67,16 +68,20 @@ function PerpTradingView({ wallet }) {
         setShowConfirmOrder(null);
     }, [setPosition]);
 
-    const postureLabel = demoMode
+    // The Perpetuals tab contains the trader-facing UI (preview grid) and a
+    // low-level operator console (Live Wallet). The trader surface is the
+    // headline in both modes. The operator console only appears in live mode,
+    // tucked behind a disclosure so it isn't mistaken for the trader UI.
+    const previewLabel = demoMode
         ? 'Demo market replay'
         : writeEnabled
-            ? 'Local preview writes'
-            : 'Read-only preview';
-    const postureDetail = demoMode
+            ? 'Live · writes enabled'
+            : 'Live · read-only';
+    const previewDetail = demoMode
         ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
         : writeEnabled
-            ? 'Uses the mounted /api/perps surface for local preview writes. This lane is still a development surface and not an authoritative settlement path.'
-            : 'Uses the mounted /api/perps surface for market data preview only. Stream-8 transactions are handled by the Live Perps Wallet below.';
+            ? 'Reads from the Tau node. Order writes still route through the operator console below.'
+            : 'Reads from the Tau node. Order writes are exposed in the Operator console disclosure below.';
 
     if (loading && markets.length === 0) {
         return (
@@ -86,29 +91,23 @@ function PerpTradingView({ wallet }) {
         );
     }
 
-    return (
-        <div className="perp-trading-view">
-            {/* Circuit Breaker Banner */}
-            {selectedMarket?.breakerActive && (
-                <PerpCircuitBreakerBanner
-                    breakerActive={true}
-                    breakerLastTriggerEpoch={selectedMarket.breakerLastTriggerEpoch ?? 0}
-                />
-            )}
-
-            {/* Error Banner */}
-            {error && (
-                <div className="perp-error-banner">Error: {error}</div>
-            )}
-
-            {/* Market Selector */}
+    // Build the preview grid as a reusable fragment so it can either be
+    // rendered as the main surface (demo mode) or tucked inside a
+    // collapsible disclosure (live mode).
+    const previewGrid = (
+        <>
             <div className="perp-market-bar">
                 <div className="perp-market-header">
-                    <div>
-                        <h2 className="perp-title">Perpetuals</h2>
-                        <p className="perp-subtitle">{postureDetail}</p>
+                    <div className="perp-title-block">
+                        <h2 className="perp-title">{demoMode ? 'Perpetuals (demo)' : 'Perpetuals'}</h2>
+                        <VerifiedBySpec
+                            spec="perp_epoch_isolated_v3"
+                            kind="esso"
+                            title="Perpetuals margin and epoch lifecycle are verified by ESSO state machine perp_epoch_isolated_v3 (Z3 + CVC5)."
+                        />
+                        <p className="perp-subtitle">{previewDetail}</p>
                     </div>
-                    <span className="perp-posture-chip">{postureLabel}</span>
+                    <span className="perp-posture-chip">{previewLabel}</span>
                 </div>
                 <PerpMarketSelector
                     markets={markets}
@@ -133,10 +132,6 @@ function PerpTradingView({ wallet }) {
                 </div>
             )}
 
-            {!demoMode && (
-                <PerpLiveWalletSurface />
-            )}
-
             {/* Account Summary */}
             {wallet && (
                 <PerpAccountSummary
@@ -147,7 +142,6 @@ function PerpTradingView({ wallet }) {
 
             {/* 3-Column Trading Grid */}
             <div className="perp-grid">
-                {/* Left: Order Form */}
                 <div className="perp-col perp-col-order">
                     <div className="panel">
                         <h3 className="perp-section-title">Trade</h3>
@@ -161,8 +155,6 @@ function PerpTradingView({ wallet }) {
                             onShowConfirm={handleShowConfirm}
                         />
                     </div>
-
-                    {/* Collateral Button */}
                     <button
                         className="btn btn-secondary perp-collateral-btn"
                         onClick={() => setShowCollateralModal(true)}
@@ -172,7 +164,6 @@ function PerpTradingView({ wallet }) {
                     </button>
                 </div>
 
-                {/* Center: Price + Epoch + Insurance */}
                 <div className="perp-col perp-col-price">
                     <div className="panel">
                         <h3 className="perp-section-title">Market Data</h3>
@@ -187,7 +178,6 @@ function PerpTradingView({ wallet }) {
                     />
                 </div>
 
-                {/* Right: Account */}
                 <div className="perp-col perp-col-account">
                     <div className="panel">
                         <PerpPositionPanel
@@ -201,6 +191,43 @@ function PerpTradingView({ wallet }) {
 
             {/* Trade History */}
             <PerpTradeHistory history={history} />
+        </>
+    );
+
+    return (
+        <div className="perp-trading-view">
+            {/* Circuit Breaker Banner */}
+            {selectedMarket?.breakerActive && (
+                <PerpCircuitBreakerBanner
+                    breakerActive={true}
+                    breakerLastTriggerEpoch={selectedMarket.breakerLastTriggerEpoch ?? 0}
+                />
+            )}
+
+            {/* Error Banner */}
+            {error && (
+                <div className="perp-error-banner">Error: {error}</div>
+            )}
+
+            {/* Headline in both modes: the trader-facing perps grid.
+                In live mode the raw stream-8 operator console is available
+                behind a disclosure for market makers / operators. */}
+            {previewGrid}
+            {!demoMode && (
+                <details className="perp-preview-disclosure">
+                    <summary className="perp-preview-disclosure-summary">
+                        <span className="perp-preview-disclosure-label">Operator console</span>
+                        <span className="perp-preview-disclosure-hint">
+                            Raw stream-8 protocol primitives — init 2P market, advance epoch,
+                            publish clearing price, settle epoch, partial liquidate. For market
+                            operators, not normal traders.
+                        </span>
+                    </summary>
+                    <div className="perp-preview-disclosure-body">
+                        <PerpLiveWalletSurface />
+                    </div>
+                </details>
+            )}
 
             {/* Modals */}
             {showConfirmOrder && (

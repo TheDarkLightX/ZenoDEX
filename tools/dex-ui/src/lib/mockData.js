@@ -1,199 +1,147 @@
 /**
- * ZenoDEX - Mock Data for Demo Mode
+ * Offline / illustrative fallbacks for the ZenoDEX UI.
  *
- * This file contains all mock data used when the app is in demo mode.
- * In production mode, this data is NOT used - real Tau Net data is fetched.
+ * These values are used when the live Tau-node API is unreachable so the
+ * UI can render coherent shells. Live data, when present, always takes
+ * precedence. The token set matches the local testnet:
+ * ZDEX, zUSD, tAGRS, TASSET0, TASSET1, TZENO.
+ * (AGRS is the canonical production collateral for zUSD but is not yet
+ * deployed on the local testnet; tAGRS is the value-less test stand-in.)
  */
 
 // =============================================================================
 // Tokens
 // =============================================================================
 
-export const DEMO_TOKENS = [
-    { symbol: 'AGRS', name: 'Agoras', icon: '✦', decimals: 18 },
+export const FALLBACK_TOKENS = [
     { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡', decimals: 18 },
-    { symbol: 'USDC', name: 'USD Coin', icon: '💵', decimals: 6 },
-    { symbol: 'WETH', name: 'Wrapped ETH', icon: '⟠', decimals: 18 },
+    { symbol: 'zUSD', name: 'ZenoUSD', icon: '◈', decimals: 18 },
+    { symbol: 'tAGRS', name: 'Test Agoras', icon: '✦', decimals: 18 },
+    { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀', decimals: 18 },
+    { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁', decimals: 18 },
+    { symbol: 'TZENO', name: 'Test Zeno', icon: 'TZ', decimals: 18 },
 ];
 
 // =============================================================================
 // Pools
 // =============================================================================
 
-export const DEMO_POOLS = [
+export const FALLBACK_POOLS = [
     {
-        id: 'agrs-zdex',
-        token0: { symbol: 'AGRS', name: 'Agoras', icon: '✦' },
+        id: 'tasset0-zdex',
+        token0: { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀' },
         token1: { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡' },
-        reserve0: 1000000,
-        reserve1: 500000,
-        tvl: 2500000,
-        volume24h: 150000,
-        apy: 0.0847,
-        totalLpSupply: 700000,
+        reserve0: 1_000_000,
+        reserve1: 500_000,
+        tvl: 0,
+        volume24h: 0,
+        apy: 0,
+        totalLpSupply: 700_000,
         myLp: 0,
     },
     {
-        id: 'agrs-usdc',
-        token0: { symbol: 'AGRS', name: 'Agoras', icon: '✦' },
-        token1: { symbol: 'USDC', name: 'USD Coin', icon: '💵' },
-        reserve0: 1000000,
-        reserve1: 2500000,
-        tvl: 5000000,
-        volume24h: 320000,
-        apy: 0.1234,
-        totalLpSupply: 1500000,
+        id: 'tasset0-tasset1',
+        token0: { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀' },
+        token1: { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁' },
+        reserve0: 1_000_000,
+        reserve1: 1_000_000,
+        tvl: 0,
+        volume24h: 0,
+        apy: 0,
+        totalLpSupply: 1_000_000,
         myLp: 0,
     },
     {
-        id: 'zdex-usdc',
-        token0: { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡' },
-        token1: { symbol: 'USDC', name: 'USD Coin', icon: '💵' },
-        reserve0: 500000,
-        reserve1: 1250000,
-        tvl: 2500000,
-        volume24h: 89000,
-        apy: 0.0654,
-        totalLpSupply: 750000,
+        id: 'tasset1-tzeno',
+        token0: { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁' },
+        token1: { symbol: 'TZENO', name: 'Test Zeno', icon: 'TZ' },
+        reserve0: 1_000_000,
+        reserve1: 1_000_000,
+        tvl: 0,
+        volume24h: 0,
+        apy: 0,
+        totalLpSupply: 1_000_000,
         myLp: 0,
     },
 ];
 
-export const DEMO_POOL_RESERVES = {
-    'AGRS-USDC': { reserve0: 1000000, reserve1: 2500000 },
-    'AGRS-WETH': { reserve0: 1000000, reserve1: 500 },
-    'USDC-WETH': { reserve0: 2500000, reserve1: 1000 },
-    'AGRS-ZDEX': { reserve0: 1000000, reserve1: 500000 },
+export const FALLBACK_POOL_RESERVES = {
+    'TASSET0-ZDEX': { reserve0: 1_000_000, reserve1: 500_000 },
+    'TASSET0-TASSET1': { reserve0: 1_000_000, reserve1: 1_000_000 },
+    'TASSET1-TZENO': { reserve0: 1_000_000, reserve1: 1_000_000 },
 };
 
 // =============================================================================
 // User Balances
 // =============================================================================
 
-export const DEMO_BALANCES = {
-    AGRS: 1234.56,
-    ZDEX: 5000.00,
-    USDC: 5000.00,
-    WETH: 2.5,
+export const FALLBACK_BALANCES = {
+    ZDEX: 1_000_000,
+    zUSD: 0,
+    tAGRS: 1_000_000,
+    TASSET0: 1_000_000,
+    TASSET1: 1_000_000,
+    TZENO: 1_000_000,
 };
 
 // =============================================================================
-// Transactions
+// Transactions (illustrative — empty when no live history is loaded)
 // =============================================================================
 
-export const DEMO_TRANSACTIONS = [
-    {
-        id: 'tx-001',
-        type: 'swap',
-        timestamp: Date.now() - 3600000,
-        tokenIn: { symbol: 'AGRS', icon: '✦', amount: 100 },
-        tokenOut: { symbol: 'ZDEX', icon: '⚡', amount: 49.5 },
-        status: 'confirmed',
-        txHash: 'abc123def456789012345678901234567890abcdef',
-    },
-    {
-        id: 'tx-002',
-        type: 'add_liquidity',
-        timestamp: Date.now() - 7200000,
-        token0: { symbol: 'AGRS', icon: '✦', amount: 500 },
-        token1: { symbol: 'USDC', icon: '💵', amount: 1250 },
-        lpReceived: 750,
-        pool: 'AGRS-USDC',
-        status: 'confirmed',
-        txHash: 'def456ghi789012345678901234567890abcdef12',
-    },
-    {
-        id: 'tx-003',
-        type: 'swap',
-        timestamp: Date.now() - 86400000,
-        tokenIn: { symbol: 'USDC', icon: '💵', amount: 500 },
-        tokenOut: { symbol: 'AGRS', icon: '✦', amount: 200 },
-        status: 'confirmed',
-        txHash: 'ghi789jkl012345678901234567890abcdef1234',
-    },
-    {
-        id: 'tx-004',
-        type: 'remove_liquidity',
-        timestamp: Date.now() - 172800000,
-        token0: { symbol: 'ZDEX', icon: '⚡', amount: 100 },
-        token1: { symbol: 'USDC', icon: '💵', amount: 250 },
-        lpBurned: 150,
-        pool: 'ZDEX-USDC',
-        status: 'confirmed',
-        txHash: 'jkl012mno345678901234567890abcdef123456',
-    },
-    {
-        id: 'tx-005',
-        type: 'swap',
-        timestamp: Date.now() - 60000,
-        tokenIn: { symbol: 'AGRS', icon: '✦', amount: 50 },
-        tokenOut: { symbol: 'USDC', icon: '💵', amount: 125 },
-        status: 'pending',
-        txHash: 'mno345pqr678901234567890abcdef12345678',
-    },
-];
+export const FALLBACK_TRANSACTIONS = [];
 
 // =============================================================================
 // ZDEX Token Stats
 // =============================================================================
 
-export const DEMO_ZDEX_STATS = {
-    initialSupply: 1000000,
-    minSupply: 100000,
-    currentSupply: 800000,
-    burnedTotal: 200000,
-    buybackPool: 12500,
-    dailyVolume: 150000,
-    burnRate: 0.005,
+export const FALLBACK_ZDEX_STATS = {
+    initialSupply: 1_000_000,
+    minSupply: 100_000,
+    currentSupply: 1_000_000,
+    burnedTotal: 0,
+    buybackPool: 0,
+    dailyVolume: 0,
+    burnRate: 0,
 };
 
-export const DEMO_BURN_HISTORY = [
-    { day: 1, supply: 1000000, burned: 0 },
-    { day: 30, supply: 950000, burned: 50000 },
-    { day: 60, supply: 910000, burned: 90000 },
-    { day: 90, supply: 875000, burned: 125000 },
-    { day: 120, supply: 845000, burned: 155000 },
-    { day: 150, supply: 820000, burned: 180000 },
-    { day: 180, supply: 800000, burned: 200000 },
+export const FALLBACK_BURN_HISTORY = [
+    { day: 0, supply: 1_000_000, burned: 0 },
 ];
 
 // =============================================================================
 // System Status
 // =============================================================================
 
-export const DEMO_SYSTEM_STATUS = {
+export const FALLBACK_SYSTEM_STATUS = {
     oracle: {
-        status: 'healthy',
-        lastUpdate: Date.now() - 30000,
-        sources: 3,
-        medianPrice: 2.50,
+        status: 'unknown',
+        lastUpdate: 0,
+        sources: 0,
+        medianPrice: 0,
     },
     circuitBreaker: {
-        status: 'normal',
+        status: 'unknown',
         threshold: 0.10,
-        currentVolatility: 0.03,
+        currentVolatility: 0,
         triggered: false,
     },
     network: {
-        status: 'connected',
-        blockHeight: 12345678,
-        latency: 45,
+        status: 'unknown',
+        blockHeight: 0,
+        latency: 0,
     },
 };
 
 // =============================================================================
-// Demo Wallet Generator
+// Backwards-compat aliases (so older imports keep working during the
+// demo → live transition). Prefer the FALLBACK_* names in new code.
 // =============================================================================
 
-export function generateDemoWallet() {
-    const chars = '0123456789abcdef';
-    const address = Array.from({ length: 96 }, () =>
-        chars[Math.floor(Math.random() * 16)]
-    ).join('');
-
-    return {
-        address,
-        chainId: 'tau-alpha',
-        balance: { ...DEMO_BALANCES },
-    };
-}
+export const DEMO_TOKENS = FALLBACK_TOKENS;
+export const DEMO_POOLS = FALLBACK_POOLS;
+export const DEMO_POOL_RESERVES = FALLBACK_POOL_RESERVES;
+export const DEMO_BALANCES = FALLBACK_BALANCES;
+export const DEMO_TRANSACTIONS = FALLBACK_TRANSACTIONS;
+export const DEMO_ZDEX_STATS = FALLBACK_ZDEX_STATS;
+export const DEMO_BURN_HISTORY = FALLBACK_BURN_HISTORY;
+export const DEMO_SYSTEM_STATUS = FALLBACK_SYSTEM_STATUS;

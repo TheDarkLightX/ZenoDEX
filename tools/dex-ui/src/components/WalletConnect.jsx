@@ -25,14 +25,7 @@ function WalletConnect({ wallet, onConnect }) {
             onConnect({
                 address,
                 chainId: 'tau-alpha',
-                balance: {
-                    AGRS: 1234.56,
-                    ZDEX: 5000,
-                    USD: 10000,
-                    TASSET0: 1_000_000,
-                    TASSET1: 1_000_000,
-                    TZENO: 1_000_000,
-                },
+                balance: {},
             });
         } catch (error) {
             console.error('Failed to connect wallet:', error);
@@ -60,6 +53,11 @@ function WalletConnect({ wallet, onConnect }) {
     const truncateAddress = (address) => {
         if (!address) return '';
         return `${address.slice(0, 8)}...${address.slice(-6)}`;
+    };
+
+    const formatBalanceOrNA = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toLocaleString() : 'N/A';
     };
 
     if (wallet) {
@@ -90,13 +88,13 @@ function WalletConnect({ wallet, onConnect }) {
                             </div>
 
                             <div className="dropdown-item">
-                                <span className="item-label">AGRS Balance</span>
-                                <span className="item-value">{wallet.balance?.AGRS?.toLocaleString() || 0} ✦</span>
+                                <span className="item-label">ZDEX Balance</span>
+                                <span className="item-value">{formatBalanceOrNA(wallet.balance?.ZDEX)} ⚡</span>
                             </div>
 
                             <div className="dropdown-item">
-                                <span className="item-label">ZDEX Balance</span>
-                                <span className="item-value">{wallet.balance?.ZDEX?.toLocaleString() || 0} ⚡</span>
+                                <span className="item-label">zUSD Balance</span>
+                                <span className="item-value">{formatBalanceOrNA(wallet.balance?.zUSD)} ◈</span>
                             </div>
                         </div>
 

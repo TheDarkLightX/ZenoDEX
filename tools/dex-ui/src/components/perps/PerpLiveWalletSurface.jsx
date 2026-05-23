@@ -108,6 +108,10 @@ function compactId(value) {
   return `${text.slice(0, 10)}...${text.slice(-6)}`;
 }
 
+function valueOrNA(value) {
+  return value == null || value === '' ? 'N/A' : value;
+}
+
 function oracleDashboardCandidates(snapshot, targetAction = '') {
   const authorizations = Array.isArray(snapshot?.recent_authorizations) ? snapshot.recent_authorizations : [];
   const reads = Array.isArray(snapshot?.recent_accepted_reads) ? snapshot.recent_accepted_reads : [];
@@ -446,6 +450,10 @@ function PerpLiveWalletSurface() {
   const walletRotationExercise = walletAuthority?.rotation_exercise || null;
   const walletDeviceApprovalExercise = walletAuthority?.device_approval_exercise || null;
   const walletSignerDeviceIntegration = walletAuthority?.signer_device_integration || null;
+  const walletSignerPromptCapture = walletAuthority?.signer_prompt_capture || null;
+  const walletSignerExecutionExercise = walletAuthority?.signer_execution_exercise || null;
+  const walletSignerCeremony = walletAuthority?.signer_ceremony || null;
+  const walletHardwareCustody = walletAuthority?.hardware_custody || null;
   const oracleAuthority = status?.oracle_authority || null;
   const oracleBridgePosture = (
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
@@ -491,6 +499,12 @@ function PerpLiveWalletSurface() {
           <div><span>Device Sign Admission</span><span>{walletDeviceApprovalExercise?.sign_admission_receipt ? `${walletDeviceApprovalExercise.sign_admission_receipt.ok ? 'ok' : 'blocked'} ${walletDeviceApprovalExercise.sign_admission_receipt.payload_nonce ?? 'unknown'}` : 'unknown'}</span></div>
           <div><span>Signer Device</span><span>{walletSignerDeviceIntegration ? walletSignerDeviceIntegration.status : 'not loaded'}</span></div>
           <div><span>Signer Backend</span><span>{walletSignerDeviceIntegration?.backend_kind || 'unknown'}</span></div>
+          <div><span>Signer Prompt Capture</span><span>{walletSignerPromptCapture ? walletSignerPromptCapture.status : 'not loaded'}</span></div>
+          <div><span>Prompt Capture Source</span><span>{walletSignerPromptCapture?.capture_source || 'unknown'}</span></div>
+          <div><span>Signer Execution</span><span>{walletSignerExecutionExercise ? walletSignerExecutionExercise.status : 'not loaded'}</span></div>
+          <div><span>Signer Prompt</span><span>{walletSignerExecutionExercise?.prompt_reference || 'unknown'}</span></div>
+          <div><span>Signer Ceremony</span><span>{walletSignerCeremony ? walletSignerCeremony.status : 'not loaded'}</span></div>
+          <div><span>Ceremony Execution Ref</span><span>{walletSignerCeremony?.execution_reference || 'unknown'}</span></div>
           <div><span>Oracle Authority</span><span>{oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span></div>
           <div><span>Oracle Signers</span><span>{oracleAuthority ? `${oracleAuthority.active_signer_count}/${oracleAuthority.threshold || '?'}` : 'unknown'}</span></div>
           <div><span>Oracle Signed Quorum</span><span>{oracleAuthority?.signature_quorum ? `${oracleAuthority.signature_quorum.accepted_weight ?? 0}/${oracleAuthority.signature_quorum.threshold ?? oracleAuthority.threshold ?? 0}` : 'unknown'}</span></div>
@@ -518,25 +532,6 @@ function PerpLiveWalletSurface() {
             placeholder="perp:ch2p:..."
           />
 
-          <label className="label" htmlFor="perps-wallet-fee-limit">Tau Fee Limit</label>
-          <input
-            id="perps-wallet-fee-limit"
-            className="input"
-            inputMode="numeric"
-            value={form.tx_fee_limit}
-            onChange={(event) => setForm((current) => ({ ...current, tx_fee_limit: event.target.value }))}
-            placeholder="native units"
-          />
-
-          <label className="label" htmlFor="perps-wallet-signed-tx">Signed Tau Tx Payload</label>
-          <textarea
-            id="perps-wallet-signed-tx"
-            className="input perp-live-wallet-textarea"
-            value={form.signed_tau_tx_payload}
-            onChange={(event) => setForm((current) => ({ ...current, signed_tau_tx_payload: event.target.value }))}
-            placeholder="external signer JSON"
-          />
-
           {form.action === 'init_market_2p' ? (
             <>
               <label className="label" htmlFor="perps-wallet-quote">Quote Asset</label>
@@ -550,98 +545,53 @@ function PerpLiveWalletSurface() {
             </>
           ) : null}
 
-          {needsTwoParty ? (
+          {needsCollateral ? (
             <>
-              <label className="label" htmlFor="perps-wallet-a-priv">Account A Privkey</label>
+              <label className="label" htmlFor="perps-wallet-amount">Amount</label>
               <input
-                id="perps-wallet-a-priv"
+                id="perps-wallet-amount"
                 className="input"
-                value={form.account_a_privkey}
-                onChange={(event) => setForm((current) => ({ ...current, account_a_privkey: event.target.value }))}
-                placeholder="local test key"
-              />
-              <label className="label" htmlFor="perps-wallet-b-priv">Account B Privkey</label>
-              <input
-                id="perps-wallet-b-priv"
-                className="input"
-                value={form.account_b_privkey}
-                onChange={(event) => setForm((current) => ({ ...current, account_b_privkey: event.target.value }))}
-                placeholder="local test key"
+                inputMode="numeric"
+                value={form.amount}
+                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
               />
             </>
           ) : null}
 
-          {needsAccountBound ? (
+          {form.action === 'partial_liquidate' ? (
             <>
-              <label className="label" htmlFor="perps-wallet-account-priv">Account Privkey</label>
+              <label className="label" htmlFor="perps-wallet-fraction">Liquidation Fraction Bps (0 auto)</label>
               <input
-                id="perps-wallet-account-priv"
+                id="perps-wallet-fraction"
                 className="input"
-                value={form.account_privkey}
-                onChange={(event) => setForm((current) => ({ ...current, account_privkey: event.target.value }))}
-                placeholder="local test key"
+                inputMode="numeric"
+                value={form.fraction_bps}
+                onChange={(event) => setForm((current) => ({ ...current, fraction_bps: event.target.value }))}
               />
-              {needsCollateral ? (
-                <>
-                  <label className="label" htmlFor="perps-wallet-amount">Amount</label>
-                  <input
-                    id="perps-wallet-amount"
-                    className="input"
-                    inputMode="numeric"
-                    value={form.amount}
-                    onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-                  />
-                </>
-              ) : null}
-              {form.action === 'partial_liquidate' ? (
-                <>
-                  <label className="label" htmlFor="perps-wallet-fraction">Liquidation Fraction Bps (0 auto)</label>
-                  <input
-                    id="perps-wallet-fraction"
-                    className="input"
-                    inputMode="numeric"
-                    value={form.fraction_bps}
-                    onChange={(event) => setForm((current) => ({ ...current, fraction_bps: event.target.value }))}
-                  />
-                  <label className="label" htmlFor="perps-wallet-liquidation-oracle-bridge">Oracle Adapter Bridge</label>
-                  <textarea
-                    id="perps-wallet-liquidation-oracle-bridge"
-                    className="input perp-live-wallet-textarea"
-                    value={form.oracle_adapter_bridge}
-                    onChange={(event) => setForm((current) => ({ ...current, oracle_adapter_bridge: event.target.value }))}
-                    placeholder="optional JSON bridge"
-                  />
-                  <button
-                    className="btn btn-secondary"
-                    type="button"
-                    onClick={handleUseOracleFixture}
-                    disabled={busy || !form.market_id.trim() || (!form.account_pubkey.trim() && !form.account_privkey.trim())}
-                  >
-                    Build Oracle Bridge
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    type="button"
-                    onClick={handleInspectOracleBridge}
-                    disabled={busy || !form.oracle_adapter_bridge.trim()}
-                  >
-                    Inspect Oracle Bridge
-                  </button>
-                </>
-              ) : null}
-            </>
-          ) : null}
-
-          {needsOperator ? (
-            <>
-              <label className="label" htmlFor="perps-wallet-operator-priv">Operator Privkey</label>
-              <input
-                id="perps-wallet-operator-priv"
-                className="input"
-                value={form.operator_privkey}
-                onChange={(event) => setForm((current) => ({ ...current, operator_privkey: event.target.value }))}
-                placeholder="local test key"
+              <label className="label" htmlFor="perps-wallet-liquidation-oracle-bridge">Oracle Adapter Bridge</label>
+              <textarea
+                id="perps-wallet-liquidation-oracle-bridge"
+                className="input perp-live-wallet-textarea"
+                value={form.oracle_adapter_bridge}
+                onChange={(event) => setForm((current) => ({ ...current, oracle_adapter_bridge: event.target.value }))}
+                placeholder="optional JSON bridge"
               />
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handleUseOracleFixture}
+                disabled={busy || !form.market_id.trim() || (!form.account_pubkey.trim() && !form.account_privkey.trim())}
+              >
+                Build Oracle Bridge
+              </button>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={handleInspectOracleBridge}
+                disabled={busy || !form.oracle_adapter_bridge.trim()}
+              >
+                Inspect Oracle Bridge
+              </button>
             </>
           ) : null}
 
@@ -660,14 +610,6 @@ function PerpLiveWalletSurface() {
 
           {needsOracle ? (
             <>
-              <label className="label" htmlFor="perps-wallet-oracle-priv">Oracle Privkey</label>
-              <input
-                id="perps-wallet-oracle-priv"
-                className="input"
-                value={form.oracle_privkey}
-                onChange={(event) => setForm((current) => ({ ...current, oracle_privkey: event.target.value }))}
-                placeholder="local test key"
-              />
               <label className="label" htmlFor="perps-wallet-price">Price E8</label>
               <input
                 id="perps-wallet-price"
@@ -678,6 +620,90 @@ function PerpLiveWalletSurface() {
               />
             </>
           ) : null}
+
+          <details className="perp-advanced-options" style={{ marginTop: 'var(--space-md)', padding: 'var(--space-md)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--text-secondary)' }}>Advanced Testnet Parameters</summary>
+            <div className="perp-live-wallet-form" style={{ marginTop: 'var(--space-md)' }}>
+              <label className="label" htmlFor="perps-wallet-fee-limit">Tau Fee Limit</label>
+              <input
+                id="perps-wallet-fee-limit"
+                className="input"
+                inputMode="numeric"
+                value={form.tx_fee_limit}
+                onChange={(event) => setForm((current) => ({ ...current, tx_fee_limit: event.target.value }))}
+                placeholder="native units"
+              />
+
+              <label className="label" htmlFor="perps-wallet-signed-tx">Signed Tau Tx Payload</label>
+              <textarea
+                id="perps-wallet-signed-tx"
+                className="input perp-live-wallet-textarea"
+                value={form.signed_tau_tx_payload}
+                onChange={(event) => setForm((current) => ({ ...current, signed_tau_tx_payload: event.target.value }))}
+                placeholder="external signer JSON"
+              />
+
+              {needsTwoParty ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-a-priv">Account A Privkey</label>
+                  <input
+                    id="perps-wallet-a-priv"
+                    className="input"
+                    value={form.account_a_privkey}
+                    onChange={(event) => setForm((current) => ({ ...current, account_a_privkey: event.target.value }))}
+                    placeholder="local test key"
+                  />
+                  <label className="label" htmlFor="perps-wallet-b-priv">Account B Privkey</label>
+                  <input
+                    id="perps-wallet-b-priv"
+                    className="input"
+                    value={form.account_b_privkey}
+                    onChange={(event) => setForm((current) => ({ ...current, account_b_privkey: event.target.value }))}
+                    placeholder="local test key"
+                  />
+                </>
+              ) : null}
+
+              {needsAccountBound ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-account-priv">Account Privkey</label>
+                  <input
+                    id="perps-wallet-account-priv"
+                    className="input"
+                    value={form.account_privkey}
+                    onChange={(event) => setForm((current) => ({ ...current, account_privkey: event.target.value }))}
+                    placeholder="local test key"
+                  />
+                </>
+              ) : null}
+
+              {needsOperator ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-operator-priv">Operator Privkey</label>
+                  <input
+                    id="perps-wallet-operator-priv"
+                    className="input"
+                    value={form.operator_privkey}
+                    onChange={(event) => setForm((current) => ({ ...current, operator_privkey: event.target.value }))}
+                    placeholder="local test key"
+                  />
+                </>
+              ) : null}
+
+              {needsOracle ? (
+                <>
+                  <label className="label" htmlFor="perps-wallet-oracle-priv">Oracle Privkey</label>
+                  <input
+                    id="perps-wallet-oracle-priv"
+                    className="input"
+                    value={form.oracle_privkey}
+                    onChange={(event) => setForm((current) => ({ ...current, oracle_privkey: event.target.value }))}
+                    placeholder="local test key"
+                  />
+                </>
+              ) : null}
+            </div>
+          </details>
 
           {form.action === 'settle_epoch' ? (
             <>
@@ -751,10 +777,10 @@ function PerpLiveWalletSurface() {
       {selectedMarket ? (
         <div className="perp-live-wallet-result" aria-label="Selected perps market summary">
           <span>market {selectedMarket.market_id}</span>
-          <span>quote A {selectedMarket.account_a_quote_balance ?? 0}</span>
-          <span>quote B {selectedMarket.account_b_quote_balance ?? 0}</span>
-          <span>posted A {selectedMarket.collateral_e8_a ?? 0}</span>
-          <span>posted B {selectedMarket.collateral_e8_b ?? 0}</span>
+          <span>quote A {valueOrNA(selectedMarket.account_a_quote_balance)}</span>
+          <span>quote B {valueOrNA(selectedMarket.account_b_quote_balance)}</span>
+          <span>posted A {valueOrNA(selectedMarket.collateral_e8_a)}</span>
+          <span>posted B {valueOrNA(selectedMarket.collateral_e8_b)}</span>
           {selectedMarket.account_count != null ? <span>accounts {selectedMarket.account_count}</span> : null}
           {selectedAccount?.position_base != null ? <span>position {selectedAccount.position_base}</span> : null}
           {selectedAccount?.collateral_quote != null ? <span>collateral {selectedAccount.collateral_quote}</span> : null}
@@ -806,6 +832,34 @@ function PerpLiveWalletSurface() {
               <span>signer device {walletSignerDeviceIntegration.signer_device_ready ? 'ready' : 'blocked'}</span>
               <span>signer backend {walletSignerDeviceIntegration.backend_kind || 'unknown'}</span>
               <span>signer device receipt {compactId(walletSignerDeviceIntegration.status_hash)}</span>
+            </>
+          ) : null}
+          {walletSignerPromptCapture ? (
+            <>
+              <span>signer prompt capture {walletSignerPromptCapture.signer_prompt_capture_ready ? 'ready' : 'blocked'}</span>
+              <span>prompt capture source {walletSignerPromptCapture.capture_source || 'unknown'}</span>
+              <span>signer prompt capture receipt {compactId(walletSignerPromptCapture.status_hash)}</span>
+            </>
+          ) : null}
+          {walletSignerExecutionExercise ? (
+            <>
+              <span>signer execution {walletSignerExecutionExercise.signer_execution_ready ? 'ready' : 'blocked'}</span>
+              <span>signer prompt {walletSignerExecutionExercise.prompt_reference || 'unknown'}</span>
+              <span>signer execution receipt {compactId(walletSignerExecutionExercise.status_hash)}</span>
+            </>
+          ) : null}
+          {walletSignerCeremony ? (
+            <>
+              <span>signer ceremony {walletSignerCeremony.signer_ceremony_ready ? 'ready' : 'blocked'}</span>
+              <span>ceremony execution {walletSignerCeremony.execution_reference || 'unknown'}</span>
+              <span>signer ceremony receipt {compactId(walletSignerCeremony.status_hash)}</span>
+            </>
+          ) : null}
+          {walletHardwareCustody ? (
+            <>
+              <span>hardware custody {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
+              <span>hardware backend {walletHardwareCustody.backend_kind || 'unknown'}</span>
+              <span>hardware custody receipt {compactId(walletHardwareCustody.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
