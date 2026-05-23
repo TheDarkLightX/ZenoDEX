@@ -22,7 +22,11 @@ from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
 from ..core.quote_receipts import verify_route_quote_receipt
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
-from ..core.uniform_batch_clearing import UniformBatchCertificateV1, build_uniform_batch_settlement_v1
+from ..core.uniform_batch_clearing import (
+    UNIFORM_BATCH_POLICY_V2_ID,
+    UniformBatchCertificateV1,
+    build_uniform_batch_settlement_v1,
+)
 from ..core.uniform_batch_optimality import verify_uniform_batch_bound_optimality_certificate_v1
 from ..core.uniform_batch_price_grid_table import verify_uniform_batch_price_grid_table_v1
 from ..state.canonical import (
@@ -209,6 +213,9 @@ class DexEngineConfig:
     # uniform-price batch. The default keeps the existing sequential settlement
     # path authoritative.
     allow_uniform_batch_certificate: bool = False
+    # Optional UPBA v2 partial-fill bridge. This separate opt-in preserves the
+    # legacy v1 full-fill meaning of allow_uniform_batch_certificate=True.
+    allow_uniform_batch_partial_fill_certificate: bool = False
     # Optional UPBA-only swap posture. When enabled, any swap batch must carry a
     # uniform batch certificate instead of falling back to sequential settlement.
     # Non-swap intents remain outside the UPBA v1 scope.
@@ -240,6 +247,10 @@ class DexEngineConfig:
             )
         if self.require_uniform_batch_certificate and not self.allow_uniform_batch_certificate:
             raise ValueError("require_uniform_batch_certificate=True requires allow_uniform_batch_certificate=True")
+        if self.allow_uniform_batch_partial_fill_certificate and not self.allow_uniform_batch_certificate:
+            raise ValueError(
+                "allow_uniform_batch_partial_fill_certificate=True requires allow_uniform_batch_certificate=True"
+            )
 
         if self.settlement_certificate_proof_flags is not None and not isinstance(
             self.settlement_certificate_proof_flags, SettlementProofFlags
@@ -1164,6 +1175,14 @@ def apply_ops(
                         ok=False,
                         error=f"uniform batch certificate rejected: {_clean_error(exc)}",
                     )
+                if (
+                    cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
+                    and not config.allow_uniform_batch_partial_fill_certificate
+                ):
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch v2 partial-fill certificate not enabled",
+                    )
                 if uniform_batch_optimality_certificate is not None:
                     optimality_result = verify_uniform_batch_bound_optimality_certificate_v1(
                         optimality_certificate=uniform_batch_optimality_certificate,
@@ -1371,6 +1390,7 @@ def apply_ops(
             require_settlement_end_to_end_certificate=bool(config.require_settlement_end_to_end_certificate),
             settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
             uniform_batch_certificate=uniform_batch_certificate,
+            allow_uniform_batch_partial_fill_certificate=config.allow_uniform_batch_partial_fill_certificate,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")
