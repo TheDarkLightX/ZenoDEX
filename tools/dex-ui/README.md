@@ -158,12 +158,17 @@ Static deployments can override frontend behavior without rebuilding by editing:
 Supported runtime keys:
 
 - `apiBase`
+- `apiToken`
 - `demoMode`
 - `perpsPreviewWrites`
 - `zenoOracleApiBase`
 
 This is useful for IPFS/static hosting where one bundle may be reused against
 different operator APIs.
+
+For the local testnet demo, `scripts/zenodex_testnet_demo.sh` writes a
+container-local `zenodex-config.json` with `apiToken` set to the demo bearer
+token. Treat that token as local/testnet-only.
 
 ## IPFS / Static Hosting
 

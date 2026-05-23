@@ -66,7 +66,6 @@ def _start_node_server(data_dir: Path, *, submit_peer_url: str | None = None) ->
         port=0,
         enable_testnet_intake=True,
         enable_testnet_faucet=True,
-        allow_unauthenticated_testnet_writes=True,
         submit_peer_url=submit_peer_url,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)

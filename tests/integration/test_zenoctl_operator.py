@@ -92,6 +92,7 @@ def test_zenoctl_doctor_passes_static_repo_checks_without_engine_requirement() -
     assert checks["production_hashlocked_dockerfile"]["ok"] is True
     assert checks["deployment_profiles"]["ok"] is True
     assert checks["docker-compose.multimachine.yml"]["ok"] is True
+    assert checks["docker-compose.testnet-demo.yml"]["ok"] is True
     assert checks["tools/zeno_ledger_multidocker_scenario.py"]["ok"] is True
     assert checks["tools/zeno_ledger_multidocker_wes_disaster_search.py"]["ok"] is True
     assert checks["tools/gate_typecheck.sh"]["ok"] is True
@@ -213,6 +214,35 @@ def test_zenoctl_testnet_up_docker_multimachine_dry_run(capsys) -> None:
     if rc == 0:
         assert "docker-compose.multimachine.yml" in output
         assert "zeno-ledger-multidocker-controller" in output
+
+
+def test_zenoctl_testnet_demo_dry_run(capfd) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "demo",
+            "up",
+            "--engine",
+            "auto",
+            "--ui-port",
+            "3999",
+            "--dry-run",
+        ]
+    )
+
+    assert rc == 0
+    output = capfd.readouterr().out
+    assert "scripts/zenodex_testnet_demo.sh" in output
+    assert "docker-compose.testnet-demo.yml" in output
+    assert "--ui-port 3999" in output
+
+
+def test_zenoctl_testnet_demo_smoke_dry_run(capfd) -> None:
+    rc = zenoctl.main(["testnet", "demo", "smoke", "--engine", "auto", "--dry-run"])
+
+    assert rc == 0
+    output = capfd.readouterr().out
+    assert "tools/zenoctl.py testnet up --profile docker-two-node" in output
 
 
 def test_multidocker_plan_uses_hashes_for_all_nodes() -> None:

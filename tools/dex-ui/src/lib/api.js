@@ -80,6 +80,10 @@ export async function apiFetchZenoOracleJson(path, options = {}) {
 }
 
 export function getApiToken() {
+  const runtimeToken = (getRuntimeConfig().apiToken ?? '').toString().trim();
+  if (runtimeToken) {
+    return runtimeToken;
+  }
   const v = (import.meta?.env?.VITE_API_TOKEN ?? '').toString().trim();
   return v || '';
 }

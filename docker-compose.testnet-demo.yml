@@ -1,0 +1,23 @@
+# Local-only ZenoDEX testnet/demo override.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.testnet-demo.yml up -d --build zenodex
+#
+# This profile is for people trying the DEX, proof-mining status flow, zUSD,
+# and perps preview against the local Python API. It keeps the API bound to
+# 127.0.0.1 inside the container and exposes only the nginx/UI port.
+
+services:
+  zenodex:
+    environment:
+      - ZENODEX_TESTNET_DEMO=1
+      - ZENODEX_ENV=local
+      - API_HOST=127.0.0.1
+      - API_PORT=8000
+      - ALLOW_DEMO_TOKEN_AUTH=1
+      - DEMO_API_TOKEN=${DEMO_API_TOKEN:-zenodex-local-demo-token}
+      - DEX_API_ENABLED=true
+      - PERPS_API_ENABLED=true
+      - ZUSD_API_ENABLED=true
+      - CONFIDENTIAL_ATTESTATION_API_ENABLED=true
+      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-1200}

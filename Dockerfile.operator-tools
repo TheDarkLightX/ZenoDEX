@@ -17,6 +17,7 @@ RUN groupadd -g "${ZENODEX_GID}" -r zenodex \
 
 COPY src/ ./src/
 COPY tools/ ./tools/
+COPY formal/property/production_key_management_v0.json ./formal/property/production_key_management_v0.json
 COPY generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py ./generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
 COPY docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json ./docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
 COPY docs/claims_registry.yaml ./docs/claims_registry.yaml

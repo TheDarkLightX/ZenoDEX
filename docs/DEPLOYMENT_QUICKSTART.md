@@ -24,7 +24,63 @@ public-testnet gates, and operator preflight entrypoint. It also checks that the
 Dockerfiles install runtime Python dependencies from
 `requirements-core.lock.txt` with `--require-hashes`.
 
-## 1a. Install Local Wrappers
+## 1a. One-Command Local Testnet Demo
+
+For people who want to try the DEX, proof-mining status flow, zUSD, and perps
+preview from a browser, start the local-only demo stack:
+
+```bash
+python3 tools/zenoctl.py testnet demo up
+```
+
+Or call the script directly:
+
+```bash
+scripts/zenodex_testnet_demo.sh up
+```
+
+Open:
+
+```text
+http://127.0.0.1:3000
+```
+
+The demo stack:
+
+- builds the ZenoDEX UI container;
+- starts the Python API behind nginx on the same origin;
+- enables local/testnet DEX, proof-mining status, zUSD, perps preview, and
+  confidential-attestation demo routes;
+- binds the UI port to `127.0.0.1` by default;
+- keeps the API bound to `127.0.0.1` inside the container;
+- injects a local demo bearer token into the runtime UI config;
+- does not enable production external writes.
+
+Useful commands:
+
+```bash
+python3 tools/zenoctl.py testnet demo status
+python3 tools/zenoctl.py testnet demo logs
+python3 tools/zenoctl.py testnet demo smoke
+python3 tools/zenoctl.py testnet demo down
+```
+
+The smoke command builds the operator-tools image and runs the full bounded
+two-node ledger rehearsal, so it can take several minutes on a laptop.
+
+Windows PowerShell:
+
+```powershell
+.\scripts\zenodex_testnet_demo.ps1 up
+```
+
+Optional local Tau node:
+
+```bash
+python3 tools/zenoctl.py testnet demo up --with-tau
+```
+
+## 1b. Install Local Wrappers
 
 For macOS and Linux, install stable wrappers into a user-local bin directory:
 
@@ -69,7 +125,7 @@ python3 tools/build_operator_release_bundle.py verify \
   --manifest /tmp/zenodex-release/zenodex-operator-dev.tar.gz.manifest.json
 ```
 
-## 1b. Publish Release Artifacts
+## 1c. Publish Release Artifacts
 
 Release publication is handled by `.github/workflows/release-publish.yml`.
 Pushing a `v*` tag builds the operator bundle, the Zeno Oracle Python-local zip,

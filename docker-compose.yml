@@ -18,7 +18,7 @@ services:
     container_name: zenodex
     ports:
       # Expose UI only by default. Keep API internal unless explicitly enabled.
-      - "${UI_PORT:-3000}:8080" # UI served via nginx (unprivileged port)
+      - "${UI_HOST:-127.0.0.1}:${UI_PORT:-3000}:8080" # UI served via nginx (unprivileged port)
     environment:
       # Local-first: leave empty unless you intentionally want a remote Tau RPC.
       - TAU_NET_RPC=${TAU_NET_RPC:-}
