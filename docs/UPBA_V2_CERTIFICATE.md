@@ -238,7 +238,7 @@ Focused runtime tests cover:
 - v3 exact-out complete-domain grid evidence;
 - deterministic admission-certificate prefix selection and hash binding;
 - strict UPBA engine posture requiring certificate and bound optimality evidence;
-- engine acceptance when `allow_uniform_batch_certificate=True`.
+- engine acceptance only when both `allow_uniform_batch_certificate=True` and `allow_uniform_batch_partial_fill_certificate=True`.
 
 Replay command:
 

@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from ..core.batch_clearing import apply_settlement
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
-from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
+from ..core.uniform_batch_clearing import (
+    UNIFORM_BATCH_POLICY_V2_ID,
+    UniformBatchCertificateV1,
+    validate_uniform_batch_settlement_v1,
+)
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
@@ -47,6 +51,7 @@ def validate_operations(
     require_settlement_end_to_end_certificate: bool = False,
     settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None,
     uniform_batch_certificate: Optional[Dict[str, object]] = None,
+    allow_uniform_batch_partial_fill_certificate: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate ZenoDEX operations using Tau Language validation.
@@ -88,6 +93,11 @@ def validate_operations(
                 cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
             except Exception as exc:
                 return False, f"invalid uniform batch certificate: {exc}"
+            if (
+                cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
+                and not allow_uniform_batch_partial_fill_certificate
+            ):
+                return False, "uniform batch v2 partial-fill certificate not enabled"
             pool = pools.get(cert.pool_id)
             if pool is None:
                 return False, f"uniform batch certificate pool not found: {cert.pool_id}"

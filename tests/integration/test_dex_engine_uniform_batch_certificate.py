@@ -1084,6 +1084,7 @@ def test_engine_rejects_uniform_batch_v3_exact_out_grid_on_v2_certificate() -> N
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            allow_uniform_batch_partial_fill_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
@@ -1286,10 +1287,27 @@ def test_engine_rejects_uniform_batch_optimality_certificate_non_object() -> Non
     )
 
 
-def test_engine_accepts_uniform_batch_v2_partial_certificate_when_enabled() -> None:
+def test_engine_rejects_uniform_batch_v2_partial_certificate_without_partial_fill_opt_in() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_v2_partial_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch v2 partial-fill certificate not enabled"
+
+
+def test_engine_accepts_uniform_batch_v2_partial_certificate_when_explicitly_enabled() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            allow_uniform_batch_partial_fill_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
@@ -1314,6 +1332,7 @@ def test_engine_strict_upba_posture_rejects_v2_certificate_without_bounded_grid_
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            allow_uniform_batch_partial_fill_certificate=True,
             require_uniform_batch_certificate_for_supported_swaps=True,
             require_uniform_batch_optimality_certificate=True,
             require_uniform_batch_v2_bounded_grid_optimality=True,
@@ -1333,6 +1352,7 @@ def test_engine_strict_upba_posture_accepts_v2_certificate_with_bounded_grid_evi
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            allow_uniform_batch_partial_fill_certificate=True,
             require_uniform_batch_certificate_for_supported_swaps=True,
             require_uniform_batch_optimality_certificate=True,
             require_uniform_batch_v2_bounded_grid_optimality=True,
@@ -1354,6 +1374,7 @@ def test_engine_rejects_uniform_batch_v2_bounded_grid_table_root_mismatch() -> N
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            allow_uniform_batch_partial_fill_certificate=True,
             require_intent_signatures=False,
         ),
         state=_state(),
@@ -1368,10 +1389,11 @@ def test_engine_rejects_uniform_batch_v2_bounded_grid_table_root_mismatch() -> N
     )
 
 
-def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member() -> None:
+def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member_when_explicitly_enabled() -> None:
     result = apply_ops(
         config=DexEngineConfig(
             allow_uniform_batch_certificate=True,
+            allow_uniform_batch_partial_fill_certificate=True,
             require_intent_signatures=False,
         ),
         state=_high_fee_state(),
@@ -1387,6 +1409,18 @@ def test_engine_accepts_uniform_batch_v2_zero_fill_rejected_member() -> None:
     assert FillAction.REJECT in [fill.action for fill in result.settlement.fills]
     rejected = [fill for fill in result.settlement.fills if fill.action == FillAction.REJECT]
     assert rejected[0].reason == UNIFORM_BATCH_UNFILLED_REASON
+
+
+def test_engine_rejects_partial_fill_opt_in_without_uniform_batch_bridge() -> None:
+    try:
+        DexEngineConfig(allow_uniform_batch_partial_fill_certificate=True)
+    except ValueError as exc:
+        assert str(exc) == (
+            "allow_uniform_batch_partial_fill_certificate=True requires allow_uniform_batch_certificate=True"
+        )
+        return
+
+    raise AssertionError("partial-fill opt-in must require the uniform batch bridge")
 
 
 def test_engine_rejects_uniform_batch_certificate_unless_enabled() -> None:
@@ -1609,6 +1643,66 @@ def test_validation_accepts_uniform_batch_certificate_without_sequential_replay(
         lp_balances=state.lp_balances,
         block_timestamp=0,
         uniform_batch_certificate=cert_obj,
+    )
+
+    assert ok, err
+
+
+def test_validation_rejects_uniform_batch_v2_certificate_without_partial_fill_opt_in() -> None:
+    state = _state()
+    ops = _ops_with_v2_partial_certificate()
+    intents = parse_intents(ops)
+    settlement_op = ops["3"]
+    assert isinstance(settlement_op, dict)
+    cert_obj = settlement_op["uniform_batch_certificate"]
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert_obj,
+    )
+
+    from src.integration.validation import validate_operations
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        block_timestamp=0,
+        uniform_batch_certificate=cert_obj,
+    )
+
+    assert ok is False
+    assert err == "uniform batch v2 partial-fill certificate not enabled"
+
+
+def test_validation_accepts_uniform_batch_v2_certificate_with_partial_fill_opt_in() -> None:
+    state = _state()
+    ops = _ops_with_v2_partial_certificate()
+    intents = parse_intents(ops)
+    settlement_op = ops["3"]
+    assert isinstance(settlement_op, dict)
+    cert_obj = settlement_op["uniform_batch_certificate"]
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert_obj,
+    )
+
+    from src.integration.validation import validate_operations
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        block_timestamp=0,
+        uniform_batch_certificate=cert_obj,
+        allow_uniform_batch_partial_fill_certificate=True,
     )
 
     assert ok, err
