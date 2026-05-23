@@ -221,6 +221,9 @@ class DexEngineConfig:
     # and price_curr value consumed by the settlement certificate lane.
     require_oracle_authorization_for_critical_settlements: bool = False
     allow_uniform_batch_certificate: bool = False
+    # Optional UPBA v2 partial-fill bridge. This separate opt-in preserves the
+    # legacy v1 full-fill meaning of allow_uniform_batch_certificate=True.
+    allow_uniform_batch_partial_fill_certificate: bool = False
     # Optional strict UPBA production posture. When enabled, supported
     # single-pool swap families must use UPBA, and UPBA settlements must carry
     # bound audited-set optimality evidence.
@@ -251,6 +254,10 @@ class DexEngineConfig:
         if self.require_settlement_end_to_end_certificate and self.settlement_end_to_end_certificate_inputs is None:
             raise ValueError(
                 "require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs"
+            )
+        if self.allow_uniform_batch_partial_fill_certificate and not self.allow_uniform_batch_certificate:
+            raise ValueError(
+                "allow_uniform_batch_partial_fill_certificate=True requires allow_uniform_batch_certificate=True"
             )
 
         if self.settlement_certificate_proof_flags is not None and not isinstance(
@@ -1354,6 +1361,14 @@ def apply_ops(
                         ok=False,
                         error=f"uniform batch certificate rejected: {_clean_error(exc)}",
                     )
+                if (
+                    cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
+                    and not config.allow_uniform_batch_partial_fill_certificate
+                ):
+                    return DexTxResult(
+                        ok=False,
+                        error="uniform batch v2 partial-fill certificate not enabled",
+                    )
                 pool = state.pools.get(cert.pool_id)
                 if pool is None:
                     return DexTxResult(
@@ -1629,6 +1644,7 @@ def apply_ops(
             require_settlement_end_to_end_certificate=bool(config.require_settlement_end_to_end_certificate),
             settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
             uniform_batch_certificate=uniform_batch_certificate,
+            allow_uniform_batch_partial_fill_certificate=config.allow_uniform_batch_partial_fill_certificate,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")
