@@ -11,7 +11,6 @@
     "requirements-agents.txt:openai>=1.40.0",
     "requirements-agents.txt:python-dotenv>=1.0.0",
     "requirements-core.txt:canonicaljson>=1.6.0",
-    "requirements-core.txt:jsonschema>=4.22.0",
     "requirements-core.txt:py-ecc>=6.1.0",
     "requirements-core.txt:pyyaml>=6.0",
     "requirements-core.txt:typing-extensions>=4.8.0",
@@ -37,17 +36,15 @@
   ],
   "required_lock_artifact_sha256": {
     "requirements-core.lock.txt": "5eb655035d6277b1ce9819880bad15e612d06cb82ede7b7076413eac807581da",
-    "requirements-agents.lock.txt": "1f48998cf745f6e1fd82ad715815068fd8cc8a39f4afe60fd300b5ae993b5061",
-    "requirements-dev.lock.txt": "4797a1d8a46347fcf01b7bcac630f59637eb8d9099e6456d5ed734f4ba5be1b3",
+    "requirements-agents.lock.txt": "8d7afaee429fef0b90e149897059ef04fafdd0a0efe717684ba7f4acbc5ebada",
+    "requirements-dev.lock.txt": "8f01c7a58a5c31f2a0ed6767b6859a026f47869edac5a2e0c7300b4b3fdb8a64",
     "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
     "lean-mathlib/lakefile.lean": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
     "tools/confidential_attestation_verifier_rust/Cargo.lock": "a50820080531e3f60e075e050287279f808ad7a3daba0682399e2fa9c90a23f5",
-    "tools/dex-ui/package-lock.json": "3dddfe46334c7d940bf4eb8a2bf23e0145eb84869be629eedc580489b24cd44b",
-    "zk/state_proof_risc0/Cargo.lock": "bc4afb50d8b0005c11710abeac885f7eaa26102344e0d7aeaa1708923b626725"
+    "tools/dex-ui/package-lock.json": "b9dc074f8e55dee0ed5850076eaa956fcac0594a47158cdca23cd747e3ee5282",
+    "zk/state_proof_risc0/Cargo.lock": "210c4f0f6b4ad421e3fe9d81ef201dce6c1a5197434542abadbe8aef03707b3c"
   },
-  "exact_python_pins_required": [
-    "requirements-dev.txt:z3-solver==4.15.4.0"
-  ],
+  "exact_python_pins_required": [],
   "residual_limits": [
     "Python runtime and dev hash-pinned lockfiles are present and tracked by committed SHA-256 hashes.",
     "This ratchet prevents new unpinned Python source requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
