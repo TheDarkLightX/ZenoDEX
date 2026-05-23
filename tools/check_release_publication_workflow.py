@@ -128,10 +128,10 @@ def check_release_publication_workflow(path: Path = DEFAULT_WORKFLOW) -> dict[st
     if not npm_manual_only:
         errors.append("npm publish must remain manual opt-in")
 
-    containers_manual_only = "if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_containers }}" in containers_job
-    checks.append({"id": "container_publish_manual_only", "ok": containers_manual_only})
-    if not containers_manual_only:
-        errors.append("container publish must remain manual opt-in until GHCR permissions are configured")
+    containers_tag_or_manual = "if: ${{ github.event_name == 'push' || inputs.publish_containers }}" in containers_job
+    checks.append({"id": "container_publish_tag_or_manual", "ok": containers_tag_or_manual})
+    if not containers_tag_or_manual:
+        errors.append("container publish must run on tag pushes or manual opt-in")
 
     manual_defaults = {
         "publish_github_release": "false",
