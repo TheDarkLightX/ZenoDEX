@@ -19,7 +19,6 @@ COPY requirements-core.lock.txt ./
 RUN python -m pip install --no-cache-dir --require-hashes -r requirements-core.lock.txt
 
 COPY src/ ./src/
-COPY tests/ ./tests/
 
 FROM python:3.11-slim-bookworm@sha256:a2c44ea455da75ce149a1aacb0e48d859277be1e206cfafaba58ef81374d1af1 AS production
 

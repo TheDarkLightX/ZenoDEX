@@ -12,9 +12,30 @@ const SMOKE_NITRO_PCR0 = 'a'.repeat(96);
 const SMOKE_NITRO_PCR8 = 'b'.repeat(96);
 const SMOKE_POLICY_DIGEST = `0x${'d'.repeat(64)}`;
 
+function randomSmokeHex(bytes = 8) {
+  const buffer = new Uint8Array(bytes);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(buffer);
+  } else {
+    for (let i = 0; i < buffer.length; i += 1) {
+      buffer[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(buffer, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function confidentialAttestationSmokeEnabled() {
   if (typeof window === 'undefined') return false;
-  return new URLSearchParams(window.location.search).get('zenodexUiSmokeConfidentialVerify') === '1';
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('zenodexUiSmokeConfidentialVerify') === '1'
+    || params.get('zenodexUiSmokeConfidentialReplay') === '1'
+  );
+}
+
+function confidentialRuntimeReplaySmokeEnabled() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('zenodexUiSmokeConfidentialReplay') === '1';
 }
 
 function buildAttestationRequest({ requestId = 'req-ui' } = {}) {
@@ -69,6 +90,14 @@ function ConfidentialWorkbench() {
   const [runtimeStatus, setRuntimeStatus] = useState('');
   const [runtimeResult, setRuntimeResult] = useState(null);
   const [runtimeError, setRuntimeError] = useState('');
+  const smokeIdSuffix = useRef(null);
+
+  function smokeId(prefix) {
+    if (!smokeIdSuffix.current) {
+      smokeIdSuffix.current = randomSmokeHex(8);
+    }
+    return `${prefix}-${smokeIdSuffix.current}`;
+  }
 
   useEffect(() => {
     if (demoMode) {
@@ -99,7 +128,7 @@ function ConfidentialWorkbench() {
     setAttestationError('');
     setAttestationResult(null);
     try {
-      const requestId = confidentialAttestationSmokeEnabled() ? 'req-ui' : `req-ui-${Date.now()}`;
+      const requestId = confidentialAttestationSmokeEnabled() ? smokeId('req-ui') : `req-ui-${Date.now()}`;
       const payload = await apiAdmitConfidentialAttestation(
         buildAttestationRequest({ requestId }),
         { timeoutMs: 10000 },
@@ -113,13 +142,21 @@ function ConfidentialWorkbench() {
     }
   }
 
-  async function runRuntimeExecute() {
+  async function runRuntimeExecute({
+    preserveResultOnError = false,
+    requestIdOverride = null,
+    executionIdOverride = null,
+  } = {}) {
     setRuntimeStatus('runtime execution running');
     setRuntimeError('');
-    setRuntimeResult(null);
+    if (!preserveResultOnError) {
+      setRuntimeResult(null);
+    }
     try {
-      const requestId = confidentialAttestationSmokeEnabled() ? 'req-ui-runtime' : `req-ui-runtime-${Date.now()}`;
-      const executionId = confidentialAttestationSmokeEnabled() ? 'exec-ui' : `exec-ui-${Date.now()}`;
+      const requestId = requestIdOverride
+        || (confidentialAttestationSmokeEnabled() ? smokeId('req-ui-runtime') : `req-ui-runtime-${Date.now()}`);
+      const executionId = executionIdOverride
+        || (confidentialAttestationSmokeEnabled() ? smokeId('exec-ui') : `exec-ui-${Date.now()}`);
       const payload = await apiExecuteConfidentialAttestation(
         buildRuntimeExecutionRequest({ requestId, executionId }),
         { timeoutMs: 10000 },
@@ -129,10 +166,14 @@ function ConfidentialWorkbench() {
       setAttestationError('');
       setRuntimeResult(payload?.runtime_receipt || null);
       setRuntimeStatus(payload?.ok ? 'runtime receipt ready' : 'runtime receipt rejected');
+      return payload;
     } catch (err) {
-      setRuntimeResult(null);
+      if (!preserveResultOnError) {
+        setRuntimeResult(null);
+      }
       setRuntimeStatus('runtime receipt rejected');
       setRuntimeError(err?.message || 'runtime_execution_failed');
+      throw err;
     }
   }
 
@@ -141,7 +182,25 @@ function ConfidentialWorkbench() {
       return;
     }
     smokeRan.current = true;
-    void runRuntimeExecute();
+    async function runSmoke() {
+      if (confidentialRuntimeReplaySmokeEnabled()) {
+        const replayRequestId = smokeId('req-ui-runtime-replay');
+        const replayExecutionId = smokeId('exec-ui-replay');
+        await runRuntimeExecute({
+          preserveResultOnError: false,
+          requestIdOverride: replayRequestId,
+          executionIdOverride: replayExecutionId,
+        });
+        await runRuntimeExecute({
+          preserveResultOnError: true,
+          requestIdOverride: replayRequestId,
+          executionIdOverride: replayExecutionId,
+        });
+        return;
+      }
+      await runRuntimeExecute();
+    }
+    void runSmoke().catch(() => {});
   }, [demoMode]);
 
   const stageLabel = String(liveStatus?.stage || CONFIDENTIAL_SURFACE.summary.stage || 'beta').toUpperCase();
@@ -295,6 +354,7 @@ function ConfidentialWorkbench() {
                   <span>status hash {statusHash || runtimeBody?.operator_status_hash || 'missing'}</span>
                   <span>allowlist hash {allowlistHash || runtimeBody?.approved_measurements_hash || 'missing'}</span>
                   <span>verifier binding {verifierBindingHash || 'missing'}</span>
+                  {runtimeError ? <span>runtime error {runtimeError}</span> : null}
                 </>
               ) : runtimeError ? (
                 <span>runtime error {runtimeError}</span>

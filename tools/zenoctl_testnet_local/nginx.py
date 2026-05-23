@@ -1,0 +1,155 @@
+"""Render the nginx local-testnet config from the template.
+
+Loads `.docker/nginx.local-testnet.conf.template`, substitutes the
+upstream addresses + bearer tokens, and writes the result to the
+out-dir. The orchestrator mounts the rendered file read-only into the
+nginx container.
+
+Security contract:
+  - The rendered file CONTAINS the live writer + stdlib bearer tokens.
+    It is loopback-only and never committed.
+  - The MANIFEST never contains the raw tokens, only their sha256.
+  - The UI runtime config (`zenodex-config.json`) NEVER contains tokens
+    (nginx injects them server-side).
+  - The leak-check helpers below MUST pass before `up` returns.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from string import Template
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TEMPLATE_PATH = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
+
+EXPECTED_LOCATION_BLOCKS = (
+    "location = /api/health",
+    "location = /api/pools",
+    "location = /api/swap",
+    "location ^~ /api/oracle/",
+    "location ^~ /api/",
+)
+
+
+@dataclass(frozen=True)
+class NginxRenderInputs:
+    writer_upstream: str  # e.g. "zeno-ledger-writer:8787"
+    stdlib_upstream: str  # e.g. "zenodex-api:8000"
+    oracle_upstream: str  # e.g. "zenodex-oracle:9100"
+    writer_token: str
+    stdlib_token: str
+
+
+def render_nginx_conf(inputs: NginxRenderInputs, *, template_path: Path = TEMPLATE_PATH) -> str:
+    """Substitute placeholders in the template and return the rendered
+    nginx config string. Raises if any placeholder is missing."""
+    if not template_path.is_file():
+        raise FileNotFoundError(f"nginx template missing: {template_path}")
+    if not inputs.writer_token or not inputs.stdlib_token:
+        raise ValueError("writer_token and stdlib_token must be non-empty")
+    for upstream in (inputs.writer_upstream, inputs.stdlib_upstream, inputs.oracle_upstream):
+        if not upstream or ":" not in upstream:
+            raise ValueError(f"upstream must be 'host:port', got {upstream!r}")
+
+    # The template contains nginx variables like `$binary_remote_addr` and
+    # `$remote_addr` that collide with string.Template's placeholder syntax.
+    # Use safe_substitute (leaves unknown $vars alone) and then explicitly
+    # check that OUR placeholders all got substituted.
+    template = Template(template_path.read_text(encoding="utf-8"))
+    rendered = template.safe_substitute(
+        WRITER_UPSTREAM=inputs.writer_upstream,
+        STDLIB_UPSTREAM=inputs.stdlib_upstream,
+        ORACLE_UPSTREAM=inputs.oracle_upstream,
+        WRITER_TOKEN=inputs.writer_token,
+        STDLIB_TOKEN=inputs.stdlib_token,
+    )
+
+    unsubstituted = [
+        name
+        for name in ("WRITER_UPSTREAM", "STDLIB_UPSTREAM", "ORACLE_UPSTREAM", "WRITER_TOKEN", "STDLIB_TOKEN")
+        if f"${{{name}}}" in rendered or f"${name}" in rendered
+    ]
+    if unsubstituted:
+        raise ValueError(
+            f"nginx template placeholder(s) not substituted: {unsubstituted}. "
+            "Template and renderer have drifted."
+        )
+
+    errors = validate_rendered_conf(rendered, inputs=inputs)
+    if errors:
+        raise ValueError(f"rendered nginx config failed validation: {errors}")
+    return rendered
+
+
+def validate_rendered_conf(rendered: str, *, inputs: NginxRenderInputs) -> list[str]:
+    """Structural checks on the rendered nginx config. Returns errors list."""
+    errors: list[str] = []
+    for block in EXPECTED_LOCATION_BLOCKS:
+        if block not in rendered:
+            errors.append(f"missing expected location block: {block!r}")
+    # Bearer header must appear for both writer and stdlib (oracle does NOT
+    # get token injection per the design).
+    if f"Bearer {inputs.writer_token}" not in rendered:
+        errors.append("writer bearer token injection missing")
+    if f"Bearer {inputs.stdlib_token}" not in rendered:
+        errors.append("stdlib bearer token injection missing")
+    # Each upstream must be referenced exactly where expected.
+    for upstream in (inputs.writer_upstream, inputs.stdlib_upstream, inputs.oracle_upstream):
+        if upstream not in rendered:
+            errors.append(f"upstream {upstream!r} missing from rendered config")
+    return errors
+
+
+def write_rendered_conf(rendered: str, *, out_path: Path) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    # Permissions: 0o600 — the file holds bearer tokens. The nginx
+    # container reads it via bind mount; the host user owns it.
+    out_path.write_text(rendered, encoding="utf-8")
+    try:
+        out_path.chmod(0o600)
+    except OSError:
+        # Best effort; some filesystems (Windows, network mounts) don't support chmod
+        pass
+
+
+def assert_no_token_in_file(file_path: Path, token: str) -> None:
+    """Defensive: assert `token` does NOT appear in `file_path`. Used to
+    verify that the manifest and UI runtime config don't accidentally
+    leak bearer tokens."""
+    if not file_path.is_file():
+        return
+    if not token:
+        raise ValueError("token must be non-empty")
+    body = file_path.read_text(encoding="utf-8")
+    if token in body:
+        raise AssertionError(
+            f"SECURITY: bearer token literal leaked into {file_path}. "
+            "Refusing to proceed."
+        )
+
+
+def render_runtime_config(*, demo_mode: bool = False, extra: dict[str, object] | None = None) -> str:
+    """Render `zenodex-config.json` for the UI. Loaded at runtime by
+    `tools/dex-ui/src/main.jsx` into `window.__ZENODEX_CONFIG__`.
+
+    The runtime config NEVER contains bearer tokens. The browser client
+    already calls `/api/*` relative paths; nginx injects the right token
+    server-side.
+    """
+    import json
+
+    config: dict[str, object] = {
+        "demoMode": bool(demo_mode),
+        "apiBase": "",
+        "zenoOracleApiBase": "",
+        "oracleApiBase": "",
+        "deployment": "local-testnet",
+    }
+    if extra:
+        for key, value in extra.items():
+            if key in ("demoMode", "apiBase", "zenoOracleApiBase", "oracleApiBase", "deployment"):
+                raise ValueError(f"extra runtime-config key {key!r} conflicts with built-in")
+            config[key] = value
+    return json.dumps(config, indent=2, sort_keys=True) + "\n"

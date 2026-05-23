@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from tools.zeno_ledger_multidocker_scenario import (
+    _append_response_accepted_v0,
     _require_http_base_url,
     build_multidocker_plan_v0,
     validate_controller_config_v0,
@@ -81,6 +82,20 @@ def test_multidocker_controller_config_enforces_role_cardinality_and_urls() -> N
     )
     assert bad_url["ok"] is False
     assert "writer_url_invalid" in bad_url["errors"]
+
+
+def test_multidocker_success_path_rejects_receipt_level_tx_rejections() -> None:
+    accepted_receipt = {"ok": True, "tx_accepted": True, "receipt": {"accepted": True}}
+    rejected_receipt = {
+        "ok": True,
+        "tx_accepted": False,
+        "receipt": {"accepted": False, "error_code": "nonce_sequence_invalid"},
+    }
+
+    assert _append_response_accepted_v0(path="/tx", response=accepted_receipt) is True
+    assert _append_response_accepted_v0(path="/tx", response=rejected_receipt) is False
+    assert _append_response_accepted_v0(path="/faucet", response={"ok": True, "receipt": {"accepted": True}}) is True
+    assert _append_response_accepted_v0(path="/faucet", response={"ok": True, "receipt": {"accepted": False}}) is False
 
 
 pytestmark_wes = pytest.mark.skipif(

@@ -26,9 +26,12 @@ function normalizeOracleApiBase(raw) {
 }
 
 function zenoOracleApiUrl(path) {
-  const runtimeBase = normalizeOracleApiBase(getRuntimeConfig().zenoOracleApiBase);
+  const runtimeConfig = getRuntimeConfig();
+  if (Object.prototype.hasOwnProperty.call(runtimeConfig, 'zenoOracleApiBase')) {
+    return `${normalizeOracleApiBase(runtimeConfig.zenoOracleApiBase)}${path}`;
+  }
   const envBase = normalizeOracleApiBase(import.meta.env.VITE_ZENO_ORACLE_API_URL);
-  return `${runtimeBase || envBase || DEFAULT_ZENO_ORACLE_API_BASE}${path}`;
+  return `${envBase || DEFAULT_ZENO_ORACLE_API_BASE}${path}`;
 }
 
 const STATUS_COPY = {
@@ -110,6 +113,18 @@ function compactId(value) {
   return `${text.slice(0, 10)}...${text.slice(-6)}`;
 }
 
+function parsePositiveIntParam(raw, fallbackValue) {
+  const text = String(raw ?? '').trim();
+  if (!text) {
+    return fallbackValue;
+  }
+  const parsed = Number.parseInt(text, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallbackValue;
+  }
+  return parsed;
+}
+
 function formatE8(value, digits = 4) {
   if (value === null || value === undefined) return 'No value';
   return (Number(value) / 100000000).toLocaleString(undefined, {
@@ -123,6 +138,22 @@ function formatTokenE8(value, symbol = 'ZORACLE') {
 
 function demoHash(seed) {
   return `sha256:${seed.repeat(64)}`;
+}
+
+function randomSmokeHex(bytes = 16) {
+  const buffer = new Uint8Array(bytes);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(buffer);
+  } else {
+    for (let i = 0; i < buffer.length; i += 1) {
+      buffer[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(buffer, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function smokeHash(prefixHex, padHex) {
+  return `sha256:${`${prefixHex}${padHex.repeat(64)}`.slice(0, 64)}`;
 }
 
 function getInitialOracleSection() {
@@ -334,10 +365,12 @@ function snapshotToDashboardData(snapshot) {
 }
 
 async function runOracleWriteSmokeFlow(post) {
-  const queryId = 'sha256:' + '1'.repeat(64);
-  const actionId = 'sha256:' + '2'.repeat(64);
-  const actionFactsHash = 'sha256:' + '3'.repeat(64);
-  const preStateHash = 'sha256:' + '4'.repeat(64);
+  const runHex = randomSmokeHex(16);
+  const sourceId = `source:ui-smoke:${runHex}`;
+  const queryId = smokeHash(runHex, '1');
+  const actionId = smokeHash(runHex, '2');
+  const actionFactsHash = smokeHash(runHex, '3');
+  const preStateHash = smokeHash(runHex, '4');
   const identity = await post('/api/oracle/identity/create', { force: true });
   await post('/api/oracle/query/register', {
     base_asset: 'AGRS',
@@ -352,12 +385,12 @@ async function runOracleWriteSmokeFlow(post) {
   await post('/api/oracle/reporter/register', { query_id: queryId, required_bond_e8: 1, force: true });
   await post('/api/oracle/reporter/bond', { amount_e8: 1 });
   await post('/api/oracle/source/register', {
-    source_id: 'source:ui-smoke',
+    source_id: sourceId,
     source_kind: 'cex',
-    control_group_id: 'control:ui-smoke',
-    venue_id: 'venue:ui-smoke',
+    control_group_id: `control:ui-smoke:${runHex}`,
+    venue_id: `venue:ui-smoke:${runHex}`,
     data_family_id: 'price:cex-last-trade',
-    transport_id: 'api:https:ui-smoke',
+    transport_id: `api:https:ui-smoke:${runHex}`,
     asset_class: 'crypto',
     query_id: queryId,
     assurance_class: 'S3',
@@ -367,7 +400,7 @@ async function runOracleWriteSmokeFlow(post) {
     query_id: queryId,
     price_e8: 123456789,
     source_observed_epoch: 12,
-    source_id: 'source:ui-smoke',
+    source_id: sourceId,
   });
   const aggregate = await post('/api/oracle/aggregate/build', { query_id: queryId, epoch: 12 });
   const read = await post('/api/oracle/read/accept', {
@@ -1664,6 +1697,22 @@ function AuthorityExercisePanel({
           <strong>{compactId(exerciseStatus?.public_testnet_evidence_binding_hash)}</strong>
         </div>
         <div>
+          <small>Public broadcast</small>
+          <strong>{compactId(exerciseStatus?.public_broadcast_reference)}</strong>
+        </div>
+        <div>
+          <small>Public settlement</small>
+          <strong>{compactId(exerciseStatus?.public_settlement_reference)}</strong>
+        </div>
+        <div>
+          <small>Broadcast height</small>
+          <strong>{exerciseStatus?.public_broadcast_height ?? 'none'}</strong>
+        </div>
+        <div>
+          <small>Settlement height</small>
+          <strong>{exerciseStatus?.public_settlement_height ?? 'none'}</strong>
+        </div>
+        <div>
           <small>Authorization</small>
           <strong>{compactId(exerciseStatus?.authorization_id)}</strong>
         </div>
@@ -1837,13 +1886,22 @@ function ZenoOracleDashboard() {
     return body;
   }, []);
 
-  const runAuthorityExercise = useCallback(async () => {
+  const runAuthorityExercise = useCallback(async (options = {}) => {
+    const targetNetwork = String(options.targetNetwork || 'local');
+    const publicBroadcastReference = String(options.publicBroadcastReference || '').trim();
+    const publicSettlementReference = String(options.publicSettlementReference || '').trim();
+    const publicBroadcastHeight = Number.isInteger(options.publicBroadcastHeight) && options.publicBroadcastHeight > 0
+      ? options.publicBroadcastHeight
+      : undefined;
+    const publicSettlementHeight = Number.isInteger(options.publicSettlementHeight) && options.publicSettlementHeight > 0
+      ? options.publicSettlementHeight
+      : undefined;
     setAuthorityExerciseBusy(true);
     setAuthorityExerciseState('oracle authority exercise running');
     try {
       const flow = await runOracleWriteSmokeFlow(postOracle);
-      const payload = await postOracle('/api/oracle/authority/exercise/evaluate', {
-        target_network: 'local',
+      const requestBody = {
+        target_network: targetNetwork,
         current_epoch: 12,
         operator_service_url: zenoOracleApiUrl('/api/oracle/dashboard'),
         query_id: flow.queryId,
@@ -1852,7 +1910,20 @@ function ZenoOracleDashboard() {
         read_id: flow.read.read_id,
         authorization_id: flow.authorization.authorization_id,
         reward_receipt_id: flow.reward.receipt_id || flow.reward.reward_receipt_id || flow.reward.payment_id || 'reward:local',
-      });
+      };
+      if (publicBroadcastReference) {
+        requestBody.public_broadcast_reference = publicBroadcastReference;
+      }
+      if (publicSettlementReference) {
+        requestBody.public_settlement_reference = publicSettlementReference;
+      }
+      if (publicBroadcastHeight !== undefined) {
+        requestBody.public_broadcast_height = publicBroadcastHeight;
+      }
+      if (publicSettlementHeight !== undefined) {
+        requestBody.public_settlement_height = publicSettlementHeight;
+      }
+      const payload = await postOracle('/api/oracle/authority/exercise/evaluate', requestBody);
       setAuthorityExerciseResult(payload);
       setAuthorityExerciseState(`oracle authority exercise accepted ${payload.authority_exercise_status?.exercise_hash || ''}`.trim());
     } catch (error) {
@@ -1932,7 +2003,21 @@ function ZenoOracleDashboard() {
       return;
     }
     window.sessionStorage.setItem(storageKey, '1');
-    void runAuthorityExercise().catch(() => {});
+    const smokeTargetNetwork = String(params.get('zenodexUiSmokeOracleAuthorityExerciseTarget') || 'local').trim();
+    const usePublicTestnetEvidence = params.get('zenodexUiSmokeOracleAuthorityExercisePublicTestnet') === '1'
+      || smokeTargetNetwork === 'public_testnet';
+    const smokeOptions = usePublicTestnetEvidence
+      ? {
+        targetNetwork: 'public_testnet',
+        publicBroadcastReference:
+          String(params.get('zenodexUiSmokeOraclePublicBroadcastReference') || ''),
+        publicSettlementReference:
+          String(params.get('zenodexUiSmokeOraclePublicSettlementReference') || ''),
+        publicBroadcastHeight: parsePositiveIntParam(params.get('zenodexUiSmokeOracleBroadcastHeight'), undefined),
+        publicSettlementHeight: parsePositiveIntParam(params.get('zenodexUiSmokeOracleSettlementHeight'), undefined),
+      }
+      : { targetNetwork: smokeTargetNetwork || 'local' };
+    void runAuthorityExercise(smokeOptions).catch(() => {});
   }, [runAuthorityExercise]);
 
   const feeds = remoteData?.feeds?.length ? remoteData.feeds : ORACLE_FEEDS;

@@ -20,6 +20,7 @@ REPORT_SCHEMA = "zenodex.operator_packaging_readiness.v0"
 
 REQUIRED_FILES = (
     "bin/zenoctl",
+    "bin/zenodex-local-testnet",
     "scripts/install_zenodex.sh",
     "scripts/install_zenodex.ps1",
     "scripts/zenodex_testnet_demo.sh",
@@ -35,6 +36,9 @@ REQUIRED_FILES = (
     ".dockerignore",
     ".docker/entrypoint.sh",
     ".docker/nginx.conf",
+    ".docker/Dockerfile.tau-local",
+    ".docker/nginx.local-testnet.conf.template",
+    "docker-compose.local-testnet.yml",
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
     "docker-compose.testnet-demo.yml",
@@ -45,6 +49,7 @@ REQUIRED_FILES = (
     "tools/dex-ui/src/lib/api.js",
     "tools/dex-ui/public/zenodex-config.json",
     "docs/DEPLOYMENT_QUICKSTART.md",
+    "docs/LOCAL_TESTNET_QUICKSTART.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
 )
 
@@ -91,6 +96,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "light-client-checkpoint-verifier",
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
+            "single-command-local-testnet",
             "github-release-assets",
             "github-release-publication",
             "ghcr-container-publication",
@@ -129,6 +135,23 @@ def _check_posix_wrapper(root: Path, checks: list[dict[str, Any]], errors: list[
         ok=bool(path.stat().st_mode & 0o111),
         error="bin/zenoctl must be executable",
     )
+    local_path = root / "bin" / "zenodex-local-testnet"
+    if local_path.is_file():
+        local_text = _read(local_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_local_testnet_delegates_to_zenoctl_local",
+            ok="tools/zenoctl.py" in local_text and "testnet local" in local_text,
+            error="bin/zenodex-local-testnet must delegate to tools/zenoctl.py testnet local",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_local_testnet_executable",
+            ok=bool(local_path.stat().st_mode & 0o111),
+            error="bin/zenodex-local-testnet must be executable",
+        )
 
 
 def _check_install_script(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
@@ -136,7 +159,15 @@ def _check_install_script(root: Path, checks: list[dict[str, Any]], errors: list
     if not path.is_file():
         return
     text = _read(path)
-    for token in ("zenoctl", "zenodex-node", "tools/zenoctl.py", "tools/zeno_ledger_node.py", "--dry-run"):
+    for token in (
+        "zenoctl",
+        "zenodex-node",
+        "zenodex-local-testnet",
+        "tools/zenoctl.py",
+        "tools/zeno_ledger_node.py",
+        "testnet local",
+        "--dry-run",
+    ):
         _append_check(
             checks,
             errors,
@@ -158,7 +189,15 @@ def _check_powershell_installer(root: Path, checks: list[dict[str, Any]], errors
     if not path.is_file():
         return
     text = _read(path)
-    for token in ("zenoctl", "zenodex-node", ".cmd", "tools\\zenoctl.py", "tools\\zeno_ledger_node.py"):
+    for token in (
+        "zenoctl",
+        "zenodex-node",
+        "zenodex-local-testnet",
+        ".cmd",
+        "tools\\zenoctl.py",
+        "tools\\zeno_ledger_node.py",
+        "testnet local",
+    ):
         _append_check(
             checks,
             errors,
@@ -310,6 +349,14 @@ def _check_zenoctl_light_client(root: Path, checks: list[dict[str, Any]], errors
             ok=token in text,
             error=f"tools/zenoctl.py must expose {token}",
         )
+    for token in ("zenoctl_testnet_local", "testnet local"):
+        _append_check(
+            checks,
+            errors,
+            check_id=f"zenoctl_local_testnet_contains:{token}",
+            ok=token in text,
+            error=f"tools/zenoctl.py must expose local-testnet command registration token {token}",
+        )
 
 
 def _check_browser_sdk(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
@@ -354,6 +401,19 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
             check_id=f"release_bundle_builder_contains:{token}",
             ok=token in text,
             error=f"tools/build_operator_release_bundle.py must contain {token}",
+        )
+    for token in (
+        "docker-compose.local-testnet.yml",
+        "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "packages/zeno-proof-client",
+        "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
+    ):
+        _append_check(
+            checks,
+            errors,
+            check_id=f"release_bundle_builder_includes:{token}",
+            ok=token in text,
+            error=f"tools/build_operator_release_bundle.py must include {token}",
         )
 
 
