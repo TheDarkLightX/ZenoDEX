@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError
 from urllib.parse import urljoin
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -32,6 +32,22 @@ from tools.zeno_ledger_verify_two_machine_evidence import verify_two_machine_evi
 MACHINE_B_ACCEPTANCE_SCHEMA = "zenodex.zeno_ledger.machine_b_acceptance.v0"
 MACHINE_B_LATEST_MAIN_SUMMARY_SCHEMA = "zenodex.zeno_ledger.machine_b_latest_main_summary.v0"
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Reject redirects for authenticated requests to avoid leaking bearer tokens."""
+
+    def redirect_request(self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Request | None:
+        raise HTTPError(newurl, code, "redirects disabled for authenticated request", headers, fp)
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler())
+
+
+def _urlopen_auth_safe(request: Request, *, timeout: int) -> Any:
+    if "Authorization" not in request.headers:
+        return urlopen(request, timeout=timeout)
+    return _NO_REDIRECT_OPENER.open(request, timeout=timeout)
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -144,7 +160,7 @@ def _post_json(
         method="POST",
     )
     try:
-        with urlopen(request, timeout=30) as response:  # noqa: S310 - operator-supplied URL
+        with _urlopen_auth_safe(request, timeout=30) as response:  # noqa: S310 - operator-supplied URL
             status = int(response.status)
             data = response.read(MAX_RESPONSE_BYTES + 1)
     except HTTPError as exc:

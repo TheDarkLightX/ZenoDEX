@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -75,6 +75,22 @@ MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
 TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Reject redirects for authenticated peer requests to prevent token forwarding."""
+
+    def redirect_request(self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Request | None:
+        raise HTTPError(newurl, code, "redirects disabled for authenticated request", headers, fp)
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler())
+
+
+def _urlopen_auth_safe(request: Request, *, timeout: int) -> Any:
+    if "Authorization" not in request.headers:
+        return urlopen(request, timeout=timeout)
+    return _NO_REDIRECT_OPENER.open(request, timeout=timeout)
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -189,7 +205,7 @@ def _post_json_url(url: str, value: Mapping[str, Any], *, bearer_token: str | No
         method="POST",
     )
     try:
-        with urlopen(request, timeout=30) as response:  # noqa: S310 - explicit operator-configured peer URL
+        with _urlopen_auth_safe(request, timeout=30) as response:  # noqa: S310 - explicit operator-configured peer URL
             status = HTTPStatus(response.status)
             data = response.read(MAX_REMOTE_ARTIFACT_BYTES + 1)
     except HTTPError as exc:
