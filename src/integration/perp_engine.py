@@ -714,22 +714,33 @@ def _isolated_settle_oracle_runtime_facts(*, market_id: str, market: PerpMarketS
     }
 
 
+def _requires_isolated_settle_oracle_authorization(config: PerpEngineConfig) -> bool:
+    return bool(
+        config.require_oracle_authorization_for_isolated_settle
+        or config.require_oracle_authorization_for_isolated_settle_epoch
+    )
+
+
 def _check_isolated_settle_oracle_authorization(
     *,
     ctx: "_PerpApplyCtx",
     op: PerpOp,
     market: PerpMarketState,
 ) -> Optional[str]:
+    authorization_required = _requires_isolated_settle_oracle_authorization(ctx.config)
     authorization = op.data.get("oracle_authorization")
     if authorization is None:
-        if (
-            ctx.config.require_oracle_authorization_for_isolated_settle
-            or ctx.config.require_oracle_authorization_for_isolated_settle_epoch
-        ):
+        if authorization_required:
             return "oracle_authorization_required"
         return None
     if not isinstance(authorization, Mapping):
         return "oracle_authorization must be an object"
+    # DbC: typed semantic binding is necessary, but not sufficient, for the
+    # production authorization gate. The gate must also be backed by the
+    # independently configured adapter bridge verifier already checked by the
+    # caller; otherwise a caller can self-forge a structurally consistent bundle.
+    if authorization_required and "oracle_adapter_bridge" not in op.data:
+        return "settle_epoch requires oracle_adapter_bridge"
     if not bool(market.global_state.get("oracle_seen", False)):
         return "oracle_authorization_rejected: oracle snapshot not seen"
     if int(market.global_state.get("index_price_e8", 0)) <= 0:

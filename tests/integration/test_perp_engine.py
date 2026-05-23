@@ -130,6 +130,36 @@ def _perps_oracle_authorization_bundle(config: object, state: DexState, market_i
     return authorization_bundle(asdict(authorization))
 
 
+def _perps_settle_bridge_verifier(config: object, state: DexState, market_id: str):
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _perps_runtime_oracle_action_id,
+    )
+
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    expected_action_id = _perps_runtime_oracle_action_id(
+        config,
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market=market,
+    )
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": expected_action_id,
+        }
+
+    return verifier
+
+
 def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
@@ -1111,11 +1141,11 @@ def test_settle_epoch_requires_oracle_authorization_when_configured() -> None:
     assert res.error == "oracle_authorization_required"
 
 
-def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
+def test_settle_epoch_rejects_self_attested_oracle_authorization_without_bridge() -> None:
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
-    market_id = "perp:oracle-auth-bound"
-    quote_asset = "0x" + "5e" * 32
+    market_id = "perp:oracle-auth-self-attested"
+    quote_asset = "0x" + "60" * 32
     operator = "00" * 48
     state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
     cfg = PerpEngineConfig(
@@ -1132,6 +1162,46 @@ def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
                 _op(
                     market_id,
                     "settle_epoch",
+                    oracle_authorization=_perps_oracle_authorization_bundle(cfg, state, market_id),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_adapter_bridge"
+
+
+def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-bound"
+    quote_asset = "0x" + "5e" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_perps_settle_bridge_verifier(cfg, state, market_id),
+    )
+
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_adapter_bridge={"schema": "test"},
                     oracle_authorization=_perps_oracle_authorization_bundle(cfg, state, market_id),
                 )
             ]
@@ -1156,6 +1226,12 @@ def test_settle_epoch_rejects_wrong_oracle_authorization_value() -> None:
         allow_isolated_markets=True,
         require_oracle_authorization_for_isolated_settle_epoch=True,
     )
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_perps_settle_bridge_verifier(cfg, state, market_id),
+    )
 
     res = apply_perp_ops(
         config=cfg,
@@ -1165,6 +1241,7 @@ def test_settle_epoch_rejects_wrong_oracle_authorization_value() -> None:
                 _op(
                     market_id,
                     "settle_epoch",
+                    oracle_adapter_bridge={"schema": "test"},
                     oracle_authorization=_perps_oracle_authorization_bundle(
                         cfg,
                         state,
