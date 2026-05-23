@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
-from src.integration.zeno_ledger_anti_equivocation_v0 import validate_slashing_evidence_v0
+from src.integration.zeno_ledger_anti_equivocation_v0 import (
+    build_checkpoint_equivocation_slashing_evidence_v0,
+    build_watcher_attestation_equivocation_slashing_evidence_v0,
+    validate_slashing_evidence_v0,
+)
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
@@ -269,6 +273,26 @@ def _find_bond_entry(registry: Mapping[str, Any], *, subject_id: str, subject_ki
     raise ValueError("slashing subject is not bonded")
 
 
+
+
+def _validate_equivocation_artifacts(*, evidence: Mapping[str, Any]) -> None:
+    artifacts = _require_sequence(evidence.get("artifacts"), name="evidence.artifacts")
+    if len(artifacts) != 2:
+        raise ValueError("slashing evidence artifacts must contain two objects")
+    artifact_a = _require_mapping(artifacts[0], name="evidence.artifacts[0]")
+    artifact_b = _require_mapping(artifacts[1], name="evidence.artifacts[1]")
+
+    kind = str(evidence["evidence_kind"])
+    if kind == "checkpoint_equivocation":
+        rebuilt = build_checkpoint_equivocation_slashing_evidence_v0(artifact_a, artifact_b)
+    elif kind == "watcher_attestation_equivocation":
+        rebuilt = build_watcher_attestation_equivocation_slashing_evidence_v0(artifact_a, artifact_b)
+    else:
+        raise ValueError("slashing evidence kind is not supported by bonded policy")
+
+    if rebuilt != dict(evidence):
+        raise ValueError("slashing evidence does not match canonical artifacts")
+
 def _slash_amount(*, bonded_amount: int, policy: Mapping[str, Any]) -> int:
     proportional = (bonded_amount * int(policy["slash_fraction_bps"])) // BPS_SCALE_V0
     slash = max(proportional, int(policy["min_slash_amount"]))
@@ -288,6 +312,7 @@ def apply_bonded_slashing_v0(
 
     evidence_obj = dict(_require_mapping(evidence, name="evidence"))
     validate_slashing_evidence_v0(evidence_obj)
+    _validate_equivocation_artifacts(evidence=evidence_obj)
     registry_obj = dict(_require_mapping(bond_registry, name="bond_registry"))
     validate_bond_registry_v0(registry_obj)
     policy_obj = dict(_require_mapping(policy, name="policy"))
