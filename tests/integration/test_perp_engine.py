@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 
 
 from src.core.dex import DexState
@@ -31,6 +31,133 @@ def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object
     assert res.ok is True, res.error
     assert res.state is not None
     return res.state
+
+
+def _with_oracle_snapshot(
+    state: DexState,
+    *,
+    market_id: str,
+    price_e8: int,
+    last_update_epoch: int | None = None,
+) -> DexState:
+    # Test helper: model a validated oracle snapshot already present in app state.
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    global_state = dict(market.global_state)
+    now_epoch = int(global_state.get("now_epoch", 0))
+    global_state["oracle_seen"] = True
+    global_state["oracle_last_update_epoch"] = (
+        max(0, now_epoch - 1) if last_update_epoch is None else int(last_update_epoch)
+    )
+    global_state["index_price_e8"] = int(price_e8)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=global_state,
+        accounts=dict(market.accounts),
+    )
+    return replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+
+def _settle_ready_state(*, market_id: str, quote_asset: str, operator: str) -> DexState:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
+    return _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+
+
+def _perps_oracle_authorization_bundle(config: object, state: DexState, market_id: str, *, value_e8: int | None = None) -> dict[str, object]:
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _isolated_settle_oracle_runtime_facts,
+    )
+    from src.integration.zeno_oracle_authorization import (
+        OracleAuthorization,
+        oracle_value_hash,
+        semantic_hash,
+    )
+    from tests.integration.oracle_authorization_test_helpers import authorization_bundle
+
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
+    now_epoch = int(market.global_state.get("now_epoch", 0))
+    authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
+    authorization = OracleAuthorization(
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        action_id=str(runtime["action_id"]),
+        action_facts_hash=str(runtime["action_facts_hash"]),
+        pre_state_hash=str(runtime["pre_state_hash"]),
+        profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        query_id=str(runtime["query_id"]),
+        value_e8=authorized_value_e8,
+        value_hash=oracle_value_hash(
+            query_id=str(runtime["query_id"]),
+            value_e8=authorized_value_e8,
+            observed_epoch=observed_epoch,
+        ),
+        confidence_e8=1,
+        deviation_bps=0,
+        observed_epoch=observed_epoch,
+        expires_at_epoch=observed_epoch + 2,
+        feed_id="feed:perps-index:v1",
+        feed_registry_root=semantic_hash("test.perps.feed_registry", {"name": "r1"}),
+        query_policy_root=semantic_hash("test.perps.query_policy", {"name": "q1"}),
+        source_registry_root=semantic_hash("test.perps.source_registry", {"name": "s1"}),
+        reporter_registry_root=semantic_hash("test.perps.reporter_registry", {"name": "p1"}),
+        evidence_class="O3",
+        economic_envelope_id="econ:perps-small-v1",
+        receipt_graph_root=semantic_hash("test.perps.receipt_graph", {"name": "placeholder"}),
+    )
+    return authorization_bundle(asdict(authorization))
+
+
+def _perps_settle_bridge_verifier(config: object, state: DexState, market_id: str):
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _perps_runtime_oracle_action_id,
+    )
+
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    expected_action_id = _perps_runtime_oracle_action_id(
+        config,
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market=market,
+    )
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": expected_action_id,
+        }
+
+    return verifier
 
 
 def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
@@ -239,6 +366,7 @@ def test_set_market_params_enforces_collectible_penalty_floor() -> None:
     )
     # settle epoch so set_market_params is allowed.
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -309,6 +437,7 @@ def test_settle_epoch_is_order_independent() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -385,6 +514,7 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
     )
     # Establish oracle, then return to OPEN where set_position is allowed.
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -444,6 +574,7 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -536,6 +667,7 @@ def test_settle_epoch_clears_liquidated_flag_for_flat_accounts() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -653,6 +785,7 @@ def test_breaker_reduce_only_and_clear() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -776,6 +909,390 @@ def test_operator_cannot_skip_settlement() -> None:
     assert res_pub.ok is False
 
 
+def test_settle_epoch_rejects_missing_oracle_snapshot() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:missing-oracle"
+    quote_asset = "0x" + "57" * 32
+    operator = "00" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    global_state = dict(market.global_state)
+    global_state["oracle_seen"] = False
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=global_state,
+        accounts=dict(market.accounts),
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_perps_settle_bridge_verifier(cfg, state, market_id),
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_adapter_bridge={"schema": "test"},
+                    oracle_authorization=_perps_oracle_authorization_bundle(cfg, state, market_id),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "oracle_authorization_rejected: oracle snapshot not seen"
+
+
+def test_settle_epoch_requires_oracle_adapter_bridge_when_configured() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-bridge-required"
+    quote_asset = "0x" + "5a" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_adapter_for_isolated_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch")]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_adapter_bridge"
+
+
+def test_settle_epoch_rejects_unverified_oracle_adapter_bridge() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-bridge-unverified"
+    quote_asset = "0x" + "5b" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg = PerpEngineConfig(operator_pubkey=operator, allow_isolated_markets=True)
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "oracle_adapter_bridge verifier not configured"
+
+    cfg_rejecting = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "rejected",
+            "errors": ["aggregate_read_not_accepted"],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+        },
+    )
+    res_rejected = apply_perp_ops(
+        config=cfg_rejecting,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_rejected.ok is False
+    assert res_rejected.error == "oracle_adapter_bridge rejected: aggregate_read_not_accepted"
+
+
+def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        PerpEngineConfig,
+        _perps_runtime_oracle_action_id,
+        apply_perp_ops,
+    )
+
+    market_id = "perp:oracle-bridge-bound"
+    quote_asset = "0x" + "5c" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg_wrong_action = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "liquidate_account",
+        },
+    )
+    res_wrong_action = apply_perp_ops(
+        config=cfg_wrong_action,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_wrong_action.ok is False
+    assert res_wrong_action.error == "oracle_adapter_bridge action mismatch"
+
+    cfg_wrong_action_id = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": "sha256:" + "00" * 32,
+        },
+    )
+    res_wrong_action_id = apply_perp_ops(
+        config=cfg_wrong_action_id,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_wrong_action_id.ok is False
+    assert res_wrong_action_id.error == "oracle_adapter_bridge action_id mismatch"
+
+    seen_bridge: dict[str, object] = {}
+    assert state.perps is not None
+    expected_action_id = _perps_runtime_oracle_action_id(
+        PerpEngineConfig(operator_pubkey=operator, allow_isolated_markets=True),
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market=state.perps.markets[market_id],
+    )
+
+    cfg_wrong_profile = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": "sha256:" + "00" * 32,
+            "action_id": expected_action_id,
+        },
+    )
+    res_wrong_profile = apply_perp_ops(
+        config=cfg_wrong_profile,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_wrong_profile.ok is False
+    assert res_wrong_profile.error == "oracle_adapter_bridge profile mismatch"
+
+    def verifier(bridge: object) -> dict[str, object]:
+        assert isinstance(bridge, dict)
+        seen_bridge.update(bridge)
+        return {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": expected_action_id,
+        }
+
+    cfg_accepting = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=verifier,
+        require_oracle_adapter_for_isolated_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg_accepting,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is True, res.error
+    assert seen_bridge == {"schema": "test"}
+
+
+def test_settle_epoch_requires_oracle_authorization_when_configured() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-required"
+    quote_asset = "0x" + "5d" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch")]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "oracle_authorization_required"
+
+
+def test_settle_epoch_rejects_self_attested_oracle_authorization_without_bridge() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-self-attested"
+    quote_asset = "0x" + "60" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_authorization=_perps_oracle_authorization_bundle(cfg, state, market_id),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_adapter_bridge"
+
+
+def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-bound"
+    quote_asset = "0x" + "5e" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_perps_settle_bridge_verifier(cfg, state, market_id),
+    )
+
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_adapter_bridge={"schema": "test"},
+                    oracle_authorization=_perps_oracle_authorization_bundle(cfg, state, market_id),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is True, res.error
+
+
+def test_settle_epoch_rejects_wrong_oracle_authorization_value() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-wrong-value"
+    quote_asset = "0x" + "5f" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    assert state.perps is not None
+    runtime_value_e8 = int(state.perps.markets[market_id].global_state["index_price_e8"])
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_perps_settle_bridge_verifier(cfg, state, market_id),
+    )
+
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_adapter_bridge={"schema": "test"},
+                    oracle_authorization=_perps_oracle_authorization_bundle(
+                        cfg,
+                        state,
+                        market_id,
+                        value_e8=runtime_value_e8 + 1,
+                    ),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error is not None
+    assert "runtime_value_e8 mismatch" in res.error
+
+
 def test_publish_clearing_price_rejects_zero_price() -> None:
     market_id = "perp:zero-price"
     quote_asset = "0x" + "56" * 32
@@ -822,6 +1339,7 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -895,6 +1413,7 @@ def test_apply_funding_auto_allows_empty_open_interest() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -935,6 +1454,7 @@ def test_apply_funding_auto_rejects_stale_oracle() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -975,6 +1495,7 @@ def test_apply_funding_auto_rejects_malformed_control_fields() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
@@ -1007,8 +1528,13 @@ def test_apply_funding_auto_rejects_malformed_control_fields() -> None:
         ("max_oracle_move_bps", -1, "cannot apply funding: invalid max_oracle_move_bps"),
     )
     for field, value, expected_error in malformed_cases:
+        try:
+            malformed_state = _state_with_global_override(field, value)
+        except ValueError as exc:
+            assert field in str(exc)
+            continue
         res = _apply_result(
-            state=_state_with_global_override(field, value),
+            state=malformed_state,
             tx_sender_pubkey=operator,
             operator_pubkey=operator,
             ops=[_op(market_id, "apply_funding_auto")],
@@ -1031,6 +1557,7 @@ def test_apply_funding_auto_rejects_unbalanced_net_flow() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -1082,6 +1609,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -1139,7 +1667,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_bounty_floor.ok is False
     assert res_bounty_floor.error is not None and "cannot decrease min_notional_for_bounty while positions are open" in res_bounty_floor.error
 
-    # Scientist hardening: liquidation penalty must stay positive.
+    # Hardening: liquidation penalty must stay positive.
     res_zero_penalty = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1149,7 +1677,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_zero_penalty.ok is False
     assert res_zero_penalty.error is not None and "liquidation_penalty_bps > 0" in res_zero_penalty.error
 
-    # Scientist hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
+    # Hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
     res_zero_depeg = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1159,7 +1687,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_zero_depeg.ok is False
     assert res_zero_depeg.error is not None and "depeg_buffer_bps > 0" in res_zero_depeg.error
 
-    # Scientist hardening: while positions are open, do not allow increasing liquidation penalty.
+    # Hardening: while positions are open, do not allow increasing liquidation penalty.
     res_penalty_up = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1169,7 +1697,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_penalty_up.ok is False
     assert res_penalty_up.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res_penalty_up.error
 
-    # Scientist hardening: while positions are open, do not allow lowering bounty threshold.
+    # Hardening: while positions are open, do not allow lowering bounty threshold.
     res_bounty_down = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
