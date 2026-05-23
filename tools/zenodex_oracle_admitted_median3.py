@@ -411,11 +411,13 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
     observed_epochs: list[int] = []
     reporter_ids: list[str] = []
     source_ids: list[str] = []
+    source_set_ids: list[str] = []
     report_ids: list[str] = []
     for pos, report in enumerate(admitted_reports):
         report_id = report.get("report_id")
         reporter_id = report.get("reporter_id")
         source_id = report.get("source_id")
+        source_set_id = report.get("source_set_id")
         value_e8 = report.get("value_e8")
         observed_epoch = report.get("observed_epoch")
         if isinstance(report_id, str):
@@ -424,6 +426,10 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
             reporter_ids.append(reporter_id)
         if isinstance(source_id, str):
             source_ids.append(source_id)
+        if isinstance(source_set_id, str):
+            source_set_ids.append(source_set_id)
+        else:
+            errors.append(f"admitted_report_source_set_id_malformed:{pos}")
         if isinstance(value_e8, int) and not isinstance(value_e8, bool):
             values.append(value_e8)
         else:
@@ -446,6 +452,11 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
         errors.append(f"duplicate_source_id:{source_id}")
     if min_distinct_sources is not None and len(set(source_ids)) < min_distinct_sources:
         errors.append("not_enough_distinct_sources")
+    if source_set_ids:
+        if len(source_set_ids) != len(admitted_reports):
+            errors.append("admitted_report_source_set_id_missing")
+        elif len(set(source_set_ids)) != 1:
+            errors.append("admission_source_set_mismatch")
 
     median: int | None = None
     confidence: int | None = None
