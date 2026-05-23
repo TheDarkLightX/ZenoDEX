@@ -20,7 +20,7 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
@@ -30,6 +30,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
+from src.integration.zeno_ledger_peer_discovery_v0 import (
+    build_peer_registry_admission_v0,
+    build_peer_registry_v0,
+    validate_peer_registry_admission_v0,
+)
+from src.integration.zeno_ledger_production_key_gates_v0 import validate_public_network_config_update_gate_v0
+from src.integration.zeno_ledger_signer_registry import verify_signature_quorum_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -71,10 +78,23 @@ NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PREFLIGHT_REPORT_SCHEMA = "zenodex.zeno_ledger.node_preflight_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
+NODE_PUBLIC_NETWORK_CONFIG_QUORUM_ADMISSION_SCHEMA = (
+    "zenodex.zeno_ledger.public_network_config_quorum_admission.v0"
+)
+NODE_DOCTOR_REPORT_SCHEMA = "zenodex.zeno_ledger.node_doctor_report.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
 TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
+PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS = frozenset(
+    {
+        "config_signer_registry",
+        "config_signature_envelopes",
+        "config_quorum_report",
+        "config_quorum_admission",
+        "production_key_admission_receipt",
+    }
+)
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -159,6 +179,22 @@ def _fetch_json_url(url: str) -> dict[str, Any]:
     if not _is_http_url(url):
         raise ValueError("url must be an http(s) URL without embedded credentials")
     data = _fetch_remote_bytes(url)
+    obj = json.loads(data.decode("utf-8"))
+    if not isinstance(obj, dict):
+        raise ValueError(f"{url} must decode to a JSON object")
+    return obj
+
+
+def _fetch_json_url_auth(url: str, *, bearer_token: str | None = None) -> dict[str, Any]:
+    if bearer_token is None:
+        return _fetch_json_url(url)
+    if not _is_http_url(url):
+        raise ValueError("url must be an http(s) URL without embedded credentials")
+    request = Request(url, headers=_auth_bearer_header(bearer_token), method="GET")
+    with _urlopen_auth_safe(request, timeout=30) as response:
+        data = response.read(MAX_REMOTE_ARTIFACT_BYTES + 1)
+    if len(data) > MAX_REMOTE_ARTIFACT_BYTES:
+        raise ValueError(f"remote response too large: {url}")
     obj = json.loads(data.decode("utf-8"))
     if not isinstance(obj, dict):
         raise ValueError(f"{url} must decode to a JSON object")
@@ -422,9 +458,145 @@ def _node_status_hash(status: Mapping[str, Any]) -> str:
     return hash_v0("node_status_v0", body)
 
 
+def _require_root_v0(value: object, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a root string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+
+
 def _public_network_config_hash_v0(config: Mapping[str, Any]) -> str:
-    body = {key: value for key, value in config.items() if key != "network_config_hash"}
+    excluded = {"network_config_hash", *PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS}
+    body = {key: value for key, value in config.items() if key not in excluded}
     return hash_v0("public_network_config_v0", body)
+
+
+def _has_public_network_config_quorum_fields_v0(config: Mapping[str, Any]) -> bool:
+    return any(field in config for field in PUBLIC_NETWORK_CONFIG_QUORUM_FIELDS)
+
+
+def _public_network_config_quorum_admission_v0(
+    *,
+    network_config_hash: str,
+    quorum_report: Mapping[str, Any],
+) -> dict[str, Any]:
+    body = {
+        "schema": NODE_PUBLIC_NETWORK_CONFIG_QUORUM_ADMISSION_SCHEMA,
+        "ok": True,
+        "status": "accepted",
+        "payload_kind": "public_network_config",
+        "network_config_hash": _require_root_v0(network_config_hash, name="network_config_hash"),
+        "registry_hash": quorum_report["registry_hash"],
+        "threshold": quorum_report["threshold"],
+        "accepted_weight": quorum_report["accepted_weight"],
+        "accepted_signature_count": len(quorum_report["accepted_signatures"]),
+        "quorum_report_hash": quorum_report["quorum_report_hash"],
+    }
+    return {**body, "admission_hash": hash_v0("public_network_config_quorum_admission_v0", body)}
+
+
+def attach_public_network_config_quorum_v0(
+    *,
+    network_config: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    envelopes: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Attach signer-quorum evidence to a public network config."""
+
+    config = dict(network_config)
+    if config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+        raise ValueError("public network config schema mismatch")
+    network_config_hash = _public_network_config_hash_v0(config)
+    if config.get("network_config_hash") != network_config_hash:
+        raise ValueError("public network config hash mismatch")
+    quorum_report = verify_signature_quorum_v0(
+        registry=registry,
+        payload_kind="public_network_config",
+        payload_hash=network_config_hash,
+        envelopes=envelopes,
+    )
+    return {
+        **config,
+        "config_signer_registry": dict(registry),
+        "config_signature_envelopes": [dict(envelope) for envelope in envelopes],
+        "config_quorum_report": quorum_report,
+        "config_quorum_admission": _public_network_config_quorum_admission_v0(
+            network_config_hash=network_config_hash,
+            quorum_report=quorum_report,
+        ),
+    }
+
+
+def validate_public_network_config_quorum_v0(
+    *,
+    network_config: Mapping[str, Any],
+    expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
+) -> dict[str, Any]:
+    """Validate signer-quorum evidence attached to a public network config."""
+
+    config = dict(network_config)
+    if config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+        raise ValueError("public network config schema mismatch")
+    network_config_hash = _public_network_config_hash_v0(config)
+    if config.get("network_config_hash") != network_config_hash:
+        raise ValueError("public network config hash mismatch")
+    registry = config.get("config_signer_registry")
+    if not isinstance(registry, Mapping):
+        raise ValueError("public network config quorum registry is required")
+    envelopes = config.get("config_signature_envelopes")
+    if not isinstance(envelopes, Sequence) or isinstance(envelopes, (str, bytes, bytearray)):
+        raise ValueError("public network config quorum envelopes are required")
+    if expected_config_signer_registry_hash is not None:
+        expected_hash = _require_root_v0(
+            expected_config_signer_registry_hash,
+            name="expected_config_signer_registry_hash",
+        )
+        if registry.get("registry_hash") != expected_hash:
+            raise ValueError("public network config signer registry hash did not match expected hash")
+    quorum_report = verify_signature_quorum_v0(
+        registry=registry,
+        payload_kind="public_network_config",
+        payload_hash=network_config_hash,
+        envelopes=[dict(envelope) for envelope in envelopes],
+    )
+    if config.get("config_quorum_report") != quorum_report:
+        raise ValueError("public network config quorum report mismatch")
+    admission = _public_network_config_quorum_admission_v0(
+        network_config_hash=network_config_hash,
+        quorum_report=quorum_report,
+    )
+    if config.get("config_quorum_admission") != admission:
+        raise ValueError("public network config quorum admission mismatch")
+    if require_production_key_admission:
+        receipt = config.get("production_key_admission_receipt")
+        if not isinstance(receipt, Mapping):
+            raise ValueError("public network config production key-management admission receipt is required")
+        validate_public_network_config_update_gate_v0(receipt)
+    return admission
+
+
+def _validate_public_network_peer_registry_v0(network_config: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Validate optional hash-bound peer discovery fields on a public config."""
+
+    if "peer_registry" not in network_config and "peer_registry_admission" not in network_config:
+        return None
+    peer_registry = network_config.get("peer_registry")
+    if not isinstance(peer_registry, Mapping):
+        raise ValueError("public network config peer_registry is required")
+    peer_registry_admission = network_config.get("peer_registry_admission")
+    if not isinstance(peer_registry_admission, Mapping):
+        raise ValueError("public network config peer_registry_admission is required")
+    writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
+    peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
+    validate_peer_registry_admission_v0(
+        admission=peer_registry_admission,
+        network_id=str(network_config["network_id"]),
+        chain_id=str(network_config["chain_id"]),
+        writer_urls=writer_urls,
+        peer_urls=peer_urls,
+        peer_registry=peer_registry,
+    )
+    return dict(peer_registry_admission)
 
 
 def build_node_status_v0(
@@ -1388,8 +1560,16 @@ def _local_tip_v0(*, data_dir: Path, node_status: Mapping[str, Any]) -> dict[str
     }
 
 
-def _peer_tip_from_http_v0(*, peer_url: str, peer_status: Mapping[str, Any]) -> dict[str, Any]:
-    peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
+def _peer_tip_from_http_v0(
+    *,
+    peer_url: str,
+    peer_status: Mapping[str, Any],
+    peer_auth_token: str | None = None,
+) -> dict[str, Any]:
+    peer_live = _fetch_json_url_auth(
+        urljoin(peer_url.rstrip("/") + "/", "live"),
+        bearer_token=peer_auth_token,
+    )
     if peer_live.get("ok") is True and peer_live.get("live") is True:
         state = peer_live.get("state")
         if not isinstance(state, Mapping):
@@ -1413,17 +1593,26 @@ def _peer_header_hash_at_height_v0(
     peer_url: str,
     peer_status: Mapping[str, Any],
     height: int,
+    peer_auth_token: str | None = None,
 ) -> str:
     bootstrap_latest = int(peer_status["latest_height"])
     if height == bootstrap_latest:
         return str(peer_status["last_header_hash"])
     if height > bootstrap_latest:
-        peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+        peer_header = _fetch_json_url_auth(
+            urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"),
+            bearer_token=peer_auth_token,
+        )
         return canonical_header_hash_v0(dict(peer_header))
     raise ValueError(f"cannot fetch peer bootstrap header at height {height}")
 
 
-def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, Any]:
+def check_peer_status_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str],
+    peer_auth_token: str | None = None,
+) -> dict[str, Any]:
     """Check that peer nodes are on the same network and common live prefix."""
 
     node_status = load_node_status_v0(data_dir)
@@ -1432,12 +1621,19 @@ def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, A
     peer_reports: list[dict[str, Any]] = []
     for peer_url in peer_urls:
         try:
-            peer_status = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "status"))
+            peer_status = _fetch_json_url_auth(
+                urljoin(peer_url.rstrip("/") + "/", "status"),
+                bearer_token=peer_auth_token,
+            )
             if peer_status.get("schema") != NODE_STATUS_SCHEMA:
                 raise ValueError("peer node status schema mismatch")
             if peer_status.get("node_status_hash") != _node_status_hash(peer_status):
                 raise ValueError("peer node status hash mismatch")
-            peer_tip = _peer_tip_from_http_v0(peer_url=peer_url, peer_status=peer_status)
+            peer_tip = _peer_tip_from_http_v0(
+                peer_url=peer_url,
+                peer_status=peer_status,
+                peer_auth_token=peer_auth_token,
+            )
             network_match = peer_status.get("network_id") == node_status.get("network_id")
             chain_match = peer_status.get("chain_id") == node_status.get("chain_id")
             feature_suite_match = peer_status.get("feature_suite_hash") == node_status.get("feature_suite_hash")
@@ -1454,6 +1650,7 @@ def check_peer_status_v0(*, data_dir: Path, peer_urls: list[str]) -> dict[str, A
                 peer_url=peer_url,
                 peer_status=peer_status,
                 height=common_height,
+                peer_auth_token=peer_auth_token,
             )
             common_header_match = local_common_hash == peer_common_hash
             compatible = bool(network_match and chain_match and feature_suite_match and common_header_match)
@@ -1524,6 +1721,7 @@ def make_node_http_server_v0(
     enable_testnet_intake: bool = False,
     enable_testnet_faucet: bool = False,
     submit_peer_url: str | None = None,
+    node_auth_token: str | None = None,
     write_auth_token: str | None = None,
     submit_peer_auth_token: str | None = None,
     peer_urls: list[str] | None = None,
@@ -1554,8 +1752,23 @@ def make_node_http_server_v0(
             self._send_json({"ok": False, "error": "unauthorized"}, status=HTTPStatus.UNAUTHORIZED)
             return False
 
+        def _require_node_auth(self) -> bool:
+            if node_auth_token is None:
+                return True
+            expected = f"Bearer {node_auth_token}"
+            got = self.headers.get("Authorization", "")
+            if hmac.compare_digest(got, expected):
+                return True
+            self._send_json(
+                {"ok": False, "error": "node_transport_auth_required"},
+                status=HTTPStatus.UNAUTHORIZED,
+            )
+            return False
+
         def do_GET(self) -> None:  # noqa: N802
             try:
+                if not self._require_node_auth():
+                    return
                 status = load_node_status_v0(root)
                 request_path = self.path.split("?", 1)[0]
                 parts = [part for part in request_path.split("/") if part]
@@ -1658,6 +1871,8 @@ def make_node_http_server_v0(
 
         def do_POST(self) -> None:  # noqa: N802
             try:
+                if not self._require_node_auth():
+                    return
                 request_path = self.path.split("?", 1)[0]
                 if request_path == "/api/swap":
                     if not self._require_write_auth():
@@ -2160,6 +2375,21 @@ def build_public_network_config_v0(
         raise ValueError("node_port must be a valid TCP port")
     public_manifest = _read_public_manifest(bundle_root)
     feature_suite = _read_feature_suite(bundle_root, public_manifest)
+    checked_writer_urls = _unique_strings(writer_urls)
+    checked_peer_urls = _unique_strings([*writer_urls, *peer_urls])
+    peer_registry = build_peer_registry_v0(
+        network_id=str(public_manifest["network_id"]),
+        chain_id=str(public_manifest["chain_id"]),
+        writer_urls=checked_writer_urls,
+        peer_urls=checked_peer_urls,
+    )
+    peer_registry_admission = build_peer_registry_admission_v0(
+        network_id=str(public_manifest["network_id"]),
+        chain_id=str(public_manifest["chain_id"]),
+        writer_urls=checked_writer_urls,
+        peer_urls=checked_peer_urls,
+        peer_registry=peer_registry,
+    )
     config = {
         "schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA,
         "ok": True,
@@ -2168,8 +2398,10 @@ def build_public_network_config_v0(
         "chain_id": public_manifest["chain_id"],
         "token_symbol": public_manifest.get("token_symbol"),
         "mirror_base_url": mirror_base_url.rstrip("/") + "/",
-        "writer_urls": _unique_strings(writer_urls),
-        "peer_urls": _unique_strings([*writer_urls, *peer_urls]),
+        "writer_urls": checked_writer_urls,
+        "peer_urls": checked_peer_urls,
+        "peer_registry": peer_registry,
+        "peer_registry_admission": peer_registry_admission,
         "feature_suite_hash": feature_suite["feature_suite_hash"],
         "feature_count": feature_suite["feature_count"],
         "test_token_catalog": list(public_manifest.get("test_token_catalog", [])),
@@ -2180,7 +2412,7 @@ def build_public_network_config_v0(
             "poll_seconds": poll_seconds,
             "enable_testnet_intake": True,
             "enable_testnet_faucet": True,
-            "submit_peer_url": writer_urls[0],
+            "submit_peer_url": checked_writer_urls[0],
         },
     }
     return {**config, "network_config_hash": _public_network_config_hash_v0(config)}
@@ -2196,16 +2428,40 @@ def _public_network_config_to_join_config_v0(
     port: int | None,
     poll_seconds: int | None,
     serve: bool,
+    require_network_config_quorum: bool = False,
+    expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
 ) -> dict[str, Any]:
     if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
         raise ValueError("public network config schema mismatch")
     expected_hash = network_config.get("network_config_hash")
     if expected_hash is not None and expected_hash != _public_network_config_hash_v0(network_config):
         raise ValueError("public network config hash mismatch")
+    config_quorum_admission: dict[str, Any] | None = None
+    if require_network_config_quorum or expected_config_signer_registry_hash is not None:
+        if not _has_public_network_config_quorum_fields_v0(network_config):
+            raise ValueError("public network config quorum is required")
+    if require_production_key_admission and not isinstance(
+        network_config.get("production_key_admission_receipt"),
+        Mapping,
+    ):
+        raise ValueError("public network config production key-management admission receipt is required")
+    if (
+        require_network_config_quorum
+        or expected_config_signer_registry_hash is not None
+        or require_production_key_admission
+        or _has_public_network_config_quorum_fields_v0(network_config)
+    ):
+        config_quorum_admission = validate_public_network_config_quorum_v0(
+            network_config=network_config,
+            expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+            require_production_key_admission=require_production_key_admission,
+        )
     writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
     peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
     if not writer_urls:
         raise ValueError("public network config must contain at least one writer URL")
+    peer_registry_admission = _validate_public_network_peer_registry_v0(network_config)
     recommended = network_config.get("recommended_node")
     if not isinstance(recommended, Mapping):
         recommended = {}
@@ -2228,6 +2484,126 @@ def _public_network_config_to_join_config_v0(
         "enable_testnet_intake": bool(recommended.get("enable_testnet_intake", True)),
         "enable_testnet_faucet": bool(recommended.get("enable_testnet_faucet", True)),
         "submit_peer_url": submit_peer_url,
+        "network_config_quorum_required": require_network_config_quorum,
+        "production_key_admission_required": require_production_key_admission,
+        "network_config_quorum_admission": config_quorum_admission,
+        "peer_registry_admission": peer_registry_admission,
+    }
+
+
+def doctor_public_node_v0(
+    *,
+    config_url: str | None = None,
+    expected_network_config_hash: str | None = None,
+    require_network_config_quorum: bool = False,
+    expected_config_signer_registry_hash: str | None = None,
+    require_production_key_admission: bool = False,
+) -> dict[str, Any]:
+    """Check local and optional remote prerequisites before joining a testnet."""
+
+    checks: list[dict[str, Any]] = []
+    python_ok = sys.version_info >= (3, 10)
+    checks.append(
+        {
+            "name": "python_version",
+            "ok": python_ok,
+            "value": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "minimum": "3.10",
+        }
+    )
+    repo_files = [
+        ROOT / "tools" / "zeno_ledger_node.py",
+        ROOT / "tools" / "zeno_ledger_make_public_testnet_bundle.py",
+        ROOT / "src" / "integration" / "zeno_ledger_v0.py",
+    ]
+    repo_ok = all(path.is_file() for path in repo_files)
+    checks.append(
+        {
+            "name": "repo_layout",
+            "ok": repo_ok,
+            "root": str(ROOT),
+            "required_files": [str(path.relative_to(ROOT)) for path in repo_files],
+        }
+    )
+    remote_summary: dict[str, Any] | None = None
+    if config_url is not None:
+        try:
+            network_config = _fetch_json_url(config_url)
+            if network_config.get("schema") != NODE_PUBLIC_NETWORK_CONFIG_SCHEMA:
+                raise ValueError("public network config schema mismatch")
+            expected_hash = network_config.get("network_config_hash")
+            actual_hash = _public_network_config_hash_v0(network_config)
+            if expected_hash != actual_hash:
+                raise ValueError("public network config hash mismatch")
+            if expected_network_config_hash is not None:
+                pinned_hash = _require_root_v0(
+                    expected_network_config_hash,
+                    name="expected_network_config_hash",
+                )
+                if actual_hash != pinned_hash:
+                    raise ValueError("public network config hash did not match expected hash")
+            config_quorum_admission: dict[str, Any] | None = None
+            if require_network_config_quorum or expected_config_signer_registry_hash is not None:
+                if not _has_public_network_config_quorum_fields_v0(network_config):
+                    raise ValueError("public network config quorum is required")
+            if require_production_key_admission and not isinstance(
+                network_config.get("production_key_admission_receipt"),
+                Mapping,
+            ):
+                raise ValueError("public network config production key-management admission receipt is required")
+            if (
+                require_network_config_quorum
+                or expected_config_signer_registry_hash is not None
+                or require_production_key_admission
+                or _has_public_network_config_quorum_fields_v0(network_config)
+            ):
+                config_quorum_admission = validate_public_network_config_quorum_v0(
+                    network_config=network_config,
+                    expected_config_signer_registry_hash=expected_config_signer_registry_hash,
+                    require_production_key_admission=require_production_key_admission,
+                )
+            writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
+            peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
+            if not writer_urls:
+                raise ValueError("public network config must contain at least one writer URL")
+            peer_registry_admission = _validate_public_network_peer_registry_v0(network_config)
+            remote_summary = {
+                "network_id": network_config.get("network_id"),
+                "chain_id": network_config.get("chain_id"),
+                "network_config_hash": actual_hash,
+                "mirror_base_url": network_config.get("mirror_base_url"),
+                "writer_urls": writer_urls,
+                "peer_urls": peer_urls,
+                "feature_suite_hash": network_config.get("feature_suite_hash"),
+                "feature_count": network_config.get("feature_count"),
+                "network_config_quorum_required": require_network_config_quorum,
+                "production_key_admission_required": require_production_key_admission,
+                "network_config_quorum_admission": config_quorum_admission,
+                "peer_registry_admission": peer_registry_admission,
+            }
+            checks.append({"name": "public_network_config", "ok": True, **remote_summary})
+        except Exception as exc:
+            checks.append(
+                {
+                    "name": "public_network_config",
+                    "ok": False,
+                    "config_url": config_url,
+                    "error": str(exc),
+                }
+            )
+    ok = all(check.get("ok") is True for check in checks)
+    return {
+        "schema": NODE_DOCTOR_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "root": str(ROOT),
+        "config_url": config_url,
+        "expected_network_config_hash": expected_network_config_hash,
+        "require_network_config_quorum": require_network_config_quorum,
+        "expected_config_signer_registry_hash": expected_config_signer_registry_hash,
+        "require_production_key_admission": require_production_key_admission,
+        "checks": checks,
+        "remote_network": remote_summary,
     }
 
 
