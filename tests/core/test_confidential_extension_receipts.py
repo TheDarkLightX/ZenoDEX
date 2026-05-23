@@ -135,6 +135,15 @@ def test_confidential_extension_receipt_constructor_rejects_impossible_execute_s
         raise AssertionError("expected impossible execute-state rejection")
 
 
+
+
+def test_confidential_extension_receipt_rejects_out_of_range_numeric_field_fail_closed() -> None:
+    receipt = _valid_receipt()
+    receipt["body"]["attestation"]["current_epoch"] = 0x100000000
+    receipt["receipt_hash"] = confidential_extension_receipt_hash(receipt["body"])
+    ok, err = verify_confidential_extension_receipt(receipt, approved_measurements=APPROVED)
+    assert not ok
+    assert err == "bad_numeric_field"
 def test_confidential_extension_receipt_rejects_noncanonical_numeric_encoding() -> None:
     receipt = _valid_receipt()
     receipt["body"]["host"]["policy_ok"] = "1"
