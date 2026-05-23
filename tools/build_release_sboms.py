@@ -21,6 +21,13 @@ HASH_ALGORITHMS = {
     "sha384": ("SHA-384", 48),
     "sha512": ("SHA-512", 64),
 }
+LOCAL_PACKAGE_EXCLUDE_DIRS = {
+    ".git",
+    ".pytest_cache",
+    "coverage",
+    "dist",
+    "node_modules",
+}
 
 
 def _canonical_json(data: dict[str, Any]) -> str:
@@ -63,6 +70,38 @@ def _hash_entries_from_sri(integrity: str, *, source: Path) -> list[dict[str, st
         entries.append({"alg": cyclonedx_alg, "content": digest.hex()})
     unique = {json.dumps(item, sort_keys=True): item for item in entries}
     return sorted(unique.values(), key=lambda item: (item["alg"], item["content"]))
+
+
+def _repo_local_package_dir(lockfile: Path, package_path: str) -> Path | None:
+    if package_path.startswith("node_modules/"):
+        return None
+    candidate = (lockfile.parent / package_path).resolve()
+    try:
+        candidate.relative_to(ROOT.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_dir() else None
+
+
+def _local_package_hash(package_dir: Path) -> dict[str, str]:
+    digest = hashlib.sha256()
+    for path in sorted(item for item in package_dir.rglob("*") if item.is_file()):
+        relative = path.relative_to(package_dir)
+        if any(part in LOCAL_PACKAGE_EXCLUDE_DIRS for part in relative.parts):
+            continue
+        digest.update(relative.as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return {"alg": "SHA-256", "content": digest.hexdigest()}
+
+
+def _local_package_metadata(package_dir: Path) -> dict[str, Any]:
+    package_json = package_dir / "package.json"
+    if not package_json.is_file():
+        return {}
+    data = json.loads(package_json.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
 
 
 def _python_components(lockfile: Path) -> list[dict[str, Any]]:
@@ -112,13 +151,23 @@ def _npm_components(lockfile: Path) -> list[dict[str, Any]]:
     for path, payload in packages.items():
         if path == "" or not isinstance(payload, dict):
             continue
+        if payload.get("link") is True:
+            continue
+        local_package_dir = _repo_local_package_dir(lockfile, str(path))
+        local_metadata = _local_package_metadata(local_package_dir) if local_package_dir is not None else {}
         name = payload.get("name")
         version = payload.get("version")
-        if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
+        if isinstance(local_metadata.get("name"), str):
+            name = local_metadata["name"]
+        if isinstance(local_metadata.get("version"), str):
+            version = local_metadata["version"]
+        if not isinstance(name, str) or not name:
             if path.startswith("node_modules/"):
                 name = path.removeprefix("node_modules/")
             else:
                 continue
+        if not isinstance(version, str) or not version:
+            continue
         purl_name = str(name).replace("@", "%40", 1) if str(name).startswith("@") else str(name)
         component: dict[str, Any] = {
             "bom-ref": f"pkg:npm/{purl_name}@{version}",
@@ -132,6 +181,8 @@ def _npm_components(lockfile: Path) -> list[dict[str, Any]]:
             hashes = _hash_entries_from_sri(integrity, source=lockfile)
             if hashes:
                 component["hashes"] = hashes
+        elif local_package_dir is not None:
+            component["hashes"] = [_local_package_hash(local_package_dir)]
         components[component["bom-ref"]] = component
     return [components[key] for key in sorted(components)]
 
