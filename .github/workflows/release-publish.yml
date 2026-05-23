@@ -13,12 +13,12 @@ on:
       publish_github_release:
         description: "Create or update a GitHub Release and attach artifacts."
         required: true
-        default: true
+        default: false
         type: boolean
       publish_containers:
         description: "Push production and operator images to GHCR."
         required: true
-        default: true
+        default: false
         type: boolean
       publish_npm:
         description: "Publish @zenodex/proof-client to npm. Requires NPM_TOKEN."

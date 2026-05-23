@@ -84,7 +84,8 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Manual runs support the same path:
+Manual runs default to packaging-only dry publication. Enable the public write
+targets explicitly when you want to publish:
 
 ```bash
 gh workflow run release-publish.yml \
