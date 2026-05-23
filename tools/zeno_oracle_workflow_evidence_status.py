@@ -8,9 +8,6 @@ import importlib.util
 import json
 import sys
 import tempfile
-import types
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -26,64 +23,6 @@ if MORPH.is_dir() and str(MORPH) not in sys.path:
     sys.path.append(str(MORPH))
 
 SCHEMA = "zenodex.oracle.workflow_evidence_status.v1"
-
-
-def _install_morph_smoke_stubs() -> None:
-    """Install the tiny Morph API surface needed by the local smoke domain."""
-
-    if "morph.domain" in sys.modules:
-        return
-
-    class CheckResult(Enum):
-        PASS = "PASS"
-        FAIL = "FAIL"
-
-    class VerifyResult(Enum):
-        PASS = "PASS"
-        FAIL = "FAIL"
-
-    @dataclass(frozen=True)
-    class Goal:
-        text: str
-
-    @dataclass(frozen=True)
-    class Representation:
-        text: str
-
-    @dataclass(frozen=True)
-    class ProblemState:
-        goal: Goal
-        assumptions: tuple[object, ...]
-        constraints: tuple[object, ...]
-        representation: Representation
-        metadata: tuple[object, ...]
-        history: tuple[object, ...]
-
-    @dataclass(frozen=True)
-    class Transition:
-        child: ProblemState
-
-    class CertificateOnlyDomain:
-        pass
-
-    morph_mod = types.ModuleType("morph")
-    domain_mod = types.ModuleType("morph.domain")
-    proofs_mod = types.ModuleType("morph.proofs")
-    triviality_mod = types.ModuleType("morph.triviality_safe")
-    domain_mod.Goal = Goal
-    domain_mod.ProblemState = ProblemState
-    domain_mod.Representation = Representation
-    proofs_mod.Transition = Transition
-    proofs_mod.VerifyResult = VerifyResult
-    triviality_mod.CertificateOnlyDomain = CertificateOnlyDomain
-    triviality_mod.CheckResult = CheckResult
-    morph_mod.domain = domain_mod
-    morph_mod.proofs = proofs_mod
-    morph_mod.triviality_safe = triviality_mod
-    sys.modules.setdefault("morph", morph_mod)
-    sys.modules.setdefault("morph.domain", domain_mod)
-    sys.modules.setdefault("morph.proofs", proofs_mod)
-    sys.modules.setdefault("morph.triviality_safe", triviality_mod)
 
 
 def _artifact_case(
@@ -116,13 +55,8 @@ def _morph_case() -> dict[str, Any]:
     check2 = None
     if not missing:
         try:
-            try:
-                from morph.domain import Goal, ProblemState, Representation
-                from morph.triviality_safe import CheckResult
-            except ModuleNotFoundError:
-                _install_morph_smoke_stubs()
-                from morph.domain import Goal, ProblemState, Representation
-                from morph.triviality_safe import CheckResult
+            from morph.domain import Goal, ProblemState, Representation
+            from morph.triviality_safe import CheckResult
 
             domain_path = ROOT / files[0]
             spec = importlib.util.spec_from_file_location(
