@@ -335,6 +335,9 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
                         "reporter_id": reporter_id,
                         "query_id": report_query_id,
                         "source_id": source_id,
+                        "source_set_id": (
+                            diversity_result.source_set_id if diversity_result is not None else None
+                        ),
                         "payload_hash": payload_hash,
                         "value_e8": value_e8,
                         "observed_epoch": observed_epoch,
