@@ -156,6 +156,7 @@ PRODUCTION_EXECUTION_MODES = {"subprocess_json"}
 BASE_GO_LIVE_BLOCKERS = [
     "proof_governance_execution_not_verified_onchain",
     "production_verifier_code_signing_not_verified",
+    "production_verifier_release_transparency_log_not_verified",
     "production_verifier_sandbox_not_deployed",
     "revocation_drill_not_replayed_on_live_registry",
     "proof_network_public_soak_not_completed",
