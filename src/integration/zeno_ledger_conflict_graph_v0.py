@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from src.state.pools import compute_pool_id
 from src.integration.zeno_ledger_v0 import hash_v0, tx_hash_v0
-
+from src.state.pools import compute_pool_id
 
 CONFLICT_GRAPH_SCHEMA_V0 = "zenodex/zeno_ledger/conflict_graph/v0"
 CONFLICT_SCHEDULE_SCHEMA_V0 = "zenodex/zeno_ledger/conflict_schedule/v0"
@@ -32,6 +31,44 @@ def _cell(kind: str, *parts: object) -> str:
 def _add_if_present(cells: set[str], kind: str, *parts: object) -> None:
     if all(part is not None and str(part) != "" for part in parts):
         cells.add(_cell(kind, *parts))
+
+
+def _add_liquidity_balance_cells(
+    cells: set[str],
+    *,
+    owner: object,
+    asset0: object,
+    asset1: object,
+) -> None:
+    """Add concrete balance cells for a liquidity intent.
+
+    DbC precondition: callers pass the account whose token balances are mutated.
+    DbC postcondition: both pool-asset balance cells are present when both assets
+    are known; otherwise the global cell is present so scheduling is conservative.
+    """
+
+    before = len(cells)
+    _add_if_present(cells, "balance", owner, asset0)
+    _add_if_present(cells, "balance", owner, asset1)
+    if len(cells) == before + 2:
+        return
+    cells.add(GLOBAL_DEX_CELL_V0)
+
+
+def _shared_conflict_cells_v0(left_cells: set[str], right_cells: set[str]) -> list[str]:
+    """Return shared conflict cells, treating the global cell as a wildcard.
+
+    DbC invariant: any transaction mapped to the global cell conflicts with every
+    other transaction, preventing unsafe parallel execution when state access is
+    unknown or only partially known.
+    """
+
+    shared = left_cells & right_cells
+    if shared:
+        return sorted(shared)
+    if GLOBAL_DEX_CELL_V0 in left_cells or GLOBAL_DEX_CELL_V0 in right_cells:
+        return [GLOBAL_DEX_CELL_V0]
+    return []
 
 
 def _pool_id_for_create_pool(intent: Mapping[str, Any]) -> str | None:
@@ -107,6 +144,12 @@ def touched_cells_for_intent_v0(intent: Mapping[str, Any]) -> set[str]:
         _add_if_present(cells, "pool", pool_id)
         _add_if_present(cells, "lp_position", recipient, pool_id)
         _add_if_present(cells, "liquidity_actor", sender, pool_id)
+        _add_liquidity_balance_cells(
+            cells,
+            owner=sender,
+            asset0=intent.get("asset0"),
+            asset1=intent.get("asset1"),
+        )
         return cells or {GLOBAL_DEX_CELL_V0}
 
     if kind == "REMOVE_LIQUIDITY":
@@ -114,6 +157,12 @@ def touched_cells_for_intent_v0(intent: Mapping[str, Any]) -> set[str]:
         _add_if_present(cells, "pool", pool_id)
         _add_if_present(cells, "lp_position", sender, pool_id)
         _add_if_present(cells, "balance_actor", recipient, pool_id)
+        _add_liquidity_balance_cells(
+            cells,
+            owner=recipient,
+            asset0=intent.get("asset0"),
+            asset1=intent.get("asset1"),
+        )
         return cells or {GLOBAL_DEX_CELL_V0}
 
     return {GLOBAL_DEX_CELL_V0, _cell("unknown_intent_kind", kind)}
@@ -146,7 +195,9 @@ def touched_cells_for_transaction_v0(tx: Mapping[str, Any]) -> set[str]:
 def transactions_conflict_v0(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return true when two transactions share at least one touched state cell."""
 
-    return bool(touched_cells_for_transaction_v0(left) & touched_cells_for_transaction_v0(right))
+    left_cells = touched_cells_for_transaction_v0(left)
+    right_cells = touched_cells_for_transaction_v0(right)
+    return bool(_shared_conflict_cells_v0(left_cells, right_cells))
 
 
 def build_conflict_graph_v0(transactions: list[object]) -> dict[str, Any]:
@@ -176,7 +227,8 @@ def build_conflict_graph_v0(transactions: list[object]) -> dict[str, Any]:
     for left_index in range(len(vertices)):
         left_cells = set(vertices[left_index]["touched_cells"])
         for right_index in range(left_index + 1, len(vertices)):
-            shared = sorted(left_cells & set(vertices[right_index]["touched_cells"]))
+            right_cells = set(vertices[right_index]["touched_cells"])
+            shared = _shared_conflict_cells_v0(left_cells, right_cells)
             if shared:
                 edges.append(
                     {
