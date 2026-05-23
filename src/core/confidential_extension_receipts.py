@@ -599,21 +599,24 @@ def make_confidential_extension_receipt(
     credit_after = _require_bounded_int(credit_after, name="credit_after", upper=MAX_BALANCE)
     provider_balance_before = _require_bounded_int(provider_balance_before, name="provider_balance_before", upper=MAX_BALANCE)
     provider_balance_after = _require_bounded_int(provider_balance_after, name="provider_balance_after", upper=MAX_BALANCE)
-    gate = evaluate_confidential_extension_receipt_gate(
-        do_execute=do_execute,
-        policy_ok=policy_ok,
-        nonce_unused=nonce_unused,
-        output_bound_ok=output_bound_ok,
-        current_epoch=current_epoch,
-        attestation_epoch=attestation_epoch,
-        max_attestation_age=max_attestation_age,
-        fee_charged=fee_charged,
-        receipt_fee=receipt_fee,
-        credit_before=credit_before,
-        credit_after=credit_after,
-        provider_balance_before=provider_balance_before,
-        provider_balance_after=provider_balance_after,
-    )
+    try:
+        gate = evaluate_confidential_extension_receipt_gate(
+            do_execute=do_execute,
+            policy_ok=policy_ok,
+            nonce_unused=nonce_unused,
+            output_bound_ok=output_bound_ok,
+            current_epoch=current_epoch,
+            attestation_epoch=attestation_epoch,
+            max_attestation_age=max_attestation_age,
+            fee_charged=fee_charged,
+            receipt_fee=receipt_fee,
+            credit_before=credit_before,
+            credit_after=credit_after,
+            provider_balance_before=provider_balance_before,
+            provider_balance_after=provider_balance_after,
+        )
+    except (TypeError, ValueError):
+        return False, "bad_numeric_field"
     if not gate.fresh_attestation_ok:
         raise ValueError("attestation must be fresh")
     if not gate.host_guards_ok:
@@ -738,21 +741,24 @@ def verify_confidential_extension_receipt(
     if not precheck.precheck_ok:
         return False, confidential_extension_receipt_precheck_error(precheck)
 
-    gate = evaluate_confidential_extension_receipt_gate(
-        do_execute=do_execute,
-        policy_ok=policy_ok,
-        nonce_unused=nonce_unused,
-        output_bound_ok=output_bound_ok,
-        current_epoch=current_epoch,
-        attestation_epoch=attestation_epoch,
-        max_attestation_age=max_attestation_age,
-        fee_charged=fee_charged,
-        receipt_fee=receipt_fee,
-        credit_before=credit_before,
-        credit_after=credit_after,
-        provider_balance_before=provider_balance_before,
-        provider_balance_after=provider_balance_after,
-    )
+    try:
+        gate = evaluate_confidential_extension_receipt_gate(
+            do_execute=do_execute,
+            policy_ok=policy_ok,
+            nonce_unused=nonce_unused,
+            output_bound_ok=output_bound_ok,
+            current_epoch=current_epoch,
+            attestation_epoch=attestation_epoch,
+            max_attestation_age=max_attestation_age,
+            fee_charged=fee_charged,
+            receipt_fee=receipt_fee,
+            credit_before=credit_before,
+            credit_after=credit_after,
+            provider_balance_before=provider_balance_before,
+            provider_balance_after=provider_balance_after,
+        )
+    except (TypeError, ValueError):
+        return False, "bad_numeric_field"
 
     if not gate.fresh_attestation_ok:
         return False, "stale_attestation"
