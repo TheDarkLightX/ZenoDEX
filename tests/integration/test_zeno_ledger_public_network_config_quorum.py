@@ -335,6 +335,33 @@ def test_join_config_conversion_requires_signed_public_network_config_quorum(tmp
     assert join_config["peer_registry_admission"]["peer_count"] == 1
 
 
+def test_join_config_conversion_rejects_unadmitted_submit_peer_url(tmp_path: Path) -> None:
+    bundle_root = tmp_path / "bundle"
+    _bundle(bundle_root)
+    config = build_public_network_config_v0(
+        bundle_root=bundle_root,
+        mirror_base_url="http://127.0.0.1:8000",
+        writer_urls=["http://127.0.0.1:8799"],
+        peer_urls=[],
+        poll_seconds=5,
+        node_port=8788,
+    )
+    config["recommended_node"]["submit_peer_url"] = "http://127.0.0.1:9001"
+    config["network_config_hash"] = hash_v0("zeno_ledger_public_network_config_v0", config)
+
+    with pytest.raises(ValueError, match="submit_peer_url must match an admitted writer URL"):
+        _public_network_config_to_join_config_v0(
+            network_config=config,
+            node_id="node-b",
+            bundle_root=tmp_path / "synced",
+            data_dir=tmp_path / "node-b",
+            host="127.0.0.1",
+            port=None,
+            poll_seconds=None,
+            serve=False,
+        )
+
+
 def test_production_strict_join_requires_public_network_config_key_admission(tmp_path: Path) -> None:
     bundle_root = tmp_path / "bundle"
     _bundle(bundle_root)
