@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping
 
 from ..state.canonical import canonical_json_bytes
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
-
 
 TriggerOracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
@@ -210,13 +209,33 @@ def check_trigger_execute_oracle_adapter_bridge(
     return None
 
 
+def _reject_trigger_query_mismatch(result: dict[str, Any]) -> dict[str, Any]:
+    """Apply the execute-trigger query/profile invariant to a verifier result.
+
+    Contract:
+    - Precondition: result has the standard oracle authorization check shape.
+    - Invariant: execute_trigger always binds to _ORACLE_TRIGGER_REFERENCE_QUERY_ID.
+    - Postcondition: both opaque and typed authorization checks fail closed.
+    """
+
+    error = "trigger facts query mismatch"
+    for errors_key in ("opaque_errors", "typed_errors"):
+        errors = list(result.get(errors_key, []))
+        if error not in errors:
+            errors.append(error)
+        result[errors_key] = errors
+    result["opaque_ok"] = False
+    result["typed_ok"] = False
+    return result
+
+
 def check_trigger_execute_oracle_authorization(
     *,
     authorization_payload: Mapping[str, Any],
     facts: TriggerExecutionFacts,
 ) -> dict[str, Any]:
     runtime = trigger_execute_runtime_facts(facts)
-    return check_critical_consumer_authorization(
+    result = check_critical_consumer_authorization(
         authorization_payload,
         consumer_module="zenodex.trigger",
         action_kind="execute_trigger",
@@ -224,8 +243,11 @@ def check_trigger_execute_oracle_authorization(
         action_facts_hash=str(runtime["action_facts_hash"]),
         pre_state_hash=str(runtime["pre_state_hash"]),
         profile_id=_ORACLE_TRIGGER_EXECUTE_PROFILE_ID,
-        query_id=str(runtime["query_id"]),
+        query_id=_ORACLE_TRIGGER_REFERENCE_QUERY_ID,
         runtime_value_e8=int(runtime["runtime_value_e8"]),
         now_epoch=int(runtime["now_epoch"]),
         max_freshness_window_epochs=2,
     )
+    if str(runtime["query_id"]) != _ORACLE_TRIGGER_REFERENCE_QUERY_ID:
+        return _reject_trigger_query_mismatch(result)
+    return result
