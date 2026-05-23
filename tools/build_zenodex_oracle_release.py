@@ -69,6 +69,13 @@ def _copy_file(src: Path, dst: Path, *, executable: bool = False) -> None:
         dst.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _copy_tree(src: Path, dst: Path) -> None:
+    if not src.is_dir():
+        raise FileNotFoundError(src)
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc")
+    shutil.copytree(src, dst, ignore=ignore)
+
+
 def _manifest_files(bundle_dir: Path) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
     for path in sorted(bundle_dir.rglob("*")):
@@ -194,6 +201,8 @@ def build_bundle(
     _write_root_launcher(bundle_dir)
     _copy_file(CLI, bundle_dir / "tools" / "zenodex_oracle.py", executable=True)
     _copy_file(WRAPPER, bundle_dir / "tools" / "zenodex-oracle", executable=True)
+    _copy_file(REPO_ROOT / "tools" / "operator_report_output.py", bundle_dir / "tools" / "operator_report_output.py")
+    _copy_tree(REPO_ROOT / "src", bundle_dir / "src")
     for filename in BRANDING_FILES:
         _copy_file(BRANDING_DIR / filename, bundle_dir / "assets" / "branding" / "zeno-oracle" / filename)
     native_path = None

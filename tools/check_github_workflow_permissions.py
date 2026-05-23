@@ -8,6 +8,10 @@ from typing import Iterable, Sequence
 
 
 DEFAULT_WORKFLOW_DIR = Path(".github/workflows")
+ALLOWED_JOB_WRITE_PERMISSIONS = {
+    "release-integrity.yml": {"attestations", "id-token"},
+    "release-publish.yml": {"contents", "id-token", "packages"},
+}
 
 
 @dataclass(frozen=True)
@@ -16,30 +20,49 @@ class WorkflowPermissionFinding:
     reason: str
 
 
+@dataclass(frozen=True)
+class _PermissionBlock:
+    line_no: int
+    indent: int
+    scalar: str
+    block: list[str]
+
+
 def _strip_inline_comment(value: str) -> str:
     return value.split("#", 1)[0].strip()
 
 
-def _top_level_permissions_block(lines: Sequence[str]) -> tuple[int, str, list[str]] | None:
+def _indent(raw_line: str) -> int:
+    return len(raw_line) - len(raw_line.lstrip(" \t"))
+
+
+def _permissions_blocks(lines: Sequence[str]) -> list[_PermissionBlock]:
+    blocks: list[_PermissionBlock] = []
     for idx, raw_line in enumerate(lines):
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
-            continue
-        if raw_line.startswith((" ", "\t")):
             continue
         if not stripped.startswith("permissions:"):
             continue
 
         scalar = _strip_inline_comment(stripped[len("permissions:") :])
+        indent = _indent(raw_line)
         block: list[str] = []
         for child in lines[idx + 1 :]:
             child_stripped = child.strip()
             if not child_stripped or child_stripped.startswith("#"):
                 continue
-            if not child.startswith((" ", "\t")):
+            if _indent(child) <= indent:
                 break
             block.append(child)
-        return idx + 1, scalar, block
+        blocks.append(_PermissionBlock(idx + 1, indent, scalar, block))
+    return blocks
+
+
+def _top_level_permissions_block(lines: Sequence[str]) -> _PermissionBlock | None:
+    for block in _permissions_blocks(lines):
+        if block.indent == 0:
+            return block
     return None
 
 
@@ -56,7 +79,8 @@ def _mapping_from_block(block: Iterable[str]) -> dict[str, str]:
 
 def workflow_permission_findings(path: Path) -> list[WorkflowPermissionFinding]:
     text = path.read_text(encoding="utf-8")
-    block = _top_level_permissions_block(text.splitlines())
+    lines = text.splitlines()
+    block = _top_level_permissions_block(lines)
     rel_path = str(path)
     if block is None:
         return [
@@ -66,17 +90,16 @@ def workflow_permission_findings(path: Path) -> list[WorkflowPermissionFinding]:
             )
         ]
 
-    line_no, scalar, child_block = block
-    if scalar:
+    findings: list[WorkflowPermissionFinding] = []
+    if block.scalar:
         return [
             WorkflowPermissionFinding(
                 path=rel_path,
-                reason=f"top-level permissions must be a mapping with contents: read (line {line_no})",
+                reason=f"top-level permissions must be a mapping with contents: read (line {block.line_no})",
             )
         ]
 
-    permissions = _mapping_from_block(child_block)
-    findings: list[WorkflowPermissionFinding] = []
+    permissions = _mapping_from_block(block.block)
     if permissions.get("contents") != "read":
         findings.append(
             WorkflowPermissionFinding(
@@ -92,6 +115,32 @@ def workflow_permission_findings(path: Path) -> list[WorkflowPermissionFinding]:
                     reason=f"top-level permissions grants write scope: {permission}: {value}",
                 )
             )
+    allowed_job_writes = ALLOWED_JOB_WRITE_PERMISSIONS.get(path.name, set())
+    for nested in _permissions_blocks(lines):
+        if nested.indent == 0:
+            continue
+        if nested.scalar:
+            if nested.scalar in {"write-all"} or nested.scalar.endswith("write"):
+                findings.append(
+                    WorkflowPermissionFinding(
+                        path=rel_path,
+                        reason=f"nested permissions grants scalar write scope at line {nested.line_no}: {nested.scalar}",
+                    )
+                )
+            continue
+        nested_permissions = _mapping_from_block(nested.block)
+        for permission, value in sorted(nested_permissions.items()):
+            if value == "write" or value == "write-all":
+                if permission not in allowed_job_writes:
+                    findings.append(
+                        WorkflowPermissionFinding(
+                            path=rel_path,
+                            reason=(
+                                f"nested permissions grants unapproved write scope "
+                                f"at line {nested.line_no}: {permission}: {value}"
+                            ),
+                        )
+                    )
     return findings
 
 
