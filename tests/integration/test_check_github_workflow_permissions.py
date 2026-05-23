@@ -91,6 +91,39 @@ def test_rejects_write_scope(tmp_path: Path) -> None:
     assert "write scope" in findings[0].reason
 
 
+def test_rejects_unapproved_nested_write_scope(tmp_path: Path) -> None:
+    workflow = _write_workflow(
+        tmp_path / "nested-write.yml",
+        """
+        name: nested-write
+        on: pull_request
+        permissions:
+          contents: read
+        jobs:
+          test:
+            permissions:
+              contents: read
+              packages: write
+            runs-on: ubuntu-latest
+            steps:
+              - run: true
+        """,
+    )
+    findings = workflow_permission_findings(workflow)
+    assert len(findings) == 1
+    assert "nested permissions grants unapproved write scope" in findings[0].reason
+
+
+def test_accepts_release_publish_allowed_job_write_scopes() -> None:
+    workflow = Path(".github/workflows/release-publish.yml")
+    assert workflow_permission_findings(workflow) == []
+
+
+def test_accepts_release_integrity_attestation_write_scopes() -> None:
+    workflow = Path(".github/workflows/release-integrity.yml")
+    assert workflow_permission_findings(workflow) == []
+
+
 def test_cli_accepts_current_workflows(capsys) -> None:  # type: ignore[no-untyped-def]
     assert main([]) == 0
     captured = capsys.readouterr()

@@ -29,6 +29,8 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "Dockerfile.operator-tools",
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
+        ".github/workflows/release-publish.yml",
+        "tools/check_release_publication_workflow.py",
         "docs/DEPLOYMENT_QUICKSTART.md",
     ):
         src = ROOT / relpath

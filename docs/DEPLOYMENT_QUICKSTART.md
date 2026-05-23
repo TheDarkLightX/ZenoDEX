@@ -69,6 +69,50 @@ python3 tools/build_operator_release_bundle.py verify \
   --manifest /tmp/zenodex-release/zenodex-operator-dev.tar.gz.manifest.json
 ```
 
+## 1b. Publish Release Artifacts
+
+Release publication is handled by `.github/workflows/release-publish.yml`.
+Pushing a `v*` tag builds the operator bundle, the Zeno Oracle Python-local zip,
+the browser proof-client npm tarball, `SHA256SUMS`, and a release manifest. The
+workflow then attaches those files to a GitHub Release and pushes the production
+and operator-tool images to GHCR.
+
+Tag-driven release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Manual runs support the same path:
+
+```bash
+gh workflow run release-publish.yml \
+  -f version=0.1.0 \
+  -f publish_github_release=true \
+  -f publish_containers=true \
+  -f publish_npm=false
+```
+
+The npm package remains manual opt-in because it requires `NPM_TOKEN` and the
+package version must match the public npm registry state. Enable it only for a
+versioned release:
+
+```bash
+gh workflow run release-publish.yml \
+  -f version=0.1.0 \
+  -f publish_github_release=true \
+  -f publish_containers=true \
+  -f publish_npm=true
+```
+
+The published container images are:
+
+```text
+ghcr.io/<owner>/zenodex:<version>
+ghcr.io/<owner>/zenodex-operator-tools:<version>
+```
+
 ## 2. Operator Preflight
 
 Run the operator preflight gate:
