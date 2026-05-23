@@ -19,8 +19,9 @@ MAX_LIFECYCLE_BYTES = 250_000
 MAX_EVENTS = 64
 MAX_AMOUNT = 10**24
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+PUBKEY_RE = re.compile(r"^0x[0-9a-f]{96}$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9_.:-]{0,95}$")
-TOP_LEVEL_KEYS = {"schema", "reporter_id", "required_bond", "events"}
+TOP_LEVEL_KEYS = {"schema", "reporter_id", "reporter_pubkey", "required_bond", "events"}
 EVENT_KEYS_BY_TYPE = {
     "register": {"type", "epoch"},
     "deposit_bond": {"type", "epoch", "amount"},
@@ -84,6 +85,7 @@ def sample_lifecycle() -> dict[str, Any]:
     return {
         "schema": LIFECYCLE_SCHEMA,
         "reporter_id": "reporter.sample",
+        "reporter_pubkey": "0x" + ("11" * 48),
         "required_bond": 100,
         "events": [
             {"type": "register", "epoch": 1},
@@ -144,6 +146,14 @@ def _hash(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None:
     return str(value)
 
 
+def _pubkey(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None:
+    value = obj.get(key)
+    if not isinstance(value, str) or not PUBKEY_RE.match(value):
+        errors.append(f"{key}_must_be_hex_48bytes")
+        return None
+    return str(value)
+
+
 def _int_amount(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
     value = obj.get(key)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > MAX_AMOUNT:
@@ -182,6 +192,7 @@ def verify_lifecycle_trace(obj: Mapping[str, Any]) -> ReporterLifecycleResult:
     if obj.get("schema") != LIFECYCLE_SCHEMA:
         errors.append("lifecycle_schema_mismatch")
     reporter_id = _token(obj, "reporter_id", errors)
+    _pubkey(obj, "reporter_pubkey", errors)
     required_bond = _int_amount(obj, "required_bond", errors)
     events = _events(obj, errors)
 

@@ -115,6 +115,7 @@ def sample_lifecycle_for_signed_submission(signed_submission: Mapping[str, Any])
     return {
         "schema": LIFECYCLE_SCHEMA,
         "reporter_id": reporter_id,
+        "reporter_pubkey": str(signed_submission["reporter_pubkey"]),
         "required_bond": 100,
         "events": events,
     }
@@ -264,6 +265,12 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
     admitted_reports: list[dict[str, Any]] = []
     if signed_submission is not None and isinstance(signed_submission.get("reporter_id"), str):
         reporter_id = str(signed_submission["reporter_id"])
+    signed_reporter_pubkey = None
+    lifecycle_reporter_pubkey = None
+    if signed_submission is not None and isinstance(signed_submission.get("reporter_pubkey"), str):
+        signed_reporter_pubkey = str(signed_submission["reporter_pubkey"])
+    if reporter_lifecycle is not None and isinstance(reporter_lifecycle.get("reporter_pubkey"), str):
+        lifecycle_reporter_pubkey = str(reporter_lifecycle["reporter_pubkey"])
     if (
         reporter_id is not None
         and lifecycle_result is not None
@@ -271,6 +278,12 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
         and reporter_id != lifecycle_result.reporter_id
     ):
         errors.append("reporter_lifecycle_reporter_id_mismatch")
+    if (
+        signed_reporter_pubkey is not None
+        and lifecycle_reporter_pubkey is not None
+        and signed_reporter_pubkey != lifecycle_reporter_pubkey
+    ):
+        errors.append("reporter_lifecycle_reporter_pubkey_mismatch")
 
     source_ids = _source_ids(source_diversity) if source_diversity is not None else set()
     submit_events = _submit_events_by_report_id(reporter_lifecycle) if reporter_lifecycle is not None else {}
