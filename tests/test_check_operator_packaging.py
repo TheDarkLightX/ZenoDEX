@@ -25,11 +25,14 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "tools/zenoctl.py",
         "tools/zeno_ledger_node.py",
         "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/build_operator_release_bundle.py",
         "Dockerfile.hashlocked",
         "Dockerfile.operator-tools",
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
+        ".github/workflows/release-integrity.yml",
         "docs/DEPLOYMENT_QUICKSTART.md",
+        "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
     ):
         src = ROOT / relpath
         dst = tmp_path / relpath

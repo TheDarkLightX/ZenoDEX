@@ -32,6 +32,7 @@ REQUIRED_FILES = (
     "Dockerfile.operator-tools",
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
+    ".github/workflows/release-integrity.yml",
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
 )
@@ -54,6 +55,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_zenoctl_light_client(root, checks, errors)
     _check_browser_sdk(root, checks, errors)
     _check_release_bundle_builder(root, checks, errors)
+    _check_release_integrity_publishes_operator_bundle(root, checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.hashlocked", checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.operator-tools", checks, errors)
 
@@ -70,6 +72,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "light-client-checkpoint-verifier",
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
+            "github-release-assets",
         ],
     }
 
@@ -205,6 +208,32 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
             check_id=f"release_bundle_builder_contains:{token}",
             ok=token in text,
             error=f"tools/build_operator_release_bundle.py must contain {token}",
+        )
+
+
+def _check_release_integrity_publishes_operator_bundle(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    path = root / ".github" / "workflows" / "release-integrity.yml"
+    if not path.is_file():
+        return
+    text = _read(path)
+    for token in (
+        "contents: write",
+        "Build operator release bundle",
+        "tools/build_operator_release_bundle.py build",
+        "tools/build_operator_release_bundle.py verify",
+        "Compute combined SHA256SUMS",
+        "Attest operator bundle provenance",
+        "Stage GitHub Release assets",
+        "Create or update GitHub Release",
+        "gh release upload",
+        "--clobber",
+    ):
+        _append_check(
+            checks,
+            errors,
+            check_id=f"release_integrity_contains:{token}",
+            ok=token in text,
+            error=f".github/workflows/release-integrity.yml must contain {token}",
         )
 
 

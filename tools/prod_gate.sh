@@ -6,7 +6,8 @@ set -euo pipefail
 # Runs:
 # - python tests
 # - container hardening artifact checks
-# - private-toolchain kernel assurance (cpmm_swap + liquidity_pool)
+# - kernel assurance, using the private ESSO toolchain when available or a
+#   public hash-bound receipt when it is not
 # - npm audit for UI
 # - docker build of production image
 # - trivy scan of the built artifact
@@ -15,6 +16,7 @@ set -euo pipefail
 #   bash tools/prod_gate.sh
 #   bash tools/prod_gate.sh --skip-docker
 #   bash tools/prod_gate.sh --skip-ui
+#   bash tools/prod_gate.sh --private-esso
 #
 # Exit codes:
 #   0  pass
@@ -32,6 +34,8 @@ KERNEL_JSON=""
 UI_AUDIT_JSON=""
 UI_AUDIT_LOG=""
 TRIVY_JSON=""
+KERNEL_RECEIPT="$ROOT/docs/assurance/kernel_assurance_public_receipt.json"
+PRIVATE_ESSO=auto
 
 cleanup() {
   rm -f "$KERNEL_JSON" "$UI_AUDIT_JSON" "$UI_AUDIT_LOG" "$TRIVY_JSON"
@@ -42,6 +46,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-docker) SKIP_DOCKER=1; shift ;;
     --skip-ui) SKIP_UI=1; shift ;;
+    --private-esso) PRIVATE_ESSO=1; shift ;;
+    --public-kernel-receipt) PRIVATE_ESSO=0; shift ;;
+    --kernel-receipt) KERNEL_RECEIPT="$2"; PRIVATE_ESSO=0; shift 2 ;;
     --image-tag) IMAGE_TAG="$2"; shift 2 ;;
     *)
       echo "Unknown arg: $1" >&2
@@ -81,8 +88,16 @@ echo "[gate] checking container hardening artifacts"
 python tools/check_container_hardening.py
 
 KERNEL_JSON="$(mktemp)"
-echo "[gate] running kernel assurance (manifest-backed)"
-python tools/dex_kernel_assurance.py --pretty >"$KERNEL_JSON"
+if [[ "$PRIVATE_ESSO" == "1" || ( "$PRIVATE_ESSO" == "auto" && -d "$ROOT/external/ESSO" ) ]]; then
+  echo "[gate] running kernel assurance with private ESSO toolchain"
+  python tools/dex_kernel_assurance.py --pretty >"$KERNEL_JSON"
+else
+  echo "[gate] verifying public kernel assurance receipt"
+  python tools/check_kernel_assurance_public_receipt.py check \
+    --receipt "$KERNEL_RECEIPT" \
+    --manifest "$ROOT/tools/kernel_assurance_manifest.json" \
+    --pretty >"$KERNEL_JSON"
+fi
 python - "$KERNEL_JSON" <<'PY'
 import json
 import sys
