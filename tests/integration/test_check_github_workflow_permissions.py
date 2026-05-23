@@ -119,6 +119,48 @@ def test_accepts_release_publish_allowed_job_write_scopes() -> None:
     assert workflow_permission_findings(workflow) == []
 
 
+def test_release_publish_rejects_allowed_scope_on_unapproved_job(tmp_path: Path) -> None:
+    workflow = _write_workflow(
+        tmp_path / "release-publish.yml",
+        """
+        name: release-publish
+        on: workflow_dispatch
+        permissions:
+          contents: read
+        jobs:
+          unrelated:
+            permissions:
+              contents: write
+            runs-on: ubuntu-latest
+            steps:
+              - run: true
+        """,
+    )
+    findings = workflow_permission_findings(workflow)
+    assert len(findings) == 1
+    assert "job unrelated" in findings[0].reason
+
+
+def test_release_publish_accepts_known_job_write_scope(tmp_path: Path) -> None:
+    workflow = _write_workflow(
+        tmp_path / "release-publish.yml",
+        """
+        name: release-publish
+        on: workflow_dispatch
+        permissions:
+          contents: read
+        jobs:
+          publish-github-release:
+            permissions:
+              contents: write
+            runs-on: ubuntu-latest
+            steps:
+              - run: true
+        """,
+    )
+    assert workflow_permission_findings(workflow) == []
+
+
 def test_accepts_release_integrity_attestation_write_scopes() -> None:
     workflow = Path(".github/workflows/release-integrity.yml")
     assert workflow_permission_findings(workflow) == []

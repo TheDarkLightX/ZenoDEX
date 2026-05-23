@@ -64,6 +64,17 @@ def _job_has_permissions(job: str, required: set[str]) -> bool:
     return required <= {line.strip() for line in job.splitlines()}
 
 
+def _workflow_dispatch_input_default(text: str, input_name: str) -> str | None:
+    match = re.search(rf"^      {re.escape(input_name)}:\n(?P<body>(?:        .*\n?)*)", text, re.M)
+    if match is None:
+        return None
+    for raw_line in match.group("body").splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("default:"):
+            return stripped.split(":", 1)[1].strip()
+    return None
+
+
 def check_release_publication_workflow(path: Path = DEFAULT_WORKFLOW) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -115,6 +126,18 @@ def check_release_publication_workflow(path: Path = DEFAULT_WORKFLOW) -> dict[st
     checks.append({"id": "npm_publish_manual_only", "ok": npm_manual_only})
     if not npm_manual_only:
         errors.append("npm publish must remain manual opt-in")
+
+    manual_defaults = {
+        "publish_github_release": "false",
+        "publish_containers": "false",
+        "publish_npm": "false",
+    }
+    for input_name, expected in manual_defaults.items():
+        actual = _workflow_dispatch_input_default(text, input_name)
+        ok = actual == expected
+        checks.append({"id": f"manual_default:{input_name}", "ok": ok, "actual": actual})
+        if not ok:
+            errors.append(f"manual workflow_dispatch input {input_name} must default to {expected}")
 
     forbidden = ("secrets.PRIVATE_KEY", "secrets.PRIVKEY", "secrets.PASSWORD")
     for token in forbidden:
