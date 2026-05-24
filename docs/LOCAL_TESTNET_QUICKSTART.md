@@ -17,14 +17,43 @@ backend, end-to-end on your machine.
 ## Prerequisites
 
 - Docker (or Podman) with `docker compose` v2 (or `podman compose`) on PATH.
-- `external/tau-testnet/` cloned into the repo:
-  ```bash
-  mkdir -p external && cd external && \
-    git clone https://github.com/IDNI/tau-testnet.git && cd ..
-  ```
 - Python 3.11+ for the orchestrator (no other Python deps required for the CLI itself).
+- `external/tau-testnet/` cloned into the repo or extracted operator bundle.
+  Tau is fetched by the tester and is not redistributed inside the ZenoDEX
+  bundle:
+  ```bash
+  mkdir -p external
+  git clone https://github.com/IDNI/tau-testnet.git external/tau-testnet
+  ```
 
-## Bring it up
+## From the GitHub release
+
+Download and extract the operator bundle:
+
+```bash
+curl -L -o zenodex-operator-0.1.12.tar.gz \
+  https://github.com/TheDarkLightX/ZenoDEX/releases/download/v0.1.12/zenodex-operator-0.1.12.tar.gz
+
+tar -xzf zenodex-operator-0.1.12.tar.gz
+cd zenodex-operator-0.1.12
+```
+
+Clone Tau locally, then bring up the stack:
+
+```bash
+mkdir -p external
+git clone https://github.com/IDNI/tau-testnet.git external/tau-testnet
+
+python3 tools/zenoctl.py testnet local up \
+  --out-dir ./local-testnet \
+  --engine docker \
+  --ui-port 18081 \
+  --health-timeout 240
+```
+
+Open <http://127.0.0.1:18081>.
+
+## Bring it up from a source checkout
 
 ```bash
 python3 tools/zenoctl.py testnet local up --out-dir /tmp/zen-local

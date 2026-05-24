@@ -370,30 +370,82 @@ settlement replay.
 
 ## Quick Start
 
-Fastest browser demo for new testnet users:
+### Run A Real Local ZenoDEX Testnet
+
+This is the recommended path for testers who want to exercise ZenoDEX locally
+against live local nodes. It starts a Docker compose stack with ZenoLedger
+writer/forwarder/read-only nodes, a local Tau test node, Zeno Oracle, the
+stdlib API, nginx, and the DEX UI.
+
+Prerequisites:
+
+- Docker Desktop or Docker Engine with compose v2.
+- Python 3.11+.
+- Chrome or Chromium only if you want browser smoke checks.
+
+Download the current operator bundle:
 
 ```bash
-python3 tools/zenoctl.py testnet demo up
+curl -L -o zenodex-operator-0.1.12.tar.gz \
+  https://github.com/TheDarkLightX/ZenoDEX/releases/download/v0.1.12/zenodex-operator-0.1.12.tar.gz
+
+tar -xzf zenodex-operator-0.1.12.tar.gz
+cd zenodex-operator-0.1.12
 ```
 
-Then open:
+Clone the Tau local-testnet dependency. Tau is fetched by the tester and is
+not redistributed inside the ZenoDEX bundle:
+
+```bash
+mkdir -p external
+git clone https://github.com/IDNI/tau-testnet.git external/tau-testnet
+```
+
+Start the local multi-node testnet:
+
+```bash
+python3 tools/zenoctl.py testnet local up \
+  --out-dir ./local-testnet \
+  --engine docker \
+  --ui-port 18081 \
+  --health-timeout 240
+```
+
+Open the UI:
 
 ```text
-http://127.0.0.1:3000
+http://127.0.0.1:18081
 ```
 
-This starts a local-only UI/API stack for trying the DEX, proof-mining status
-flow, zUSD, and perps preview surfaces. Stop it with:
+Run live feature checks:
 
 ```bash
-python3 tools/zenoctl.py testnet demo down
+python3 tools/zenoctl.py testnet local smoke \
+  --out-dir ./local-testnet \
+  --engine docker \
+  --browser auto
 ```
 
-Run the bounded two-node ZenoLedger smoke from the same entrypoint:
+Stop the stack while preserving state:
 
 ```bash
-python3 tools/zenoctl.py testnet demo smoke
+python3 tools/zenoctl.py testnet local down \
+  --out-dir ./local-testnet \
+  --engine docker
 ```
+
+Fully reset the local chain, fixtures, and volumes:
+
+```bash
+python3 tools/zenoctl.py testnet local reset \
+  --out-dir ./local-testnet \
+  --engine docker \
+  --force
+```
+
+Details and troubleshooting: [docs/LOCAL_TESTNET_QUICKSTART.md](docs/LOCAL_TESTNET_QUICKSTART.md).
+
+### Developer Setup
 
 Install Python dependencies:
 
@@ -405,28 +457,6 @@ Production/container runtime installs use the smaller runtime lock:
 
 ```bash
 python3 -m pip install --require-hashes -r requirements-core.lock.txt
-```
-
-Clone optional Tau dependencies under `external/`:
-
-```bash
-mkdir -p external
-cd external
-git clone https://github.com/IDNI/tau-lang.git
-git clone https://github.com/IDNI/tau-testnet.git
-cd ..
-```
-
-Run the local API and UI:
-
-```bash
-PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret \
-  python3 -m src.integration.api_server
-
-cd tools/dex-ui
-npm install
-VITE_DEMO_MODE=false API_PROXY_TARGET=http://127.0.0.1:8000 \
-  VITE_API_TOKEN=sekret npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
 Run the broad Python test suite:
