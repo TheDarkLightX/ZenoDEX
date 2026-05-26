@@ -280,6 +280,61 @@ class TestFindTauBin:
         result = find_tau_bin(project_root=tmp_path)
         assert result == str(fake_tau)
 
+    def test_runtime_profile_prefers_stable_candidate(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        stable = tmp_path / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release" / "tau"
+        latest = tmp_path / "external" / "tau-lang" / "build-Release" / "tau"
+        stable.parent.mkdir(parents=True)
+        latest.parent.mkdir(parents=True)
+        stable.write_text("#!/bin/sh\necho stable-tau", encoding="utf-8")
+        latest.write_text("#!/bin/sh\necho latest-tau", encoding="utf-8")
+        stable.chmod(0o755)
+        latest.chmod(0o755)
+        monkeypatch.setenv("TAU_BIN", "")
+        monkeypatch.setenv("TAU_BIN_PROFILE", "runtime")
+        monkeypatch.setattr("shutil.which", lambda _: None)
+
+        result = find_tau_bin(project_root=tmp_path)
+
+        assert result == str(stable)
+
+    def test_latest_profile_prefers_current_checkout_candidate(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        stable = tmp_path / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release" / "tau"
+        latest = tmp_path / "external" / "tau-lang" / "build-Release" / "tau"
+        stable.parent.mkdir(parents=True)
+        latest.parent.mkdir(parents=True)
+        stable.write_text("#!/bin/sh\necho stable-tau", encoding="utf-8")
+        latest.write_text("#!/bin/sh\necho latest-tau", encoding="utf-8")
+        stable.chmod(0o755)
+        latest.chmod(0o755)
+        monkeypatch.setenv("TAU_BIN", "")
+        monkeypatch.setattr("shutil.which", lambda _: None)
+
+        result = find_tau_bin(project_root=tmp_path, profile="latest")
+
+        assert result == str(latest)
+
+    def test_profile_specific_env_override_wins(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        override = tmp_path / "tau-runtime"
+        stable = tmp_path / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release" / "tau"
+        override.write_text("#!/bin/sh\necho override-tau", encoding="utf-8")
+        override.chmod(0o755)
+        stable.parent.mkdir(parents=True)
+        stable.write_text("#!/bin/sh\necho stable-tau", encoding="utf-8")
+        stable.chmod(0o755)
+        monkeypatch.setenv("TAU_BIN", "")
+        monkeypatch.setenv("TAU_RUNTIME_BIN", str(override))
+        monkeypatch.setattr("shutil.which", lambda _: None)
+
+        result = find_tau_bin(project_root=tmp_path)
+
+        assert result == str(override)
+
     def test_env_path_pointing_to_missing_file_falls_through(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:

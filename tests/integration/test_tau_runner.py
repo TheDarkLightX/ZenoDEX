@@ -14,8 +14,21 @@ from src.integration.tau_runner import (
     normalize_spec_text,
     parse_definitions,
     run_tau_spec_steps,
+    run_tau_spec_steps_with_trace,
 )
-from src.integration.tau_witness import CPMM_V1, build_cpmm_v1_step
+from src.integration.tau_witness import (
+    CPMM_V1,
+    SWAP_EXACT_IN_FEE_PROOF_GATE_V1,
+    SWAP_EXACT_IN_PROOF_GATE_V1,
+    SWAP_EXACT_OUT_FEE_PROOF_GATE_V1,
+    SWAP_EXACT_OUT_PROOF_GATE_V1,
+    TauSpecRef,
+    build_cpmm_v1_step,
+    build_swap_exact_in_fee_proof_gate_v1_step,
+    build_swap_exact_in_proof_gate_v1_step,
+    build_swap_exact_out_fee_proof_gate_v1_step,
+    build_swap_exact_out_proof_gate_v1_step,
+)
 
 
 def test_normalize_spec_text_single_line_always_does_not_consume_next_line() -> None:
@@ -65,15 +78,182 @@ def test_inline_definitions_removes_calls_cpmm_v1() -> None:
     assert "is_positive(" not in expanded
 
 
-def test_run_tau_spec_steps_minimal(tmp_path) -> None:
+def test_run_tau_spec_steps_minimal() -> None:
     tau_bin = find_tau_bin()
     if not tau_bin:
         pytest.skip("tau not found")
 
-    spec_path = tmp_path / "minimal_sbf_copy.tau"
-    spec_path.write_text("i1[t]:sbf\no1[t]:sbf\nalways (o1[t]:sbf = i1[t]:sbf).\n")
-    outputs = run_tau_spec_steps(tau_bin=tau_bin, spec_path=spec_path, steps=[{"i1": 1}], timeout_s=2.0)
+    step = build_swap_exact_in_proof_gate_v1_step(
+        reserve_in=1000,
+        reserve_out=2000,
+        amount_in=100,
+        fee_bps=30,
+        min_amount_out=1,
+        amount_out=180,
+        new_reserve_in=1100,
+        new_reserve_out=1820,
+    )
+    outputs = run_tau_spec_steps(
+        tau_bin=tau_bin,
+        spec_path=SWAP_EXACT_IN_PROOF_GATE_V1.path,
+        steps=[step],
+        timeout_s=20.0,
+    )
     assert outputs[0]["o1"] == 1
+
+
+@pytest.mark.parametrize(
+    ("spec_ref", "steps"),
+    [
+        pytest.param(
+            SWAP_EXACT_IN_PROOF_GATE_V1,
+            [
+                build_swap_exact_in_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_in=100,
+                    fee_bps=30,
+                    min_amount_out=1,
+                    amount_out=180,
+                    new_reserve_in=1100,
+                    new_reserve_out=1820,
+                ),
+                build_swap_exact_in_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_in=100,
+                    fee_bps=30,
+                    min_amount_out=1,
+                    amount_out=180,
+                    new_reserve_in=1100,
+                    new_reserve_out=1819,
+                ),
+            ],
+            id="exact_in",
+        ),
+        pytest.param(
+            SWAP_EXACT_OUT_PROOF_GATE_V1,
+            [
+                build_swap_exact_out_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_out=180,
+                    fee_bps=30,
+                    max_amount_in=200,
+                    amount_in=100,
+                    new_reserve_in=1100,
+                    new_reserve_out=1820,
+                ),
+                build_swap_exact_out_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_out=180,
+                    fee_bps=30,
+                    max_amount_in=200,
+                    amount_in=100,
+                    new_reserve_in=1100,
+                    new_reserve_out=1819,
+                ),
+            ],
+            id="exact_out",
+        ),
+        pytest.param(
+            SWAP_EXACT_IN_FEE_PROOF_GATE_V1,
+            [
+                build_swap_exact_in_fee_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_in=100,
+                    fee_bps=30,
+                    min_amount_out=1,
+                    amount_out=180,
+                    new_reserve_in=1100,
+                    new_reserve_out=1820,
+                    fee_total=1,
+                ),
+                build_swap_exact_in_fee_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_in=100,
+                    fee_bps=30,
+                    min_amount_out=1,
+                    amount_out=180,
+                    new_reserve_in=1100,
+                    new_reserve_out=1819,
+                    fee_total=1,
+                ),
+            ],
+            id="exact_in_fee",
+        ),
+        pytest.param(
+            SWAP_EXACT_OUT_FEE_PROOF_GATE_V1,
+            [
+                build_swap_exact_out_fee_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_out=180,
+                    fee_bps=30,
+                    max_amount_in=200,
+                    amount_in=100,
+                    new_reserve_in=1100,
+                    new_reserve_out=1820,
+                    fee_total=1,
+                ),
+                build_swap_exact_out_fee_proof_gate_v1_step(
+                    reserve_in=1000,
+                    reserve_out=2000,
+                    amount_out=180,
+                    fee_bps=30,
+                    max_amount_in=200,
+                    amount_in=100,
+                    new_reserve_in=1100,
+                    new_reserve_out=1819,
+                    fee_total=1,
+                ),
+            ],
+            id="exact_out_fee",
+        ),
+    ],
+)
+def test_swap_proof_gates_require_reserve_transition_flag(spec_ref: TauSpecRef, steps: list[dict[str, int]]) -> None:
+    tau_bin = find_tau_bin()
+    if not tau_bin:
+        pytest.skip("tau not found")
+
+    outputs = run_tau_spec_steps(
+        tau_bin=tau_bin,
+        spec_path=spec_ref.path,
+        steps=steps,
+        timeout_s=30.0,
+    )
+    assert outputs[0]["o1"] == 1
+    assert outputs[1]["o1"] == 0
+
+
+def test_swap_bv32_witness_builders_reject_out_of_range_values() -> None:
+    with pytest.raises(ValueError, match="new_reserve_in"):
+        build_swap_exact_in_proof_gate_v1_step(
+            reserve_in=0xFFFFFFFF,
+            reserve_out=2000,
+            amount_in=1,
+            fee_bps=30,
+            min_amount_out=1,
+            amount_out=1,
+            new_reserve_in=0x100000000,
+            new_reserve_out=1999,
+        )
+
+    with pytest.raises(ValueError, match="reserve_out"):
+        build_swap_exact_out_proof_gate_v1_step(
+            reserve_in=1000,
+            reserve_out=-1,
+            amount_out=1,
+            fee_bps=30,
+            max_amount_in=10,
+            amount_in=1,
+            new_reserve_in=1001,
+            new_reserve_out=0,
+        )
 
 
 def test_run_tau_spec_steps_cpmm_v1_slow() -> None:
@@ -132,3 +312,100 @@ def test_tau_python_bindings_parity_minimal(tmp_path, monkeypatch) -> None:
 
     out_subprocess = run_tau_spec_steps(tau_bin=tau_bin, spec_path=spec_path, steps=steps, timeout_s=2.0)
     assert out_bindings == out_subprocess
+
+
+def test_run_tau_spec_steps_falls_back_to_spec_mode_when_repl_creates_no_outputs(tmp_path, monkeypatch) -> None:
+    spec_path = tmp_path / "fallback_copy.tau"
+    spec_path.write_text("i1[t]:bv[16]\no1[t]:bv[16]\nalways (o1[t]:bv[16] = i1[t]:bv[16]).\n")
+
+    fake_tau = tmp_path / "fake_tau"
+    fake_tau.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_tau.chmod(0o755)
+
+    def _fake_run_subprocess_with_output_caps(*args, **kwargs):
+        return 0, "", ""
+
+    def _fake_spec_mode(**kwargs):
+        return {0: {"o1": 7}}
+
+    monkeypatch.setattr("src.integration.tau_runner._run_subprocess_with_output_caps", _fake_run_subprocess_with_output_caps)
+    monkeypatch.setattr("src.integration.tau_runner.run_tau_spec_steps_spec_mode", _fake_spec_mode)
+
+    outputs = run_tau_spec_steps(
+        tau_bin=str(fake_tau),
+        spec_path=spec_path,
+        steps=[{"i1": 7}],
+        timeout_s=2.0,
+    )
+    assert outputs == {0: {"o1": 7}}
+
+
+def test_run_tau_spec_steps_with_trace_falls_back_to_spec_mode_when_repl_creates_no_outputs(tmp_path, monkeypatch) -> None:
+    spec_path = tmp_path / "fallback_trace_copy.tau"
+    spec_path.write_text("i1[t]:bv[16]\no1[t]:bv[16]\nalways (o1[t]:bv[16] = i1[t]:bv[16]).\n")
+
+    fake_tau = tmp_path / "fake_tau"
+    fake_tau.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_tau.chmod(0o755)
+
+    def _fake_run_subprocess_with_output_caps(*args, **kwargs):
+        return 0, "repl-out", ""
+
+    def _fake_spec_mode_with_trace(**kwargs):
+        return ({0: {"o1": 9}}, "spec-out", "", "spec-text", "spec-input")
+
+    monkeypatch.setattr("src.integration.tau_runner._run_subprocess_with_output_caps", _fake_run_subprocess_with_output_caps)
+    monkeypatch.setattr("src.integration.tau_runner.run_tau_spec_steps_spec_mode_with_trace", _fake_spec_mode_with_trace)
+
+    outputs, out, err, repl = run_tau_spec_steps_with_trace(
+        tau_bin=str(fake_tau),
+        spec_path=spec_path,
+        steps=[{"i1": 9}],
+        timeout_s=2.0,
+    )
+    assert outputs == {0: {"o1": 9}}
+    assert "repl->spec fallback" in out
+    assert "r (" in repl
+
+
+def test_spec_mode_normalization_strips_multiline_helper_definitions(tmp_path, monkeypatch) -> None:
+    spec_path = tmp_path / "multiline_defs.tau"
+    spec_path.write_text(
+        "\n".join(
+            [
+                "set charvar off",
+                "helper(x : sbf, y : sbf) :=",
+                "  (x = 1:sbf) ||",
+                "  (y = 1:sbf).",
+                "i1[t]:sbf",
+                "o1[t]:sbf",
+                "always (o1[t]:sbf = 1:sbf <-> helper(i1[t]:sbf, i1[t]:sbf)).",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    fake_tau = tmp_path / "fake_tau"
+    fake_tau.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    fake_tau.chmod(0o755)
+
+    def _fake_run_subprocess_with_output_caps(cmd, *, input_text, cwd, timeout_s, max_stdout_bytes, max_stderr_bytes):
+        return 1, "boom", "boom"
+
+    monkeypatch.setattr("src.integration.tau_runner._run_subprocess_with_output_caps", _fake_run_subprocess_with_output_caps)
+
+    with pytest.raises(Exception) as excinfo:
+        from src.integration.tau_runner import run_tau_spec_steps_spec_mode_with_trace
+
+        run_tau_spec_steps_spec_mode_with_trace(
+            tau_bin=str(fake_tau),
+            spec_path=spec_path,
+            steps=[{"i1": 1}],
+            timeout_s=1.0,
+        )
+
+    exc = excinfo.value
+    normalized = getattr(exc, "spec_text", "")
+    assert "helper(x : sbf, y : sbf) :=" not in normalized
+    assert "always (o1[t]:sbf = 1:sbf <->" in normalized

@@ -13,12 +13,18 @@ fi
 PYTHON="${PYTHON:-python3}"
 VENV_DIR="${TAU_NODE_VENV_DIR:-/opt/zenodex-tau-venv}"
 
-if [[ ! -d "$VENV_DIR" ]]; then
+if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+  mkdir -p "$VENV_DIR"
+  find "$VENV_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
   "$PYTHON" -m venv "$VENV_DIR"
 fi
 
 # shellcheck disable=SC1090
 source "$VENV_DIR/bin/activate"
+
+if [[ -n "${TAU_RUNTIME_LIBRARY_PATH:-}" ]]; then
+  export LD_LIBRARY_PATH="${TAU_RUNTIME_LIBRARY_PATH}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+fi
 
 python -m pip install --require-hashes -r "$ROOT/requirements-dev.lock.txt"
 python -m pip install -r "$ROOT/external/tau-testnet/requirements.txt"
@@ -30,6 +36,7 @@ ARGS=(
   --host 0.0.0.0
   --port "${TAU_PORT:-65432}"
   --chain-id "${TAU_DEX_CHAIN_ID:-tau-local}"
+  --ready-timeout-s "${TAU_READY_TIMEOUT_S:-240}"
 )
 
 if [[ "${TAU_FORCE_TEST:-1}" == "1" ]]; then

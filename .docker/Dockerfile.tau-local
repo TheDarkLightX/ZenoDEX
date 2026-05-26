@@ -1,4 +1,4 @@
-FROM python:3.11-slim-bookworm@sha256:a2c44ea455da75ce149a1aacb0e48d859277be1e206cfafaba58ef81374d1af1
+FROM python:3.11-slim-trixie@sha256:a3ab0b966bc4e91546a033e22093cb840908979487a9fc0e6e38295747e49ac0
 
 RUN apt-get update -o Acquire::Retries=3 \
   && apt-get install -y --no-install-recommends gcc g++ make libgmp-dev \

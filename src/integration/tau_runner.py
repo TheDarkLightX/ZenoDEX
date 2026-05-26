@@ -256,25 +256,64 @@ def _run_subprocess_with_output_caps(
             pass
 
 
-def find_tau_bin(project_root: Path = ROOT) -> Optional[str]:
-    """Find a usable Tau binary in common locations or on PATH."""
+def _executable_file(path: Path) -> bool:
+    try:
+        return path.exists() and path.is_file() and os.access(str(path), os.X_OK)
+    except Exception:
+        return False
+
+
+def find_tau_bin(project_root: Path = ROOT, *, profile: str | None = None) -> Optional[str]:
+    """Find a usable Tau binary in common locations or on PATH.
+
+    The runtime profile prefers the last locally verified Tau build for local
+    testnet execution. The latest profile targets the current upstream checkout
+    for compatibility experiments.
+    """
     env_tau = os.environ.get("TAU_BIN", "").strip()
     if env_tau:
         p = Path(os.path.expanduser(env_tau))
-        try:
-            if p.exists() and p.is_file() and os.access(str(p), os.X_OK):
-                return str(p)
-        except Exception:
-            # Best-effort: fall through to default search.
-            pass
+        if _executable_file(p):
+            return str(p)
 
-    candidates = [
+    selected_profile = (profile or os.environ.get("TAU_BIN_PROFILE", "runtime")).strip().lower()
+    if selected_profile in {"", "default"}:
+        selected_profile = "runtime"
+
+    env_profile_var = {
+        "runtime": "TAU_RUNTIME_BIN",
+        "stable": "TAU_RUNTIME_BIN",
+        "testnet": "TAU_RUNTIME_BIN",
+        "latest": "TAU_LATEST_BIN",
+        "current": "TAU_LATEST_BIN",
+        "research": "TAU_LATEST_BIN",
+    }.get(selected_profile)
+    if env_profile_var:
+        env_profile_tau = os.environ.get(env_profile_var, "").strip()
+        if env_profile_tau:
+            p = Path(os.path.expanduser(env_profile_tau))
+            if _executable_file(p):
+                return str(p)
+
+    stable_candidates = [
+        project_root / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release" / "tau",
+        project_root / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release-fresh" / "tau",
+    ]
+    latest_candidates = [
         project_root / "external" / "tau-lang" / "build-Release" / "tau",
         project_root / "external" / "tau-lang" / "build-Debug" / "tau",
-        project_root / "external" / "tau-nightly" / "usr" / "bin" / "tau",
+        project_root / "external" / "tau-lang-upstream-main" / "build-Release" / "tau",
     ]
+    if selected_profile in {"latest", "current", "research"}:
+        candidates = latest_candidates + stable_candidates + [
+            project_root / "external" / "tau-nightly" / "usr" / "bin" / "tau",
+        ]
+    else:
+        candidates = stable_candidates + latest_candidates + [
+            project_root / "external" / "tau-nightly" / "usr" / "bin" / "tau",
+        ]
     for c in candidates:
-        if c.exists() and c.is_file():
+        if _executable_file(c):
             return str(c)
     return shutil.which("tau")
 
@@ -869,6 +908,19 @@ def run_tau_spec_steps(
     if not always_exprs:
         raise ValueError(f"Missing always constraint in spec: {spec_path}")
 
+    def _try_spec_mode_fallback() -> Optional[Dict[int, Dict[str, int]]]:
+        try:
+            return run_tau_spec_steps_spec_mode(
+                tau_bin=tau_bin,
+                spec_path=spec_path,
+                steps=steps,
+                timeout_s=float(timeout_s),
+                severity="error",
+                experimental=experimental,
+            )
+        except Exception:
+            return None
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
         input_paths: dict[str, Path] = {}
@@ -914,13 +966,18 @@ def run_tau_spec_steps(
             max_stderr_bytes=8_000,
         )
         if rc != 0:
+            fallback_outputs = _try_spec_mode_fallback()
+            if fallback_outputs is not None:
+                return fallback_outputs
             detail = (err or out or "unknown error").strip()
             raise RuntimeError(f"tau failed (rc={rc}): {detail[:400]}")
 
         outputs_by_step: Dict[int, Dict[str, int]] = {}
+        missing_outputs: list[str] = []
         for name, path in output_paths.items():
             if not path.exists():
-                raise RuntimeError(f"tau did not create output file: {name}")
+                missing_outputs.append(name)
+                continue
             max_bytes = (len(steps) * 64) + 1024
             try:
                 if path.stat().st_size > max_bytes:
@@ -929,6 +986,9 @@ def run_tau_spec_steps(
                 raise RuntimeError(f"could not stat tau output file: {name}")
             values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             if len(values) != len(steps):
+                fallback_outputs = _try_spec_mode_fallback()
+                if fallback_outputs is not None:
+                    return fallback_outputs
                 raise RuntimeError(
                     f"{name} output length mismatch: expected {len(steps)} line(s), got {len(values)}"
                 )
@@ -936,8 +996,17 @@ def run_tau_spec_steps(
                 try:
                     value = int(raw)
                 except ValueError as exc:
+                    fallback_outputs = _try_spec_mode_fallback()
+                    if fallback_outputs is not None:
+                        return fallback_outputs
                     raise RuntimeError(f"{name} output non-integer value: {raw!r}") from exc
                 outputs_by_step.setdefault(idx, {})[name] = value
+
+        if missing_outputs:
+            fallback_outputs = _try_spec_mode_fallback()
+            if fallback_outputs is not None:
+                return fallback_outputs
+            raise RuntimeError(f"tau did not create output file: {missing_outputs[0]}")
 
     return outputs_by_step
 
@@ -990,6 +1059,20 @@ def run_tau_spec_steps_with_trace(
     if not always_exprs:
         raise ValueError(f"Missing always constraint in spec: {spec_path}")
 
+    def _try_spec_mode_fallback_with_trace() -> Optional[Tuple[Dict[int, Dict[str, int]], str, str]]:
+        try:
+            outputs_sm, out_sm, err_sm, _spec_text_sm, _input_text_sm = run_tau_spec_steps_spec_mode_with_trace(
+                tau_bin=tau_bin,
+                spec_path=spec_path,
+                steps=steps,
+                timeout_s=float(timeout_s),
+                severity=severity,
+                experimental=experimental,
+            )
+            return outputs_sm, out_sm, err_sm
+        except Exception:
+            return None
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
         input_paths: dict[str, Path] = {}
@@ -1035,6 +1118,12 @@ def run_tau_spec_steps_with_trace(
             max_stderr_bytes=128_000,
         )
         if rc != 0:
+            fallback = _try_spec_mode_fallback_with_trace()
+            if fallback is not None:
+                outputs_sm, out_sm, err_sm = fallback
+                merged_out = out + ("\n[repl->spec fallback]\n" + out_sm if out_sm else "")
+                merged_err = err + ("\n[repl->spec fallback]\n" + err_sm if err_sm else "")
+                return outputs_sm, merged_out, merged_err, repl_script
             detail = (err or out or "unknown error").strip()
             raise TauRunError(
                 f"tau failed (rc={rc}): {detail[:400]}",
@@ -1045,15 +1134,11 @@ def run_tau_spec_steps_with_trace(
             )
 
         outputs_by_step: Dict[int, Dict[str, int]] = {}
+        missing_outputs: list[str] = []
         for name, path in output_paths.items():
             if not path.exists():
-                raise TauRunError(
-                    f"tau did not create output file: {name}",
-                    rc=rc,
-                    stdout=out,
-                    stderr=err,
-                    repl_script=repl_script,
-                )
+                missing_outputs.append(name)
+                continue
             max_bytes = (len(steps) * 64) + 1024
             try:
                 if path.stat().st_size > max_bytes:
@@ -1074,6 +1159,12 @@ def run_tau_spec_steps_with_trace(
                 )
             values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             if len(values) != len(steps):
+                fallback = _try_spec_mode_fallback_with_trace()
+                if fallback is not None:
+                    outputs_sm, out_sm, err_sm = fallback
+                    merged_out = out + ("\n[repl->spec fallback]\n" + out_sm if out_sm else "")
+                    merged_err = err + ("\n[repl->spec fallback]\n" + err_sm if err_sm else "")
+                    return outputs_sm, merged_out, merged_err, repl_script
                 raise TauRunError(
                     f"{name} output length mismatch: expected {len(steps)} line(s), got {len(values)}",
                     rc=rc,
@@ -1085,6 +1176,12 @@ def run_tau_spec_steps_with_trace(
                 try:
                     value = int(raw)
                 except ValueError as exc:
+                    fallback = _try_spec_mode_fallback_with_trace()
+                    if fallback is not None:
+                        outputs_sm, out_sm, err_sm = fallback
+                        merged_out = out + ("\n[repl->spec fallback]\n" + out_sm if out_sm else "")
+                        merged_err = err + ("\n[repl->spec fallback]\n" + err_sm if err_sm else "")
+                        return outputs_sm, merged_out, merged_err, repl_script
                     raise TauRunError(
                         f"{name} output non-integer value: {raw!r}",
                         rc=rc,
@@ -1093,6 +1190,21 @@ def run_tau_spec_steps_with_trace(
                         repl_script=repl_script,
                     ) from exc
                 outputs_by_step.setdefault(idx, {})[name] = value
+
+        if missing_outputs:
+            fallback = _try_spec_mode_fallback_with_trace()
+            if fallback is not None:
+                outputs_sm, out_sm, err_sm = fallback
+                merged_out = out + ("\n[repl->spec fallback]\n" + out_sm if out_sm else "")
+                merged_err = err + ("\n[repl->spec fallback]\n" + err_sm if err_sm else "")
+                return outputs_sm, merged_out, merged_err, repl_script
+            raise TauRunError(
+                f"tau did not create output file: {missing_outputs[0]}",
+                rc=rc,
+                stdout=out,
+                stderr=err,
+                repl_script=repl_script,
+            )
 
         return outputs_by_step, out, err, repl_script
 
@@ -1174,13 +1286,20 @@ def run_tau_spec_steps_spec_mode_with_trace(
         # Tau 0.7 file-runner can reject helper predicate/function definitions that REPL mode accepts.
         # Build a file-runner-safe spec by dropping helper defs and re-emitting inlined always clauses.
         kept_lines: list[str] = []
+        skipping_def_block = False
         for raw_line in spec_text.splitlines():
             stripped = raw_line.strip()
             if not stripped:
                 continue
+            if skipping_def_block:
+                if stripped.endswith("."):
+                    skipping_def_block = False
+                continue
             if re.match(r"^always\b", stripped):
                 continue
-            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)\s*:=\s*.*\.\s*$", stripped):
+            if ":=" in stripped and not re.match(r"^[io]\d+\s*:", stripped):
+                if not stripped.endswith("."):
+                    skipping_def_block = True
                 continue
             kept_lines.append(stripped)
         for expr in expanded_always_exprs:
