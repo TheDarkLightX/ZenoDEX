@@ -1,41 +1,32 @@
 import { useState } from 'react';
 import './WalletConnect.css';
-
-// Tau Net Alpha uses BLS public keys (96 hex chars = 48 bytes)
-function generateMockTauAddress() {
-    const chars = '0123456789abcdef';
-    return Array.from({ length: 96 }, () => chars[Math.floor(Math.random() * 16)]).join('');
-}
+import { getRuntimeConfig } from '../lib/api.js';
+import { browserKeyGenerationAllowed, connectPreferredWallet } from '../sdk/walletSignerPolicy.js';
 
 function WalletConnect({ wallet, onConnect }) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
     const [copyFeedback, setCopyFeedback] = useState(false);
+    const [connectionError, setConnectionError] = useState('');
 
     const handleConnect = async () => {
         setIsConnecting(true);
+        setConnectionError('');
 
         try {
-            // Simulate wallet connection delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Generate Tau Net Alpha compatible address (BLS public key format)
-            const address = generateMockTauAddress();
-
-            onConnect({
-                address,
-                chainId: 'tau-alpha',
-                balance: {
-                    AGRS: 1234.56,
-                    ZDEX: 5000,
-                    USD: 10000,
-                    TASSET0: 1_000_000,
-                    TASSET1: 1_000_000,
-                    TZENO: 1_000_000,
-                },
-            });
+            const runtimeConfig = getRuntimeConfig();
+            onConnect(await connectPreferredWallet({
+                chainId: runtimeConfig.chainId || 'zeno-ledger-localtest-v0',
+                globalObject: typeof window === 'undefined' ? globalThis : window,
+                allowBrowserFallback: browserKeyGenerationAllowed({
+                    locationSearch: typeof window === 'undefined' ? '' : window.location.search,
+                    runtimeConfig,
+                    env: import.meta.env,
+                }),
+            }));
         } catch (error) {
             console.error('Failed to connect wallet:', error);
+            setConnectionError(error?.message || 'secure_signer_unavailable');
         } finally {
             setIsConnecting(false);
         }
@@ -62,6 +53,11 @@ function WalletConnect({ wallet, onConnect }) {
         return `${address.slice(0, 8)}...${address.slice(-6)}`;
     };
 
+    const formatBalanceOrNA = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toLocaleString() : 'N/A';
+    };
+
     if (wallet) {
         return (
             <div className="wallet-container">
@@ -79,7 +75,7 @@ function WalletConnect({ wallet, onConnect }) {
                         <div className="dropdown-header">
                             <span className="connected-badge">
                                 <span className="connected-dot"></span>
-                                Tau Net Alpha
+                                {wallet.browserLastResort ? 'Browser fallback signer' : 'Secure signer'}
                             </span>
                         </div>
 
@@ -90,13 +86,13 @@ function WalletConnect({ wallet, onConnect }) {
                             </div>
 
                             <div className="dropdown-item">
-                                <span className="item-label">AGRS Balance</span>
-                                <span className="item-value">{wallet.balance?.AGRS?.toLocaleString() || 0} ✦</span>
+                                <span className="item-label">ZDEX Balance</span>
+                                <span className="item-value">{formatBalanceOrNA(wallet.balance?.ZDEX)} ⚡</span>
                             </div>
 
                             <div className="dropdown-item">
-                                <span className="item-label">ZDEX Balance</span>
-                                <span className="item-value">{wallet.balance?.ZDEX?.toLocaleString() || 0} ⚡</span>
+                                <span className="item-label">zUSD Balance</span>
+                                <span className="item-value">{formatBalanceOrNA(wallet.balance?.zUSD)} ◈</span>
                             </div>
                         </div>
 
@@ -127,23 +123,31 @@ function WalletConnect({ wallet, onConnect }) {
     }
 
     return (
-        <button
-            className="btn btn-primary wallet-connect-btn"
-            onClick={handleConnect}
-            disabled={isConnecting}
-        >
-            {isConnecting ? (
-                <>
-                    <span className="spinner"></span>
-                    Connecting...
-                </>
-            ) : (
-                <>
-                    <span className="wallet-icon">🔗</span>
-                    Connect Wallet
-                </>
+        <div className="wallet-connect-shell">
+            <button
+                className="btn btn-primary wallet-connect-btn"
+                onClick={handleConnect}
+                disabled={isConnecting}
+                title={connectionError || 'Connect secure signer'}
+            >
+                {isConnecting ? (
+                    <>
+                        <span className="spinner"></span>
+                        Connecting...
+                    </>
+                ) : (
+                    <>
+                        <span className="wallet-icon">🔗</span>
+                        Connect Wallet
+                    </>
+                )}
+            </button>
+            {connectionError && (
+                <div className="wallet-connect-error" role="status">
+                    {connectionError}
+                </div>
             )}
-        </button>
+        </div>
     );
 }
 

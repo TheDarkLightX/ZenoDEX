@@ -146,6 +146,7 @@ def render_runtime_config(*, demo_mode: bool = False, extra: dict[str, object] |
         "zenoOracleApiBase": "",
         "oracleApiBase": "",
         "deployment": "local-testnet",
+        "allowBrowserKeyGeneration": True,
     }
     if extra:
         for key, value in extra.items():

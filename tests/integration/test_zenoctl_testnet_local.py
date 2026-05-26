@@ -465,6 +465,7 @@ def test_runtime_config_has_no_tokens() -> None:
     assert parsed["apiBase"] == ""
     assert parsed["zenoOracleApiBase"] == ""
     assert parsed["oracleApiBase"] == ""
+    assert parsed["allowBrowserKeyGeneration"] is True
     # No bearer-token-like fields
     serialized = json.dumps(parsed, sort_keys=True)
     assert "Bearer" not in serialized
