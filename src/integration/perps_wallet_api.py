@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
@@ -28,10 +29,19 @@ from .perp_engine import PerpEngineConfig, apply_perp_ops
 from .perps_wallet_authority import (
     evaluate_perps_wallet_authority_profile_v1,
     evaluate_perps_wallet_device_approval_exercise_v1,
+    evaluate_perps_wallet_hardware_custody_v1,
     evaluate_perps_wallet_recovery_exercise_v1,
     evaluate_perps_wallet_rotation_exercise_v1,
+    evaluate_perps_wallet_signer_ceremony_v1,
     evaluate_perps_wallet_signer_device_integration_v1,
+    evaluate_perps_wallet_signer_execution_exercise_v1,
+    evaluate_perps_wallet_signer_prompt_capture_v1,
 )
+from .perps_wallet_encrypted_sss_backup import (
+    evaluate_perps_wallet_encrypted_sss_backup_v1,
+    recipient_root_keys_from_fixture_v1,
+)
+from .production_promotion_evidence import evaluate_production_hardware_wallet_evidence_v1
 from .tau_net_client import (
     TauNetRpcError,
     TauNetTcpClient,
@@ -39,7 +49,9 @@ from .tau_net_client import (
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
     encode_tau_operations_for_wire,
+    tau_rpc_invalid_sequence_numbers,
     sign_perp_op_for_engine,
+    tau_rpc_response_is_success,
     verify_tau_transaction_payload_signature,
 )
 from .zeno_oracle_authority import evaluate_oracle_authority_profile_v1
@@ -67,6 +79,7 @@ _PERPS_PROOF_INTENT_SCHEMA = "zenodex/perps_wallet/proof_intent_receipt/v1"
 _PERPS_PROOF_INTENT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
 _PERPS_ZK_PROOF_ENV_PREFIX = "PERPS_WALLET"
 _PERPS_ZK_PROOF_REQUIRED_ENV = "PERPS_WALLET_REQUIRE_ZK_PROOF"
+_PERPS_TAU_WRITE_LOCK = threading.Lock()
 _ORACLE_AUTHORITY_EXERCISE_SCHEMA = "zenodex/perps_wallet/oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_EXERCISE_HASH_DOMAIN = "zenodex.perps_wallet.oracle_authority_exercise/v1"
 _ORACLE_AUTHORITY_ACTIONS = {"settle_epoch", "partial_liquidate"}
@@ -202,6 +215,52 @@ def _wallet_signer_device_integration_from_env() -> tuple[Mapping[str, Any] | No
     )
 
 
+def _wallet_signer_execution_exercise_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_JSON",),
+        file_names=("PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_FILE",),
+        label="perps wallet signer execution exercise",
+    )
+
+
+def _wallet_signer_prompt_capture_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_SIGNER_PROMPT_CAPTURE_JSON",),
+        file_names=("PERPS_WALLET_SIGNER_PROMPT_CAPTURE_FILE",),
+        label="perps wallet signer prompt capture",
+    )
+
+
+def _wallet_encrypted_sss_backup_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_ENCRYPTED_SSS_BACKUP_JSON",),
+        file_names=("PERPS_WALLET_ENCRYPTED_SSS_BACKUP_FILE",),
+        label="perps wallet encrypted SSS backup",
+    )
+
+
+def _wallet_encrypted_sss_recipient_keys_from_env() -> tuple[dict[str, bytes] | None, str | None]:
+    raw, err = _json_profile_from_env(
+        json_names=("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON",),
+        file_names=("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_FILE",),
+        label="perps wallet encrypted SSS recipient keys",
+    )
+    if err is not None or raw is None:
+        return None, err
+    try:
+        return recipient_root_keys_from_fixture_v1(raw), None
+    except Exception as exc:
+        return None, f"perps wallet encrypted SSS recipient keys invalid: {exc}"
+
+
+def _wallet_production_hardware_evidence_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
+    return _json_profile_from_env(
+        json_names=("PERPS_WALLET_PRODUCTION_HARDWARE_EVIDENCE_JSON",),
+        file_names=("PERPS_WALLET_PRODUCTION_HARDWARE_EVIDENCE_FILE",),
+        label="perps wallet production hardware evidence",
+    )
+
+
 def _json_profile_from_env(
     *,
     json_names: tuple[str, ...],
@@ -328,6 +387,33 @@ def _load_app_state(client: TauNetTcpClient) -> Tuple[Dict[str, Any], Optional[s
         raise TauNetRpcError("invalid app_state payload")
     app_hash = obj.get("app_hash")
     return app_state, str(app_hash) if isinstance(app_hash, str) and app_hash else None
+
+
+def _app_hash_wait_timeout_s() -> float:
+    return _env_float("PERPS_WALLET_APP_HASH_WAIT_S", 2.0, lo=0.0, hi=30.0)
+
+
+def _wait_for_app_hash_change(
+    client: TauNetTcpClient,
+    app_hash_before: str | None,
+    *,
+    timeout_s: float | None = None,
+) -> Tuple[Dict[str, Any], Optional[str]]:
+    timeout = _app_hash_wait_timeout_s() if timeout_s is None else max(0.0, float(timeout_s))
+    deadline = time.monotonic() + timeout
+    last_state: Dict[str, Any] = {}
+    last_hash: str | None = None
+    while True:
+        state, observed_hash = _load_app_state(client)
+        last_state = state
+        last_hash = observed_hash
+        if observed_hash is not None and (
+            app_hash_before is None or observed_hash != app_hash_before
+        ):
+            return state, observed_hash
+        if time.monotonic() >= deadline:
+            return last_state, last_hash
+        time.sleep(0.25)
 
 
 def _dex_state_view(app_state: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -461,6 +547,24 @@ def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
     return int(value)
 
 
+def _testnet_faucet_enabled() -> bool:
+    return _env_bool("PERPS_WALLET_TESTNET_FAUCET_ENABLED", False)
+
+
+def _testnet_faucet_max_amount() -> int:
+    return _env_int("PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT", 100_000, lo=1, hi=10**18)
+
+
+def _testnet_faucet_authority_pubkey() -> str:
+    raw = _env_str(
+        "PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY",
+        _env_str("TAU_DEX_OPERATOR_PUBKEY", ""),
+    )
+    if not raw:
+        raise ValueError("perps_wallet_testnet_faucet_authority_missing")
+    return _canonical_pubkey(raw, name="testnet_faucet_authority_pubkey")
+
+
 def _fee_limit_posture(*, tx_fee_limit: int, native_balance: int | None) -> dict[str, Any]:
     ok = None if native_balance is None else bool(int(native_balance) >= int(tx_fee_limit))
     warning = None
@@ -520,12 +624,18 @@ def _bind_live_zk_wrapper(
     *,
     body: Mapping[str, Any],
     required: bool,
+    enforce_required: bool = True,
+    wrapper_key: str = "zk_wrapper",
 ) -> dict[str, Any]:
     proof_section = payload.get("proof")
     if not isinstance(proof_section, dict):
+        if required and enforce_required:
+            raise ValueError("zk_proof_required: missing proof section")
         return payload
     receipt = proof_section.get("intent_receipt")
     if not isinstance(receipt, Mapping):
+        if required and enforce_required:
+            raise ValueError("zk_proof_required: missing proof intent receipt")
         return payload
     zk_wrapper = verify_live_proof_wrapper(
         surface="perps_stream8",
@@ -534,16 +644,59 @@ def _bind_live_zk_wrapper(
         proof=proof_from_request(body),
         required=required,
     )
-    require_live_proof_wrapper(zk_wrapper)
-    proof_section["zk_wrapper"] = zk_wrapper
+    proof_section[wrapper_key] = zk_wrapper
+    if wrapper_key != "zk_wrapper":
+        proof_section["zk_wrapper"] = zk_wrapper
     profile = proof_section.get("profile")
+    receipt_body = receipt.get("body") if isinstance(receipt, Mapping) else None
+    app_hash_after = receipt_body.get("app_hash_after") if isinstance(receipt_body, Mapping) else None
+    state_delta_witness_hash = (
+        receipt_body.get("state_delta_witness_hash") if isinstance(receipt_body, Mapping) else None
+    )
+    post_submit_bound = (
+        isinstance(app_hash_after, str)
+        and bool(app_hash_after.strip())
+        and isinstance(state_delta_witness_hash, str)
+        and bool(state_delta_witness_hash.strip())
+    )
     if isinstance(profile, dict):
         profile["zk_proof_verified"] = bool(zk_wrapper.get("zk_proof_verified"))
         profile["artifact_binding_complete"] = bool(zk_wrapper.get("artifact_binding_complete"))
-        profile["promotion_ready"] = bool(zk_wrapper.get("zk_proof_verified")) and bool(
-            zk_wrapper.get("artifact_binding_complete")
+        profile["promotion_ready"] = (
+            post_submit_bound
+            and bool(zk_wrapper.get("zk_proof_verified"))
+            and bool(zk_wrapper.get("artifact_binding_complete"))
         )
+    if required and zk_wrapper.get("zk_proof_verified") is not True:
+        proof_section[f"{wrapper_key}_gap"] = zk_wrapper.get("error") or "proof not verified"
+    if enforce_required:
+        require_live_proof_wrapper(zk_wrapper)
     return payload
+
+
+def _reject_payload(payload: dict[str, Any], *, status: str, error: str) -> dict[str, Any]:
+    proof_section = payload.get("proof")
+    if isinstance(proof_section, dict):
+        profile = proof_section.get("profile")
+        if isinstance(profile, dict):
+            profile["promotion_ready"] = False
+    return {
+        **payload,
+        "ok": False,
+        "status": status,
+        "error": error,
+    }
+
+
+def _safe_sequence_after_submission(client: Any, tx_sender_pubkey: str) -> int | None:
+    try:
+        return int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
+    except Exception:
+        return None
+
+
+def _invalid_sequence_numbers(response: object) -> tuple[int, int] | None:
+    return tau_rpc_invalid_sequence_numbers(response)
 
 
 def _perps_proof_intent_receipt(
@@ -676,6 +829,7 @@ def _perps_state_delta_witness(
     *,
     chain_id: str,
     action: str,
+    operation: Mapping[str, Any] | None = None,
     app_hash_before: str | None,
     app_hash_after: str | None,
     app_state_before: Mapping[str, Any],
@@ -761,6 +915,45 @@ def _perps_state_delta_witness(
                     "liquidated_after": bool(after.get("liquidated_this_step", False)),
                 }
             )
+    target_already_satisfied: dict[str, Any] | None = None
+    if (
+        action == "set_position_pair"
+        and isinstance(operation, Mapping)
+        and isinstance(operation.get("market_id"), str)
+        and isinstance(operation.get("new_position_base_a"), int)
+        and isinstance(operation.get("new_position_base_b"), int)
+    ):
+        target_market_id = str(operation["market_id"])
+        before_target = before_by_id.get(target_market_id)
+        after_target = after_by_id.get(target_market_id)
+        if isinstance(before_target, Mapping) and isinstance(after_target, Mapping):
+            new_position_base_a = int(operation["new_position_base_a"])
+            new_position_base_b = int(operation["new_position_base_b"])
+            before_a = before_target.get("position_base_a")
+            before_b = before_target.get("position_base_b")
+            after_a = after_target.get("position_base_a")
+            after_b = after_target.get("position_base_b")
+            satisfied = (
+                isinstance(before_a, int)
+                and isinstance(before_b, int)
+                and isinstance(after_a, int)
+                and isinstance(after_b, int)
+                and int(before_a) == new_position_base_a
+                and int(before_b) == new_position_base_b
+                and int(after_a) == new_position_base_a
+                and int(after_b) == new_position_base_b
+            )
+            target_already_satisfied = {
+                "kind": "set_position_pair_target_already_satisfied",
+                "market_id": target_market_id,
+                "new_position_base_a": new_position_base_a,
+                "new_position_base_b": new_position_base_b,
+                "position_base_a_before": int(before_a) if isinstance(before_a, int) else None,
+                "position_base_b_before": int(before_b) if isinstance(before_b, int) else None,
+                "position_base_a_after": int(after_a) if isinstance(after_a, int) else None,
+                "position_base_b_after": int(after_b) if isinstance(after_b, int) else None,
+                "satisfied": bool(satisfied),
+            }
     return {
         "schema": "zenodex/perps_wallet/state_delta_witness/v1",
         "chain_id": str(chain_id),
@@ -771,7 +964,42 @@ def _perps_state_delta_witness(
         "market_count_before": len(before_markets),
         "market_count_after": len(after_markets),
         "changed_markets": changed_markets,
+        "target_already_satisfied": target_already_satisfied,
     }
+
+
+def _state_delta_witness_matches_operation(
+    witness: Mapping[str, Any],
+    operation: Mapping[str, Any],
+) -> bool:
+    app_hash_before = witness.get("app_hash_before")
+    app_hash_after = witness.get("app_hash_after")
+    if not isinstance(app_hash_before, str) or not app_hash_before:
+        return False
+    if not isinstance(app_hash_after, str) or not app_hash_after:
+        return False
+    if app_hash_after == app_hash_before:
+        return False
+    changed_markets = witness.get("changed_markets")
+    if not isinstance(changed_markets, list):
+        return False
+    market_id = operation.get("market_id")
+    if not changed_markets:
+        target_already_satisfied = witness.get("target_already_satisfied")
+        return (
+            isinstance(target_already_satisfied, Mapping)
+            and target_already_satisfied.get("kind") == "set_position_pair_target_already_satisfied"
+            and target_already_satisfied.get("satisfied") is True
+            and isinstance(market_id, str)
+            and bool(market_id)
+            and target_already_satisfied.get("market_id") == market_id
+        )
+    if isinstance(market_id, str) and market_id:
+        for changed_market in changed_markets:
+            if isinstance(changed_market, Mapping) and changed_market.get("market_id") == market_id:
+                return True
+        return False
+    return True
 
 
 def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any] | None:
@@ -1111,11 +1339,11 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
         oracle_adapter_bridge_verifier=_default_oracle_adapter_bridge_verifier,
         require_oracle_adapter_for_clearinghouse_settle_epoch=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            False,
+            True,
         ),
         require_oracle_adapter_for_isolated_partial_liquidate=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
-            False,
+            True,
         ),
     )
 
@@ -1486,6 +1714,137 @@ def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     raise ValueError("missing_tx_signer_privkey")
 
 
+def _testnet_faucet_signer_privkey(body: Mapping[str, Any]) -> object:
+    for key in ("signer_privkey", "account_privkey", "operator_privkey", "tx_signer_privkey"):
+        value = body.get(key)
+        if value is not None:
+            return value
+    raise ValueError("missing_signer_privkey")
+
+
+def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
+    if not _testnet_faucet_enabled():
+        raise ValueError("perps_wallet_testnet_faucet_disabled")
+
+    chain_id = str(body.get("chain_id") or _tau_chain_id())
+    to_pubkey = _canonical_pubkey(body.get("to_pubkey", body.get("account_pubkey")), name="to_pubkey")
+    asset = _canonical_asset(body.get("asset", body.get("quote_asset", body.get("quoteAsset"))), name="asset")
+    amount = _request_positive_int(body, name="amount")
+    max_amount = _testnet_faucet_max_amount()
+    if amount > max_amount:
+        raise ValueError(f"testnet_faucet_amount_exceeds_cap:{amount}>{max_amount}")
+    tx_fee_limit = _request_tx_fee_limit(body)
+    deadline = _request_u32(body, name="deadline", default=_default_deadline())
+    signer_privkey = _testnet_faucet_signer_privkey(body)
+    signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="signer_pubkey")
+    authority_pubkey = _testnet_faucet_authority_pubkey()
+    if signer_pubkey.lower() != authority_pubkey.lower():
+        raise ValueError("testnet_faucet_authority_mismatch")
+
+    client = _tau_client()
+    app_state_before, app_hash_before = _load_app_state(client)
+    balance_before = _balance_for_asset(app_state_before, pubkey=to_pubkey, asset_id=asset)
+    tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(signer_pubkey)))
+    operations = {"7": {"mint": [{"pubkey": to_pubkey, "asset": asset, "amount": amount}]}}
+    tau_tx_payload = build_signed_tau_transaction(
+        privkey=cast(Any, signer_privkey),
+        sequence_number=tx_sequence_number,
+        expiration_time=deadline,
+        operations=operations,
+        fee_limit=tx_fee_limit,
+    )
+    send_resp = client.sendtx(tau_tx_payload)
+    submission: Dict[str, Any] = {"sendtx_response": send_resp}
+    if not tau_rpc_response_is_success(send_resp):
+        invalid_sequence = _invalid_sequence_numbers(send_resp)
+        if (
+            invalid_sequence is not None
+            and int(invalid_sequence[1]) == int(tx_sequence_number)
+            and int(invalid_sequence[0]) > int(tx_sequence_number)
+        ):
+            tx_sequence_number = int(invalid_sequence[0])
+            submission["retry_sequence_error"] = {
+                "expected": int(invalid_sequence[0]),
+                "got": int(invalid_sequence[1]),
+            }
+            tau_tx_payload = build_signed_tau_transaction(
+                privkey=cast(Any, signer_privkey),
+                sequence_number=tx_sequence_number,
+                expiration_time=deadline,
+                operations=operations,
+                fee_limit=tx_fee_limit,
+            )
+            retry_send_resp = client.sendtx(tau_tx_payload)
+            submission["retry_sendtx_response"] = retry_send_resp
+            send_resp = retry_send_resp
+        if tau_rpc_response_is_success(send_resp):
+            pass
+        else:
+            return {
+                "ok": False,
+                "error": "sendtx_failed",
+                "status": "submit_rejected",
+                "submission": submission,
+                "testnet_only": True,
+                "production_authority": False,
+            }
+
+    if _auto_mine():
+        createblock_resp = client.createblock()
+        submission["createblock_response"] = createblock_resp
+        if not tau_rpc_response_is_success(createblock_resp):
+            observed_state, observed_hash = _wait_for_app_hash_change(client, app_hash_before)
+            observed_balance = _balance_for_asset(observed_state, pubkey=to_pubkey, asset_id=asset)
+            submission["observed_app_hash_after_createblock"] = observed_hash
+            submission["observed_balance_after_createblock"] = observed_balance
+            if observed_balance <= balance_before:
+                submission["createblock_empty_without_balance_delta"] = True
+
+    app_state_after, app_hash_after = _load_app_state(client)
+    balance_after = _balance_for_asset(app_state_after, pubkey=to_pubkey, asset_id=asset)
+    if balance_after < balance_before + amount:
+        return {
+            "ok": False,
+            "error": "faucet_balance_delta_missing",
+            "status": "submit_indeterminate",
+            "submission": submission,
+            "testnet_only": True,
+            "production_authority": False,
+            "balance_before": balance_before,
+            "balance_after": balance_after,
+            "expected_balance_after_at_least": balance_before + amount,
+            "app_hash_before": app_hash_before,
+            "app_hash_after": app_hash_after,
+        }
+    return {
+        "ok": True,
+        "schema": "zenodex/perps-wallet-testnet-faucet/v1",
+        "testnet_only": True,
+        "production_authority": False,
+        "chain_id": chain_id,
+        "to_pubkey": to_pubkey,
+        "asset": asset,
+        "amount": amount,
+        "balance_before": balance_before,
+        "balance_after": balance_after,
+        "app_hash_before": app_hash_before,
+        "app_hash_after": app_hash_after,
+        "transport": {
+            "stream_key": "7",
+            "tx_sender_pubkey": signer_pubkey,
+            "testnet_faucet_authority_pubkey": authority_pubkey,
+            "tx_sequence_number": tx_sequence_number,
+            "tx_fee_limit": str(tx_fee_limit),
+            "auto_mine": _auto_mine(),
+        },
+        "report": {
+            "operations": operations,
+            "tau_tx_payload": tau_tx_payload,
+        },
+        "submission": submission,
+    }
+
+
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
     chain_id = str(body.get("chain_id") or _tau_chain_id())
@@ -1505,7 +1864,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
     operations = {_STREAM_KEY: [operation]}
     tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(tx_sender_pubkey)))
-    block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
+    block_timestamp = int(time.time())
     preflight = _preflight(
         app_state=app_state,
         config=config,
@@ -1534,6 +1893,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     quote_balance = _balance_for_asset(app_state, pubkey=account_pubkey, asset_id=quote_asset) if quote_asset else 0
 
     tau_tx_payload: dict[str, Any] | None = None
+    local_signer_privkey: object | None = None
     signing_mode = "prepare_only"
     if for_submit:
         external_payload = _request_signed_tau_tx_payload(body)
@@ -1554,6 +1914,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             signer_pubkey = _canonical_pubkey(_pubkey_from_privkey(signer_privkey), name="tx_signer_pubkey")
             if signer_pubkey.lower() != tx_sender_pubkey.lower():
                 raise ValueError("tx_signer_privkey does not match sender_pubkey")
+            local_signer_privkey = signer_privkey
             tau_tx_payload = build_signed_tau_transaction(
                 privkey=cast(Any, signer_privkey),
                 sequence_number=tx_sequence_number,
@@ -1625,17 +1986,123 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
         payload["submission"] = {"sendtx_response": send_resp}
+        if not tau_rpc_response_is_success(send_resp):
+            invalid_sequence = _invalid_sequence_numbers(send_resp)
+            if (
+                signing_mode == "local_test_signing"
+                and local_signer_privkey is not None
+                and invalid_sequence is not None
+                and int(invalid_sequence[1]) == int(tx_sequence_number)
+                and int(invalid_sequence[0]) > int(tx_sequence_number)
+            ):
+                if zk_required:
+                    payload["submission"]["retry_sequence_error"] = {
+                        "expected": int(invalid_sequence[0]),
+                        "got": int(invalid_sequence[1]),
+                    }
+                    return _reject_payload(
+                        payload,
+                        status="submit_rejected",
+                        error="sequence_retry_requires_fresh_zk_proof",
+                    )
+                tx_sequence_number = int(invalid_sequence[0])
+                payload["submission"]["retry_sequence_error"] = {
+                    "expected": int(invalid_sequence[0]),
+                    "got": int(invalid_sequence[1]),
+                }
+                tau_tx_payload = build_signed_tau_transaction(
+                    privkey=cast(Any, local_signer_privkey),
+                    sequence_number=tx_sequence_number,
+                    expiration_time=deadline,
+                    operations=operations,
+                    fee_limit=tx_fee_limit,
+                )
+                payload["transport"]["tx_sequence_number"] = tx_sequence_number
+                payload["report"]["tau_tx_payload"] = tau_tx_payload
+                retry_send_resp = client.sendtx(tau_tx_payload)
+                payload["submission"]["retry_sendtx_response"] = retry_send_resp
+                send_resp = retry_send_resp
+            if tau_rpc_response_is_success(send_resp):
+                pass
+            else:
+                return _reject_payload(payload, status="submit_rejected", error="sendtx_failed")
         if _auto_mine():
-            payload["submission"]["createblock_response"] = client.createblock()
+            createblock_response = client.createblock()
+            payload["submission"]["createblock_response"] = createblock_response
+            if not tau_rpc_response_is_success(createblock_response):
+                _observed_state, observed_hash = _wait_for_app_hash_change(client, app_hash)
+                payload["submission"]["observed_app_hash_after_createblock"] = observed_hash
+                if observed_hash == app_hash:
+                    if "mempool is empty" in str(createblock_response).lower():
+                        retry_send_response = client.sendtx(tau_tx_payload)
+                        payload["submission"]["retry_sendtx_response"] = retry_send_response
+                        if tau_rpc_response_is_success(retry_send_response):
+                            retry_createblock_response = client.createblock()
+                            payload["submission"]["retry_createblock_response"] = retry_createblock_response
+                            if tau_rpc_response_is_success(retry_createblock_response):
+                                pass
+                            else:
+                                _retry_observed_state, retry_observed_hash = _wait_for_app_hash_change(client, app_hash)
+                                payload["submission"]["retry_observed_app_hash_after_createblock"] = retry_observed_hash
+                                if retry_observed_hash == app_hash:
+                                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+                        else:
+                            _late_state, late_hash = _wait_for_app_hash_change(client, app_hash)
+                            payload["submission"]["late_observed_app_hash_after_retry"] = late_hash
+                            if late_hash is not None and late_hash != app_hash:
+                                pass
+                            else:
+                                invalid_sequence = _invalid_sequence_numbers(retry_send_response)
+                                if invalid_sequence is not None:
+                                    expected_sequence, got_sequence = invalid_sequence
+                                    payload["submission"]["retry_sequence_error"] = {
+                                        "expected": expected_sequence,
+                                        "got": got_sequence,
+                                    }
+                                payload["submission"]["observed_sequence_after_retry"] = _safe_sequence_after_submission(
+                                    client,
+                                    tx_sender_pubkey,
+                                )
+                                if (
+                                    invalid_sequence is not None
+                                    and int(invalid_sequence[1]) == int(tx_sequence_number)
+                                    and int(invalid_sequence[0]) > int(tx_sequence_number)
+                                ) or (
+                                    "invalid sequence number" in str(retry_send_response).lower()
+                                    and payload["submission"]["observed_sequence_after_retry"] is not None
+                                    and int(payload["submission"]["observed_sequence_after_retry"]) > tx_sequence_number
+                                ):
+                                    return _reject_payload(
+                                        payload,
+                                        status="submit_indeterminate",
+                                        error="tau_sequence_consumed_without_app_delta",
+                                    )
+                                return _reject_payload(payload, status="submit_rejected", error="sendtx_retry_failed")
+                    else:
+                        return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
+                elif observed_hash is None:
+                    return _reject_payload(payload, status="submit_rejected", error="createblock_failed")
         app_state_after, app_hash_after = _load_app_state(client)
         state_delta_witness = _perps_state_delta_witness(
             chain_id=chain_id,
             action=action,
+            operation=operation,
             app_hash_before=app_hash,
             app_hash_after=app_hash_after,
             app_state_before=app_state,
             app_state_after=app_state_after,
         )
+        if not _state_delta_witness_matches_operation(state_delta_witness, operation):
+            payload["post_submit"] = {
+                "app_hash": app_hash_after,
+                "markets": _market_summaries(app_state_after),
+                "state_delta_witness": state_delta_witness,
+            }
+            return _reject_payload(
+                payload,
+                status="submit_indeterminate",
+                error="state_delta_witness_missing",
+            )
         payload["post_submit"] = {
             "app_hash": app_hash_after,
             "markets": _market_summaries(app_state_after),
@@ -1658,7 +2125,13 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             state_delta_witness=state_delta_witness,
         )
         payload["proof"]["oracle_authority_exercise"] = oracle_authority_exercise
-        payload = _bind_live_zk_wrapper(payload, body=body, required=False)
+        payload = _bind_live_zk_wrapper(
+            payload,
+            body=body,
+            required=zk_required,
+            enforce_required=False,
+            wrapper_key="post_submit_zk_wrapper",
+        )
     return payload
 
 
@@ -1751,6 +2224,130 @@ def _status_payload() -> Dict[str, Any]:
             "environment_hash": None,
             "environment_policy_hash": None,
         }
+    signer_prompt_capture, signer_prompt_capture_error = _wallet_signer_prompt_capture_from_env()
+    if signer_prompt_capture is not None:
+        wallet_authority["signer_prompt_capture"] = evaluate_perps_wallet_signer_prompt_capture_v1(
+            wallet_authority_profile,
+            signer_prompt_capture,
+            expected_chain_id=chain_id,
+        )
+    elif signer_prompt_capture_error is not None:
+        wallet_authority["signer_prompt_capture"] = {
+            "schema": "zenodex/perps-wallet-signer-prompt-capture-status/v1",
+            "ok": False,
+            "signer_prompt_capture_ready": False,
+            "status": "blocked",
+            "errors": [signer_prompt_capture_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "capture_hash": None,
+            "backend_hash": None,
+            "environment_hash": None,
+            "environment_policy_hash": None,
+        }
+    signer_execution_exercise, signer_execution_exercise_error = _wallet_signer_execution_exercise_from_env()
+    if signer_execution_exercise is not None:
+        wallet_authority["signer_execution_exercise"] = evaluate_perps_wallet_signer_execution_exercise_v1(
+            wallet_authority_profile,
+            signer_execution_exercise,
+            expected_chain_id=chain_id,
+        )
+    elif signer_execution_exercise_error is not None:
+        wallet_authority["signer_execution_exercise"] = {
+            "schema": "zenodex/perps-wallet-signer-execution-exercise-status/v1",
+            "ok": False,
+            "signer_execution_ready": False,
+            "status": "blocked",
+            "errors": [signer_execution_exercise_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "exercise_hash": None,
+            "backend_hash": None,
+            "environment_hash": None,
+            "use_policy_hash": None,
+            "environment_policy_hash": None,
+        }
+    if any(
+        key in wallet_authority
+        for key in (
+            "device_approval_exercise",
+            "signer_device_integration",
+            "signer_prompt_capture",
+            "signer_execution_exercise",
+        )
+    ):
+        production_hardware_evidence, production_hardware_evidence_error = _wallet_production_hardware_evidence_from_env()
+        production_hardware_evidence_status = evaluate_production_hardware_wallet_evidence_v1(
+            production_hardware_evidence,
+            wallet_authority_profile_hash=None
+            if wallet_authority_profile is None
+            else wallet_authority_profile.get("wallet_authority_hash"),
+            expected_device_pubkey=None,
+        )
+        if production_hardware_evidence_error is not None:
+            production_hardware_evidence_status["ok"] = False
+            production_hardware_evidence_status["production_ready"] = False
+            production_hardware_evidence_status["status"] = "blocked"
+            production_hardware_evidence_status.setdefault("gaps", []).append(production_hardware_evidence_error)
+        wallet_authority["production_hardware_evidence"] = production_hardware_evidence_status
+        wallet_authority["signer_ceremony"] = evaluate_perps_wallet_signer_ceremony_v1(
+            wallet_authority_hash=None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            device_approval_status=wallet_authority.get("device_approval_exercise")
+            if isinstance(wallet_authority.get("device_approval_exercise"), Mapping)
+            else None,
+            signer_device_status=wallet_authority.get("signer_device_integration")
+            if isinstance(wallet_authority.get("signer_device_integration"), Mapping)
+            else None,
+            signer_prompt_capture_status=wallet_authority.get("signer_prompt_capture")
+            if isinstance(wallet_authority.get("signer_prompt_capture"), Mapping)
+            else None,
+            signer_execution_status=wallet_authority.get("signer_execution_exercise")
+            if isinstance(wallet_authority.get("signer_execution_exercise"), Mapping)
+            else None,
+        )
+        wallet_authority["hardware_custody"] = evaluate_perps_wallet_hardware_custody_v1(
+            wallet_authority_hash=None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            device_approval_status=wallet_authority.get("device_approval_exercise")
+            if isinstance(wallet_authority.get("device_approval_exercise"), Mapping)
+            else None,
+            signer_device_status=wallet_authority.get("signer_device_integration")
+            if isinstance(wallet_authority.get("signer_device_integration"), Mapping)
+            else None,
+            signer_prompt_capture_status=wallet_authority.get("signer_prompt_capture")
+            if isinstance(wallet_authority.get("signer_prompt_capture"), Mapping)
+            else None,
+            signer_execution_status=wallet_authority.get("signer_execution_exercise")
+            if isinstance(wallet_authority.get("signer_execution_exercise"), Mapping)
+            else None,
+            signer_ceremony_status=wallet_authority.get("signer_ceremony")
+            if isinstance(wallet_authority.get("signer_ceremony"), Mapping)
+            else None,
+            production_hardware_evidence_status=production_hardware_evidence_status,
+        )
+    encrypted_sss_backup, encrypted_sss_backup_error = _wallet_encrypted_sss_backup_from_env()
+    if encrypted_sss_backup is not None:
+        recipient_root_keys, recipient_root_keys_error = _wallet_encrypted_sss_recipient_keys_from_env()
+        wallet_authority["encrypted_sss_backup"] = evaluate_perps_wallet_encrypted_sss_backup_v1(
+            wallet_authority_profile,
+            encrypted_sss_backup,
+            expected_chain_id=chain_id,
+            recipient_root_keys=recipient_root_keys,
+        )
+        if recipient_root_keys_error is not None:
+            wallet_authority["encrypted_sss_backup"]["ok"] = False
+            wallet_authority["encrypted_sss_backup"]["encrypted_sss_backup_ready"] = False
+            wallet_authority["encrypted_sss_backup"]["status"] = "blocked"
+            wallet_authority["encrypted_sss_backup"].setdefault("errors", []).append(recipient_root_keys_error)
+    elif encrypted_sss_backup_error is not None:
+        wallet_authority["encrypted_sss_backup"] = {
+            "schema": "zenodex/perps-wallet-encrypted-sss-backup-status/v1",
+            "ok": False,
+            "encrypted_sss_backup_ready": False,
+            "status": "blocked",
+            "errors": [encrypted_sss_backup_error],
+            "wallet_authority_hash": None if wallet_authority_profile is None else wallet_authority_profile.get("wallet_authority_hash"),
+            "backup_hash": None,
+            "sss_implemented": True,
+            "production_security_claim": False,
+        }
     oracle_authority_profile, oracle_authority_error = _oracle_authority_profile_from_env()
     oracle_authority = _bind_oracle_authority_status(
         evaluate_oracle_authority_profile_v1(oracle_authority_profile),
@@ -1775,12 +2372,12 @@ def _status_payload() -> Dict[str, Any]:
         "oracle_pubkey": os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
         "require_oracle_adapter_for_clearinghouse_settle_epoch": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            False,
+            True,
         ),
         "allow_isolated_markets": _env_bool("TAU_DEX_ALLOW_ISOLATED_PERPS", False),
         "require_oracle_adapter_for_isolated_partial_liquidate": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
-            False,
+            True,
         ),
         "proof_profile": _perps_proof_profile(),
         "wallet_authority": wallet_authority,
@@ -1823,9 +2420,21 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
         if parsed is None:
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["prepare"]:
-            return 200, _build_prepare_response(parsed, for_submit=False)
+            payload = _build_prepare_response(parsed, for_submit=False)
+            return (200 if payload.get("ok") is True else 400), payload
         if rest == ["submit"]:
-            return 200, _build_prepare_response(parsed, for_submit=True)
+            # The local Tau writer exposes one mempool/sequence lane. Keep the
+            # read-build-send-mine-postcheck cycle atomic for this API process.
+            with _PERPS_TAU_WRITE_LOCK:
+                payload = _build_prepare_response(parsed, for_submit=True)
+            return (200 if payload.get("ok") is True else 400), payload
+        if rest == ["testnet-faucet"]:
+            # The local faucet is fixture-only and signs with one authority key.
+            # Share the write lock with /submit so post-state balance checks
+            # cannot race a collateral deposit or position update.
+            with _PERPS_TAU_WRITE_LOCK:
+                payload = _build_testnet_faucet_response(parsed)
+            return (200 if payload.get("ok") is True else 400), payload
         if rest == ["oracle-bridge-template"]:
             action = str(parsed.get("action", "settle_epoch")).strip().lower()
             if action not in {"settle_epoch", "partial_liquidate"}:
@@ -1907,6 +2516,150 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 signer_device["status"] = "blocked"
                 signer_device.setdefault("errors", []).append(profile_error)
             return 200, {"ok": signer_device.get("signer_device_ready") is True, "signer_device_integration": signer_device}
+        if rest == ["signer-prompt-capture", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            signer_prompt_capture = evaluate_perps_wallet_signer_prompt_capture_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                signer_prompt_capture["ok"] = False
+                signer_prompt_capture["signer_prompt_capture_ready"] = False
+                signer_prompt_capture["status"] = "blocked"
+                signer_prompt_capture.setdefault("errors", []).append(profile_error)
+            return 200, {
+                "ok": signer_prompt_capture.get("signer_prompt_capture_ready") is True,
+                "signer_prompt_capture": signer_prompt_capture,
+            }
+        if rest == ["signer-execution", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            signer_execution = evaluate_perps_wallet_signer_execution_exercise_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+            )
+            if profile_error is not None:
+                signer_execution["ok"] = False
+                signer_execution["signer_execution_ready"] = False
+                signer_execution["status"] = "blocked"
+                signer_execution.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": signer_execution.get("signer_execution_ready") is True, "signer_execution_exercise": signer_execution}
+        if rest == ["signer-ceremony", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            device_approval_status = evaluate_perps_wallet_device_approval_exercise_v1(
+                profile,
+                parsed.get("device_approval_exercise") if isinstance(parsed.get("device_approval_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_device_status = evaluate_perps_wallet_signer_device_integration_v1(
+                profile,
+                parsed.get("signer_device_integration") if isinstance(parsed.get("signer_device_integration"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_prompt_capture_status = evaluate_perps_wallet_signer_prompt_capture_v1(
+                profile,
+                parsed.get("signer_prompt_capture") if isinstance(parsed.get("signer_prompt_capture"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_execution_status = evaluate_perps_wallet_signer_execution_exercise_v1(
+                profile,
+                parsed.get("signer_execution_exercise") if isinstance(parsed.get("signer_execution_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_ceremony = evaluate_perps_wallet_signer_ceremony_v1(
+                wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                device_approval_status=device_approval_status,
+                signer_device_status=signer_device_status,
+                signer_prompt_capture_status=signer_prompt_capture_status,
+                signer_execution_status=signer_execution_status,
+            )
+            if profile_error is not None:
+                signer_ceremony["ok"] = False
+                signer_ceremony["signer_ceremony_ready"] = False
+                signer_ceremony["status"] = "blocked"
+                signer_ceremony.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": signer_ceremony.get("signer_ceremony_ready") is True, "signer_ceremony": signer_ceremony}
+        if rest == ["hardware-custody", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            device_approval_status = evaluate_perps_wallet_device_approval_exercise_v1(
+                profile,
+                parsed.get("device_approval_exercise") if isinstance(parsed.get("device_approval_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_device_status = evaluate_perps_wallet_signer_device_integration_v1(
+                profile,
+                parsed.get("signer_device_integration") if isinstance(parsed.get("signer_device_integration"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_prompt_capture_status = evaluate_perps_wallet_signer_prompt_capture_v1(
+                profile,
+                parsed.get("signer_prompt_capture") if isinstance(parsed.get("signer_prompt_capture"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_execution_status = evaluate_perps_wallet_signer_execution_exercise_v1(
+                profile,
+                parsed.get("signer_execution_exercise") if isinstance(parsed.get("signer_execution_exercise"), Mapping) else None,
+                expected_chain_id=chain_id,
+            )
+            signer_ceremony = evaluate_perps_wallet_signer_ceremony_v1(
+                wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                device_approval_status=device_approval_status,
+                signer_device_status=signer_device_status,
+                signer_prompt_capture_status=signer_prompt_capture_status,
+                signer_execution_status=signer_execution_status,
+            )
+            production_hardware_evidence_status = evaluate_production_hardware_wallet_evidence_v1(
+                parsed.get("production_hardware_evidence")
+                if isinstance(parsed.get("production_hardware_evidence"), Mapping)
+                else None,
+                wallet_authority_profile_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                expected_device_pubkey=None,
+            )
+            hardware_custody = evaluate_perps_wallet_hardware_custody_v1(
+                wallet_authority_hash=None if profile is None else profile.get("wallet_authority_hash"),
+                device_approval_status=device_approval_status,
+                signer_device_status=signer_device_status,
+                signer_prompt_capture_status=signer_prompt_capture_status,
+                signer_execution_status=signer_execution_status,
+                signer_ceremony_status=signer_ceremony,
+                production_hardware_evidence_status=production_hardware_evidence_status,
+            )
+            hardware_custody["production_hardware_evidence"] = production_hardware_evidence_status
+            if profile_error is not None:
+                hardware_custody["ok"] = False
+                hardware_custody["hardware_custody_ready"] = False
+                hardware_custody["status"] = "blocked"
+                hardware_custody.setdefault("errors", []).append(profile_error)
+            return 200, {"ok": hardware_custody.get("hardware_custody_ready") is True, "hardware_custody": hardware_custody}
+        if rest == ["encrypted-sss-backup", "evaluate"]:
+            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            profile, profile_error = _wallet_authority_profile_from_env()
+            recipient_root_keys, recipient_root_keys_error = _wallet_encrypted_sss_recipient_keys_from_env()
+            encrypted_sss_backup = evaluate_perps_wallet_encrypted_sss_backup_v1(
+                profile,
+                parsed,
+                expected_chain_id=chain_id,
+                recipient_root_keys=recipient_root_keys,
+            )
+            if profile_error is not None:
+                encrypted_sss_backup["ok"] = False
+                encrypted_sss_backup["encrypted_sss_backup_ready"] = False
+                encrypted_sss_backup["status"] = "blocked"
+                encrypted_sss_backup.setdefault("errors", []).append(profile_error)
+            if recipient_root_keys_error is not None:
+                encrypted_sss_backup["ok"] = False
+                encrypted_sss_backup["encrypted_sss_backup_ready"] = False
+                encrypted_sss_backup["status"] = "blocked"
+                encrypted_sss_backup.setdefault("errors", []).append(recipient_root_keys_error)
+            return 200, {
+                "ok": encrypted_sss_backup.get("encrypted_sss_backup_ready") is True,
+                "encrypted_sss_backup": encrypted_sss_backup,
+            }
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}
