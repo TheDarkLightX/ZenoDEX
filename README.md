@@ -14,6 +14,7 @@ docs, proof files, kernels, and replay scripts.
 
 ## Contents
 
+- [Install And Load The Current Testnet](#install-and-load-the-current-testnet)
 - [Why The Name ZenoDEX?](#why-the-name-zenodex)
 - [Current Status](#current-status)
 - [Assurance Snapshot](#assurance-snapshot)
@@ -25,6 +26,80 @@ docs, proof files, kernels, and replay scripts.
 - [Repository Layout](#repository-layout)
 - [Documentation](#documentation)
 - [License](#license)
+
+## Install And Load The Current Testnet
+
+Use the latest operator bundle when you want to run ZenoDEX locally without
+cloning the full repository. It starts the DEX UI, ZenoLedger local nodes, a
+local Tau test node, Zeno Oracle, and the stdlib API on your machine.
+
+Prerequisites: Docker Desktop or Docker Engine with compose v2, Python 3.11+,
+and Chrome or Chromium if you want browser smoke checks.
+
+Download, verify, and extract the current release:
+
+```bash
+ZENODEX_VERSION=0.1.15
+
+curl -L -o "zenodex-operator-${ZENODEX_VERSION}.tar.gz" \
+  "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/zenodex-operator-${ZENODEX_VERSION}.tar.gz"
+curl -L -o SHA256SUMS \
+  "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/SHA256SUMS"
+
+sha256sum -c --ignore-missing SHA256SUMS
+
+tar -xzf "zenodex-operator-${ZENODEX_VERSION}.tar.gz"
+cd "zenodex-operator-${ZENODEX_VERSION}"
+```
+
+Clone the Tau local-testnet dependency. Tau is fetched by the tester and is not
+redistributed inside the ZenoDEX operator bundle.
+
+```bash
+mkdir -p external
+git clone https://github.com/IDNI/tau-testnet.git external/tau-testnet
+```
+
+Start and load the local testnet:
+
+```bash
+python3 tools/zenoctl.py testnet local up \
+  --out-dir ./local-testnet \
+  --engine docker \
+  --ui-port 18081 \
+  --health-timeout 240
+```
+
+Open the UI:
+
+```text
+http://127.0.0.1:18081
+```
+
+Run the live feature check:
+
+```bash
+python3 tools/zenoctl.py testnet local smoke \
+  --out-dir ./local-testnet \
+  --engine docker \
+  --browser auto
+```
+
+Stop the stack while preserving local state:
+
+```bash
+python3 tools/zenoctl.py testnet local down \
+  --out-dir ./local-testnet \
+  --engine docker
+```
+
+The local stack exposes only a loopback nginx port by default. The browser uses
+relative `/api/*` calls; nginx injects backend tokens server-side.
+
+Latest release page:
+[github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.15](https://github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.15).
+Full local-testnet details:
+[docs/LOCAL_TESTNET_QUICKSTART.md](docs/LOCAL_TESTNET_QUICKSTART.md).
 
 ## Why The Name ZenoDEX?
 
@@ -383,14 +458,20 @@ Prerequisites:
 - Python 3.11+.
 - Chrome or Chromium only if you want browser smoke checks.
 
-Download the current operator bundle:
+Download, verify, and extract the current operator bundle:
 
 ```bash
-curl -L -o zenodex-operator-0.1.12.tar.gz \
-  https://github.com/TheDarkLightX/ZenoDEX/releases/download/v0.1.12/zenodex-operator-0.1.12.tar.gz
+ZENODEX_VERSION=0.1.15
 
-tar -xzf zenodex-operator-0.1.12.tar.gz
-cd zenodex-operator-0.1.12
+curl -L -o "zenodex-operator-${ZENODEX_VERSION}.tar.gz" \
+  "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/zenodex-operator-${ZENODEX_VERSION}.tar.gz"
+curl -L -o SHA256SUMS \
+  "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/SHA256SUMS"
+
+sha256sum -c --ignore-missing SHA256SUMS
+
+tar -xzf "zenodex-operator-${ZENODEX_VERSION}.tar.gz"
+cd "zenodex-operator-${ZENODEX_VERSION}"
 ```
 
 Clone the Tau local-testnet dependency. Tau is fetched by the tester and is

@@ -1,8 +1,8 @@
 # Local-Testnet Quickstart
 
 One command brings up a real local-testnet stack of ZenoDEX against live
-local backends — not demo surfaces. Every mounted UI tab exercises a real
-backend, end-to-end on your machine.
+local backends. Every mounted UI tab exercises a real backend end-to-end on
+your machine.
 
 ## What this gives you
 
@@ -28,14 +28,20 @@ backend, end-to-end on your machine.
 
 ## From the GitHub release
 
-Download and extract the operator bundle:
+Download, verify, and extract the operator bundle:
 
 ```bash
-curl -L -o zenodex-operator-0.1.12.tar.gz \
-  https://github.com/TheDarkLightX/ZenoDEX/releases/download/v0.1.12/zenodex-operator-0.1.12.tar.gz
+ZENODEX_VERSION=0.1.15
 
-tar -xzf zenodex-operator-0.1.12.tar.gz
-cd zenodex-operator-0.1.12
+curl -L -o "zenodex-operator-${ZENODEX_VERSION}.tar.gz" \
+  "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/zenodex-operator-${ZENODEX_VERSION}.tar.gz"
+curl -L -o SHA256SUMS \
+  "https://github.com/TheDarkLightX/ZenoDEX/releases/download/v${ZENODEX_VERSION}/SHA256SUMS"
+
+sha256sum -c --ignore-missing SHA256SUMS
+
+tar -xzf "zenodex-operator-${ZENODEX_VERSION}.tar.gz"
+cd "zenodex-operator-${ZENODEX_VERSION}"
 ```
 
 Clone Tau locally, then bring up the stack:
@@ -189,9 +195,9 @@ otherwise.
 
 ## Related docs
 
-- [docs/PERMISSIONLESS_HOSTING.md](PERMISSIONLESS_HOSTING.md) — the local-Tau-node-first operator posture.
-- [docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md](ZENO_LEDGER_TWO_MACHINE_TESTNET.md) — two-machine ledger rehearsal.
-- [docs/tau_testnet_local_node.md](tau_testnet_local_node.md) — local Tau node alone.
+- [docs/PERMISSIONLESS_HOSTING.md](PERMISSIONLESS_HOSTING.md): the local-Tau-node-first operator posture.
+- [docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md](ZENO_LEDGER_TWO_MACHINE_TESTNET.md): two-machine ledger rehearsal.
+- [docs/tau_testnet_local_node.md](tau_testnet_local_node.md): local Tau node alone.
 - The existing `zenoctl testnet up --profile local` produces a 2-node
   ledger-only smoke; it is unchanged by this work. Prefer
   `zenoctl testnet local up` for the full UI/API/Tau/Oracle stack.
