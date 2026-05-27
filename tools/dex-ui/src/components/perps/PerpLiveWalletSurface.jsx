@@ -857,9 +857,9 @@ function PerpLiveWalletSurface() {
           ) : null}
           {walletHardwareCustody ? (
             <>
-              <span>hardware custody {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
+              <span>hardware signer {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
               <span>hardware backend {walletHardwareCustody.backend_kind || 'unknown'}</span>
-              <span>hardware custody receipt {compactId(walletHardwareCustody.status_hash)}</span>
+              <span>hardware signer receipt {compactId(walletHardwareCustody.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>
