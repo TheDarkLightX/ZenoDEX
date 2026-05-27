@@ -42,6 +42,7 @@ TOP_LEVEL_KEYS = {
     "pool_id",
     "upba_policy_id",
     "score_function_id",
+    "trade_direction",
     "base_decimals",
     "quote_decimals",
     "reserve_base_atoms",
@@ -136,6 +137,7 @@ def sample_policy() -> dict[str, Any]:
         "pool_id": "pool_ab",
         "upba_policy_id": UNIFORM_BATCH_POLICY_V1_ID,
         "score_function_id": UPBA_PRICE_GRID_SCORE_FUNCTION_ID_V1,
+        "trade_direction": "base_to_quote",
         "base_decimals": 6,
         "quote_decimals": 6,
         "reserve_base_atoms": 1_000_000,
@@ -169,6 +171,7 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
     pool_id = _str_field(policy, "pool_id", errors)
     upba_policy_id = _str_field(policy, "upba_policy_id", errors)
     score_function_id = _str_field(policy, "score_function_id", errors)
+    trade_direction = _str_field(policy, "trade_direction", errors)
     not_claimed = _not_claimed(policy, errors)
 
     if policy_id is not None and policy_id != policy_content_hash(policy):
@@ -177,6 +180,8 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
         errors.append("unsupported_upba_policy_id")
     if score_function_id is not None and score_function_id != UPBA_PRICE_GRID_SCORE_FUNCTION_ID_V1:
         errors.append("unsupported_score_function_id")
+    if trade_direction is not None and trade_direction != "base_to_quote":
+        errors.append("unsupported_trade_direction")
 
     base_decimals = _int_field(policy, "base_decimals", errors, minimum=0, maximum=DECIMAL_MAX)
     quote_decimals = _int_field(policy, "quote_decimals", errors, minimum=0, maximum=DECIMAL_MAX)
@@ -231,6 +236,7 @@ def check_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
         "policy_id": policy_id,
         "upba_policy_id": upba_policy_id,
         "score_function_id": score_function_id,
+        "trade_direction": trade_direction,
     }
 
     if grid_max_price_num is not None and grid_max_price_den is not None:
