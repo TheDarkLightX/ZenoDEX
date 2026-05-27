@@ -7,10 +7,16 @@ is a demo/development API and does not verify caller authority.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
+import smtplib
+import ssl
 import threading
 import time
+import uuid
+from email.message import EmailMessage
+from email.utils import make_msgid
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import urlsplit
@@ -18,7 +24,7 @@ from urllib.parse import urlsplit
 from ..core.dex import DexState
 from ..core.perps import PerpClearinghouse2pMarketState, PerpMarketState
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
-from .dex_snapshot import state_from_snapshot
+from .dex_snapshot import snapshot_with_legacy_lp_metadata_defaults, state_from_snapshot
 from .live_proof_wrapper import (
     live_zk_proof_required,
     proof_from_request,
@@ -38,7 +44,9 @@ from .perps_wallet_authority import (
     evaluate_perps_wallet_signer_prompt_capture_v1,
 )
 from .perps_wallet_encrypted_sss_backup import (
+    build_perps_wallet_encrypted_sss_live_delivery_receipt_v1,
     evaluate_perps_wallet_encrypted_sss_backup_v1,
+    perps_wallet_encrypted_sss_backup_hash_v1,
     recipient_root_keys_from_fixture_v1,
 )
 from .production_promotion_evidence import evaluate_production_hardware_wallet_evidence_v1
@@ -67,6 +75,7 @@ _ACTIONS = {
     "init_market_2p",
     "deposit_collateral",
     "withdraw_collateral",
+    "deposit_insurance",
     "set_position_pair",
     "advance_epoch",
     "publish_clearing_price",
@@ -253,6 +262,452 @@ def _wallet_encrypted_sss_recipient_keys_from_env() -> tuple[dict[str, bytes] | 
         return None, f"perps wallet encrypted SSS recipient keys invalid: {exc}"
 
 
+def _provider_delivery_mode(envelope: Mapping[str, Any]) -> str:
+    provider_kind = str(envelope.get("provider_kind") or "")
+    provider_id = str(envelope.get("provider_id") or "")
+    if provider_kind == "recovery_email":
+        return "smtp"
+    if provider_kind == "offline_export":
+        return "offline_export"
+    if provider_kind == "cloud_drive" and provider_id.startswith("box:"):
+        return "box"
+    if provider_kind == "cloud_drive":
+        return "dropbox"
+    raise ValueError(f"unsupported encrypted SSS provider kind: {provider_kind}")
+
+
+def _required_env(name: str) -> str:
+    value = _env_str(name, "")
+    if not value:
+        raise ValueError(f"missing required env: {name}")
+    return value
+
+
+def _safe_provider_filename_component(raw: object) -> str:
+    text = str(raw or "").strip()
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in text)
+    cleaned = cleaned.strip("._")
+    return cleaned[:96] or "encrypted-sss-share"
+
+
+def _provider_delivery_payload_bytes(envelope: Mapping[str, Any]) -> bytes:
+    return canonical_json_bytes(
+        {
+            "schema": "zenodex/perps-wallet-encrypted-sss-provider-payload/v1",
+            "envelope": dict(envelope),
+        }
+    )
+
+
+def _provider_delivery_filename(envelope: Mapping[str, Any], *, delivered_at_epoch: int) -> str:
+    share = _safe_provider_filename_component(envelope.get("share_id"))
+    envelope_hash = str(envelope.get("envelope_hash") or "").removeprefix("0x")[:16]
+    nonce = uuid.uuid4().hex[:16]
+    return f"{share}-{delivered_at_epoch}-{envelope_hash}-{nonce}.json"
+
+
+def _email_recipient_from_provider_id(provider_id: str) -> str:
+    if not provider_id.startswith("email:"):
+        raise ValueError("recovery_email provider_id must start with email:")
+    recipient = provider_id.removeprefix("email:").strip()
+    if "@" not in recipient or recipient.startswith("@") or recipient.endswith("@"):
+        raise ValueError("recovery_email provider_id is not a valid email destination")
+    return recipient
+
+
+def _https_post_json(url: str, *, body: bytes, headers: Mapping[str, str], label: str) -> Mapping[str, Any]:
+    parsed = urlsplit(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError(f"{label} endpoint must be absolute https")
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    timeout = _env_float("PERPS_WALLET_ENCRYPTED_SSS_HTTP_TIMEOUT_S", 20.0, lo=1.0, hi=120.0)
+    conn = http.client.HTTPSConnection(
+        parsed.hostname,
+        parsed.port or 443,
+        timeout=timeout,
+        context=ssl.create_default_context(),
+    )
+    try:
+        conn.request("POST", path, body=body, headers=dict(headers))
+        response = conn.getresponse()
+        response_body = response.read()
+    finally:
+        conn.close()
+    if response.status < 200 or response.status >= 300:
+        detail = response_body[:240].decode("utf-8", errors="replace")
+        raise ValueError(f"{label} upload failed with HTTP {response.status}: {detail}")
+    try:
+        payload = json.loads(response_body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"{label} upload returned non-JSON response: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{label} upload returned non-object response")
+    return payload
+
+
+def _multipart_form_data(
+    *,
+    fields: Mapping[str, tuple[str, bytes, str | None]],
+    boundary: str,
+) -> bytes:
+    chunks: list[bytes] = []
+    for name, (filename, value, content_type) in fields.items():
+        chunks.append(f"--{boundary}\r\n".encode("ascii"))
+        disposition = f'Content-Disposition: form-data; name="{name}"'
+        if filename:
+            disposition += f'; filename="{filename}"'
+        chunks.append(f"{disposition}\r\n".encode("utf-8"))
+        if content_type:
+            chunks.append(f"Content-Type: {content_type}\r\n".encode("ascii"))
+        chunks.append(b"\r\n")
+        chunks.append(value)
+        chunks.append(b"\r\n")
+    chunks.append(f"--{boundary}--\r\n".encode("ascii"))
+    return b"".join(chunks)
+
+
+def _preflight_provider_delivery_config(envelopes: list[Mapping[str, Any]]) -> None:
+    modes = {_provider_delivery_mode(envelope) for envelope in envelopes}
+    missing: list[str] = []
+    if "smtp" in modes:
+        for name in ("PERPS_WALLET_ENCRYPTED_SSS_SMTP_HOST", "PERPS_WALLET_ENCRYPTED_SSS_SMTP_FROM"):
+            if not _env_str(name, ""):
+                missing.append(name)
+        username = _env_str("PERPS_WALLET_ENCRYPTED_SSS_SMTP_USERNAME", "")
+        password = os.environ.get("PERPS_WALLET_ENCRYPTED_SSS_SMTP_PASSWORD", "")
+        if bool(username) != bool(password):
+            missing.append("PERPS_WALLET_ENCRYPTED_SSS_SMTP_USERNAME_AND_PASSWORD")
+    if "dropbox" in modes and not _env_str("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN", ""):
+        missing.append("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN")
+    if "box" in modes:
+        for name in (
+            "PERPS_WALLET_ENCRYPTED_SSS_BOX_ACCESS_TOKEN",
+            "PERPS_WALLET_ENCRYPTED_SSS_BOX_PARENT_FOLDER_ID",
+        ):
+            if not _env_str(name, ""):
+                missing.append(name)
+    if "offline_export" in modes:
+        raw_dir = _env_str("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR", "")
+        if not raw_dir:
+            missing.append("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR")
+        else:
+            export_dir = Path(raw_dir).expanduser()
+            if not export_dir.is_dir():
+                missing.append("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR_EXISTING_DIRECTORY")
+    if missing:
+        raise ValueError("encrypted_sss_delivery_provider_not_configured:" + ",".join(sorted(missing)))
+
+
+def _smtp_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    share_id = str(envelope.get("share_id") or "")
+    provider_id = str(envelope.get("provider_id") or "")
+    recipient = _email_recipient_from_provider_id(provider_id)
+    host = _required_env("PERPS_WALLET_ENCRYPTED_SSS_SMTP_HOST")
+    sender = _required_env("PERPS_WALLET_ENCRYPTED_SSS_SMTP_FROM")
+    port = _env_int("PERPS_WALLET_ENCRYPTED_SSS_SMTP_PORT", 587, lo=1, hi=65535)
+    timeout = _env_float("PERPS_WALLET_ENCRYPTED_SSS_SMTP_TIMEOUT_S", 20.0, lo=1.0, hi=120.0)
+    starttls = _env_bool("PERPS_WALLET_ENCRYPTED_SSS_SMTP_STARTTLS", True)
+    username = _env_str("PERPS_WALLET_ENCRYPTED_SSS_SMTP_USERNAME", "")
+    password = os.environ.get("PERPS_WALLET_ENCRYPTED_SSS_SMTP_PASSWORD", "")
+    if bool(username) != bool(password):
+        raise ValueError("SMTP username and password must be configured together")
+
+    message_id = make_msgid(idstring=_safe_provider_filename_component(share_id))
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = recipient
+    message["Subject"] = f"ZenoDEX encrypted SSS share {share_id}"
+    message["Message-ID"] = message_id
+    message.set_content(
+        "Encrypted SSS backup share envelope attached. "
+        "This message contains encrypted transport material only."
+    )
+    message.add_attachment(
+        payload,
+        maintype="application",
+        subtype="json",
+        filename=_provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch),
+    )
+
+    with smtplib.SMTP(host, port, timeout=timeout) as smtp:
+        smtp.ehlo()
+        if starttls:
+            smtp.starttls(context=ssl.create_default_context())
+            smtp.ehlo()
+        if username and password:
+            smtp.login(username, password)
+        refused = smtp.send_message(message)
+    if refused:
+        raise ValueError("SMTP refused encrypted SSS recipient")
+
+    provider_response_hash = sha256_hex(
+        canonical_json_bytes(
+            {
+                "mode": "smtp",
+                "provider_id": provider_id,
+                "share_id": share_id,
+                "envelope_hash": envelope.get("envelope_hash"),
+                "delivered_at_epoch": delivered_at_epoch,
+                "smtp_message_id": message_id,
+                "refused": refused,
+            }
+        )
+    )
+    return {
+        "provider_response_hash": provider_response_hash,
+        "receipt_reference": f"smtp:{message_id}",
+        "smtp_message_id": message_id,
+    }
+
+
+def _dropbox_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    token = _required_env("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_ACCESS_TOKEN")
+    folder = _env_str("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_FOLDER", "/zenodex-encrypted-sss").rstrip("/")
+    if not folder.startswith("/"):
+        raise ValueError("PERPS_WALLET_ENCRYPTED_SSS_DROPBOX_FOLDER must start with /")
+    filename = _provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch)
+    dropbox_path = f"{folder}/{filename}"
+    api_arg = json.dumps(
+        {
+            "path": dropbox_path,
+            "mode": "add",
+            "autorename": True,
+            "mute": False,
+            "strict_conflict": False,
+        },
+        separators=(",", ":"),
+    )
+    response = _https_post_json(
+        "https://content.dropboxapi.com/2/files/upload",
+        body=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream",
+            "Dropbox-API-Arg": api_arg,
+        },
+        label="dropbox encrypted SSS delivery",
+    )
+    file_id = response.get("id")
+    revision = response.get("rev")
+    if not isinstance(file_id, str) or not file_id.strip():
+        raise ValueError("dropbox encrypted SSS delivery response missing id")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError("dropbox encrypted SSS delivery response missing rev")
+    return {
+        "provider_response_hash": sha256_hex(canonical_json_bytes(dict(response))),
+        "receipt_reference": f"dropbox:{dropbox_path}",
+        "provider_file_id": file_id,
+        "provider_revision": revision,
+    }
+
+
+def _box_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    token = _required_env("PERPS_WALLET_ENCRYPTED_SSS_BOX_ACCESS_TOKEN")
+    parent_folder_id = _required_env("PERPS_WALLET_ENCRYPTED_SSS_BOX_PARENT_FOLDER_ID")
+    filename = _provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch)
+    attributes = canonical_json_bytes({"name": filename, "parent": {"id": parent_folder_id}})
+    boundary = "zenodex-encrypted-sss-" + uuid.uuid4().hex
+    body = _multipart_form_data(
+        fields={
+            "attributes": ("", attributes, "application/json"),
+            "file": (filename, payload, "application/json"),
+        },
+        boundary=boundary,
+    )
+    response = _https_post_json(
+        "https://upload.box.com/api/2.0/files/content",
+        body=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        label="box encrypted SSS delivery",
+    )
+    entries = response.get("entries")
+    entry = entries[0] if isinstance(entries, list) and entries else None
+    if not isinstance(entry, Mapping):
+        raise ValueError("box encrypted SSS delivery response missing entries")
+    file_id = entry.get("id")
+    revision = entry.get("etag") or entry.get("sha1")
+    if not isinstance(file_id, str) or not file_id.strip():
+        raise ValueError("box encrypted SSS delivery response missing id")
+    if not isinstance(revision, str) or not str(revision).strip():
+        raise ValueError("box encrypted SSS delivery response missing revision")
+    return {
+        "provider_response_hash": sha256_hex(canonical_json_bytes(dict(response))),
+        "receipt_reference": f"box:{file_id}",
+        "provider_file_id": file_id,
+        "provider_revision": str(revision),
+    }
+
+
+def _offline_export_delivery_fields(
+    envelope: Mapping[str, Any],
+    *,
+    payload: bytes,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    share_id = str(envelope.get("share_id") or "")
+    export_root = Path(_required_env("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR")).expanduser().resolve()
+    if not export_root.is_dir():
+        raise ValueError("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR must be an existing directory")
+    filename = _provider_delivery_filename(envelope, delivered_at_epoch=delivered_at_epoch)
+    export_path = (export_root / filename).resolve()
+    if export_root != export_path.parent:
+        raise ValueError("offline export path escapes configured export directory")
+    fd = os.open(export_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(payload)
+    manifest = {
+        "schema": "zenodex/perps-wallet-encrypted-sss-offline-export-manifest/v1",
+        "filename": filename,
+        "payload_sha256": sha256_hex(payload),
+        "payload_size": len(payload),
+        "envelope_hash": envelope.get("envelope_hash"),
+        "share_id": share_id,
+        "delivered_at_epoch": delivered_at_epoch,
+    }
+    manifest_hash = sha256_hex(canonical_json_bytes(manifest))
+    manifest_path = export_path.with_suffix(export_path.suffix + ".manifest.json")
+    manifest_bytes = canonical_json_bytes({**manifest, "manifest_hash": manifest_hash})
+    fd = os.open(manifest_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(manifest_bytes)
+    provider_response_hash = sha256_hex(
+        canonical_json_bytes(
+            {
+                "mode": "offline_export",
+                "manifest_hash": manifest_hash,
+                "manifest_filename": manifest_path.name,
+            }
+        )
+    )
+    return {
+        "provider_response_hash": provider_response_hash,
+        "receipt_reference": f"offline-export:{manifest_hash}",
+        "offline_export_manifest_hash": manifest_hash,
+    }
+
+
+def _deliver_encrypted_sss_envelope(
+    envelope: Mapping[str, Any],
+    *,
+    mode: str,
+    delivered_at_epoch: int,
+) -> dict[str, Any]:
+    payload = _provider_delivery_payload_bytes(envelope)
+    if mode == "smtp":
+        return _smtp_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    if mode == "dropbox":
+        return _dropbox_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    if mode == "box":
+        return _box_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    if mode == "offline_export":
+        return _offline_export_delivery_fields(envelope, payload=payload, delivered_at_epoch=delivered_at_epoch)
+    raise ValueError(f"unsupported encrypted SSS delivery mode: {mode}")
+
+
+def _build_encrypted_sss_provider_delivery_response(parsed: Mapping[str, Any]) -> dict[str, Any]:
+    chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+
+    backup_raw = parsed.get("backup")
+    if not isinstance(backup_raw, Mapping):
+        backup_raw, backup_error = _wallet_encrypted_sss_backup_from_env()
+        if backup_error is not None:
+            return {"ok": False, "error": backup_error, "production_security_claim": False}
+    if not isinstance(backup_raw, Mapping):
+        return {"ok": False, "error": "encrypted_sss_backup_missing", "production_security_claim": False}
+
+    delivered_at_epoch = parsed.get("delivered_at_epoch")
+    if delivered_at_epoch is None:
+        delivered_at_epoch = backup_raw.get("created_at_epoch", 0)
+    if not isinstance(delivered_at_epoch, int) or isinstance(delivered_at_epoch, bool) or delivered_at_epoch < 0:
+        return {"ok": False, "error": "bad_delivered_at_epoch", "production_security_claim": False}
+
+    backup = dict(backup_raw)
+    envelopes = backup.get("envelopes")
+    if not isinstance(envelopes, list):
+        return {"ok": False, "error": "encrypted_sss_envelopes_missing", "production_security_claim": False}
+    envelope_items: list[Mapping[str, Any]] = []
+    for item in envelopes:
+        if not isinstance(item, Mapping):
+            return {"ok": False, "error": "encrypted_sss_envelope_must_be_object", "production_security_claim": False}
+        envelope_items.append(item)
+    _preflight_provider_delivery_config(envelope_items)
+
+    delivery_evidence: list[dict[str, Any]] = []
+    delivery_modes: set[str] = set()
+    for item in envelope_items:
+        mode = _provider_delivery_mode(item)
+        delivery_modes.add(mode)
+        fields = _deliver_encrypted_sss_envelope(
+            item,
+            mode=mode,
+            delivered_at_epoch=delivered_at_epoch,
+        )
+        delivery_evidence.append(
+            build_perps_wallet_encrypted_sss_live_delivery_receipt_v1(
+                item,
+                delivery_mode=mode,
+                delivered_at_epoch=delivered_at_epoch,
+                **fields,
+            )
+        )
+
+    backup["delivery_evidence"] = delivery_evidence
+    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
+
+    profile, profile_error = _wallet_authority_profile_from_env()
+    recipient_root_keys, recipient_root_keys_error = _wallet_encrypted_sss_recipient_keys_from_env()
+    status = evaluate_perps_wallet_encrypted_sss_backup_v1(
+        profile,
+        backup,
+        expected_chain_id=chain_id,
+        recipient_root_keys=recipient_root_keys,
+    )
+    if profile_error is not None:
+        status["ok"] = False
+        status["encrypted_sss_backup_ready"] = False
+        status["status"] = "blocked"
+        status.setdefault("errors", []).append(profile_error)
+    if recipient_root_keys_error is not None:
+        status["ok"] = False
+        status["encrypted_sss_backup_ready"] = False
+        status["status"] = "blocked"
+        status.setdefault("errors", []).append(recipient_root_keys_error)
+
+    return {
+        "ok": status.get("encrypted_sss_backup_ready") is True,
+        "mode": "real_provider_delivery",
+        "delivery_modes": sorted(delivery_modes),
+        "provider_delivery_claim": "real_external_delivery_receipts",
+        "production_security_claim": status.get("production_security_claim") is True,
+        "not_claimed": [
+            "does_not_claim_production_custody",
+            "does_not_claim_external_audit_completion",
+        ],
+        "backup": backup,
+        "encrypted_sss_backup": status,
+    }
+
+
 def _wallet_production_hardware_evidence_from_env() -> tuple[Mapping[str, Any] | None, str | None]:
     return _json_profile_from_env(
         json_names=("PERPS_WALLET_PRODUCTION_HARDWARE_EVIDENCE_JSON",),
@@ -424,7 +879,7 @@ def _dex_state_view(app_state: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _state_from_app_state(app_state: Mapping[str, Any]) -> DexState:
-    return state_from_snapshot(_dex_state_view(app_state))
+    return state_from_snapshot(snapshot_with_legacy_lp_metadata_defaults(_dex_state_view(app_state)))
 
 
 def _balance_for_asset(app_state: Mapping[str, Any], *, pubkey: str, asset_id: str) -> int:
@@ -1077,7 +1532,7 @@ def _market_id(body: Mapping[str, Any], *, action: str | None = None) -> str:
         raise ValueError("missing_market_id")
     if len(raw) > 128:
         raise ValueError("bad_market_id")
-    if action == "partial_liquidate":
+    if action in {"partial_liquidate", "deposit_insurance"}:
         if not raw.startswith("perp:") or raw.startswith("perp:ch2p:"):
             raise ValueError("isolated market_id must start with perp: and not perp:ch2p:")
         return raw
@@ -1140,7 +1595,7 @@ def _tx_sender_for_action(body: Mapping[str, Any], *, action: str, account_a_pub
     raw = body.get("sender_pubkey") if "sender_pubkey" in body else body.get("senderPubkey")
     if isinstance(raw, str) and raw.strip():
         return _canonical_pubkey(raw, name="sender_pubkey")
-    if action in {"deposit_collateral", "withdraw_collateral", "publish_clearing_price", "partial_liquidate"} and account_pubkey is not None:
+    if action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "publish_clearing_price", "partial_liquidate"} and account_pubkey is not None:
         return account_pubkey
     if account_a_pubkey is not None:
         return account_a_pubkey
@@ -1170,6 +1625,19 @@ def _build_operation_and_sender(
         operation = {
             "module": "TauPerp",
             "version": "1.0",
+            "market_id": market_id,
+            "action": action,
+            "account_pubkey": account_pubkey,
+            "amount": _request_positive_int(body, name="amount"),
+        }
+        return operation, tx_sender, meta
+
+    if action == "deposit_insurance":
+        account_pubkey = _account_pubkey(body, field="account_pubkey", privkey_field="account_privkey")
+        tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=account_pubkey)
+        operation = {
+            "module": "TauPerp",
+            "version": "0.1",
             "market_id": market_id,
             "action": action,
             "account_pubkey": account_pubkey,
@@ -1426,7 +1894,10 @@ def _market_summaries(app_state: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "now_epoch": int(market.global_state.get("now_epoch", 0)),
                     "index_price_e8": int(market.global_state.get("index_price_e8", 0)),
                     "fee_pool_quote": int(market.global_state.get("fee_pool_quote", 0)),
+                    "fee_income": int(market.global_state.get("fee_income", 0)),
+                    "initial_insurance": int(market.global_state.get("initial_insurance", 0)),
                     "insurance_balance": int(market.global_state.get("insurance_balance", 0)),
+                    "claims_paid": int(market.global_state.get("claims_paid", 0)),
                     "account_count": len(accounts),
                     "accounts": accounts,
                 }
@@ -1701,7 +2172,7 @@ def _tx_signer_privkey(body: Mapping[str, Any], *, action: str) -> object:
     privkey = body.get("tx_signer_privkey")
     if privkey is not None:
         return privkey
-    if action in {"deposit_collateral", "withdraw_collateral", "partial_liquidate"} and body.get("account_privkey") is not None:
+    if action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "partial_liquidate"} and body.get("account_privkey") is not None:
         return body.get("account_privkey")
     if action == "publish_clearing_price" and body.get("oracle_privkey") is not None:
         return body.get("oracle_privkey")
@@ -2660,6 +3131,9 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 "ok": encrypted_sss_backup.get("encrypted_sss_backup_ready") is True,
                 "encrypted_sss_backup": encrypted_sss_backup,
             }
+        if rest == ["encrypted-sss-backup", "deliver"]:
+            payload = _build_encrypted_sss_provider_delivery_response(parsed)
+            return (200 if payload.get("ok") is True else 400), payload
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}
