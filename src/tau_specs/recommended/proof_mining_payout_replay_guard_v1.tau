@@ -1,0 +1,55 @@
+# Proof Mining Payout Replay Guard v1
+#
+# PURPOSE:
+# Require proof-mining payouts to be proof-bound, budget-covered, deterministic,
+# and replay-rejected. Tau does not derive tx_id uniqueness; it requires the
+# host-maintained claim/slot/proposal indexes to project those facts explicitly.
+#
+# i1  = payout_requested (sbf)
+# i2  = proof_ok (sbf)
+# i3  = binding_ok (sbf)
+# i4  = claim_unused (sbf)
+# i5  = tx_id_unique (sbf)
+# i6  = proposal_slot_current (sbf)
+# i7  = proposal_eligible (sbf)
+# i8  = reward_schedule_ok (sbf)
+# i9  = pool_covers_reward (sbf)
+# i10 = generated_tx_matches_claim (sbf)
+# i11 = payout_template_deterministic (sbf)
+# i12 = same_claim_as_previous (sbf)
+# i13 = same_tx_as_previous (sbf)
+# i14 = prior_claim_seen (sbf)
+# i15 = prior_tx_seen (sbf)
+#
+# o1 = proof_context_ok
+# o2 = replay_frontier_ok
+# o3 = reward_budget_ok
+# o4 = deterministic_generation_ok
+# o5 = payout_allowed
+# o6 = immediate_replay_ok
+# o7 = historical_replay_ok
+
+set charvar off
+
+proof_context_ok(proof_ok : sbf, binding_ok : sbf, proposal_slot_current : sbf, proposal_eligible : sbf) := (proof_ok = 1:sbf) && (binding_ok = 1:sbf) && (proposal_slot_current = 1:sbf) && (proposal_eligible = 1:sbf).
+
+replay_frontier_ok(claim_unused : sbf, tx_id_unique : sbf) := (claim_unused = 1:sbf) && (tx_id_unique = 1:sbf).
+
+reward_budget_ok(reward_schedule_ok : sbf, pool_covers_reward : sbf) := (reward_schedule_ok = 1:sbf) && (pool_covers_reward = 1:sbf).
+
+deterministic_generation_ok(generated_tx_matches_claim : sbf, payout_template_deterministic : sbf) := (generated_tx_matches_claim = 1:sbf) && (payout_template_deterministic = 1:sbf).
+
+historical_replay_ok(prior_claim_seen : sbf, prior_tx_seen : sbf) := (prior_claim_seen = 0:sbf) && (prior_tx_seen = 0:sbf).
+
+immediate_replay_ok(same_claim_as_previous : sbf, same_tx_as_previous : sbf) := (same_claim_as_previous = 0:sbf) && (same_tx_as_previous = 0:sbf).
+
+payout_allowed(payout_requested : sbf, proof_ok : sbf, binding_ok : sbf, claim_unused : sbf, tx_id_unique : sbf, proposal_slot_current : sbf, proposal_eligible : sbf, reward_schedule_ok : sbf, pool_covers_reward : sbf, generated_tx_matches_claim : sbf, payout_template_deterministic : sbf, same_claim_as_previous : sbf, same_tx_as_previous : sbf, prior_claim_seen : sbf, prior_tx_seen : sbf) := (payout_requested = 0:sbf) || ((payout_requested = 1:sbf) && proof_context_ok(proof_ok, binding_ok, proposal_slot_current, proposal_eligible) && replay_frontier_ok(claim_unused, tx_id_unique) && historical_replay_ok(prior_claim_seen, prior_tx_seen) && immediate_replay_ok(same_claim_as_previous, same_tx_as_previous) && reward_budget_ok(reward_schedule_ok, pool_covers_reward) && deterministic_generation_ok(generated_tx_matches_claim, payout_template_deterministic)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> proof_context_ok(i2[t]:sbf, i3[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> replay_frontier_ok(i4[t]:sbf, i5[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> reward_budget_ok(i8[t]:sbf, i9[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> deterministic_generation_ok(i10[t]:sbf, i11[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> immediate_replay_ok(i12[t]:sbf, i13[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> historical_replay_ok(i14[t]:sbf, i15[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> payout_allowed(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)).

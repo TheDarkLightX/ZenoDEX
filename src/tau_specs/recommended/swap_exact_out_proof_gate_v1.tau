@@ -1,8 +1,8 @@
 # TauSwap swap exact-out (proof-gated, v1)
 #
 # Purpose: a Tau-executable gate that is compatible with host-side verified computation.
-# - Tau enforces basic structural constraints and reserve transitions.
-# - Host/verifier supplies `proof_ok` and `binding_ok` (fail-closed flags).
+# - Tau enforces basic structural constraints and fail-closed transition flags.
+# - Host/verifier supplies `proof_ok`, `binding_ok`, and `reserve_transition_ok`.
 #
 # This spec intentionally does NOT validate the CPMM pricing formula or fee math in Tau.
 #
@@ -17,6 +17,7 @@
 # i8 = new_reserve_out (bv[32])
 # i9 = proof_ok (sbf)
 # i10 = binding_ok (sbf)
+# i11 = reserve_transition_ok (sbf) # host verified i7 = i1 + i6 and i8 = i2 - i3
 # o1 = swap_exact_out_valid
 
 set charvar off
@@ -24,6 +25,7 @@ set charvar off
 always (o1[t]:sbf = 1:sbf <->
   ((i9[t]:sbf = 1:sbf) &&
    (i10[t]:sbf = 1:sbf) &&
+   (i11[t]:sbf = 1:sbf) &&
    (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
    (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
    (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
@@ -31,7 +33,4 @@ always (o1[t]:sbf = 1:sbf <->
    (i4[t]:bv[32] <= { #x00002710 }:bv[32]) &&
    (i3[t]:bv[32] < i2[t]:bv[32]) &&
    (i6[t]:bv[32] <= i5[t]:bv[32]) &&
-   (i7[t]:bv[32] = i1[t]:bv[32] + i6[t]:bv[32]) &&
-   (i7[t]:bv[32] >= i1[t]:bv[32]) &&
-   (i8[t]:bv[32] = i2[t]:bv[32] - i3[t]:bv[32]))).
-
+   (i7[t]:bv[32] >= i1[t]:bv[32]))).

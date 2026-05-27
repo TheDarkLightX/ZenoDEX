@@ -1,0 +1,39 @@
+# Dispute Window Finality Guard v1
+#
+# PURPOSE:
+# Admit an optimistic finality claim only when the host proves bounded epoch
+# facts, the dispute window has elapsed, the challenge index is current, and no
+# active challenge exists. Tau avoids direct time arithmetic here and binds the
+# host-projected facts fail-closed.
+#
+# i1  = finality_claimed (sbf)
+# i2  = settled_epoch_le_now (sbf)
+# i3  = dispute_window_elapsed (sbf)
+# i4  = no_active_challenge (sbf)
+# i5  = epoch_source_bound (sbf)
+# i6  = epoch_monotone (sbf)
+# i7  = dispute_window_policy_bound (sbf)
+# i8  = challenge_index_current (sbf)
+# i9  = proof_ok (sbf)
+# i10 = binding_ok (sbf)
+#
+# o1 = epoch_facts_ok
+# o2 = dispute_window_ok
+# o3 = challenge_clear
+# o4 = finality_claim_admissible
+# o5 = proof_gated_finality_claim_admissible
+
+set charvar off
+
+epoch_facts_ok(settled_epoch_le_now : sbf, epoch_source_bound : sbf, epoch_monotone : sbf) := (settled_epoch_le_now = 1:sbf) && (epoch_source_bound = 1:sbf) && (epoch_monotone = 1:sbf).
+
+dispute_window_ok(dispute_window_elapsed : sbf, dispute_window_policy_bound : sbf) := (dispute_window_elapsed = 1:sbf) && (dispute_window_policy_bound = 1:sbf).
+
+challenge_clear(no_active_challenge : sbf, challenge_index_current : sbf) := (no_active_challenge = 1:sbf) && (challenge_index_current = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> epoch_facts_ok(i2[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> dispute_window_ok(i3[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> challenge_clear(i4[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && epoch_facts_ok(i2[t]:sbf, i5[t]:sbf, i6[t]:sbf) && dispute_window_ok(i3[t]:sbf, i7[t]:sbf) && challenge_clear(i4[t]:sbf, i8[t]:sbf))) &&
+  (o5[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && epoch_facts_ok(i2[t]:sbf, i5[t]:sbf, i6[t]:sbf) && dispute_window_ok(i3[t]:sbf, i7[t]:sbf) && challenge_clear(i4[t]:sbf, i8[t]:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))).

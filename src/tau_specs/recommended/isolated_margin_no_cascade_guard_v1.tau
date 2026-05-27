@@ -1,0 +1,21 @@
+# Isolated Margin No-Cascade Guard v1
+#
+# PURPOSE:
+# Check that liquidating account A does not mutate another account B's collateral
+# or equity in an isolated-margin liquidation step. The host projects the local
+# equality facts; Tau checks the admission structure fail-closed.
+#
+# i1 = different_account (sbf)
+# i2 = other_collateral_preserved (sbf)
+# i3 = other_equity_preserved (sbf)
+# i4 = proof_ok (sbf)
+# i5 = binding_ok (sbf)
+#
+# o1 = no_cascade_to_other_account
+# o2 = proof_gated_no_cascade
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf))).
