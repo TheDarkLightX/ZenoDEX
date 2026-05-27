@@ -57,6 +57,12 @@ def _sbf(name: str, v: int) -> int:
     return int(v)
 
 
+def _computed_sbf(name: str, override: int | None, value: bool) -> int:
+    if override is None:
+        return 1 if value else 0
+    return _sbf(name, override)
+
+
 CPMM_V1 = TauSpecRef(
     spec_id="cpmm_v1",
     path=RECOMMENDED_SPECS_DIR / "cpmm_v1.tau",
@@ -3195,6 +3201,7 @@ def build_swap_exact_in_proof_gate_v1_step(
     new_reserve_out: int,
     proof_ok: int = 1,
     binding_ok: int = 1,
+    reserve_transition_ok: int | None = None,
 ) -> Dict[str, int]:
     """
     Build inputs for `src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau`.
@@ -3211,6 +3218,11 @@ def build_swap_exact_in_proof_gate_v1_step(
     )
     step["i9"] = _sbf("proof_ok", proof_ok)
     step["i10"] = _sbf("binding_ok", binding_ok)
+    step["i11"] = _computed_sbf(
+        "reserve_transition_ok",
+        reserve_transition_ok,
+        new_reserve_in == reserve_in + amount_in and new_reserve_out == reserve_out - amount_out,
+    )
     return step
 
 
@@ -3400,6 +3412,7 @@ def build_swap_exact_out_proof_gate_v1_step(
     new_reserve_out: int,
     proof_ok: int = 1,
     binding_ok: int = 1,
+    reserve_transition_ok: int | None = None,
 ) -> Dict[str, int]:
     """
     Build inputs for `src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau`.
@@ -3416,6 +3429,11 @@ def build_swap_exact_out_proof_gate_v1_step(
     )
     step["i9"] = _sbf("proof_ok", proof_ok)
     step["i10"] = _sbf("binding_ok", binding_ok)
+    step["i11"] = _computed_sbf(
+        "reserve_transition_ok",
+        reserve_transition_ok,
+        new_reserve_in == reserve_in + amount_in and new_reserve_out == reserve_out - amount_out,
+    )
     return step
 
 

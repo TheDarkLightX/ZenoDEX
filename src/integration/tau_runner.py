@@ -256,25 +256,59 @@ def _run_subprocess_with_output_caps(
             pass
 
 
-def find_tau_bin(project_root: Path = ROOT) -> Optional[str]:
+def find_tau_bin(project_root: Path = ROOT, *, profile: str | None = None) -> Optional[str]:
     """Find a usable Tau binary in common locations or on PATH."""
+
+    def is_executable(path: Path) -> bool:
+        try:
+            return path.exists() and path.is_file() and os.access(str(path), os.X_OK)
+        except Exception:
+            return False
+
     env_tau = os.environ.get("TAU_BIN", "").strip()
     if env_tau:
         p = Path(os.path.expanduser(env_tau))
-        try:
-            if p.exists() and p.is_file() and os.access(str(p), os.X_OK):
-                return str(p)
-        except Exception:
-            # Best-effort: fall through to default search.
-            pass
+        if is_executable(p):
+            return str(p)
 
-    candidates = [
+    selected_profile = (profile or os.environ.get("TAU_BIN_PROFILE", "runtime")).strip().lower()
+    if selected_profile in {"", "default"}:
+        selected_profile = "runtime"
+
+    env_profile_var = {
+        "runtime": "TAU_RUNTIME_BIN",
+        "stable": "TAU_RUNTIME_BIN",
+        "testnet": "TAU_RUNTIME_BIN",
+        "latest": "TAU_LATEST_BIN",
+        "current": "TAU_LATEST_BIN",
+        "research": "TAU_LATEST_BIN",
+    }.get(selected_profile)
+    if env_profile_var:
+        env_profile_tau = os.environ.get(env_profile_var, "").strip()
+        if env_profile_tau:
+            p = Path(os.path.expanduser(env_profile_tau))
+            if is_executable(p):
+                return str(p)
+
+    stable_candidates = [
+        project_root / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release" / "tau",
+        project_root / "external" / "tau-lang-bitblasting-prev-eea8fb1f" / "build-Release-fresh" / "tau",
+    ]
+    latest_candidates = [
         project_root / "external" / "tau-lang" / "build-Release" / "tau",
         project_root / "external" / "tau-lang" / "build-Debug" / "tau",
-        project_root / "external" / "tau-nightly" / "usr" / "bin" / "tau",
+        project_root / "external" / "tau-lang-upstream-main" / "build-Release" / "tau",
     ]
+    if selected_profile in {"latest", "current", "research"}:
+        candidates = latest_candidates + stable_candidates + [
+            project_root / "external" / "tau-nightly" / "usr" / "bin" / "tau",
+        ]
+    else:
+        candidates = stable_candidates + latest_candidates + [
+            project_root / "external" / "tau-nightly" / "usr" / "bin" / "tau",
+        ]
     for c in candidates:
-        if c.exists() and c.is_file():
+        if is_executable(c):
             return str(c)
     return shutil.which("tau")
 

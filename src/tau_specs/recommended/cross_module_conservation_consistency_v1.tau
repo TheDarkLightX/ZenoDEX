@@ -1,0 +1,34 @@
+# Cross Module Conservation Consistency v1
+#
+# PURPOSE:
+# Check that module-local conservation witnesses and the combined conservation
+# witness agree before a cross-module composition step is admitted. The host
+# computes module-local conservation facts; Tau enforces completeness,
+# consistency, proof, and binding.
+#
+# i1 = composition_check_requested (sbf)
+# i2 = dex_delta_zero (sbf)
+# i3 = zusd_delta_zero (sbf)
+# i4 = perp_delta_zero (sbf)
+# i5 = autotrader_delta_zero (sbf)
+# i6 = module_witness_set_complete (sbf)
+# i7 = combined_delta_zero_witness (sbf)
+# i8 = proof_ok (sbf)
+# i9 = binding_ok (sbf)
+#
+# o1 = per_module_balanced
+# o2 = combined_witness_consistent
+# o3 = conservation_admissible
+# o4 = proof_gated_conservation_admissible
+
+set charvar off
+
+per_module_balanced(dex_delta_zero : sbf, zusd_delta_zero : sbf, perp_delta_zero : sbf, autotrader_delta_zero : sbf) := (dex_delta_zero = 1:sbf) && (zusd_delta_zero = 1:sbf) && (perp_delta_zero = 1:sbf) && (autotrader_delta_zero = 1:sbf).
+
+combined_witness_consistent(dex_delta_zero : sbf, zusd_delta_zero : sbf, perp_delta_zero : sbf, autotrader_delta_zero : sbf, combined_delta_zero_witness : sbf) := (per_module_balanced(dex_delta_zero, zusd_delta_zero, perp_delta_zero, autotrader_delta_zero) <-> (combined_delta_zero_witness = 1:sbf)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> per_module_balanced(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> combined_witness_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && per_module_balanced(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf) && combined_witness_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf))) &&
+  (o4[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && per_module_balanced(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf) && combined_witness_consistent(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))).

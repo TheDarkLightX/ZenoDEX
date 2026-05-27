@@ -1,0 +1,29 @@
+# Routing Decision Tree Guard v1
+#
+# PURPOSE:
+# Verify the router's chosen route kind matches the documented policy.
+#
+# i1 = direct_impact_bps (bv[32])
+# i2 = twohop_impact_bps (bv[32])
+# i3 = twohop_savings_bps (bv[32])
+# i4 = min_savings_threshold_bps (bv[32])
+# i5 = chosen_kind (bv[8]) # 1=DIRECT, 2=TWOHOP
+# i6 = proof_ok (sbf)
+# i7 = binding_ok (sbf)
+#
+# o1 = route_kind_valid
+# o2 = decision_canonical
+# o3 = proof_gated_decision_canonical
+
+set charvar off
+
+route_kind_valid(chosen_kind : bv[8]) := (chosen_kind = { #x01 }:bv[8]) || (chosen_kind = { #x02 }:bv[8]).
+
+decision_canonical(direct_impact_bps : bv[32], twohop_impact_bps : bv[32], twohop_savings_bps : bv[32], min_savings_threshold_bps : bv[32], chosen_kind : bv[8]) := route_kind_valid(chosen_kind) && ((direct_impact_bps <= twohop_impact_bps) -> (chosen_kind = { #x01 }:bv[8])) && (((direct_impact_bps > twohop_impact_bps) && (twohop_savings_bps >= min_savings_threshold_bps)) -> (chosen_kind = { #x02 }:bv[8])) && (((direct_impact_bps > twohop_impact_bps) && (twohop_savings_bps < min_savings_threshold_bps)) -> (chosen_kind = { #x01 }:bv[8])).
+
+proof_gated_decision_canonical(direct_impact_bps : bv[32], twohop_impact_bps : bv[32], twohop_savings_bps : bv[32], min_savings_threshold_bps : bv[32], chosen_kind : bv[8], proof_ok : sbf, binding_ok : sbf) := decision_canonical(direct_impact_bps, twohop_impact_bps, twohop_savings_bps, min_savings_threshold_bps, chosen_kind) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> route_kind_valid(i5[t]:bv[8])) &&
+  (o2[t]:sbf = 1:sbf <-> decision_canonical(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[8])) &&
+  (o3[t]:sbf = 1:sbf <-> proof_gated_decision_canonical(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[8], i6[t]:sbf, i7[t]:sbf)).

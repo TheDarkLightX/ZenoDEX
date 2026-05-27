@@ -1,0 +1,53 @@
+# Governance Multisig Timelock Guard v1
+#
+# PURPOSE:
+# Gate committee-controlled governance actions with threshold math, action
+# one-hotness, timelock bounds, current policy artifacts, and key-rotation
+# safety before execution.
+#
+# i1  = execution_requested (sbf)
+# i2  = approvals (bv[32])
+# i3  = threshold (bv[32])
+# i4  = committee_size (bv[32])
+# i5  = proposal_age_blocks (bv[32])
+# i6  = min_delay_blocks (bv[32])
+# i7  = max_delay_blocks (bv[32])
+# i8  = normal_action (sbf)
+# i9  = emergency_action (sbf)
+# i10 = parameter_bounds_ok (sbf)
+# i11 = spec_hash_bound_ok (sbf)
+# i12 = policy_epoch_current (sbf)
+# i13 = signer_set_epoch_current (sbf)
+# i14 = no_key_rotation_pending (sbf)
+# i15 = emergency_council_ok (sbf)
+# i16 = proof_ok (sbf)
+# i17 = binding_ok (sbf)
+#
+# o1 = threshold_ok
+# o2 = timelock_ok
+# o3 = action_one_hot_ok
+# o4 = policy_binding_ok
+# o5 = governance_action_allowed
+# o6 = proof_gated_governance_action_allowed
+
+set charvar off
+
+threshold_ok(approvals : bv[32], threshold : bv[32], committee_size : bv[32]) := (threshold > {0}:bv[32]) && (approvals >= threshold) && (threshold <= committee_size) && (approvals <= committee_size).
+
+action_one_hot_ok(normal_action : sbf, emergency_action : sbf) := ((normal_action = 1:sbf) && (emergency_action = 0:sbf)) || ((normal_action = 0:sbf) && (emergency_action = 1:sbf)).
+
+timelock_ok(proposal_age_blocks : bv[32], min_delay_blocks : bv[32], max_delay_blocks : bv[32], normal_action : sbf, emergency_action : sbf, emergency_council_ok : sbf) := ((normal_action = 1:sbf) && (proposal_age_blocks >= min_delay_blocks) && (proposal_age_blocks <= max_delay_blocks)) || ((emergency_action = 1:sbf) && (proposal_age_blocks <= max_delay_blocks) && (emergency_council_ok = 1:sbf)).
+
+policy_binding_ok(parameter_bounds_ok : sbf, spec_hash_bound_ok : sbf, policy_epoch_current : sbf, signer_set_epoch_current : sbf, no_key_rotation_pending : sbf) := (parameter_bounds_ok = 1:sbf) && (spec_hash_bound_ok = 1:sbf) && (policy_epoch_current = 1:sbf) && (signer_set_epoch_current = 1:sbf) && (no_key_rotation_pending = 1:sbf).
+
+governance_action_allowed(execution_requested : sbf, approvals : bv[32], threshold : bv[32], committee_size : bv[32], proposal_age_blocks : bv[32], min_delay_blocks : bv[32], max_delay_blocks : bv[32], normal_action : sbf, emergency_action : sbf, parameter_bounds_ok : sbf, spec_hash_bound_ok : sbf, policy_epoch_current : sbf, signer_set_epoch_current : sbf, no_key_rotation_pending : sbf, emergency_council_ok : sbf) := (execution_requested = 0:sbf) || ((execution_requested = 1:sbf) && threshold_ok(approvals, threshold, committee_size) && action_one_hot_ok(normal_action, emergency_action) && timelock_ok(proposal_age_blocks, min_delay_blocks, max_delay_blocks, normal_action, emergency_action, emergency_council_ok) && policy_binding_ok(parameter_bounds_ok, spec_hash_bound_ok, policy_epoch_current, signer_set_epoch_current, no_key_rotation_pending)).
+
+proof_gated_governance_action_allowed(execution_requested : sbf, approvals : bv[32], threshold : bv[32], committee_size : bv[32], proposal_age_blocks : bv[32], min_delay_blocks : bv[32], max_delay_blocks : bv[32], normal_action : sbf, emergency_action : sbf, parameter_bounds_ok : sbf, spec_hash_bound_ok : sbf, policy_epoch_current : sbf, signer_set_epoch_current : sbf, no_key_rotation_pending : sbf, emergency_council_ok : sbf, proof_ok : sbf, binding_ok : sbf) := (execution_requested = 0:sbf) || ((execution_requested = 1:sbf) && governance_action_allowed(execution_requested, approvals, threshold, committee_size, proposal_age_blocks, min_delay_blocks, max_delay_blocks, normal_action, emergency_action, parameter_bounds_ok, spec_hash_bound_ok, policy_epoch_current, signer_set_epoch_current, no_key_rotation_pending, emergency_council_ok) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> threshold_ok(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> timelock_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:sbf, i9[t]:sbf, i15[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> action_one_hot_ok(i8[t]:sbf, i9[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> policy_binding_ok(i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> governance_action_allowed(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> proof_gated_governance_action_allowed(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf, i17[t]:sbf)).
