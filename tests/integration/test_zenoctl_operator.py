@@ -280,13 +280,43 @@ def test_zenoctl_testnet_join_dry_run(capfd) -> None:
     assert "--serve" in output
 
 
+def test_zenoctl_testnet_publish_config_dry_run(capfd) -> None:
+    rc = zenoctl.main(
+        [
+            "testnet",
+            "publish-config",
+            "--bundle-root",
+            "/tmp/zeno-ledger-public-testnet",
+            "--mirror-base-url",
+            "https://seed.example.test/zeno-ledger-public-testnet/",
+            "--writer-url",
+            "https://seed.example.test:8787",
+            "--peer-url",
+            "https://seed-b.example.test:8788",
+            "--out",
+            "/tmp/zeno-ledger-public-testnet/public_network_config.json",
+            "--dry-run",
+        ]
+    )
+
+    assert rc == 0
+    output = capfd.readouterr().out
+    assert "tools/zeno_ledger_node.py write-network-config" in output
+    assert "--bundle-root /tmp/zeno-ledger-public-testnet" in output
+    assert "--mirror-base-url https://seed.example.test/zeno-ledger-public-testnet/" in output
+    assert "--writer-url https://seed.example.test:8787" in output
+    assert "--peer-url https://seed-b.example.test:8788" in output
+    assert "--out /tmp/zeno-ledger-public-testnet/public_network_config.json" in output
+
+
 def test_zenoctl_testnet_help_lists_join(capfd) -> None:
     with pytest.raises(SystemExit) as excinfo:
         zenoctl.main(["testnet", "--help"])
 
     assert excinfo.value.code == 0
     output = capfd.readouterr().out
-    assert "{init,up,demo,join,evidence,verify-evidence}" in output
+    assert "join" in output
+    assert "publish-config" in output
 
 
 def test_multidocker_plan_uses_hashes_for_all_nodes() -> None:

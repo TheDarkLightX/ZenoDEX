@@ -23,6 +23,7 @@ docs, proof files, kernels, and replay scripts.
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [ZenoLedger Node Operations](#zenoledger-node-operations)
+- [Public Testnet Direction](#public-testnet-direction)
 - [Repository Layout](#repository-layout)
 - [Documentation](#documentation)
 - [License](#license)
@@ -639,9 +640,16 @@ python3 tools/zeno_ledger_node.py join-network \
   --serve
 ```
 
-The same public-testnet join path is available through the operator wrapper:
+The same public-testnet publish and join paths are available through the
+operator wrapper:
 
 ```bash
+python3 tools/zenoctl.py testnet publish-config \
+  --bundle-root /tmp/zeno-ledger-public-testnet \
+  --mirror-base-url https://example.test/zeno-ledger-public-testnet/ \
+  --writer-url https://example.test:8787 \
+  --out /tmp/zeno-ledger-public-testnet/public_network_config.json
+
 python3 tools/zenoctl.py testnet join \
   --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
   --node-id operator-b \
@@ -774,6 +782,24 @@ height, and the common header hash before an operator trusts a peer. The
 one published URL.
 
 Live P2P block gossip and validator scheduling remain future network work.
+
+## Public Testnet Direction
+
+The next release target is a public-testnet v0 where the 3-node
+multi-machine rehearsal graduates into an operator-facing network:
+
+```text
+seed operator publishes public_network_config.json
+-> outside operators join from one URL
+-> followers verify and replay before serving status or forwarding testnet txs
+-> phones and browsers connect as clients or verify checkpoint bundles
+```
+
+The target is documented in
+[docs/PUBLIC_TESTNET_V0_1_16_PLAN.md](docs/PUBLIC_TESTNET_V0_1_16_PLAN.md).
+The first public testnet can keep one designated writer while opening node
+launch and deterministic replay to outside operators. Rotating validators,
+open P2P gossip, and production value remain later milestones.
 
 Run the same-machine dual-operator rehearsal before copying to another
 computer. The two-machine operator runbook is
