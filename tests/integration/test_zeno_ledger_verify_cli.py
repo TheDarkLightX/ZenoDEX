@@ -1856,6 +1856,33 @@ def test_make_feature_lane_manifest_runs_custom_body_sequence(tmp_path: Path) ->
     assert receipts[0]["accepted"] is False
 
 
+def test_make_feature_lane_manifest_relativizes_repo_relative_generated_paths() -> None:
+    from tools.zeno_ledger_make_feature_lane import _relativize_command
+
+    lane_root = Path("dist/feature-lane-relpath-regression")
+    command = [
+        sys.executable,
+        "tools/zeno_ledger_run_local.py",
+        "--body",
+        "dist/feature-lane-relpath-regression/bodies/1.json",
+        "--out-dir",
+        "dist/feature-lane-relpath-regression/ledger",
+        "--profile",
+        "dist/feature-lane-relpath-regression/profile.json",
+    ]
+
+    assert _relativize_command(command, root=lane_root) == [
+        "python3",
+        "tools/zeno_ledger_run_local.py",
+        "--body",
+        "bodies/1.json",
+        "--out-dir",
+        "ledger",
+        "--profile",
+        "profile.json",
+    ]
+
+
 def test_make_feature_lane_manifest_supports_tau_app_bridge_mode(tmp_path: Path) -> None:
     sender = "00" * 48
     asset0 = "0x" + "11" * 32

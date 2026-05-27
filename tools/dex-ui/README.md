@@ -74,19 +74,28 @@ To bind the UI to the local stdlib API server:
 
 ```bash
 # In repo root (starts the minimal REST API on 127.0.0.1:8000 by default)
-PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret python3 -m src.integration.api_server
+DEX_API_ENABLED=true ZENODEX_API_BEARER_TOKEN=sekret python3 -m src.integration.api_server
 ```
 
-Then run the UI. The Vite dev-server proxy avoids local CORS setup:
+Then run the UI. The Vite dev-server proxy avoids local CORS setup. If a
+`zenoctl testnet local up` stack is running, the dev server auto-detects its
+loopback nginx port and uses that as the `/api/*` proxy target:
 
 ```bash
 # IMPORTANT: keep the port value on the same line as --port (no newline).
 VITE_DEMO_MODE=false \
-API_PROXY_TARGET=http://127.0.0.1:8000 \
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
 Open `http://127.0.0.1:5173`.
+
+For a manually started API server, set `API_PROXY_TARGET` explicitly:
+
+```bash
+VITE_DEMO_MODE=false \
+API_PROXY_TARGET=http://127.0.0.1:8000 \
+npm run dev -- --host 127.0.0.1 --port 5173
+```
 
 To expose the Tau-node-backed zUSD wallet transport surface through the same
 API server, enable the wallet bridge and point it at a local Tau node:
@@ -97,7 +106,7 @@ ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING=true \
 ZUSD_TAU_WALLET_CHAIN_ID=tau-local \
 ZUSD_TAU_WALLET_TAU_HOST=127.0.0.1 \
 ZUSD_TAU_WALLET_TAU_PORT=65432 \
-DEMO_API_TOKEN=sekret \
+ZENODEX_API_BEARER_TOKEN=sekret \
 python3 -m src.integration.api_server
 ```
 
@@ -144,9 +153,9 @@ tools/zenodex-oracle serve --home /tmp/zenodex-oracle --host 127.0.0.1 --port 87
 
 - `VITE_DEMO_MODE=true|false`: demo mode uses mock data and does not call the API.
 - `VITE_BASE_PATH=/`: optional Vite base path. Use `./` for IPFS / subpath-hosted static builds.
-- `API_PROXY_TARGET=http://127.0.0.1:8000`: Vite dev-server proxy target for `/api/*` requests (keeps requests same-origin in the browser).
+- `API_PROXY_TARGET=http://127.0.0.1:8000`: Vite dev-server proxy target for `/api/*` requests (keeps requests same-origin in the browser). If unset, the dev server discovers a running `zenoctl testnet local up` nginx container first, then falls back to `http://127.0.0.1:8000`.
 - `VITE_API_BASE=http://127.0.0.1:8000`: optional base URL for API requests (use for non-proxied setups / production; empty = same-origin).
-- `VITE_API_TOKEN=<token>`: optional bearer token. If `DEMO_API_TOKEN` is set on the API server, set `VITE_API_TOKEN` to the same value.
+- `VITE_API_TOKEN=<token>`: optional bearer token. If `ZENODEX_API_BEARER_TOKEN` is set on the API server, set `VITE_API_TOKEN` to the same value.
 - `VITE_ZENO_ORACLE_API_URL=http://127.0.0.1:8787`: optional ZenoOracle dashboard API base URL. If unset, the Oracle tab tries `http://127.0.0.1:8787` and falls back to static preview data.
 
 ## Runtime Config

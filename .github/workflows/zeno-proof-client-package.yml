@@ -91,6 +91,7 @@ jobs:
         run: |
           cd tools/dex-ui
           npm run test:sdk
+          npm run test:config
 
       - name: Run Python SDK + TLA tests
         run: |
