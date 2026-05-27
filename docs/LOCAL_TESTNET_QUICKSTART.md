@@ -179,7 +179,8 @@ otherwise.
   uses the `/api/perps/wallet/*` panel.
 - This is NOT a shared public testnet. There are no public seed nodes, no
   hosted faucet, and no monitoring page. Joining a public testnet is a
-  separate flow.
+  separate flow. The `v0.1.16` target is tracked in
+  [docs/PUBLIC_TESTNET_V0_1_16_PLAN.md](PUBLIC_TESTNET_V0_1_16_PLAN.md).
 - The local Tau node uses `TAU_FORCE_TEST=1`; this is the local test mode
   and is not the production Tau settlement posture.
 

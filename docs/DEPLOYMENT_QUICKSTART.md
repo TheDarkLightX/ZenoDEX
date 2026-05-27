@@ -295,6 +295,14 @@ Once an operator publishes `public_network_config.json` at a stable HTTPS URL,
 join through `zenoctl`:
 
 ```bash
+python3 tools/zenoctl.py testnet publish-config \
+  --bundle-root /var/lib/zenodex/public-testnet/bundle \
+  --mirror-base-url https://seed.example.test/zeno-ledger-public-testnet/ \
+  --writer-url https://seed.example.test/zeno-ledger-writer \
+  --out /var/lib/zenodex/public-testnet/bundle/public_network_config.json
+```
+
+```bash
 python3 tools/zenoctl.py testnet join \
   --config-url https://example.test/zeno-ledger-public-testnet/public_network_config.json \
   --node-id operator-laptop \
@@ -345,6 +353,10 @@ still depends on external operator infrastructure:
 - public read endpoints for the UI;
 - faucet and test-collateral operations;
 - monitoring and status pages.
+
+The `v0.1.16` target is to make this a real public-testnet v0 flow after the
+3-node multi-machine evidence gate passes. See
+[docs/PUBLIC_TESTNET_V0_1_16_PLAN.md](PUBLIC_TESTNET_V0_1_16_PLAN.md).
 
 ## 8. Gate Split
 

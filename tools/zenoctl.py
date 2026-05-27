@@ -457,6 +457,26 @@ def _cmd_testnet_join(args: argparse.Namespace) -> int:
     return _run(command, dry_run=args.dry_run)
 
 
+def _cmd_testnet_publish_config(args: argparse.Namespace) -> int:
+    command = [
+        sys.executable,
+        "tools/zeno_ledger_node.py",
+        "write-network-config",
+        "--bundle-root",
+        str(args.bundle_root.expanduser()),
+        "--mirror-base-url",
+        args.mirror_base_url,
+    ]
+    for writer_url in args.writer_url:
+        command.extend(["--writer-url", writer_url])
+    for peer_url in args.peer_url:
+        command.extend(["--peer-url", peer_url])
+    command.extend(["--poll-seconds", str(args.poll_seconds)])
+    command.extend(["--node-port", str(args.node_port)])
+    command.extend(["--out", str(args.out.expanduser())])
+    return _run(command, dry_run=args.dry_run)
+
+
 def derive_node_hash_v0(
     *,
     network_id: str,
@@ -867,6 +887,20 @@ def main(argv: list[str] | None = None) -> int:
     join.add_argument("--submit-peer-auth-token-env")
     join.add_argument("--dry-run", action="store_true")
     join.set_defaults(func=_cmd_testnet_join)
+
+    publish_config = testnet_sub.add_parser(
+        "publish-config",
+        help="publish a public_network_config.json for operators to join from one URL",
+    )
+    publish_config.add_argument("--bundle-root", required=True, type=Path)
+    publish_config.add_argument("--mirror-base-url", required=True)
+    publish_config.add_argument("--writer-url", action="append", required=True)
+    publish_config.add_argument("--peer-url", action="append", default=[])
+    publish_config.add_argument("--poll-seconds", type=int, default=5)
+    publish_config.add_argument("--node-port", type=int, default=8788)
+    publish_config.add_argument("--out", required=True, type=Path)
+    publish_config.add_argument("--dry-run", action="store_true")
+    publish_config.set_defaults(func=_cmd_testnet_publish_config)
 
     evidence = testnet_sub.add_parser("evidence", help="assemble two-machine ZenoLedger evidence archive")
     evidence.add_argument("--data-dir", type=Path, required=True, help="path to directory containing node artifacts")
