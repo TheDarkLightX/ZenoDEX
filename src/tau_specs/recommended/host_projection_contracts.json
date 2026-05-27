@@ -1,0 +1,211 @@
+{
+  "schema": "zenodex/tau-host-projection-contracts/v1",
+  "specs": [
+    {
+      "spec_path": "src/tau_specs/recommended/secure_signer_operation_admission_v1.tau",
+      "boundary": "local_secure_signer",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "operation_requested", "producer_surface": "Keys request parser", "runtime_bug_class": "wallet_boundary", "evidence_required": ["typed request command", "explicit user intent"], "negative_tests": ["missing request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "operation_one_hot_ok", "producer_surface": "Keys operation decoder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["exactly one decoded operation"], "negative_tests": ["mixed operation bits reject"], "fail_closed_default": 0},
+        "i3": {"name": "operation_kind_allowed", "producer_surface": "Keys policy engine", "runtime_bug_class": "wallet_boundary", "evidence_required": ["operation allowed by signer policy"], "negative_tests": ["unknown operation rejects"], "fail_closed_default": 0},
+        "i4": {"name": "requested_capability_mask_bound", "producer_surface": "Keys session capability binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["requested mask bound to request hash"], "negative_tests": ["unbound requested mask rejects"], "fail_closed_default": 0},
+        "i5": {"name": "capability_subset_ok", "producer_surface": "Keys capability checker", "runtime_bug_class": "wallet_boundary", "evidence_required": ["requested capabilities are subset of session capabilities"], "negative_tests": ["overbroad capability request rejects"], "fail_closed_default": 0},
+        "i6": {"name": "user_confirmed", "producer_surface": "Keys confirmation UI", "runtime_bug_class": "wallet_boundary", "evidence_required": ["local confirmation receipt"], "negative_tests": ["unconfirmed operation rejects"], "fail_closed_default": 0},
+        "i7": {"name": "chain_genesis_bound", "producer_surface": "Keys chain binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["genesis hash included in signing context"], "negative_tests": ["wrong chain rejects"], "fail_closed_default": 0},
+        "i8": {"name": "nonce_fresh", "producer_surface": "Keys nonce tracker", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["nonce unused for signer session"], "negative_tests": ["stale nonce rejects"], "fail_closed_default": 0},
+        "i9": {"name": "private_key_export_absent", "producer_surface": "Keys signer backend", "runtime_bug_class": "wallet_boundary", "evidence_required": ["operation does not request secret export"], "negative_tests": ["export request rejects"], "fail_closed_default": 0},
+        "i10": {"name": "secure_channel_bound", "producer_surface": "Keys local transport binder", "runtime_bug_class": "network_or_peer", "evidence_required": ["channel identity bound to request"], "negative_tests": ["unbound channel rejects"], "fail_closed_default": 0},
+        "i11": {"name": "local_device_attested", "producer_surface": "Keys device attestation adapter", "runtime_bug_class": "wallet_boundary", "evidence_required": ["local device or fallback policy attestation"], "negative_tests": ["missing device attestation rejects"], "fail_closed_default": 0},
+        "i12": {"name": "proof_ok", "producer_surface": "Keys proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i13": {"name": "binding_ok", "producer_surface": "Keys transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["all signer facts bound to transcript hash"], "negative_tests": ["tampered transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/runtime_action_capability_envelope_v1.tau",
+      "boundary": "runtime_action_dispatch",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "action_requested", "producer_surface": "runtime request router", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["typed action request"], "negative_tests": ["missing action rejects"], "fail_closed_default": 0},
+        "i2": {"name": "action_one_hot_ok", "producer_surface": "runtime action decoder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["exactly one decoded action"], "negative_tests": ["mixed action bits reject"], "fail_closed_default": 0},
+        "i3": {"name": "action_kind_allowed", "producer_surface": "runtime policy engine", "runtime_bug_class": "config_or_release", "evidence_required": ["action enabled for current deployment"], "negative_tests": ["disabled action rejects"], "fail_closed_default": 0},
+        "i4": {"name": "requested_capability_mask_bound", "producer_surface": "runtime capability binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["requested mask bound to request hash"], "negative_tests": ["unbound capability mask rejects"], "fail_closed_default": 0},
+        "i5": {"name": "capability_subset_ok", "producer_surface": "runtime capability checker", "runtime_bug_class": "wallet_boundary", "evidence_required": ["requested capabilities are subset of session capabilities"], "negative_tests": ["overbroad capability request rejects"], "fail_closed_default": 0},
+        "i6": {"name": "caller_authenticated", "producer_surface": "runtime auth adapter", "runtime_bug_class": "network_or_peer", "evidence_required": ["authenticated caller identity"], "negative_tests": ["anonymous caller rejects"], "fail_closed_default": 0},
+        "i7": {"name": "session_current", "producer_surface": "runtime session store", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["session current and unexpired"], "negative_tests": ["expired session rejects"], "fail_closed_default": 0},
+        "i8": {"name": "nonce_fresh", "producer_surface": "runtime nonce manager", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["nonce unused for caller"], "negative_tests": ["stale nonce rejects"], "fail_closed_default": 0},
+        "i9": {"name": "idempotency_clear", "producer_surface": "runtime idempotency store", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["idempotency key not consumed"], "negative_tests": ["duplicate idempotency key rejects"], "fail_closed_default": 0},
+        "i10": {"name": "resource_binding_ok", "producer_surface": "runtime resource binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["resources bound to canonical request"], "negative_tests": ["resource substitution rejects"], "fail_closed_default": 0},
+        "i11": {"name": "policy_epoch_current", "producer_surface": "runtime policy registry", "runtime_bug_class": "config_or_release", "evidence_required": ["policy epoch is current"], "negative_tests": ["stale policy epoch rejects"], "fail_closed_default": 0},
+        "i12": {"name": "proof_ok", "producer_surface": "runtime proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i13": {"name": "binding_ok", "producer_surface": "runtime transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["all action facts bound to transcript hash"], "negative_tests": ["tampered transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/incident_latch_reset_quorum_guard_v1.tau",
+      "boundary": "incident_latch_reset",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "previous_latched", "producer_surface": "incident state store", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["previous latch read from committed state"], "negative_tests": ["missing prior latch stays unsafe"], "fail_closed_default": 0},
+        "i2": {"name": "fault_observed", "producer_surface": "runtime monitor", "runtime_bug_class": "external_process", "evidence_required": ["monitor or verifier fault receipt"], "negative_tests": ["fault latches halt"], "fail_closed_default": 0},
+        "i3": {"name": "reset_requested", "producer_surface": "incident reset command parser", "runtime_bug_class": "governance_reset", "evidence_required": ["typed reset request"], "negative_tests": ["missing reset keeps latch"], "fail_closed_default": 0},
+        "i4": {"name": "reset_quorum_ok", "producer_surface": "governance quorum verifier", "runtime_bug_class": "governance_reset", "evidence_required": ["reset quorum receipt"], "negative_tests": ["insufficient quorum keeps latch"], "fail_closed_default": 0},
+        "i5": {"name": "reset_timelock_elapsed", "producer_surface": "governance timelock verifier", "runtime_bug_class": "governance_reset", "evidence_required": ["reset timelock receipt"], "negative_tests": ["early reset keeps latch"], "fail_closed_default": 0},
+        "i6": {"name": "incident_receipt_bound", "producer_surface": "incident evidence binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["incident receipt bound to reset"], "negative_tests": ["missing incident receipt keeps latch"], "fail_closed_default": 0},
+        "i7": {"name": "post_reset_monitoring_live", "producer_surface": "monitor health checker", "runtime_bug_class": "external_process", "evidence_required": ["monitor live after reset"], "negative_tests": ["dead monitor keeps latch"], "fail_closed_default": 0},
+        "i8": {"name": "reset_policy_epoch_current", "producer_surface": "policy registry", "runtime_bug_class": "config_or_release", "evidence_required": ["reset policy epoch current"], "negative_tests": ["stale reset policy keeps latch"], "fail_closed_default": 0},
+        "i9": {"name": "proof_ok", "producer_surface": "incident proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof keeps latch"], "fail_closed_default": 0},
+        "i10": {"name": "binding_ok", "producer_surface": "incident transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["reset facts bound to transcript hash"], "negative_tests": ["tampered reset transcript keeps latch"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/tau_policy_shadow_migration_gate_v1.tau",
+      "boundary": "tau_policy_migration",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "migration_step_requested", "producer_surface": "policy migration controller", "runtime_bug_class": "config_or_release", "evidence_required": ["typed migration request"], "negative_tests": ["missing migration request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "old_checker_decision", "producer_surface": "runtime Tau checker", "runtime_bug_class": "external_process", "evidence_required": ["old checker decision receipt"], "negative_tests": ["missing old checker decision rejects"], "fail_closed_default": 0},
+        "i3": {"name": "new_checker_decision", "producer_surface": "shadow Tau checker", "runtime_bug_class": "external_process", "evidence_required": ["new checker decision receipt"], "negative_tests": ["divergent new checker rejects"], "fail_closed_default": 0},
+        "i4": {"name": "reason_class_match", "producer_surface": "shadow comparison harness", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["reject reason class match"], "negative_tests": ["reason mismatch rejects"], "fail_closed_default": 0},
+        "i5": {"name": "new_outputs_parse_ok", "producer_surface": "Tau output parser", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["new output parsed structurally"], "negative_tests": ["unparsed output rejects"], "fail_closed_default": 0},
+        "i6": {"name": "spec_hash_bound", "producer_surface": "policy artifact binder", "runtime_bug_class": "config_or_release", "evidence_required": ["spec hash bound to migration"], "negative_tests": ["spec hash drift rejects"], "fail_closed_default": 0},
+        "i7": {"name": "tau_binary_hash_bound", "producer_surface": "Tau binary binder", "runtime_bug_class": "config_or_release", "evidence_required": ["Tau binary hash bound"], "negative_tests": ["Tau binary drift rejects"], "fail_closed_default": 0},
+        "i8": {"name": "profile_allowed", "producer_surface": "runtime profile registry", "runtime_bug_class": "config_or_release", "evidence_required": ["profile allowed by release channel"], "negative_tests": ["disallowed profile rejects"], "fail_closed_default": 0},
+        "i9": {"name": "trace_corpus_passed", "producer_surface": "trace replay harness", "runtime_bug_class": "external_process", "evidence_required": ["trace corpus pass receipt"], "negative_tests": ["failed trace corpus rejects"], "fail_closed_default": 0},
+        "i10": {"name": "fallback_policy_available", "producer_surface": "migration rollback controller", "runtime_bug_class": "config_or_release", "evidence_required": ["fallback policy available"], "negative_tests": ["missing fallback rejects"], "fail_closed_default": 0},
+        "i11": {"name": "proof_ok", "producer_surface": "migration proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i12": {"name": "binding_ok", "producer_surface": "migration transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["migration facts bound to transcript hash"], "negative_tests": ["tampered migration transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/disaster_axis_safe_noop_guard_v1.tau",
+      "boundary": "runtime_disaster_axis_containment",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "action_requested", "producer_surface": "runtime request router", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["typed action request"], "negative_tests": ["missing action request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "axis_path_escape", "producer_surface": "path canonicalizer", "runtime_bug_class": "filesystem_or_path", "evidence_required": ["path escape detector result"], "negative_tests": ["dotdot and absolute path vectors no-op"], "fail_closed_default": 0},
+        "i3": {"name": "axis_url_escape", "producer_surface": "URL canonicalizer", "runtime_bug_class": "network_or_peer", "evidence_required": ["URL scheme and authority detector result"], "negative_tests": ["file/data/javascript URL vectors no-op"], "fail_closed_default": 0},
+        "i4": {"name": "axis_replay_duplicate", "producer_surface": "replay frontier checker", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["duplicate detector result"], "negative_tests": ["duplicate tx id no-op"], "fail_closed_default": 0},
+        "i5": {"name": "axis_nondeterministic_template", "producer_surface": "template determinism checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["template determinism receipt"], "negative_tests": ["missing timestamp source no-op"], "fail_closed_default": 0},
+        "i6": {"name": "axis_oracle_equivocation", "producer_surface": "oracle equivocation checker", "runtime_bug_class": "oracle_or_time", "evidence_required": ["equivocation detector result"], "negative_tests": ["same epoch double-sign no-op"], "fail_closed_default": 0},
+        "i7": {"name": "axis_overflow_or_range", "producer_surface": "range and overflow checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["range proof or overflow detector result"], "negative_tests": ["overflow vector no-op"], "fail_closed_default": 0},
+        "i8": {"name": "safe_noop_emitted", "producer_surface": "runtime no-op emitter", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["safe no-op event emitted"], "negative_tests": ["missing no-op fails containment"], "fail_closed_default": 0},
+        "i9": {"name": "state_root_unchanged", "producer_surface": "state transition checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["pre/post state root equality"], "negative_tests": ["state mutation fails containment"], "fail_closed_default": 0},
+        "i10": {"name": "external_effect_absent", "producer_surface": "effect journal checker", "runtime_bug_class": "external_process", "evidence_required": ["empty external effect journal"], "negative_tests": ["external send fails containment"], "fail_closed_default": 0},
+        "i11": {"name": "proof_ok", "producer_surface": "containment proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i12": {"name": "binding_ok", "producer_surface": "containment transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["axis facts bound to transcript hash"], "negative_tests": ["tampered axis transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/payout_template_age_replay_envelope_v1.tau",
+      "boundary": "proof_mining_payout_template",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "payout_requested", "producer_surface": "payout request parser", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["typed payout request"], "negative_tests": ["missing payout request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "timestamp_source_caller_block", "producer_surface": "block context adapter", "runtime_bug_class": "oracle_or_time", "evidence_required": ["caller block timestamp present"], "negative_tests": ["missing timestamp source rejects"], "fail_closed_default": 0},
+        "i3": {"name": "timestamp_source_intent_created_at", "producer_surface": "intent metadata parser", "runtime_bug_class": "oracle_or_time", "evidence_required": ["intent created_at timestamp present"], "negative_tests": ["two timestamp sources reject"], "fail_closed_default": 0},
+        "i4": {"name": "template_age_in_bounds", "producer_surface": "payout age checker", "runtime_bug_class": "oracle_or_time", "evidence_required": ["template age within policy bounds"], "negative_tests": ["timestamp zero and stale age reject"], "fail_closed_default": 0},
+        "i5": {"name": "replay_frontier_clear", "producer_surface": "payout replay frontier", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["payout replay frontier clear"], "negative_tests": ["same generated payout tx rejects"], "fail_closed_default": 0},
+        "i6": {"name": "payout_slot_unclaimed", "producer_surface": "claim slot index", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["payout slot unclaimed"], "negative_tests": ["claimed payout slot rejects"], "fail_closed_default": 0},
+        "i7": {"name": "claim_id_bound", "producer_surface": "payout identity binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["claim id bound to payout"], "negative_tests": ["claim id substitution rejects"], "fail_closed_default": 0},
+        "i8": {"name": "tx_id_bound", "producer_surface": "payout transaction binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["tx id bound to payout"], "negative_tests": ["tx id substitution rejects"], "fail_closed_default": 0},
+        "i9": {"name": "reward_account_bound", "producer_surface": "reward account binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["reward account bound to payout"], "negative_tests": ["reward account substitution rejects"], "fail_closed_default": 0},
+        "i10": {"name": "proof_ok", "producer_surface": "payout proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i11": {"name": "binding_ok", "producer_surface": "payout transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["payout facts bound to transcript hash"], "negative_tests": ["tampered payout transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/public_testnet_node_admission_guard_v1.tau",
+      "boundary": "public_testnet_node_join",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "node_join_requested", "producer_surface": "node join request parser", "runtime_bug_class": "network_or_peer", "evidence_required": ["typed node join request"], "negative_tests": ["missing join request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "genesis_hash_match", "producer_surface": "chain identity checker", "runtime_bug_class": "config_or_release", "evidence_required": ["genesis hash matches network"], "negative_tests": ["wrong genesis rejects"], "fail_closed_default": 0},
+        "i3": {"name": "network_id_match", "producer_surface": "chain identity checker", "runtime_bug_class": "config_or_release", "evidence_required": ["network id matches deployment"], "negative_tests": ["wrong network id rejects"], "fail_closed_default": 0},
+        "i4": {"name": "tau_runtime_profile_allowed", "producer_surface": "runtime profile registry", "runtime_bug_class": "config_or_release", "evidence_required": ["Tau runtime profile allowed"], "negative_tests": ["disallowed runtime profile rejects"], "fail_closed_default": 0},
+        "i5": {"name": "spec_profile_hash_bound", "producer_surface": "spec profile binder", "runtime_bug_class": "config_or_release", "evidence_required": ["spec profile hash bound"], "negative_tests": ["spec profile drift rejects"], "fail_closed_default": 0},
+        "i6": {"name": "requested_peer_capability_mask_bound", "producer_surface": "peer capability binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["requested peer mask bound"], "negative_tests": ["unbound peer capability mask rejects"], "fail_closed_default": 0},
+        "i7": {"name": "peer_capability_subset_ok", "producer_surface": "peer capability checker", "runtime_bug_class": "network_or_peer", "evidence_required": ["requested peer capabilities are network-allowed"], "negative_tests": ["overbroad peer capability rejects"], "fail_closed_default": 0},
+        "i8": {"name": "service_proof_present", "producer_surface": "service proof verifier", "runtime_bug_class": "network_or_peer", "evidence_required": ["service proof present"], "negative_tests": ["missing service proof rejects"], "fail_closed_default": 0},
+        "i9": {"name": "operator_key_bound", "producer_surface": "operator identity binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["operator key bound to node"], "negative_tests": ["operator key substitution rejects"], "fail_closed_default": 0},
+        "i10": {"name": "advertised_addr_valid", "producer_surface": "node address validator", "runtime_bug_class": "network_or_peer", "evidence_required": ["advertised address routable and canonical"], "negative_tests": ["invalid advertised address rejects"], "fail_closed_default": 0},
+        "i11": {"name": "no_demo_mode_flags", "producer_surface": "node config checker", "runtime_bug_class": "config_or_release", "evidence_required": ["demo flags disabled"], "negative_tests": ["demo flag rejects public join"], "fail_closed_default": 0},
+        "i12": {"name": "proof_ok", "producer_surface": "node admission proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i13": {"name": "binding_ok", "producer_surface": "node admission transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["node facts bound to transcript hash"], "negative_tests": ["tampered node transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/release_artifact_manifest_binding_guard_v1.tau",
+      "boundary": "release_artifact_manifest",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "release_requested", "producer_surface": "release command parser", "runtime_bug_class": "config_or_release", "evidence_required": ["typed release request"], "negative_tests": ["missing release request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "runtime_binary_hash_bound", "producer_surface": "release artifact hasher", "runtime_bug_class": "config_or_release", "evidence_required": ["runtime binary hash bound"], "negative_tests": ["runtime binary drift rejects"], "fail_closed_default": 0},
+        "i3": {"name": "tau_binary_hash_bound", "producer_surface": "release artifact hasher", "runtime_bug_class": "config_or_release", "evidence_required": ["Tau binary hash bound"], "negative_tests": ["Tau binary drift rejects"], "fail_closed_default": 0},
+        "i4": {"name": "spec_manifest_hash_bound", "producer_surface": "release manifest hasher", "runtime_bug_class": "config_or_release", "evidence_required": ["spec manifest hash bound"], "negative_tests": ["spec manifest drift rejects"], "fail_closed_default": 0},
+        "i5": {"name": "docker_image_digest_bound", "producer_surface": "release image hasher", "runtime_bug_class": "config_or_release", "evidence_required": ["Docker image digest bound"], "negative_tests": ["image digest drift rejects"], "fail_closed_default": 0},
+        "i6": {"name": "ci_tau_tests_passed", "producer_surface": "CI Tau test job", "runtime_bug_class": "external_process", "evidence_required": ["Tau CI job success"], "negative_tests": ["failed Tau CI rejects release"], "fail_closed_default": 0},
+        "i7": {"name": "ci_security_scan_passed", "producer_surface": "CI security scan job", "runtime_bug_class": "external_process", "evidence_required": ["security scan success"], "negative_tests": ["security scan failure rejects release"], "fail_closed_default": 0},
+        "i8": {"name": "ci_secret_scan_passed", "producer_surface": "CI secret scan job", "runtime_bug_class": "external_process", "evidence_required": ["secret scan success"], "negative_tests": ["secret scan failure rejects release"], "fail_closed_default": 0},
+        "i9": {"name": "release_channel_allowed", "producer_surface": "release channel policy", "runtime_bug_class": "config_or_release", "evidence_required": ["release channel allowed"], "negative_tests": ["disallowed channel rejects release"], "fail_closed_default": 0},
+        "i10": {"name": "no_demo_flags_enabled", "producer_surface": "release config scanner", "runtime_bug_class": "config_or_release", "evidence_required": ["demo flags absent"], "negative_tests": ["demo flag rejects release"], "fail_closed_default": 0},
+        "i11": {"name": "provenance_attestation_present", "producer_surface": "release provenance checker", "runtime_bug_class": "config_or_release", "evidence_required": ["provenance attestation present"], "negative_tests": ["missing provenance rejects release"], "fail_closed_default": 0},
+        "i12": {"name": "readme_install_updated", "producer_surface": "release docs checker", "runtime_bug_class": "config_or_release", "evidence_required": ["install docs updated for artifact"], "negative_tests": ["stale install docs reject release"], "fail_closed_default": 0},
+        "i13": {"name": "proof_ok", "producer_surface": "release proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects release"], "fail_closed_default": 0},
+        "i14": {"name": "binding_ok", "producer_surface": "release transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["release facts bound to transcript hash"], "negative_tests": ["tampered release transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/cross_module_conservation_consistency_v1.tau",
+      "boundary": "cross_module_composition_conservation",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "composition_check_requested", "producer_surface": "composition step controller", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["typed composition check request"], "negative_tests": ["missing composition request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "dex_delta_zero", "producer_surface": "DEX module conservation checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["DEX delta-zero receipt"], "negative_tests": ["DEX drift rejects"], "fail_closed_default": 0},
+        "i3": {"name": "zusd_delta_zero", "producer_surface": "zUSD module conservation checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["zUSD delta-zero receipt"], "negative_tests": ["zUSD drift rejects"], "fail_closed_default": 0},
+        "i4": {"name": "perp_delta_zero", "producer_surface": "perps module conservation checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["perps delta-zero receipt"], "negative_tests": ["perps drift rejects"], "fail_closed_default": 0},
+        "i5": {"name": "autotrader_delta_zero", "producer_surface": "autotrader module conservation checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["autotrader delta-zero receipt"], "negative_tests": ["autotrader drift rejects"], "fail_closed_default": 0},
+        "i6": {"name": "module_witness_set_complete", "producer_surface": "composition witness aggregator", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["complete required module witness set"], "negative_tests": ["omitted module witness rejects"], "fail_closed_default": 0},
+        "i7": {"name": "combined_delta_zero_witness", "producer_surface": "composition witness aggregator", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["combined conservation witness"], "negative_tests": ["spoofed combined witness rejects"], "fail_closed_default": 0},
+        "i8": {"name": "proof_ok", "producer_surface": "composition proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i9": {"name": "binding_ok", "producer_surface": "composition transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["composition facts bound to transcript hash"], "negative_tests": ["tampered composition transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/atomic_batch_commit_guard_v1.tau",
+      "boundary": "cross_module_atomic_batch_commit",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "batch_requested", "producer_surface": "batch commit controller", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["typed batch request"], "negative_tests": ["missing batch request rejects"], "fail_closed_default": 0},
+        "i2": {"name": "dex_commit_ok", "producer_surface": "DEX commit checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["DEX commit receipt"], "negative_tests": ["DEX abort forces aggregate abort"], "fail_closed_default": 0},
+        "i3": {"name": "zusd_commit_ok", "producer_surface": "zUSD commit checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["zUSD commit receipt"], "negative_tests": ["zUSD abort forces aggregate abort"], "fail_closed_default": 0},
+        "i4": {"name": "perp_commit_ok", "producer_surface": "perps commit checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["perps commit receipt"], "negative_tests": ["perps abort forces aggregate abort"], "fail_closed_default": 0},
+        "i5": {"name": "autotrader_commit_ok", "producer_surface": "autotrader commit checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["autotrader commit receipt"], "negative_tests": ["autotrader abort forces aggregate abort"], "fail_closed_default": 0},
+        "i6": {"name": "oracle_commit_ok", "producer_surface": "oracle commit checker", "runtime_bug_class": "oracle_or_time", "evidence_required": ["oracle commit receipt"], "negative_tests": ["oracle abort forces aggregate abort"], "fail_closed_default": 0},
+        "i7": {"name": "aggregate_commit_witness", "producer_surface": "batch commit aggregator", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["aggregate commit witness"], "negative_tests": ["aggregate true with module abort rejects"], "fail_closed_default": 0},
+        "i8": {"name": "abort_revert_emitted", "producer_surface": "batch abort emitter", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["abort revert emitted"], "negative_tests": ["missing abort event rejects partial failure"], "fail_closed_default": 0},
+        "i9": {"name": "abort_state_root_unchanged", "producer_surface": "state root checker", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["abort preserves state root"], "negative_tests": ["state mutation on abort rejects"], "fail_closed_default": 0},
+        "i10": {"name": "abort_external_effect_absent", "producer_surface": "effect journal checker", "runtime_bug_class": "external_process", "evidence_required": ["empty external effect journal on abort"], "negative_tests": ["external effect on abort rejects"], "fail_closed_default": 0},
+        "i11": {"name": "proof_ok", "producer_surface": "batch proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i12": {"name": "binding_ok", "producer_surface": "batch transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["batch facts bound to transcript hash"], "negative_tests": ["tampered batch transcript rejects"], "fail_closed_default": 0}
+      }
+    },
+    {
+      "spec_path": "src/tau_specs/recommended/dispute_window_finality_guard_v1.tau",
+      "boundary": "optimistic_finality_dispute_window",
+      "default_on_missing_fact": 0,
+      "host_fact_contracts": {
+        "i1": {"name": "finality_claimed", "producer_surface": "finality claim parser", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["typed finality claim"], "negative_tests": ["missing finality claim rejects"], "fail_closed_default": 0},
+        "i2": {"name": "settled_epoch_le_now", "producer_surface": "epoch relation checker", "runtime_bug_class": "oracle_or_time", "evidence_required": ["settled epoch is not in future"], "negative_tests": ["future settled epoch rejects"], "fail_closed_default": 0},
+        "i3": {"name": "dispute_window_elapsed", "producer_surface": "dispute window checker", "runtime_bug_class": "oracle_or_time", "evidence_required": ["dispute window elapsed receipt"], "negative_tests": ["early finality rejects"], "fail_closed_default": 0},
+        "i4": {"name": "no_active_challenge", "producer_surface": "challenge index checker", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["no active challenge for settlement"], "negative_tests": ["active challenge rejects"], "fail_closed_default": 0},
+        "i5": {"name": "epoch_source_bound", "producer_surface": "epoch source binder", "runtime_bug_class": "oracle_or_time", "evidence_required": ["epoch source bound to chain context"], "negative_tests": ["unbound epoch source rejects"], "fail_closed_default": 0},
+        "i6": {"name": "epoch_monotone", "producer_surface": "epoch monotonicity checker", "runtime_bug_class": "oracle_or_time", "evidence_required": ["epoch monotonicity receipt"], "negative_tests": ["time-travel epoch rejects"], "fail_closed_default": 0},
+        "i7": {"name": "dispute_window_policy_bound", "producer_surface": "policy registry", "runtime_bug_class": "config_or_release", "evidence_required": ["dispute window bound to current policy"], "negative_tests": ["stale dispute policy rejects"], "fail_closed_default": 0},
+        "i8": {"name": "challenge_index_current", "producer_surface": "challenge index checker", "runtime_bug_class": "replay_or_idempotency", "evidence_required": ["challenge index current"], "negative_tests": ["stale challenge index rejects"], "fail_closed_default": 0},
+        "i9": {"name": "proof_ok", "producer_surface": "finality proof verifier", "runtime_bug_class": "external_process", "evidence_required": ["proof verifier success receipt"], "negative_tests": ["failed proof rejects"], "fail_closed_default": 0},
+        "i10": {"name": "binding_ok", "producer_surface": "finality transcript binder", "runtime_bug_class": "serialization_or_canonicalization", "evidence_required": ["finality facts bound to transcript hash"], "negative_tests": ["tampered finality transcript rejects"], "fail_closed_default": 0}
+      }
+    }
+  ]
+}

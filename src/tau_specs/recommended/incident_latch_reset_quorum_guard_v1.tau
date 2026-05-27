@@ -1,0 +1,30 @@
+# Incident Latch Reset Quorum Guard v1
+#
+# PURPOSE:
+# Compute the next incident latch state from the previous latch and a new fault
+# bit. A reset can clear the latch only when quorum, timelock, incident receipt,
+# monitoring, policy, proof, and binding facts are all present.
+#
+# i1  = previous_latched (sbf)
+# i2  = fault_observed (sbf)
+# i3  = reset_requested (sbf)
+# i4  = reset_quorum_ok (sbf)
+# i5  = reset_timelock_elapsed (sbf)
+# i6  = incident_receipt_bound (sbf)
+# i7  = post_reset_monitoring_live (sbf)
+# i8  = reset_policy_epoch_current (sbf)
+# i9  = proof_ok (sbf)
+# i10 = binding_ok (sbf)
+#
+# o1 = reset_authorized
+# o2 = next_latched
+# o3 = normal_admission_allowed
+
+set charvar off
+
+reset_authorized(reset_requested : sbf, reset_quorum_ok : sbf, reset_timelock_elapsed : sbf, incident_receipt_bound : sbf, post_reset_monitoring_live : sbf, reset_policy_epoch_current : sbf, proof_ok : sbf, binding_ok : sbf) := (reset_requested = 1:sbf) && (reset_quorum_ok = 1:sbf) && (reset_timelock_elapsed = 1:sbf) && (incident_receipt_bound = 1:sbf) && (post_reset_monitoring_live = 1:sbf) && (reset_policy_epoch_current = 1:sbf) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> reset_authorized(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> (((i1[t]:sbf = 1:sbf) || (i2[t]:sbf = 1:sbf)) && !reset_authorized(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf))) &&
+  (o3[t]:sbf = 1:sbf <-> (((i1[t]:sbf = 0:sbf) && (i2[t]:sbf = 0:sbf)) || reset_authorized(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf))).

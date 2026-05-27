@@ -1,0 +1,41 @@
+# Idempotency Window Guard v1
+#
+# PURPOSE:
+# Block double execution within a rolling idempotency window. A same-caller,
+# same-key replay inside the window must match the prior request digest.
+# The host computes the epoch-window predicate. Tau requires that projected fact
+# instead of doing direct stream arithmetic on epoch values.
+#
+# i1 = current_request_digest (bv[256])
+# i2 = prior_record_digest (bv[256])
+# i3 = prior_in_window_ok (sbf)
+# i4 = caller_pubkey_match (sbf)
+# i5 = idempotency_key_match (sbf)
+# i6 = prior_response_reusable (sbf)
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+#
+# o1 = same_tuple
+# o2 = prior_in_window
+# o3 = replay_digest_matches
+# o4 = fresh_or_idempotent_ok
+# o5 = proof_gated_idempotency_ok
+
+set charvar off
+
+same_tuple(caller_pubkey_match : sbf, idempotency_key_match : sbf) := (caller_pubkey_match = 1:sbf) && (idempotency_key_match = 1:sbf).
+
+prior_in_window(prior_in_window_ok : sbf) := prior_in_window_ok = 1:sbf.
+
+replay_digest_matches(current_request_digest : bv[256], prior_record_digest : bv[256]) := current_request_digest = prior_record_digest.
+
+fresh_or_idempotent_ok(current_request_digest : bv[256], prior_record_digest : bv[256], prior_in_window_ok : sbf, caller_pubkey_match : sbf, idempotency_key_match : sbf, prior_response_reusable : sbf) := !(same_tuple(caller_pubkey_match, idempotency_key_match) && prior_in_window(prior_in_window_ok)) || (replay_digest_matches(current_request_digest, prior_record_digest) && (prior_response_reusable = 1:sbf)).
+
+proof_gated_idempotency_ok(current_request_digest : bv[256], prior_record_digest : bv[256], prior_in_window_ok : sbf, caller_pubkey_match : sbf, idempotency_key_match : sbf, prior_response_reusable : sbf, proof_ok : sbf, binding_ok : sbf) := fresh_or_idempotent_ok(current_request_digest, prior_record_digest, prior_in_window_ok, caller_pubkey_match, idempotency_key_match, prior_response_reusable) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> same_tuple(i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> prior_in_window(i3[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> replay_digest_matches(i1[t]:bv[256], i2[t]:bv[256])) &&
+  (o4[t]:sbf = 1:sbf <-> fresh_or_idempotent_ok(i1[t]:bv[256], i2[t]:bv[256], i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_idempotency_ok(i1[t]:bv[256], i2[t]:bv[256], i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)).

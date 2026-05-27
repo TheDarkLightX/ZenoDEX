@@ -1,0 +1,38 @@
+# Commit-Reveal Binding Guard v1
+#
+# PURPOSE:
+# Enforce digest binding and reveal-window admission for commit-reveal flows.
+# The host computes the digest and epoch-window predicates. Tau compares the
+# committed/revealed bv[256] values and requires the projected timing facts.
+#
+# i1 = committed_digest (bv[256])
+# i2 = revealed_digest (bv[256])
+# i3 = inside_reveal_window_ok (sbf)
+# i4 = before_deadline_ok (sbf)
+# i5 = proof_ok (sbf)
+# i6 = binding_ok (sbf)
+#
+# o1 = digest_binds
+# o2 = inside_reveal_window
+# o3 = before_deadline
+# o4 = reveal_accepted
+# o5 = proof_gated_reveal_accepted
+
+set charvar off
+
+digest_binds(committed_digest : bv[256], revealed_digest : bv[256]) := committed_digest = revealed_digest.
+
+inside_reveal_window(inside_reveal_window_ok : sbf) := inside_reveal_window_ok = 1:sbf.
+
+before_deadline(before_deadline_ok : sbf) := before_deadline_ok = 1:sbf.
+
+reveal_accepted(committed_digest : bv[256], revealed_digest : bv[256], inside_reveal_window_ok : sbf, before_deadline_ok : sbf) := digest_binds(committed_digest, revealed_digest) && inside_reveal_window(inside_reveal_window_ok) && before_deadline(before_deadline_ok).
+
+proof_gated_reveal_accepted(committed_digest : bv[256], revealed_digest : bv[256], inside_reveal_window_ok : sbf, before_deadline_ok : sbf, proof_ok : sbf, binding_ok : sbf) := reveal_accepted(committed_digest, revealed_digest, inside_reveal_window_ok, before_deadline_ok) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> digest_binds(i1[t]:bv[256], i2[t]:bv[256])) &&
+  (o2[t]:sbf = 1:sbf <-> inside_reveal_window(i3[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> before_deadline(i4[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> reveal_accepted(i1[t]:bv[256], i2[t]:bv[256], i3[t]:sbf, i4[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_reveal_accepted(i1[t]:bv[256], i2[t]:bv[256], i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)).

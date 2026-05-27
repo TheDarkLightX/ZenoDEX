@@ -1,0 +1,26 @@
+# Wallet Recovery Envelope Guard v1
+#
+# PURPOSE:
+# Admit a wallet recovery only when quorum, delay, material binding, replay, and
+# anti-bricking checks all hold. Crypto signatures, backup decryption, and share
+# reconstruction are host-verified facts; Tau checks the policy envelope.
+#
+# i1 = recovery_requested (sbf)
+# i2 = guardian_quorum_sane (sbf)
+# i3 = recovery_delay_elapsed (sbf)
+# i4 = guardian_set_current (sbf)
+# i5 = backup_proof_binds (sbf)
+# i6 = new_key_binding_ok (sbf)
+# i7 = replay_frontier_clear (sbf)
+# i8 = post_recovery_path_live (sbf)
+# i9 = proof_ok (sbf)
+# i10 = binding_ok (sbf)
+#
+# o1 = recovery_admissible
+# o2 = proof_gated_recovery_admissible
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))).

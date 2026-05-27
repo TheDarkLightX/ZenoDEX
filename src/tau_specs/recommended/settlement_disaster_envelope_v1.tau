@@ -1,0 +1,66 @@
+# Settlement Disaster Envelope v1
+#
+# PURPOSE:
+# Aggregate the high-risk settlement admission surface into one fail-closed Tau
+# gate. Host verifiers compute cryptographic proofs, reserve deltas, fee math,
+# and artifact bindings; Tau requires every projected safety fact before a
+# requested settlement can pass.
+#
+# i1  = settlement_requested (sbf)
+# i2  = caller_authorized (sbf)
+# i3  = intent_signature_ok (sbf)
+# i4  = nonce_fresh (sbf)
+# i5  = intent_unexpired (sbf)
+# i6  = chain_id_bound (sbf)
+# i7  = route_canonical (sbf)
+# i8  = quote_bound (sbf)
+# i9  = slippage_ok (sbf)
+# i10 = oracle_fresh (sbf)
+# i11 = oracle_quorum (sbf)
+# i12 = oracle_divergence_bounded (sbf)
+# i13 = reserve_transition_ok (sbf)
+# i14 = fee_accounting_ok (sbf)
+# i15 = balance_conservation_ok (sbf)
+# i16 = no_negative_pool_state (sbf)
+# i17 = lp_share_delta_ok (sbf)
+# i18 = proof_ok (sbf)
+# i19 = binding_ok (sbf)
+# i20 = resource_budget_ok (sbf)
+# i21 = no_reentrant_context (sbf)
+# i22 = emergency_pause_inactive (sbf)
+# i23 = module_version_current (sbf)
+# i24 = payout_template_deterministic (sbf)
+# i25 = block_timestamp_bound (sbf)
+#
+# o1 = identity_ok
+# o2 = market_data_ok
+# o3 = accounting_ok
+# o4 = runtime_ok
+# o5 = deterministic_template_ok
+# o6 = settlement_preconditions_ok
+# o7 = proof_gated_settlement_allowed
+
+set charvar off
+
+identity_ok(caller_authorized : sbf, intent_signature_ok : sbf, nonce_fresh : sbf, intent_unexpired : sbf, chain_id_bound : sbf) := (caller_authorized = 1:sbf) && (intent_signature_ok = 1:sbf) && (nonce_fresh = 1:sbf) && (intent_unexpired = 1:sbf) && (chain_id_bound = 1:sbf).
+
+market_data_ok(route_canonical : sbf, quote_bound : sbf, slippage_ok : sbf, oracle_fresh : sbf, oracle_quorum : sbf, oracle_divergence_bounded : sbf) := (route_canonical = 1:sbf) && (quote_bound = 1:sbf) && (slippage_ok = 1:sbf) && (oracle_fresh = 1:sbf) && (oracle_quorum = 1:sbf) && (oracle_divergence_bounded = 1:sbf).
+
+accounting_ok(reserve_transition_ok : sbf, fee_accounting_ok : sbf, balance_conservation_ok : sbf, no_negative_pool_state : sbf, lp_share_delta_ok : sbf) := (reserve_transition_ok = 1:sbf) && (fee_accounting_ok = 1:sbf) && (balance_conservation_ok = 1:sbf) && (no_negative_pool_state = 1:sbf) && (lp_share_delta_ok = 1:sbf).
+
+runtime_ok(resource_budget_ok : sbf, no_reentrant_context : sbf, emergency_pause_inactive : sbf, module_version_current : sbf) := (resource_budget_ok = 1:sbf) && (no_reentrant_context = 1:sbf) && (emergency_pause_inactive = 1:sbf) && (module_version_current = 1:sbf).
+
+deterministic_template_ok(payout_template_deterministic : sbf, block_timestamp_bound : sbf) := (payout_template_deterministic = 1:sbf) && (block_timestamp_bound = 1:sbf).
+
+settlement_preconditions_ok(settlement_requested : sbf, caller_authorized : sbf, intent_signature_ok : sbf, nonce_fresh : sbf, intent_unexpired : sbf, chain_id_bound : sbf, route_canonical : sbf, quote_bound : sbf, slippage_ok : sbf, oracle_fresh : sbf, oracle_quorum : sbf, oracle_divergence_bounded : sbf, reserve_transition_ok : sbf, fee_accounting_ok : sbf, balance_conservation_ok : sbf, no_negative_pool_state : sbf, lp_share_delta_ok : sbf, resource_budget_ok : sbf, no_reentrant_context : sbf, emergency_pause_inactive : sbf, module_version_current : sbf, payout_template_deterministic : sbf, block_timestamp_bound : sbf) := (settlement_requested = 0:sbf) || ((settlement_requested = 1:sbf) && identity_ok(caller_authorized, intent_signature_ok, nonce_fresh, intent_unexpired, chain_id_bound) && market_data_ok(route_canonical, quote_bound, slippage_ok, oracle_fresh, oracle_quorum, oracle_divergence_bounded) && accounting_ok(reserve_transition_ok, fee_accounting_ok, balance_conservation_ok, no_negative_pool_state, lp_share_delta_ok) && runtime_ok(resource_budget_ok, no_reentrant_context, emergency_pause_inactive, module_version_current) && deterministic_template_ok(payout_template_deterministic, block_timestamp_bound)).
+
+proof_gated_settlement_allowed(settlement_requested : sbf, caller_authorized : sbf, intent_signature_ok : sbf, nonce_fresh : sbf, intent_unexpired : sbf, chain_id_bound : sbf, route_canonical : sbf, quote_bound : sbf, slippage_ok : sbf, oracle_fresh : sbf, oracle_quorum : sbf, oracle_divergence_bounded : sbf, reserve_transition_ok : sbf, fee_accounting_ok : sbf, balance_conservation_ok : sbf, no_negative_pool_state : sbf, lp_share_delta_ok : sbf, proof_ok : sbf, binding_ok : sbf, resource_budget_ok : sbf, no_reentrant_context : sbf, emergency_pause_inactive : sbf, module_version_current : sbf, payout_template_deterministic : sbf, block_timestamp_bound : sbf) := (settlement_requested = 0:sbf) || ((settlement_requested = 1:sbf) && settlement_preconditions_ok(settlement_requested, caller_authorized, intent_signature_ok, nonce_fresh, intent_unexpired, chain_id_bound, route_canonical, quote_bound, slippage_ok, oracle_fresh, oracle_quorum, oracle_divergence_bounded, reserve_transition_ok, fee_accounting_ok, balance_conservation_ok, no_negative_pool_state, lp_share_delta_ok, resource_budget_ok, no_reentrant_context, emergency_pause_inactive, module_version_current, payout_template_deterministic, block_timestamp_bound) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> identity_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> market_data_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> accounting_ok(i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf, i17[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> runtime_ok(i20[t]:sbf, i21[t]:sbf, i22[t]:sbf, i23[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> deterministic_template_ok(i24[t]:sbf, i25[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> settlement_preconditions_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf, i17[t]:sbf, i20[t]:sbf, i21[t]:sbf, i22[t]:sbf, i23[t]:sbf, i24[t]:sbf, i25[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> proof_gated_settlement_allowed(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf, i17[t]:sbf, i18[t]:sbf, i19[t]:sbf, i20[t]:sbf, i21[t]:sbf, i22[t]:sbf, i23[t]:sbf, i24[t]:sbf, i25[t]:sbf)).
