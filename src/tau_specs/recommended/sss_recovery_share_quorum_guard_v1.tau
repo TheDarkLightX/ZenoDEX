@@ -1,0 +1,26 @@
+# SSS Recovery Share Quorum Guard v1
+#
+# PURPOSE:
+# Admit social/SSS recovery reconstruction only when share threshold math is
+# sane, shares are unique and bound to commitments, delivery receipts are fresh,
+# and replay is clear.
+#
+# i1 = reconstruction_requested (sbf)
+# i2 = threshold_sane (sbf)
+# i3 = unique_share_ids_ok (sbf)
+# i4 = share_commitments_bind (sbf)
+# i5 = channel_receipts_fresh (sbf)
+# i6 = guardian_set_current (sbf)
+# i7 = no_duplicate_channel_receipt (sbf)
+# i8 = replay_frontier_clear (sbf)
+# i9 = proof_ok (sbf)
+# i10 = binding_ok (sbf)
+#
+# o1 = reconstruction_admissible
+# o2 = proof_gated_reconstruction_admissible
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))).

@@ -1,0 +1,43 @@
+# Payout Template Age Replay Envelope v1
+#
+# PURPOSE:
+# Admit generated payout templates only when they use a real timestamp source,
+# age is bounded, replay frontiers are clear, and payout identity bindings hold.
+# This removes dependence on a misleading timestamp-zero fallback.
+#
+# i1  = payout_requested (sbf)
+# i2  = timestamp_source_caller_block (sbf)
+# i3  = timestamp_source_intent_created_at (sbf)
+# i4  = template_age_in_bounds (sbf)
+# i5  = replay_frontier_clear (sbf)
+# i6  = payout_slot_unclaimed (sbf)
+# i7  = claim_id_bound (sbf)
+# i8  = tx_id_bound (sbf)
+# i9  = reward_account_bound (sbf)
+# i10 = proof_ok (sbf)
+# i11 = binding_ok (sbf)
+#
+# o1 = timestamp_source_ok
+# o2 = age_window_ok
+# o3 = replay_ok
+# o4 = payout_binding_ok
+# o5 = payout_admissible
+# o6 = proof_gated_payout_admissible
+
+set charvar off
+
+timestamp_source_ok(caller_block : sbf, intent_created_at : sbf) := ((caller_block = 1:sbf) && (intent_created_at = 0:sbf)) || ((caller_block = 0:sbf) && (intent_created_at = 1:sbf)).
+
+age_window_ok(timestamp_source_ok_flag : sbf, template_age_in_bounds : sbf) := (timestamp_source_ok_flag = 1:sbf) && (template_age_in_bounds = 1:sbf).
+
+replay_ok(replay_frontier_clear : sbf, payout_slot_unclaimed : sbf) := (replay_frontier_clear = 1:sbf) && (payout_slot_unclaimed = 1:sbf).
+
+payout_binding_ok(claim_id_bound : sbf, tx_id_bound : sbf, reward_account_bound : sbf) := (claim_id_bound = 1:sbf) && (tx_id_bound = 1:sbf) && (reward_account_bound = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> timestamp_source_ok(i2[t]:sbf, i3[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> (timestamp_source_ok(i2[t]:sbf, i3[t]:sbf) && (i4[t]:sbf = 1:sbf))) &&
+  (o3[t]:sbf = 1:sbf <-> replay_ok(i5[t]:sbf, i6[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> payout_binding_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && timestamp_source_ok(i2[t]:sbf, i3[t]:sbf) && (i4[t]:sbf = 1:sbf) && replay_ok(i5[t]:sbf, i6[t]:sbf) && payout_binding_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf))) &&
+  (o6[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && timestamp_source_ok(i2[t]:sbf, i3[t]:sbf) && (i4[t]:sbf = 1:sbf) && replay_ok(i5[t]:sbf, i6[t]:sbf) && payout_binding_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf))).

@@ -1,0 +1,49 @@
+# Protocol Token Distribution Guard v1
+#
+# PURPOSE: Host-computed fail-closed guard for the local-testnet ZDEX
+# distribution manifest. Python materializes genesis and computes exact integer
+# flags; Tau owns the boolean admission boundary for the manifest shape.
+#
+# Stream mapping:
+# i1 = allocations_sum_to_initial_supply
+# i2 = allocation_bps_sum_to_10000
+# i3 = active_programs_sum_to_pool
+# i4 = active_rewards_pool_present
+# i5 = protocol_faucet_disabled
+# i6 = external_minting_disabled
+# i7 = supply_floor_valid
+# i8 = no_retroactive_airdrop_bucket
+# i9 = active_pool_not_direct_user_fixture
+# i10 = post_genesis_mutation_disabled
+# i11 = runtime_mutation_disabled
+# i12 = python_override_disabled_after_genesis
+# i13 = distribution_changes_require_new_hash
+# i14 = post_genesis_changes_require_new_chain_or_governance_migration
+# i15 = production_security_claim_false
+# o1 = distribution_ok
+# @rule o1: Distribution ok iff every host-computed manifest rail passes.
+
+set charvar off
+
+flag_ok(x : sbf) := x = 1:sbf.
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    (
+      flag_ok(i1[t]:sbf) &&
+      flag_ok(i2[t]:sbf) &&
+      flag_ok(i3[t]:sbf) &&
+      flag_ok(i4[t]:sbf) &&
+      flag_ok(i5[t]:sbf) &&
+      flag_ok(i6[t]:sbf) &&
+      flag_ok(i7[t]:sbf) &&
+      flag_ok(i8[t]:sbf) &&
+      flag_ok(i9[t]:sbf) &&
+      flag_ok(i10[t]:sbf) &&
+      flag_ok(i11[t]:sbf) &&
+      flag_ok(i12[t]:sbf) &&
+      flag_ok(i13[t]:sbf) &&
+      flag_ok(i14[t]:sbf) &&
+      flag_ok(i15[t]:sbf)
+    )
+  ).

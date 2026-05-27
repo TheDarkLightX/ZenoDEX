@@ -1,0 +1,42 @@
+# Release Artifact Manifest Binding Guard v1
+#
+# PURPOSE:
+# Admit a release artifact only when shipped binaries, Tau binary, specs,
+# container image, CI evidence, release channel, provenance, and public install
+# docs are all bound to the manifest.
+#
+# i1  = release_requested (sbf)
+# i2  = runtime_binary_hash_bound (sbf)
+# i3  = tau_binary_hash_bound (sbf)
+# i4  = spec_manifest_hash_bound (sbf)
+# i5  = docker_image_digest_bound (sbf)
+# i6  = ci_tau_tests_passed (sbf)
+# i7  = ci_security_scan_passed (sbf)
+# i8  = ci_secret_scan_passed (sbf)
+# i9  = release_channel_allowed (sbf)
+# i10 = no_demo_flags_enabled (sbf)
+# i11 = provenance_attestation_present (sbf)
+# i12 = readme_install_updated (sbf)
+# i13 = proof_ok (sbf)
+# i14 = binding_ok (sbf)
+#
+# o1 = artifact_hashes_bound
+# o2 = ci_evidence_ok
+# o3 = release_posture_ok
+# o4 = release_manifest_admissible
+# o5 = proof_gated_release_manifest_admissible
+
+set charvar off
+
+artifact_hashes_bound(runtime_binary_hash_bound : sbf, tau_binary_hash_bound : sbf, spec_manifest_hash_bound : sbf, docker_image_digest_bound : sbf) := (runtime_binary_hash_bound = 1:sbf) && (tau_binary_hash_bound = 1:sbf) && (spec_manifest_hash_bound = 1:sbf) && (docker_image_digest_bound = 1:sbf).
+
+ci_evidence_ok(ci_tau_tests_passed : sbf, ci_security_scan_passed : sbf, ci_secret_scan_passed : sbf) := (ci_tau_tests_passed = 1:sbf) && (ci_security_scan_passed = 1:sbf) && (ci_secret_scan_passed = 1:sbf).
+
+release_posture_ok(release_channel_allowed : sbf, no_demo_flags_enabled : sbf, provenance_attestation_present : sbf, readme_install_updated : sbf) := (release_channel_allowed = 1:sbf) && (no_demo_flags_enabled = 1:sbf) && (provenance_attestation_present = 1:sbf) && (readme_install_updated = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> artifact_hashes_bound(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> ci_evidence_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> release_posture_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && artifact_hashes_bound(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf) && ci_evidence_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf) && release_posture_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf))) &&
+  (o5[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && artifact_hashes_bound(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf) && ci_evidence_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf) && release_posture_ok(i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf))).

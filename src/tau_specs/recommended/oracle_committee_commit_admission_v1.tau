@@ -1,0 +1,53 @@
+# Oracle Committee Commit Admission v1
+#
+# PURPOSE:
+# Gate oracle commits with quorum, bounded faults, bounded price spread, fresh
+# randomness, and current committee membership before any settlement module can
+# consume the update.
+#
+# i1  = update_requested (sbf)
+# i2  = quorum_signed (bv[32])
+# i3  = quorum_threshold (bv[32])
+# i4  = committee_size (bv[32])
+# i5  = stale_report_count (bv[32])
+# i6  = max_stale_reports (bv[32])
+# i7  = equivocation_count (bv[32])
+# i8  = max_equivocations (bv[32])
+# i9  = median_gap_bps (bv[32])
+# i10 = max_median_gap_bps (bv[32])
+# i11 = round_monotonic (sbf)
+# i12 = source_diversity_ok (sbf)
+# i13 = signer_bitmap_ok (sbf)
+# i14 = drand_round_fresh_ok (sbf)
+# i15 = committee_epoch_current (sbf)
+# i16 = proof_ok (sbf)
+# i17 = binding_ok (sbf)
+#
+# o1 = quorum_ok
+# o2 = fault_budget_ok
+# o3 = price_envelope_ok
+# o4 = authority_ok
+# o5 = oracle_commit_admissible
+# o6 = proof_gated_oracle_commit_admissible
+
+set charvar off
+
+quorum_ok(quorum_signed : bv[32], quorum_threshold : bv[32], committee_size : bv[32]) := (quorum_threshold > {0}:bv[32]) && (quorum_signed >= quorum_threshold) && (quorum_threshold <= committee_size) && (quorum_signed <= committee_size).
+
+fault_budget_ok(stale_report_count : bv[32], max_stale_reports : bv[32], equivocation_count : bv[32], max_equivocations : bv[32]) := (stale_report_count <= max_stale_reports) && (equivocation_count <= max_equivocations).
+
+price_envelope_ok(median_gap_bps : bv[32], max_median_gap_bps : bv[32]) := median_gap_bps <= max_median_gap_bps.
+
+authority_ok(round_monotonic : sbf, source_diversity_ok : sbf, signer_bitmap_ok : sbf, drand_round_fresh_ok : sbf, committee_epoch_current : sbf) := (round_monotonic = 1:sbf) && (source_diversity_ok = 1:sbf) && (signer_bitmap_ok = 1:sbf) && (drand_round_fresh_ok = 1:sbf) && (committee_epoch_current = 1:sbf).
+
+oracle_commit_admissible(update_requested : sbf, quorum_signed : bv[32], quorum_threshold : bv[32], committee_size : bv[32], stale_report_count : bv[32], max_stale_reports : bv[32], equivocation_count : bv[32], max_equivocations : bv[32], median_gap_bps : bv[32], max_median_gap_bps : bv[32], round_monotonic : sbf, source_diversity_ok : sbf, signer_bitmap_ok : sbf, drand_round_fresh_ok : sbf, committee_epoch_current : sbf) := (update_requested = 0:sbf) || ((update_requested = 1:sbf) && quorum_ok(quorum_signed, quorum_threshold, committee_size) && fault_budget_ok(stale_report_count, max_stale_reports, equivocation_count, max_equivocations) && price_envelope_ok(median_gap_bps, max_median_gap_bps) && authority_ok(round_monotonic, source_diversity_ok, signer_bitmap_ok, drand_round_fresh_ok, committee_epoch_current)).
+
+proof_gated_oracle_commit_admissible(update_requested : sbf, quorum_signed : bv[32], quorum_threshold : bv[32], committee_size : bv[32], stale_report_count : bv[32], max_stale_reports : bv[32], equivocation_count : bv[32], max_equivocations : bv[32], median_gap_bps : bv[32], max_median_gap_bps : bv[32], round_monotonic : sbf, source_diversity_ok : sbf, signer_bitmap_ok : sbf, drand_round_fresh_ok : sbf, committee_epoch_current : sbf, proof_ok : sbf, binding_ok : sbf) := (update_requested = 0:sbf) || ((update_requested = 1:sbf) && oracle_commit_admissible(update_requested, quorum_signed, quorum_threshold, committee_size, stale_report_count, max_stale_reports, equivocation_count, max_equivocations, median_gap_bps, max_median_gap_bps, round_monotonic, source_diversity_ok, signer_bitmap_ok, drand_round_fresh_ok, committee_epoch_current) && (proof_ok = 1:sbf) && (binding_ok = 1:sbf)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> quorum_ok(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> fault_budget_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> price_envelope_ok(i9[t]:bv[32], i10[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> authority_ok(i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> oracle_commit_admissible(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32], i10[t]:bv[32], i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> proof_gated_oracle_commit_admissible(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32], i10[t]:bv[32], i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf, i16[t]:sbf, i17[t]:sbf)).
