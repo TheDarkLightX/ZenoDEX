@@ -73,11 +73,13 @@ def _relativize_command(command: list[str], *, root: Path) -> list[str]:
             out.append("python3")
         elif previous in PATH_VALUE_FLAGS:
             path = Path(item)
-            if path.is_absolute():
+            candidates = [path] if path.is_absolute() else [ROOT / path, path]
+            for candidate in candidates:
                 try:
-                    out.append(_rel(root, path))
+                    out.append(_rel(root, candidate))
+                    break
                 except ValueError:
-                    out.append(item)
+                    continue
             else:
                 out.append(item)
         else:

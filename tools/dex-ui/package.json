@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "test:sdk": "node --test --test-reporter=dot src/sdk/*.test.mjs",
+    "test:config": "node --test --test-reporter=dot vite.config.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

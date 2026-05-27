@@ -377,14 +377,18 @@ cd ..
 Run the local API and UI:
 
 ```bash
-PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret \
+DEX_API_ENABLED=true ZENODEX_API_BEARER_TOKEN=sekret \
   python3 -m src.integration.api_server
 
 cd tools/dex-ui
 npm install
-VITE_DEMO_MODE=false API_PROXY_TARGET=http://127.0.0.1:8000 \
-  VITE_API_TOKEN=sekret npm run dev -- --host 127.0.0.1 --port 5173
+VITE_DEMO_MODE=false VITE_API_TOKEN=sekret \
+  npm run dev -- --host 127.0.0.1 --port 5173
 ```
+
+When a `zenoctl testnet local up` stack is running, the Vite dev server
+auto-detects its loopback nginx port for `/api/*`. Set `API_PROXY_TARGET`
+explicitly when you are wiring the UI to a manually started API server.
 
 Run the broad Python test suite:
 
@@ -558,6 +562,12 @@ The public bundle ships a deterministic test-token catalog (`tZENO`, `tASSET0`,
 and `tASSET1`) plus testnet-only faucet behavior for feature testing. The
 faucet accepts canonical 32-byte test asset IDs, so operators can mint
 throwaway assets for live test pools without touching release token policy.
+
+Latest local shipment metadata is in
+[`docs/LATEST_TESTNET_CHECKPOINT.md`](docs/LATEST_TESTNET_CHECKPOINT.md). The
+current checkpoint builds the static DEX UI, executes the public-testnet
+feature-suite bundle, and verifies the operator archive manifest before
+sharing.
 
 The `append` command writes post-bootstrap testnet DEX blocks under the node
 data directory. The `pull-live` command fetches live block bodies from a peer
