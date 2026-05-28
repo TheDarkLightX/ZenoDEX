@@ -20,6 +20,11 @@ repository = "https://github.com/TheDarkLightX/ZenoDEX"
 sha2 = "0.10"
 thiserror = "2"
 hex = "0.4"
+# num-bigint is used ONLY by the zUSD kernel for CDP ratio intermediates
+# (collateral*price*bps style products) that exceed u128 at the authority's
+# 1e30 amount bound, mirroring Python's arbitrary-precision int semantics so the
+# Rust shadow never diverges on large values. Pure-integer, deterministic.
+num-bigint = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 proptest = "1"

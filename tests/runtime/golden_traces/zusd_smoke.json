@@ -1,0 +1,213 @@
+{
+  "final_state_root": "0xb179ee9779f24d777b32588cbb6b2721ab3fb5ef180c06774c242f41e17fe75b",
+  "initial_state_root": "0xfdcff8b02119e64b8c9dcffb141064e9a63c94e579e3fcc4eceb533943b72d59",
+  "kernel": "zusd",
+  "steps": [
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "mint_blocked_oracle",
+      "post_state_root": "0xfdcff8b02119e64b8c9dcffb141064e9a63c94e579e3fcc4eceb533943b72d59",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 20000000000,
+        "kind": "mint_zusd"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "bootstrap_requires_auth",
+      "post_state_root": "0xfdcff8b02119e64b8c9dcffb141064e9a63c94e579e3fcc4eceb533943b72d59",
+      "receipt_hash": null,
+      "tx": {
+        "auth_ok": false,
+        "kind": "bootstrap_oracle",
+        "price_e8": 100000000
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x381e3c75c7c3336f34e8124a31fe11e704db7bc2b1f46f8dcc8cf487dbcaaf5a",
+      "receipt_hash": "0x85ea9f79981385ce8b5d07ddc5d6775ae559c38270bed3fca5b6be62b323ee3c",
+      "tx": {
+        "auth_ok": true,
+        "kind": "bootstrap_oracle",
+        "price_e8": 100000000
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "oracle_already_bootstrapped",
+      "post_state_root": "0x381e3c75c7c3336f34e8124a31fe11e704db7bc2b1f46f8dcc8cf487dbcaaf5a",
+      "receipt_hash": null,
+      "tx": {
+        "auth_ok": true,
+        "kind": "bootstrap_oracle",
+        "price_e8": 100000000
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "mint_violates_mcr",
+      "post_state_root": "0x381e3c75c7c3336f34e8124a31fe11e704db7bc2b1f46f8dcc8cf487dbcaaf5a",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 20000000000,
+        "kind": "mint_zusd"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x972b7901df26b7ed94624eb82298e3605d02a55f9108a2f695df6e39f4adf87c",
+      "receipt_hash": "0x01d9e8f05859c71c366618251bc2735a7f2ef40d44b3678955c66a7df9221b22",
+      "tx": {
+        "amount_e8": 100000000000,
+        "kind": "deposit_collateral"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "mint_below_min_debt",
+      "post_state_root": "0x972b7901df26b7ed94624eb82298e3605d02a55f9108a2f695df6e39f4adf87c",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 1,
+        "kind": "mint_zusd"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xa226f480c6fc3cdf423e6ff4229b493160b52da31d21b55e84e1c112e5e439e8",
+      "receipt_hash": "0x4bbd550aacd50785a4a1373c0e873d3ef5cba6c73a0dcd559af8d6c1cacdb102",
+      "tx": {
+        "amount_e8": 20000000000,
+        "kind": "mint_zusd"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x99fac42d344e517406635a5e9117f298c2939fd9a8d94ff6c2dfa3730dbb080b",
+      "receipt_hash": "0x84f6e13e619846466f94fe3154674d6ff857f1c8fd2f47d171e1408fd108f6b2",
+      "tx": {
+        "amount_e8": 5000000000,
+        "kind": "repay_zusd"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x5c26b07cb9a392e6d036ce634bec0d2aad59e7f97d0518f2ca88c3d56f9ecfd6",
+      "receipt_hash": "0xef76aff438de2bc077efa9c446f5068bfbdfbe16fb4ee8c3ba9b6cd62fdc7eec",
+      "tx": {
+        "amount_e8": 1000000000,
+        "kind": "redeem_zusd"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "insufficient_collateral",
+      "post_state_root": "0x5c26b07cb9a392e6d036ce634bec0d2aad59e7f97d0518f2ca88c3d56f9ecfd6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 100000000000,
+        "kind": "withdraw_collateral"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xecf361ec1c52bf9a1cccec14fcf7c380ee2042d8ada1a53bff4dca869ab27458",
+      "receipt_hash": "0x1d3279cdd8d1870191fe7fe002a754913e91547bb20b91ac07ea7381cc70f292",
+      "tx": {
+        "delta": 5,
+        "kind": "advance_epoch"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "not_positive_int",
+      "post_state_root": "0xecf361ec1c52bf9a1cccec14fcf7c380ee2042d8ada1a53bff4dca869ab27458",
+      "receipt_hash": null,
+      "tx": {
+        "delta": 0,
+        "kind": "advance_epoch"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xad5fa8988a5bf6d388db176afdd51713344854536dbc99c5ce21d721f1332bf8",
+      "receipt_hash": "0x90cbe346085ac2e5470315261591a1e6c6a9702232d7545509167552f5157598",
+      "tx": {
+        "auth_ok": true,
+        "kind": "oracle_report",
+        "price_e8": 90000000
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "report_price_not_non_increasing",
+      "post_state_root": "0xad5fa8988a5bf6d388db176afdd51713344854536dbc99c5ce21d721f1332bf8",
+      "receipt_hash": null,
+      "tx": {
+        "auth_ok": true,
+        "kind": "oracle_report",
+        "price_e8": 200000000
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "mint_blocked_oracle",
+      "post_state_root": "0xad5fa8988a5bf6d388db176afdd51713344854536dbc99c5ce21d721f1332bf8",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 20000000000,
+        "kind": "mint_zusd"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xb179ee9779f24d777b32588cbb6b2721ab3fb5ef180c06774c242f41e17fe75b",
+      "receipt_hash": "0x36a5271210564c7b6976de3e5bb74bbff46998aff04661a173d7c193e343589e",
+      "tx": {
+        "auth_ok": true,
+        "kind": "oracle_commit"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_action",
+      "post_state_root": "0xb179ee9779f24d777b32588cbb6b2721ab3fb5ef180c06774c242f41e17fe75b",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 1,
+        "kind": "frobnicate"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "repay_exceeds_debt",
+      "post_state_root": "0xb179ee9779f24d777b32588cbb6b2721ab3fb5ef180c06774c242f41e17fe75b",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 999000000000,
+        "kind": "repay_zusd"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "redeem_exceeds_debt",
+      "post_state_root": "0xb179ee9779f24d777b32588cbb6b2721ab3fb5ef180c06774c242f41e17fe75b",
+      "receipt_hash": null,
+      "tx": {
+        "amount_e8": 999000000000,
+        "kind": "redeem_zusd"
+      }
+    }
+  ],
+  "version": 1
+}

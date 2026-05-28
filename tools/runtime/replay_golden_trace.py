@@ -27,6 +27,7 @@ for _p in (str(_REPO), str(_HERE)):
 import balance_kernel_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
+import zusd_kernel_lib  # noqa: E402
 
 # kernel -> (replay_trace, ReplayMismatch) from the owning library.
 _REPLAYERS = {
@@ -36,6 +37,7 @@ _REPLAYERS = {
         balance_kernel_lib.replay_trace,
         balance_kernel_lib.ReplayMismatch,
     ),
+    zusd_kernel_lib.KERNEL: (zusd_kernel_lib.replay_trace, zusd_kernel_lib.ReplayMismatch),
 }
 
 

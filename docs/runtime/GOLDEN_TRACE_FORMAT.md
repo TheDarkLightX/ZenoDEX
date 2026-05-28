@@ -131,6 +131,30 @@ asset → amount → self → insufficient → overflow. Zero balances are never
 `domain_sep("balance_receipt", v1)` over `KND` `SND`(presence+sender) `RCP`
 `AST` `AMT`.
 
+## `tx` kinds — `zusd`
+
+```json
+{ "kind": "bootstrap_oracle", "auth_ok": true, "price_e8": 100000000 }
+{ "kind": "deposit_collateral", "amount_e8": 100000000000 }
+{ "kind": "mint_zusd", "amount_e8": 20000000000 }
+{ "kind": "redeem_zusd", "amount_e8": 1000000000 }
+{ "kind": "advance_epoch", "delta": 5 }
+{ "kind": "oracle_report" | "oracle_commit" | "repay_zusd" | "withdraw_collateral"
+        | "deposit_sp" | "withdraw_sp" | "liquidate", ... }
+```
+
+Replayed via `replay-zusd-trace`. The authority is `src/core/zusd.py`'s
+single-vault `step`; the Rust shadow mirrors it. Unknown fields are **ignored**
+(matching the authority). Amounts are arbitrary positive integers — the
+authority's `_require_pos_int` is unbounded and oversized values are rejected by
+command-specific logic, so the shadow uses bignum arithmetic. Reject reasons are
+stable codes mapped from the authority's prose (e.g. `mint_blocked_oracle`,
+`mint_below_min_debt`, `mint_violates_mcr`, `redeem_violates_mcr`,
+`not_positive_int`, `bounded_check_failed`, `invariant_violation`,
+`unknown_action`, ...); see `tools/runtime/zusd_kernel_lib.py`. State root is
+`domain_sep("zusd_state", v1)` over the 32 state fields as uvarints; the receipt
+hash commits to `(command_tag, post_state_root)`.
+
 ## Rejection codes (stable)
 
 Every rejection carries a stable machine code. Domain-constraint rejections
