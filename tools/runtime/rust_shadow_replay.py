@@ -81,6 +81,7 @@ _SUBCOMMAND_BY_KERNEL = {
     "replay_guard": "replay-guard-trace",
     "balances": "replay-balance-trace",
     "zusd": "replay-zusd-trace",
+    "burn_receipts": "verify-burn-trace",
 }
 
 

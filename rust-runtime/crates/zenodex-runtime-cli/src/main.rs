@@ -8,6 +8,7 @@
 //! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
+//! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -27,6 +28,9 @@ use serde::Serialize;
 use serde_json::Value;
 use zenodex_runtime_core::balance_kernel::{
     canonical_asset, canonical_pubkey, credit, transfer, BalanceState, MAX_BALANCE,
+};
+use zenodex_runtime_core::burn_receipts::{
+    rail_receipt_hash, stateless_root, verify_rails, RailInputs,
 };
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::zusd::{step as zusd_step, ZusdCommand, ZusdState};
@@ -369,6 +373,71 @@ fn eval_zusd_tx(state: &ZusdState, tx: &Value) -> Eval<ZusdState> {
     }
 }
 
+// --- burn_receipts kernel (stateless rail verifier) ---------------------------
+
+const BURN_RAIL_FIELDS: [&str; 11] = [
+    "do_burn",
+    "receipt_bound",
+    "nullifier_unused",
+    "policy_ok",
+    "burn_amount",
+    "receipt_amount",
+    "burn_budget",
+    "supply_before",
+    "supply_after",
+    "batch_burn_sum_before",
+    "batch_burn_sum_after",
+];
+
+/// Extract an integer rail field, saturating out-of-`i64` integers (the rails
+/// reject anything outside `[0, 0xFFFF]` regardless, matching Python's bigint).
+fn rail_field(obj: &serde_json::Map<String, Value>, key: &str) -> Option<i64> {
+    let s = obj.get(key).and_then(classify_integer)?;
+    Some(s.parse::<i64>().unwrap_or(if s.starts_with('-') {
+        i64::MIN
+    } else {
+        i64::MAX
+    }))
+}
+
+fn burn_state_root(_: &()) -> String {
+    stateless_root()
+}
+
+fn eval_burn_tx(_state: &(), tx: &Value) -> Eval<()> {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return Eval::Reject("bad_numeric_field".to_string()),
+    };
+    let mut vals = [0i64; 11];
+    for (i, key) in BURN_RAIL_FIELDS.iter().enumerate() {
+        match rail_field(obj, key) {
+            Some(v) => vals[i] = v,
+            None => return Eval::Reject("bad_numeric_field".to_string()),
+        }
+    }
+    let r = RailInputs {
+        do_burn: vals[0],
+        receipt_bound: vals[1],
+        nullifier_unused: vals[2],
+        policy_ok: vals[3],
+        burn_amount: vals[4],
+        receipt_amount: vals[5],
+        burn_budget: vals[6],
+        supply_before: vals[7],
+        supply_after: vals[8],
+        batch_burn_sum_before: vals[9],
+        batch_burn_sum_after: vals[10],
+    };
+    match verify_rails(&r) {
+        Ok(()) => Eval::Accept {
+            receipt_hash: rail_receipt_hash(&r),
+            next: (),
+        },
+        Err(code) => Eval::Reject(code.to_string()),
+    }
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -453,11 +522,12 @@ fn main() -> ExitCode {
                 | "replay-guard-trace"
                 | "replay-balance-trace"
                 | "replay-zusd-trace"
+                | "verify-burn-trace"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
-             replay-zusd-trace> <trace.json|->"
+             replay-zusd-trace|verify-burn-trace> <trace.json|->"
         );
         return ExitCode::from(2);
     }
@@ -506,6 +576,7 @@ fn main() -> ExitCode {
             ZusdState::state_root,
             eval_zusd_tx,
         ),
+        "verify-burn-trace" => drive(&trace, "burn_receipts", (), burn_state_root, eval_burn_tx),
         _ => unreachable!(),
     };
 

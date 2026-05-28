@@ -160,6 +160,27 @@ stable codes mapped from the authority's prose (e.g. `mint_blocked_oracle`,
 `domain_sep("zusd_state", v1)` over the 32 state fields as uvarints; the receipt
 hash commits to `(command_tag, post_state_root)`.
 
+## `tx` kinds — `burn_receipts`
+
+A **stateless** rail verifier (each `tx` is a self-contained burn-rail tuple of
+11 integer fields):
+
+```json
+{ "do_burn": 1, "receipt_bound": 1, "nullifier_unused": 1, "policy_ok": 1,
+  "burn_amount": 10, "receipt_amount": 10, "burn_budget": 10,
+  "supply_before": 100, "supply_after": 90,
+  "batch_burn_sum_before": 0, "batch_burn_sum_after": 10 }
+```
+
+Replayed via `verify-burn-trace`. The authority is `src/core/burn_receipts.py`'s
+four rails (replay / amount-budget / supply / batch-sum). Reject codes
+(in evaluation order): `bad_numeric_field` (missing / non-integer field),
+`replay_guard_failed`, `amount_guard_failed`, `supply_guard_failed`,
+`batch_sum_guard_failed`. Because the verifier is stateless, every
+`post_state_root` equals the `initial_state_root`; on accept the `receipt_hash`
+commits to the validated rail tuple. The receipt structural envelope (schema /
+canonical-JSON hash) of `verify_burn_receipt` is validated in Python only.
+
 ## Rejection codes (stable)
 
 Every rejection carries a stable machine code. Domain-constraint rejections
