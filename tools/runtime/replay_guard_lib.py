@@ -8,6 +8,10 @@ surface 1). The trace schema is identical (version / kernel / steps with
 
     "tx": { "kind": "admit", "sender": "0x<96 hex>", "nonce": 3 }
 
+Sender canonicalization mirrors ``canonical_hex_fixed_allow_0x``: raw hex,
+``0x`` / ``0X`` prefixes, mixed case, and surrounding whitespace collapse to
+lowercase ``0x`` form.
+
 Callers must ensure the repo root is on ``sys.path``.
 """
 
@@ -96,7 +100,7 @@ def smoke_tx_sequence() -> list[dict]:
         _admit_tx(_A, 1),  # accept
         _admit_tx(_B, 1),  # accept (independent of A)
         _admit_tx(_A, 2),  # accept
-        _admit_tx(_B[2:], 2),  # accept: raw hex canonicalizes like NonceTable
+        _admit_tx(f"  0X{_B[2:].upper()}  ", 2),  # accept: canonicalizes like NonceTable
         _admit_tx(_A, 2),  # duplicate_nonce
         _admit_tx(_A, 1),  # stale_nonce (replay of older)
         _admit_tx(_B, 2),  # duplicate_nonce after raw-hex B nonce 2

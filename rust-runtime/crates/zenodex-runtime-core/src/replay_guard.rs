@@ -54,10 +54,11 @@ impl ReplayRejectedReason {
 /// Canonicalize a sender: raw or `0x`-prefixed 96 hex chars -> lowercase
 /// `0x`-prefixed form, else `None`. This matches `src.state.nonces.NonceTable`.
 pub fn canonical_sender(sender: &str) -> Option<String> {
-    let body = sender
+    let trimmed = sender.trim();
+    let body = trimmed
         .strip_prefix("0x")
-        .or_else(|| sender.strip_prefix("0X"))
-        .unwrap_or(sender);
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .unwrap_or(trimmed);
     if body.len() != SENDER_NBYTES * 2 {
         return None;
     }
@@ -241,12 +242,22 @@ mod tests {
     fn raw_hex_sender_matches_nonce_table_canonicalization() {
         let prefixed = sender(0x11);
         let raw = prefixed.strip_prefix("0x").unwrap();
+        let upper = format!("0X{}", raw.to_ascii_uppercase());
+        let spaced = format!("  {}  ", upper);
         let first = sequence_values().next().unwrap();
         let a = admit(&ReplayGuardState::default(), &prefixed, first).unwrap();
         let b = admit(&ReplayGuardState::default(), raw, first).unwrap();
+        let c = admit(&ReplayGuardState::default(), &upper, first).unwrap();
+        let d = admit(&ReplayGuardState::default(), &spaced, first).unwrap();
         assert_eq!(b.receipt.sender, prefixed);
+        assert_eq!(c.receipt.sender, prefixed);
+        assert_eq!(d.receipt.sender, prefixed);
         assert_eq!(a.receipt.receipt_hash(), b.receipt.receipt_hash());
+        assert_eq!(a.receipt.receipt_hash(), c.receipt.receipt_hash());
+        assert_eq!(a.receipt.receipt_hash(), d.receipt.receipt_hash());
         assert_eq!(a.state.state_root(), b.state.state_root());
+        assert_eq!(a.state.state_root(), c.state.state_root());
+        assert_eq!(a.state.state_root(), d.state.state_root());
     }
 
     #[test]

@@ -24,6 +24,7 @@ for _p in (str(_REPO), str(_HERE)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import balance_kernel_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 
@@ -31,6 +32,10 @@ import replay_guard_lib  # noqa: E402
 _REPLAYERS = {
     golden_trace_lib.KERNEL: (golden_trace_lib.replay_trace, golden_trace_lib.ReplayMismatch),
     replay_guard_lib.KERNEL: (replay_guard_lib.replay_trace, replay_guard_lib.ReplayMismatch),
+    balance_kernel_lib.KERNEL: (
+        balance_kernel_lib.replay_trace,
+        balance_kernel_lib.ReplayMismatch,
+    ),
 }
 
 

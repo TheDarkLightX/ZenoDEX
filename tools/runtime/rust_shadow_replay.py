@@ -79,6 +79,7 @@ def locate_or_build_cli(*, allow_build: bool = True) -> Path:
 _SUBCOMMAND_BY_KERNEL = {
     "fee_router": "replay-fee-trace",
     "replay_guard": "replay-guard-trace",
+    "balances": "replay-balance-trace",
 }
 
 
