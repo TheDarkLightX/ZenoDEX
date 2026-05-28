@@ -24,10 +24,16 @@ for _p in (str(_REPO), str(_HERE)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from golden_trace_lib import build_smoke_trace, replay_trace  # noqa: E402
+import golden_trace_lib  # noqa: E402
+import replay_guard_lib  # noqa: E402
 
+# scenario name -> (build_trace, replay_trace) from the owning kernel library.
 _SCENARIOS = {
-    "smoke": build_smoke_trace,
+    "smoke": (golden_trace_lib.build_smoke_trace, golden_trace_lib.replay_trace),
+    "replay_guard_smoke": (
+        replay_guard_lib.build_smoke_trace,
+        replay_guard_lib.replay_trace,
+    ),
 }
 
 
@@ -43,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    trace = _SCENARIOS[args.scenario]()
+    build_trace, replay_trace = _SCENARIOS[args.scenario]
+    trace = build_trace()
     # Self-check before writing: the trace must replay cleanly against the
     # runtime that produced it (guards against a half-baked exporter).
     summary = replay_trace(trace)

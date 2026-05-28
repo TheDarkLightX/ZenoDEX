@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - "src/core/fee_router.py"
+      - "src/core/replay_guard.py"
       - "src/state/canonical.py"
       - "tools/runtime/**"
       - "tests/runtime/**"
@@ -20,6 +21,7 @@ on:
       - master
     paths:
       - "src/core/fee_router.py"
+      - "src/core/replay_guard.py"
       - "src/state/canonical.py"
       - "tools/runtime/**"
       - "tests/runtime/**"
@@ -50,16 +52,23 @@ jobs:
       - name: Install deps
         run: python -m pip install --require-hashes -r requirements-dev.lock.txt
 
-      - name: Python runtime tests (reference + golden trace)
-        run: python -m pytest tests/runtime -q --ignore=tests/runtime/test_fee_router_conformance.py
+      - name: Python runtime tests (reference + golden trace + semantic invariants)
+        run: |
+          python -m pytest tests/runtime -q \
+            --ignore=tests/runtime/test_fee_router_conformance.py \
+            --ignore=tests/runtime/test_replay_guard_conformance.py
 
-      - name: Golden trace export is deterministic (byte-stable)
+      - name: Golden traces export deterministically (byte-stable)
         run: |
           python3 tools/runtime/export_golden_trace.py --out /tmp/smoke.json
           diff -u tests/runtime/golden_traces/smoke.json /tmp/smoke.json
+          python3 tools/runtime/export_golden_trace.py --scenario replay_guard_smoke --out /tmp/rg.json
+          diff -u tests/runtime/golden_traces/replay_guard_smoke.json /tmp/rg.json
 
-      - name: Golden trace replays cleanly
-        run: python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/smoke.json
+      - name: Golden traces replay cleanly
+        run: |
+          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/smoke.json
+          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/replay_guard_smoke.json
 
   rust-runtime:
     name: Rust core (test / clippy / fmt)
@@ -105,7 +114,11 @@ jobs:
         run: cargo build --bin zenodex-runtime
 
       - name: Python/Rust conformance differential
-        run: python -m pytest tests/runtime/test_fee_router_conformance.py -q
+        run: |
+          python -m pytest tests/runtime/test_fee_router_conformance.py \
+            tests/runtime/test_replay_guard_conformance.py -q
 
       - name: Shadow replay (Rust must agree with Python)
-        run: python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/smoke.json
+        run: |
+          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/smoke.json
+          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/replay_guard_smoke.json

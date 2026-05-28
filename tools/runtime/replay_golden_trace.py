@@ -24,7 +24,14 @@ for _p in (str(_REPO), str(_HERE)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from golden_trace_lib import ReplayMismatch, replay_trace  # noqa: E402
+import golden_trace_lib  # noqa: E402
+import replay_guard_lib  # noqa: E402
+
+# kernel -> (replay_trace, ReplayMismatch) from the owning library.
+_REPLAYERS = {
+    golden_trace_lib.KERNEL: (golden_trace_lib.replay_trace, golden_trace_lib.ReplayMismatch),
+    replay_guard_lib.KERNEL: (replay_guard_lib.replay_trace, replay_guard_lib.ReplayMismatch),
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,9 +45,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    kernel = trace.get("kernel")
+    if kernel not in _REPLAYERS:
+        print(f"error: unknown trace kernel: {kernel!r}", file=sys.stderr)
+        return 2
+    replay_trace, replay_mismatch = _REPLAYERS[kernel]
     try:
         summary = replay_trace(trace)
-    except ReplayMismatch as exc:
+    except replay_mismatch as exc:
         print(f"REPLAY MISMATCH: {exc}", file=sys.stderr)
         return 1
 

@@ -1,32 +1,34 @@
 #![forbid(unsafe_code)]
 //! `zenodex-runtime` — shadow/replay driver for the deterministic runtime core.
 //!
-//! Subcommand:
+//! Subcommands:
 //!
 //! ```text
-//! zenodex-runtime replay-fee-trace <trace.json|->
+//! zenodex-runtime replay-fee-trace   <trace.json|->   # kernel = fee_router
+//! zenodex-runtime replay-guard-trace <trace.json|->   # kernel = replay_guard
 //! ```
 //!
-//! Reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
-//! every `tx` through [`zenodex_runtime_core::route_fee`] threading a single
-//! [`FeeAccumulator`] from zero, and emits the *computed* per-step results
-//! (accept/reject, reason, receipt hash, pre/post state roots) as JSON on
-//! stdout. The Python conformance and shadow-replay harnesses compare this
-//! output against the values the authoritative Python runtime recorded.
+//! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
+//! every `tx` through the matching core transition threading a single state from
+//! the empty state, and emits the *computed* per-step results (accept/reject,
+//! reason, receipt hash, pre/post state roots) as JSON on stdout. The Python
+//! conformance and shadow harnesses compare this against the values the
+//! authoritative Python runtime recorded.
 //!
-//! The structural validation here mirrors `tools/runtime/golden_trace_lib.py`
-//! (`apply_tx`) byte-for-byte so the two runtimes reject identical inputs with
-//! identical reason strings.
+//! Structural validation here mirrors the Python trace libraries byte-for-byte
+//! so the two runtimes reject identical inputs with identical reason strings.
 
 use std::io::Read;
 use std::process::ExitCode;
 
 use serde::Serialize;
 use serde_json::Value;
+use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::{route_fee, FeeAccumulator, FeeSplitTable};
 
 const TX_FIELDS: [&str; 5] = ["kind", "source", "asset", "amount", "split_table"];
 const SPLIT_FIELDS: [&str; 4] = ["buyburn_bps", "stakers_bps", "reserve_bps", "hosts_bps"];
+const ADMIT_FIELDS: [&str; 3] = ["kind", "sender", "nonce"];
 
 #[derive(Serialize)]
 struct StepResult {
@@ -47,18 +49,16 @@ struct ReplayOutput {
     results: Vec<StepResult>,
 }
 
-enum Eval {
-    Accept {
-        receipt_hash: String,
-        new_acc: FeeAccumulator,
-    },
+/// A computed per-step outcome that owns the next state, generic over kernel.
+enum Eval<S> {
+    Accept { receipt_hash: String, next: S },
     Reject(String),
 }
 
-/// If `v` is an integer-shaped JSON number, return its literal string (e.g.
-/// `"-1"`, `"5192296858534827628530496329220096"`); otherwise `None`. Requires
-/// `serde_json`'s `arbitrary_precision` so large integers are not lossily
-/// coerced to `f64`.
+// --- Shared JSON helpers ------------------------------------------------------
+
+/// If `v` is an integer-shaped JSON number, return its literal string; else `None`.
+/// Requires `serde_json`'s `arbitrary_precision` so large integers are exact.
 fn classify_integer(v: &Value) -> Option<String> {
     match v {
         Value::Number(n) => {
@@ -74,9 +74,6 @@ fn classify_integer(v: &Value) -> Option<String> {
     }
 }
 
-/// Parse a bps value: integer-shaped numbers saturate to the `i64` range so
-/// out-of-range values are rejected by `route_fee` as `split_component_out_of_range`
-/// (matching the Python reference's unbounded-int behavior). Non-integers -> `None`.
 fn parse_bps(v: &Value) -> Option<i64> {
     let s = classify_integer(v)?;
     Some(s.parse::<i64>().unwrap_or(if s.starts_with('-') {
@@ -97,6 +94,8 @@ fn first_unknown_field<'a>(
     extras.sort_unstable();
     Some(format!("unknown_field:{}", extras[0]))
 }
+
+// --- fee_router kernel --------------------------------------------------------
 
 fn parse_split_table(v: Option<&Value>) -> Result<FeeSplitTable, String> {
     let obj = match v.and_then(|v| v.as_object()) {
@@ -121,21 +120,17 @@ fn parse_split_table(v: Option<&Value>) -> Result<FeeSplitTable, String> {
     })
 }
 
-fn eval_tx(acc: &FeeAccumulator, tx: &Value) -> Eval {
+fn eval_fee_tx(acc: &FeeAccumulator, tx: &Value) -> Eval<FeeAccumulator> {
     let obj = match tx.as_object() {
         Some(o) => o,
         None => return Eval::Reject("malformed_tx".to_string()),
     };
-
-    // 1) kind
     if obj.get("kind").and_then(Value::as_str) != Some("route_fee") {
         return Eval::Reject("unknown_tx_kind".to_string());
     }
-    // 2) no unknown tx fields
     if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &TX_FIELDS) {
         return Eval::Reject(reason);
     }
-    // 3) source / asset are strings; amount is integer-shaped
     let source = match obj.get("source").and_then(Value::as_str) {
         Some(s) => s,
         None => return Eval::Reject("malformed_tx".to_string()),
@@ -148,12 +143,10 @@ fn eval_tx(acc: &FeeAccumulator, tx: &Value) -> Eval {
         Some(s) => s,
         None => return Eval::Reject("malformed_tx".to_string()),
     };
-    // 4) split table (parsed before amount sign/range, mirroring Python order)
     let split = match parse_split_table(obj.get("split_table")) {
         Ok(t) => t,
         Err(reason) => return Eval::Reject(reason),
     };
-    // 5) amount sign + u128 fit
     if amount_str.starts_with('-') {
         return Eval::Reject("negative_amount".to_string());
     }
@@ -161,57 +154,95 @@ fn eval_tx(acc: &FeeAccumulator, tx: &Value) -> Eval {
         Ok(v) => v,
         Err(_) => return Eval::Reject("amount_too_large".to_string()),
     };
-    // 6) semantic transition
     match route_fee(source, asset, amount, &split, acc) {
         Ok(accepted) => Eval::Accept {
             receipt_hash: accepted.receipt.receipt_hash(),
-            new_acc: accepted.accumulator,
+            next: accepted.accumulator,
         },
         Err(reason) => Eval::Reject(reason.reason_str()),
     }
 }
 
-fn read_input(path: &str) -> std::io::Result<String> {
-    if path == "-" {
-        let mut s = String::new();
-        std::io::stdin().read_to_string(&mut s)?;
-        Ok(s)
-    } else {
-        std::fs::read_to_string(path)
+// --- replay_guard kernel ------------------------------------------------------
+
+fn eval_admit_tx(state: &ReplayGuardState, tx: &Value) -> Eval<ReplayGuardState> {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return Eval::Reject("malformed_tx".to_string()),
+    };
+    if obj.get("kind").and_then(Value::as_str) != Some("admit") {
+        return Eval::Reject("unknown_tx_kind".to_string());
+    }
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &ADMIT_FIELDS) {
+        return Eval::Reject(reason);
+    }
+    if !obj.contains_key("sender") || !obj.contains_key("nonce") {
+        return Eval::Reject("malformed_tx".to_string());
+    }
+    // Sender is validated (format + canonical) before the nonce, mirroring the
+    // Python `admit` order: a bad sender wins over a bad nonce.
+    let sender = match obj.get("sender").and_then(Value::as_str) {
+        Some(s) => s,
+        None => return Eval::Reject("invalid_sender".to_string()),
+    };
+    if canonical_sender(sender).is_none() {
+        return Eval::Reject("invalid_sender".to_string());
+    }
+    let nonce = match obj.get("nonce").and_then(classify_integer) {
+        Some(s) => match s.parse::<u64>() {
+            Ok(v) if (1..=U32_MAX).contains(&v) => v,
+            _ => return Eval::Reject("invalid_nonce".to_string()),
+        },
+        None => return Eval::Reject("invalid_nonce".to_string()),
+    };
+    match admit(state, sender, nonce) {
+        Ok(accepted) => Eval::Accept {
+            receipt_hash: accepted.receipt.receipt_hash(),
+            next: accepted.state,
+        },
+        Err(reason) => Eval::Reject(reason.reason_str()),
     }
 }
 
-fn run(trace: &Value) -> Result<ReplayOutput, String> {
+// --- Generic trace driver -----------------------------------------------------
+
+/// Replay every step, threading `state` from its initial value via `eval`.
+fn drive<S, F>(
+    trace: &Value,
+    kernel: &str,
+    initial: S,
+    root: fn(&S) -> String,
+    eval: F,
+) -> Result<ReplayOutput, String>
+where
+    F: Fn(&S, &Value) -> Eval<S>,
+{
     let steps = trace
         .get("steps")
         .and_then(Value::as_array)
         .ok_or_else(|| "trace has no \"steps\" array".to_string())?;
 
-    let mut acc = FeeAccumulator::default();
-    let initial_state_root = acc.state_root();
+    let mut state = initial;
+    let initial_state_root = root(&state);
     let null = Value::Null;
     let mut results = Vec::with_capacity(steps.len());
 
     for (index, step) in steps.iter().enumerate() {
-        let pre_state_root = acc.state_root();
+        let pre_state_root = root(&state);
         let tx = step.get("tx").unwrap_or(&null);
-        match eval_tx(&acc, tx) {
-            Eval::Accept {
-                receipt_hash,
-                new_acc,
-            } => {
-                acc = new_acc;
+        match eval(&state, tx) {
+            Eval::Accept { receipt_hash, next } => {
+                state = next;
                 results.push(StepResult {
                     index,
                     accept: true,
                     reject_reason: None,
                     receipt_hash: Some(receipt_hash),
                     pre_state_root,
-                    post_state_root: acc.state_root(),
+                    post_state_root: root(&state),
                 });
             }
             Eval::Reject(reason) => {
-                // Rejection => state unchanged.
                 results.push(StepResult {
                     index,
                     accept: false,
@@ -226,11 +257,21 @@ fn run(trace: &Value) -> Result<ReplayOutput, String> {
 
     Ok(ReplayOutput {
         version: 1,
-        kernel: "fee_router".to_string(),
+        kernel: kernel.to_string(),
         initial_state_root,
-        final_state_root: acc.state_root(),
+        final_state_root: root(&state),
         results,
     })
+}
+
+fn read_input(path: &str) -> std::io::Result<String> {
+    if path == "-" {
+        let mut s = String::new();
+        std::io::stdin().read_to_string(&mut s)?;
+        Ok(s)
+    } else {
+        std::fs::read_to_string(path)
+    }
 }
 
 fn main() -> ExitCode {
@@ -239,8 +280,9 @@ fn main() -> ExitCode {
         .first()
         .map(String::as_str)
         .unwrap_or("zenodex-runtime");
-    if args.len() != 3 || args[1] != "replay-fee-trace" {
-        eprintln!("usage: {prog} replay-fee-trace <trace.json|->");
+    let subcommand = args.get(1).map(String::as_str).unwrap_or("");
+    if args.len() != 3 || !matches!(subcommand, "replay-fee-trace" | "replay-guard-trace") {
+        eprintln!("usage: {prog} <replay-fee-trace|replay-guard-trace> <trace.json|->");
         return ExitCode::from(2);
     }
 
@@ -258,8 +300,27 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    match run(&trace) {
-        Ok(output) => match serde_json::to_string_pretty(&output) {
+
+    let output = match subcommand {
+        "replay-fee-trace" => drive(
+            &trace,
+            "fee_router",
+            FeeAccumulator::default(),
+            FeeAccumulator::state_root,
+            eval_fee_tx,
+        ),
+        "replay-guard-trace" => drive(
+            &trace,
+            "replay_guard",
+            ReplayGuardState::default(),
+            ReplayGuardState::state_root,
+            eval_admit_tx,
+        ),
+        _ => unreachable!(),
+    };
+
+    match output {
+        Ok(out) => match serde_json::to_string_pretty(&out) {
             Ok(s) => {
                 println!("{s}");
                 ExitCode::SUCCESS
