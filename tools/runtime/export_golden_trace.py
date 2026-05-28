@@ -25,6 +25,7 @@ for _p in (str(_REPO), str(_HERE)):
         sys.path.insert(0, _p)
 
 import balance_kernel_lib  # noqa: E402
+import burn_receipts_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 import zusd_kernel_lib  # noqa: E402
@@ -43,6 +44,10 @@ _SCENARIOS = {
     "zusd_smoke": (
         zusd_kernel_lib.build_smoke_trace,
         zusd_kernel_lib.replay_trace,
+    ),
+    "burn_smoke": (
+        burn_receipts_lib.build_smoke_trace,
+        burn_receipts_lib.replay_trace,
     ),
 }
 

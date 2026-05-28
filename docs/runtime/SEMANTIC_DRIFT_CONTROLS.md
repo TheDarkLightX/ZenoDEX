@@ -92,3 +92,4 @@ These fail on the buggy global-state model and pass on the keyed model.
 | `replay_guard` | `sender` | ✅ Python + Rust | ✅ static + 400-case |
 | `balances` | `(pubkey, asset)` | ✅ Python + Rust | ✅ static + 400-case |
 | `zusd` | single vault (CDP) | ✅ Python (supply conservation, balance-sheet deltas, no bad debt) | ✅ static + 500-case incl. >u128 |
+| `burn_receipts` | stateless rail tuple | ✅ Python (budget floor, supply conservation, accumulator, replay gate) | ✅ static + 600-case |
