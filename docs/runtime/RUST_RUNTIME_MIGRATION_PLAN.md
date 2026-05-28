@@ -54,7 +54,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅; next: zUSD → buyback burn → batch clearing |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, zUSD mint/redeem ✅; next: buyback burn → batch clearing |
 | 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
@@ -153,6 +153,31 @@ sparsely (zero entries dropped).
 * Conformance + invariants: `test_balance_kernel_conformance.py` (static +
   400-case) and `test_balance_kernel_semantic_invariants.py` (supply
   conservation, only-named-keys-change, non-negativity/sparsity, no-op-on-reject).
+
+## Phase 6 — zUSD mint/redeem accounting (delivered)
+
+Third widening surface, and the first with a pre-existing authoritative module:
+`src/core/zusd.py`'s single-vault `step` (oracle flow, recovery-mode gating, MCR,
+base-rate fees, mint/redeem/liquidate). The harness **drives that authority
+directly** (no second semantics); the Rust shadow `zenodex-runtime-core::zusd`
+mirrors it.
+
+Key fidelity point: zUSD's CDP ratio checks (`collateral * price * bps` vs
+`debt * mcr * 1e8`) reach ~`2^213` at the `1e30` amount bound — beyond `u128`.
+A `u128`-only port would silently diverge on large values (the drift trap), so
+the shadow computes those products with `num_bigint` and parses amounts as
+bignums (`_require_pos_int` is unbounded in the authority; huge values are
+rejected by *command-specific* logic, not a uniform bound). The 500-case
+differential deliberately includes amounts above `u128` to exercise this.
+
+* Authority: `src/core/zusd.py`; harness `tools/runtime/zusd_kernel_lib.py`.
+* Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/zusd.rs`.
+* Golden trace: `tests/runtime/golden_traces/zusd_smoke.json`
+  (`replay-zusd-trace` subcommand).
+* Conformance + invariants: `test_zusd_conformance.py` (static + 500-case
+  differential with bignum edges) and `test_zusd_semantic_invariants.py`
+  (supply conservation, mint/repay/redeem balance-sheet deltas, no bad debt,
+  no-op-on-reject).
 
 ## Avoiding semantic drift (lesson learned)
 

@@ -26,6 +26,7 @@ pub mod canonical;
 pub mod error;
 pub mod fee_router;
 pub mod replay_guard;
+pub mod zusd;
 
 pub use balance_kernel::{
     credit, transfer, BalanceAccepted, BalanceReceipt, BalanceRejectedReason, BalanceState,
@@ -39,3 +40,4 @@ pub use fee_router::{
 pub use replay_guard::{
     admit, AdmissionReceipt, AdmitAccepted, ReplayGuardState, ReplayRejectedReason,
 };
+pub use zusd::{step as zusd_step, ZusdAccepted, ZusdCommand, ZusdState};
