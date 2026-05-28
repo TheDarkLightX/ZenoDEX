@@ -63,7 +63,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 
 `route_fee(source, asset, amount, split_table, accumulator) -> receipt,
 new_accumulator` routes a per-domain protocol fee into four buckets — `buyburn`,
-`stakers`, `reserve`, `hosts` — with **dust carry**.
+`stakers`, `reserve`, `hosts` — with **source/asset-scoped dust carry**.
 
 Conservation invariant (identical in form to the ESSO `fee_split_dust_carry`
 kernel, generalized from 3 to 4 buckets):
@@ -71,6 +71,10 @@ kernel, generalized from 3 to 4 buckets):
 ```
 amount + dust_in == buyburn + stakers + reserve + hosts + dust_out
 ```
+
+`dust_in` and `dust_out` are keyed by `(source, asset)`. Cumulative bucket
+balances are keyed by `asset`, so zUSD, AGRS, quote assets, and future bridge
+assets cannot be added into one untyped integer.
 
 Safety floors enforced as explicit rejections (Hard Rule #10):
 

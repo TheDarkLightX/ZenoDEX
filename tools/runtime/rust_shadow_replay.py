@@ -50,16 +50,17 @@ def locate_or_build_cli(*, allow_build: bool = True) -> Path:
             raise ShadowError(f"ZENODEX_RUNTIME_BIN points at a missing file: {p}")
         return p
 
-    for profile in ("release", "debug"):
-        candidate = RUST_RUNTIME_DIR / "target" / profile / "zenodex-runtime"
-        if candidate.is_file():
-            return candidate
-
     if not allow_build:
+        for profile in ("release", "debug"):
+            candidate = RUST_RUNTIME_DIR / "target" / profile / "zenodex-runtime"
+            if candidate.is_file():
+                return candidate
         raise ShadowError("no prebuilt zenodex-runtime binary found and --no-build was set")
     if not cargo_available():
         raise ShadowError("cargo not found on PATH; cannot build the Rust shadow runtime")
 
+    # In normal test/review mode, always rebuild. Returning an existing binary
+    # can silently compare Python against stale Rust code after a source edit.
     build = subprocess.run(
         ["cargo", "build", "--quiet", "--bin", "zenodex-runtime"],
         cwd=str(RUST_RUNTIME_DIR),

@@ -4,8 +4,9 @@ Protocol fee router (deterministic, integer-only) -- 4-way split with dust carry
 This is the **reference / authoritative** implementation of ZenoDEX protocol-fee
 routing for the Rust runtime migration (see ``docs/runtime/``). It routes a
 per-domain protocol fee into four buckets -- ``buyburn``, ``stakers``,
-``reserve``, ``hosts`` -- carrying rounding dust forward so value is never
-stranded across repeated splits.
+``reserve``, ``hosts`` -- carrying rounding dust forward per ``(source, asset)``
+stream so value is never stranded across repeated splits or mixed across token
+units.
 
 This module is *distinct* from :mod:`src.core.fees`, which is the legacy 3-way
 swap-fee accumulator (``buyback`` / ``treasury`` / ``rewards``). That module and
@@ -33,7 +34,7 @@ When ``dust_in == 0`` this reduces to the task's literal statement
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Union
 
 from ..state.canonical import (
@@ -50,6 +51,8 @@ __all__ = [
     "DOMAINS",
     "FeeSplitTable",
     "FeeReceipt",
+    "FeeAssetAmount",
+    "FeeDustEntry",
     "FeeAccumulator",
     "RouteAccepted",
     "RouteRejected",
@@ -174,47 +177,205 @@ class FeeReceipt:
 
 
 @dataclass(frozen=True)
+class FeeAssetAmount:
+    """Canonical amount for one asset in one accumulator bucket."""
+
+    asset: str
+    amount: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.asset, str):
+            raise TypeError("asset must be a str")
+        if not _is_plain_int(self.amount):
+            raise TypeError("amount must be an int")
+        if self.amount < 0:
+            raise ValueError("amount must be non-negative")
+
+
+@dataclass(frozen=True)
+class FeeDustEntry:
+    """Rounding dust carried for exactly one source/asset fee stream."""
+
+    source: Domain
+    asset: str
+    amount: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.source, str):
+            raise TypeError("source must be a str")
+        if not isinstance(self.asset, str):
+            raise TypeError("asset must be a str")
+        if not _is_plain_int(self.amount):
+            raise TypeError("amount must be an int")
+        if self.amount < 0:
+            raise ValueError("amount must be non-negative")
+
+
+def _canonical_asset_amounts(entries: tuple[FeeAssetAmount, ...]) -> tuple[FeeAssetAmount, ...]:
+    if any(not isinstance(e, FeeAssetAmount) for e in entries):
+        raise TypeError("bucket entries must be FeeAssetAmount")
+    filtered = tuple(e for e in entries if e.amount != 0)
+    ordered = tuple(sorted(filtered, key=lambda e: e.asset))
+    for prev, cur in zip(ordered, ordered[1:]):
+        if prev.asset == cur.asset:
+            raise ValueError(f"duplicate asset accumulator entry: {cur.asset!r}")
+    return ordered
+
+
+def _canonical_dust_entries(entries: tuple[FeeDustEntry, ...]) -> tuple[FeeDustEntry, ...]:
+    if any(not isinstance(e, FeeDustEntry) for e in entries):
+        raise TypeError("dust entries must be FeeDustEntry")
+    filtered = tuple(e for e in entries if e.amount != 0)
+    ordered = tuple(sorted(filtered, key=lambda e: (e.source, e.asset)))
+    for prev, cur in zip(ordered, ordered[1:]):
+        if (prev.source, prev.asset) == (cur.source, cur.asset):
+            raise ValueError(
+                f"duplicate dust accumulator entry: {(cur.source, cur.asset)!r}"
+            )
+    return ordered
+
+
+def _asset_amount(entries: tuple[FeeAssetAmount, ...], asset: str) -> int:
+    for entry in entries:
+        if entry.asset == asset:
+            return entry.amount
+    return 0
+
+
+def _dust_amount(entries: tuple[FeeDustEntry, ...], source: Domain, asset: str) -> int:
+    for entry in entries:
+        if entry.source == source and entry.asset == asset:
+            return entry.amount
+    return 0
+
+
+def _set_asset_amount(
+    entries: tuple[FeeAssetAmount, ...], asset: str, amount: int
+) -> tuple[FeeAssetAmount, ...]:
+    rest = tuple(e for e in entries if e.asset != asset)
+    if amount == 0:
+        return rest
+    return _canonical_asset_amounts(rest + (FeeAssetAmount(asset=asset, amount=amount),))
+
+
+def _set_dust_amount(
+    entries: tuple[FeeDustEntry, ...], source: Domain, asset: str, amount: int
+) -> tuple[FeeDustEntry, ...]:
+    rest = tuple(e for e in entries if not (e.source == source and e.asset == asset))
+    if amount == 0:
+        return rest
+    return _canonical_dust_entries(
+        rest + (FeeDustEntry(source=source, asset=asset, amount=amount),)
+    )
+
+
+def _encode_asset_amounts(entries: tuple[FeeAssetAmount, ...]) -> bytes:
+    payload = encode_uvarint(len(entries))
+    for entry in entries:
+        payload += b"AST" + encode_bytes(entry.asset.encode("utf-8"))
+        payload += b"AMT" + encode_uvarint(entry.amount)
+    return payload
+
+
+def _encode_dust_entries(entries: tuple[FeeDustEntry, ...]) -> bytes:
+    payload = encode_uvarint(len(entries))
+    for entry in entries:
+        payload += b"SRC" + encode_bytes(entry.source.encode("ascii"))
+        payload += b"AST" + encode_bytes(entry.asset.encode("utf-8"))
+        payload += b"AMT" + encode_uvarint(entry.amount)
+    return payload
+
+
+@dataclass(frozen=True)
 class FeeAccumulator:
     """
     Carried fee-router state.
 
-    * ``dust`` -- rounding remainder carried into the next split (fee units).
-    * ``cum_*`` -- cumulative value routed to each bucket. ``cum_buyburn`` is the
-      buyback-accrual figure (accrual only; burn execution is a later module).
+    ``dust_by_stream`` is keyed by ``(source, asset)`` so a remainder from one
+    token or policy stream can never be consumed by another. The cumulative
+    buckets are keyed by ``asset`` because bucket balances in different token
+    units are not addable.
     """
 
-    dust: int = 0
-    cum_buyburn: int = 0
-    cum_stakers: int = 0
-    cum_reserve: int = 0
-    cum_hosts: int = 0
+    dust_by_stream: tuple[FeeDustEntry, ...] = ()
+    cum_buyburn: tuple[FeeAssetAmount, ...] = ()
+    cum_stakers: tuple[FeeAssetAmount, ...] = ()
+    cum_reserve: tuple[FeeAssetAmount, ...] = ()
+    cum_hosts: tuple[FeeAssetAmount, ...] = ()
 
     def __post_init__(self) -> None:
-        for name, v in (
-            ("dust", self.dust),
-            ("cum_buyburn", self.cum_buyburn),
-            ("cum_stakers", self.cum_stakers),
-            ("cum_reserve", self.cum_reserve),
-            ("cum_hosts", self.cum_hosts),
-        ):
-            if not _is_plain_int(v):
-                raise TypeError(f"{name} must be an int")
-            if v < 0:
-                raise ValueError(f"{name} must be non-negative")
+        if not isinstance(self.dust_by_stream, tuple):
+            raise TypeError("dust_by_stream must be a tuple")
+        if not isinstance(self.cum_buyburn, tuple):
+            raise TypeError("cum_buyburn must be a tuple")
+        if not isinstance(self.cum_stakers, tuple):
+            raise TypeError("cum_stakers must be a tuple")
+        if not isinstance(self.cum_reserve, tuple):
+            raise TypeError("cum_reserve must be a tuple")
+        if not isinstance(self.cum_hosts, tuple):
+            raise TypeError("cum_hosts must be a tuple")
+
+        object.__setattr__(
+            self, "dust_by_stream", _canonical_dust_entries(self.dust_by_stream)
+        )
+        object.__setattr__(self, "cum_buyburn", _canonical_asset_amounts(self.cum_buyburn))
+        object.__setattr__(self, "cum_stakers", _canonical_asset_amounts(self.cum_stakers))
+        object.__setattr__(self, "cum_reserve", _canonical_asset_amounts(self.cum_reserve))
+        object.__setattr__(self, "cum_hosts", _canonical_asset_amounts(self.cum_hosts))
+
+    def dust_for(self, source: Domain, asset: str) -> int:
+        return _dust_amount(self.dust_by_stream, source, asset)
+
+    def bucket_total(self, bucket: str, asset: str) -> int:
+        return _asset_amount(getattr(self, bucket), asset)
+
+    def with_dust(self, source: Domain, asset: str, amount: int) -> "FeeAccumulator":
+        return FeeAccumulator(
+            dust_by_stream=_set_dust_amount(self.dust_by_stream, source, asset, amount),
+            cum_buyburn=self.cum_buyburn,
+            cum_stakers=self.cum_stakers,
+            cum_reserve=self.cum_reserve,
+            cum_hosts=self.cum_hosts,
+        )
+
+    def with_bucket_amount(self, bucket: str, asset: str, amount: int) -> "FeeAccumulator":
+        return FeeAccumulator(
+            dust_by_stream=self.dust_by_stream,
+            cum_buyburn=(
+                _set_asset_amount(self.cum_buyburn, asset, amount)
+                if bucket == "cum_buyburn"
+                else self.cum_buyburn
+            ),
+            cum_stakers=(
+                _set_asset_amount(self.cum_stakers, asset, amount)
+                if bucket == "cum_stakers"
+                else self.cum_stakers
+            ),
+            cum_reserve=(
+                _set_asset_amount(self.cum_reserve, asset, amount)
+                if bucket == "cum_reserve"
+                else self.cum_reserve
+            ),
+            cum_hosts=(
+                _set_asset_amount(self.cum_hosts, asset, amount)
+                if bucket == "cum_hosts"
+                else self.cum_hosts
+            ),
+        )
 
     def state_root(self) -> str:
         payload = (
             domain_sep_bytes(ACCUMULATOR_DOMAIN_SEP_LABEL, version=ACCUMULATOR_VERSION)
             + b"DST"
-            + encode_uvarint(self.dust)
+            + _encode_dust_entries(self.dust_by_stream)
             + b"CBB"
-            + encode_uvarint(self.cum_buyburn)
+            + _encode_asset_amounts(self.cum_buyburn)
             + b"CST"
-            + encode_uvarint(self.cum_stakers)
+            + _encode_asset_amounts(self.cum_stakers)
             + b"CRS"
-            + encode_uvarint(self.cum_reserve)
+            + _encode_asset_amounts(self.cum_reserve)
             + b"CHS"
-            + encode_uvarint(self.cum_hosts)
+            + _encode_asset_amounts(self.cum_hosts)
         )
         return sha256_hex(payload)
 
@@ -342,8 +503,11 @@ def route_fee(
     if domain_rej is not None:
         return domain_rej
 
-    # 6) Deterministic floor split with dust carry.
-    total = amount + accumulator.dust
+    # 6) Deterministic floor split with dust carry. Dust is carried only within
+    # the same source/asset stream, so token units and fee-policy streams cannot
+    # contaminate each other.
+    dust_in = accumulator.dust_for(source, asset)
+    total = amount + dust_in
     buyburn = (total * split_table.buyburn_bps) // BPS_DENOM
     stakers = (total * split_table.stakers_bps) // BPS_DENOM
     reserve = (total * split_table.reserve_bps) // BPS_DENOM
@@ -355,16 +519,20 @@ def route_fee(
     dust_out = total - distributed
 
     # 7) Accumulate (defensive overflow guard keeps parity with the u128 shadow).
-    new_acc = FeeAccumulator(
-        dust=dust_out,
-        cum_buyburn=accumulator.cum_buyburn + buyburn,
-        cum_stakers=accumulator.cum_stakers + stakers,
-        cum_reserve=accumulator.cum_reserve + reserve,
-        cum_hosts=accumulator.cum_hosts + hosts,
-    )
-    for v in (new_acc.cum_buyburn, new_acc.cum_stakers, new_acc.cum_reserve, new_acc.cum_hosts):
+    new_buyburn = accumulator.bucket_total("cum_buyburn", asset) + buyburn
+    new_stakers = accumulator.bucket_total("cum_stakers", asset) + stakers
+    new_reserve = accumulator.bucket_total("cum_reserve", asset) + reserve
+    new_hosts = accumulator.bucket_total("cum_hosts", asset) + hosts
+    for v in (new_buyburn, new_stakers, new_reserve, new_hosts):
         if v > MAX_FEE_AMOUNT:
             return RouteRejected(REJ_ARITHMETIC_OVERFLOW)
+    new_acc = (
+        accumulator.with_dust(source, asset, dust_out)
+        .with_bucket_amount("cum_buyburn", asset, new_buyburn)
+        .with_bucket_amount("cum_stakers", asset, new_stakers)
+        .with_bucket_amount("cum_reserve", asset, new_reserve)
+        .with_bucket_amount("cum_hosts", asset, new_hosts)
+    )
 
     receipt = FeeReceipt(
         source=source,
@@ -403,10 +571,12 @@ def apply_step(
         accumulator=accumulator,
     )
     if isinstance(result, RouteAccepted):
-        assert _conservation_holds(amount, accumulator.dust, result.receipt)
+        assert _conservation_holds(amount, accumulator.dust_for(source, asset), result.receipt)
     return result
 
 
-def with_dust(accumulator: FeeAccumulator, dust: int) -> FeeAccumulator:
-    """Return a copy of ``accumulator`` with ``dust`` replaced (test helper)."""
-    return replace(accumulator, dust=dust)
+def with_dust(
+    accumulator: FeeAccumulator, dust: int, *, source: Domain = DEX, asset: str = "zUSD"
+) -> FeeAccumulator:
+    """Return a copy of ``accumulator`` with one stream's dust replaced."""
+    return accumulator.with_dust(source, asset, dust)

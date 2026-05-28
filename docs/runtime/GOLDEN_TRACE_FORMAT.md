@@ -139,8 +139,14 @@ ordered byte pre-image built with the repo's canonical primitives
 `SRC`(source) `AST`(asset) `AMT`(amount) `BBN`(buyburn) `STK`(stakers)
 `RSV`(reserve) `HST`(hosts) `DST`(dust).
 
-**Accumulator root** (`domain_sep "fee_accumulator" v1`): `DST`(dust)
-`CBB`(cum_buyburn) `CST`(cum_stakers) `CRS`(cum_reserve) `CHS`(cum_hosts).
+**Accumulator root** (`domain_sep "fee_accumulator" v1`): `DST` encodes a
+sorted list of `(source, asset, amount)` dust entries. `CBB`, `CST`, `CRS`, and
+`CHS` each encode a sorted list of `(asset, amount)` bucket entries for
+buyburn, stakers, reserve, and hosts. Empty and zero entries are omitted.
+
+Dust is scoped by `(source, asset)`. Bucket totals are scoped by `asset`. This
+prevents a remainder or balance in one token unit from being consumed as another
+token unit.
 
 No floats appear anywhere in a pre-image; all numbers are LEB128-encoded
 integers. Output ordering is explicit (never map iteration).
@@ -159,7 +165,7 @@ integers. Output ordering is explicit (never map iteration).
 
 `smoke.json` exercises, **in scope for the `fee_router` kernel**: fee-split
 conservation across all four domains, host fee routing, buyback (`buyburn`)
-accrual, dust carry, and every rejection code above.
+accrual, source/asset-scoped dust carry, and every rejection code above.
 
 Disaster paths that belong to **other** runtime surfaces — duplicate/replayed
 payout rejection, invalid signature, insufficient balance, zUSD mint/redeem,

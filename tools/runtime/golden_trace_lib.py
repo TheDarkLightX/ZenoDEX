@@ -189,6 +189,10 @@ def smoke_tx_sequence() -> list[dict]:
         # --- happy: dust carry then release ---
         _tx("dex", 3, dex),
         _tx("dex", 9_999, dex),
+        # --- happy: dust is scoped by source and asset ---
+        _tx("dex", 1, dex, asset="tZUSD"),
+        _tx("dex", 9_999, dex, asset="tAGRS"),
+        _tx("perps", 9_999, perps, asset="tZUSD"),
         # --- disaster: domain safety floors ---
         _tx("redemption", 1_000, FeeSplitTable(1, 5_999, 4_000, 0)),
         _tx("redemption", 1_000, FeeSplitTable(0, 5_999, 4_000, 1)),

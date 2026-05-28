@@ -18,7 +18,7 @@ rust-runtime/
     │       ├── arith.rs            # explicit checked u128 arithmetic
     │       ├── canonical.rs        # LEB128 / domain-sep / sha256 (mirrors Python)
     │       ├── error.rs            # RejectedReason (thiserror), stable codes
-    │       └── fee_router.rs       # route_fee: 4-way split + dust carry
+    │       └── fee_router.rs       # route_fee: 4-way split + asset-scoped dust
     └── zenodex-runtime-cli/        # bin `zenodex-runtime`: trace replay bridge
         └── src/main.rs
 ```
@@ -58,6 +58,8 @@ pytest tests/runtime/test_fee_router_conformance.py -q
   `Result<Accepted, RejectedReason>` (Hard Rule #10).
 * Canonical output is built from explicit, ordered byte encodings — never from
   unordered map iteration.
+* Fee-router dust is scoped by `(source, asset)` and bucket totals are scoped by
+  `asset`, so token units cannot cross-contaminate.
 
 ## Dependency rationale (minimal trusted surface)
 

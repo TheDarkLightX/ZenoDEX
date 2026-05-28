@@ -25,6 +25,10 @@ buy-burn. It is implemented and conformance-tested today:
 Rust is **not** production-authoritative for fee routing yet — Python remains
 the authority and Rust is the shadow checker.
 
+The fee-router accumulator is asset-aware. Dust is keyed by `(source, asset)`;
+bucket totals are keyed by `asset`. This is part of the trusted-core boundary
+because fee units from different tokens must never be merged into one scalar.
+
 ## Trusted-core boundary table
 
 `RC?` = runtime-critical. *Evidence required* lists what must be green before a

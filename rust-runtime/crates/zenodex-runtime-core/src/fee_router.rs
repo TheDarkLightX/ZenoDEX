@@ -123,7 +123,7 @@ pub fn canonical_split_table(domain: Domain) -> FeeSplitTable {
 }
 
 /// Receipt for a single routed fee. `amount` is the raw input fee; `dust` is the
-/// remainder carried out (equal to the new accumulator's `dust`).
+/// remainder carried out for this `(source, asset)` stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeeReceipt {
     pub source: String,
@@ -161,32 +161,160 @@ impl FeeReceipt {
     }
 }
 
-/// Carried fee-router state. `cum_buyburn` is the buyback-accrual figure
-/// (accrual only; burn execution is a later module).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Canonical amount for one asset in one accumulator bucket.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssetAmount {
+    pub asset: String,
+    pub amount: u128,
+}
+
+/// Rounding dust carried for exactly one source/asset fee stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DustEntry {
+    pub source: String,
+    pub asset: String,
+    pub amount: u128,
+}
+
+fn canonical_asset_amounts(mut entries: Vec<AssetAmount>) -> Vec<AssetAmount> {
+    entries.retain(|entry| entry.amount != 0);
+    entries.sort_by(|a, b| a.asset.cmp(&b.asset));
+    entries
+}
+
+fn canonical_dust_entries(mut entries: Vec<DustEntry>) -> Vec<DustEntry> {
+    entries.retain(|entry| entry.amount != 0);
+    entries.sort_by(|a, b| {
+        (a.source.as_str(), a.asset.as_str()).cmp(&(b.source.as_str(), b.asset.as_str()))
+    });
+    entries
+}
+
+fn asset_amount(entries: &[AssetAmount], asset: &str) -> u128 {
+    entries
+        .iter()
+        .find(|entry| entry.asset == asset)
+        .map(|entry| entry.amount)
+        .unwrap_or(0)
+}
+
+fn dust_amount(entries: &[DustEntry], source: &str, asset: &str) -> u128 {
+    entries
+        .iter()
+        .find(|entry| entry.source == source && entry.asset == asset)
+        .map(|entry| entry.amount)
+        .unwrap_or(0)
+}
+
+fn set_asset_amount(entries: &[AssetAmount], asset: &str, amount: u128) -> Vec<AssetAmount> {
+    let mut out: Vec<AssetAmount> = entries
+        .iter()
+        .filter(|entry| entry.asset != asset)
+        .cloned()
+        .collect();
+    if amount != 0 {
+        out.push(AssetAmount {
+            asset: asset.to_string(),
+            amount,
+        });
+    }
+    canonical_asset_amounts(out)
+}
+
+fn set_dust_amount(
+    entries: &[DustEntry],
+    source: &str,
+    asset: &str,
+    amount: u128,
+) -> Vec<DustEntry> {
+    let mut out: Vec<DustEntry> = entries
+        .iter()
+        .filter(|entry| !(entry.source == source && entry.asset == asset))
+        .cloned()
+        .collect();
+    if amount != 0 {
+        out.push(DustEntry {
+            source: source.to_string(),
+            asset: asset.to_string(),
+            amount,
+        });
+    }
+    canonical_dust_entries(out)
+}
+
+fn encode_asset_amounts(entries: &[AssetAmount]) -> Vec<u8> {
+    let canonical = canonical_asset_amounts(entries.to_vec());
+    let mut buf = encode_uvarint(canonical.len() as u128);
+    for entry in canonical {
+        buf.extend_from_slice(b"AST");
+        buf.extend(encode_bytes(entry.asset.as_bytes()));
+        buf.extend_from_slice(b"AMT");
+        buf.extend(encode_uvarint(entry.amount));
+    }
+    buf
+}
+
+fn encode_dust_entries(entries: &[DustEntry]) -> Vec<u8> {
+    let canonical = canonical_dust_entries(entries.to_vec());
+    let mut buf = encode_uvarint(canonical.len() as u128);
+    for entry in canonical {
+        buf.extend_from_slice(b"SRC");
+        buf.extend(encode_bytes(entry.source.as_bytes()));
+        buf.extend_from_slice(b"AST");
+        buf.extend(encode_bytes(entry.asset.as_bytes()));
+        buf.extend_from_slice(b"AMT");
+        buf.extend(encode_uvarint(entry.amount));
+    }
+    buf
+}
+
+/// Carried fee-router state. Dust is keyed by `(source, asset)` so one token or
+/// policy stream cannot consume another stream's rounding remainder. Cumulative
+/// buckets are keyed by asset because different token units are not addable.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FeeAccumulator {
-    pub dust: u128,
-    pub cum_buyburn: u128,
-    pub cum_stakers: u128,
-    pub cum_reserve: u128,
-    pub cum_hosts: u128,
+    dust_by_stream: Vec<DustEntry>,
+    cum_buyburn: Vec<AssetAmount>,
+    cum_stakers: Vec<AssetAmount>,
+    cum_reserve: Vec<AssetAmount>,
+    cum_hosts: Vec<AssetAmount>,
 }
 
 impl FeeAccumulator {
+    pub fn dust_for(&self, source: &str, asset: &str) -> u128 {
+        dust_amount(&self.dust_by_stream, source, asset)
+    }
+
+    pub fn buyburn_for(&self, asset: &str) -> u128 {
+        asset_amount(&self.cum_buyburn, asset)
+    }
+
+    pub fn stakers_for(&self, asset: &str) -> u128 {
+        asset_amount(&self.cum_stakers, asset)
+    }
+
+    pub fn reserve_for(&self, asset: &str) -> u128 {
+        asset_amount(&self.cum_reserve, asset)
+    }
+
+    pub fn hosts_for(&self, asset: &str) -> u128 {
+        asset_amount(&self.cum_hosts, asset)
+    }
+
     /// Canonical state root (`0x`-prefixed SHA-256). Mirrors
     /// `FeeAccumulator.state_root` in the Python reference.
     pub fn state_root(&self) -> String {
         let mut buf = domain_sep_bytes(ACCUMULATOR_LABEL, ACCUMULATOR_VERSION);
         buf.extend_from_slice(b"DST");
-        buf.extend(encode_uvarint(self.dust));
+        buf.extend(encode_dust_entries(&self.dust_by_stream));
         buf.extend_from_slice(b"CBB");
-        buf.extend(encode_uvarint(self.cum_buyburn));
+        buf.extend(encode_asset_amounts(&self.cum_buyburn));
         buf.extend_from_slice(b"CST");
-        buf.extend(encode_uvarint(self.cum_stakers));
+        buf.extend(encode_asset_amounts(&self.cum_stakers));
         buf.extend_from_slice(b"CRS");
-        buf.extend(encode_uvarint(self.cum_reserve));
+        buf.extend(encode_asset_amounts(&self.cum_reserve));
         buf.extend_from_slice(b"CHS");
-        buf.extend(encode_uvarint(self.cum_hosts));
+        buf.extend(encode_asset_amounts(&self.cum_hosts));
         sha256_hex(&buf)
     }
 }
@@ -267,7 +395,8 @@ pub fn route_fee(
     check_domain_constraints(domain, split)?;
 
     // 6) Deterministic floor split with dust carry. bps are now known 0..=10000.
-    let total = checked_add(amount, acc.dust)?;
+    let dust_in = acc.dust_for(source, asset);
+    let total = checked_add(amount, dust_in)?;
     let buyburn = mul_div_floor(total, split.buyburn_bps as u128, BPS_DENOM)?;
     let stakers = mul_div_floor(total, split.stakers_bps as u128, BPS_DENOM)?;
     let reserve = mul_div_floor(total, split.reserve_bps as u128, BPS_DENOM)?;
@@ -277,10 +406,10 @@ pub fn route_fee(
     let dust_out = total - distributed;
 
     // 7) Accumulate, with a MAX guard that keeps parity with the Python reference.
-    let cum_buyburn = checked_add(acc.cum_buyburn, buyburn)?;
-    let cum_stakers = checked_add(acc.cum_stakers, stakers)?;
-    let cum_reserve = checked_add(acc.cum_reserve, reserve)?;
-    let cum_hosts = checked_add(acc.cum_hosts, hosts)?;
+    let cum_buyburn = checked_add(acc.buyburn_for(asset), buyburn)?;
+    let cum_stakers = checked_add(acc.stakers_for(asset), stakers)?;
+    let cum_reserve = checked_add(acc.reserve_for(asset), reserve)?;
+    let cum_hosts = checked_add(acc.hosts_for(asset), hosts)?;
     for v in [cum_buyburn, cum_stakers, cum_reserve, cum_hosts] {
         if v > MAX_FEE_AMOUNT {
             return Err(RejectedReason::ArithmeticOverflow);
@@ -299,11 +428,11 @@ pub fn route_fee(
             dust: dust_out,
         },
         accumulator: FeeAccumulator {
-            dust: dust_out,
-            cum_buyburn,
-            cum_stakers,
-            cum_reserve,
-            cum_hosts,
+            dust_by_stream: set_dust_amount(&acc.dust_by_stream, source, asset, dust_out),
+            cum_buyburn: set_asset_amount(&acc.cum_buyburn, asset, cum_buyburn),
+            cum_stakers: set_asset_amount(&acc.cum_stakers, asset, cum_stakers),
+            cum_reserve: set_asset_amount(&acc.cum_reserve, asset, cum_reserve),
+            cum_hosts: set_asset_amount(&acc.cum_hosts, asset, cum_hosts),
         },
     })
 }
@@ -325,7 +454,7 @@ mod tests {
             (r.buyburn, r.stakers, r.reserve, r.hosts, r.dust),
             (6_000, 0, 2_000, 2_000, 0)
         );
-        assert_eq!(a.accumulator.cum_buyburn, 6_000);
+        assert_eq!(a.accumulator.buyburn_for("zUSD"), 6_000);
     }
 
     #[test]
@@ -353,6 +482,44 @@ mod tests {
             r.amount,
             r.buyburn + r.stakers + r.reserve + r.hosts + r.dust
         );
+    }
+
+    #[test]
+    fn dust_is_scoped_by_source_and_asset() {
+        let first = route_fee(
+            "dex",
+            "zUSD",
+            1,
+            &canonical_split_table(Domain::Dex),
+            &FeeAccumulator::default(),
+        )
+        .unwrap();
+        assert_eq!(first.accumulator.dust_for("dex", "zUSD"), 1);
+
+        let second = route_fee(
+            "dex",
+            "AGRS",
+            9_999,
+            &canonical_split_table(Domain::Dex),
+            &first.accumulator,
+        )
+        .unwrap();
+        let r = &second.receipt;
+        assert_eq!(r.buyburn + r.stakers + r.reserve + r.hosts + r.dust, 9_999);
+        assert_eq!(second.accumulator.dust_for("dex", "zUSD"), 1);
+        assert_eq!(second.accumulator.dust_for("dex", "AGRS"), r.dust);
+
+        let third = route_fee(
+            "perps",
+            "zUSD",
+            9_999,
+            &canonical_split_table(Domain::Perps),
+            &second.accumulator,
+        )
+        .unwrap();
+        let r = &third.receipt;
+        assert_eq!(r.buyburn + r.stakers + r.reserve + r.hosts + r.dust, 9_999);
+        assert_eq!(third.accumulator.dust_for("dex", "zUSD"), 1);
     }
 
     #[test]
@@ -436,7 +603,10 @@ mod tests {
     #[test]
     fn accumulator_overflow_is_rejected() {
         let acc = FeeAccumulator {
-            cum_buyburn: MAX_FEE_AMOUNT,
+            cum_buyburn: vec![AssetAmount {
+                asset: "zUSD".to_string(),
+                amount: MAX_FEE_AMOUNT,
+            }],
             ..Default::default()
         };
         let res = route_fee(
@@ -464,7 +634,10 @@ mod tests {
         ) {
             let domain = ["dex", "perps", "borrow", "redemption"][domain_idx];
             let table = FeeSplitTable { buyburn_bps: b, stakers_bps: s, reserve_bps: r, hosts_bps: h };
-            let acc = FeeAccumulator { dust: dust_in, ..Default::default() };
+            let acc = FeeAccumulator {
+                dust_by_stream: set_dust_amount(&[], domain, "zUSD", dust_in),
+                ..Default::default()
+            };
             match route_fee(domain, "zUSD", amount, &table, &acc) {
                 Ok(a) => {
                     let recv = &a.receipt;
@@ -473,7 +646,7 @@ mod tests {
                         recv.buyburn + recv.stakers + recv.reserve + recv.hosts + recv.dust
                     );
                     prop_assert!(recv.dust < 4); // 4 buckets => remainder < 4
-                    prop_assert_eq!(a.accumulator.dust, recv.dust);
+                    prop_assert_eq!(a.accumulator.dust_for(domain, "zUSD"), recv.dust);
                 }
                 Err(_) => { /* a typed rejection is always acceptable */ }
             }

@@ -15,6 +15,8 @@ from src.core.fee_router import (
     PERPS,
     REDEMPTION,
     FeeAccumulator,
+    FeeAssetAmount,
+    FeeDustEntry,
     FeeSplitTable,
     RouteAccepted,
     RouteRejected,
@@ -53,8 +55,8 @@ def test_dex_exact_split_no_dust():
     assert isinstance(res, RouteAccepted)
     r = res.receipt
     assert (r.buyburn, r.stakers, r.reserve, r.hosts, r.dust) == (6_000, 0, 2_000, 2_000, 0)
-    assert res.accumulator.cum_buyburn == 6_000
-    assert res.accumulator.dust == 0
+    assert res.accumulator.bucket_total("cum_buyburn", "zUSD") == 6_000
+    assert res.accumulator.dust_for(DEX, "zUSD") == 0
 
 
 def test_redemption_routes_no_buyburn_no_hosts():
@@ -99,8 +101,55 @@ def test_dust_carry_conserves_across_steps():
         routed_out += r.buyburn + r.stakers + r.reserve + r.hosts
         acc = res.accumulator
     # Everything in is either routed to a bucket or still carried as dust.
-    assert total_in == routed_out + acc.dust
-    assert acc.cum_buyburn + acc.cum_stakers + acc.cum_reserve + acc.cum_hosts == routed_out
+    assert total_in == routed_out + acc.dust_for(DEX, "zUSD")
+    assert (
+        acc.bucket_total("cum_buyburn", "zUSD")
+        + acc.bucket_total("cum_stakers", "zUSD")
+        + acc.bucket_total("cum_reserve", "zUSD")
+        + acc.bucket_total("cum_hosts", "zUSD")
+        == routed_out
+    )
+
+
+def test_dust_is_scoped_by_source_and_asset():
+    acc = FeeAccumulator()
+    first = route_fee(
+        source=DEX, asset="zUSD", amount=1,
+        split_table=canonical_split_table(DEX), accumulator=acc,
+    )
+    assert isinstance(first, RouteAccepted)
+    assert first.accumulator.dust_for(DEX, "zUSD") == 1
+
+    second = route_fee(
+        source=DEX, asset="AGRS", amount=9_999,
+        split_table=canonical_split_table(DEX), accumulator=first.accumulator,
+    )
+    assert isinstance(second, RouteAccepted)
+    assert (
+        second.receipt.buyburn
+        + second.receipt.stakers
+        + second.receipt.reserve
+        + second.receipt.hosts
+        + second.receipt.dust
+        == 9_999
+    )
+    assert second.accumulator.dust_for(DEX, "zUSD") == 1
+    assert second.accumulator.dust_for(DEX, "AGRS") == second.receipt.dust
+
+    third = route_fee(
+        source=PERPS, asset="zUSD", amount=9_999,
+        split_table=canonical_split_table(PERPS), accumulator=second.accumulator,
+    )
+    assert isinstance(third, RouteAccepted)
+    assert (
+        third.receipt.buyburn
+        + third.receipt.stakers
+        + third.receipt.reserve
+        + third.receipt.hosts
+        + third.receipt.dust
+        == 9_999
+    )
+    assert third.accumulator.dust_for(DEX, "zUSD") == 1
 
 
 # --- Hashing: determinism + sensitivity --------------------------------------
@@ -126,8 +175,8 @@ def test_accumulator_root_is_deterministic_and_sensitive():
     z0 = FeeAccumulator().state_root()
     z1 = FeeAccumulator().state_root()
     assert z0 == z1
-    assert FeeAccumulator(cum_buyburn=1).state_root() != z0
-    assert FeeAccumulator(dust=1).state_root() != z0
+    assert FeeAccumulator(cum_buyburn=(FeeAssetAmount("zUSD", 1),)).state_root() != z0
+    assert FeeAccumulator(dust_by_stream=(FeeDustEntry(DEX, "zUSD", 1),)).state_root() != z0
 
 
 # --- Rejections (stable codes) ------------------------------------------------
