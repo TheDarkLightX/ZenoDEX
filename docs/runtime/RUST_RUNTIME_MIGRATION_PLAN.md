@@ -54,7 +54,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅ (`replay_guard`); next: balances → zUSD → buyback burn → batch clearing |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅; next: zUSD → buyback burn → batch clearing |
 | 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
@@ -137,6 +137,22 @@ replay, `> last + 1` a gap. State is keyed per sender.
   (static + 400-case differential) and
   `tests/runtime/test_replay_guard_semantic_invariants.py` (per-sender
   isolation, monotonic acceptance, anti-replay, no-op-on-reject).
+
+## Phase 6 — balance accounting (delivered)
+
+Second widening surface. The transition form of `src/state/balances.py`:
+`credit(state, recipient, asset, amount)` funds an account; `transfer(state,
+sender, recipient, asset, amount)` is a supply-conserving move that rejects
+insufficient balance. Balances are keyed per `(pubkey, asset)` and stored
+sparsely (zero entries dropped).
+
+* Python authority: `src/core/balance_kernel.py`
+* Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs`
+* Golden trace: `tests/runtime/golden_traces/balance_smoke.json`
+  (`replay-balance-trace` subcommand).
+* Conformance + invariants: `test_balance_kernel_conformance.py` (static +
+  400-case) and `test_balance_kernel_semantic_invariants.py` (supply
+  conservation, only-named-keys-change, non-negativity/sparsity, no-op-on-reject).
 
 ## Avoiding semantic drift (lesson learned)
 

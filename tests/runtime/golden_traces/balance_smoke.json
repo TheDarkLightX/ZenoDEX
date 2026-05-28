@@ -1,0 +1,235 @@
+{
+  "final_state_root": "0xa9825a52c905a321afe60b3af01c9d3905e43e6209313e328a5bb4304b023272",
+  "initial_state_root": "0xa03abf40540de880be2ad63df0e7eefe17afe2607d3e219dc2868c5187fe3dbc",
+  "kernel": "balances",
+  "steps": [
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xe281d1edfdcd82d2119d37f0c93b85ca4a025e1ab97cc1609146fe19b7db12f1",
+      "receipt_hash": "0x115117151978b2d6eafad9ab57a3d4b6f995c7cf980cdf93ae58755eefd9d60e",
+      "tx": {
+        "amount": 1000,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "credit",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xd9c4473221ae340437e123d6230da1ae6a9c55362a8b09cc1d1d191d527d9373",
+      "receipt_hash": "0x6e40b4b7d3a6290777c148a37278a71573737698f7d4de2a1390ee3f92b75867",
+      "tx": {
+        "amount": 500,
+        "asset": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "credit",
+        "recipient": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x67e9828d9df493e9b2d4c4fd4c3b408a641555d3a580376f098ef8d7350ce0b9",
+      "receipt_hash": "0xe22f223898055cfa928fdcd0f5d35d0a0bec3c7d01a5af5e885d0a192fa803e0",
+      "tx": {
+        "amount": 300,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x309eda449255da299ac8d31e784f17e99725f98a33b1ae56cf99e3a29caf63ba",
+      "receipt_hash": "0xae27508664c86ca7ec22ea7229904d9722ec3f7d921f1b4dcf566e3e307636d8",
+      "tx": {
+        "amount": 700,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "insufficient_balance",
+      "post_state_root": "0x309eda449255da299ac8d31e784f17e99725f98a33b1ae56cf99e3a29caf63ba",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": "0x639534e9df7e271e353eb10f789ac2ce2e5bb193f0f29d40266ce0adf77bb774",
+      "tx": {
+        "amount": 100,
+        "asset": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "transfer",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+        "sender": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "self_transfer",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 10,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
+        "sender": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_asset",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 10,
+        "asset": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "transfer",
+        "recipient": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_sender",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 10,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+        "sender": "0x11"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_recipient",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 10,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x22",
+        "sender": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_amount",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 0,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+        "sender": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_amount",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 5192296858534827628530496329220096,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "credit",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "balance_overflow",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 5192296858534827628530496329220095,
+        "asset": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "credit",
+        "recipient": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_field:memo",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "credit",
+        "memo": "x",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_tx_kind",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "mint",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "malformed_tx",
+      "post_state_root": "0xe0bff700dc0b956384406c4f05389ab8762aeae264f1e58fa10e44560334a643",
+      "receipt_hash": null,
+      "tx": {
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+        "sender": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xbe40d941e4db7828215c1b11ee504525d6886b59b3af58f10d0e718fa14680c1",
+      "receipt_hash": "0xbdff763e653f361776bd1073f3d4e5ffb7f46e804f0fde4f4e58646879889adc",
+      "tx": {
+        "amount": 700,
+        "asset": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "kind": "transfer",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+        "sender": "0x333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xa9825a52c905a321afe60b3af01c9d3905e43e6209313e328a5bb4304b023272",
+      "receipt_hash": "0xde6a2efeef4fccee8fe0886e3f8c349ff8da2ef8c10c1ed69d205ae2d8791d4c",
+      "tx": {
+        "amount": 50,
+        "asset": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "kind": "credit",
+        "recipient": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    }
+  ],
+  "version": 1
+}

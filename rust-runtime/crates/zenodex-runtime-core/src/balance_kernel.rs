@@ -1,0 +1,350 @@
+//! Balance accounting kernel — multi-asset `(pubkey, asset)` ledger.
+//!
+//! Rust shadow of `src/core/balance_kernel.py` (the transition form of
+//! `src/state/balances.py`). Two operations compose from the authoritative
+//! `BalanceTable`:
+//!
+//! * `credit` — funding primitive (genesis / settlement payout).
+//! * `transfer` — supply-conserving move of `amount` of `asset` from `sender`
+//!   to `recipient`; rejects insufficient balance.
+//!
+//! Balances are keyed per `(pubkey, asset)`; an operation on one key never
+//! perturbs another (the balance-kernel analogue of the fee-router asset-scoping
+//! lesson; see `docs/runtime/SEMANTIC_DRIFT_CONTROLS.md`).
+
+use std::collections::BTreeMap;
+
+use thiserror::Error;
+
+use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
+
+/// Bound on any balance / amount (matches the fee-router u128 boundary).
+pub const MAX_BALANCE: u128 = (1u128 << 112) - 1;
+const PUBKEY_NBYTES: usize = 48;
+const ASSET_NBYTES: usize = 32;
+const STATE_LABEL: &str = "balance_table";
+const RECEIPT_LABEL: &str = "balance_receipt";
+const STATE_VERSION: u32 = 1;
+const RECEIPT_VERSION: u32 = 1;
+const KIND_CREDIT: &str = "credit";
+const KIND_TRANSFER: &str = "transfer";
+
+/// Why a balance operation was rejected. Stable `code()` matches Python.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum BalanceRejectedReason {
+    #[error("invalid sender")]
+    InvalidSender,
+    #[error("invalid recipient")]
+    InvalidRecipient,
+    #[error("invalid asset")]
+    InvalidAsset,
+    #[error("invalid amount")]
+    InvalidAmount,
+    #[error("self transfer")]
+    SelfTransfer,
+    #[error("insufficient balance")]
+    InsufficientBalance,
+    #[error("balance overflow")]
+    BalanceOverflow,
+}
+
+impl BalanceRejectedReason {
+    pub fn code(self) -> &'static str {
+        match self {
+            BalanceRejectedReason::InvalidSender => "invalid_sender",
+            BalanceRejectedReason::InvalidRecipient => "invalid_recipient",
+            BalanceRejectedReason::InvalidAsset => "invalid_asset",
+            BalanceRejectedReason::InvalidAmount => "invalid_amount",
+            BalanceRejectedReason::SelfTransfer => "self_transfer",
+            BalanceRejectedReason::InsufficientBalance => "insufficient_balance",
+            BalanceRejectedReason::BalanceOverflow => "balance_overflow",
+        }
+    }
+
+    pub fn reason_str(self) -> String {
+        self.code().to_string()
+    }
+}
+
+fn canonical_hex(value: &str, nbytes: usize) -> Option<String> {
+    let body = value.strip_prefix("0x")?;
+    if body.len() != nbytes * 2 || !body.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(format!("0x{}", body.to_ascii_lowercase()))
+}
+
+/// Canonicalize a 48-byte pubkey (`0x` + 96 hex), else `None`.
+pub fn canonical_pubkey(value: &str) -> Option<String> {
+    canonical_hex(value, PUBKEY_NBYTES)
+}
+
+/// Canonicalize a 32-byte asset id (`0x` + 64 hex), else `None`.
+pub fn canonical_asset(value: &str) -> Option<String> {
+    canonical_hex(value, ASSET_NBYTES)
+}
+
+fn raw_bytes(canonical: &str) -> Vec<u8> {
+    hex::decode(&canonical[2..]).expect("validated canonical hex")
+}
+
+/// Sparse `(pubkey, asset) -> amount` table (no zero entries).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BalanceState {
+    balances: BTreeMap<(String, String), u128>,
+}
+
+impl BalanceState {
+    /// Balance for `(pubkey, asset)` (0 if absent / invalid).
+    pub fn balance_of(&self, pubkey: &str, asset: &str) -> u128 {
+        match (canonical_pubkey(pubkey), canonical_asset(asset)) {
+            (Some(pk), Some(a)) => *self.balances.get(&(pk, a)).unwrap_or(&0),
+            _ => 0,
+        }
+    }
+
+    fn set(&self, pubkey: &str, asset: &str, amount: u128) -> BalanceState {
+        let mut balances = self.balances.clone();
+        let key = (pubkey.to_string(), asset.to_string());
+        if amount == 0 {
+            balances.remove(&key);
+        } else {
+            balances.insert(key, amount);
+        }
+        BalanceState { balances }
+    }
+
+    /// Canonical state root. BTreeMap iterates `(pubkey, asset)` in sorted
+    /// (== raw-byte) order, matching the Python encoder and `state_root.py`.
+    pub fn state_root(&self) -> String {
+        let mut buf = domain_sep_bytes(STATE_LABEL, STATE_VERSION);
+        buf.extend(encode_uvarint(self.balances.len() as u128));
+        for ((pubkey, asset), amount) in &self.balances {
+            buf.extend(raw_bytes(pubkey));
+            buf.extend(raw_bytes(asset));
+            buf.extend(encode_uvarint(*amount));
+        }
+        sha256_hex(&buf)
+    }
+}
+
+/// Receipt for a credit / transfer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BalanceReceipt {
+    pub kind: &'static str,
+    pub sender: Option<String>,
+    pub recipient: String,
+    pub asset: String,
+    pub amount: u128,
+}
+
+impl BalanceReceipt {
+    pub fn receipt_hash(&self) -> String {
+        let mut buf = domain_sep_bytes(RECEIPT_LABEL, RECEIPT_VERSION);
+        buf.extend_from_slice(b"KND");
+        buf.extend(encode_bytes(self.kind.as_bytes()));
+        buf.extend_from_slice(b"SND");
+        match &self.sender {
+            None => buf.extend(encode_uvarint(0)),
+            Some(s) => {
+                buf.extend(encode_uvarint(1));
+                buf.extend(raw_bytes(s));
+            }
+        }
+        buf.extend_from_slice(b"RCP");
+        buf.extend(raw_bytes(&self.recipient));
+        buf.extend_from_slice(b"AST");
+        buf.extend(raw_bytes(&self.asset));
+        buf.extend_from_slice(b"AMT");
+        buf.extend(encode_uvarint(self.amount));
+        sha256_hex(&buf)
+    }
+}
+
+/// Successful operation: a receipt plus the next state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BalanceAccepted {
+    pub receipt: BalanceReceipt,
+    pub state: BalanceState,
+}
+
+fn valid_amount(amount: u128) -> bool {
+    (1..=MAX_BALANCE).contains(&amount)
+}
+
+/// Credit `amount` of `asset` to `recipient`.
+pub fn credit(
+    state: &BalanceState,
+    recipient: &str,
+    asset: &str,
+    amount: u128,
+) -> Result<BalanceAccepted, BalanceRejectedReason> {
+    let rcp = canonical_pubkey(recipient).ok_or(BalanceRejectedReason::InvalidRecipient)?;
+    let ast = canonical_asset(asset).ok_or(BalanceRejectedReason::InvalidAsset)?;
+    if !valid_amount(amount) {
+        return Err(BalanceRejectedReason::InvalidAmount);
+    }
+    let new_recipient = state
+        .balance_of(&rcp, &ast)
+        .checked_add(amount)
+        .filter(|v| *v <= MAX_BALANCE)
+        .ok_or(BalanceRejectedReason::BalanceOverflow)?;
+    Ok(BalanceAccepted {
+        receipt: BalanceReceipt {
+            kind: KIND_CREDIT,
+            sender: None,
+            recipient: rcp.clone(),
+            asset: ast.clone(),
+            amount,
+        },
+        state: state.set(&rcp, &ast, new_recipient),
+    })
+}
+
+/// Move `amount` of `asset` from `sender` to `recipient` (supply-conserving).
+pub fn transfer(
+    state: &BalanceState,
+    sender: &str,
+    recipient: &str,
+    asset: &str,
+    amount: u128,
+) -> Result<BalanceAccepted, BalanceRejectedReason> {
+    let snd = canonical_pubkey(sender).ok_or(BalanceRejectedReason::InvalidSender)?;
+    let rcp = canonical_pubkey(recipient).ok_or(BalanceRejectedReason::InvalidRecipient)?;
+    let ast = canonical_asset(asset).ok_or(BalanceRejectedReason::InvalidAsset)?;
+    if !valid_amount(amount) {
+        return Err(BalanceRejectedReason::InvalidAmount);
+    }
+    if snd == rcp {
+        return Err(BalanceRejectedReason::SelfTransfer);
+    }
+    let sender_balance = state.balance_of(&snd, &ast);
+    if sender_balance < amount {
+        return Err(BalanceRejectedReason::InsufficientBalance);
+    }
+    let new_recipient = state
+        .balance_of(&rcp, &ast)
+        .checked_add(amount)
+        .filter(|v| *v <= MAX_BALANCE)
+        .ok_or(BalanceRejectedReason::BalanceOverflow)?;
+
+    // Distinct keys (snd != rcp): debit then credit is order-independent.
+    let next = state
+        .set(&snd, &ast, sender_balance - amount)
+        .set(&rcp, &ast, new_recipient);
+    Ok(BalanceAccepted {
+        receipt: BalanceReceipt {
+            kind: KIND_TRANSFER,
+            sender: Some(snd.clone()),
+            recipient: rcp.clone(),
+            asset: ast.clone(),
+            amount,
+        },
+        state: next,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn pk(tag: u8) -> String {
+        format!("0x{}", hex::encode([tag; PUBKEY_NBYTES]))
+    }
+    fn asset(tag: u8) -> String {
+        format!("0x{}", hex::encode([tag; ASSET_NBYTES]))
+    }
+
+    #[test]
+    fn credit_then_transfer_conserves_supply() {
+        let (a, b, x) = (pk(0x11), pk(0x22), asset(0xAA));
+        let st = credit(&BalanceState::default(), &a, &x, 100).unwrap().state;
+        let st = transfer(&st, &a, &b, &x, 30).unwrap().state;
+        assert_eq!(st.balance_of(&a, &x), 70);
+        assert_eq!(st.balance_of(&b, &x), 30);
+        assert_eq!(st.balance_of(&a, &x) + st.balance_of(&b, &x), 100);
+    }
+
+    #[test]
+    fn rejections_have_stable_codes() {
+        let (a, b, x) = (pk(0x11), pk(0x22), asset(0xAA));
+        let st = credit(&BalanceState::default(), &a, &x, 100).unwrap().state;
+        assert_eq!(
+            transfer(&st, &a, &a, &x, 10),
+            Err(BalanceRejectedReason::SelfTransfer)
+        );
+        assert_eq!(
+            transfer(&st, &a, &b, &x, 1000),
+            Err(BalanceRejectedReason::InsufficientBalance)
+        );
+        assert_eq!(
+            transfer(&st, "0x11", &b, &x, 10),
+            Err(BalanceRejectedReason::InvalidSender)
+        );
+        assert_eq!(
+            transfer(&st, &a, &b, "0xbb", 10),
+            Err(BalanceRejectedReason::InvalidAsset)
+        );
+        assert_eq!(
+            transfer(&st, &a, &b, &x, 0),
+            Err(BalanceRejectedReason::InvalidAmount)
+        );
+    }
+
+    #[test]
+    fn full_balance_transfer_is_sparse() {
+        let (a, b, x) = (pk(0x11), pk(0x22), asset(0xAA));
+        let st = credit(&BalanceState::default(), &a, &x, 50).unwrap().state;
+        let st = transfer(&st, &a, &b, &x, 50).unwrap().state;
+        assert_eq!(st.balance_of(&a, &x), 0);
+        assert!(!st.balances.contains_key(&(a, x)));
+    }
+
+    proptest! {
+        // INVARIANT: transfers conserve per-asset supply; credit increases it by
+        // exactly `amount`; balances never exceed MAX or go negative (u128).
+        #[test]
+        fn supply_conservation_and_bounds(
+            ops in proptest::collection::vec(
+                (0u8..2, 0u8..3, 0u8..3, 1u128..=50), 0..60
+            )
+        ) {
+            let accts = [pk(0xA0), pk(0xB0), pk(0xC0)];
+            let x = asset(0xAA);
+            let mut state = BalanceState::default();
+            let mut credited: u128 = 0;
+            for (op, i, j, amount) in ops {
+                if op == 0 {
+                    if let Ok(acc) = credit(&state, &accts[i as usize], &x, amount) {
+                        state = acc.state;
+                        credited += amount;
+                    }
+                } else if let Ok(acc) =
+                    transfer(&state, &accts[i as usize], &accts[j as usize], &x, amount)
+                {
+                    state = acc.state;
+                }
+            }
+            let supply: u128 = accts.iter().map(|p| state.balance_of(p, &x)).sum();
+            prop_assert_eq!(supply, credited);
+            for p in &accts {
+                prop_assert!(state.balance_of(p, &x) <= MAX_BALANCE);
+            }
+        }
+
+        // INVARIANT: an asset-X transfer/credit never changes an asset-Y balance.
+        #[test]
+        fn per_asset_isolation(amount in 1u128..=1000) {
+            let (a, b, x, y) = (pk(0x11), pk(0x22), asset(0xAA), asset(0xBB));
+            let mut state = credit(&BalanceState::default(), &a, &x, MAX_BALANCE.min(2000)).unwrap().state;
+            state = credit(&state, &a, &y, 1234).unwrap().state;
+            let before_y_a = state.balance_of(&a, &y);
+            let before_y_b = state.balance_of(&b, &y);
+            if let Ok(acc) = transfer(&state, &a, &b, &x, amount) {
+                prop_assert_eq!(acc.state.balance_of(&a, &y), before_y_a);
+                prop_assert_eq!(acc.state.balance_of(&b, &y), before_y_b);
+            }
+        }
+    }
+}

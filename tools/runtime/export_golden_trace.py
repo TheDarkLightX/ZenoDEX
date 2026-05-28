@@ -24,6 +24,7 @@ for _p in (str(_REPO), str(_HERE)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import balance_kernel_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 
@@ -33,6 +34,10 @@ _SCENARIOS = {
     "replay_guard_smoke": (
         replay_guard_lib.build_smoke_trace,
         replay_guard_lib.replay_trace,
+    ),
+    "balance_smoke": (
+        balance_kernel_lib.build_smoke_trace,
+        balance_kernel_lib.replay_trace,
     ),
 }
 

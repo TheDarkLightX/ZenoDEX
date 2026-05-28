@@ -110,6 +110,27 @@ The accumulator root is `domain_sep("replay_guard_state", v1)` over the
 sender-sorted `(sender_bytes, last_nonce)` entries; the admission receipt hash is
 `domain_sep("replay_admission", v1)` over `SND`(sender) `NON`(nonce) `PRV`(prev).
 
+## `tx` kinds — `balances`
+
+```json
+{ "kind": "credit",   "recipient": "0x<96 hex>", "asset": "0x<64 hex>", "amount": N }
+{ "kind": "transfer", "sender": "0x<96 hex>", "recipient": "0x<96 hex>",
+  "asset": "0x<64 hex>", "amount": N }
+```
+
+Replayed via `replay-balance-trace`. `credit` funds `(recipient, asset)`;
+`transfer` moves `amount` of `asset` from `sender` to `recipient` and is
+supply-conserving. `amount` is an integer in `[1, MAX_BALANCE]`
+(`MAX_BALANCE = 2**112 - 1`). Reject codes: `malformed_tx`, `unknown_tx_kind`,
+`unknown_field:<name>` (structural), and `invalid_sender`, `invalid_recipient`,
+`invalid_asset`, `invalid_amount`, `self_transfer`, `insufficient_balance`,
+`balance_overflow` (semantic). Transfer validation order: sender → recipient →
+asset → amount → self → insufficient → overflow. Zero balances are never stored
+(sparse). State root is `domain_sep("balance_table", v1)` over sorted
+`(pubkey-48B, asset-32B, uvarint amount)`; the receipt hash is
+`domain_sep("balance_receipt", v1)` over `KND` `SND`(presence+sender) `RCP`
+`AST` `AMT`.
+
 ## Rejection codes (stable)
 
 Every rejection carries a stable machine code. Domain-constraint rejections

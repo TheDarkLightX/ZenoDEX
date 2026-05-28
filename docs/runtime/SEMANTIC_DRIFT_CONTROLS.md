@@ -90,3 +90,4 @@ These fail on the buggy global-state model and pass on the keyed model.
 |---------|-----------|------------|--------------|
 | `fee_router` | `(source, asset)` dust, `asset` buckets | ✅ Python + Rust | ✅ static + 400-case |
 | `replay_guard` | `sender` | ✅ Python + Rust | ✅ static + 400-case |
+| `balances` | `(pubkey, asset)` | ✅ Python + Rust | ✅ static + 400-case |
