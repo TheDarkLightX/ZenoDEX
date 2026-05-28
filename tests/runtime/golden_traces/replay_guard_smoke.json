@@ -1,0 +1,195 @@
+{
+  "final_state_root": "0x85c24cd9cd65d8a372b5805d87b3ad8ad141f7dde21f6fa203bab010714642e3",
+  "initial_state_root": "0xc59839ff9bf212cf2370e41dd2e0df7c9ccab4456566b1bcb2a1ba7a02975530",
+  "kernel": "replay_guard",
+  "steps": [
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xb95792a56ef0d6669644f59c4b2ef459e0cfee0919b20e9bf68e6f4313abcdf8",
+      "receipt_hash": "0xec491e0720a11c5942b79220ed33b0e24a106c91201f7fe9e4f4426d1289a147",
+      "tx": {
+        "kind": "admit",
+        "nonce": 1,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xcaf50f86250d7122fde29e0ed65f5a949a89da1b90c0a9db45af5eef615f7387",
+      "receipt_hash": "0xbea9830fb29c9dcfdae6dced77e1324504675b71905631835beef044121162d2",
+      "tx": {
+        "kind": "admit",
+        "nonce": 1,
+        "sender": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xf5540bc859d61d5d70d1e77e3c441db5b15789788c83632a53d68e1ccc8a85ee",
+      "receipt_hash": "0x8b1cc8beca18b31e6445b5d8f43f5e71c95367cda01b950c1ae9b41fbb836d77",
+      "tx": {
+        "kind": "admit",
+        "nonce": 2,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x46ed527f6255f4b3636e322add89361165c5915b67d0c64beb0bba4b51df746a",
+      "receipt_hash": "0x04df18b036991e5890e771ef62689e5a68dd01682dd7e53a38cb273c411b39a9",
+      "tx": {
+        "kind": "admit",
+        "nonce": 2,
+        "sender": "222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "duplicate_nonce",
+      "post_state_root": "0x46ed527f6255f4b3636e322add89361165c5915b67d0c64beb0bba4b51df746a",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 2,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "stale_nonce",
+      "post_state_root": "0x46ed527f6255f4b3636e322add89361165c5915b67d0c64beb0bba4b51df746a",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 1,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "duplicate_nonce",
+      "post_state_root": "0x46ed527f6255f4b3636e322add89361165c5915b67d0c64beb0bba4b51df746a",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 2,
+        "sender": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "nonce_gap",
+      "post_state_root": "0x46ed527f6255f4b3636e322add89361165c5915b67d0c64beb0bba4b51df746a",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 4,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": "0xec4b9e816e4e963a5df6afb8cfa11d4a180e9fccc1de37703650ee86613f3242",
+      "tx": {
+        "kind": "admit",
+        "nonce": 3,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_sender",
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 1,
+        "sender": "0xzz1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_nonce",
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 0,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_nonce",
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "nonce": 1099511627776,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_field:memo",
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "memo": "x",
+        "nonce": 4,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_tx_kind",
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "transfer",
+        "nonce": 4,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "malformed_tx",
+      "post_state_root": "0xdde29c576acbc9ffe0c20a7a84083b82bbe3e74d7dcfd00613c7393ea3f8112b",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "admit",
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x8866d825e4bb7d7890db49919e2561a31754814193cfd638a5b17fb643f14204",
+      "receipt_hash": "0x0d56cc249157a9f6db3eae681334815e6922fc970c6bcadd0131aec7c9ea22c3",
+      "tx": {
+        "kind": "admit",
+        "nonce": 3,
+        "sender": "0x222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x85c24cd9cd65d8a372b5805d87b3ad8ad141f7dde21f6fa203bab010714642e3",
+      "receipt_hash": "0x66d3a72cd16f23baf5e9a885bdd443b7481d2a3ec1cf91c42a76560f674016c7",
+      "tx": {
+        "kind": "admit",
+        "nonce": 4,
+        "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    }
+  ],
+  "version": 1
+}

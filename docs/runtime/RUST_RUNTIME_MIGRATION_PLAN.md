@@ -54,7 +54,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ☐ replay guards → balances → zUSD → buyback burn → batch clearing |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅ (`replay_guard`); next: balances → zUSD → buyback burn → batch clearing |
 | 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
@@ -120,6 +120,33 @@ Safety floors enforced as explicit rejections (Hard Rule #10):
   deferred (a CLI bridge avoids `unsafe`/ABI surface for the MVP).
 * Avoided: floats, global mutable state, system time, randomness, panics in
   public transition functions, unordered-map iteration in canonical output.
+
+## Phase 6 — replay / idempotency guard (delivered)
+
+First widening surface. `admit(state, sender, nonce) -> receipt, new_state`
+enforces the per-sender **strict-sequential** nonce policy of
+`src/state/nonces.py` as a single transition: a sender's nonces must be
+`1, 2, 3, …` with no gaps; `nonce == last` is a duplicate, `< last` a stale
+replay, `> last + 1` a gap. State is keyed per sender.
+
+* Python authority: `src/core/replay_guard.py`
+* Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/replay_guard.rs`
+* Golden trace: `tests/runtime/golden_traces/replay_guard_smoke.json`
+  (`replay-guard-trace` CLI subcommand; kernel-dispatched shadow + replay tools).
+* Conformance + invariants: `tests/runtime/test_replay_guard_conformance.py`
+  (static + 400-case differential) and
+  `tests/runtime/test_replay_guard_semantic_invariants.py` (per-sender
+  isolation, monotonic acceptance, anti-replay, no-op-on-reject).
+
+## Avoiding semantic drift (lesson learned)
+
+The fee router initially shipped a global accumulator that let dust cross token
+units and fee streams; Python and Rust agreed, so the differential stayed green.
+**Cross-language equality proves agreement, not correctness.** Every surface now
+ships independent *semantic invariants* (run on each runtime separately) in
+addition to the differential, and golden traces include a cross-key regression
+case. See `SEMANTIC_DRIFT_CONTROLS.md` for the full discipline and the
+per-surface checklist.
 
 ## Forward path (Phases 6–9)
 

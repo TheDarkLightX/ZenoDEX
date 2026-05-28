@@ -90,6 +90,26 @@ migration plan and is **kernel-agnostic**.
 larger than `u64`). Tools must preserve integer precision (the Rust CLI enables
 `serde_json`'s `arbitrary_precision`).
 
+## `tx` kinds — `replay_guard`
+
+```json
+{
+  "kind": "admit",
+  "sender": "0x<96 hex chars>",
+  "nonce": <integer in [1, 4294967295]>
+}
+```
+
+Replayed via the `replay-guard-trace` CLI subcommand. Reject codes:
+`malformed_tx`, `unknown_tx_kind`, `unknown_field:<name>` (structural), and
+`invalid_sender`, `invalid_nonce`, `duplicate_nonce` (`nonce == last`),
+`stale_nonce` (`nonce < last`), `nonce_gap` (`nonce > last + 1`) (semantic).
+Validation order: structural → `invalid_sender` → `invalid_nonce` →
+duplicate/stale/gap. State (per-sender last nonce) is unchanged on rejection.
+The accumulator root is `domain_sep("replay_guard_state", v1)` over the
+sender-sorted `(sender_bytes, last_nonce)` entries; the admission receipt hash is
+`domain_sep("replay_admission", v1)` over `SND`(sender) `NON`(nonce) `PRV`(prev).
+
 ## Rejection codes (stable)
 
 Every rejection carries a stable machine code. Domain-constraint rejections
