@@ -75,10 +75,30 @@ def locate_or_build_cli(*, allow_build: bool = True) -> Path:
     return candidate
 
 
+# Trace kernel -> Rust CLI subcommand.
+_SUBCOMMAND_BY_KERNEL = {
+    "fee_router": "replay-fee-trace",
+    "replay_guard": "replay-guard-trace",
+}
+
+
+def _subcommand_for_trace(trace_path: Path) -> str:
+    kernel = json.loads(trace_path.read_text(encoding="utf-8")).get("kernel")
+    subcommand = _SUBCOMMAND_BY_KERNEL.get(kernel)
+    if subcommand is None:
+        raise ShadowError(f"no Rust replay subcommand for trace kernel {kernel!r}")
+    return subcommand
+
+
 def run_rust_replay(bin_path: Path, trace_path: Path) -> dict:
-    """Run the Rust CLI on ``trace_path`` and return its parsed JSON output."""
+    """Run the Rust CLI on ``trace_path`` and return its parsed JSON output.
+
+    The subcommand is chosen from the trace's ``kernel`` field, so this works for
+    every runtime surface that has a Rust shadow.
+    """
+    subcommand = _subcommand_for_trace(trace_path)
     proc = subprocess.run(
-        [str(bin_path), "replay-fee-trace", str(trace_path)],
+        [str(bin_path), subcommand, str(trace_path)],
         capture_output=True,
         text=True,
     )
