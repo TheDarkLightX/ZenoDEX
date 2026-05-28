@@ -4,8 +4,9 @@
 //! Subcommands:
 //!
 //! ```text
-//! zenodex-runtime replay-fee-trace   <trace.json|->   # kernel = fee_router
-//! zenodex-runtime replay-guard-trace <trace.json|->   # kernel = replay_guard
+//! zenodex-runtime replay-fee-trace     <trace.json|->   # kernel = fee_router
+//! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
+//! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -23,12 +24,17 @@ use std::process::ExitCode;
 
 use serde::Serialize;
 use serde_json::Value;
+use zenodex_runtime_core::balance_kernel::{
+    canonical_asset, canonical_pubkey, credit, transfer, BalanceState, MAX_BALANCE,
+};
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::{route_fee, FeeAccumulator, FeeSplitTable};
 
 const TX_FIELDS: [&str; 5] = ["kind", "source", "asset", "amount", "split_table"];
 const SPLIT_FIELDS: [&str; 4] = ["buyburn_bps", "stakers_bps", "reserve_bps", "hosts_bps"];
 const ADMIT_FIELDS: [&str; 3] = ["kind", "sender", "nonce"];
+const CREDIT_FIELDS: [&str; 4] = ["kind", "recipient", "asset", "amount"];
+const TRANSFER_FIELDS: [&str; 5] = ["kind", "sender", "recipient", "asset", "amount"];
 
 #[derive(Serialize)]
 struct StepResult {
@@ -204,6 +210,98 @@ fn eval_admit_tx(state: &ReplayGuardState, tx: &Value) -> Eval<ReplayGuardState>
     }
 }
 
+// --- balance kernel -----------------------------------------------------------
+
+/// Parse a JSON value as a balance amount in `[1, MAX_BALANCE]`, else `None`.
+fn parse_amount(v: Option<&Value>) -> Option<u128> {
+    let s = v.and_then(classify_integer)?;
+    match s.parse::<u128>() {
+        Ok(x) if (1..=MAX_BALANCE).contains(&x) => Some(x),
+        _ => None,
+    }
+}
+
+fn eval_balance_tx(state: &BalanceState, tx: &Value) -> Eval<BalanceState> {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return Eval::Reject("malformed_tx".to_string()),
+    };
+    match obj.get("kind").and_then(Value::as_str) {
+        Some("credit") => {
+            if let Some(reason) =
+                first_unknown_field(obj.keys().map(String::as_str), &CREDIT_FIELDS)
+            {
+                return Eval::Reject(reason);
+            }
+            if !obj.contains_key("recipient")
+                || !obj.contains_key("asset")
+                || !obj.contains_key("amount")
+            {
+                return Eval::Reject("malformed_tx".to_string());
+            }
+            // Field order mirrors the core: recipient, asset, amount.
+            let recipient = match obj.get("recipient").and_then(Value::as_str) {
+                Some(s) if canonical_pubkey(s).is_some() => s,
+                _ => return Eval::Reject("invalid_recipient".to_string()),
+            };
+            let asset = match obj.get("asset").and_then(Value::as_str) {
+                Some(s) if canonical_asset(s).is_some() => s,
+                _ => return Eval::Reject("invalid_asset".to_string()),
+            };
+            let amount = match parse_amount(obj.get("amount")) {
+                Some(a) => a,
+                None => return Eval::Reject("invalid_amount".to_string()),
+            };
+            match credit(state, recipient, asset, amount) {
+                Ok(acc) => Eval::Accept {
+                    receipt_hash: acc.receipt.receipt_hash(),
+                    next: acc.state,
+                },
+                Err(reason) => Eval::Reject(reason.reason_str()),
+            }
+        }
+        Some("transfer") => {
+            if let Some(reason) =
+                first_unknown_field(obj.keys().map(String::as_str), &TRANSFER_FIELDS)
+            {
+                return Eval::Reject(reason);
+            }
+            if !obj.contains_key("sender")
+                || !obj.contains_key("recipient")
+                || !obj.contains_key("asset")
+                || !obj.contains_key("amount")
+            {
+                return Eval::Reject("malformed_tx".to_string());
+            }
+            // Field order mirrors the core: sender, recipient, asset, amount.
+            let sender = match obj.get("sender").and_then(Value::as_str) {
+                Some(s) if canonical_pubkey(s).is_some() => s,
+                _ => return Eval::Reject("invalid_sender".to_string()),
+            };
+            let recipient = match obj.get("recipient").and_then(Value::as_str) {
+                Some(s) if canonical_pubkey(s).is_some() => s,
+                _ => return Eval::Reject("invalid_recipient".to_string()),
+            };
+            let asset = match obj.get("asset").and_then(Value::as_str) {
+                Some(s) if canonical_asset(s).is_some() => s,
+                _ => return Eval::Reject("invalid_asset".to_string()),
+            };
+            let amount = match parse_amount(obj.get("amount")) {
+                Some(a) => a,
+                None => return Eval::Reject("invalid_amount".to_string()),
+            };
+            match transfer(state, sender, recipient, asset, amount) {
+                Ok(acc) => Eval::Accept {
+                    receipt_hash: acc.receipt.receipt_hash(),
+                    next: acc.state,
+                },
+                Err(reason) => Eval::Reject(reason.reason_str()),
+            }
+        }
+        _ => Eval::Reject("unknown_tx_kind".to_string()),
+    }
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -281,8 +379,15 @@ fn main() -> ExitCode {
         .map(String::as_str)
         .unwrap_or("zenodex-runtime");
     let subcommand = args.get(1).map(String::as_str).unwrap_or("");
-    if args.len() != 3 || !matches!(subcommand, "replay-fee-trace" | "replay-guard-trace") {
-        eprintln!("usage: {prog} <replay-fee-trace|replay-guard-trace> <trace.json|->");
+    if args.len() != 3
+        || !matches!(
+            subcommand,
+            "replay-fee-trace" | "replay-guard-trace" | "replay-balance-trace"
+        )
+    {
+        eprintln!(
+            "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace> <trace.json|->"
+        );
         return ExitCode::from(2);
     }
 
@@ -315,6 +420,13 @@ fn main() -> ExitCode {
             ReplayGuardState::default(),
             ReplayGuardState::state_root,
             eval_admit_tx,
+        ),
+        "replay-balance-trace" => drive(
+            &trace,
+            "balances",
+            BalanceState::default(),
+            BalanceState::state_root,
+            eval_balance_tx,
         ),
         _ => unreachable!(),
     };

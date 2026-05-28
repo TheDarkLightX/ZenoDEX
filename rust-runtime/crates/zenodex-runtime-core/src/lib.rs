@@ -2,11 +2,11 @@
 //! `zenodex-runtime-core` — deterministic, integer-only runtime kernels.
 //!
 //! This crate is the **production candidate** for ZenoDEX's runtime-critical
-//! transitions. It currently owns two surfaces: the protocol [`fee_router`] and
-//! the [`replay_guard`] (idempotency / nonce). Each is built as a *shadow* of an
-//! authoritative Python runtime (`src/core/fee_router.py`,
-//! `src/core/replay_guard.py`) and must agree with it bit-for-bit on every
-//! golden trace (see `docs/runtime/`).
+//! transitions. It currently owns three surfaces: the protocol [`fee_router`],
+//! the [`replay_guard`] (idempotency / nonce), and the [`balance_kernel`]
+//! (multi-asset ledger). Each is built as a *shadow* of an authoritative Python
+//! runtime (`src/core/*.py`) and must agree with it bit-for-bit on every golden
+//! trace (see `docs/runtime/`).
 //!
 //! Design rules enforced here (see the migration "Hard Rules"):
 //!
@@ -21,11 +21,16 @@
 //!   ([`canonical`]) — never from unordered map iteration.
 
 pub mod arith;
+pub mod balance_kernel;
 pub mod canonical;
 pub mod error;
 pub mod fee_router;
 pub mod replay_guard;
 
+pub use balance_kernel::{
+    credit, transfer, BalanceAccepted, BalanceReceipt, BalanceRejectedReason, BalanceState,
+    MAX_BALANCE,
+};
 pub use error::{DomainConstraint, RejectedReason};
 pub use fee_router::{
     canonical_split_table, route_fee, Accepted, Domain, FeeAccumulator, FeeReceipt, FeeSplitTable,

@@ -27,11 +27,11 @@ addition to the Python/Rust differential — see
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Union
 
 from ..state.canonical import (
+    canonical_hex_fixed_allow_0x,
     domain_sep_bytes,
     encode_bytes,
     encode_uvarint,
@@ -69,21 +69,18 @@ REJ_DUPLICATE_NONCE = "duplicate_nonce"  # nonce == last accepted
 REJ_STALE_NONCE = "stale_nonce"  # nonce < last accepted (replay of an old tx)
 REJ_NONCE_GAP = "nonce_gap"  # nonce > last + 1
 
-# Sender form matches src.state.nonces.NonceTable: either raw 48-byte hex or
-# 0x-prefixed 48-byte hex, canonicalized to lowercase 0x-prefixed form.
-_SENDER_RE = re.compile(r"^(?:(?:0x)|(?:0X))?[0-9a-fA-F]{96}$")
-
-
 def _is_plain_int(v: object) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
 def _canonical_sender(sender: object) -> Union[str, None]:
     """Return the canonical lowercase 0x-prefixed sender, or ``None`` if invalid."""
-    if not isinstance(sender, str) or not _SENDER_RE.match(sender):
+    if not isinstance(sender, str):
         return None
-    body = sender[2:] if sender.lower().startswith("0x") else sender
-    return "0x" + body.lower()
+    try:
+        return canonical_hex_fixed_allow_0x(sender, nbytes=SENDER_NBYTES, name="sender")
+    except Exception:
+        return None
 
 
 @dataclass(frozen=True)

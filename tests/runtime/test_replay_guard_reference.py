@@ -56,18 +56,24 @@ def test_receipt_hash_deterministic_and_sensitive():
 def test_raw_hex_sender_matches_nonce_table_canonicalization():
     raw = A[2:]
     upper_prefix = "0X" + A[2:]
+    spaced = f"  {upper_prefix}  "
     prefixed = _admit(ReplayGuardState(), A, 1)
     raw_result = _admit(ReplayGuardState(), raw, 1)
     upper_result = _admit(ReplayGuardState(), upper_prefix, 1)
+    spaced_result = _admit(ReplayGuardState(), spaced, 1)
     assert isinstance(prefixed, AdmitAccepted)
     assert isinstance(raw_result, AdmitAccepted)
     assert isinstance(upper_result, AdmitAccepted)
+    assert isinstance(spaced_result, AdmitAccepted)
     assert raw_result.receipt.sender == A
     assert upper_result.receipt.sender == A
+    assert spaced_result.receipt.sender == A
     assert raw_result.receipt.receipt_hash() == prefixed.receipt.receipt_hash()
     assert upper_result.receipt.receipt_hash() == prefixed.receipt.receipt_hash()
+    assert spaced_result.receipt.receipt_hash() == prefixed.receipt.receipt_hash()
     assert raw_result.state.state_root() == prefixed.state.state_root()
     assert upper_result.state.state_root() == prefixed.state.state_root()
+    assert spaced_result.state.state_root() == prefixed.state.state_root()
 
 
 def test_state_root_deterministic_and_sensitive():
