@@ -1,0 +1,369 @@
+{
+  "final_state_root": "0x579f38ab3eb7cd29b3830a7838d60afa1ca66253ec66c362e7e9eace4d8d724d",
+  "initial_state_root": "0x44dfd7ab449ead4848cbe1e31b92947e3802cc4d4206038e49182fea30f032f4",
+  "kernel": "fee_router",
+  "steps": [
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xe7f4c375cbadd7da79996e9519de4e79fd76849518b17fe39e8cf4c6514fa4de",
+      "receipt_hash": "0x408b31cb3354eb44b116d9f4ae64f101fb4390f1c2d810fbc98df53a1794a2ff",
+      "tx": {
+        "amount": 1000000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x1b1fdda110f9f49b6ce95d2eab2bfcdb1a11a4105eb5872f56ae4862020c90f8",
+      "receipt_hash": "0x205536d780efdbb9870c864f023c8cda596d8c997f9a439f976fd87f82ef9541",
+      "tx": {
+        "amount": 12347,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "perps",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x345681a8fe51c93906511c4af6a4e88d6a3691579625960b8432e9ce2009bd9b",
+      "receipt_hash": "0x56e0f06bd93d8b902a74e464021f5ac8240311221267a802f6746e482501fa61",
+      "tx": {
+        "amount": 10000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "borrow",
+        "split_table": {
+          "buyburn_bps": 0,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 6000
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x245e7df31df1a2a6e471d28961c87857b4f75251edeb5a2220ab2e6df9d73b60",
+      "receipt_hash": "0x4312692a95d22168f5cb8f8e728f6cd96443946bf8c6102db6e808e1e1ca4d9f",
+      "tx": {
+        "amount": 10000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "redemption",
+        "split_table": {
+          "buyburn_bps": 0,
+          "hosts_bps": 0,
+          "reserve_bps": 4000,
+          "stakers_bps": 6000
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x4d4de653d94a28d90c09ed0ac4c7cfab140648884c278fd06b8e222f220a100e",
+      "receipt_hash": "0x01854548dbe3869c3bf0bf02aa1d9a9a22bd7e82c3c32dbe1111917979886454",
+      "tx": {
+        "amount": 3,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": "0x35ff676e107f73b1751536c6d084b69c8c8213ec84d7e84314f8f04b43902752",
+      "tx": {
+        "amount": 9999,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "domain_constraint_violated:redemption_buyburn_must_be_zero",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "redemption",
+        "split_table": {
+          "buyburn_bps": 1,
+          "hosts_bps": 0,
+          "reserve_bps": 4000,
+          "stakers_bps": 5999
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "domain_constraint_violated:redemption_hosts_must_be_zero",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "redemption",
+        "split_table": {
+          "buyburn_bps": 0,
+          "hosts_bps": 1,
+          "reserve_bps": 4000,
+          "stakers_bps": 5999
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "domain_constraint_violated:redemption_reserve_below_floor",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "redemption",
+        "split_table": {
+          "buyburn_bps": 0,
+          "hosts_bps": 0,
+          "reserve_bps": 1999,
+          "stakers_bps": 8001
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "domain_constraint_violated:buyburn_below_floor",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 4999,
+          "hosts_bps": 2000,
+          "reserve_bps": 3000,
+          "stakers_bps": 1
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "domain_constraint_violated:stakers_below_floor",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "borrow",
+        "split_table": {
+          "buyburn_bps": 0,
+          "hosts_bps": 2000,
+          "reserve_bps": 3001,
+          "stakers_bps": 4999
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "split_does_not_sum_to_10000",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 1999,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "split_component_out_of_range",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 10001,
+          "hosts_bps": 0,
+          "reserve_bps": 0,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "negative_amount",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": -1,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount_too_large",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 5192296858534827628530496329220096,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_domain",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "lending",
+        "split_table": {
+          "buyburn_bps": 2500,
+          "hosts_bps": 2500,
+          "reserve_bps": 2500,
+          "stakers_bps": 2500
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_field:memo",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "memo": "nope",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_tx_kind",
+      "post_state_root": "0xc2bab1dc9d0a74d54e76ce98d9f4b1efc7ce128d1d8426c634c74716254ca156",
+      "receipt_hash": null,
+      "tx": {
+        "amount": 1,
+        "asset": "zUSD",
+        "kind": "transfer",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x625bf3783819a8a01cac4347ec21c8cdb695c840c2fba6ea6648a7ea6365691e",
+      "receipt_hash": "0x6b45e217f26ff414a8c8bd3374aae30a0f6637e15261911fbc6368c1a919605a",
+      "tx": {
+        "amount": 7,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "dex",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x579f38ab3eb7cd29b3830a7838d60afa1ca66253ec66c362e7e9eace4d8d724d",
+      "receipt_hash": "0x967cb7f1cfc189523f0b4ec35b915c5496ce37423921f3be6727d16269a400e3",
+      "tx": {
+        "amount": 10000,
+        "asset": "zUSD",
+        "kind": "route_fee",
+        "source": "perps",
+        "split_table": {
+          "buyburn_bps": 6000,
+          "hosts_bps": 2000,
+          "reserve_bps": 2000,
+          "stakers_bps": 0
+        }
+      }
+    }
+  ],
+  "version": 1
+}
