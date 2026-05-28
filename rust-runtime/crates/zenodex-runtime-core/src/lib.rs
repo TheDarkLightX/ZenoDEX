@@ -22,6 +22,7 @@
 
 pub mod arith;
 pub mod balance_kernel;
+pub mod burn_receipts;
 pub mod canonical;
 pub mod error;
 pub mod fee_router;
@@ -32,6 +33,7 @@ pub use balance_kernel::{
     credit, transfer, BalanceAccepted, BalanceReceipt, BalanceRejectedReason, BalanceState,
     MAX_BALANCE,
 };
+pub use burn_receipts::{rail_receipt_hash, verify_rails, RailInputs};
 pub use error::{DomainConstraint, RejectedReason};
 pub use fee_router::{
     canonical_split_table, route_fee, Accepted, Domain, FeeAccumulator, FeeReceipt, FeeSplitTable,

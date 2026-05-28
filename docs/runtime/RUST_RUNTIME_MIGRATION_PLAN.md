@@ -54,7 +54,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, zUSD mint/redeem ✅; next: buyback burn → batch clearing |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, zUSD mint/redeem ✅, buyback burn rails ✅; next: batch clearing |
 | 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
@@ -178,6 +178,33 @@ differential deliberately includes amounts above `u128` to exercise this.
   differential with bignum edges) and `test_zusd_semantic_invariants.py`
   (supply conservation, mint/repay/redeem balance-sheet deltas, no bad debt,
   no-op-on-reject).
+
+## Phase 6 — buyback / burn accounting rails (delivered)
+
+Fourth widening surface. Authority `src/core/burn_receipts.py` decomposes a
+burn receipt into four integer **rails**: replay (host gating), amount/budget
+(the burn **floor** / budget: `burn_budget >= burn_amount`), supply (conserves
+supply: `supply_after == supply_before - burn_amount`), and batch-sum (the
+public burn **accumulator**: `after == before + burn_amount`). The Rust shadow
+`zenodex-runtime-core::burn_receipts` mirrors these rails; the harness drives the
+authority's rail functions directly. The verifier is stateless (each `tx` is a
+self-contained rail tuple), so `post_state_root == initial_state_root`.
+
+* Authority rails: `src/core/burn_receipts.py`; harness
+  `tools/runtime/burn_receipts_lib.py`.
+* Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/burn_receipts.rs`.
+* Golden trace: `tests/runtime/golden_traces/burn_smoke.json`
+  (`verify-burn-trace` subcommand).
+* Conformance + invariants: `test_burn_receipts_conformance.py` (static +
+  600-case differential) and `test_burn_receipts_semantic_invariants.py`
+  (budget floor, supply conservation, accumulator growth, replay gating,
+  no-burn inertness).
+
+**Scope:** the integer rails are shadowed. The receipt structural envelope
+(canonical-JSON `receipt_hash` and `verify_burn_receipt`'s lenient `int()`
+coercion) stays Python-only pending bit-exact canonical-JSON/coercion parity in
+Rust. Buyback **execution** (TWAP, pool depth, budget/slippage caps, wash-trade
+gates) is not implemented — accrual + rails are accounting only.
 
 ## Avoiding semantic drift (lesson learned)
 

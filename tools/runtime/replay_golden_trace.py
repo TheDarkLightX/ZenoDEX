@@ -25,6 +25,7 @@ for _p in (str(_REPO), str(_HERE)):
         sys.path.insert(0, _p)
 
 import balance_kernel_lib  # noqa: E402
+import burn_receipts_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 import zusd_kernel_lib  # noqa: E402
@@ -38,6 +39,10 @@ _REPLAYERS = {
         balance_kernel_lib.ReplayMismatch,
     ),
     zusd_kernel_lib.KERNEL: (zusd_kernel_lib.replay_trace, zusd_kernel_lib.ReplayMismatch),
+    burn_receipts_lib.KERNEL: (
+        burn_receipts_lib.replay_trace,
+        burn_receipts_lib.ReplayMismatch,
+    ),
 }
 
 
