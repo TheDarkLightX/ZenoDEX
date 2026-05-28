@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/zenodex-runtime-core",
+    "crates/zenodex-runtime-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.74"
+repository = "https://github.com/TheDarkLightX/ZenoDEX"
+
+# Pinned, audited dependencies. The consensus-critical core
+# (zenodex-runtime-core) keeps its surface tiny: sha2 for hashing, thiserror
+# for typed errors, hex for encoding. serde/serde_json live only in the CLI
+# tooling crate. See rust-runtime/README.md for the dependency rationale.
+[workspace.dependencies]
+sha2 = "0.10"
+thiserror = "2"
+hex = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+proptest = "1"

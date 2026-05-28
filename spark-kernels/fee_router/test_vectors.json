@@ -1,0 +1,414 @@
+{
+  "cases": [
+    {
+      "amount": 0,
+      "domain": "dex",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 1,
+      "domain": "dex",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 10000,
+      "domain": "dex",
+      "expected": {
+        "buyburn": 6000,
+        "dust": 0,
+        "hosts": 2000,
+        "reserve": 2000,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 12347,
+      "domain": "dex",
+      "expected": {
+        "buyburn": 7408,
+        "dust": 1,
+        "hosts": 2469,
+        "reserve": 2469,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 999983,
+      "domain": "dex",
+      "expected": {
+        "buyburn": 599989,
+        "dust": 2,
+        "hosts": 199996,
+        "reserve": 199996,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 1000000000,
+      "domain": "dex",
+      "expected": {
+        "buyburn": 600000000,
+        "dust": 0,
+        "hosts": 200000000,
+        "reserve": 200000000,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 0,
+      "domain": "perps",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 1,
+      "domain": "perps",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 10000,
+      "domain": "perps",
+      "expected": {
+        "buyburn": 6000,
+        "dust": 0,
+        "hosts": 2000,
+        "reserve": 2000,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 12347,
+      "domain": "perps",
+      "expected": {
+        "buyburn": 7408,
+        "dust": 1,
+        "hosts": 2469,
+        "reserve": 2469,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 999983,
+      "domain": "perps",
+      "expected": {
+        "buyburn": 599989,
+        "dust": 2,
+        "hosts": 199996,
+        "reserve": 199996,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 1000000000,
+      "domain": "perps",
+      "expected": {
+        "buyburn": 600000000,
+        "dust": 0,
+        "hosts": 200000000,
+        "reserve": 200000000,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 6000,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 0
+      }
+    },
+    {
+      "amount": 0,
+      "domain": "borrow",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 1,
+      "domain": "borrow",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 10000,
+      "domain": "borrow",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 2000,
+        "reserve": 2000,
+        "stakers": 6000
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 12347,
+      "domain": "borrow",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 2469,
+        "reserve": 2469,
+        "stakers": 7408
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 999983,
+      "domain": "borrow",
+      "expected": {
+        "buyburn": 0,
+        "dust": 2,
+        "hosts": 199996,
+        "reserve": 199996,
+        "stakers": 599989
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 1000000000,
+      "domain": "borrow",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 200000000,
+        "reserve": 200000000,
+        "stakers": 600000000
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 2000,
+        "reserve_bps": 2000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 0,
+      "domain": "redemption",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 0,
+        "reserve_bps": 4000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 1,
+      "domain": "redemption",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 0,
+        "reserve": 0,
+        "stakers": 0
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 0,
+        "reserve_bps": 4000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 10000,
+      "domain": "redemption",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 0,
+        "reserve": 4000,
+        "stakers": 6000
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 0,
+        "reserve_bps": 4000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 12347,
+      "domain": "redemption",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 0,
+        "reserve": 4938,
+        "stakers": 7408
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 0,
+        "reserve_bps": 4000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 999983,
+      "domain": "redemption",
+      "expected": {
+        "buyburn": 0,
+        "dust": 1,
+        "hosts": 0,
+        "reserve": 399993,
+        "stakers": 599989
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 0,
+        "reserve_bps": 4000,
+        "stakers_bps": 6000
+      }
+    },
+    {
+      "amount": 1000000000,
+      "domain": "redemption",
+      "expected": {
+        "buyburn": 0,
+        "dust": 0,
+        "hosts": 0,
+        "reserve": 400000000,
+        "stakers": 600000000
+      },
+      "split": {
+        "buyburn_bps": 0,
+        "hosts_bps": 0,
+        "reserve_bps": 4000,
+        "stakers_bps": 6000
+      }
+    }
+  ],
+  "kernel": "fee_split_conservation",
+  "version": 1
+}

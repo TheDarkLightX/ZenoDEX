@@ -1,0 +1,5 @@
+[toolchain]
+# Pin a stable channel for reproducible, deterministic builds. The components
+# below are required by the Phase 2 acceptance gate (cargo test / clippy / fmt).
+channel = "stable"
+components = ["rustfmt", "clippy"]
