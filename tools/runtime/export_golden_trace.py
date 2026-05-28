@@ -27,6 +27,7 @@ for _p in (str(_REPO), str(_HERE)):
 import balance_kernel_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
+import zusd_kernel_lib  # noqa: E402
 
 # scenario name -> (build_trace, replay_trace) from the owning kernel library.
 _SCENARIOS = {
@@ -38,6 +39,10 @@ _SCENARIOS = {
     "balance_smoke": (
         balance_kernel_lib.build_smoke_trace,
         balance_kernel_lib.replay_trace,
+    ),
+    "zusd_smoke": (
+        zusd_kernel_lib.build_smoke_trace,
+        zusd_kernel_lib.replay_trace,
     ),
 }
 

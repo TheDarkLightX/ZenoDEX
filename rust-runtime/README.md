@@ -70,6 +70,7 @@ The consensus core (`zenodex-runtime-core`) keeps its dependency surface tiny:
 | `sha2` | core | Audited, deterministic SHA-256. Preferred over a hand-rolled hash (lower bug risk for consensus). |
 | `thiserror` | core | Typed errors with derived `Display`. No runtime behavior. |
 | `hex` | core | Lowercase hex for `0x`-prefixed digests. |
+| `num-bigint` | core | Used **only** by the zUSD kernel for CDP ratio intermediates (`collateral*price*bps`) that exceed `u128` at the authority's `1e30` bound, mirroring Python's arbitrary-precision ints. Pure-integer, deterministic. |
 | `proptest` | core (dev) | Property tests (conservation / no-panic). |
 | `serde`, `serde_json` | **cli only** | Trace I/O. `arbitrary_precision` preserves integers larger than `u64` (the corpus includes `2**112`). |
 

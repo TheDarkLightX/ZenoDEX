@@ -7,6 +7,7 @@
 //! zenodex-runtime replay-fee-trace     <trace.json|->   # kernel = fee_router
 //! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
+//! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -28,6 +29,7 @@ use zenodex_runtime_core::balance_kernel::{
     canonical_asset, canonical_pubkey, credit, transfer, BalanceState, MAX_BALANCE,
 };
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
+use zenodex_runtime_core::zusd::{step as zusd_step, ZusdCommand, ZusdState};
 use zenodex_runtime_core::{route_fee, FeeAccumulator, FeeSplitTable};
 
 const TX_FIELDS: [&str; 5] = ["kind", "source", "asset", "amount", "split_table"];
@@ -302,6 +304,71 @@ fn eval_balance_tx(state: &BalanceState, tx: &Value) -> Eval<BalanceState> {
     }
 }
 
+// --- zusd kernel --------------------------------------------------------------
+
+/// Integer-shaped arg as a literal string, else `None` (zUSD `_require_pos_int`
+/// validates `> 0` in the core). zUSD ignores unknown fields, like the authority.
+fn num_arg(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    obj.get(key).and_then(classify_integer)
+}
+
+fn flag(obj: &serde_json::Map<String, Value>, key: &str) -> bool {
+    obj.get(key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+fn eval_zusd_tx(state: &ZusdState, tx: &Value) -> Eval<ZusdState> {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return Eval::Reject("malformed_tx".to_string()),
+    };
+    let cmd = match obj.get("kind").and_then(Value::as_str).unwrap_or("") {
+        "advance_epoch" => ZusdCommand::AdvanceEpoch {
+            delta: num_arg(obj, "delta"),
+        },
+        "bootstrap_oracle" => ZusdCommand::BootstrapOracle {
+            auth_ok: flag(obj, "auth_ok"),
+            price_e8: num_arg(obj, "price_e8"),
+        },
+        "oracle_report" => ZusdCommand::OracleReport {
+            auth_ok: flag(obj, "auth_ok"),
+            price_e8: num_arg(obj, "price_e8"),
+        },
+        "oracle_commit" => ZusdCommand::OracleCommit {
+            auth_ok: flag(obj, "auth_ok"),
+        },
+        "deposit_collateral" => ZusdCommand::DepositCollateral {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "withdraw_collateral" => ZusdCommand::WithdrawCollateral {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "mint_zusd" => ZusdCommand::MintZusd {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "repay_zusd" => ZusdCommand::RepayZusd {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "deposit_sp" => ZusdCommand::DepositSp {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "withdraw_sp" => ZusdCommand::WithdrawSp {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "redeem_zusd" => ZusdCommand::RedeemZusd {
+            amount_e8: num_arg(obj, "amount_e8"),
+        },
+        "liquidate" => ZusdCommand::Liquidate,
+        _ => ZusdCommand::Unknown,
+    };
+    match zusd_step(state, &cmd) {
+        Ok(accepted) => Eval::Accept {
+            receipt_hash: accepted.receipt_hash,
+            next: accepted.state,
+        },
+        Err(code) => Eval::Reject(code.to_string()),
+    }
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -382,11 +449,15 @@ fn main() -> ExitCode {
     if args.len() != 3
         || !matches!(
             subcommand,
-            "replay-fee-trace" | "replay-guard-trace" | "replay-balance-trace"
+            "replay-fee-trace"
+                | "replay-guard-trace"
+                | "replay-balance-trace"
+                | "replay-zusd-trace"
         )
     {
         eprintln!(
-            "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace> <trace.json|->"
+            "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
+             replay-zusd-trace> <trace.json|->"
         );
         return ExitCode::from(2);
     }
@@ -427,6 +498,13 @@ fn main() -> ExitCode {
             BalanceState::default(),
             BalanceState::state_root,
             eval_balance_tx,
+        ),
+        "replay-zusd-trace" => drive(
+            &trace,
+            "zusd",
+            ZusdState::default(),
+            ZusdState::state_root,
+            eval_zusd_tx,
         ),
         _ => unreachable!(),
     };

@@ -80,6 +80,7 @@ _SUBCOMMAND_BY_KERNEL = {
     "fee_router": "replay-fee-trace",
     "replay_guard": "replay-guard-trace",
     "balances": "replay-balance-trace",
+    "zusd": "replay-zusd-trace",
 }
 
 

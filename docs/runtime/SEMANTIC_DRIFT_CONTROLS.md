@@ -91,3 +91,4 @@ These fail on the buggy global-state model and pass on the keyed model.
 | `fee_router` | `(source, asset)` dust, `asset` buckets | ✅ Python + Rust | ✅ static + 400-case |
 | `replay_guard` | `sender` | ✅ Python + Rust | ✅ static + 400-case |
 | `balances` | `(pubkey, asset)` | ✅ Python + Rust | ✅ static + 400-case |
+| `zusd` | single vault (CDP) | ✅ Python (supply conservation, balance-sheet deltas, no bad debt) | ✅ static + 500-case incl. >u128 |
