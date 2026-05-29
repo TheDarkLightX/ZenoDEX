@@ -130,6 +130,17 @@ agreement, root-stability, fail-closed on disagreement and on unavailable Rust).
 Canonical primitives are therefore the first surface with complete criterion-4
 evidence; fuzz (criterion 9) and the human decision (criterion 12) remain.
 
+**Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
+real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
+**input-disaster + fuzz** evidence: a high-volume randomized differential per op
+(≈1.7k cases) whose distributions straddle every bound (zero, max-domain,
+off-by-one, over-domain), exercising malformed/out-of-domain, overflow/underflow,
+and no-op-on-reject (a rejected case yields no Rust output and an unchanged Python
+state). The remaining disaster rows — **selector fail-closed on Rust-timeout /
+malformed-Rust-output** — require the Rust core wired into the authority selector
+(today the perp shadow is a CLI checker, not a live decision path); until that
+exists perps is not authority-eligible and stays `python_authority`.
+
 ## Promotion order (lowest risk first)
 
 Per the migration plan and the math-side `RUNTIME_READINESS.md`:
@@ -142,7 +153,19 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 
 Then, only after the above are promoted and stable: burn rails, CPMM per-pool
 primitive, zUSD single-vault, perp stateless math. **Defer** batch-clearing
-orchestration, the stateful perps engine, and multi-vault zUSD (not shadowed).
+orchestration and multi-vault zUSD (not shadowed).
+
+**Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:
+all 10 `_ISOLATED_ACTION_HANDLERS` ops (`advance_epoch`, `publish_clearing_price`,
+`settle_epoch`, `apply_funding_auto`, `partial_liquidate`, `deposit_collateral`,
+`withdraw_collateral`, `set_position`, `clear_breaker`, `set_market_params`) have
+Rust shadows with real-authority differentials, golden traces, property/proptests,
+and now the high-volume fuzz + input-disaster-state gate
+(`tests/runtime/test_perp_disaster_state.py`). It joins the eligibility queue
+behind the lower-risk surfaces above; what remains before it can flip to
+`rust_authority_with_python_shadow` is the selector live-path wiring (so Rust can
+decide while Python verifies, with fail-closed on disagreement/timeout), the CI
+gate, and human sign-off — none of which this evidence asserts.
 
 ## How a promotion PR looks
 

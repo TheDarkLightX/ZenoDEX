@@ -26,6 +26,7 @@ human decision + profile entry.
 | CPMM per-pool settlement | Python | `cpmm_swap.rs` | ✅ | ☐ | ☐ | ☐ |
 | zUSD single-vault | Python | `zusd.rs` | ✅ | ☐ | ☐ | ☐ |
 | Perp stateless math (E1) | Python | `perp_math.rs` | ✅ | ☐ | ☐ | ☐ |
+| Perp stateful (E2, all 10 ops) | Python | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
 
 ¹ Canonical primitives (stateless) have the applicable disaster-state rows
 (malformed bytes, overflow/underflow, determinism, purity) covered by
@@ -39,6 +40,22 @@ flips it to Rust authority yet.
 (`tests/runtime/test_state_root_disaster_state.py`) that documents the bridge
 boundaries and the selector wiring. It surfaced SR-DRIFT-001, which has now been
 fixed in Rust and locked by regression tests.
+
+³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
+`publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
+`partial_liquidate`, `deposit_collateral`, `withdraw_collateral`, `set_position`,
+`clear_breaker`, `set_market_params`) are shadowed across `perp_advance_epoch`,
+`perp_publish_clearing_price`, `perp_settle_epoch`, `perp_funding_auto`,
+`perp_partial_liquidate`, `perp_account_ops`, `perp_set_market_params`, each with
+golden traces, a real-authority differential (driving `apply_perp_ops`), and Rust
+unit/proptests. `tests/runtime/test_perp_disaster_state.py` adds the **fuzz**
+evidence (≈1.7k randomized cases/run) and the **input-disaster** rows
+(malformed/out-of-domain, overflow/underflow at every parameter bound,
+no-op-on-reject). ⚠️ **Partial DS**: the selector fail-closed rows (Rust-timeout /
+malformed-Rust-output) require wiring the Rust core into the live authority
+selector — today each perp shadow is a CLI checker, not a live decision path.
+Until that wiring + CI + human sign-off exist, perps is **not** authority-eligible
+and stays `python_authority`. No profile flips it.
 
 ## Findings / blockers
 
@@ -73,9 +90,12 @@ verifies the selector receives an agreed rejection rather than a drift.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.
-- **Intentionally Python-only**: batch-clearing orchestration, stateful perps
-  engine (E2), multi-vault zUSD, intent shape-gate, BLS verification (crypto is
-  wrapped, never reimplemented).
+- **Shadowed (E2 complete), awaiting selector live-path wiring**: the **stateful
+  isolated-perps engine (all 10 ops)**. Evidence 1–3 + fuzz + input-disaster are
+  green; DS is partial (the selector fail-closed rows need the Rust core wired
+  into the live authority selector). Stays `python_authority` until then.
+- **Intentionally Python-only**: batch-clearing orchestration, multi-vault zUSD,
+  intent shape-gate, BLS verification (crypto is wrapped, never reimplemented).
 
 ### The one universal blocker
 

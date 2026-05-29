@@ -69,7 +69,8 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/runtime/test_perp_settle_epoch_conformance.py" \
   "$ROOT_DIR/tests/runtime/test_perp_partial_liquidate_conformance.py" \
   "$ROOT_DIR/tests/runtime/test_perp_account_ops_conformance.py" \
-  "$ROOT_DIR/tests/runtime/test_perp_set_market_params_conformance.py"
+  "$ROOT_DIR/tests/runtime/test_perp_set_market_params_conformance.py" \
+  "$ROOT_DIR/tests/runtime/test_perp_disaster_state.py"
 
 echo "== perps: live cross-stream stateful replay =="
 "$PY" "$ROOT_DIR/tools/zenodex_live_cross_stream_stateful.py" --format json

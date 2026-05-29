@@ -220,6 +220,26 @@ def py_eval_all(cases: list[dict]) -> list[dict]:
     return [py_eval(i, c) for i, c in enumerate(cases)]
 
 
+def randomized_cases(*, seed: int, n: int) -> list[dict]:
+    """Uniform fuzz interface (matches the other perp op libs).
+
+    2-3 accounts with long/short positions within PERP_POSITION_MAX, clearing
+    prices straddling the index, and a varied pre-existing fee/insurance sink.
+    """
+    import random
+
+    pks = ["aa" * 48, "bb" * 48, "cc" * 48]
+    rng = random.Random(seed)
+    cases: list[dict] = []
+    for k in range(n):
+        kk = rng.randint(2, 3)
+        positions = [(pk, rng.choice([-1, 1]) * rng.randint(1, 1_000_000)) for pk in pks[:kk]]
+        clearing = rng.choice([100_500_000, 101_000_000, 102_000_000, 98_500_000, 99_000_000, 150_000_000, 50_000_000])
+        sink_k = rng.choice([0, 0, 50, 500, 5_000])
+        cases.append({"positions": positions, "clearing_price_e8": clearing, "sink_k": sink_k, "market_id": f"perp:fafz{seed}_{k}"})
+    return cases
+
+
 # --- Rust bridge --------------------------------------------------------------
 
 
