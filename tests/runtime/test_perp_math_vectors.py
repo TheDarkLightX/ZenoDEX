@@ -81,3 +81,12 @@ def test_rust_rejects_out_of_domain(rust_bin):
     ]
     rs = lib.run_rust(rust_bin, cases)
     assert all(not r["ok"] and r["code"] == "out_of_domain" for r in rs), rs
+
+
+def test_rust_rejects_i128_min_without_panicking(rust_bin):
+    min_i128 = -(2**127)
+    cases = [
+        {"op": "notional_quote", "position_base": min_i128, "price_e8": 100 * P},
+    ]
+    rs = lib.run_rust(rust_bin, cases)
+    assert rs == [{"index": 0, "ok": False, "code": "out_of_domain"}]

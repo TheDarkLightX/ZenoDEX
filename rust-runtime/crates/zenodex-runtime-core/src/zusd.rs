@@ -262,7 +262,7 @@ fn is_oracle_fresh(
     max_staleness: u128,
     seen: bool,
 ) -> bool {
-    seen && now_epoch - last_update_epoch <= max_staleness
+    seen && now_epoch >= last_update_epoch && now_epoch - last_update_epoch <= max_staleness
 }
 
 fn decayed_base_rate_bps(
@@ -326,6 +326,12 @@ fn risky_ops_allowed(state: &ZusdState) -> bool {
 /// Mirrors `zusd.check_invariants`; returns the list of failed codes.
 pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
     let mut failed = Vec::new();
+    if state.oracle_last_update_epoch > state.now_epoch {
+        failed.push("inv_oracle_update_not_future");
+    }
+    if state.base_rate_last_epoch > state.now_epoch {
+        failed.push("inv_base_rate_not_future");
+    }
     if state.oracle_seen && (state.price_e8 == 0 || state.price_pending_e8 == 0) {
         failed.push("inv_oracle_seen_positive_prices");
     }
@@ -358,6 +364,49 @@ pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
 }
 
 // --- arg parsing helpers ------------------------------------------------------
+
+fn validate_state_shape(state: &ZusdState) -> Result<(), &'static str> {
+    if state.fields().iter().any(|f| *f > MAX_AMOUNT_E8) {
+        return Err(REJ_BOUNDED_CHECK_FAILED);
+    }
+    if state.oracle_last_update_epoch > state.now_epoch
+        || state.base_rate_last_epoch > state.now_epoch
+    {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.oracle_seen {
+        if state.price_e8 == 0
+            || state.price_pending_e8 == 0
+            || state.price_pending_e8 > state.price_e8
+        {
+            return Err(REJ_INVARIANT_VIOLATION);
+        }
+    } else if state.price_e8 != 0
+        || state.price_pending_e8 != 0
+        || state.oracle_last_update_epoch != 0
+    {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.mcr_bps == 0 || state.mcr_bps > state.ccr_bps {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.max_debt_e8 > state.max_debt_supply_e8 {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if state.base_rate_bps > BPS_SCALE
+        || state.base_rate_decay_per_epoch_bps > BPS_SCALE
+        || state.base_rate_borrow_bump_bps > BPS_SCALE
+        || state.base_rate_redeem_bump_bps > BPS_SCALE
+        || state.borrow_fee_floor_bps > state.borrow_fee_max_bps
+        || state.borrow_fee_max_bps > BPS_SCALE
+        || state.redemption_fee_floor_bps > state.redemption_fee_max_bps
+        || state.redemption_fee_max_bps > BPS_SCALE
+        || state.liquidation_gas_comp_bps > BPS_SCALE
+    {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    Ok(())
+}
 
 /// `_require_pos_int`: the literal must be a positive integer. **No upper
 /// bound** — exactly like the authority, which rejects huge values only via
@@ -398,6 +447,7 @@ fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, &'static str
 
 /// Apply one zUSD command (single-vault), mirroring `zusd.step`.
 pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'static str> {
+    validate_state_shape(state)?;
     match cmd {
         ZusdCommand::AdvanceEpoch { delta } => {
             let d = require_pos(delta)?;
@@ -826,6 +876,32 @@ mod tests {
         assert_eq!(
             step(&s, &ZusdCommand::AdvanceEpoch { delta: None }),
             Err(REJ_NOT_POSITIVE_INT)
+        );
+    }
+
+    #[test]
+    fn oracle_freshness_future_update_fails_closed() {
+        assert!(!is_oracle_fresh(1, 2, 100, true));
+    }
+
+    #[test]
+    fn malformed_pre_state_rejected_before_transition() {
+        let s = ZusdState {
+            now_epoch: 1,
+            oracle_seen: true,
+            oracle_last_update_epoch: 2,
+            price_e8: E8,
+            price_pending_e8: E8,
+            ..Default::default()
+        };
+        assert_eq!(
+            step(
+                &s,
+                &ZusdCommand::DepositCollateral {
+                    amount_e8: amt("1")
+                }
+            ),
+            Err(REJ_INVARIANT_VIOLATION)
         );
     }
 

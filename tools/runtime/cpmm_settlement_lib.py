@@ -46,6 +46,7 @@ REJ_ALREADY_INITIALIZED = "already_initialized"
 REJ_INVALID_RESERVE = "invalid_reserve"
 REJ_INVALID_FEE_BPS = "invalid_fee_bps"
 REJ_POOL_NOT_INITIALIZED = "pool_not_initialized"
+REJ_RESERVE_DOMAIN_EXCEEDED = "reserve_domain_exceeded"
 REJ_SLIPPAGE = "slippage"
 
 _INIT_FIELDS = frozenset({"kind", "reserve0", "reserve1", "fee_bps"})
@@ -96,7 +97,7 @@ def receipt_hash(
 def _map_quote_error(msg: str) -> str:
     """Map an authority quote ValueError message to a stable reject code."""
     if "swap would exceed reserve_in domain max" in msg:
-        return "reserve_domain_exceeded"
+        return REJ_RESERVE_DOMAIN_EXCEEDED
     if msg.startswith("reserve_in ") or msg.startswith("reserve_out "):
         return "reserve_out_of_domain"
     if msg.startswith("amount_in ") or msg.startswith("amount_out must be >= 1") or (
