@@ -1,0 +1,106 @@
+.infotip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.infotip-trigger {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Expand the touch / pointer hit target to at least 24×24 without changing
+   the visual glyph size, so the InfoTip meets WCAG 2.2 target-size guidance. */
+.infotip-trigger::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
+
+.infotip-trigger:hover,
+.infotip-trigger:focus-visible {
+  color: var(--accent-signal);
+  border-color: var(--accent-signal);
+  outline: none;
+}
+
+.infotip-bubble {
+  position: absolute;
+  z-index: 200;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 10px 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  white-space: normal;
+}
+
+.infotip-top .infotip-bubble {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translate(-50%, -2px);
+}
+
+.infotip-top:hover .infotip-bubble,
+.infotip-top:focus-within .infotip-bubble {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.infotip-right .infotip-bubble {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translate(-2px, -50%);
+}
+
+.infotip-right:hover .infotip-bubble,
+.infotip-right:focus-within .infotip-bubble {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.infotip-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent-signal);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.infotip-body {
+  display: block;
+  color: var(--text-secondary);
+}

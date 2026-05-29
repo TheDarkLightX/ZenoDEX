@@ -79,7 +79,7 @@
 }
 
 .perp-phase-badge.phase-settled {
-    background: rgba(76, 201, 240, 0.1);
+    background: rgba(var(--accent-signal-rgb), 0.1);
     color: var(--accent-cyan);
 }
 

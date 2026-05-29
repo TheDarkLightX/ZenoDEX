@@ -1,8 +1,15 @@
-import { useReducer, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useReducer, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useDemoMode } from './DemoModeContext.jsx';
 import { PerpContext } from './PerpContext.jsx';
 import { PERP_DEMO_MARKETS, PERP_DEMO_POSITIONS, PERP_DEMO_HISTORY } from './perpMockData.js';
-import { apiFetchJson, getRuntimeBooleanFlag } from './api.js';
+import {
+    getRuntimeConfig,
+    getRuntimeBooleanFlag,
+    apiGetPerpsWalletStatus,
+    apiPreparePerpsWallet,
+    apiSubmitPerpsWallet,
+} from './api.js';
+import { buildSignedTauTransaction } from '../sdk/dexIntentSigner.js';
 import {
     toBigInt,
     pnlQuote,
@@ -11,6 +18,118 @@ import {
     marginRatio,
     e8ToNumber,
 } from './perpMath.js';
+
+// ---- Live wallet bridge ------------------------------------------------------
+// Maps a market summary from /api/perps/wallet/status (Tau-node-backed) into
+// the shape PerpProvider / PerpOrderForm / PerpPositionPanel expect, and
+// derives the connected wallet's position for that market.
+
+function _normalizePubkey(value) {
+    return String(value || '').toLowerCase().replace(/^0x/, '');
+}
+
+function _derivePhase(market) {
+    // Open: epoch is collecting orders. PricePublished: clearing price is set
+    // for this epoch (only apply_funding allowed). Settled: epoch closed
+    // (advance_epoch required). The wallet status doesn't expose the phase
+    // directly, but the epoch numbers do.
+    const now = Number(market?.now_epoch ?? 0);
+    const cpEpoch = Number(market?.clearing_price_epoch ?? 0);
+    const cpE8 = Number(market?.clearing_price_e8 ?? 0);
+    // A clearing price set for the CURRENT epoch means it has been published.
+    if (cpEpoch === now && cpE8 > 0) return 'PricePublished';
+    // SETTLED is intentionally NOT inferred here. The authoritative kernel rule
+    // (src/core/perps.py `_infer_epoch_phase`) distinguishes SETTLED from
+    // PRICE_PUBLISHED via a `clearing_price_seen`/settled flag that the wallet
+    // /status payload does not expose — both phases share
+    // clearing_price_epoch == now_epoch. Guessing from epoch arithmetic alone
+    // (e.g. cpEpoch < now) would falsely label a freshly-advanced OPEN epoch as
+    // Settled. The honest fix is backend: surface clearing_price_seen in the 2p
+    // market summary, then resolve SETTLED here. Until then the stepper stops at
+    // PRICE_PUBLISHED rather than showing a false SETTLED.
+    return 'Open';
+}
+
+function mapWalletMarketToProviderShape(walletMarket) {
+    if (!walletMarket || typeof walletMarket !== 'object') return null;
+    const id = walletMarket.market_id || walletMarket.id;
+    if (!id) return null;
+    const kind = walletMarket.kind || 'unknown';
+    const now = Number(walletMarket.now_epoch ?? 0);
+    const oracleEpoch = Number(walletMarket.oracle_last_update_epoch ?? 0);
+    const maintBps = Number(walletMarket.maintenance_margin_bps ?? 500);
+    // Sensible defaults for fields the wallet status doesn't expose.
+    // initialMarginBps is conventionally ~2x maintenance.
+    const initBps = Math.max(maintBps * 2, 1_000);
+    return {
+        id,
+        kind,
+        quoteAsset: walletMarket.quote_asset || null,
+        nowEpoch: now,
+        oracleLastUpdateEpoch: oracleEpoch,
+        oracleSeen: oracleEpoch === now,
+        epochPhase: _derivePhase(walletMarket),
+        indexPriceE8: Number(walletMarket.index_price_e8 ?? 0),
+        clearingPriceE8: Number(walletMarket.clearing_price_e8 ?? 0),
+        clearingPriceEpoch: Number(walletMarket.clearing_price_epoch ?? 0),
+        maintenanceMarginBps: maintBps,
+        initialMarginBps: initBps,
+        depegBufferBps: 0,
+        // Fields below are not exposed by wallet status — defaulted so the
+        // existing components don't NaN. Replace when the wallet API surfaces
+        // them or when a separate market-config endpoint is wired.
+        maxPositionAbs: Number.MAX_SAFE_INTEGER,
+        maxOracleStalenessEpochs: 4,
+        breakerActive: false,
+        // 2p-specific fields (preserved for PerpAccountSummary / debug):
+        accountAPubkey: walletMarket.account_a_pubkey || null,
+        accountBPubkey: walletMarket.account_b_pubkey || null,
+        positionBaseA: Number(walletMarket.position_base_a ?? 0),
+        positionBaseB: Number(walletMarket.position_base_b ?? 0),
+        collateralE8A: Number(walletMarket.collateral_e8_a ?? 0),
+        collateralE8B: Number(walletMarket.collateral_e8_b ?? 0),
+        feePoolE8: Number(walletMarket.fee_pool_e8 ?? 0),
+        feeIncome: nullableNumber(walletMarket.fee_income ?? walletMarket.fee_pool_quote),
+        initialInsurance: nullableNumber(walletMarket.initial_insurance),
+        insuranceBalance: nullableNumber(walletMarket.insurance_balance),
+        claimsPaid: nullableNumber(walletMarket.claims_paid),
+    };
+}
+
+function derivePositionFromWalletMarket(walletMarket, userPubkey) {
+    // For a 2p clearinghouse market, the user's position is whichever
+    // account_*_pubkey matches the connected wallet.
+    if (!walletMarket || !userPubkey) return null;
+    const u = _normalizePubkey(userPubkey);
+    const a = _normalizePubkey(walletMarket.account_a_pubkey);
+    const b = _normalizePubkey(walletMarket.account_b_pubkey);
+    let positionBase = 0;
+    let collateralQuote = 0;
+    // `collateral_e8_*` is e8-scaled quote per the kernel (1e8 = 1 quote unit),
+    // but `collateralQuote` is PLAIN integer quote everywhere downstream
+    // (perpMath/perpValidation/position panel + demo data). Divide out the 1e8
+    // scale here at the read boundary; trunc drops the sub-1-quote fraction for
+    // display. The WRITE path (deposit/withdrawCollateral) stays unscaled —
+    // perp_engine scales amount*1e8 server-side, so do NOT pre-scale there.
+    if (u && u === a) {
+        positionBase = Number(walletMarket.position_base_a ?? 0);
+        collateralQuote = Math.trunc(Number(walletMarket.collateral_e8_a ?? 0) / 1e8);
+    } else if (u && u === b) {
+        positionBase = Number(walletMarket.position_base_b ?? 0);
+        collateralQuote = Math.trunc(Number(walletMarket.collateral_e8_b ?? 0) / 1e8);
+    } else {
+        return null;
+    }
+    return {
+        marketId: walletMarket.market_id,
+        pubkey: userPubkey,
+        positionBase,
+        collateralQuote,
+        // Entry price isn't tracked by the 2p market state — index price is the
+        // best honest stand-in until a positions endpoint surfaces entry.
+        entryPriceE8: Number(walletMarket.index_price_e8 ?? 0),
+    };
+}
 
 /**
  * PerpContext - Shared state for the perpetuals trading interface.
@@ -65,6 +184,12 @@ function asSafeInt(value) {
     return i;
 }
 
+function nullableNumber(value) {
+    if (value == null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
 function createLocalTxId(prefix = 'perp') {
     const salt = Math.random().toString(16).slice(2, 10);
     return `${prefix}-${Date.now()}-${salt}`;
@@ -83,11 +208,17 @@ function createLocalTxHash() {
     return `0x${hex}`;
 }
 
-function actionLabelFromRequest(endpoint, body) {
-    return body.action
-        || (endpoint.includes('/position') ? 'set_position'
-        : endpoint.includes('/insurance') ? 'deposit_insurance'
-        : 'trade');
+function defaultPerpsDeadline() {
+    return Math.floor(Date.now() / 1000) + 3600;
+}
+
+function externalTauSignerFromWallet(wallet) {
+    for (const key of ['signTauTransactionPayload', 'signTauTransaction', 'signTauPayload']) {
+        if (typeof wallet?.[key] === 'function') {
+            return wallet[key].bind(wallet);
+        }
+    }
+    return null;
 }
 
 function actionTitle(actionLabel, marketId) {
@@ -225,20 +356,32 @@ function reducer(state, action) {
 export function PerpProvider({ children, wallet, onTransaction }) {
     const { demoMode } = useDemoMode();
     const [state, dispatch] = useReducer(reducer, initialState);
+    const runtimeConfig = getRuntimeConfig();
+    const localTestnetWritesDefault = runtimeConfig.deployment === 'local-testnet'
+        || String(runtimeConfig.chainId || '').includes('localtest')
+        || String(runtimeConfig.chainId || '').includes('local-testnet');
     const perpsPreviewWritesRequested = useMemo(() => getRuntimeBooleanFlag({
         queryKey: 'perpsPreviewWrites',
         runtimeKey: 'perpsPreviewWrites',
         envKey: 'VITE_PERPS_PREVIEW_WRITES',
-        defaultValue: false,
-    }), []);
+        defaultValue: localTestnetWritesDefault,
+    }), [localTestnetWritesDefault]);
     const writeEnabled = demoMode || perpsPreviewWritesRequested;
     const writeLockReason = !writeEnabled
-        ? 'Preview-grid writes stay locked. Use the Live Perps Wallet for stream-8 Tau-node-backed transactions, or enable local preview writes only for controlled UI development.'
+        ? 'Trader writes require a production signer bridge or local-testnet write mode. The stream-8 wallet API supports deposit_collateral and set_position_pair; this browser lane will not submit without an explicit signer path.'
         : '';
     const pubkey = wallet?.address ?? null;
+    // Secure default: browser-held private keys are accepted only for local
+    // testnet signing. Production paths must provide an external signed Tau
+    // payload; raw private keys are never forwarded to the server.
+    const walletPrivkey = wallet?.privkey ?? null;
+    const browserHotSigningAllowed = Boolean(walletPrivkey && wallet?.localTestnetGenerated && localTestnetWritesDefault);
+    const externalTauSigner = externalTauSignerFromWallet(wallet);
+    // Forward ref so submitAction can refresh state after a live action
+    // without forming a circular useCallback dependency.
+    const loadMarketsRef = useRef(null);
     // Monotonic request counter to discard responses from stale loadMarkets calls.
     const loadSeqRef = useRef(0);
-    const marketDetailSeqRef = useRef(0);
     // Track current pubkey for stale-action detection in submitAction.
     const pubkeyRef = useRef(pubkey);
     // Snapshot latest reducer state for synchronous demo-mode updates.
@@ -271,58 +414,46 @@ export function PerpProvider({ children, wallet, onTransaction }) {
                 dispatch({ type: ACTIONS.SET_POSITIONS, payload: PERP_DEMO_POSITIONS });
                 dispatch({ type: ACTIONS.SET_HISTORY, payload: PERP_DEMO_HISTORY });
             } else {
-                const data = await apiFetchJson('/api/perps/markets');
+                // Live mode: read from the Tau-node-backed wallet status. This
+                // is the authoritative source. The legacy /api/perps/markets
+                // demo endpoint is no longer consulted in live mode.
+                // 12s budget: the Tau-node-backed status response can carry
+                // wallet authority + signer ceremony evidence and routinely
+                // takes 2–3 s on local-testnet, so a tighter cap shows the
+                // user spurious "timeout" banners even when the call would
+                // have finished in time.
+                const statusResp = await apiGetPerpsWalletStatus({ timeoutMs: 12000 });
                 if (seq !== loadSeqRef.current) return; // stale
-                const summaries = data.markets || [];
+                const status = statusResp?.status || {};
+                const rawMarkets = Array.isArray(status.markets) ? status.markets : [];
+                const summaries = rawMarkets
+                    .map(mapWalletMarketToProviderShape)
+                    .filter(Boolean);
                 dispatch({ type: ACTIONS.SET_MARKETS, payload: summaries });
 
-                // Fetch full details for the currently selected market only
-                // (summary already contains guard/math fields; detail is for richer panels).
-                const selectedId = stateRef.current.selectedMarketId || (summaries[0]?.id ?? null);
-                if (selectedId) {
-                    try {
-                        const detail = await apiFetchJson(`/api/perps/markets/${encodeURIComponent(selectedId)}`);
-                        if (seq !== loadSeqRef.current) return; // stale
-                        if (detail?.market) {
-                            dispatch({ type: ACTIONS.UPDATE_MARKET, payload: detail.market });
-                        }
-                    } catch {
-                        // Ignore detail fetch failure; UI can run on summary data.
-                    }
-                }
-
-                // Fetch positions per-market for connected wallet.
+                // Positions are embedded in each 2p market (account_a/b pubkeys
+                // + position_base_a/b). Derive a positions map keyed by marketId
+                // for the connected wallet.
                 if (pubkey) {
-                    try {
-                        const posData = await apiFetchJson(`/api/perps/positions/${encodeURIComponent(pubkey)}`);
-                        if (seq !== loadSeqRef.current) return; // stale
-                        if (posData?.positions && typeof posData.positions === 'object') {
-                            dispatch({ type: ACTIONS.SET_POSITIONS, payload: posData.positions });
+                    const positions = {};
+                    for (const m of rawMarkets) {
+                        const pos = derivePositionFromWalletMarket(m, pubkey);
+                        if (pos) {
+                            positions[pos.marketId] = pos;
                         }
-                    } catch {
-                        // Positions may not exist yet (or endpoint unavailable).
                     }
-
-                    // Fetch and normalize history.
-                    try {
-                        const histData = await apiFetchJson(`/api/perps/history/${encodeURIComponent(pubkey)}`);
-                        if (seq !== loadSeqRef.current) return; // stale
-                        const raw = histData.history || [];
-                        const normalized = raw.map((entry, i) => ({
-                            id: entry.id || `htx-${i}`,
-                            timestamp: (entry.ts || 0) * 1000, // seconds → ms
-                            market: entry.marketId || entry.market || '',
-                            action: entry.action || '',
-                            side: entry.detail?.side ?? entry.side ?? null,
-                            sizeAfter: entry.detail?.sizeAfter ?? entry.sizeAfter ?? null,
-                            amount: entry.detail?.amount ?? entry.detail?.newPositionBase ?? entry.amount ?? null,
-                            priceE8: entry.detail?.priceE8 ?? entry.priceE8 ?? null,
-                            status: entry.status || 'confirmed',
-                        }));
-                        dispatch({ type: ACTIONS.SET_HISTORY, payload: normalized });
-                    } catch {
-                        // History may not exist yet.
-                    }
+                    if (seq !== loadSeqRef.current) return; // stale
+                    dispatch({ type: ACTIONS.SET_POSITIONS, payload: positions });
+                }
+                // History: wallet status doesn't expose tx history. Leave empty
+                // until a dedicated history endpoint is added — better to show
+                // nothing than to show stale demo data.
+                dispatch({ type: ACTIONS.SET_HISTORY, payload: [] });
+                if (!status.node_reachable) {
+                    dispatch({
+                        type: ACTIONS.SET_ERROR,
+                        payload: status.error || 'tau_node_unreachable',
+                    });
                 }
             }
             if (seq === loadSeqRef.current) {
@@ -334,29 +465,20 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         }
     }, [demoMode, pubkey]);
 
+    // Keep the ref pointing at the latest loadMarkets so submitAction can
+    // refetch authoritative state after a live action without depending on it.
+    useLayoutEffect(() => {
+        loadMarketsRef.current = loadMarkets;
+    }, [loadMarkets]);
+
     // Select a market
     const selectMarket = useCallback((marketId) => {
         dispatch({ type: ACTIONS.SELECT_MARKET, payload: marketId });
     }, []);
 
-    // Keep full market detail fresh for the selected market (avoid N+1 detail fetches).
-    useEffect(() => {
-        if (demoMode) return;
-        if (!state.selectedMarketId) return;
-        const seq = ++marketDetailSeqRef.current;
-        const marketId = state.selectedMarketId;
-        (async () => {
-            try {
-                const detail = await apiFetchJson(`/api/perps/markets/${encodeURIComponent(marketId)}`);
-                if (seq !== marketDetailSeqRef.current) return;
-                if (detail?.market) {
-                    dispatch({ type: ACTIONS.UPDATE_MARKET, payload: detail.market });
-                }
-            } catch {
-                // Ignore detail refresh failure.
-            }
-        })();
-    }, [demoMode, state.selectedMarketId]);
+    // (Live market detail is refreshed via loadMarkets — the wallet status
+    // payload already includes every market's full state, so a per-market
+    // detail fetch is no longer needed.)
 
     // Get the currently selected market
     const selectedMarket = useMemo(() => {
@@ -398,60 +520,131 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         };
     }, [selectedMarket, currentPosition]);
 
-    // Submit actions (collateral, position).
-    // On success, update local state so the UI reflects the change immediately.
-    // Guards against stale dispatches if the wallet changed mid-flight.
-    const submitAction = useCallback(async (endpoint, body) => {
+    // Submit a trader action.
+    // - In demo mode: route through the in-memory demo state machine (unchanged).
+    // - In live mode: translate into the stream-8 wallet action, prepare the
+    //   exact Tau operation bundle, sign in the browser only for local testnet,
+    //   then submit the externally signed payload. Production must use an
+    //   external signer and never sends raw private keys to the backend.
+    const submitAction = useCallback(async (request) => {
         if (!writeEnabled) {
             dispatch({ type: ACTIONS.SET_ERROR, payload: 'perps_preview_only' });
             return { ok: false, error: 'perps_preview_only' };
         }
         const callerPubkey = pubkeyRef.current;
-        const actionLabel = actionLabelFromRequest(endpoint, body);
+        const actionLabel = request.label || request.walletAction || 'perps_action';
         const txId = createLocalTxId('perp');
         const txHash = createLocalTxHash();
         onTransaction?.({
             id: txId,
             status: 'pending',
             product: 'perps',
-            title: actionTitle(actionLabel, body.marketId),
-            marketId: body.marketId || '',
+            title: actionTitle(actionLabel, request.marketId),
+            marketId: request.marketId || '',
             action: actionLabel,
             txHash,
             network: 'Tau Net Alpha',
             createdAt: Date.now(),
         });
         try {
-            const result = demoMode
-                ? applyDemoAction(endpoint, body, stateRef.current, callerPubkey)
-                : await apiFetchJson(endpoint, {
-                    method: 'POST',
-                    body: JSON.stringify(body),
-                });
-            // Discard if wallet changed while the request was in-flight.
+            let result;
+            if (demoMode) {
+                result = applyDemoAction(
+                    request.demoEndpoint,
+                    request.demoBody || {},
+                    stateRef.current,
+                    callerPubkey,
+                );
+            } else {
+                const deadline = request.deadline ?? defaultPerpsDeadline();
+                const body = {
+                    action: request.walletAction,
+                    market_id: request.marketId,
+                    chain_id: runtimeConfig.chainId || 'zeno-ledger-localtest-v0',
+                    deadline,
+                    account_pubkey: pubkey,
+                    ...(request.walletExtra || {}),
+                };
+                let submitBody = null;
+                if (request.signedTauTxPayload) {
+                    submitBody = { ...body, signed_tau_tx_payload: request.signedTauTxPayload };
+                } else if (walletPrivkey && !browserHotSigningAllowed) {
+                    result = { ok: false, error: 'production_browser_hot_key_disabled' };
+                } else {
+                    const prepared = await apiPreparePerpsWallet(body, { timeoutMs: 8000 });
+                    if (prepared?.ok === false) {
+                        result = { ok: false, error: prepared.error || 'prepare_failed' };
+                    } else if (browserHotSigningAllowed) {
+                        const signedTauTxPayload = await buildSignedTauTransaction({
+                            privkey: walletPrivkey,
+                            sequence_number: prepared?.transport?.tx_sequence_number,
+                            expiration_time: deadline,
+                            operations: prepared?.report?.operations,
+                            fee_limit: prepared?.transport?.tx_fee_limit ?? '0',
+                        });
+                        submitBody = { ...body, signed_tau_tx_payload: signedTauTxPayload };
+                    } else if (externalTauSigner) {
+                        const signedTauTxPayload = await externalTauSigner({
+                            chainId: prepared?.transport?.chain_id || body.chain_id,
+                            senderPubkey: prepared?.transport?.tx_sender_pubkey,
+                            sender_pubkey: prepared?.transport?.tx_sender_pubkey,
+                            sequenceNumber: prepared?.transport?.tx_sequence_number,
+                            sequence_number: prepared?.transport?.tx_sequence_number,
+                            expirationTime: deadline,
+                            expiration_time: deadline,
+                            operations: prepared?.report?.operations,
+                            feeLimit: prepared?.transport?.tx_fee_limit ?? '0',
+                            fee_limit: prepared?.transport?.tx_fee_limit ?? '0',
+                            prepared,
+                        });
+                        if (!signedTauTxPayload || typeof signedTauTxPayload !== 'object') {
+                            result = { ok: false, error: 'external_signer_returned_invalid_payload' };
+                        } else {
+                            submitBody = { ...body, signed_tau_tx_payload: signedTauTxPayload };
+                        }
+                    } else {
+                        result = {
+                            ok: false,
+                            error: 'external_signer_required',
+                            prepared,
+                        };
+                    }
+                }
+                const resp = submitBody
+                    ? await apiSubmitPerpsWallet(submitBody, { timeoutMs: 8000 })
+                    : null;
+                if (resp?.ok === false) {
+                    result = { ok: false, error: resp.error || 'submit_failed' };
+                } else if (resp) {
+                    result = {
+                        ok: true,
+                        txHash: resp?.tx_hash || resp?.receipt?.tx_hash || null,
+                        receipt: resp?.receipt || null,
+                        rawResponse: resp,
+                    };
+                }
+            }
             if (pubkeyRef.current !== callerPubkey) return result;
-            // Apply server-returned position/market updates to local state.
             if (result.ok) {
                 dispatch({ type: ACTIONS.SET_ERROR, payload: null });
-                if (result.position && body.marketId) {
+                if (result.position && request.marketId) {
                     dispatch({
                         type: ACTIONS.UPDATE_POSITION,
-                        payload: { marketId: body.marketId, data: result.position },
+                        payload: { marketId: request.marketId, data: result.position },
                     });
                 }
                 if (result.market) {
                     dispatch({ type: ACTIONS.UPDATE_MARKET, payload: result.market });
                 }
-                // Append a local history entry so the trade list updates immediately.
                 dispatch({
                     type: ACTIONS.APPEND_HISTORY,
                     payload: {
                         id: `local-${Date.now()}`,
                         timestamp: Date.now(),
-                        market: body.marketId || '',
+                        market: request.marketId || '',
                         action: actionLabel,
                         side: null,
-                        amount: body.amount ?? body.newPositionBase ?? null,
+                        amount: request.amount ?? request.newPositionBase ?? null,
                         status: 'confirmed',
                     },
                 });
@@ -461,6 +654,12 @@ export function PerpProvider({ children, wallet, onTransaction }) {
                     txHash: result.txHash || txHash,
                     updatedAt: Date.now(),
                 });
+                // In live mode, refresh from authoritative state so subsequent
+                // reads reflect what the Tau node now thinks.
+                if (!demoMode) {
+                    // Fire and forget — loadMarkets re-derives positions too.
+                    loadMarketsRef.current?.();
+                }
             } else if (result.error) {
                 dispatch({ type: ACTIONS.SET_ERROR, payload: result.error });
                 onTransaction?.({
@@ -482,41 +681,99 @@ export function PerpProvider({ children, wallet, onTransaction }) {
             });
             return { ok: false, error: err.message };
         }
-    }, [demoMode, onTransaction, writeEnabled]);
+    }, [
+        browserHotSigningAllowed,
+        demoMode,
+        externalTauSigner,
+        onTransaction,
+        pubkey,
+        runtimeConfig.chainId,
+        walletPrivkey,
+        writeEnabled,
+    ]);
 
     const depositCollateral = useCallback((marketId, amount) => {
-        return submitAction('/api/perps/collateral', {
+        return submitAction({
             marketId,
-            pubkey,
-            action: 'deposit',
+            label: 'deposit_collateral',
+            walletAction: 'deposit_collateral',
+            walletExtra: { amount: Number(amount) },
             amount,
+            // Demo fallback (in-memory path) keeps the original endpoint shape.
+            demoEndpoint: '/api/perps/collateral',
+            demoBody: { marketId, pubkey, action: 'deposit', amount },
         });
     }, [submitAction, pubkey]);
 
     const withdrawCollateral = useCallback((marketId, amount) => {
-        return submitAction('/api/perps/collateral', {
+        return submitAction({
             marketId,
-            pubkey,
-            action: 'withdraw',
+            label: 'withdraw_collateral',
+            walletAction: 'withdraw_collateral',
+            walletExtra: { amount: Number(amount) },
             amount,
+            demoEndpoint: '/api/perps/collateral',
+            demoBody: { marketId, pubkey, action: 'withdraw', amount },
         });
     }, [submitAction, pubkey]);
 
+    // setPosition: translate "long N at Mx" / "short N at Mx" into the
+    // stream-8 set_position_pair primitive. The trader UI calls this with
+    // newPositionBase (signed: positive = long, negative = short). The
+    // 2p market expects an explicit (position_a, position_b) pair; the
+    // caller's account_a/b role determines which side the input applies to.
     const setPosition = useCallback((marketId, newPositionBase) => {
-        return submitAction('/api/perps/position', {
+        const market = stateRef.current.markets.find((m) => m.id === marketId);
+        const u = String(pubkey || '').toLowerCase().replace(/^0x/, '');
+        const a = String(market?.accountAPubkey || '').toLowerCase().replace(/^0x/, '');
+        const b = String(market?.accountBPubkey || '').toLowerCase().replace(/^0x/, '');
+        let positionA = Number(market?.positionBaseA ?? 0);
+        let positionB = Number(market?.positionBaseB ?? 0);
+        if (u && u === a) {
+            positionA = Number(newPositionBase);
+            positionB = -positionA; // 2p invariant: a + b = 0
+        } else if (u && u === b) {
+            positionB = Number(newPositionBase);
+            positionA = -positionB;
+        } else {
+            return Promise.resolve({
+                ok: false,
+                error: 'wallet_not_party_to_market',
+            });
+        }
+        return submitAction({
             marketId,
-            pubkey,
+            label: 'set_position_pair',
+            walletAction: 'set_position_pair',
+            walletExtra: {
+                account_a_pubkey: market?.accountAPubkey,
+                account_b_pubkey: market?.accountBPubkey,
+                new_position_base_a: positionA,
+                new_position_base_b: positionB,
+            },
             newPositionBase,
+            demoEndpoint: '/api/perps/position',
+            demoBody: { marketId, pubkey, newPositionBase },
         });
     }, [submitAction, pubkey]);
 
     const depositInsurance = useCallback((marketId, amount) => {
-        return submitAction('/api/perps/insurance', {
+        const market = stateRef.current.markets.find((m) => m.id === marketId);
+        if (!demoMode && market?.kind !== 'isolated_v2') {
+            const error = 'insurance_deposit_requires_isolated_market';
+            dispatch({ type: ACTIONS.SET_ERROR, payload: error });
+            return Promise.resolve({ ok: false, error });
+        }
+        return submitAction({
             marketId,
-            pubkey,
+            label: 'deposit_insurance',
+            walletAction: 'deposit_insurance',
+            walletExtra: { amount: Number(amount) },
             amount,
+            demoEndpoint: '/api/perps/insurance',
+            demoBody: { marketId, pubkey, amount },
         });
-    }, [submitAction, pubkey]);
+    }, [demoMode, submitAction, pubkey]);
 
     const value = useMemo(() => ({
         ...state,

@@ -100,6 +100,22 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [react()],
     base: basePath,
+    build: {
+      rollupOptions: {
+        output: {
+          // Split heavy, rarely-changing vendor deps into their own long-cached
+          // chunks so app edits don't bust them and the React runtime loads
+          // separately from ethers / the noble crypto primitives.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) return 'vendor-react';
+            if (id.includes('ethers') || id.includes('@adraffy') || id.includes('aes-js')) return 'vendor-ethers';
+            if (id.includes('@noble') || id.includes('@scure')) return 'vendor-crypto';
+            return undefined;
+          },
+        },
+      },
+    },
     server: {
       proxy: apiTarget ? {
         '/api': {

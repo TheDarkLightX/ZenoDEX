@@ -1,4 +1,5 @@
 import { e8ToNumber } from '../../lib/perpMath.js';
+import { useWindowed } from '../../lib/useWindowed.js';
 import './PerpTradeHistory.css';
 
 /**
@@ -8,6 +9,7 @@ import './PerpTradeHistory.css';
  * for each item in the history array.
  */
 function PerpTradeHistory({ history }) {
+    const { rows, total, hasMore, showMore } = useWindowed(history, 100);
     if (!history || history.length === 0) {
         return (
             <div className="perp-history panel">
@@ -34,7 +36,7 @@ function PerpTradeHistory({ history }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {history.map(item => (
+                        {rows.map(item => (
                             <tr key={item.id} className="perp-history-row">
                                 <td className="perp-history-cell perp-history-cell--time">
                                     {formatTimeAgo(item.timestamp)}
@@ -62,6 +64,12 @@ function PerpTradeHistory({ history }) {
                     </tbody>
                 </table>
             </div>
+            {hasMore && (
+                <div className="perp-history-more">
+                    <span>Showing {rows.length} of {total}</span>
+                    <button type="button" className="btn btn-secondary" onClick={showMore}>Show more</button>
+                </div>
+            )}
         </div>
     );
 }
