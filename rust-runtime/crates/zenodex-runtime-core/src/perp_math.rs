@@ -160,6 +160,37 @@ pub fn is_liquidatable(
         )
 }
 
+/// Liquidation penalty in quote; `0` below the anti-bounty-farming notional floor.
+pub fn liq_penalty(
+    position_base: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    let notional = notional_quote(position_base, settle_price_e8);
+    if notional < min_notional_for_bounty {
+        return 0;
+    }
+    margin_requirement(notional, liquidation_penalty_bps)
+}
+
+/// Liquidation penalty capped at the remaining collateral after PnL.
+pub fn liq_penalty_capped(
+    collateral_after_pnl: i128,
+    position_base: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    let raw = liq_penalty(
+        position_base,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    );
+    collateral_after_pnl.min(raw)
+}
+
 // -- Funding helpers (symmetric) ---------------------------------------------
 
 pub fn funding_magnitude(position_base: i128, index_price_e8: i128, rate_bps: i128) -> i128 {
