@@ -205,6 +205,26 @@ exact-in output is floor, exact-out input is ceil. Reject codes:
 settlement **primitive**; multi-pool aggregation, swap-ordering heuristics, CoW
 netting, and liquidity intents (`src/core/batch_clearing.py`) remain Python-only.
 
+## Non-trace differential subcommands
+
+Two surfaces are pure functions of a value rather than a state-threaded trace,
+so they use a `{ "cases": [ ... ] }` request shape (not the golden-trace schema)
+and emit `{ "version": 1, "results": [ ... ] }`:
+
+* **`canonical-hash`** — canonical-primitive vectors. Per-case ops:
+  `{"op":"json_bytes"|"json_hash","value":<any>}` (canonical JSON bytes / its
+  SHA-256), `{"op":"hex_to_bytes","hex":"0x..","nbytes":N}`, and
+  `{"op":"domain_json_hash","label":"..","version":1,"value":<any>}` =
+  `sha256(domain_sep(label,version) + canonical_json_bytes(value))`. The last op
+  shadows the DEX intent auth message hash (`label="dex_intent_sig:{chain_id}"`)
+  and the burn-receipt body hash (`label="zenodex.burn_receipt/v1"`). Floats and
+  malformed hex / domain labels reject with stable codes
+  (`float_not_allowed`, `bad_hex_format`, `bad_hex_chars`, `bad_domain_label`,
+  `bad_domain_version`).
+* **`verify-state-root`** — network state-root (v4). Each case is a full state
+  snapshot (`balances`/`pools`/`lp_balances`/`lp_duration_risk`/`nonces`); the
+  result is `{"ok":true,"state_root":"0x.."}` or `{"ok":false,"code":".."}`.
+
 ## Rejection codes (stable)
 
 Every rejection carries a stable machine code. Domain-constraint rejections
