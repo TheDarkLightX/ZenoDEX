@@ -12,6 +12,7 @@ import os
 import random
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 from src.core.dex import DexState  # noqa: F401
@@ -68,10 +69,36 @@ def build_settled_market(*, market_id: str, positions, deposit: int) -> DexState
     return fa._apply(state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR, ops=[fa._op(market_id, "settle_epoch")])
 
 
+def with_global_overrides(state: DexState, *, market_id: str, overrides: dict[str, int]) -> DexState:
+    if not overrides:
+        return state
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    for key, value in overrides.items():
+        gs[key] = int(value)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=gs,
+        accounts=dict(market.accounts),
+    )
+    return replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+
 def py_eval(index: int, case: dict) -> dict:
     market_id = case.get("market_id", f"perp:smp{index}")
     positions = [(pk, int(p)) for pk, p in case.get("positions", [])]
     state = build_settled_market(market_id=market_id, positions=positions, deposit=int(case.get("deposit", 200_000)))
+    state = with_global_overrides(
+        state,
+        market_id=market_id,
+        overrides={
+            key: int(case[key])
+            for key in ("funding_rate_bps",)
+            if key in case
+        },
+    )
     assert state.perps is not None
     market = state.perps.markets[market_id]
     gs = market.global_state
