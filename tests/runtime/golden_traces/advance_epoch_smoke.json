@@ -1,0 +1,91 @@
+{
+  "kernel": "perp_advance_epoch",
+  "version": 1,
+  "cases": [
+    {
+      "now_epoch": 0,
+      "epoch_phase": 0,
+      "oracle_last_update_epoch": 0,
+      "delta": 1
+    },
+    {
+      "now_epoch": 1,
+      "epoch_phase": 2,
+      "oracle_last_update_epoch": 1,
+      "delta": 1
+    },
+    {
+      "now_epoch": 1,
+      "epoch_phase": 2,
+      "oracle_last_update_epoch": 1,
+      "delta": 10000
+    },
+    {
+      "now_epoch": 1,
+      "epoch_phase": 0,
+      "oracle_last_update_epoch": 0,
+      "delta": 1
+    },
+    {
+      "now_epoch": 1,
+      "epoch_phase": 1,
+      "oracle_last_update_epoch": 0,
+      "delta": 1
+    },
+    {
+      "now_epoch": 1,
+      "epoch_phase": 2,
+      "oracle_last_update_epoch": 1,
+      "delta": 0
+    },
+    {
+      "now_epoch": 1,
+      "epoch_phase": 2,
+      "oracle_last_update_epoch": 1,
+      "delta": 10001
+    }
+  ],
+  "expected": [
+    {
+      "index": 0,
+      "ok": true,
+      "now_epoch": "1",
+      "epoch_phase": "0",
+      "oracle_last_update_epoch": "0"
+    },
+    {
+      "index": 1,
+      "ok": true,
+      "now_epoch": "2",
+      "epoch_phase": "0",
+      "oracle_last_update_epoch": "1"
+    },
+    {
+      "index": 2,
+      "ok": true,
+      "now_epoch": "10001",
+      "epoch_phase": "0",
+      "oracle_last_update_epoch": "1"
+    },
+    {
+      "index": 3,
+      "ok": false,
+      "code": "epoch_not_settled"
+    },
+    {
+      "index": 4,
+      "ok": false,
+      "code": "epoch_not_settled"
+    },
+    {
+      "index": 5,
+      "ok": false,
+      "code": "param_domain_delta"
+    },
+    {
+      "index": 6,
+      "ok": false,
+      "code": "param_domain_delta"
+    }
+  ]
+}
