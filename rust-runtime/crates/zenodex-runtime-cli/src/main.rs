@@ -9,6 +9,8 @@
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
+//! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
+//! zenodex-runtime canonical-hash       <cases.json|->   # canonical primitive vectors
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -34,6 +36,9 @@ use zenodex_runtime_core::burn_receipts::{
 };
 use zenodex_runtime_core::canonical::{
     canonical_json_bytes, hex_to_bytes_fixed, sha256_hex, CanonicalError, JsonValue,
+};
+use zenodex_runtime_core::cpmm_swap::{
+    init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::zusd::{step as zusd_step, ZusdCommand, ZusdState};
@@ -584,6 +589,110 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
     })
 }
 
+// --- cpmm settlement swap kernel ----------------------------------------------
+
+const INIT_FIELDS: [&str; 4] = ["kind", "reserve0", "reserve1", "fee_bps"];
+const EXACT_IN_FIELDS: [&str; 4] = ["kind", "zero_for_one", "amount_in", "min_amount_out"];
+const EXACT_OUT_FIELDS: [&str; 4] = ["kind", "zero_for_one", "amount_out", "max_amount_in"];
+
+/// Present integer-shaped field as a literal string, else `None` (missing/non-int).
+fn int_field(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    obj.get(key).and_then(classify_integer)
+}
+
+/// Parse to u128, saturating negatives/oversized to `u128::MAX` so the kernel's
+/// range checks reject them at the same boundary as the Python authority.
+fn u128_sat(s: &str) -> u128 {
+    s.parse::<u128>().unwrap_or(u128::MAX)
+}
+
+fn eval_cpmm_tx(pool: &Pool, tx: &Value) -> Eval<Pool> {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return Eval::Reject("malformed_tx".to_string()),
+    };
+    let kind = obj.get("kind").and_then(Value::as_str).unwrap_or("");
+    let allowed: &[&str] = match kind {
+        "init_pool" => &INIT_FIELDS,
+        "swap_exact_in" => &EXACT_IN_FIELDS,
+        "swap_exact_out" => &EXACT_OUT_FIELDS,
+        _ => return Eval::Reject("unknown_tx_kind".to_string()),
+    };
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), allowed) {
+        return Eval::Reject(reason);
+    }
+
+    let result = match kind {
+        "init_pool" => {
+            // `already_initialized` precedes field validation (mirrors the harness).
+            if pool.initialized {
+                return Eval::Reject("already_initialized".to_string());
+            }
+            let (r0, r1, fee) = match (
+                int_field(obj, "reserve0"),
+                int_field(obj, "reserve1"),
+                int_field(obj, "fee_bps"),
+            ) {
+                (Some(a), Some(b), Some(c)) => (a, b, c),
+                _ => return Eval::Reject("malformed_tx".to_string()),
+            };
+            // Reserves and fee carry their own out-of-domain reject codes.
+            let reserve0 = match r0.parse::<u128>() {
+                Ok(v) if (1..=DEX_POOL_RESERVE_MAX).contains(&v) => v,
+                _ => return Eval::Reject("invalid_reserve".to_string()),
+            };
+            let reserve1 = match r1.parse::<u128>() {
+                Ok(v) if (1..=DEX_POOL_RESERVE_MAX).contains(&v) => v,
+                _ => return Eval::Reject("invalid_reserve".to_string()),
+            };
+            let fee_bps = match fee.parse::<u128>() {
+                Ok(v) if v <= BPS_DENOM => v,
+                _ => return Eval::Reject("invalid_fee_bps".to_string()),
+            };
+            init_pool(pool, reserve0, reserve1, fee_bps)
+        }
+        "swap_exact_in" => {
+            let zero_for_one = match obj.get("zero_for_one").and_then(Value::as_bool) {
+                Some(b) => b,
+                None => return Eval::Reject("malformed_tx".to_string()),
+            };
+            let amount_in = match int_field(obj, "amount_in") {
+                Some(s) => u128_sat(&s),
+                None => return Eval::Reject("malformed_tx".to_string()),
+            };
+            let min_out = match int_field(obj, "min_amount_out") {
+                Some(s) if !s.starts_with('-') => u128_sat(&s),
+                _ => return Eval::Reject("malformed_tx".to_string()),
+            };
+            swap_exact_in(pool, zero_for_one, amount_in, min_out)
+        }
+        "swap_exact_out" => {
+            let zero_for_one = match obj.get("zero_for_one").and_then(Value::as_bool) {
+                Some(b) => b,
+                None => return Eval::Reject("malformed_tx".to_string()),
+            };
+            let amount_out = match int_field(obj, "amount_out") {
+                Some(s) => u128_sat(&s),
+                None => return Eval::Reject("malformed_tx".to_string()),
+            };
+            let max_in = match int_field(obj, "max_amount_in") {
+                Some(s) if !s.starts_with('-') => u128_sat(&s),
+                _ => return Eval::Reject("malformed_tx".to_string()),
+            };
+            swap_exact_out(pool, zero_for_one, amount_out, max_in)
+        }
+        _ => unreachable!(),
+    };
+
+    match result {
+        Ok(accepted) => Eval::Accept {
+            receipt_hash: accepted.receipt.receipt_hash(),
+            next: accepted.pool,
+        },
+        Err(code) => Eval::Reject(code.to_string()),
+    }
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -669,12 +778,14 @@ fn main() -> ExitCode {
                 | "replay-balance-trace"
                 | "replay-zusd-trace"
                 | "verify-burn-trace"
+                | "settle-swap-trace"
                 | "canonical-hash"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
-             replay-zusd-trace|verify-burn-trace|canonical-hash> <input.json|->"
+             replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash> \
+             <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -745,6 +856,13 @@ fn main() -> ExitCode {
             eval_zusd_tx,
         ),
         "verify-burn-trace" => drive(&trace, "burn_receipts", (), burn_state_root, eval_burn_tx),
+        "settle-swap-trace" => drive(
+            &trace,
+            "cpmm_settlement",
+            Pool::default(),
+            Pool::state_root,
+            eval_cpmm_tx,
+        ),
         _ => unreachable!(),
     };
 

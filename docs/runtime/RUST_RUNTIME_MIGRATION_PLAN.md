@@ -54,7 +54,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; `hex_to_bytes_fixed`/`canonical_json_bytes` + full network state-root parity in progress (see gap map) |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅; next: batch-clearing CPMM settlement, state-root, perps math, tx/receipt hashes |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: state-root, perps math, tx/receipt hashes |
 | 7 | SPARK/Ada sidecar | ☐ fee-router kernel drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
@@ -78,7 +78,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ | — | — | add `_reference` + overflow test (Phase D) |
 | Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | candidate (Phase H) | — | receipt-body JSON hash (Phase F) |
 | Canonical primitives | `src/state/canonical.py` | ◑ uvarint/bytes/domain-sep/sha256 ✅; **`hex_to_bytes_fixed`, `canonical_json_bytes` missing** | n/a | vectors | n/a | — | planned | add 2 primitives (Phase A.5) |
-| CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ❌ | ❌ | ❌ | ❌ | — | — | bring in `5b84bd56` + add `_semantic_invariants` (Phase B) |
+| CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | orchestration (multi-pool/CoW/ordering) deferred |
 | State root (network) | `src/state/state_root.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `state_root.rs` + vectors (Phase C) |
 | Perps math (stateless) | `src/core/perp_v2/math.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `perp_math.rs` (i128 + floor-div) (Phase E1) |
 | Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ❌ | ❌ | hash vectors | n/a | — | — | needs `canonical_json_bytes` (Phase F) |
