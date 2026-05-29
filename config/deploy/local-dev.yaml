@@ -21,3 +21,11 @@ gossip_policy:
   transport_auth_required: false
 observability_policy:
   metrics_required: false
+runtime_authority_policy:
+  schema: zenodex/runtime_authority_policy/v1
+  # Dev loopback: Python authority by default. This is not a strict profile, so
+  # the selector permits experimenting with rust_shadow / rust_authority modes
+  # per surface (advisory validation only).
+  default: python_authority
+  per_surface: {}
+  promoted_surfaces: []
