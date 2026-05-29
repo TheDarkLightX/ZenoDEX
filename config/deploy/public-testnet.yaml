@@ -22,3 +22,11 @@ gossip_policy:
   transport_auth_required: true
 observability_policy:
   metrics_required: true
+runtime_authority_policy:
+  schema: zenodex/runtime_authority_policy/v1
+  # Python authority everywhere by default. Per-surface promotion to a Rust
+  # shadow-checked mode is permitted on testnet for surfaces that have passed
+  # the promotion gate; list them in promoted_surfaces when promoting.
+  default: python_authority
+  per_surface: {}
+  promoted_surfaces: []

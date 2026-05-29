@@ -5,12 +5,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
 import yaml  # type: ignore[import-untyped]
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.runtime.authority import (  # noqa: E402
+    AuthorityError,
+    load_authority_policy,
+    validate_authority_policy,
+)
 DEFAULT_PROFILE_DIR = ROOT / "config" / "deploy"
 SCHEMA = "zenodex/deployment_profile/v1"
 REPORT_SCHEMA = "zenodex/deployment_profiles_report/v1"
@@ -85,6 +94,16 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
 
     if profile_id == "public-testnet" and raw_keys is not False:
         errors.append("public-testnet must reject raw private key flags")
+
+    # Runtime authority policy (optional section; absent => safe all-Python).
+    # A malformed policy, or a half-configured Rust authority under a strict
+    # profile, is a deployment-facts error.
+    if "runtime_authority_policy" in obj:
+        try:
+            policy = load_authority_policy(obj)
+            validate_authority_policy(policy, profile_id=profile_id or "")
+        except (AuthorityError, ValueError, TypeError) as exc:
+            errors.append(f"runtime_authority_policy: {exc}")
 
     return {
         "profile_id": profile_id,
