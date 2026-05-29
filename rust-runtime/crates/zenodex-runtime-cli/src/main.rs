@@ -14,6 +14,8 @@
 //! zenodex-runtime verify-state-root    <cases.json|->   # network state-root parity
 //! zenodex-runtime perp-math            <cases.json|->   # perp stateless math
 //! zenodex-runtime advance-epoch        <cases.json|->   # perps E2 advance_epoch
+//! zenodex-runtime funding-auto         <cases.json|->   # perps E2 apply_funding_auto
+//! zenodex-runtime publish-clearing-price <cases.json|-> # perps E2 publish_clearing_price
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -49,6 +51,9 @@ use zenodex_runtime_core::perp_funding_auto::{
     apply_funding_auto, FundingAccount, FundingAutoInput,
 };
 use zenodex_runtime_core::perp_math;
+use zenodex_runtime_core::perp_publish_clearing_price::{
+    publish_clearing_price, PublishClearingPriceInput,
+};
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::state_root::{
     compute_state_root, BalanceEntry, LpDurationEntry, LpEntry, NonceEntry, PoolEntry, PoolStatus,
@@ -1199,6 +1204,97 @@ fn run_advance_epoch_cases(req: &Value) -> Result<AdvanceEpochOutputDoc, String>
     })
 }
 
+// --- publish_clearing_price shadow (stateful perps E2 slice) ------------------
+
+#[derive(Serialize)]
+struct PublishClearingPriceCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    now_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    epoch_phase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clearing_price_seen: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clearing_price_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clearing_price_e8: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PublishClearingPriceOutputDoc {
+    version: u32,
+    results: Vec<PublishClearingPriceCaseResult>,
+}
+
+fn publish_clearing_price_err(index: usize, code: &str) -> PublishClearingPriceCaseResult {
+    PublishClearingPriceCaseResult {
+        index,
+        ok: false,
+        now_epoch: None,
+        epoch_phase: None,
+        clearing_price_seen: None,
+        clearing_price_epoch: None,
+        clearing_price_e8: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_publish_clearing_price_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<PublishClearingPriceCaseResult, String> {
+    let input = PublishClearingPriceInput {
+        now_epoch: arg_mag(obj, "now_epoch")?,
+        epoch_phase: arg_mag(obj, "epoch_phase")?,
+        clearing_price_seen: arg_bool(obj, "clearing_price_seen")?,
+        clearing_price_epoch: arg_mag(obj, "clearing_price_epoch")?,
+        clearing_price_e8: arg_mag(obj, "clearing_price_e8")?,
+        oracle_last_update_epoch: arg_mag(obj, "oracle_last_update_epoch")?,
+        price_e8: arg_mag(obj, "price_e8")?,
+    };
+    match publish_clearing_price(&input) {
+        Ok(out) => Ok(PublishClearingPriceCaseResult {
+            index: 0,
+            ok: true,
+            now_epoch: Some(out.now_epoch.to_string()),
+            epoch_phase: Some(out.epoch_phase.to_string()),
+            clearing_price_seen: Some(out.clearing_price_seen),
+            clearing_price_epoch: Some(out.clearing_price_epoch.to_string()),
+            clearing_price_e8: Some(out.clearing_price_e8.to_string()),
+            code: None,
+        }),
+        Err(code) => Ok(publish_clearing_price_err(0, code)),
+    }
+}
+
+fn run_publish_clearing_price_cases(req: &Value) -> Result<PublishClearingPriceOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_publish_clearing_price_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => publish_clearing_price_err(index, &code),
+            },
+            None => publish_clearing_price_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(PublishClearingPriceOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
 
 #[derive(Serialize)]
@@ -1438,12 +1534,14 @@ fn main() -> ExitCode {
                 | "perp-math"
                 | "advance-epoch"
                 | "funding-auto"
+                | "publish-clearing-price"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
-             verify-state-root|perp-math|advance-epoch|funding-auto> <input.json|->"
+             verify-state-root|perp-math|advance-epoch|funding-auto|\
+             publish-clearing-price> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1543,6 +1641,25 @@ fn main() -> ExitCode {
 
     if subcommand == "advance-epoch" {
         return match run_advance_epoch_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "publish-clearing-price" {
+        return match run_publish_clearing_price_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
