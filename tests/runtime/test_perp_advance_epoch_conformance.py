@@ -63,3 +63,13 @@ def test_rust_matches_golden_trace(rust_bin):
     assert proc.returncode == 0, proc.stderr
     got = json.loads(proc.stdout)["results"]
     assert got == golden["expected"]
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_rust_matches_python_randomized(rust_bin, seed):
+    # 3 x 40 cases driving the real authority across all four reachable setups,
+    # varied deltas (straddling the param-domain), and varied now_epoch.
+    cases = lib.randomized_cases(seed=seed, n=40)
+    py = _assert_agrees(cases, rust_bin)
+    assert any(p["ok"] for p in py), "expected at least one accept in the batch"
+    assert any(not p["ok"] for p in py), "expected at least one reject in the batch"
