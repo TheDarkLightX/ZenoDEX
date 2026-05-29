@@ -480,6 +480,38 @@ def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
 
 
+def _return_signed_tau_tx_payload() -> bool:
+    """Whether to echo the full signed Tau tx payload in API responses.
+
+    Default OFF: the signed payload (which carries the BLS signature and the full
+    operation bodies — a replay-capable authority artifact) must NOT appear in the
+    default API response (disaster class D-KEY-001). Clients submit via the server
+    (`sendtx`); the response only needs a hash + non-sensitive metadata. An
+    operator can opt back in for debugging via the explicit env flag.
+    """
+    return _env_bool("PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False)
+
+
+def _redacted_tau_tx_payload(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    """Strip the BLS signature from the Tau tx payload in API responses unless
+    explicitly opted in. The signature is the replay-capable authority artifact;
+    without it the echoed object is just the (client-authored) operations +
+    metadata and cannot be replayed. Operations/sender/sequence/fee_limit are
+    preserved so clients can still inspect what was built; a `payload_hash` over
+    the full signed payload is added for integrity. (Disaster class D-KEY-001.)
+    """
+    if payload is None:
+        return None
+    if _return_signed_tau_tx_payload():
+        return dict(payload)
+    if not isinstance(payload, Mapping):
+        return payload
+    redacted = {key: value for key, value in payload.items() if key != "signature"}
+    redacted["signature_redacted"] = True
+    redacted["payload_hash"] = _hash_payload("zenodex.perps_wallet.tau_tx_payload/v1", payload)
+    return redacted
+
+
 def _perps_proof_profile() -> dict[str, Any]:
     return {
         "schema": _PERPS_PROOF_PROFILE_SCHEMA,
@@ -1594,7 +1626,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "operations": operations,
             "preflight": preflight,
             "fee_limit": fee_limit_posture,
-            "tau_tx_payload": tau_tx_payload,
+            "tau_tx_payload": _redacted_tau_tx_payload(tau_tx_payload),
             "nonce_a": meta.get("nonce_a"),
             "nonce_b": meta.get("nonce_b"),
             "oracle_nonce": meta.get("oracle_nonce"),

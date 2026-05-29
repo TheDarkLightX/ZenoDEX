@@ -6849,6 +6849,53 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _print_api_auth_posture_error(auth_error_code)
         return 2
 
+    # API-surface profile gate (D-CONFIG-002): the profiles in
+    # api_surface_profiles.py (e.g. production-strict forbids demo/value-moving
+    # routes) were defined but never enforced at startup, so a production-strict
+    # deployment could still serve perps/zUSD/DEX writer routes. Enforce the
+    # selected profile against the active runtime flags. Opt-in via
+    # ZENODEX_API_SURFACE_PROFILE (or the existing API_SURFACE_PROFILE alias);
+    # fail-closed on any violation, unknown id, or inconsistent aliases.
+    _api_surface_profile_id = _env_str("ZENODEX_API_SURFACE_PROFILE", "").strip()
+    _api_surface_profile_alias = _env_str("API_SURFACE_PROFILE", "").strip()
+    if (
+        _api_surface_profile_id
+        and _api_surface_profile_alias
+        and _api_surface_profile_id != _api_surface_profile_alias
+    ):
+        print(
+            "Refusing to start: inconsistent API surface profiles "
+            f"ZENODEX_API_SURFACE_PROFILE={_api_surface_profile_id!r} "
+            f"API_SURFACE_PROFILE={_api_surface_profile_alias!r}"
+        )
+        return 2
+    _api_surface_profile_id = _api_surface_profile_id or _api_surface_profile_alias
+    if _api_surface_profile_id:
+        from src.integration.api_surface_profiles import (  # pylint: disable=import-outside-toplevel
+            api_surface_profile_violations,
+        )
+
+        try:
+            _surface_violations = api_surface_profile_violations(
+                profile_id=_api_surface_profile_id,
+                demo_api_token=_env_str("DEMO_API_TOKEN", ""),
+                perps_enabled=bool(perps_enabled or perps_wallet_enabled or autotrader_live_enabled),
+                zusd_enabled=bool(
+                    zusd_enabled or zusd_tau_wallet_enabled or zusd_monetary_wallet_enabled
+                ),
+                dex_enabled=bool(dex_enabled),
+            )
+        except ValueError as exc:
+            print(
+                f"Refusing to start: invalid ZENODEX_API_SURFACE_PROFILE="
+                f"{_api_surface_profile_id!r}: {exc}"
+            )
+            return 2
+        if _surface_violations:
+            for _violation in _surface_violations:
+                print(f"Refusing to start: {_violation}")
+            return 2
+
     httpd = ThreadingHTTPServer((host, port), _Handler)
     # Attach config to server instance (used by handler).
     httpd.cors_origins = cors_origins  # type: ignore[attr-defined]

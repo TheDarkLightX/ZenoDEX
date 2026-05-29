@@ -1,0 +1,59 @@
+# Next Runtime Hardening Queue
+
+Priority-ordered remaining work after the 2026-05-29 disaster-state campaign
+(branch `codex/rust-authority-promotion`). Bounded-evidence language: items
+below are findings/blockers, not proofs. "Confirmed" = reproduced; "documented" =
+verified-but-not-patched-by-design-or-scope.
+
+## P0 — funding-auto liveness vs zero-sum (S4-F3, confirmed)
+
+`apply_funding_auto` requires `projected_net == 0` exactly, but per-account
+floor-divided `funding_payment` does not sum to zero for a balanced book
+(repro: positions `[2000, -1000, -1000]` at 9 bps → payments `[1, 0, 0]`, net=1).
+Empirically ~82% of random configs are blocked → funding is de-facto disabled,
+removing mark-price anchoring. It is **fail-closed** (no value moves), so this is
+a *liveness* gap, not a safety hole.
+
+- File: `src/core/perp_apply_funding_auto_gate.py` (net check), `src/integration/perp_engine.py` (projected_net computation/application).
+- **Safe fix (do NOT just relax to `abs(net) <= n-1` — that lets a non-zero net move value, weakening D-PERPS-001):** make funding zero-sum *by construction* — route the floor-division residual to `fee_pool_quote` as an explicit funding fee (matching the invariant "funding zero-sum **except explicit fees**"), or have the largest open account absorb the residual deterministically. Requires updating the ESSO model + a conservation regression (sum of funding transfers + residual-to-fee == 0).
+
+## P1 — port companion-repo deploy-profile hardening into runtime-main-sync
+
+The companion repo (`Autonomous Tau DEX`) has deploy-profile hardening that did
+NOT land here:
+
+- ~~**S5-INFO-001:** signed `tau_tx_payload` echoed by default~~ — **DONE this session:** `perps_wallet_api.py`/`zusd_tau_wallet_api.py` now strip the BLS signature from responses by default (opt-in flags), preserving operations/metadata; full payload still submitted to the node. Tests: `tests/runtime/test_signed_payload_redaction_regression.py`.
+- **Richer deploy-profile gate:** this campaign wired the existing `api_surface_profiles` (demo/value-moving routes). The companion's `deploy_profile.py` enforces the full `config/deploy/*.yaml` policy (raw-private-key flags, local fixture settlement, auth posture). Port `deploy_profile.py` + `ZENODEX_DEPLOY_PROFILE` to enforce `key_policy`/`runtime_policy` here too (and include the zusd/autotrader local-signing facts from P2).
+
+## P2 — deploy-profile validator coverage (S5-GAP-003, confirmed in companion)
+
+`RUNTIME_FACT_KEYS` (companion `deploy_profile.py`) covers `perps_wallet_allow_local_signing`
+but NOT `ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING`, `ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING`,
+`AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING`. Under `raw_private_key_flags_allowed: false`
+these three are not checked → a production-strict deploy with `ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING=1`
+emits zero conflicts. Add the three facts + checks. (When porting deploy_profile to main-sync, include them.)
+
+## P3 — settle-epoch oracle freshness (S4-F1, documented/intentional)
+
+`guard_settle_epoch` uses `oracle_last_update_epoch >= now_epoch` as an
+idempotency check, not a freshness check; `max_oracle_staleness_epochs` is not
+consulted, so settlement proceeds on a stale index (PnL clamps to a stale
+reference). This is a **documented design tradeoff** (liveness over freshness;
+`test_regression_stale_oracle_settle_epoch_accept_reject_parity` verifies the
+accept). Production should set `require_oracle_authorization_for_isolated_settle_epoch=True`
+in `PerpEngineConfig`. Decision needed: make that the production default, or add a
+staleness reject in `guard_settle_epoch` gated by the control parameter.
+
+## P4 — pre-existing baseline test failures to triage (not this campaign)
+
+Both committed (not dirty), outside the audited surfaces:
+- `tests/core/test_cpmm.py::test_compute_lp_mint_uses_integer_isqrt` — test uses `n = 1<<70` exceeding `DEX_LP_AMOUNT_MAX = 1_000_000_000` (domain tightened after the test). Decide: stale test vs. a domain regression.
+- (FIXED this campaign) `test_perp_epoch_isolated_v3_native_initial_state_keeps_epoch_phase` — asserted `"Open"` vs the v3 int ABI (`0`).
+
+## P5 — coverage gaps left open by this campaign (negative-receipt boundaries)
+
+- Clearinghouse (CH2P/CH3P) settlement oracle path: `require_oracle_adapter_for_clearinghouse_settle_epoch` defaults False; CH settlement has no oracle-authorization path — not independently probed.
+- OCaml runtime conformance (needs `opam`/`dune`) and SPARK/Ada formal verification (needs `gnatprove`) — not run here; advisory.
+- Golden-trace differential replay (`test_golden_trace_replay.py`, `rust_shadow_replay.py`) — only partially run (collection-time import issues in some ESSO/lint modules).
+- Multi-hop/multi-pool batch proofs and large-batch state/support-root computations — not stress-tested.
+- Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.

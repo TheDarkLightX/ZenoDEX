@@ -40,6 +40,7 @@ const PUBKEY_NBYTES: usize = 48;
 const ASSET_NBYTES: usize = 32;
 const POOL_NBYTES: usize = 32;
 const MAX_FEE_BPS: u128 = 10_000;
+const MAX_NONCE: u128 = 0xFFFF_FFFF;
 
 /// Typed rejection for state-root computation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +53,8 @@ pub enum StateRootError {
     FeeBpsTooLarge,
     /// Pool status code outside `{1,2,3}`.
     UnknownPoolStatus,
+    /// Nonce exceeds Python `NonceTable`'s u32 domain.
+    NonceTooLarge,
 }
 
 impl StateRootError {
@@ -61,6 +64,7 @@ impl StateRootError {
             StateRootError::DuplicateKey(section) => format!("duplicate_key:{section}"),
             StateRootError::FeeBpsTooLarge => "fee_bps_too_large".to_string(),
             StateRootError::UnknownPoolStatus => "unknown_pool_status".to_string(),
+            StateRootError::NonceTooLarge => "nonce_too_large".to_string(),
         }
     }
 }
@@ -277,6 +281,9 @@ fn encode_nonces(entries: &[NonceEntry]) -> Result<Vec<u8>, StateRootError> {
         if !seen.insert(pk.clone()) {
             return Err(StateRootError::DuplicateKey("nonces"));
         }
+        if e.last_nonce > MAX_NONCE {
+            return Err(StateRootError::NonceTooLarge);
+        }
         decoded.push((pk, e.last_nonce));
     }
     decoded.sort_by(|a, b| a.0.cmp(&b.0));
@@ -471,6 +478,18 @@ mod tests {
             compute_state_root(&s),
             Err(StateRootError::Hex(_))
         ));
+    }
+
+    #[test]
+    fn nonce_above_u32_rejected() {
+        let s = StateInput {
+            nonces: vec![NonceEntry {
+                pubkey: pk(1),
+                last_nonce: (1u128 << 32),
+            }],
+            ..Default::default()
+        };
+        assert_eq!(compute_state_root(&s), Err(StateRootError::NonceTooLarge));
     }
 
     #[test]

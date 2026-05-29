@@ -18,7 +18,7 @@ human decision + profile entry.
 | Surface | Authority | Rust shadow | 1–8,10–11 | DS (4) | Fuzz (9) | Promoted (12) |
 |---|---|---|---|---|---|---|
 | Canonical primitives | Python | `canonical.rs` | ✅ | ✅¹ | ☐ | ☐ |
-| State root v5 | Python | `state_root.rs` | ✅ | ⚠️² | ☐ | ☐ (blocked) |
+| State root v5 | Python | `state_root.rs` | ✅ | ✅² | ☐ | ☐ |
 | Replay / idempotency guard | Python | `replay_guard.rs` | ✅ | ☐ | ☐ | ☐ |
 | Balance accounting | Python | `balance_kernel.rs` | ✅ | ☐ | ☐ | ☐ |
 | Fee router (4-way + dust) | Python | `fee_router.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -37,19 +37,16 @@ flips it to Rust authority yet.
 
 ² State root v5 has a disaster-state suite
 (`tests/runtime/test_state_root_disaster_state.py`) that documents the bridge
-boundaries and the selector wiring — **but it surfaced a semantic drift that
-blocks promotion** (see Findings → SR-DRIFT-001). The suite proves the selector
-fails closed on the drift under `rust_authority_with_python_shadow` (safe), so
-the *machinery* is sound; pure `rust_authority` for state_root must not be
-enabled until the drift is resolved.
+boundaries and the selector wiring. It surfaced SR-DRIFT-001, which has now been
+fixed in Rust and locked by regression tests.
 
 ## Findings / blockers
 
-### SR-DRIFT-001 — Rust state-root shadow does not enforce the u32 nonce bound `[BLOCKER for state_root]`
+### SR-DRIFT-001 — Rust state-root shadow did not enforce the u32 nonce bound `[FIXED]`
 
 **What.** Python's `NonceTable` rejects `last_nonce >= 2^32` (a u32 bound). The
-Rust `state_root` shadow accepts and encodes such a nonce. So on the adversarial
-input `nonce = 2^32`, Python rejects and Rust accepts — a Python/Rust
+Rust `state_root` shadow accepted and encoded such a nonce. So on the adversarial
+input `nonce = 2^32`, Python rejected and Rust accepted — a Python/Rust
 divergence.
 
 **Why it was missed.** The existing randomized differential
@@ -59,26 +56,14 @@ the overflow. Cross-language equality stayed green because the drift point is
 outside the generated domain — the classic semantic-drift trap from
 `SEMANTIC_DRIFT_CONTROLS.md`.
 
-**Impact.** Under `rust_authority_with_python_shadow` the selector **fails
-closed** on this input (verified by
-`test_selector_fails_closed_on_nonce_drift`), so live safety holds in the
-shadow-checked mode. But it blocks **pure `rust_authority`** for the state-root
-surface: a no-shadow Rust authority would accept a nonce Python considers
-invalid.
+**Fix.** `zenodex-runtime-core::state_root` now rejects nonce entries above
+`0xFFFFFFFF` with stable code `nonce_too_large`, matching Python's `NonceTable`
+domain.
 
-**Resolve before promoting state_root to pure rust_authority, by either:**
-- enforcing the u32 nonce bound in the Rust nonce-section decoder (so Rust
-  rejects `>= 2^32` like Python), **or**
-- documenting in the gate that state_root assumes upstream nonce validation
-  (the replay/nonce surface guarantees `nonce <= u32_max` before any state
-  reaches the root), and adding a Rust-side debug assertion.
-
-Either way, extend `random_states` to draw nonces up to `2^33` so the
-differential covers the boundary going forward.
-
-**Regression guard.** `test_nonce_u32_overflow_is_a_semantic_drift` asserts the
-drift currently exists and will flip (with a clear message) the moment the Rust
-decoder is fixed — at which point this finding is closed.
+**Regression guard.** `test_nonce_u32_overflow_rejected_by_both` verifies Python
+and Rust both reject `last_nonce = 2^32`, and
+`test_selector_rust_authority_with_shadow_rejects_nonce_overflow_in_agreement`
+verifies the selector receives an agreed rejection rather than a drift.
 
 ### Classification (Phase 0 step 3)
 
