@@ -1,0 +1,350 @@
+//! CPMM settlement swap — per-pool exact-in / exact-out quotes with reserves
+//! threaded across a batch order.
+//!
+//! Rust shadow of the authoritative `quote_cpmm_swap_exact_in/out`
+//! (`src/kernels/python/settlement_swap_runtime_v1.py`, backed by the v8 CPMM
+//! kernel). This is the consensus-critical arithmetic at the heart of batch
+//! clearing: every swap-ordering strategy ultimately applies these per-swap
+//! quotes against the evolving reserves. Integer-only, deterministic rounding
+//! (fee = ceil, exact-in out = floor, exact-out in = ceil).
+//!
+//! Scope: this surface shadows the single-pool settlement *arithmetic* +
+//! per-swap admission (domain bounds, trade-too-small, slippage). Multi-pool
+//! aggregation, the swap-ordering heuristics (greedy/optimal-AB/MCI/CoW), and
+//! liquidity ops in `src/core/batch_clearing.py` are orchestration layered on
+//! top and are staged separately; see the boundary doc.
+
+use crate::canonical::{domain_sep_bytes, encode_uvarint, sha256_hex};
+
+pub const BPS_DENOM: u128 = 10_000;
+/// Consensus domain bounds (match `src/core/domain_limits.py`).
+pub const DEX_POOL_RESERVE_MAX: u128 = 3_000_000_000;
+pub const DEX_SWAP_AMOUNT_MAX: u128 = 3_000_000_000;
+
+const STATE_LABEL: &str = "cpmm_pool";
+const RECEIPT_LABEL: &str = "cpmm_swap_receipt";
+const STATE_VERSION: u32 = 1;
+const RECEIPT_VERSION: u32 = 1;
+
+// --- Stable reject codes (mirrored by the Python harness mapping) -------------
+pub const REJ_ALREADY_INITIALIZED: &str = "already_initialized";
+pub const REJ_INVALID_RESERVE: &str = "invalid_reserve";
+pub const REJ_INVALID_FEE_BPS: &str = "invalid_fee_bps";
+pub const REJ_POOL_NOT_INITIALIZED: &str = "pool_not_initialized";
+pub const REJ_RESERVE_OUT_OF_DOMAIN: &str = "reserve_out_of_domain";
+pub const REJ_INVALID_AMOUNT: &str = "invalid_amount";
+pub const REJ_RESERVE_DOMAIN_EXCEEDED: &str = "reserve_domain_exceeded";
+pub const REJ_TRADE_TOO_SMALL: &str = "trade_too_small";
+pub const REJ_AMOUNT_OUT_GE_RESERVE: &str = "amount_out_ge_reserve";
+pub const REJ_FEE_FULL: &str = "fee_full";
+pub const REJ_SLIPPAGE: &str = "slippage";
+
+fn in_range(v: u128, lo: u128, hi: u128) -> bool {
+    lo <= v && v <= hi
+}
+
+/// `ceil(num / den)` for `den > 0` (num may be 0 -> 0).
+fn ceil_div(num: u128, den: u128) -> u128 {
+    if num == 0 {
+        0
+    } else {
+        (num + den - 1) / den
+    }
+}
+
+/// Single CPMM pool. `reserve0`/`reserve1` are the constant-product reserves;
+/// `fee_bps` the swap fee. `initialized` distinguishes the empty default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Pool {
+    pub initialized: bool,
+    pub reserve0: u128,
+    pub reserve1: u128,
+    pub fee_bps: u128,
+}
+
+impl Pool {
+    pub fn state_root(&self) -> String {
+        let mut buf = domain_sep_bytes(STATE_LABEL, STATE_VERSION);
+        buf.extend(encode_uvarint(self.initialized as u128));
+        buf.extend(encode_uvarint(self.reserve0));
+        buf.extend(encode_uvarint(self.reserve1));
+        buf.extend(encode_uvarint(self.fee_bps));
+        sha256_hex(&buf)
+    }
+}
+
+/// A settled swap (or pool init). `kind`: "swap_exact_in" | "swap_exact_out" |
+/// "init_pool". For init, the amount/fee fields are 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SwapReceipt {
+    pub kind: SwapKind,
+    pub zero_for_one: bool,
+    pub amount_in: u128,
+    pub amount_out: u128,
+    pub fee_total: u128,
+    pub new_reserve0: u128,
+    pub new_reserve1: u128,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwapKind {
+    InitPool,
+    ExactIn,
+    ExactOut,
+}
+
+impl SwapKind {
+    fn label(self) -> &'static str {
+        match self {
+            SwapKind::InitPool => "init_pool",
+            SwapKind::ExactIn => "swap_exact_in",
+            SwapKind::ExactOut => "swap_exact_out",
+        }
+    }
+}
+
+impl SwapReceipt {
+    pub fn receipt_hash(&self) -> String {
+        let mut buf = domain_sep_bytes(RECEIPT_LABEL, RECEIPT_VERSION);
+        buf.extend_from_slice(b"KND");
+        buf.extend(crate::canonical::encode_bytes(self.kind.label().as_bytes()));
+        buf.extend_from_slice(b"DIR");
+        buf.extend(encode_uvarint(self.zero_for_one as u128));
+        buf.extend_from_slice(b"AIN");
+        buf.extend(encode_uvarint(self.amount_in));
+        buf.extend_from_slice(b"AOU");
+        buf.extend(encode_uvarint(self.amount_out));
+        buf.extend_from_slice(b"FEE");
+        buf.extend(encode_uvarint(self.fee_total));
+        buf.extend_from_slice(b"R0");
+        buf.extend(encode_uvarint(self.new_reserve0));
+        buf.extend_from_slice(b"R1");
+        buf.extend(encode_uvarint(self.new_reserve1));
+        sha256_hex(&buf)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Accepted {
+    pub receipt: SwapReceipt,
+    pub pool: Pool,
+}
+
+/// Initialize the pool (only valid once).
+pub fn init_pool(
+    pool: &Pool,
+    reserve0: u128,
+    reserve1: u128,
+    fee_bps: u128,
+) -> Result<Accepted, &'static str> {
+    if pool.initialized {
+        return Err(REJ_ALREADY_INITIALIZED);
+    }
+    if !in_range(reserve0, 1, DEX_POOL_RESERVE_MAX) || !in_range(reserve1, 1, DEX_POOL_RESERVE_MAX)
+    {
+        return Err(REJ_INVALID_RESERVE);
+    }
+    if fee_bps > BPS_DENOM {
+        return Err(REJ_INVALID_FEE_BPS);
+    }
+    let next = Pool {
+        initialized: true,
+        reserve0,
+        reserve1,
+        fee_bps,
+    };
+    Ok(Accepted {
+        receipt: SwapReceipt {
+            kind: SwapKind::InitPool,
+            zero_for_one: false,
+            amount_in: 0,
+            amount_out: 0,
+            fee_total: 0,
+            new_reserve0: reserve0,
+            new_reserve1: reserve1,
+        },
+        pool: next,
+    })
+}
+
+/// Return `(reserve_in, reserve_out)` for the swap direction, validating both
+/// are in the reserve domain (a prior exact-out can push a reserve out of range).
+fn directed_reserves(pool: &Pool, zero_for_one: bool) -> Result<(u128, u128), &'static str> {
+    let (r_in, r_out) = if zero_for_one {
+        (pool.reserve0, pool.reserve1)
+    } else {
+        (pool.reserve1, pool.reserve0)
+    };
+    if !in_range(r_in, 1, DEX_POOL_RESERVE_MAX) || !in_range(r_out, 1, DEX_POOL_RESERVE_MAX) {
+        return Err(REJ_RESERVE_OUT_OF_DOMAIN);
+    }
+    Ok((r_in, r_out))
+}
+
+fn pool_after(pool: &Pool, zero_for_one: bool, new_in: u128, new_out: u128) -> Pool {
+    if zero_for_one {
+        Pool {
+            reserve0: new_in,
+            reserve1: new_out,
+            ..*pool
+        }
+    } else {
+        Pool {
+            reserve0: new_out,
+            reserve1: new_in,
+            ..*pool
+        }
+    }
+}
+
+/// Exact-in settlement swap. `min_amount_out` is the slippage floor.
+pub fn swap_exact_in(
+    pool: &Pool,
+    zero_for_one: bool,
+    amount_in: u128,
+    min_amount_out: u128,
+) -> Result<Accepted, &'static str> {
+    if !pool.initialized {
+        return Err(REJ_POOL_NOT_INITIALIZED);
+    }
+    let (reserve_in, reserve_out) = directed_reserves(pool, zero_for_one)?;
+    if !in_range(amount_in, 1, DEX_SWAP_AMOUNT_MAX) {
+        return Err(REJ_INVALID_AMOUNT);
+    }
+    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX {
+        return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
+    }
+    let fee_total = ceil_div(amount_in * pool.fee_bps, BPS_DENOM);
+    if fee_total >= amount_in {
+        // net_in <= 0
+        return Err(REJ_TRADE_TOO_SMALL);
+    }
+    let net_in = amount_in - fee_total;
+    let amount_out = (reserve_out * net_in) / (reserve_in + net_in);
+    if amount_out == 0 {
+        return Err(REJ_TRADE_TOO_SMALL);
+    }
+    if amount_out < min_amount_out {
+        return Err(REJ_SLIPPAGE);
+    }
+    let new_in = reserve_in + amount_in; // protocol_fee == 0 in settlement runtime
+    let new_out = reserve_out - amount_out;
+    Ok(Accepted {
+        receipt: SwapReceipt {
+            kind: SwapKind::ExactIn,
+            zero_for_one,
+            amount_in,
+            amount_out,
+            fee_total,
+            new_reserve0: if zero_for_one { new_in } else { new_out },
+            new_reserve1: if zero_for_one { new_out } else { new_in },
+        },
+        pool: pool_after(pool, zero_for_one, new_in, new_out),
+    })
+}
+
+/// Exact-out settlement swap. `max_amount_in` is the slippage cap.
+pub fn swap_exact_out(
+    pool: &Pool,
+    zero_for_one: bool,
+    amount_out: u128,
+    max_amount_in: u128,
+) -> Result<Accepted, &'static str> {
+    if !pool.initialized {
+        return Err(REJ_POOL_NOT_INITIALIZED);
+    }
+    let (reserve_in, reserve_out) = directed_reserves(pool, zero_for_one)?;
+    if !in_range(amount_out, 1, DEX_SWAP_AMOUNT_MAX) {
+        return Err(REJ_INVALID_AMOUNT);
+    }
+    if amount_out >= reserve_out {
+        return Err(REJ_AMOUNT_OUT_GE_RESERVE);
+    }
+    if pool.fee_bps == BPS_DENOM {
+        return Err(REJ_FEE_FULL);
+    }
+    let net_in = ceil_div(reserve_in * amount_out, reserve_out - amount_out);
+    let gross_in = ceil_div(net_in * BPS_DENOM, BPS_DENOM - pool.fee_bps);
+    let fee_total = gross_in - net_in;
+    if gross_in > max_amount_in {
+        return Err(REJ_SLIPPAGE);
+    }
+    let new_in = reserve_in + gross_in;
+    let new_out = reserve_out - amount_out;
+    Ok(Accepted {
+        receipt: SwapReceipt {
+            kind: SwapKind::ExactOut,
+            zero_for_one,
+            amount_in: gross_in,
+            amount_out,
+            fee_total,
+            new_reserve0: if zero_for_one { new_in } else { new_out },
+            new_reserve1: if zero_for_one { new_out } else { new_in },
+        },
+        pool: pool_after(pool, zero_for_one, new_in, new_out),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn inited() -> Pool {
+        init_pool(&Pool::default(), 1_000_000, 1_000_000, 30)
+            .unwrap()
+            .pool
+    }
+
+    #[test]
+    fn init_then_swap_exact_in_conserves_k() {
+        let p = inited();
+        let k_before = p.reserve0 * p.reserve1;
+        let acc = swap_exact_in(&p, true, 10_000, 0).unwrap();
+        // Constant-product invariant: k must not decrease.
+        assert!(acc.pool.reserve0 * acc.pool.reserve1 >= k_before);
+        assert_eq!(acc.pool.reserve0, p.reserve0 + 10_000);
+        assert!(acc.receipt.amount_out > 0);
+    }
+
+    #[test]
+    fn exact_out_delivers_requested_and_holds_k() {
+        let p = inited();
+        let k_before = p.reserve0 * p.reserve1;
+        let acc = swap_exact_out(&p, true, 5_000, u128::MAX).unwrap();
+        assert_eq!(acc.receipt.amount_out, 5_000);
+        assert_eq!(acc.pool.reserve1, p.reserve1 - 5_000);
+        assert!(acc.pool.reserve0 * acc.pool.reserve1 >= k_before);
+    }
+
+    #[test]
+    fn rejections() {
+        let p = inited();
+        assert_eq!(init_pool(&p, 1, 1, 1), Err(REJ_ALREADY_INITIALIZED));
+        assert_eq!(
+            swap_exact_in(&Pool::default(), true, 1, 0),
+            Err(REJ_POOL_NOT_INITIALIZED)
+        );
+        assert_eq!(swap_exact_in(&p, true, 0, 0), Err(REJ_INVALID_AMOUNT));
+        assert_eq!(
+            swap_exact_in(&p, true, DEX_SWAP_AMOUNT_MAX, 0),
+            Err(REJ_RESERVE_DOMAIN_EXCEEDED)
+        );
+        // slippage: demand more than the pool can give.
+        assert_eq!(
+            swap_exact_in(&p, true, 10_000, 1_000_000_000),
+            Err(REJ_SLIPPAGE)
+        );
+        assert_eq!(swap_exact_out(&p, true, 5_000, 1), Err(REJ_SLIPPAGE));
+        assert_eq!(
+            swap_exact_out(&p, true, 1_000_000, u128::MAX),
+            Err(REJ_AMOUNT_OUT_GE_RESERVE)
+        );
+    }
+
+    #[test]
+    fn tiny_trade_rejected() {
+        let p = init_pool(&Pool::default(), 1_000_000, 1, 0).unwrap().pool;
+        // reserve_out == 1, a swap yields amount_out == 0 -> trade_too_small.
+        assert_eq!(swap_exact_in(&p, true, 1, 0), Err(REJ_TRADE_TOO_SMALL));
+    }
+}
