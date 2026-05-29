@@ -51,11 +51,12 @@ golden traces, a real-authority differential (driving `apply_perp_ops`), and Rus
 unit/proptests. `tests/runtime/test_perp_disaster_state.py` adds the **fuzz**
 evidence (≈1.7k randomized cases/run) and the **input-disaster** rows
 (malformed/out-of-domain, overflow/underflow at every parameter bound,
-no-op-on-reject). ⚠️ **Partial DS**: the selector fail-closed rows (Rust-timeout /
-malformed-Rust-output) require wiring the Rust core into the live authority
-selector — today each perp shadow is a CLI checker, not a live decision path.
-Until that wiring + CI + human sign-off exist, perps is **not** authority-eligible
-and stays `python_authority`. No profile flips it.
+reject-path parity). It also exercises the generic authority selector in
+`rust_authority_with_python_shadow` mode against each perps shadow and fails closed
+on injected disagreement, malformed Rust output, and unavailable Rust. This is
+test-only selector coverage: today each perp shadow is still a CLI checker, not a
+live decision path. Until live wiring + CI + human sign-off exist, perps stays
+`python_authority`. No profile flips it.
 
 ## Findings / blockers
 
@@ -90,10 +91,11 @@ verifies the selector receives an agreed rejection rather than a drift.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.
-- **Shadowed (E2 complete), awaiting selector live-path wiring**: the **stateful
+- **Shadowed (E2 complete), awaiting live-path wiring**: the **stateful
   isolated-perps engine (all 10 ops)**. Evidence 1–3 + fuzz + input-disaster are
-  green; DS is partial (the selector fail-closed rows need the Rust core wired
-  into the live authority selector). Stays `python_authority` until then.
+  green, and the generic selector fail-closed rows are exercised in tests. Stays
+  `python_authority` until profile policy, live-path wiring, CI, and human sign-off
+  are complete.
 - **Intentionally Python-only**: batch-clearing orchestration, multi-vault zUSD,
   intent shape-gate, BLS verification (crypto is wrapped, never reimplemented).
 

@@ -135,11 +135,12 @@ real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds t
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
 (≈1.7k cases) whose distributions straddle every bound (zero, max-domain,
 off-by-one, over-domain), exercising malformed/out-of-domain, overflow/underflow,
-and no-op-on-reject (a rejected case yields no Rust output and an unchanged Python
-state). The remaining disaster rows — **selector fail-closed on Rust-timeout /
-malformed-Rust-output** — require the Rust core wired into the authority selector
-(today the perp shadow is a CLI checker, not a live decision path); until that
-exists perps is not authority-eligible and stays `python_authority`.
+and reject-path parity (rejected cases yield no Rust post-state and stable reject
+codes). The same test also exercises the generic authority selector over the perps
+shadow surface in `rust_authority_with_python_shadow` mode, including fail-closed
+rows for injected disagreement, malformed Rust output, and unavailable Rust. This
+is a test-only selector exercise. It does not wire perps into the live transaction
+path and does not flip any deployment profile, so perps stays `python_authority`.
 
 ## Promotion order (lowest risk first)
 
@@ -163,9 +164,9 @@ Rust shadows with real-authority differentials, golden traces, property/proptest
 and now the high-volume fuzz + input-disaster-state gate
 (`tests/runtime/test_perp_disaster_state.py`). It joins the eligibility queue
 behind the lower-risk surfaces above; what remains before it can flip to
-`rust_authority_with_python_shadow` is the selector live-path wiring (so Rust can
-decide while Python verifies, with fail-closed on disagreement/timeout), the CI
-gate, and human sign-off — none of which this evidence asserts.
+`rust_authority_with_python_shadow` is live-path wiring, target-profile policy
+updates, the CI gate, and human sign-off. The current selector coverage is
+deliberately test-only and does not promote the surface.
 
 ## How a promotion PR looks
 
