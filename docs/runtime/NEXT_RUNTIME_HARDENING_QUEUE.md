@@ -5,7 +5,7 @@ Priority-ordered remaining work after the 2026-05-29 disaster-state campaign
 below are findings/blockers, not proofs. "Confirmed" = reproduced; "documented" =
 verified-but-not-patched-by-design-or-scope.
 
-## P0 — funding-auto liveness vs zero-sum (S4-F3, confirmed)
+## P0 — funding-auto liveness vs zero-sum (S4-F3, fixed)
 
 `apply_funding_auto` requires `projected_net == 0` exactly, but per-account
 floor-divided `funding_payment` does not sum to zero for a balanced book
@@ -15,7 +15,12 @@ removing mark-price anchoring. It is **fail-closed** (no value moves), so this i
 a *liveness* gap, not a safety hole.
 
 - File: `src/core/perp_apply_funding_auto_gate.py` (net check), `src/integration/perp_engine.py` (projected_net computation/application).
-- **Safe fix (do NOT just relax to `abs(net) <= n-1` — that lets a non-zero net move value, weakening D-PERPS-001):** make funding zero-sum *by construction* — route the floor-division residual to `fee_pool_quote` as an explicit funding fee (matching the invariant "funding zero-sum **except explicit fees**"), or have the largest open account absorb the residual deterministically. Requires updating the ESSO model + a conservation regression (sum of funding transfers + residual-to-fee == 0).
+- **Fix landed after this report:** auto-funding now rejects true net base exposure (`sum(position_base) != 0` when the rate is non-zero), but permits integer rounding residuals on zero-net books. The residual is assigned deterministically to a counterparty account so adjusted payments sum to zero and `fee_pool_quote` is not used as a hidden subsidy source.
+
+Formula:
+`raw_net := sum(raw_payment_i)`, `adjustment_target_delta := -raw_net`, `sum(adjusted_payment_i) = 0`.
+
+The practical effect is that funding liveness returns for balanced books without allowing fragmented books to drain the fee pool.
 
 ## P1 — port companion-repo deploy-profile hardening into runtime-main-sync
 

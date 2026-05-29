@@ -20,6 +20,8 @@ class PerpApplyFundingAutoGateOutcome:
     clearing_price_ok: bool
     max_oracle_move_ok: bool
     funding_cap_ok: bool
+    net_position_base: int
+    position_net_balanced: bool
     projected_net_funding_quote: int
     net_funding_balanced: bool
     funding_not_applied: bool
@@ -58,6 +60,7 @@ def evaluate_perp_apply_funding_auto_gate(
     funding_cap_bps: int,
     projected_net_funding_quote: int,
     any_funding_applied_this_epoch: Any,
+    net_position_base: int = 0,
 ) -> PerpApplyFundingAutoGateOutcome:
     now = _require_int(now_epoch, name="now_epoch")
     clearing_seen = _require_flag(clearing_price_seen, name="clearing_price_seen")
@@ -71,6 +74,7 @@ def evaluate_perp_apply_funding_auto_gate(
     funding_cap = _require_int(funding_cap_bps, name="funding_cap_bps")
     projected_net = _require_int(projected_net_funding_quote, name="projected_net_funding_quote")
     funding_applied = _require_flag(any_funding_applied_this_epoch, name="any_funding_applied_this_epoch")
+    net_position = _require_int(net_position_base, name="net_position_base")
 
     clearing_price_seen_ok = clearing_seen
     clearing_price_epoch_ok = clearing_epoch == now
@@ -90,7 +94,6 @@ def evaluate_perp_apply_funding_auto_gate(
     clearing_price_ok = clearing_price > 0
     max_oracle_move_ok = 0 <= max_move <= BPS_SCALE
     funding_cap_ok = 0 < funding_cap <= BPS_SCALE
-    net_funding_balanced = projected_net == 0
     funding_not_applied = not funding_applied
 
     mark_price_e8 = 0
@@ -112,6 +115,8 @@ def evaluate_perp_apply_funding_auto_gate(
                     funding_cap_bps=funding_cap,
                 )
             )
+    position_net_balanced = net_position == 0 or funding_rate_bps == 0
+    net_funding_balanced = position_net_balanced
 
     funding_auto_allowed = bool(
         clearing_price_seen_ok
@@ -124,6 +129,7 @@ def evaluate_perp_apply_funding_auto_gate(
         and clearing_price_ok
         and max_oracle_move_ok
         and funding_cap_ok
+        and position_net_balanced
         and net_funding_balanced
         and funding_not_applied
     )
@@ -140,6 +146,8 @@ def evaluate_perp_apply_funding_auto_gate(
         clearing_price_ok=clearing_price_ok,
         max_oracle_move_ok=max_oracle_move_ok,
         funding_cap_ok=funding_cap_ok,
+        net_position_base=net_position,
+        position_net_balanced=position_net_balanced,
         projected_net_funding_quote=projected_net,
         net_funding_balanced=net_funding_balanced,
         funding_not_applied=funding_not_applied,
@@ -170,6 +178,11 @@ def perp_apply_funding_auto_gate_error(outcome: PerpApplyFundingAutoGateOutcome)
         return "cannot apply funding: invalid max_oracle_move_bps"
     if not outcome.funding_cap_ok:
         return "cannot apply funding: invalid funding_cap_bps"
+    if not outcome.position_net_balanced:
+        return (
+            "apply_funding_auto requires zero net base exposure "
+            f"(net_position_base={outcome.net_position_base})"
+        )
     if not outcome.net_funding_balanced:
         return (
             "apply_funding_auto would violate funding budget balance "

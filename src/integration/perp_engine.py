@@ -61,7 +61,7 @@ from ..core.perp_epoch import (
     perp_epoch_isolated_default_initial_state,
 )
 from ..core.perp_v2.funding_rule import compute_funding_rate_bps
-from ..core.perp_v2.math import MAX_COLLATERAL
+from ..core.perp_v2.math import MAX_COLLATERAL, MAX_FUNDING_CUMULATIVE
 from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
 from ..core.perp_v2.math import is_oracle_fresh as _perp_v2_is_oracle_fresh
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
@@ -2230,6 +2230,7 @@ def _apply_isolated_apply_funding_auto(
     now_epoch = int(market.global_state.get("now_epoch", 0))
     sorted_accounts = tuple(sorted(market.accounts.items()))
     open_accounts = tuple((pk, acct) for pk, acct in sorted_accounts if int(acct.position_base) != 0)
+    net_position_base = sum(int(acct.position_base) for _, acct in open_accounts)
 
     any_funding_applied_this_epoch = any(int(acct.funding_last_applied_epoch) >= now_epoch for _, acct in open_accounts)
 
@@ -2246,16 +2247,18 @@ def _apply_isolated_apply_funding_auto(
         funding_cap_bps=int(market.global_state.get("funding_cap_bps", 0)),
         projected_net_funding_quote=0,
         any_funding_applied_this_epoch=any_funding_applied_this_epoch,
+        net_position_base=int(net_position_base),
     )
     new_rate_bps = int(provisional_gate.funding_rate_bps)
 
     projected_net_funding = 0
     for _, acct in open_accounts:
-        projected_net_funding += _perp_v2_funding_payment(
+        funding_payment = _perp_v2_funding_payment(
             acct.position_base,
             int(market.global_state.get("index_price_e8", 0)),
             new_rate_bps,
         )
+        projected_net_funding += int(funding_payment)
 
     funding_gate = evaluate_perp_apply_funding_auto_gate(
         now_epoch=now_epoch,
@@ -2270,6 +2273,7 @@ def _apply_isolated_apply_funding_auto(
         funding_cap_bps=int(market.global_state.get("funding_cap_bps", 0)),
         projected_net_funding_quote=int(projected_net_funding),
         any_funding_applied_this_epoch=any_funding_applied_this_epoch,
+        net_position_base=int(net_position_base),
     )
     gate_error = perp_apply_funding_auto_gate_error(funding_gate)
     if gate_error is not None:
@@ -2295,6 +2299,51 @@ def _apply_isolated_apply_funding_auto(
         new_accounts[str(pk)] = post_acct
         applied_accounts += 1
 
+    residual_target: str | None = None
+    residual_adjustment_quote = 0
+    if projected_net_funding != 0:
+        if new_rate_bps == 0 or net_position_base != 0:
+            return "internal error: funding residual requires zero-net nonzero-rate book"
+        def _is_funding_payer(acct: PerpAccountState) -> bool:
+            return (int(acct.position_base) >= 0) == (new_rate_bps >= 0)
+
+        if projected_net_funding > 0:
+            candidates = tuple(
+                (pk, acct)
+                for pk, acct in open_accounts
+                if not _is_funding_payer(acct)
+            )
+        else:
+            candidates = tuple(
+                (pk, acct)
+                for pk, acct in open_accounts
+                if _is_funding_payer(acct)
+            )
+        if not candidates:
+            return "internal error: no funding residual target"
+        residual_target, _ = max(candidates, key=lambda item: (abs(int(item[1].position_base)), str(item[0])))
+        post_target = new_accounts[str(residual_target)]
+        residual_adjustment_quote = -int(projected_net_funding)
+        adjusted_collateral = int(post_target.collateral_quote) - residual_adjustment_quote
+        adjusted_cumulative = int(post_target.funding_paid_cumulative) + residual_adjustment_quote
+        if adjusted_collateral < 0 or adjusted_collateral > MAX_COLLATERAL:
+            return "apply_funding_auto residual adjustment would violate collateral bounds"
+        if adjusted_cumulative < -MAX_FUNDING_CUMULATIVE or adjusted_cumulative > MAX_FUNDING_CUMULATIVE:
+            return "apply_funding_auto residual adjustment would violate cumulative funding bounds"
+        maint_req = _perp_v2_maint_margin_req(
+            int(post_target.position_base),
+            int(market.global_state.get("index_price_e8", 0)),
+            int(market.global_state.get("maintenance_margin_bps", 0)),
+            int(market.global_state.get("depeg_buffer_bps", 0)),
+        )
+        if adjusted_collateral < maint_req:
+            return "apply_funding_auto residual adjustment would violate maintenance margin"
+        new_accounts[str(residual_target)] = replace(
+            post_target,
+            collateral_quote=int(adjusted_collateral),
+            funding_paid_cumulative=int(adjusted_cumulative),
+        )
+
     ctx.markets[market_id] = PerpMarketState(
         quote_asset=market.quote_asset,
         global_state=expected_global,
@@ -2308,6 +2357,10 @@ def _apply_isolated_apply_funding_auto(
             "funding_rate_bps": int(new_rate_bps),
             "mark_price_e8": int(funding_gate.mark_price_e8),
             "accounts_applied": int(applied_accounts),
+            "raw_projected_net_funding_quote": int(projected_net_funding),
+            "net_position_base": int(net_position_base),
+            "funding_rounding_residual_target": residual_target,
+            "funding_rounding_residual_adjustment_quote": int(residual_adjustment_quote),
         }
     )
     return None
