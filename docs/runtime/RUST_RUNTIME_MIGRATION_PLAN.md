@@ -52,12 +52,55 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 1 | Golden trace corpus | ✅ format + exporter/replayer + `smoke.json` |
 | 2 | Rust workspace scaffold | ✅ `rust-runtime/` core + cli, checked arithmetic |
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
-| 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; full network state-encoder parity pending |
+| 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; `hex_to_bytes_fixed`/`canonical_json_bytes` + full network state-root parity in progress (see gap map) |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, zUSD mint/redeem ✅, buyback burn rails ✅; next: batch clearing |
-| 7 | SPARK/Ada sidecar | ☐ spec drafted; toolchain (`gnatprove`) not available in this env |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅; next: batch-clearing CPMM settlement, state-root, perps math, tx/receipt hashes |
+| 7 | SPARK/Ada sidecar | ☐ fee-router kernel drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
+
+> The Phase 0–9 numbering above is the original internal milestone scheme. The
+> "remaining-phases" task (`internal/prompts/claude_complete_runtime_port_remaining_phases_2026_05_29.md`)
+> uses a parallel A–K lettering; the gap map below reconciles the two against
+> the actual tree state on `main` and is the authoritative status for that work.
+
+## Remaining-phases gap map (as of 2026-05-29, `main` @ `7b587cf2`)
+
+Each row is a runtime surface. `Rust` = shadow status; `GT` = golden trace;
+`Diff` = randomized Python/Rust differential; `Inv` = independent semantic
+invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
+
+| Surface | Python authority | Rust | GT | Diff | Inv | SPARK | OCaml | Next action |
+|---------|------------------|------|----|----|-----|-------|-------|-------------|
+| Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | planned | fuzz (promotion) |
+| Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | planned | fuzz (promotion) |
+| Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | fuzz (promotion) |
+| zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ | — | — | add `_reference` + overflow test (Phase D) |
+| Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | candidate (Phase H) | — | receipt-body JSON hash (Phase F) |
+| Canonical primitives | `src/state/canonical.py` | ◑ uvarint/bytes/domain-sep/sha256 ✅; **`hex_to_bytes_fixed`, `canonical_json_bytes` missing** | n/a | vectors | n/a | — | planned | add 2 primitives (Phase A.5) |
+| CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ❌ | ❌ | ❌ | ❌ | — | — | bring in `5b84bd56` + add `_semantic_invariants` (Phase B) |
+| State root (network) | `src/state/state_root.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `state_root.rs` + vectors (Phase C) |
+| Perps math (stateless) | `src/core/perp_v2/math.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `perp_math.rs` (i128 + floor-div) (Phase E1) |
+| Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ❌ | ❌ | hash vectors | n/a | — | — | needs `canonical_json_bytes` (Phase F) |
+| Batch-clearing orchestration | `src/core/batch_clearing.py` (2129 ln) | ❌ | — | — | — | — | — | **OUT OF SCOPE** (multi-pool/CoW/ordering deferred) |
+| Revenue router (fine-source) | *(not on `main`)* | n/a | — | — | — | — | — | hybrid-economics branch only — separate prompt |
+
+### Reconciliation notes (corrections to the remaining-phases prompt's assumed map)
+
+* **zUSD is already a full single-vault shadow.** `zusd.rs` shadows `DepositSp`,
+  `WithdrawSp`, `RedeemZusd`, `Liquidate` and recovery-mode gating (`tcr_ok`,
+  `in_recovery_mode`, `risky_ops_allowed`). The remaining-phases "zUSD" work is a
+  **test-audit** (add the missing `_reference` + overflow tests), not new handlers.
+* **`revenue_router.py` does not exist on `main`.** Fee routing has a single
+  authority (`fee_router.py`); the fine-source revenue router lives only on the
+  hybrid-economics branch and is out of scope here. No router reconciliation code
+  is needed (Phase G is a one-paragraph decision in the boundary doc).
+* **Canonical-primitive prerequisite.** State-root parity (Phase C) needs
+  `hex_to_bytes_fixed`; tx/receipt hashing (Phase F) needs `canonical_json_bytes`.
+  Both are added first (Phase A.5) before the surfaces that consume them.
+* **Tooling on this host:** `cargo` 1.87.0 ✅; `gnatprove` ❌ (SPARK advisory only,
+  never claimed "proven"); `dune` ❌ but `opam` 2.1.5 ✅ (OCaml spec-oracle build is
+  attempted; documented blocked if install fails).
 
 ## Phase 3 — fee router (delivered)
 
