@@ -32,6 +32,9 @@ use zenodex_runtime_core::balance_kernel::{
 use zenodex_runtime_core::burn_receipts::{
     rail_receipt_hash, stateless_root, verify_rails, RailInputs,
 };
+use zenodex_runtime_core::canonical::{
+    canonical_json_bytes, hex_to_bytes_fixed, sha256_hex, CanonicalError, JsonValue,
+};
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::zusd::{step as zusd_step, ZusdCommand, ZusdState};
 use zenodex_runtime_core::{route_fee, FeeAccumulator, FeeSplitTable};
@@ -438,6 +441,149 @@ fn eval_burn_tx(_state: &(), tx: &Value) -> Eval<()> {
     }
 }
 
+// --- canonical primitives (cross-language differential) -----------------------
+
+/// Lower a `serde_json::Value` into the core's `JsonValue`, rejecting floats
+/// exactly as the Python `canonical_json_bytes` does (non-integer numbers).
+fn lower_value(v: &Value) -> Result<JsonValue, CanonicalError> {
+    match v {
+        Value::Null => Ok(JsonValue::Null),
+        Value::Bool(b) => Ok(JsonValue::Bool(*b)),
+        Value::Number(_) => match classify_integer(v) {
+            Some(s) => JsonValue::int_from_decimal_str(&s).ok_or(CanonicalError::FloatNotAllowed),
+            None => Err(CanonicalError::FloatNotAllowed),
+        },
+        Value::String(s) => Ok(JsonValue::Str(s.clone())),
+        Value::Array(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(lower_value(item)?);
+            }
+            Ok(JsonValue::Array(out))
+        }
+        Value::Object(map) => {
+            let mut out = Vec::with_capacity(map.len());
+            for (k, val) in map {
+                out.push((k.clone(), lower_value(val)?));
+            }
+            Ok(JsonValue::Object(out))
+        }
+    }
+}
+
+fn to_hex_0x(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(2 + bytes.len() * 2);
+    s.push_str("0x");
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+#[derive(Serialize)]
+struct CanonicalCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bytes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct CanonicalOutput {
+    version: u32,
+    results: Vec<CanonicalCaseResult>,
+}
+
+fn err_case(index: usize, code: &str) -> CanonicalCaseResult {
+    CanonicalCaseResult {
+        index,
+        ok: false,
+        bytes: None,
+        hash: None,
+        code: Some(code.to_string()),
+    }
+}
+
+/// Drive a `{ "cases": [ ... ] }` request through the canonical primitives.
+/// Each case is `{"op":"json_bytes"|"json_hash","value":<any>}` or
+/// `{"op":"hex_to_bytes","hex":"0x..","nbytes":N}`. Output mirrors per-case
+/// results so the Python authority can diff `bytes`/`hash`/`code` exactly.
+fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let obj = match case.as_object() {
+            Some(o) => o,
+            None => {
+                results.push(err_case(index, "malformed_case"));
+                continue;
+            }
+        };
+        match obj.get("op").and_then(Value::as_str) {
+            Some("json_bytes") | Some("json_hash") => {
+                let value = obj.get("value").unwrap_or(&Value::Null);
+                match lower_value(value) {
+                    Ok(jv) => {
+                        let bytes = canonical_json_bytes(&jv);
+                        results.push(CanonicalCaseResult {
+                            index,
+                            ok: true,
+                            bytes: Some(to_hex_0x(&bytes)),
+                            hash: Some(sha256_hex(&bytes)),
+                            code: None,
+                        });
+                    }
+                    Err(e) => results.push(err_case(index, e.code())),
+                }
+            }
+            Some("hex_to_bytes") => {
+                let hex_str = match obj.get("hex").and_then(Value::as_str) {
+                    Some(s) => s,
+                    None => {
+                        results.push(err_case(index, "malformed_case"));
+                        continue;
+                    }
+                };
+                let nbytes = match obj.get("nbytes").and_then(classify_integer) {
+                    Some(s) => match s.parse::<usize>() {
+                        Ok(n) if n > 0 => n,
+                        _ => {
+                            results.push(err_case(index, "malformed_case"));
+                            continue;
+                        }
+                    },
+                    None => {
+                        results.push(err_case(index, "malformed_case"));
+                        continue;
+                    }
+                };
+                match hex_to_bytes_fixed(hex_str, nbytes) {
+                    Ok(bytes) => results.push(CanonicalCaseResult {
+                        index,
+                        ok: true,
+                        bytes: Some(to_hex_0x(&bytes)),
+                        hash: None,
+                        code: None,
+                    }),
+                    Err(e) => results.push(err_case(index, e.code())),
+                }
+            }
+            _ => results.push(err_case(index, "unknown_op")),
+        }
+    }
+    Ok(CanonicalOutput {
+        version: 1,
+        results,
+    })
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -523,11 +669,12 @@ fn main() -> ExitCode {
                 | "replay-balance-trace"
                 | "replay-zusd-trace"
                 | "verify-burn-trace"
+                | "canonical-hash"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
-             replay-zusd-trace|verify-burn-trace> <trace.json|->"
+             replay-zusd-trace|verify-burn-trace|canonical-hash> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -546,6 +693,27 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+
+    // The canonical-primitive differential has its own request/response shape
+    // (a list of cases, not a state-threaded trace), so handle it separately.
+    if subcommand == "canonical-hash" {
+        return match run_canonical_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
 
     let output = match subcommand {
         "replay-fee-trace" => drive(
