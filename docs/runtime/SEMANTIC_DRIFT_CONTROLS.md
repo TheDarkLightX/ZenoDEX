@@ -67,7 +67,13 @@ These fail on the buggy global-state model and pass on the keyed model.
    diffs Python against a stale binary (`tools/runtime/rust_shadow_replay.py`).
 5. **Differential conformance** (static + randomized) — necessary, not
    sufficient; it pins agreement once correctness is established by (2).
-6. **Formal obligations** (Tau / ESSO / Lean) for surfaces that have them must
+6. **Robustness / fuzzing** — the always-on harness
+   (`rust-runtime/crates/zenodex-runtime-core/tests/robustness.rs`, ~4000
+   adversarial cases per kernel on the stable toolchain) asserts no public
+   transition panics and that accepted post-states hold the invariants; the
+   `rust-runtime/fuzz/` `cargo-fuzz` targets extend this to a libFuzzer campaign
+   on nightly. This is the machine-mutated-input net behind (2) and (5).
+7. **Formal obligations** (Tau / ESSO / Lean) for surfaces that have them must
    stay green as a promotion gate.
 
 ## Checklist for a new runtime surface (Phase 6+)
@@ -82,6 +88,7 @@ These fail on the buggy global-state model and pass on the keyed model.
       interference and no-op-on-reject.
 - [ ] Property tests + rejection tests.
 - [ ] Differential conformance (static smoke + randomized).
+- [ ] A case in the robustness harness (`tests/robustness.rs`) + a `fuzz/` target.
 - [ ] Update `RUNTIME_TRUSTED_CORE_BOUNDARY.md` and the migration plan.
 
 ## Surfaces with these controls today

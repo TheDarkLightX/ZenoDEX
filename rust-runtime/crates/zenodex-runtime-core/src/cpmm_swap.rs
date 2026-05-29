@@ -45,11 +45,7 @@ fn in_range(v: u128, lo: u128, hi: u128) -> bool {
 
 /// `ceil(num / den)` for `den > 0` (num may be 0 -> 0).
 fn ceil_div(num: u128, den: u128) -> u128 {
-    if num == 0 {
-        0
-    } else {
-        (num + den - 1) / den
-    }
+    num.div_ceil(den)
 }
 
 /// Single CPMM pool. `reserve0`/`reserve1` are the constant-product reserves;

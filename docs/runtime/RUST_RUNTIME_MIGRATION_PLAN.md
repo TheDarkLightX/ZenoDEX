@@ -233,6 +233,17 @@ module, (4) no `unsafe`, (5) no float use, (6) no nondeterministic iteration in
 canonical output, (7) the module's Tau/ESSO/Lean obligations still pass, and
 (8) the Python path remains available as a shadow checker.
 
+Status against these criteria (all six kernels): (1) ✅ differential, (2) ✅
+proptest + semantic invariants, (4) ✅ `#![forbid(unsafe_code)]`, (5) ✅
+integer-only, (6) ✅ explicit ordered byte encodings, (8) ✅ Python is authority.
+For (3) fuzzing: the always-on **robustness harness**
+(`crates/zenodex-runtime-core/tests/robustness.rs`, ~4000 adversarial cases per
+kernel on the stable toolchain) runs in CI and asserts the no-panic / typed-
+`Result` / invariant property a fuzzer targets; the matching `cargo-fuzz`
+targets live in `fuzz/` and need a **bounded libFuzzer campaign on nightly**
+(unavailable in the authoring environment) to fully discharge (3). (7) is
+per-surface and tracked in the boundary table.
+
 ## How to run
 
 ```bash

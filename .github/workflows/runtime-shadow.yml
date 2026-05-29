@@ -112,6 +112,9 @@ jobs:
       - name: cargo test
         run: cargo test
 
+      - name: Robustness harness (fuzz-grade, ~4000 cases/kernel)
+        run: cargo test --test robustness
+
   python-rust-shadow:
     name: Python/Rust shadow differential
     runs-on: ubuntu-latest
