@@ -22,21 +22,25 @@ Formula:
 
 The practical effect is that funding liveness returns for balanced books without allowing fragmented books to drain the fee pool.
 
-## P1 — port companion-repo deploy-profile hardening into runtime-main-sync
+## P1 — port companion-repo deploy-profile hardening into runtime-main-sync (fixed)
 
 The companion repo (`Autonomous Tau DEX`) has deploy-profile hardening that did
 NOT land here:
 
 - ~~**S5-INFO-001:** signed `tau_tx_payload` echoed by default~~ — **DONE this session:** `perps_wallet_api.py`/`zusd_tau_wallet_api.py` now strip the BLS signature from responses by default (opt-in flags), preserving operations/metadata; full payload still submitted to the node. Tests: `tests/runtime/test_signed_payload_redaction_regression.py`.
-- **Richer deploy-profile gate:** this campaign wired the existing `api_surface_profiles` (demo/value-moving routes). The companion's `deploy_profile.py` enforces the full `config/deploy/*.yaml` policy (raw-private-key flags, local fixture settlement, auth posture). Port `deploy_profile.py` + `ZENODEX_DEPLOY_PROFILE` to enforce `key_policy`/`runtime_policy` here too (and include the zusd/autotrader local-signing facts from P2).
+- **Fixed:** `src/integration/deploy_profile.py` now loads `config/deploy/*.yaml`, and `api_server.main()` enforces `ZENODEX_DEPLOY_PROFILE` before binding. The gate covers `key_policy.raw_private_key_flags_allowed`, `runtime_policy.local_only_routes_allowed`, and `required_auth.public_api`.
 
-## P2 — deploy-profile validator coverage (S5-GAP-003, confirmed in companion)
+## P2 — deploy-profile validator coverage (S5-GAP-003, fixed)
 
 `RUNTIME_FACT_KEYS` (companion `deploy_profile.py`) covers `perps_wallet_allow_local_signing`
 but NOT `ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING`, `ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING`,
 `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING`. Under `raw_private_key_flags_allowed: false`
 these three are not checked → a production-strict deploy with `ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING=1`
 emits zero conflicts. Add the three facts + checks. (When porting deploy_profile to main-sync, include them.)
+
+Fixed here: the runtime facts include perps, zUSD Tau wallet, zUSD monetary wallet,
+AutoTrader local signing, and signed-payload echo flags. Regression:
+`tests/runtime/test_deploy_profile_enforced_at_startup.py`.
 
 ## P3 — settle-epoch oracle freshness (S4-F1, documented/intentional)
 
