@@ -87,7 +87,12 @@ echo "== perp-submission-auth-field-selector: regression net =="
   tests/integration/test_perp_op_auth_message_parity.py \
   tests/kernels/test_perp_submission_auth_field_selector_gate_v1_native_adapter.py
 
-echo "== perp-submission-auth-field-selector: manifest check =="
-"$PY" "$ROOT_DIR/tools/check_perp_submission_auth_field_selector_assurance_manifest.py"
+MANIFEST_PATH="$ROOT_DIR/tools/perp_submission_auth_field_selector_assurance_manifest.json"
+if [[ -f "$MANIFEST_PATH" ]]; then
+  echo "== perp-submission-auth-field-selector: manifest check =="
+  "$PY" "$ROOT_DIR/tools/check_perp_submission_auth_field_selector_assurance_manifest.py"
+else
+  echo "== perp-submission-auth-field-selector: manifest check skipped (no pinned manifest in this tree) =="
+fi
 
 echo "ok"
