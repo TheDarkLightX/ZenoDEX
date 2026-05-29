@@ -17,7 +17,7 @@ human decision + profile entry.
 
 | Surface | Authority | Rust shadow | 1–8,10–11 | DS (4) | Fuzz (9) | Promoted (12) |
 |---|---|---|---|---|---|---|
-| Canonical primitives | Python | `canonical.rs` | ✅ | ☐ | ☐ | ☐ |
+| Canonical primitives | Python | `canonical.rs` | ✅ | ✅¹ | ☐ | ☐ |
 | State root v5 | Python | `state_root.rs` | ✅ | ☐ | ☐ | ☐ |
 | Replay / idempotency guard | Python | `replay_guard.rs` | ✅ | ☐ | ☐ | ☐ |
 | Balance accounting | Python | `balance_kernel.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -26,6 +26,14 @@ human decision + profile entry.
 | CPMM per-pool settlement | Python | `cpmm_swap.rs` | ✅ | ☐ | ☐ | ☐ |
 | zUSD single-vault | Python | `zusd.rs` | ✅ | ☐ | ☐ | ☐ |
 | Perp stateless math (E1) | Python | `perp_math.rs` | ✅ | ☐ | ☐ | ☐ |
+
+¹ Canonical primitives (stateless) have the applicable disaster-state rows
+(malformed bytes, overflow/underflow, determinism, purity) covered by
+`tests/runtime/test_canonical_primitives_disaster_state.py`, plus the
+cross-language disaster differential and the first end-to-end authority-selector
+exercise over a real surface. This is the first surface with complete
+criterion-4 evidence. Fuzz (9) and the human decision (12) remain; no profile
+flips it to Rust authority yet.
 
 ### Classification (Phase 0 step 3)
 

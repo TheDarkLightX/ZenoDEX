@@ -113,6 +113,17 @@ Until each shadowed surface has the rows below, it is **not** authority-eligible
 `RUST_RUNTIME_MIGRATION_PLAN.md` Phase 9 table. Disaster-state (4) + fuzz are
 what this gate adds.)
 
+**Canonical primitives (stateless).** Not in the table above because the
+stateful rows (copied-tx replay, stale snapshot, duplicate IDs, unauthorized
+mutation, no-op-on-reject) do not apply to pure encoders. Its applicable rows —
+malformed bytes, overflow/underflow, determinism/normalization, and purity —
+are **✅ covered** by `tests/runtime/test_canonical_primitives_disaster_state.py`,
+which also runs the cross-language disaster differential and the first
+end-to-end authority-selector exercise (`rust_authority_with_python_shadow`:
+agreement, root-stability, fail-closed on disagreement and on unavailable Rust).
+Canonical primitives are therefore the first surface with complete criterion-4
+evidence; fuzz (criterion 9) and the human decision (criterion 12) remain.
+
 ## Promotion order (lowest risk first)
 
 Per the migration plan and the math-side `RUNTIME_READINESS.md`:
