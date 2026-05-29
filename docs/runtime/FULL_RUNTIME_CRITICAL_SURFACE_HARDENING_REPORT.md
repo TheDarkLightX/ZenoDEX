@@ -64,7 +64,7 @@ it was **not** applied (would weaken determinism).
 ### S4 — perps + oracle — 1 fix + 2 documented + safe-idempotency receipts
 - Negative receipts: double-settle, re-settle-after-advance, split-brain oracle packets — all correctly rejected (idempotency marker `oracle_last_update_epoch=now_epoch`; `OracleRegistry` enforces one-commit-per-epoch + strict monotone sequence). Insurance/margin non-negativity enforced.
 - **F-1 (documented, intentional):** `guard_settle_epoch` checks `oracle_last_update_epoch >= now_epoch` as *idempotency*, not freshness; `max_oracle_staleness_epochs` is not consulted → settlement proceeds on a stale index. This is a documented liveness-over-freshness tradeoff (`test_regression_stale_oracle_settle_epoch_accept_reject_parity` verifies the accept; opt-in `require_oracle_authorization_for_isolated_settle_epoch`). Recommend production sets that flag. → queue P3.
-- **F-3 (confirmed, fail-closed liveness):** `apply_funding_auto` requires `projected_net == 0`, but floor-divided `funding_payment` doesn't sum to zero for a balanced book (`[2000,-1000,-1000]@9bps → [1,0,0]`, net=1 → blocked; ~82% of configs). Fail-closed (no value moves). Safe fix routes the residual to `fee_pool` (zero-sum *except explicit fees*) — a consensus funding change, **documented as blocker P0**, not rushed.
+- **FIXED — F-3 (confirmed, fail-closed liveness):** `apply_funding_auto` required `projected_net == 0`, but floor-divided `funding_payment` doesn't sum to zero for a balanced book (`[2000,-1000,-1000]@9bps → [1,0,0]`, net=1 → blocked; ~82% of configs). The fix rejects true net base exposure, then assigns integer rounding residuals on zero-net books to a deterministic counterparty account so adjusted payments sum to zero and `fee_pool_quote` is not used as a hidden subsidy source.
 - **FIXED — F-5 (stale test):** `test_perp_epoch_isolated_v3_native_initial_state_keeps_epoch_phase` asserted `epoch_phase == "Open"`, but the v3 native ABI uses int enums (`Open=0`). Aligned the assertion to the documented int ABI.
 
 ### S5/S6 — wallet-API boundary + Rust/OCaml/SPARK sidecars — 1 HIGH fix + receipts
@@ -103,11 +103,13 @@ tests/runtime/test_tau_plugin_stream_faucet_regression.py             -> 8 passe
 tests/runtime/test_recompute_witness_zlib_fail_closed_regression.py   -> 12 passed
 tests/runtime/test_api_surface_profile_enforced_at_startup.py         -> 8 passed
 tests/core/test_perp_epoch_isolated_v2_native.py (F-5)                -> passes (was failing)
+tests/core/test_perp_apply_funding_auto_gate.py +
+  tests/integration/test_perp_engine.py -k funding_auto                -> 14 passed
 ```
 
 ## Residual risk
-P0 funding-auto liveness (fail-closed); P1 port companion deploy-profile gate
-(`deploy_profile.py` + missing zUSD/autotrader local-signing facts); P3 settle-epoch oracle freshness (config-gated);
+P1 port companion deploy-profile gate (`deploy_profile.py` + missing
+zUSD/autotrader local-signing facts); P3 settle-epoch oracle freshness (config-gated);
 clearinghouse settle oracle path, OCaml/SPARK conformance, golden-trace differential,
 multi-hop batch proofs — not fully exercised. Full list: `NEXT_RUNTIME_HARDENING_QUEUE.md`.
 
@@ -138,15 +140,17 @@ Bugs Found
   FIX: enforce the u32 nonce bound in Rust with `nonce_too_large`. TEST:
   test_state_root_disaster_state.py.
 - S4-F5 (LOW, stale test): v3 epoch_phase int-ABI assertion. FIX: assert == 0.
-- S4-F3 (MEDIUM, liveness, fail-closed): funding_auto net==0 too strict -> documented
-  blocker P0 (route residual to fee_pool; consensus change, not rushed).
+- S4-F3 (MEDIUM, liveness, fail-closed): funding_auto net==0 too strict.
+  FIX: reject true net exposure, assign zero-net rounding residual to a deterministic
+  counterparty account, and leave fee_pool_quote unchanged. TEST:
+  test_perp_engine.py funding_auto residual cases.
 
 Evidence
 - required verification green (pytest 58, cargo fmt/68/clippy, Rust<->Python v5 parity 11),
-  injectivity proof OK, 28 new regression tests pass. See Evidence section above.
+  injectivity proof OK, 31 new or updated regression tests pass. See Evidence section above.
 
 Residual Risk
-- P0 funding-auto liveness; P1 port companion deploy-profile gate;
+- P1 port companion deploy-profile gate;
   P3 settle-epoch oracle freshness (config-gated). See NEXT_RUNTIME_HARDENING_QUEUE.md.
   Not a claim of zero bugs — bounded coverage only.
 ```

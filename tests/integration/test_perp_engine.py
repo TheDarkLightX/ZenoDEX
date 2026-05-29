@@ -1400,6 +1400,118 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
     assert acct_bob.funding_paid_cumulative == -10_000
 
 
+def test_apply_funding_auto_assigns_positive_rounding_residual_to_payee() -> None:
+    market_id = "perp:funding-rounding-positive"
+    quote_asset = "0x" + "6d" * 32
+    operator = "00" * 48
+    alice = "aa" * 48
+    bob = "bb" * 48
+    carol = "cc" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "init_market", quote_asset=quote_asset)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+
+    funded = BalanceTable()
+    for (pk, asset), amt in state.balances.get_all_balances().items():
+        funded.set(pk, asset, int(amt))
+    for pk in (alice, bob, carol):
+        funded.set(pk, quote_asset, 1_000_000_000)
+    state = replace(state, balances=funded)
+
+    for pk, pos in ((alice, 2_000), (bob, -1_000), (carol, -1_000)):
+        state = _apply(
+            state=state,
+            tx_sender_pubkey=pk,
+            operator_pubkey=operator,
+            ops=[
+                _op(market_id, "deposit_collateral", account_pubkey=pk, amount=200_000),
+                _op(market_id, "set_position", account_pubkey=pk, new_position_base=pos),
+            ],
+        )
+
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_090_000)])
+
+    res = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "apply_funding_auto")])
+    assert res.ok is True, res.error
+    assert res.state is not None and res.effects is not None
+    effect = res.effects[0]
+    assert effect["raw_projected_net_funding_quote"] == 1
+    assert effect["net_position_base"] == 0
+    assert effect["funding_rounding_residual_target"] == carol
+    assert effect["funding_rounding_residual_adjustment_quote"] == -1
+
+    market = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    assert int(market.global_state["fee_pool_quote"]) == 0
+    assert market.accounts[alice].collateral_quote == 199_999
+    assert market.accounts[bob].collateral_quote == 200_000
+    assert market.accounts[carol].collateral_quote == 200_001
+    assert sum(int(acct.collateral_quote) for acct in market.accounts.values()) == 600_000
+
+
+def test_apply_funding_auto_assigns_negative_rounding_residual_to_payer() -> None:
+    market_id = "perp:funding-rounding-negative"
+    quote_asset = "0x" + "6e" * 32
+    operator = "00" * 48
+    alice = "aa" * 48
+    bob = "bb" * 48
+    carol = "cc" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "init_market", quote_asset=quote_asset)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+
+    funded = BalanceTable()
+    for (pk, asset), amt in state.balances.get_all_balances().items():
+        funded.set(pk, asset, int(amt))
+    for pk in (alice, bob, carol):
+        funded.set(pk, quote_asset, 1_000_000_000)
+    state = replace(state, balances=funded)
+
+    for pk, pos in ((alice, 1_000), (bob, 1_000), (carol, -2_000)):
+        state = _apply(
+            state=state,
+            tx_sender_pubkey=pk,
+            operator_pubkey=operator,
+            ops=[
+                _op(market_id, "deposit_collateral", account_pubkey=pk, amount=200_000),
+                _op(market_id, "set_position", account_pubkey=pk, new_position_base=pos),
+            ],
+        )
+
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_090_000)])
+
+    res = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "apply_funding_auto")])
+    assert res.ok is True, res.error
+    assert res.state is not None and res.effects is not None
+    effect = res.effects[0]
+    assert effect["raw_projected_net_funding_quote"] == -1
+    assert effect["net_position_base"] == 0
+    assert effect["funding_rounding_residual_target"] == bob
+    assert effect["funding_rounding_residual_adjustment_quote"] == 1
+
+    market = res.state.perps.markets[market_id]  # type: ignore[union-attr]
+    assert int(market.global_state["fee_pool_quote"]) == 0
+    assert market.accounts[alice].collateral_quote == 200_000
+    assert market.accounts[bob].collateral_quote == 199_999
+    assert market.accounts[carol].collateral_quote == 200_001
+    assert sum(int(acct.collateral_quote) for acct in market.accounts.values()) == 600_000
+
+
 def test_apply_funding_auto_allows_empty_open_interest() -> None:
     market_id = "perp:funding-empty"
     quote_asset = "0x" + "68" * 32
@@ -1591,7 +1703,7 @@ def test_apply_funding_auto_rejects_unbalanced_net_flow() -> None:
         ops=[_op(market_id, "apply_funding_auto")],
     )
     assert res.ok is False
-    assert res.error is not None and "funding budget balance" in res.error
+    assert res.error == "apply_funding_auto requires zero net base exposure (net_position_base=1000000)"
 
 
 def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:

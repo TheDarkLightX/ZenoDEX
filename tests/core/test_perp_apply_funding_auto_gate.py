@@ -20,6 +20,7 @@ def _base_kwargs() -> dict[str, object]:
         "funding_cap_bps": 100,
         "projected_net_funding_quote": 0,
         "any_funding_applied_this_epoch": False,
+        "net_position_base": 0,
     }
 
 
@@ -55,15 +56,27 @@ def test_perp_apply_funding_auto_gate_rejects_invalid_control_fields() -> None:
     assert perp_apply_funding_auto_gate_error(outcome) == "cannot apply funding: invalid funding_cap_bps"
 
 
-def test_perp_apply_funding_auto_gate_rejects_unbalanced_net_flow() -> None:
+def test_perp_apply_funding_auto_gate_allows_rounding_residual_on_zero_net_book() -> None:
     kwargs = _base_kwargs()
     kwargs["projected_net_funding_quote"] = 11
     outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
 
-    assert outcome.net_funding_balanced is False
+    assert outcome.net_position_base == 0
+    assert outcome.net_funding_balanced is True
+    assert outcome.funding_auto_allowed is True
+    assert perp_apply_funding_auto_gate_error(outcome) is None
+
+
+def test_perp_apply_funding_auto_gate_rejects_true_net_exposure() -> None:
+    kwargs = _base_kwargs()
+    kwargs["projected_net_funding_quote"] = 11
+    kwargs["net_position_base"] = 1
+    outcome = evaluate_perp_apply_funding_auto_gate(**kwargs)
+
+    assert outcome.position_net_balanced is False
     assert outcome.funding_auto_allowed is False
     assert perp_apply_funding_auto_gate_error(outcome) == (
-        "apply_funding_auto would violate funding budget balance (net=11)"
+        "apply_funding_auto requires zero net base exposure (net_position_base=1)"
     )
 
 
