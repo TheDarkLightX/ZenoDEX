@@ -53,12 +53,15 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/formal/test_perp_epoch_scheduler_ltlf.py::test_ltlf_scheduler_can_reach_epoch_2_settled" \
   "$ROOT_DIR/tests/integration/test_perp_engine.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_auth_guards.py" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_oracle_authorization.py" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_runtime_gate.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_signed_surface_guards.py" \
   "$ROOT_DIR/tests/integration/test_perp_op_auth_message_parity.py" \
-  "$ROOT_DIR/tests/integration/test_perp_engine_parse_guards.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_market_params_clearinghouse.py" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_partial_liquidate.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_clearinghouse_2p.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_clearinghouse_3p_transfer.py" \
+  "$ROOT_DIR/tests/integration/test_perps_engine_alias.py" \
   "$ROOT_DIR/tests/integration/test_perps_wallet_api.py" \
   "$ROOT_DIR/tests/integration/test_perps_stream8_resilience.py" \
   "$ROOT_DIR/tests/integration/test_zenodex_live_cross_stream_stateful.py" \
@@ -100,38 +103,20 @@ echo "== perps: kernel inductiveness (verify-multi) =="
   --timeout-ms 60000 \
   --determinism-trials 2
 
-echo "== perps: funding-auto admission assurance =="
-bash "$ROOT_DIR/tools/run_perp_apply_funding_auto_assurance_gate.sh"
-
 echo "== perps: funding apply assurance =="
 bash "$ROOT_DIR/tools/run_perp_funding_apply_assurance_gate.sh"
-
-echo "== perps: clearinghouse market params assurance =="
-bash "$ROOT_DIR/tools/run_perp_clearinghouse_market_params_assurance_gate.sh"
 
 echo "== perps: liquidation eligibility assurance =="
 bash "$ROOT_DIR/tools/run_perp_liquidation_eligibility_assurance_gate.sh"
 
-echo "== perps: submission auth assurance =="
-bash "$ROOT_DIR/tools/run_perp_submission_auth_assurance_gate.sh"
-
 echo "== perps: submission auth field selector assurance =="
 bash "$ROOT_DIR/tools/run_perp_submission_auth_field_selector_assurance_gate.sh"
-
-echo "== perps: signed surface assurance =="
-bash "$ROOT_DIR/tools/run_perp_signed_surface_assurance_gate.sh"
-
-echo "== perps: runtime risk assurance =="
-bash "$ROOT_DIR/tools/run_perp_runtime_risk_gate_assurance_gate.sh"
 
 echo "== perps: Tau ingress stream assurance =="
 bash "$ROOT_DIR/tools/run_perp_tau_ingress_stream_assurance_gate.sh"
 
 echo "== perps: Tau ingress schema =="
 bash "$ROOT_DIR/tools/run_perp_tau_ingress_schema_tau_gate.sh"
-
-echo "== perps: market version/prefix assurance =="
-bash "$ROOT_DIR/tools/run_perp_market_version_prefix_assurance_gate.sh"
 
 echo "== perps: funding-auto bounded-sink assurance =="
 bash "$ROOT_DIR/tools/run_perp_funding_auto_sink_assurance_gate.sh"

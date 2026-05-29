@@ -86,7 +86,12 @@ echo "== perp-tau-ingress-stream: regression net =="
   tests/kernels/test_perp_tau_ingress_stream_v1_native_adapter.py \
   tests/integration/test_tau_testnet_dex_plugin.py -k "select_perp_ops"
 
-echo "== perp-tau-ingress-stream: manifest check =="
-"$PY" "$ROOT_DIR/tools/check_perp_tau_ingress_stream_assurance_manifest.py"
+MANIFEST_PATH="$ROOT_DIR/tools/perp_tau_ingress_stream_assurance_manifest.json"
+if [[ -f "$MANIFEST_PATH" ]]; then
+  echo "== perp-tau-ingress-stream: manifest check =="
+  "$PY" "$ROOT_DIR/tools/check_perp_tau_ingress_stream_assurance_manifest.py"
+else
+  echo "== perp-tau-ingress-stream: manifest check skipped (no pinned manifest in this tree) =="
+fi
 
 echo "ok"

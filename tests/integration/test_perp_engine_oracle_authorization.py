@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from src.core.dex import DexState
 from src.integration.perp_engine import (
+    _ORACLE_PERPS_INDEX_QUERY_ID,
+    _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     PerpEngineConfig,
     _isolated_settle_oracle_runtime_facts,
+    _perps_runtime_oracle_action_id,
     apply_perp_ops,
 )
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
@@ -31,10 +34,39 @@ def _apply_result(
     operator_pubkey: str,
     require_authorization: bool = False,
 ):
+    bridge_verifier = None
+    for op in ops:
+        if "oracle_adapter_bridge" not in op:
+            continue
+        market_id = str(op.get("market_id", ""))
+        if not market_id or state.perps is None or market_id not in state.perps.markets:
+            continue
+        market = state.perps.markets[market_id]
+        expected_action_id = _perps_runtime_oracle_action_id(
+            PerpEngineConfig(operator_pubkey=operator_pubkey, allow_isolated_markets=True),
+            market_id=market_id,
+            action_kind=str(op.get("action", "")),
+            market=market,
+        )
+
+        def bridge_verifier(_bridge: object, *, action_id: str = expected_action_id) -> dict[str, object]:
+            return {
+                "status": "accepted",
+                "errors": [],
+                "consumer_module": "zenodex.perps",
+                "action_kind": "settle_epoch",
+                "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+                "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+                "action_id": action_id,
+            }
+
+        break
+
     cfg = PerpEngineConfig(
         operator_pubkey=operator_pubkey,
         allow_isolated_markets=True,
         require_oracle_authorization_for_isolated_settle=require_authorization,
+        oracle_adapter_bridge_verifier=bridge_verifier,
     )
     return apply_perp_ops(
         config=cfg,
@@ -111,7 +143,7 @@ def _authorization_for(
         "action_id": str(runtime["action_id"]),
         "action_facts_hash": str(runtime["action_facts_hash"]),
         "pre_state_hash": str(runtime["pre_state_hash"]),
-        "profile_id": "critical-perps-v1",
+        "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         "query_id": query_id,
         "value_e8": value,
         "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
@@ -129,6 +161,15 @@ def _authorization_for(
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "perps"}),
     }
     return authorization_bundle(auth)
+
+
+def _settle_with_authorization(market_id: str, auth: dict[str, object]) -> dict[str, object]:
+    return _op(
+        market_id,
+        "settle_epoch",
+        oracle_adapter_bridge={"schema": "test"},
+        oracle_authorization=auth,
+    )
 
 
 def test_isolated_settle_requires_oracle_authorization_when_configured() -> None:
@@ -162,7 +203,7 @@ def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
-        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+        ops=[_settle_with_authorization(market_id, auth)],
     )
 
     assert res.ok is True, res.error
@@ -186,7 +227,7 @@ def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> N
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
-        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+        ops=[_settle_with_authorization(market_id, auth)],
     )
 
     assert res.ok is False
@@ -209,7 +250,7 @@ def test_isolated_settle_rejects_authorization_for_different_pre_state() -> None
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
-        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+        ops=[_settle_with_authorization(market_id, auth)],
     )
 
     assert res.ok is False
@@ -235,7 +276,7 @@ def test_isolated_settle_rejects_below_o3_authorization_evidence() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
-        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+        ops=[_settle_with_authorization(market_id, auth)],
     )
 
     assert res.ok is False
@@ -262,7 +303,7 @@ def test_isolated_settle_rejects_expired_authorization() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
-        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+        ops=[_settle_with_authorization(market_id, auth)],
     )
 
     assert res.ok is False
@@ -288,7 +329,7 @@ def test_isolated_settle_rejects_stale_but_unexpired_authorization() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
-        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+        ops=[_settle_with_authorization(market_id, auth)],
     )
 
     assert res.ok is False
