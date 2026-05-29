@@ -28,6 +28,7 @@ pub mod canonical;
 pub mod cpmm_swap;
 pub mod error;
 pub mod fee_router;
+pub mod perp_account_ops;
 pub mod perp_advance_epoch;
 pub mod perp_funding_auto;
 pub mod perp_math;

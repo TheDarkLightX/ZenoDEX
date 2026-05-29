@@ -18,6 +18,7 @@
 //! zenodex-runtime publish-clearing-price <cases.json|-> # perps E2 publish_clearing_price
 //! zenodex-runtime settle-epoch         <cases.json|->   # perps E2 settle_epoch
 //! zenodex-runtime partial-liquidate    <cases.json|->   # perps E2 partial_liquidate
+//! zenodex-runtime account-op           <cases.json|->   # perps E2 deposit/withdraw/set_position/clear_breaker
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -48,6 +49,7 @@ use zenodex_runtime_core::canonical::{
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
+use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
 use zenodex_runtime_core::perp_funding_auto::{
     apply_funding_auto, FundingAccount, FundingAutoInput,
@@ -1575,6 +1577,113 @@ fn run_partial_liquidate_cases(req: &Value) -> Result<PartialLiquidateOutputDoc,
     })
 }
 
+// --- account-management ops shadow (stateful perps E2 slice) ------------------
+
+#[derive(Serialize)]
+struct AccountOpCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    position_base: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    entry_price_e8: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    collateral_quote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    breaker_active: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    breaker_last_trigger_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AccountOpOutputDoc {
+    version: u32,
+    results: Vec<AccountOpCaseResult>,
+}
+
+fn account_op_err(index: usize, code: &str) -> AccountOpCaseResult {
+    AccountOpCaseResult {
+        index,
+        ok: false,
+        position_base: None,
+        entry_price_e8: None,
+        collateral_quote: None,
+        breaker_active: None,
+        breaker_last_trigger_epoch: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_account_op_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<AccountOpCaseResult, String> {
+    let op = obj
+        .get("op")
+        .and_then(Value::as_str)
+        .ok_or("malformed_case")?
+        .to_string();
+    let input = AccountOpInput {
+        now_epoch: arg_mag(obj, "now_epoch")?,
+        epoch_phase: arg_mag(obj, "epoch_phase")?,
+        oracle_last_update_epoch: arg_mag(obj, "oracle_last_update_epoch")?,
+        max_oracle_staleness_epochs: arg_mag(obj, "max_oracle_staleness_epochs")?,
+        oracle_seen: arg_bool(obj, "oracle_seen")?,
+        index_price_e8: arg_mag(obj, "index_price_e8")?,
+        position_base: arg_mag(obj, "position_base")?,
+        collateral_quote: arg_mag(obj, "collateral_quote")?,
+        entry_price_e8: arg_mag(obj, "entry_price_e8")?,
+        maintenance_margin_bps: arg_bps(obj, "maintenance_margin_bps")?,
+        depeg_buffer_bps: arg_bps(obj, "depeg_buffer_bps")?,
+        initial_margin_bps: arg_bps(obj, "initial_margin_bps")?,
+        max_position_abs: arg_mag(obj, "max_position_abs")?,
+        breaker_active: arg_bool(obj, "breaker_active")?,
+        breaker_last_trigger_epoch: arg_mag(obj, "breaker_last_trigger_epoch")?,
+        amount: arg_mag(obj, "amount")?,
+        new_position_base: arg_mag(obj, "new_position_base")?,
+        all_positions_flat: arg_bool(obj, "all_positions_flat")?,
+    };
+    match account_op(&op, &input) {
+        Ok(out) => Ok(AccountOpCaseResult {
+            index: 0,
+            ok: true,
+            position_base: Some(out.position_base.to_string()),
+            entry_price_e8: Some(out.entry_price_e8.to_string()),
+            collateral_quote: Some(out.collateral_quote.to_string()),
+            breaker_active: Some(out.breaker_active),
+            breaker_last_trigger_epoch: Some(out.breaker_last_trigger_epoch.to_string()),
+            code: None,
+        }),
+        Err(code) => Ok(account_op_err(0, code)),
+    }
+}
+
+fn run_account_op_cases(req: &Value) -> Result<AccountOpOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_account_op_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => account_op_err(index, &code),
+            },
+            None => account_op_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(AccountOpOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
 
 #[derive(Serialize)]
@@ -1817,13 +1926,14 @@ fn main() -> ExitCode {
                 | "publish-clearing-price"
                 | "settle-epoch"
                 | "partial-liquidate"
+                | "account-op"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
-             publish-clearing-price|settle-epoch|partial-liquidate> <input.json|->"
+             publish-clearing-price|settle-epoch|partial-liquidate|account-op> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1980,6 +2090,25 @@ fn main() -> ExitCode {
 
     if subcommand == "partial-liquidate" {
         return match run_partial_liquidate_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "account-op" {
+        return match run_account_op_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
