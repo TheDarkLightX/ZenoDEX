@@ -1,0 +1,198 @@
+{
+  "final_state_root": "0x37690002de7caafc001ed32495b7f8d839b660d73fcaf2963a6d637d3bbc6a4f",
+  "initial_state_root": "0x6d831ba2b54839419aa630f6baae6566e9074a70d943e80563cdbe73c3676592",
+  "kernel": "cpmm_settlement",
+  "steps": [
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "pool_not_initialized",
+      "post_state_root": "0x6d831ba2b54839419aa630f6baae6566e9074a70d943e80563cdbe73c3676592",
+      "receipt_hash": null,
+      "tx": {
+        "amount_in": 10,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xe804d6ead455b42deb194cdc5531ec0918da86984a81ca269fef36c3b4b779da",
+      "receipt_hash": "0x9a3bc7e82715a6439aa7f953dc9f08c91e7cd6a0ccd262bae77045c9bb9022f0",
+      "tx": {
+        "fee_bps": 30,
+        "kind": "init_pool",
+        "reserve0": 1000000,
+        "reserve1": 1000000
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "already_initialized",
+      "post_state_root": "0xe804d6ead455b42deb194cdc5531ec0918da86984a81ca269fef36c3b4b779da",
+      "receipt_hash": null,
+      "tx": {
+        "fee_bps": 0,
+        "kind": "init_pool",
+        "reserve0": 1,
+        "reserve1": 1
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xd73c1088d07bc65b78f68a1a62389e0c2b914cfe8e3eefb1b2beb8250f5f5469",
+      "receipt_hash": "0xb81fbcbe5ab1ed85206f438b4461e2ce3b7aa9bf6a2ab35b965f59051d99eec0",
+      "tx": {
+        "amount_in": 10000,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x7c7f2220ead1865a21ae4198df799a05402c09a00ce62d0277c281eef9bc4454",
+      "receipt_hash": "0x52d9752fb2e1643797b177f000bc241d3e3eaa1509cf28ed450a1143e559b6ff",
+      "tx": {
+        "amount_in": 5000,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "zero_for_one": false
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": "0xb2625b64f8e5bfdac161266c7bcb4808f53710c0abe3ba28e4e7c8048fde07a8",
+      "tx": {
+        "amount_out": 5000,
+        "kind": "swap_exact_out",
+        "max_amount_in": 10000000,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "slippage",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_in": 10000,
+        "kind": "swap_exact_in",
+        "min_amount_out": 1000000000,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "slippage",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_out": 5000,
+        "kind": "swap_exact_out",
+        "max_amount_in": 1,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "invalid_amount",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_in": 0,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "reserve_domain_exceeded",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_in": 3000000000,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "amount_out_ge_reserve",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_out": 2000000,
+        "kind": "swap_exact_out",
+        "max_amount_in": 10000000,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "already_initialized",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "fee_bps": 0,
+        "kind": "init_pool",
+        "reserve0": 0,
+        "reserve1": 1
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_field:x",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "amount_in": 1,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "x": 1,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": false,
+      "expected_reject_reason": "unknown_tx_kind",
+      "post_state_root": "0xf075510fdb40982a555bb51eb5f6c7b272237596e4088100bd4e3c4990dd77c6",
+      "receipt_hash": null,
+      "tx": {
+        "kind": "frobnicate"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xbf1ec351adf9b4b5e310af6ad28d0f34a308ea5ced1707f9331a88f3be8e71c9",
+      "receipt_hash": "0xf88a78cc650e2d49c40642dce5a2c02a390603593e3d87013ba5d750479fabc0",
+      "tx": {
+        "amount_in": 50000,
+        "kind": "swap_exact_in",
+        "min_amount_out": 0,
+        "zero_for_one": true
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0x37690002de7caafc001ed32495b7f8d839b660d73fcaf2963a6d637d3bbc6a4f",
+      "receipt_hash": "0x70e406d3f386a44063a87ec19e1e89130c266690f587254489ed2bad2fe7824d",
+      "tx": {
+        "amount_out": 1000,
+        "kind": "swap_exact_out",
+        "max_amount_in": 10000000,
+        "zero_for_one": false
+      }
+    }
+  ],
+  "version": 1
+}

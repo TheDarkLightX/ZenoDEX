@@ -26,6 +26,7 @@ for _p in (str(_REPO), str(_HERE)):
 
 import balance_kernel_lib  # noqa: E402
 import burn_receipts_lib  # noqa: E402
+import cpmm_settlement_lib  # noqa: E402
 import golden_trace_lib  # noqa: E402
 import replay_guard_lib  # noqa: E402
 import zusd_kernel_lib  # noqa: E402
@@ -48,6 +49,10 @@ _SCENARIOS = {
     "burn_smoke": (
         burn_receipts_lib.build_smoke_trace,
         burn_receipts_lib.replay_trace,
+    ),
+    "cpmm_smoke": (
+        cpmm_settlement_lib.build_smoke_trace,
+        cpmm_settlement_lib.replay_trace,
     ),
 }
 
