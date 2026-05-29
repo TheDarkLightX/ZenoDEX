@@ -95,3 +95,4 @@ These fail on the buggy global-state model and pass on the keyed model.
 | `burn_receipts` | stateless rail tuple | ✅ Python (budget floor, supply conservation, accumulator, replay gate) | ✅ static + 600-case |
 | `cpmm_settlement` | single pool (`reserve0`, `reserve1`) | ✅ Python (constant-product non-decreasing, in-domain reserves, slippage admission, no-op-on-reject, fee bounded) | ✅ golden trace + shadow |
 | `canonical` | per-value (stateless) | n/a (primitive vectors) | ✅ static + 3×400 randomized |
+| `state_root` | `(pubkey,asset)` / `pool_id` / `(pubkey,pool_id)` / `pubkey` | ✅ Python (determinism, order-independence, sensitivity, duplicate-key + bad-encoding rejection) | ✅ static + 4×250 randomized |
