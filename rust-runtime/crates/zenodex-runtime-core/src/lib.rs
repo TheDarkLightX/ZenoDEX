@@ -24,6 +24,7 @@ pub mod arith;
 pub mod balance_kernel;
 pub mod burn_receipts;
 pub mod canonical;
+pub mod cpmm_swap;
 pub mod error;
 pub mod fee_router;
 pub mod replay_guard;
@@ -34,6 +35,7 @@ pub use balance_kernel::{
     MAX_BALANCE,
 };
 pub use burn_receipts::{rail_receipt_hash, verify_rails, RailInputs};
+pub use cpmm_swap::{init_pool, swap_exact_in, swap_exact_out, Pool, SwapReceipt};
 pub use error::{DomainConstraint, RejectedReason};
 pub use fee_router::{
     canonical_split_table, route_fee, Accepted, Domain, FeeAccumulator, FeeReceipt, FeeSplitTable,
