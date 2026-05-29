@@ -14,6 +14,7 @@ import os
 import random
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 from src.core.dex import DexState  # noqa: F401
@@ -25,6 +26,16 @@ _REPO = _HERE.parents[1]
 RUST_RUNTIME_DIR = _REPO / "rust-runtime"
 
 OPERATOR = fa.OPERATOR
+
+_GLOBAL_OVERRIDE_FIELDS = {
+    "fee_pool_quote",
+    "fee_income",
+    "initial_insurance",
+    "claims_paid",
+    "insurance_balance",
+    "liquidation_penalty_bps",
+    "min_notional_for_bounty",
+}
 
 
 def _reason_category(error: str) -> str:
@@ -44,6 +55,19 @@ def _g(gs, key, default=0):
     return gs.get(key, default)
 
 
+def _with_global_overrides(state, *, market_id: str, case: dict):
+    overrides = {field: int(case[field]) for field in _GLOBAL_OVERRIDE_FIELDS if field in case}
+    if not overrides:
+        return state
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs.update(overrides)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=dict(market.accounts))
+    return replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+
 def py_eval(index: int, case: dict) -> dict:
     market_id = case.get("market_id", f"perp:se{index}")
     quote_asset = "0x" + ("%02x" % (0x40 + (index % 100))) * 32
@@ -55,6 +79,7 @@ def py_eval(index: int, case: dict) -> dict:
         deposit=int(case.get("deposit", 200_000)),
         sink_k=int(case.get("sink_k", 0)),
     )
+    state = _with_global_overrides(state, market_id=market_id, case=case)
     assert state.perps is not None
     if case.get("double_settle"):
         # Settle once (-> Settled); the measured settle below then runs on a

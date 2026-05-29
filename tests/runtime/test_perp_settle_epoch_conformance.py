@@ -26,6 +26,12 @@ def static_cases() -> list[dict]:
         {"positions": [(a, 1_000_000)], "clearing_price_e8": 99_000_000},    # -1% long loss
         {"positions": [(a, -1_000_000)], "clearing_price_e8": 104_000_000},  # short loss
         {"positions": [(a, 1_000_000)], "clearing_price_e8": 50_000_000, "deposit": 105_000},  # liquidation (clamped)
+        {
+            "positions": [(a, 1_000_000)],
+            "clearing_price_e8": 50_000_000,
+            "deposit": 105_000,
+            "min_notional_for_bounty": 0,
+        },  # liquidation with non-zero penalty routed to fee/insurance sinks
         {"positions": [(a, 1_000_000)], "clearing_price_e8": 150_000_000},   # +50% -> clamp + breaker
         {
             "positions": [("12" * 48, 500_000), ("34" * 48, -700_000)],
@@ -54,12 +60,16 @@ def _assert_agrees(cases, rust_bin):
 
 def test_rust_matches_python_static(rust_bin):
     py = _assert_agrees(static_cases(), rust_bin)
-    # Cases 0-7 accept; case 8 (double_settle) rejects on the second settle.
-    assert all(p["ok"] for p in py[:8]), "first 8 static settle cases should accept"
-    assert py[8]["ok"] is False and py[8]["reason"] == "settle_epoch_guard"
+    # Cases 0-8 accept; case 9 (double_settle) rejects on the second settle.
+    assert all(p["ok"] for p in py[:9]), "first 9 static settle cases should accept"
+    assert py[9]["ok"] is False and py[9]["reason"] == "settle_epoch_guard"
     # The liquidation case must actually liquidate its account.
     liq = py[5]["accounts"][("aa" * 48)]
     assert liq[1] == 0 and liq[3] is True, "expected position->0 and liquidated flag"
+    liq_with_penalty = py[6]
+    assert liq_with_penalty["fee_pool_quote"] > 0
+    assert liq_with_penalty["fee_pool_quote"] == liq_with_penalty["fee_income"]
+    assert liq_with_penalty["insurance_balance"] == liq_with_penalty["fee_income"]
 
 
 def test_rust_matches_golden_trace(rust_bin):
