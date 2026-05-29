@@ -36,6 +36,23 @@ RUST_RUNTIME_DIR = _REPO / "rust-runtime"
 OPERATOR = "00" * 48
 
 
+def _reason_category(error: str) -> str:
+    """Map a Python authority reject message to the stable Rust reject code, so
+    rejected cases compare reason (not just the accept/reject boolean)."""
+    e = error or ""
+    if "drive a protocol sink out of bounds" in e:
+        return "sink_out_of_domain"
+    if "funding already applied this epoch" in e:
+        return "funding_already_applied"
+    if "would violate collateral bounds" in e:
+        return "collateral_bounds"
+    if "would violate maintenance margin" in e:
+        return "maintenance_margin"
+    if "would violate cumulative funding bounds" in e:
+        return "cumulative_funding_bounds"
+    return f"unmapped:{e}"
+
+
 def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:
     op: dict[str, object] = {"module": "TauPerp", "version": "0.1", "market_id": market_id, "action": action}
     op.update(kwargs)
@@ -146,6 +163,12 @@ def py_eval(index: int, case: dict) -> dict:
         deposit=int(case.get("deposit", 200_000)),
         sink_k=int(case.get("sink_k", 0)),
     )
+    if case.get("double_apply"):
+        # Apply funding once (must succeed) so the measured apply below is a
+        # same-epoch replay → exercises the funding_already_applied reject.
+        first = _apply_result(state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR, ops=[_op(market_id, "apply_funding_auto")])
+        assert first.ok, first.error
+        state = first.state
     assert state.perps is not None
     market = state.perps.markets[market_id]
     gs = market.global_state
@@ -157,10 +180,12 @@ def py_eval(index: int, case: dict) -> dict:
             "position_base": int(a.position_base),
             "collateral_quote": int(a.collateral_quote),
             "funding_paid_cumulative": int(a.funding_paid_cumulative),
+            "funding_last_applied_epoch": int(a.funding_last_applied_epoch),
         }
         for pk, a in sorted(market.accounts.items())
     ]
     rust_input = {
+        "now_epoch": int(gs["now_epoch"]),
         "rate_bps": rate,
         "index_price_e8": int(gs["index_price_e8"]),
         "maintenance_margin_bps": int(gs.get("maintenance_margin_bps", 0)),
@@ -173,14 +198,15 @@ def py_eval(index: int, case: dict) -> dict:
 
     res = _apply_result(state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR, ops=[_op(market_id, "apply_funding_auto")])
     if not res.ok:
-        return {"index": index, "ok": False, "_rust_input": rust_input}
+        return {"index": index, "ok": False, "reason": _reason_category(res.error or ""), "_rust_input": rust_input}
     post = res.state.perps.markets[market_id]
     pg = post.global_state
     return {
         "index": index,
         "ok": True,
+        "funding_rate_bps": int(pg["funding_rate_bps"]),
         "accounts": {
-            pk: (int(a.collateral_quote), int(a.funding_paid_cumulative))
+            pk: (int(a.collateral_quote), int(a.funding_paid_cumulative), int(a.funding_last_applied_epoch))
             for pk, a in post.accounts.items()
         },
         "fee_pool_quote": int(pg["fee_pool_quote"]),
@@ -246,17 +272,30 @@ def diff_results(py: list[dict], rs: list[dict]) -> list[str]:
             problems.append(f"case {i}: ok python={p['ok']} rust={r['ok']} (rust code={r.get('code')})")
             continue
         if not p["ok"]:
+            # reject-reason parity (catches validation-order / fail-closed drift)
+            if p.get("reason") != r.get("code"):
+                problems.append(f"case {i}: reject reason python={p.get('reason')} rust={r.get('code')}")
             continue
+        # global funding_rate_bps parity
+        if int(p["funding_rate_bps"]) != int(r["funding_rate_bps"]):
+            problems.append(f"case {i}: funding_rate_bps python={p['funding_rate_bps']} rust={r['funding_rate_bps']}")
         # post sink parity
         for field in ("fee_pool_quote", "fee_income", "insurance_balance"):
             if int(p[field]) != int(r[field]):
                 problems.append(f"case {i}: {field} python={p[field]} rust={r[field]}")
-        # per-account collateral + cumulative parity
-        rust_accts = {a["key"]: (int(a["collateral_quote"]), int(a["funding_paid_cumulative"])) for a in r["accounts"]}
+        # per-account collateral + cumulative + funding_last_applied_epoch parity
+        rust_accts = {
+            a["key"]: (
+                int(a["collateral_quote"]),
+                int(a["funding_paid_cumulative"]),
+                int(a["funding_last_applied_epoch"]),
+            )
+            for a in r["accounts"]
+        }
         if set(rust_accts) != set(p["accounts"]):
             problems.append(f"case {i}: account keys python={sorted(p['accounts'])} rust={sorted(rust_accts)}")
             continue
-        for pk, (coll, cum) in p["accounts"].items():
-            if rust_accts[pk] != (coll, cum):
-                problems.append(f"case {i}: account {pk} python={(coll, cum)} rust={rust_accts[pk]}")
+        for pk, tup in p["accounts"].items():
+            if rust_accts[pk] != tup:
+                problems.append(f"case {i}: account {pk} python={tup} rust={rust_accts[pk]}")
     return problems

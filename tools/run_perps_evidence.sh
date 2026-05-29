@@ -125,12 +125,15 @@ bash "$ROOT_DIR/tools/run_perp_tau_ingress_schema_tau_gate.sh"
 echo "== perps: market version/prefix assurance =="
 bash "$ROOT_DIR/tools/run_perp_market_version_prefix_assurance_gate.sh"
 
+echo "== perps: funding-auto bounded-sink assurance =="
+bash "$ROOT_DIR/tools/run_perp_funding_auto_sink_assurance_gate.sh"
+
 if [[ ! -d "$ROOT_DIR/lean-mathlib" ]]; then
   echo "error: missing Lean workspace at $ROOT_DIR/lean-mathlib" >&2
   exit 2
 fi
 
 echo "== perps: Lean proofs =="
-(cd "$ROOT_DIR/lean-mathlib" && lake build Proofs.PerpEpochSafety Proofs.PerpFundingRateSafety Proofs.PerpInsuranceSafety Proofs.PerpGameTheory)
+(cd "$ROOT_DIR/lean-mathlib" && lake build Proofs.PerpEpochSafety Proofs.PerpFundingRateSafety Proofs.PerpFundingSinkConservation Proofs.PerpInsuranceSafety Proofs.PerpGameTheory)
 
 echo "ok"
