@@ -141,6 +141,7 @@ import Proofs.PerpEpochSafety
 import Proofs.PerpFundingAlgebra
 import Proofs.PerpFundingEpochGateProved
 import Proofs.PerpFundingRateSafety
+import Proofs.PerpFundingSinkConservation
 import Proofs.PerpFundingSymmetry
 import Proofs.PerpGameTheory
 import Proofs.PerpInsuranceSafety
