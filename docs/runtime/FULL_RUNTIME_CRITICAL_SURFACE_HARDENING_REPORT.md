@@ -84,7 +84,12 @@ API routes"). **Regression:** `tests/runtime/test_api_surface_profile_enforced_a
   sees an agreed rejection instead of a drift. Regression:
   `tests/runtime/test_state_root_disaster_state.py`.
 - **FIXED — S5-INFO-001 (D-KEY-001):** the signed `tau_tx_payload` was echoed in default API responses (perps + zUSD tau wallet) — a replay-capable BLS-signature artifact. Now the response **strips the signature** by default (`signature_redacted: true`, opt-in via `PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD` / `ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD`); operations/sender/sequence/fee_limit are preserved and the FULL signed payload is still SUBMITTED to the node (`sendtx`). Exhaustive no-leak regression: `tests/runtime/test_signed_payload_redaction_regression.py` (5); updated the one prior test that asserted the insecure exact-echo contract.
-- Queued: S5-GAP-003 (companion `RUNTIME_FACT_KEYS` missing zusd/autotrader local-signing flags); full `deploy_profile.py` policy port. See `NEXT_RUNTIME_HARDENING_QUEUE.md`.
+- **FIXED — S5-GAP-003 / deploy-profile gap:** `api_server.main()` now enforces
+  `ZENODEX_DEPLOY_PROFILE` with `src/integration/deploy_profile.py` before
+  binding. The gate checks raw-key/local-signing flags for perps, zUSD Tau
+  wallet, zUSD monetary wallet, and AutoTrader, plus signed-payload echo flags,
+  local-only fixture flags, and public-auth posture. Regression:
+  `tests/runtime/test_deploy_profile_enforced_at_startup.py` (11).
 
 ## Evidence (commands + results)
 
@@ -105,11 +110,13 @@ tests/runtime/test_api_surface_profile_enforced_at_startup.py         -> 8 passe
 tests/core/test_perp_epoch_isolated_v2_native.py (F-5)                -> passes (was failing)
 tests/core/test_perp_apply_funding_auto_gate.py +
   tests/integration/test_perp_engine.py -k funding_auto                -> 14 passed
+tests/runtime/test_deploy_profile_enforced_at_startup.py +
+  profile/API-surface/authority selectors                              -> 30 passed
+tools/check_deployment_profiles.py --json                              -> ok
 ```
 
 ## Residual risk
-P1 port companion deploy-profile gate (`deploy_profile.py` + missing
-zUSD/autotrader local-signing facts); P3 settle-epoch oracle freshness (config-gated);
+P3 settle-epoch oracle freshness (config-gated);
 clearinghouse settle oracle path, OCaml/SPARK conformance, golden-trace differential,
 multi-hop batch proofs — not fully exercised. Full list: `NEXT_RUNTIME_HARDENING_QUEUE.md`.
 
@@ -136,6 +143,10 @@ Bugs Found
 - S5-INFO-001 (LOW-MED, D-KEY-001): signed tau_tx_payload echoed by default in perps/zUSD
   wallet responses. FIX: strip BLS signature by default (opt-in flag), keep ops/metadata,
   still submit full payload to node. TEST: test_signed_payload_redaction_regression.py (5).
+- S5-GAP-003 (MEDIUM, D-CONFIG-002): deployment profiles were richer than startup
+  enforcement, and zUSD/AutoTrader local-signing facts were not covered. FIX:
+  ZENODEX_DEPLOY_PROFILE startup gate, updated profile YAML runtime policy, and
+  zUSD/AutoTrader fact coverage. TEST: test_deploy_profile_enforced_at_startup.py (11).
 - SR-DRIFT-001 (state_root Rust shadow): Rust accepted nonce 2^32 while Python rejected it.
   FIX: enforce the u32 nonce bound in Rust with `nonce_too_large`. TEST:
   test_state_root_disaster_state.py.
@@ -150,7 +161,6 @@ Evidence
   injectivity proof OK, 31 new or updated regression tests pass. See Evidence section above.
 
 Residual Risk
-- P1 port companion deploy-profile gate;
-  P3 settle-epoch oracle freshness (config-gated). See NEXT_RUNTIME_HARDENING_QUEUE.md.
+- P3 settle-epoch oracle freshness (config-gated). See NEXT_RUNTIME_HARDENING_QUEUE.md.
   Not a claim of zero bugs — bounded coverage only.
 ```

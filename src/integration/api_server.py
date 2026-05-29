@@ -6849,6 +6849,59 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _print_api_auth_posture_error(auth_error_code)
         return 2
 
+    _deploy_profile_id = _env_str("ZENODEX_DEPLOY_PROFILE", "").strip()
+    if _deploy_profile_id:
+        from src.integration.deploy_profile import (  # pylint: disable=import-outside-toplevel
+            evaluate_deploy_profile_consistency,
+            load_deploy_profile,
+        )
+
+        try:
+            _deploy_profile = load_deploy_profile(_deploy_profile_id)
+            _deploy_conflicts = evaluate_deploy_profile_consistency(
+                _deploy_profile,
+                {
+                    "sensitive_api_enabled": sensitive_api_enabled,
+                    "external_auth_enforced": external_auth_enforced,
+                    "auth_bearer_token_set": _demo_auth_configured_from_env(),
+                    "allow_demo_token_auth": allow_demo_token_auth,
+                    "legacy_demo_token_active": _demo_auth_configured_from_env(),
+                    "confidential_sealed_bid_allow_in_memory_state": _env_bool(
+                        "CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False
+                    ),
+                    "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
+                        "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
+                    ),
+                    "confidential_sealed_bid_return_signed_tau_tx_payload": _env_bool(
+                        "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+                    ),
+                    "perps_wallet_allow_local_signing": _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False),
+                    "perps_wallet_return_signed_tau_tx_payload": _env_bool(
+                        "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+                    ),
+                    "zusd_tau_wallet_allow_local_signing": _env_bool(
+                        "ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False
+                    ),
+                    "zusd_tau_wallet_return_signed_tau_tx_payload": _env_bool(
+                        "ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
+                    ),
+                    "zusd_monetary_wallet_allow_local_signing": _env_bool(
+                        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
+                        _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False),
+                    ),
+                    "autotrader_live_allow_local_signing": _env_bool(
+                        "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", False
+                    ),
+                },
+            )
+        except (OSError, ValueError, TypeError) as exc:
+            print(f"Refusing to start: invalid ZENODEX_DEPLOY_PROFILE={_deploy_profile_id!r}: {exc}")
+            return 2
+        if _deploy_conflicts:
+            for _conflict in _deploy_conflicts:
+                print(f"Refusing to start: {_conflict}")
+            return 2
+
     # API-surface profile gate (D-CONFIG-002): the profiles in
     # api_surface_profiles.py (e.g. production-strict forbids demo/value-moving
     # routes) were defined but never enforced at startup, so a production-strict
