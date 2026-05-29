@@ -77,9 +77,9 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | fuzz (promotion) |
 | zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ | — | — | add `_reference` + overflow test (Phase D) |
 | Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | candidate (Phase H) | — | receipt-body JSON hash (Phase F) |
-| Canonical primitives | `src/state/canonical.py` | ◑ uvarint/bytes/domain-sep/sha256 ✅; **`hex_to_bytes_fixed`, `canonical_json_bytes` missing** | n/a | vectors | n/a | — | planned | add 2 primitives (Phase A.5) |
+| Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | orchestration (multi-pool/CoW/ordering) deferred |
-| State root (network) | `src/state/state_root.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `state_root.rs` + vectors (Phase C) |
+| State root (network) | `src/state/state_root.py` | ✅ v4 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
 | Perps math (stateless) | `src/core/perp_v2/math.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `perp_math.rs` (i128 + floor-div) (Phase E1) |
 | Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ❌ | ❌ | hash vectors | n/a | — | — | needs `canonical_json_bytes` (Phase F) |
 | Batch-clearing orchestration | `src/core/batch_clearing.py` (2129 ln) | ❌ | — | — | — | — | — | **OUT OF SCOPE** (multi-pool/CoW/ordering deferred) |

@@ -11,6 +11,7 @@
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
 //! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
 //! zenodex-runtime canonical-hash       <cases.json|->   # canonical primitive vectors
+//! zenodex-runtime verify-state-root    <cases.json|->   # network state-root parity
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -41,6 +42,10 @@ use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
+use zenodex_runtime_core::state_root::{
+    compute_state_root, BalanceEntry, LpDurationEntry, LpEntry, NonceEntry, PoolEntry, PoolStatus,
+    StateInput,
+};
 use zenodex_runtime_core::zusd::{step as zusd_step, ZusdCommand, ZusdState};
 use zenodex_runtime_core::{route_fee, FeeAccumulator, FeeSplitTable};
 
@@ -693,6 +698,168 @@ fn eval_cpmm_tx(pool: &Pool, tx: &Value) -> Eval<Pool> {
     }
 }
 
+// --- state-root (cross-language differential) ---------------------------------
+
+fn req_str(obj: &serde_json::Map<String, Value>, key: &str) -> Result<String, String> {
+    obj.get(key)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| "malformed_state".to_string())
+}
+
+/// Required non-negative integer that must fit `u128` (else out of domain).
+fn req_u128(obj: &serde_json::Map<String, Value>, key: &str) -> Result<u128, String> {
+    let s = obj
+        .get(key)
+        .and_then(classify_integer)
+        .ok_or("malformed_state")?;
+    if s.starts_with('-') {
+        return Err("malformed_state".to_string());
+    }
+    s.parse::<u128>()
+        .map_err(|_| "amount_out_of_domain".to_string())
+}
+
+/// Optional timestamp: missing or JSON null -> None; integer -> Some(u128).
+fn opt_u128(obj: &serde_json::Map<String, Value>, key: &str) -> Result<Option<u128>, String> {
+    match obj.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(_) => Ok(Some(req_u128(obj, key)?)),
+    }
+}
+
+fn arr<'a>(state: &'a Value, key: &str) -> Result<&'a Vec<Value>, String> {
+    match state.get(key) {
+        None | Some(Value::Null) => Err("__empty__".to_string()), // sentinel: treat as []
+        Some(Value::Array(a)) => Ok(a),
+        Some(_) => Err("malformed_state".to_string()),
+    }
+}
+
+fn each_obj(state: &Value, key: &str) -> Result<Vec<serde_json::Map<String, Value>>, String> {
+    match arr(state, key) {
+        Ok(items) => items
+            .iter()
+            .map(|v| {
+                v.as_object()
+                    .cloned()
+                    .ok_or_else(|| "malformed_state".to_string())
+            })
+            .collect(),
+        Err(s) if s == "__empty__" => Ok(Vec::new()),
+        Err(e) => Err(e),
+    }
+}
+
+fn parse_state(state: &Value) -> Result<StateInput, String> {
+    if !state.is_object() {
+        return Err("malformed_state".to_string());
+    }
+    let mut input = StateInput::default();
+    for o in each_obj(state, "balances")? {
+        input.balances.push(BalanceEntry {
+            pubkey: req_str(&o, "pubkey")?,
+            asset: req_str(&o, "asset")?,
+            amount: req_u128(&o, "amount")?,
+        });
+    }
+    for o in each_obj(state, "pools")? {
+        let status = PoolStatus::from_label(&req_str(&o, "status")?)
+            .ok_or_else(|| "unknown_pool_status".to_string())?;
+        input.pools.push(PoolEntry {
+            pool_id: req_str(&o, "pool_id")?,
+            asset0: req_str(&o, "asset0")?,
+            asset1: req_str(&o, "asset1")?,
+            reserve0: req_u128(&o, "reserve0")?,
+            reserve1: req_u128(&o, "reserve1")?,
+            fee_bps: req_u128(&o, "fee_bps")?,
+            lp_supply: req_u128(&o, "lp_supply")?,
+            status,
+            created_at: req_u128(&o, "created_at")?,
+            curve_tag: req_str(&o, "curve_tag")?,
+            curve_params: req_str(&o, "curve_params")?,
+        });
+    }
+    for o in each_obj(state, "lp_balances")? {
+        input.lp_balances.push(LpEntry {
+            pubkey: req_str(&o, "pubkey")?,
+            pool_id: req_str(&o, "pool_id")?,
+            amount: req_u128(&o, "amount")?,
+        });
+    }
+    for o in each_obj(state, "lp_duration_risk")? {
+        input.lp_duration_risk.push(LpDurationEntry {
+            pubkey: req_str(&o, "pubkey")?,
+            pool_id: req_str(&o, "pool_id")?,
+            last_mint_timestamp: opt_u128(&o, "last_mint_timestamp")?,
+            last_remove_timestamp: opt_u128(&o, "last_remove_timestamp")?,
+            churn_tier: req_u128(&o, "churn_tier")?,
+            last_churn_update_timestamp: opt_u128(&o, "last_churn_update_timestamp")?,
+        });
+    }
+    for o in each_obj(state, "nonces")? {
+        input.nonces.push(NonceEntry {
+            pubkey: req_str(&o, "pubkey")?,
+            last_nonce: req_u128(&o, "last_nonce")?,
+        });
+    }
+    Ok(input)
+}
+
+#[derive(Serialize)]
+struct StateRootCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    state_root: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct StateRootOutput {
+    version: u32,
+    results: Vec<StateRootCaseResult>,
+}
+
+/// Drive a `{ "cases": [ <state>, ... ] }` request through `compute_state_root`.
+fn run_state_root_cases(req: &Value) -> Result<StateRootOutput, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match parse_state(case) {
+            Ok(input) => match compute_state_root(&input) {
+                Ok(root) => StateRootCaseResult {
+                    index,
+                    ok: true,
+                    state_root: Some(root),
+                    code: None,
+                },
+                Err(e) => StateRootCaseResult {
+                    index,
+                    ok: false,
+                    state_root: None,
+                    code: Some(e.code()),
+                },
+            },
+            Err(code) => StateRootCaseResult {
+                index,
+                ok: false,
+                state_root: None,
+                code: Some(code),
+            },
+        };
+        results.push(result);
+    }
+    Ok(StateRootOutput {
+        version: 1,
+        results,
+    })
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -780,12 +947,13 @@ fn main() -> ExitCode {
                 | "verify-burn-trace"
                 | "settle-swap-trace"
                 | "canonical-hash"
+                | "verify-state-root"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
-             replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash> \
-             <input.json|->"
+             replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
+             verify-state-root> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -809,6 +977,25 @@ fn main() -> ExitCode {
     // (a list of cases, not a state-threaded trace), so handle it separately.
     if subcommand == "canonical-hash" {
         return match run_canonical_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "verify-state-root" {
+        return match run_state_root_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
