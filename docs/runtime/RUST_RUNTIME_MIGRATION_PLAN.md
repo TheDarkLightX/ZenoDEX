@@ -268,13 +268,48 @@ balance accounting → zUSD mint/redeem → buyback accumulator/burn floor → b
 clearing admission → batch clearing settlement. **Do not move crypto first** —
 wrap established libraries behind a deterministic verification interface.
 
-### Phase 9 promotion criteria
+### Phase 9 / K promotion criteria
 
-A surface becomes Rust-authoritative only when **all** hold: (1) Python/Rust
-golden-trace equality, (2) property tests pass, (3) fuzzing has run for the
-module, (4) no `unsafe`, (5) no float use, (6) no nondeterministic iteration in
-canonical output, (7) the module's Tau/ESSO/Lean obligations still pass, and
-(8) the Python path remains available as a shadow checker.
+**No surface is Rust-authoritative.** Python remains the sole authority for every
+surface; the Rust core is a shadow/checker. Promotion is a later, explicit,
+human-reviewed decision — never taken in code by this work.
+
+A surface is *eligible* for Rust authority only when **all** hold:
+
+```text
+1.  Python/Rust golden-trace equality
+2.  randomized differential tests pass
+3.  independent semantic invariants pass (per runtime, not a cross-impl diff)
+4.  state-root and receipt-hash parity
+5.  malformed-input rejection tests pass
+6.  no unsafe (#![forbid(unsafe_code)])
+7.  no floats / no nondeterministic iteration in canonical output
+8.  deterministic canonical encoding (explicit ordered byte encodings)
+9.  fuzz / stateful weird-machine test evidence
+10. Tau/ESSO/Lean obligations still green where applicable
+11. Python remains available as a shadow checker
+12. human review + explicit promotion decision
+```
+
+Per-surface status (criteria 1–8, 10–11 are what this work can establish; **9
+fuzz** and **12 human promotion** are outstanding for *every* surface):
+
+| Surface | 1 trace | 2 diff | 3 inv | 4 root/receipt | 5 reject | 6–8 hygiene | 9 fuzz | 12 promoted |
+|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fee_router | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| replay_guard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| balance_kernel | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| zusd (single-vault) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| burn_receipts rails | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| cpmm_settlement | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| state_root | ✅ vectors | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| tx/receipt hash | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
+| perp_math (E1) | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
+
+The remaining authoritative surfaces with no Rust shadow yet (full batch-clearing
+orchestration, the stateful perps engine, multi-vault zUSD, the intent
+shape-gate, BLS verification) are tracked in the gap map above and are **not**
+eligible until shadowed.
 
 ## How to run
 

@@ -29,6 +29,19 @@ The fee-router accumulator is asset-aware. Dust is keyed by `(source, asset)`;
 bucket totals are keyed by `asset`. This is part of the trusted-core boundary
 because fee units from different tokens must never be merged into one scalar.
 
+### Router ownership (Phase G decision)
+
+There is **one** router authority on `main`: `src/core/fee_router.py` (coarse
+four-destination domains: buyburn / stakers / reserve / hosts). The fine-source
+hybrid-economics router (`src/core/revenue_router.py`) **does not exist on
+`main`** — it lives only on the hybrid-economics branch and is governed by a
+separate prompt. There is therefore **no two-router divergence to reconcile
+here, and no adapter is needed**. If/when `revenue_router.py` lands on `main`,
+the required reconciliation (a documented collapse of fine sources into the
+coarse domains with identical semantics, or an explicit supersedes-decision with
+the legacy router retained for old traces) must happen *before* any Rust shadow
+of the fine-source router is added.
+
 ## Trusted-core boundary table
 
 `RC?` = runtime-critical. *Evidence required* lists what must be green before a
