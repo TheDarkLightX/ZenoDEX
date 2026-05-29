@@ -36,7 +36,8 @@ use zenodex_runtime_core::burn_receipts::{
     rail_receipt_hash, stateless_root, verify_rails, RailInputs,
 };
 use zenodex_runtime_core::canonical::{
-    canonical_json_bytes, hex_to_bytes_fixed, sha256_hex, CanonicalError, JsonValue,
+    canonical_json_bytes, domain_sep_bytes, hex_to_bytes_fixed, sha256_hex, CanonicalError,
+    JsonValue,
 };
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
@@ -582,6 +583,48 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
                         hash: None,
                         code: None,
                     }),
+                    Err(e) => results.push(err_case(index, e.code())),
+                }
+            }
+            // sha256(domain_sep(label, version) + canonical_json_bytes(value)) —
+            // the shape shared by the DEX intent auth message hash and the burn
+            // receipt body hash (Phase F).
+            Some("domain_json_hash") => {
+                let label = match obj.get("label").and_then(Value::as_str) {
+                    Some(s) => s,
+                    None => {
+                        results.push(err_case(index, "malformed_case"));
+                        continue;
+                    }
+                };
+                // domain_sep_bytes in Python rejects empty / non-ASCII / NUL labels.
+                if label.is_empty() || !label.is_ascii() || label.contains('\u{0}') {
+                    results.push(err_case(index, "bad_domain_label"));
+                    continue;
+                }
+                let version = match obj.get("version") {
+                    None => 1u32,
+                    Some(v) => match classify_integer(v).and_then(|s| s.parse::<u32>().ok()) {
+                        Some(n) if n > 0 => n,
+                        _ => {
+                            results.push(err_case(index, "bad_domain_version"));
+                            continue;
+                        }
+                    },
+                };
+                let value = obj.get("value").unwrap_or(&Value::Null);
+                match lower_value(value) {
+                    Ok(jv) => {
+                        let mut msg = domain_sep_bytes(label, version);
+                        msg.extend_from_slice(&canonical_json_bytes(&jv));
+                        results.push(CanonicalCaseResult {
+                            index,
+                            ok: true,
+                            bytes: None,
+                            hash: Some(sha256_hex(&msg)),
+                            code: None,
+                        });
+                    }
                     Err(e) => results.push(err_case(index, e.code())),
                 }
             }
