@@ -102,12 +102,19 @@ Until each shadowed surface has the rows below, it is **not** authority-eligible
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
 | copied-tx replay | ☐ | ☐ | ☐ | ☐ | ☐ | n/a | n/a | n/a |
-| stale snapshot | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | n/a |
-| duplicate IDs | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | n/a |
-| malformed bytes | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| overflow/underflow | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| unauthorized mutation | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | n/a |
+| stale snapshot | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ✅ | n/a |
+| duplicate IDs | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ✅ | n/a |
+| malformed bytes | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ✅ | ☐ |
+| overflow/underflow | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ⚠️ | ☐ |
+| unauthorized mutation | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | n/a | n/a |
 | no-op on reject | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | n/a | n/a |
+
+state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
+⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
+revealed a semantic drift (SR-DRIFT-001 in `RUST_AUTHORITY_MIGRATION_STATUS.md`)
+that **blocks pure `rust_authority`** for state_root until resolved. The
+shadow-checked mode fails closed on it, so it does not block
+`rust_authority_with_python_shadow`.
 
 (Evidence 1–3 and 5–6 are already green for all 9 surfaces — see
 `RUST_RUNTIME_MIGRATION_PLAN.md` Phase 9 table. Disaster-state (4) + fuzz are
