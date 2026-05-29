@@ -1,0 +1,264 @@
+{
+  "kernel": "perp_set_market_params",
+  "version": 1,
+  "cases": [
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_maintenance_margin_bps": 600,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_maintenance_margin_bps": 9000,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_depeg_buffer_bps": 6000,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_max_oracle_move_bps": -1,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_min_notional_for_bounty": 100,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_liquidation_penalty_bps": 80,
+      "accounts": [
+        {
+          "position_base": 500000,
+          "collateral_quote": 200000
+        }
+      ]
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_max_position_abs": 100000,
+      "accounts": [
+        {
+          "position_base": 500000,
+          "collateral_quote": 200000
+        }
+      ]
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_funding_cap_bps": 500,
+      "accounts": []
+    },
+    {
+      "cur_max_oracle_staleness_epochs": 100,
+      "cur_max_oracle_move_bps": 500,
+      "cur_initial_margin_bps": 1000,
+      "cur_maintenance_margin_bps": 500,
+      "cur_depeg_buffer_bps": 100,
+      "cur_liquidation_penalty_bps": 50,
+      "cur_max_position_abs": 1000000,
+      "cur_funding_cap_bps": 100,
+      "cur_min_notional_for_bounty": 100000000,
+      "cur_funding_rate_bps": 0,
+      "index_price_e8": 100000000,
+      "min_collectible_liquidation_penalty_quote": 1000,
+      "upd_initial_margin_bps": 2000,
+      "upd_maintenance_margin_bps": 600,
+      "accounts": []
+    }
+  ],
+  "expected": [
+    {
+      "index": 0,
+      "ok": true,
+      "max_oracle_staleness_epochs": "100",
+      "max_oracle_move_bps": "500",
+      "initial_margin_bps": "1000",
+      "maintenance_margin_bps": "500",
+      "depeg_buffer_bps": "100",
+      "liquidation_penalty_bps": "50",
+      "max_position_abs": "1000000",
+      "funding_cap_bps": "100",
+      "min_notional_for_bounty": "100000000",
+      "funding_rate_bps": "0"
+    },
+    {
+      "index": 1,
+      "ok": true,
+      "max_oracle_staleness_epochs": "100",
+      "max_oracle_move_bps": "500",
+      "initial_margin_bps": "1000",
+      "maintenance_margin_bps": "600",
+      "depeg_buffer_bps": "100",
+      "liquidation_penalty_bps": "50",
+      "max_position_abs": "1000000",
+      "funding_cap_bps": "100",
+      "min_notional_for_bounty": "100000000",
+      "funding_rate_bps": "0"
+    },
+    {
+      "index": 2,
+      "ok": false,
+      "code": "set_market_params_ordering"
+    },
+    {
+      "index": 3,
+      "ok": false,
+      "code": "set_market_params_param_domain"
+    },
+    {
+      "index": 4,
+      "ok": false,
+      "code": "set_market_params_param_domain"
+    },
+    {
+      "index": 5,
+      "ok": false,
+      "code": "set_market_params_min_notional"
+    },
+    {
+      "index": 6,
+      "ok": false,
+      "code": "set_market_params_anti_farming"
+    },
+    {
+      "index": 7,
+      "ok": false,
+      "code": "set_market_params_account_unsafe"
+    },
+    {
+      "index": 8,
+      "ok": true,
+      "max_oracle_staleness_epochs": "100",
+      "max_oracle_move_bps": "500",
+      "initial_margin_bps": "1000",
+      "maintenance_margin_bps": "500",
+      "depeg_buffer_bps": "100",
+      "liquidation_penalty_bps": "50",
+      "max_position_abs": "1000000",
+      "funding_cap_bps": "500",
+      "min_notional_for_bounty": "100000000",
+      "funding_rate_bps": "0"
+    },
+    {
+      "index": 9,
+      "ok": true,
+      "max_oracle_staleness_epochs": "100",
+      "max_oracle_move_bps": "500",
+      "initial_margin_bps": "2000",
+      "maintenance_margin_bps": "600",
+      "depeg_buffer_bps": "100",
+      "liquidation_penalty_bps": "50",
+      "max_position_abs": "1000000",
+      "funding_cap_bps": "100",
+      "min_notional_for_bounty": "100000000",
+      "funding_rate_bps": "0"
+    }
+  ]
+}

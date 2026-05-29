@@ -34,6 +34,7 @@ pub mod perp_funding_auto;
 pub mod perp_math;
 pub mod perp_partial_liquidate;
 pub mod perp_publish_clearing_price;
+pub mod perp_set_market_params;
 pub mod perp_settle_epoch;
 pub mod replay_guard;
 pub mod state_root;

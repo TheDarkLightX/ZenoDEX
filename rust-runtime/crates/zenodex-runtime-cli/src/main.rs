@@ -19,6 +19,7 @@
 //! zenodex-runtime settle-epoch         <cases.json|->   # perps E2 settle_epoch
 //! zenodex-runtime partial-liquidate    <cases.json|->   # perps E2 partial_liquidate
 //! zenodex-runtime account-op           <cases.json|->   # perps E2 deposit/withdraw/set_position/clear_breaker
+//! zenodex-runtime set-market-params    <cases.json|->   # perps E2 set_market_params
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -58,6 +59,9 @@ use zenodex_runtime_core::perp_math;
 use zenodex_runtime_core::perp_partial_liquidate::{partial_liquidate, PartialLiquidateInput};
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
+};
+use zenodex_runtime_core::perp_set_market_params::{
+    set_market_params, MarketParamsAccount, SetMarketParamsInput,
 };
 use zenodex_runtime_core::perp_settle_epoch::{settle_epoch, SettleAccount, SettleEpochInput};
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
@@ -1009,6 +1013,15 @@ fn arg_mag(obj: &serde_json::Map<String, Value>, key: &str) -> Result<i128, Stri
     arg_bounded(obj, key, perp_math::MAX_ABS)
 }
 
+/// Optional magnitude: `None` if the key is absent, else the parsed `arg_mag`.
+fn arg_mag_opt(obj: &serde_json::Map<String, Value>, key: &str) -> Result<Option<i128>, String> {
+    if obj.contains_key(key) {
+        Ok(Some(arg_mag(obj, key)?))
+    } else {
+        Ok(None)
+    }
+}
+
 fn arg_bps(obj: &serde_json::Map<String, Value>, key: &str) -> Result<i128, String> {
     arg_bounded(obj, key, perp_math::MAX_BPS)
 }
@@ -1684,6 +1697,147 @@ fn run_account_op_cases(req: &Value) -> Result<AccountOpOutputDoc, String> {
     })
 }
 
+// --- set_market_params shadow (stateful perps E2 slice) -----------------------
+
+#[derive(Serialize)]
+struct SetMarketParamsCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_oracle_staleness_epochs: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_oracle_move_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    initial_margin_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    maintenance_margin_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    depeg_buffer_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    liquidation_penalty_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_position_abs: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    funding_cap_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min_notional_for_bounty: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    funding_rate_bps: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SetMarketParamsOutputDoc {
+    version: u32,
+    results: Vec<SetMarketParamsCaseResult>,
+}
+
+fn set_market_params_err(index: usize, code: &str) -> SetMarketParamsCaseResult {
+    SetMarketParamsCaseResult {
+        index,
+        ok: false,
+        max_oracle_staleness_epochs: None,
+        max_oracle_move_bps: None,
+        initial_margin_bps: None,
+        maintenance_margin_bps: None,
+        depeg_buffer_bps: None,
+        liquidation_penalty_bps: None,
+        max_position_abs: None,
+        funding_cap_bps: None,
+        min_notional_for_bounty: None,
+        funding_rate_bps: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_set_market_params_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<SetMarketParamsCaseResult, String> {
+    let accounts_val = obj
+        .get("accounts")
+        .and_then(Value::as_array)
+        .ok_or("malformed_case")?;
+    let mut accounts = Vec::with_capacity(accounts_val.len());
+    for av in accounts_val {
+        let ao = av.as_object().ok_or("malformed_case")?;
+        accounts.push(MarketParamsAccount {
+            position_base: arg_mag(ao, "position_base")?,
+            collateral_quote: arg_mag(ao, "collateral_quote")?,
+        });
+    }
+    let input = SetMarketParamsInput {
+        cur_max_oracle_staleness_epochs: arg_mag(obj, "cur_max_oracle_staleness_epochs")?,
+        cur_max_oracle_move_bps: arg_mag(obj, "cur_max_oracle_move_bps")?,
+        cur_initial_margin_bps: arg_mag(obj, "cur_initial_margin_bps")?,
+        cur_maintenance_margin_bps: arg_mag(obj, "cur_maintenance_margin_bps")?,
+        cur_depeg_buffer_bps: arg_mag(obj, "cur_depeg_buffer_bps")?,
+        cur_liquidation_penalty_bps: arg_mag(obj, "cur_liquidation_penalty_bps")?,
+        cur_max_position_abs: arg_mag(obj, "cur_max_position_abs")?,
+        cur_funding_cap_bps: arg_mag(obj, "cur_funding_cap_bps")?,
+        cur_min_notional_for_bounty: arg_mag(obj, "cur_min_notional_for_bounty")?,
+        cur_funding_rate_bps: arg_mag(obj, "cur_funding_rate_bps")?,
+        index_price_e8: arg_mag(obj, "index_price_e8")?,
+        min_collectible_liquidation_penalty_quote: arg_mag(
+            obj,
+            "min_collectible_liquidation_penalty_quote",
+        )?,
+        upd_max_oracle_staleness_epochs: arg_mag_opt(obj, "upd_max_oracle_staleness_epochs")?,
+        upd_max_oracle_move_bps: arg_mag_opt(obj, "upd_max_oracle_move_bps")?,
+        upd_initial_margin_bps: arg_mag_opt(obj, "upd_initial_margin_bps")?,
+        upd_maintenance_margin_bps: arg_mag_opt(obj, "upd_maintenance_margin_bps")?,
+        upd_depeg_buffer_bps: arg_mag_opt(obj, "upd_depeg_buffer_bps")?,
+        upd_liquidation_penalty_bps: arg_mag_opt(obj, "upd_liquidation_penalty_bps")?,
+        upd_max_position_abs: arg_mag_opt(obj, "upd_max_position_abs")?,
+        upd_funding_cap_bps: arg_mag_opt(obj, "upd_funding_cap_bps")?,
+        upd_min_notional_for_bounty: arg_mag_opt(obj, "upd_min_notional_for_bounty")?,
+        accounts,
+    };
+    match set_market_params(&input) {
+        Ok(out) => Ok(SetMarketParamsCaseResult {
+            index: 0,
+            ok: true,
+            max_oracle_staleness_epochs: Some(out.max_oracle_staleness_epochs.to_string()),
+            max_oracle_move_bps: Some(out.max_oracle_move_bps.to_string()),
+            initial_margin_bps: Some(out.initial_margin_bps.to_string()),
+            maintenance_margin_bps: Some(out.maintenance_margin_bps.to_string()),
+            depeg_buffer_bps: Some(out.depeg_buffer_bps.to_string()),
+            liquidation_penalty_bps: Some(out.liquidation_penalty_bps.to_string()),
+            max_position_abs: Some(out.max_position_abs.to_string()),
+            funding_cap_bps: Some(out.funding_cap_bps.to_string()),
+            min_notional_for_bounty: Some(out.min_notional_for_bounty.to_string()),
+            funding_rate_bps: Some(out.funding_rate_bps.to_string()),
+            code: None,
+        }),
+        Err(code) => Ok(set_market_params_err(0, code)),
+    }
+}
+
+fn run_set_market_params_cases(req: &Value) -> Result<SetMarketParamsOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_set_market_params_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => set_market_params_err(index, &code),
+            },
+            None => set_market_params_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(SetMarketParamsOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
 
 #[derive(Serialize)]
@@ -1927,13 +2081,15 @@ fn main() -> ExitCode {
                 | "settle-epoch"
                 | "partial-liquidate"
                 | "account-op"
+                | "set-market-params"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
-             publish-clearing-price|settle-epoch|partial-liquidate|account-op> <input.json|->"
+             publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
+             set-market-params> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -2109,6 +2265,25 @@ fn main() -> ExitCode {
 
     if subcommand == "account-op" {
         return match run_account_op_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "set-market-params" {
+        return match run_set_market_params_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
