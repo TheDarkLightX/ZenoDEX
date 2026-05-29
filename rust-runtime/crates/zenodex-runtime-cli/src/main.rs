@@ -17,6 +17,7 @@
 //! zenodex-runtime funding-auto         <cases.json|->   # perps E2 apply_funding_auto
 //! zenodex-runtime publish-clearing-price <cases.json|-> # perps E2 publish_clearing_price
 //! zenodex-runtime settle-epoch         <cases.json|->   # perps E2 settle_epoch
+//! zenodex-runtime partial-liquidate    <cases.json|->   # perps E2 partial_liquidate
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -52,6 +53,7 @@ use zenodex_runtime_core::perp_funding_auto::{
     apply_funding_auto, FundingAccount, FundingAutoInput,
 };
 use zenodex_runtime_core::perp_math;
+use zenodex_runtime_core::perp_partial_liquidate::{partial_liquidate, PartialLiquidateInput};
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
 };
@@ -1463,6 +1465,116 @@ fn run_settle_epoch_cases(req: &Value) -> Result<SettleEpochOutputDoc, String> {
     })
 }
 
+// --- partial_liquidate shadow (stateful perps E2 slice) -----------------------
+
+#[derive(Serialize)]
+struct PartialLiquidateCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    position_base: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    entry_price_e8: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    collateral_quote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fee_pool_quote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fee_income: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    insurance_balance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    liquidated_this_step: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PartialLiquidateOutputDoc {
+    version: u32,
+    results: Vec<PartialLiquidateCaseResult>,
+}
+
+fn partial_liquidate_err(index: usize, code: &str) -> PartialLiquidateCaseResult {
+    PartialLiquidateCaseResult {
+        index,
+        ok: false,
+        position_base: None,
+        entry_price_e8: None,
+        collateral_quote: None,
+        fee_pool_quote: None,
+        fee_income: None,
+        insurance_balance: None,
+        liquidated_this_step: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_partial_liquidate_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<PartialLiquidateCaseResult, String> {
+    let input = PartialLiquidateInput {
+        now_epoch: arg_mag(obj, "now_epoch")?,
+        epoch_phase: arg_mag(obj, "epoch_phase")?,
+        oracle_last_update_epoch: arg_mag(obj, "oracle_last_update_epoch")?,
+        max_oracle_staleness_epochs: arg_mag(obj, "max_oracle_staleness_epochs")?,
+        oracle_seen: arg_bool(obj, "oracle_seen")?,
+        index_price_e8: arg_mag(obj, "index_price_e8")?,
+        position_base: arg_mag(obj, "position_base")?,
+        collateral_quote: arg_mag(obj, "collateral_quote")?,
+        entry_price_e8: arg_mag(obj, "entry_price_e8")?,
+        maintenance_margin_bps: arg_bps(obj, "maintenance_margin_bps")?,
+        depeg_buffer_bps: arg_bps(obj, "depeg_buffer_bps")?,
+        liquidation_penalty_bps: arg_bps(obj, "liquidation_penalty_bps")?,
+        min_notional_for_bounty: arg_mag(obj, "min_notional_for_bounty")?,
+        fee_pool_quote: arg_mag(obj, "fee_pool_quote")?,
+        fee_income: arg_mag(obj, "fee_income")?,
+        initial_insurance: arg_mag(obj, "initial_insurance")?,
+        claims_paid: arg_mag(obj, "claims_paid")?,
+        fraction_bps: arg_mag(obj, "fraction_bps")?,
+    };
+    match partial_liquidate(&input) {
+        Ok(out) => Ok(PartialLiquidateCaseResult {
+            index: 0,
+            ok: true,
+            position_base: Some(out.position_base.to_string()),
+            entry_price_e8: Some(out.entry_price_e8.to_string()),
+            collateral_quote: Some(out.collateral_quote.to_string()),
+            fee_pool_quote: Some(out.fee_pool_quote.to_string()),
+            fee_income: Some(out.fee_income.to_string()),
+            insurance_balance: Some(out.insurance_balance.to_string()),
+            liquidated_this_step: Some(out.liquidated_this_step),
+            code: None,
+        }),
+        Err(code) => Ok(partial_liquidate_err(0, code)),
+    }
+}
+
+fn run_partial_liquidate_cases(req: &Value) -> Result<PartialLiquidateOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_partial_liquidate_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => partial_liquidate_err(index, &code),
+            },
+            None => partial_liquidate_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(PartialLiquidateOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
 
 #[derive(Serialize)]
@@ -1704,13 +1816,14 @@ fn main() -> ExitCode {
                 | "funding-auto"
                 | "publish-clearing-price"
                 | "settle-epoch"
+                | "partial-liquidate"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
-             publish-clearing-price|settle-epoch> <input.json|->"
+             publish-clearing-price|settle-epoch|partial-liquidate> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1848,6 +1961,25 @@ fn main() -> ExitCode {
 
     if subcommand == "settle-epoch" {
         return match run_settle_epoch_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "partial-liquidate" {
+        return match run_partial_liquidate_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");

@@ -191,6 +191,168 @@ pub fn liq_penalty_capped(
     collateral_after_pnl.min(raw)
 }
 
+// -- Partial-liquidation helpers ---------------------------------------------
+
+/// Unsigned base units closed by `fraction_bps/10000` of `|position|`.
+pub fn partial_close_base(position_abs: i128, fraction_bps: i128) -> i128 {
+    (position_abs * fraction_bps) / BPS_SCALE
+}
+
+/// Remaining (signed) position after closing `fraction_bps/10000`.
+pub fn remaining_position_signed(position_base: i128, fraction_bps: i128) -> i128 {
+    if fraction_bps >= BPS_SCALE {
+        return 0;
+    }
+    if fraction_bps <= 0 {
+        return position_base;
+    }
+    let pos_abs = abs_val(position_base);
+    let remaining_abs = pos_abs - partial_close_base(pos_abs, fraction_bps);
+    if position_base >= 0 {
+        remaining_abs
+    } else {
+        -remaining_abs
+    }
+}
+
+/// Liquidation penalty for the closed portion of the position.
+pub fn partial_liq_penalty(
+    position_base: i128,
+    fraction_bps: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    if fraction_bps >= BPS_SCALE {
+        return liq_penalty(
+            position_base,
+            settle_price_e8,
+            liquidation_penalty_bps,
+            min_notional_for_bounty,
+        );
+    }
+    let closed = partial_close_base(abs_val(position_base), fraction_bps);
+    if closed == 0 {
+        return 0;
+    }
+    liq_penalty(
+        closed,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    )
+}
+
+/// Partial-close penalty capped at remaining collateral (clamped non-negative).
+pub fn partial_liq_penalty_capped(
+    collateral_after_pnl: i128,
+    position_base: i128,
+    fraction_bps: i128,
+    settle_price_e8: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    let raw = partial_liq_penalty(
+        position_base,
+        fraction_bps,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    );
+    collateral_after_pnl.max(0).min(raw)
+}
+
+/// True if closing `fraction_bps/10000` restores the remaining position to maint margin.
+#[allow(clippy::too_many_arguments)]
+fn is_partial_fraction_sufficient(
+    position_base: i128,
+    collateral_after_pnl: i128,
+    fraction_bps: i128,
+    settle_price_e8: i128,
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> bool {
+    let remaining = remaining_position_signed(position_base, fraction_bps);
+    let penalty = partial_liq_penalty_capped(
+        collateral_after_pnl,
+        position_base,
+        fraction_bps,
+        settle_price_e8,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    );
+    let coll_after = collateral_after_pnl - penalty;
+    if remaining == 0 {
+        return true;
+    }
+    coll_after
+        >= maint_margin_req(
+            remaining,
+            settle_price_e8,
+            maintenance_margin_bps,
+            depeg_buffer_bps,
+        )
+}
+
+/// Minimum fraction in `[1, BPS_SCALE]` to close to restore maint margin; `0` if
+/// not liquidatable, `BPS_SCALE` if a full close is needed. Binary search.
+#[allow(clippy::too_many_arguments)]
+pub fn compute_partial_close_fraction(
+    position_base: i128,
+    collateral_after_pnl: i128,
+    settle_price_e8: i128,
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+    liquidation_penalty_bps: i128,
+    min_notional_for_bounty: i128,
+) -> i128 {
+    if position_base == 0 {
+        return 0;
+    }
+    if !is_liquidatable(
+        position_base,
+        collateral_after_pnl,
+        settle_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+    ) {
+        return 0;
+    }
+    if !is_partial_fraction_sufficient(
+        position_base,
+        collateral_after_pnl,
+        BPS_SCALE - 1,
+        settle_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+        liquidation_penalty_bps,
+        min_notional_for_bounty,
+    ) {
+        return BPS_SCALE;
+    }
+    let (mut lo, mut hi) = (1i128, BPS_SCALE);
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        if is_partial_fraction_sufficient(
+            position_base,
+            collateral_after_pnl,
+            mid,
+            settle_price_e8,
+            maintenance_margin_bps,
+            depeg_buffer_bps,
+            liquidation_penalty_bps,
+            min_notional_for_bounty,
+        ) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo
+}
+
 // -- Funding helpers (symmetric) ---------------------------------------------
 
 pub fn funding_magnitude(position_base: i128, index_price_e8: i128, rate_bps: i128) -> i128 {
