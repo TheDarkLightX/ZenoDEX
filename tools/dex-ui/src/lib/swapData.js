@@ -58,24 +58,48 @@ function normalizeSymbol(value) {
     return String(value ?? '').trim().toUpperCase();
 }
 
+export function isCanonicalAssetId(value) {
+    return /^0x[0-9a-f]{64}$/i.test(String(value || '').trim());
+}
+
+export function isCompactAssetLabel(value) {
+    return /^Asset [0-9a-f]{4}\.\.\.[0-9a-f]{4}$/i.test(String(value || '').trim());
+}
+
+export function compactAssetLabel(value) {
+    const text = String(value || '').trim();
+    if (!isCanonicalAssetId(text)) return normalizeSymbol(text);
+    return `Asset ${text.slice(2, 6).toUpperCase()}...${text.slice(-4).toUpperCase()}`;
+}
+
+export function displaySymbolForAsset(value) {
+    const text = String(value || '').trim();
+    if (isCanonicalAssetId(text)) return compactAssetLabel(text);
+    if (isCompactAssetLabel(text)) {
+        const match = /^Asset ([0-9a-f]{4})\.\.\.([0-9a-f]{4})$/i.exec(text);
+        return `Asset ${match[1].toUpperCase()}...${match[2].toUpperCase()}`;
+    }
+    return normalizeSymbol(text);
+}
+
 function defaultTokenForSymbol(symbol) {
-    const normalized = normalizeSymbol(symbol);
-    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol === normalized);
+    const normalized = displaySymbolForAsset(symbol);
+    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol.toUpperCase() === normalized.toUpperCase());
     if (known) return known;
     return {
         symbol: normalized,
         name: normalized,
-        icon: '◎',
+        icon: isCanonicalAssetId(symbol) || isCompactAssetLabel(normalized) ? '#' : '◎',
         decimals: 0,
     };
 }
 
 function normalizePoolEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
-    const token0 = normalizeSymbol(entry.token0 ?? entry.symbol0 ?? entry.base ?? entry.asset0);
-    const token1 = normalizeSymbol(entry.token1 ?? entry.symbol1 ?? entry.quote ?? entry.asset1);
     const rawAsset0 = String(entry.asset0 ?? entry.token0 ?? entry.base ?? '').trim();
     const rawAsset1 = String(entry.asset1 ?? entry.token1 ?? entry.quote ?? '').trim();
+    const token0 = displaySymbolForAsset(entry.token0 ?? entry.symbol0 ?? entry.base ?? entry.asset0);
+    const token1 = displaySymbolForAsset(entry.token1 ?? entry.symbol1 ?? entry.quote ?? entry.asset1);
     if (!token0 || !token1 || token0 === token1) return null;
     const reserve0 = toFiniteNumber(entry.reserve0 ?? entry.r0 ?? entry.baseReserve);
     const reserve1 = toFiniteNumber(entry.reserve1 ?? entry.r1 ?? entry.quoteReserve);
@@ -129,7 +153,7 @@ function normalizeTokens(payload, poolSymbols) {
         : [];
     for (const row of rows) {
         if (!row || typeof row !== 'object') continue;
-        const symbol = normalizeSymbol(row.symbol);
+        const symbol = displaySymbolForAsset(row.symbol);
         if (!symbol || !bySymbol.has(symbol)) continue;
         bySymbol.set(symbol, {
             ...defaultTokenForSymbol(symbol),
@@ -139,7 +163,13 @@ function normalizeTokens(payload, poolSymbols) {
             decimals: Number.isFinite(Number(row.decimals)) ? Number(row.decimals) : 0,
         });
     }
-    return Array.from(bySymbol.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+    return Array.from(bySymbol.values()).sort((a, b) => {
+        const aIsUnhinted = a.symbol.startsWith('Asset ') || a.symbol.startsWith('0x');
+        const bIsUnhinted = b.symbol.startsWith('Asset ') || b.symbol.startsWith('0x');
+        if (aIsUnhinted && !bIsUnhinted) return 1;
+        if (!aIsUnhinted && bIsUnhinted) return -1;
+        return a.symbol.localeCompare(b.symbol);
+    });
 }
 
 function normalizePoolsPayload(payload) {
@@ -201,17 +231,23 @@ function normalizePoolsPayload(payload) {
     return { pools: out, tokens: normalizeTokens(payload, poolSymbols) };
 }
 
-export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
+export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
     try {
-        const payload = await apiFetchJson('/api/pools', { method: 'GET', timeoutMs });
+        const query = account ? `?account=${encodeURIComponent(account)}` : '';
+        const payload = await apiFetchJson(`/api/pools${query}`, { method: 'GET', timeoutMs });
         const { pools, tokens } = normalizePoolsPayload(payload);
         if (Object.keys(pools).length === 0) {
             throw new Error('empty_pool_set');
         }
+        const rawLastNonce = payload && Object.prototype.hasOwnProperty.call(payload, 'account_last_nonce')
+            ? Number(payload.account_last_nonce)
+            : NaN;
         return {
             source: 'api',
             pools,
             tokens,
+            account: payload?.account || null,
+            accountLastNonce: Number.isSafeInteger(rawLastNonce) ? rawLastNonce : null,
             error: null,
         };
     } catch (err) {
@@ -219,6 +255,8 @@ export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
             source: 'fallback',
             pools: clonePools(FALLBACK_SWAP_POOLS),
             tokens: [...FALLBACK_SWAP_TOKENS],
+            account: account || null,
+            accountLastNonce: null,
             error: err?.message || 'pool_feed_unavailable',
         };
     }

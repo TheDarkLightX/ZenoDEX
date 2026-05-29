@@ -223,6 +223,17 @@
   color: var(--text-secondary);
 }
 
+.zusd-preview-diff strong {
+  color: var(--accent-signal);
+  font-weight: 600;
+}
+
+.zusd-preview-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 0;
+}
+
 .zusd-healthy {
   color: var(--accent-green);
 }

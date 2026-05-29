@@ -91,14 +91,12 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
 
     // MAX buttons
     const handleMax0 = useCallback(() => {
-        const maxAmt = token0.symbol === 'AGRS' ? Math.max(0, balance0 - 0.01) : balance0;
-        handleAmount0Change(maxAmt.toString());
-    }, [balance0, token0.symbol, handleAmount0Change]);
+        handleAmount0Change(String(balance0));
+    }, [balance0, handleAmount0Change]);
 
     const handleMax1 = useCallback(() => {
-        const maxAmt = token1.symbol === 'AGRS' ? Math.max(0, balance1 - 0.01) : balance1;
-        handleAmount1Change(maxAmt.toString());
-    }, [balance1, token1.symbol, handleAmount1Change]);
+        handleAmount1Change(String(balance1));
+    }, [balance1, handleAmount1Change]);
 
     const handleSubmit = useCallback(() => {
         setShowConfirm(false);

@@ -4,11 +4,10 @@ import {
   apiGetPerpsWalletStatus,
   apiGetZenoOracleDashboard,
   apiInspectPerpsOracleBridge,
+  apiMintPerpsWalletTestnetFaucet,
   apiPreparePerpsWallet,
   apiSubmitPerpsWallet,
 } from '../../lib/api.js';
-
-const SETTLE_EPOCH_ACTION = 'settle_' + 'epoch';
 
 const EMPTY_FORM = {
   action: 'init_market_2p',
@@ -33,6 +32,7 @@ const EMPTY_FORM = {
   fraction_bps: '2500',
   tx_fee_limit: '0',
   deadline: '',
+  zk_proof_json: '',
   use_oracle_fixture: false,
 };
 
@@ -43,7 +43,7 @@ const ACTIONS = [
   ['set_position_pair', 'Set Position Pair'],
   ['advance_epoch', 'Advance Epoch'],
   ['publish_clearing_price', 'Publish Price'],
-  [SETTLE_EPOCH_ACTION, 'Prepare Epoch Close'],
+  ['settle_epoch', 'Epoch Settlement'],
   ['partial_liquidate', 'Partial Liquidate'],
 ];
 
@@ -78,6 +78,7 @@ function readSmokeConfig() {
     fraction_bps: params.get('fractionBps') || params.get('fraction_bps') || '2500',
     tx_fee_limit: params.get('perpsTxFeeLimit') || params.get('txFeeLimit') || params.get('tx_fee_limit') || '0',
     deadline: params.get('perpsDeadline') || params.get('deadline') || '',
+    zk_proof_json: params.get('perpsZkProofJson') || params.get('zkProofJson') || '',
     use_oracle_fixture: params.get('perpsUseOracleFixture') === '1'
       || params.get('useOracleFixture') === '1'
       || params.get('oracleFixture') === '1',
@@ -91,6 +92,20 @@ function parseIntOrNull(raw) {
   return Number.isFinite(value) ? value : null;
 }
 
+function parseJsonObject(raw, label) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label}_must_be_object`);
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error(`${label}_invalid_json: ${err?.message || err}`);
+  }
+}
+
 function actionSupportsOracleFixture(action) {
   return action === 'settle_epoch' || action === 'partial_liquidate';
 }
@@ -99,6 +114,17 @@ function expectedOracleActionKind(action) {
   if (action === 'settle_epoch') return 'settle_epoch';
   if (action === 'partial_liquidate') return 'liquidate_account';
   return '';
+}
+
+function hasLocalSigningCredential(form) {
+  return Boolean(
+    form.signed_tau_tx_payload.trim() ||
+    form.account_a_privkey.trim() ||
+    form.account_b_privkey.trim() ||
+    form.account_privkey.trim() ||
+    form.operator_privkey.trim() ||
+    form.oracle_privkey.trim(),
+  );
 }
 
 function compactId(value) {
@@ -174,6 +200,10 @@ function buildPayload(form) {
   if (String(form.tx_fee_limit || '').trim()) {
     payload.tx_fee_limit = String(form.tx_fee_limit).trim();
   }
+  const zkProof = parseJsonObject(form.zk_proof_json, 'zk_proof_json');
+  if (zkProof) {
+    payload.zk_proof = zkProof;
+  }
   if (form.signed_tau_tx_payload.trim()) {
     payload.signed_tau_tx_payload = form.signed_tau_tx_payload.trim();
   }
@@ -225,13 +255,20 @@ function PerpLiveWalletSurface() {
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
   const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.__zenodex_perps_smoke_result || null;
+    }
+    return null;
+  });
   const [error, setError] = useState('');
   const [oracleFixture, setOracleFixture] = useState(null);
   const [oracleInspection, setOracleInspection] = useState(null);
   const [oracleEvidence, setOracleEvidence] = useState(null);
   const [selectedOracleEvidence, setSelectedOracleEvidence] = useState(null);
+  const [faucetResult, setFaucetResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [faucetBusy, setFaucetBusy] = useState(false);
   const smokeRan = useRef(false);
 
   const needsTwoParty = form.action === 'init_market_2p' || form.action === 'set_position_pair';
@@ -282,6 +319,47 @@ function PerpLiveWalletSurface() {
       setError(err?.message || 'submit_failed');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleFundTestnetQuote() {
+    const targetPubkey = localFaucetTargetPubkey();
+    const quoteAsset = localFaucetQuoteAsset();
+    const signerPrivkey =
+      form.operator_privkey.trim() ||
+      form.account_privkey.trim() ||
+      form.account_a_privkey.trim() ||
+      form.account_b_privkey.trim();
+    if (!targetPubkey || !quoteAsset) {
+      setError('faucet_target_unavailable');
+      return;
+    }
+    if (!signerPrivkey) {
+      setError('faucet_signer_required');
+      return;
+    }
+    setFaucetBusy(true);
+    setError('');
+    try {
+      const amount = Math.max(parseIntOrNull(form.amount) ?? 0, 1000);
+      const payload = await apiMintPerpsWalletTestnetFaucet(
+        {
+          to_pubkey: targetPubkey,
+          asset: quoteAsset,
+          amount,
+          signer_privkey: signerPrivkey,
+          deadline: parseIntOrNull(form.deadline) || Math.floor(Date.now() / 1000) + 3600,
+          tx_fee_limit: form.tx_fee_limit || '0',
+        },
+        { timeoutMs: 15000 },
+      );
+      setFaucetResult(payload);
+      await loadStatus();
+    } catch (err) {
+      setFaucetResult(null);
+      setError(err?.message || 'faucet_failed');
+    } finally {
+      setFaucetBusy(false);
     }
   }
 
@@ -386,16 +464,16 @@ function PerpLiveWalletSurface() {
 
   useEffect(() => {
     const smoke = readSmokeConfig();
-    if (!smoke || smokeRan.current || busy) {
+    if (!smoke || smokeRan.current || busy || (typeof window !== 'undefined' && window.__zenodex_perps_smoke_ran)) {
       return;
     }
     if (status?.node_reachable !== true) {
       return;
     }
     smokeRan.current = true;
-    setForm((current) => ({ ...current, ...smoke }));
     async function runSmoke() {
       let nextForm = { ...EMPTY_FORM, ...smoke };
+      setForm((current) => ({ ...current, ...nextForm }));
       if (nextForm.load_oracle_evidence) {
         await loadOracleEvidenceCandidates(nextForm);
       }
@@ -404,7 +482,14 @@ function PerpLiveWalletSurface() {
       } else if (nextForm.oracle_adapter_bridge.trim()) {
         await inspectOracleBridgePayload(nextForm);
       }
+      if (!hasLocalSigningCredential(nextForm)) {
+        throw new Error('smoke signing credential required');
+      }
       const payload = await apiSubmitPerpsWallet(buildPayload(nextForm), { timeoutMs: 20000 });
+      if (typeof window !== 'undefined') {
+        window.__zenodex_perps_smoke_ran = true;
+        window.__zenodex_perps_smoke_result = payload;
+      }
       setResult(payload);
       setError('');
       await loadStatus();
@@ -420,8 +505,6 @@ function PerpLiveWalletSurface() {
         setResult(null);
         setError(err?.message || 'submit_failed');
       });
-    // URL-driven smoke runs once per page load; the guard refs make helper identity irrelevant.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, status]);
 
   const preflight = result?.report?.preflight;
@@ -459,12 +542,29 @@ function PerpLiveWalletSurface() {
     status?.require_oracle_adapter_for_clearinghouse_settle_epoch
     && status?.require_oracle_adapter_for_isolated_partial_liquidate
   )
-    ? 'epoch close+partial required'
+    ? 'settlement+partial required'
     : status?.require_oracle_adapter_for_clearinghouse_settle_epoch
-      ? 'epoch close required'
+      ? 'settlement required'
       : status?.require_oracle_adapter_for_isolated_partial_liquidate
         ? 'partial required'
         : 'optional';
+
+  function localFaucetQuoteAsset() {
+    return String(selectedMarket?.quote_asset || form.quote_asset || status?.quote_asset_default || '').trim();
+  }
+
+  function localFaucetTargetPubkey() {
+    return String(
+      form.account_pubkey
+      || selectedAccount?.account_pubkey
+      || selectedMarket?.account_a_pubkey
+      || form.account_a_pubkey
+      || '',
+    ).trim();
+  }
+
+  const localFaucetTarget = localFaucetTargetPubkey();
+  const localFaucetAsset = localFaucetQuoteAsset();
 
   return (
     <section className="perp-live-wallet panel" aria-label="Live perps wallet">
@@ -768,6 +868,14 @@ function PerpLiveWalletSurface() {
             <button className="btn btn-secondary" type="button" onClick={handleLoadOracleEvidence} disabled={busy}>
               Load Oracle Evidence
             </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={handleFundTestnetQuote}
+              disabled={busy || faucetBusy || !localFaucetTarget || !localFaucetAsset}
+            >
+              Fund {localFaucetAsset ? compactId(localFaucetAsset) : 'Quote'}
+            </button>
           </div>
         </div>
       </div>
@@ -779,6 +887,8 @@ function PerpLiveWalletSurface() {
           <span>market {selectedMarket.market_id}</span>
           <span>quote A {valueOrNA(selectedMarket.account_a_quote_balance)}</span>
           <span>quote B {valueOrNA(selectedMarket.account_b_quote_balance)}</span>
+          <span>faucet target {compactId(localFaucetTarget)}</span>
+          <span>faucet asset {compactId(localFaucetAsset)}</span>
           <span>posted A {valueOrNA(selectedMarket.collateral_e8_a)}</span>
           <span>posted B {valueOrNA(selectedMarket.collateral_e8_b)}</span>
           {selectedMarket.account_count != null ? <span>accounts {selectedMarket.account_count}</span> : null}
@@ -787,6 +897,13 @@ function PerpLiveWalletSurface() {
           {selectedAccount?.liquidated_this_step != null ? (
             <span>isolated liquidated {selectedAccount.liquidated_this_step ? 'yes' : 'no'}</span>
           ) : null}
+        </div>
+      ) : null}
+      {faucetResult ? (
+        <div className="perp-live-wallet-result" role="status">
+          <span>faucet accepted {faucetResult.ok ? 'yes' : 'no'}</span>
+          <span>height {faucetResult.height ?? 'pending'}</span>
+          <span>{faucetResult.tx_id || 'no tx id'}</span>
         </div>
       ) : null}
       {result ? (
@@ -857,9 +974,9 @@ function PerpLiveWalletSurface() {
           ) : null}
           {walletHardwareCustody ? (
             <>
-              <span>hardware signer {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
+              <span>hardware device {walletHardwareCustody.hardware_custody_ready ? 'ready' : 'blocked'}</span>
               <span>hardware backend {walletHardwareCustody.backend_kind || 'unknown'}</span>
-              <span>hardware signer receipt {compactId(walletHardwareCustody.status_hash)}</span>
+              <span>hardware device receipt {compactId(walletHardwareCustody.status_hash)}</span>
             </>
           ) : null}
           <span>oracle authority {oracleAuthority?.production_authority ? 'ready' : 'blocked'}</span>

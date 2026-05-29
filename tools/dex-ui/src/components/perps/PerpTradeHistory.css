@@ -124,3 +124,14 @@
         display: none;
     }
 }
+
+/* Windowed-render footer (bounded DOM for long histories) */
+.perp-history-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

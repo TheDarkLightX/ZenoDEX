@@ -5,7 +5,7 @@ import './VerifiedBySpec.css';
  * ESSO model that authorizes its consensus-critical path.
  *
  * Props:
- *   spec      string  — short spec name to render, e.g. "cpmm_v2"
+ *   spec      string  — short spec name to render, e.g. "cpmm_v1"
  *   kind      'tau' | 'esso' | 'lean' (default 'tau')
  *   href      optional URL to the source artifact (GitHub link)
  *   title     optional tooltip text

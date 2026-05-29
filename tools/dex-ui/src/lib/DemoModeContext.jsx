@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 
 export const DemoModeContext = createContext({
-    demoMode: true,
+    demoMode: false,
     setDemoMode: () => { },
 });
 

@@ -10,58 +10,8 @@ import './TransactionHistory.css';
  * - Links to Tau explorer
  */
 
-// Mock transaction data
-const MOCK_TRANSACTIONS = [
-    {
-        id: 'tx-001',
-        type: 'swap',
-        timestamp: Date.now() - 3600000, // 1 hour ago
-        tokenIn: { symbol: 'AGRS', icon: '✦', amount: 100 },
-        tokenOut: { symbol: 'ZDEX', icon: '⚡', amount: 49.5 },
-        status: 'confirmed',
-        txHash: 'abc123...def',
-    },
-    {
-        id: 'tx-002',
-        type: 'add_liquidity',
-        timestamp: Date.now() - 7200000, // 2 hours ago
-        token0: { symbol: 'AGRS', icon: '✦', amount: 500 },
-        token1: { symbol: 'USDC', icon: '💵', amount: 1250 },
-        lpReceived: 750,
-        pool: 'AGRS-USDC',
-        status: 'confirmed',
-        txHash: 'def456...ghi',
-    },
-    {
-        id: 'tx-003',
-        type: 'swap',
-        timestamp: Date.now() - 86400000, // 1 day ago
-        tokenIn: { symbol: 'USDC', icon: '💵', amount: 500 },
-        tokenOut: { symbol: 'AGRS', icon: '✦', amount: 200 },
-        status: 'confirmed',
-        txHash: 'ghi789...jkl',
-    },
-    {
-        id: 'tx-004',
-        type: 'remove_liquidity',
-        timestamp: Date.now() - 172800000, // 2 days ago
-        token0: { symbol: 'ZDEX', icon: '⚡', amount: 100 },
-        token1: { symbol: 'USDC', icon: '💵', amount: 250 },
-        lpBurned: 150,
-        pool: 'ZDEX-USDC',
-        status: 'confirmed',
-        txHash: 'jkl012...mno',
-    },
-    {
-        id: 'tx-005',
-        type: 'swap',
-        timestamp: Date.now() - 60000, // 1 minute ago
-        tokenIn: { symbol: 'AGRS', icon: '✦', amount: 50 },
-        tokenOut: { symbol: 'USDC', icon: '💵', amount: 125 },
-        status: 'pending',
-        txHash: 'mno345...pqr',
-    },
-];
+// Empty by default — populated from live Tau-node history when wired.
+const MOCK_TRANSACTIONS = [];
 
 const TYPE_LABELS = {
     swap: 'Swap',

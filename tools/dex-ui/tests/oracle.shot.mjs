@@ -1,0 +1,18 @@
+import { chromium } from '@playwright/test';
+import { mkdirSync, readFileSync } from 'node:fs';
+const OUT='test-results/screens'; mkdirSync(OUT,{recursive:true});
+const DASH=JSON.parse(readFileSync('test-results/live-oracle-dashboard.json','utf8'));
+const CFG={deployment:'local-testnet',apiBase:'',demoMode:false,allowDemoMode:false,localTestnetZkPosture:{zk_mode_effective:'strict',zk_required:true,proof_verifier_kind:'subprocess'}};
+const b=await chromium.launch();const p=await (await b.newContext({viewport:{width:1440,height:1300},deviceScaleFactor:2,colorScheme:'dark'})).newPage();
+const errs=[];p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push('c:'+m.text().slice(0,90));});
+await p.route('**/zenodex-config.json',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(CFG)}));
+await p.route('**/api/oracle/dashboard**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(DASH)}));
+await p.route('**/api/oracle/**',r=>r.request().url().includes('/dashboard')?r.fallback():r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})}));
+await p.goto('http://127.0.0.1:5180/?theme=dark',{waitUntil:'networkidle'});
+await p.getByRole('button',{name:'Oracle'}).first().click().catch(()=>{});
+await p.waitForTimeout(1500);
+await p.screenshot({path:`${OUT}/oracle-AFTER.png`,fullPage:true});
+const t=await p.locator('body').innerText().catch(()=>'');
+console.log('has 98.7%:', t.includes('98.7'), '| has 1,248:', t.includes('1,248'), '| No health data:', t.includes('No health data'), '| No evidence yet:', t.includes('No evidence yet'), '| All systems operational:', t.includes('All systems operational'));
+console.log('pageerrors=',errs.length, errs.slice(0,3).join(' | '));
+await b.close();
