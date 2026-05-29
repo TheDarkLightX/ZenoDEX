@@ -27,6 +27,7 @@ pub mod canonical;
 pub mod cpmm_swap;
 pub mod error;
 pub mod fee_router;
+pub mod perp_math;
 pub mod replay_guard;
 pub mod state_root;
 pub mod zusd;

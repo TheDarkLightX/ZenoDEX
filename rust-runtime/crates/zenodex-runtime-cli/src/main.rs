@@ -12,6 +12,7 @@
 //! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
 //! zenodex-runtime canonical-hash       <cases.json|->   # canonical primitive vectors
 //! zenodex-runtime verify-state-root    <cases.json|->   # network state-root parity
+//! zenodex-runtime perp-math            <cases.json|->   # perp stateless math
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -42,6 +43,7 @@ use zenodex_runtime_core::canonical::{
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
+use zenodex_runtime_core::perp_math;
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::state_root::{
     compute_state_root, BalanceEntry, LpDurationEntry, LpEntry, NonceEntry, PoolEntry, PoolStatus,
@@ -903,6 +905,200 @@ fn run_state_root_cases(req: &Value) -> Result<StateRootOutput, String> {
     })
 }
 
+// --- perp stateless math (cross-language differential) ------------------------
+
+#[derive(Serialize)]
+struct PerpMathCaseResult {
+    index: usize,
+    ok: bool,
+    /// Integer-valued result, serialized as a decimal string (values fit i128).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<String>,
+    /// Bool-valued result (predicates).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flag: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct PerpMathOutput {
+    version: u32,
+    results: Vec<PerpMathCaseResult>,
+}
+
+fn perp_err(index: usize, code: &str) -> PerpMathCaseResult {
+    PerpMathCaseResult {
+        index,
+        ok: false,
+        value: None,
+        flag: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn perp_int(index: usize, v: i128) -> PerpMathCaseResult {
+    PerpMathCaseResult {
+        index,
+        ok: true,
+        value: Some(v.to_string()),
+        flag: None,
+        code: None,
+    }
+}
+
+fn perp_bool(index: usize, b: bool) -> PerpMathCaseResult {
+    PerpMathCaseResult {
+        index,
+        ok: true,
+        value: None,
+        flag: Some(b),
+        code: None,
+    }
+}
+
+/// Read a signed integer arg bounded by `±max_abs` (else `Err` reject code).
+fn arg_bounded(
+    obj: &serde_json::Map<String, Value>,
+    key: &str,
+    max_abs: i128,
+) -> Result<i128, String> {
+    let s = obj
+        .get(key)
+        .and_then(classify_integer)
+        .ok_or("malformed_case")?;
+    let v = s.parse::<i128>().map_err(|_| "out_of_domain".to_string())?;
+    if v.abs() > max_abs {
+        return Err("out_of_domain".to_string());
+    }
+    Ok(v)
+}
+
+fn arg_mag(obj: &serde_json::Map<String, Value>, key: &str) -> Result<i128, String> {
+    arg_bounded(obj, key, perp_math::MAX_ABS)
+}
+
+fn arg_bps(obj: &serde_json::Map<String, Value>, key: &str) -> Result<i128, String> {
+    arg_bounded(obj, key, perp_math::MAX_BPS)
+}
+
+fn arg_bool(obj: &serde_json::Map<String, Value>, key: &str) -> Result<bool, String> {
+    obj.get(key)
+        .and_then(Value::as_bool)
+        .ok_or("malformed_case".to_string())
+}
+
+fn eval_perp_case(obj: &serde_json::Map<String, Value>) -> Result<PerpMathCaseResult, String> {
+    // index is filled by the caller; use 0 here and overwrite.
+    let op = obj
+        .get("op")
+        .and_then(Value::as_str)
+        .ok_or("malformed_case")?;
+    let r = match op {
+        "is_oracle_fresh" => perp_bool(
+            0,
+            perp_math::is_oracle_fresh(
+                arg_mag(obj, "now_epoch")?,
+                arg_mag(obj, "oracle_last_update_epoch")?,
+                arg_mag(obj, "max_oracle_staleness_epochs")?,
+                arg_bool(obj, "oracle_seen")?,
+            ),
+        ),
+        "oracle_move_violated" => perp_bool(
+            0,
+            perp_math::oracle_move_violated(
+                arg_mag(obj, "clearing_price_e8")?,
+                arg_mag(obj, "index_price_e8")?,
+                arg_bps(obj, "max_oracle_move_bps")?,
+                arg_bool(obj, "oracle_seen")?,
+            ),
+        ),
+        "settle_price" => perp_int(
+            0,
+            perp_math::settle_price(
+                arg_mag(obj, "clearing_price_e8")?,
+                arg_mag(obj, "index_price_e8")?,
+                arg_bps(obj, "max_oracle_move_bps")?,
+                arg_bool(obj, "oracle_seen")?,
+            ),
+        ),
+        "notional_quote" => perp_int(
+            0,
+            perp_math::notional_quote(arg_mag(obj, "position_base")?, arg_mag(obj, "price_e8")?),
+        ),
+        "maint_margin_req" => perp_int(
+            0,
+            perp_math::maint_margin_req(
+                arg_mag(obj, "position_base")?,
+                arg_mag(obj, "price_e8")?,
+                arg_bps(obj, "maint_bps")?,
+                arg_bps(obj, "depeg_bps")?,
+            ),
+        ),
+        "init_margin_req" => perp_int(
+            0,
+            perp_math::init_margin_req(
+                arg_mag(obj, "position_base")?,
+                arg_mag(obj, "price_e8")?,
+                arg_bps(obj, "init_bps")?,
+            ),
+        ),
+        "pnl_quote" => perp_int(
+            0,
+            perp_math::pnl_quote(
+                arg_mag(obj, "position_base")?,
+                arg_mag(obj, "settle_price_e8")?,
+                arg_mag(obj, "index_price_e8")?,
+            ),
+        ),
+        "is_liquidatable" => perp_bool(
+            0,
+            perp_math::is_liquidatable(
+                arg_mag(obj, "position_base")?,
+                arg_mag(obj, "collateral_after_pnl")?,
+                arg_mag(obj, "settle_price_e8")?,
+                arg_bps(obj, "maintenance_margin_bps")?,
+                arg_bps(obj, "depeg_buffer_bps")?,
+            ),
+        ),
+        "funding_payment" => perp_int(
+            0,
+            perp_math::funding_payment(
+                arg_mag(obj, "position_base")?,
+                arg_mag(obj, "index_price_e8")?,
+                arg_bps(obj, "rate_bps")?,
+            ),
+        ),
+        _ => return Err("unknown_op".to_string()),
+    };
+    Ok(r)
+}
+
+fn run_perp_math_cases(req: &Value) -> Result<PerpMathOutput, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_perp_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => perp_err(index, &code),
+            },
+            None => perp_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(PerpMathOutput {
+        version: 1,
+        results,
+    })
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -991,12 +1187,13 @@ fn main() -> ExitCode {
                 | "settle-swap-trace"
                 | "canonical-hash"
                 | "verify-state-root"
+                | "perp-math"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
-             verify-state-root> <input.json|->"
+             verify-state-root|perp-math> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1039,6 +1236,25 @@ fn main() -> ExitCode {
 
     if subcommand == "verify-state-root" {
         return match run_state_root_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "perp-math" {
+        return match run_perp_math_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
