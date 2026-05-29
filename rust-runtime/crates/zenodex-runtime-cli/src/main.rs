@@ -13,6 +13,7 @@
 //! zenodex-runtime canonical-hash       <cases.json|->   # canonical primitive vectors
 //! zenodex-runtime verify-state-root    <cases.json|->   # network state-root parity
 //! zenodex-runtime perp-math            <cases.json|->   # perp stateless math
+//! zenodex-runtime advance-epoch        <cases.json|->   # perps E2 advance_epoch
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -43,6 +44,7 @@ use zenodex_runtime_core::canonical::{
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
+use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
 use zenodex_runtime_core::perp_funding_auto::{
     apply_funding_auto, FundingAccount, FundingAutoInput,
 };
@@ -1117,6 +1119,86 @@ fn run_perp_math_cases(req: &Value) -> Result<PerpMathOutput, String> {
     })
 }
 
+// --- advance_epoch shadow (stateful perps E2 slice) ---------------------------
+
+#[derive(Serialize)]
+struct AdvanceEpochCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    now_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    epoch_phase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oracle_last_update_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AdvanceEpochOutputDoc {
+    version: u32,
+    results: Vec<AdvanceEpochCaseResult>,
+}
+
+fn advance_epoch_err(index: usize, code: &str) -> AdvanceEpochCaseResult {
+    AdvanceEpochCaseResult {
+        index,
+        ok: false,
+        now_epoch: None,
+        epoch_phase: None,
+        oracle_last_update_epoch: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_advance_epoch_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<AdvanceEpochCaseResult, String> {
+    let input = AdvanceEpochInput {
+        now_epoch: arg_mag(obj, "now_epoch")?,
+        epoch_phase: arg_mag(obj, "epoch_phase")?,
+        oracle_last_update_epoch: arg_mag(obj, "oracle_last_update_epoch")?,
+        delta: arg_mag(obj, "delta")?,
+    };
+    match advance_epoch(&input) {
+        Ok(out) => Ok(AdvanceEpochCaseResult {
+            index: 0,
+            ok: true,
+            now_epoch: Some(out.now_epoch.to_string()),
+            epoch_phase: Some(out.epoch_phase.to_string()),
+            oracle_last_update_epoch: Some(out.oracle_last_update_epoch.to_string()),
+            code: None,
+        }),
+        Err(code) => Ok(advance_epoch_err(0, code)),
+    }
+}
+
+fn run_advance_epoch_cases(req: &Value) -> Result<AdvanceEpochOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_advance_epoch_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => advance_epoch_err(index, &code),
+            },
+            None => advance_epoch_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(AdvanceEpochOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
 
 #[derive(Serialize)]
@@ -1354,13 +1436,14 @@ fn main() -> ExitCode {
                 | "canonical-hash"
                 | "verify-state-root"
                 | "perp-math"
+                | "advance-epoch"
                 | "funding-auto"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
-             verify-state-root|perp-math|funding-auto> <input.json|->"
+             verify-state-root|perp-math|advance-epoch|funding-auto> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1441,6 +1524,25 @@ fn main() -> ExitCode {
 
     if subcommand == "funding-auto" {
         return match run_funding_auto_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "advance-epoch" {
+        return match run_advance_epoch_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
