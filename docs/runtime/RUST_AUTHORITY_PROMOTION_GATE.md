@@ -111,10 +111,9 @@ Until each shadowed surface has the rows below, it is **not** authority-eligible
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
-revealed a semantic drift (SR-DRIFT-001 in `RUST_AUTHORITY_MIGRATION_STATUS.md`)
-that **blocks pure `rust_authority`** for state_root until resolved. The
-shadow-checked mode fails closed on it, so it does not block
-`rust_authority_with_python_shadow`.
+revealed SR-DRIFT-001, a nonce-bound semantic drift now fixed and locked by
+regression tests. The state_root row remains eligible for the next promotion
+gate only while those regressions stay green.
 
 (Evidence 1–3 and 5–6 are already green for all 9 surfaces — see
 `RUST_RUNTIME_MIGRATION_PLAN.md` Phase 9 table. Disaster-state (4) + fuzz are

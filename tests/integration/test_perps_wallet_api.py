@@ -1590,7 +1590,11 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
     assert payload["transport"]["allow_local_signing"] is False
     assert payload["transport"]["signing_mode"] == "external_signed_payload"
     assert payload["report"]["preflight"]["ok"] is True
-    assert payload["report"]["tau_tx_payload"] == external_payload
+    # The signed payload's signature is redacted from the response (replay-artifact
+    # hygiene, D-KEY-001); operations/metadata are preserved. The FULL signed
+    # payload is still SUBMITTED to the node (asserted below).
+    assert payload["report"]["tau_tx_payload"]["signature_redacted"] is True
+    assert "signature" not in payload["report"]["tau_tx_payload"]
     assert _FakeClient.sent == [external_payload]
     assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
     assert json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])[0]["action"] == "deposit_collateral"

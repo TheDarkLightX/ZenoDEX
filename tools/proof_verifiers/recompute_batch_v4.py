@@ -86,20 +86,26 @@ def _zlib_decompress_limited(data: bytes, *, name: str, max_out: int) -> bytes:
     out = bytearray()
     view = memoryview(data)
 
-    for off in range(0, len(view), _ZLIB_CHUNK):
-        chunk = view[off : off + _ZLIB_CHUNK]
-        buf = bytes(chunk)
-        while buf:
-            remaining = max_out - len(out)
-            if remaining <= 0:
-                raise ValueError(f"{name} decompressed too large")
-            out += d.decompress(buf, remaining)
-            buf = d.unconsumed_tail
+    try:
+        for off in range(0, len(view), _ZLIB_CHUNK):
+            chunk = view[off : off + _ZLIB_CHUNK]
+            buf = bytes(chunk)
+            while buf:
+                remaining = max_out - len(out)
+                if remaining <= 0:
+                    raise ValueError(f"{name} decompressed too large")
+                out += d.decompress(buf, remaining)
+                buf = d.unconsumed_tail
 
-    remaining = max_out - len(out)
-    if remaining <= 0:
-        raise ValueError(f"{name} decompressed too large")
-    out += d.flush(remaining)
+        remaining = max_out - len(out)
+        if remaining <= 0:
+            raise ValueError(f"{name} decompressed too large")
+        out += d.flush(remaining)
+    except zlib.error as exc:
+        # A corrupt (vs merely truncated) zlib stream raises zlib.error mid-
+        # decompress; convert it to a typed ValueError so the verifier returns a
+        # structured rejection (fail-closed) instead of crashing with a traceback.
+        raise ValueError(f"{name} invalid zlib stream") from exc
     if len(out) > max_out:
         raise ValueError(f"{name} decompressed too large")
     if not d.eof:

@@ -7,21 +7,16 @@ decoded keys, bad hex lengths, fee_bps > 10000, invalid scalars, reject-on-both)
 and `test_state_root_determinism.py` covers order-independence + sensitivity, so
 this suite deliberately targets the **gaps**:
 
-1. the u128 / u32 domain boundaries at the Python↔Rust bridge, including a
-   genuine semantic drift the existing randomized differential cannot reach;
+1. the u128 / u32 domain boundaries at the Python↔Rust bridge, including the
+   regression for SR-DRIFT-001;
 2. the first end-to-end exercise of the authority selector over the state-root
    surface (agreement, root-stability, fail-closed on drift / disagreement /
    unavailable Rust).
 
-KEY FINDING (semantic drift, state_root promotion blocker): the Rust state-root
-shadow does **not** re-enforce the u32 nonce bound that Python's `NonceTable`
-enforces. Python rejects `last_nonce >= 2^32`; the Rust shadow accepts and
-encodes it. The existing randomized differential caps nonces at `0xFFFFFFFF`, so
-it never exercises this. Under `rust_authority_with_python_shadow` the selector
-**fails closed** on the disagreement (safe), but pure `rust_authority` for the
-state-root surface must not be enabled until the Rust nonce-section decoder
-enforces the bound (or the gate documents the upstream-nonce-validation
-assumption). See `RUST_AUTHORITY_MIGRATION_STATUS.md`.
+SR-DRIFT-001 regression: Python's `NonceTable` rejects `last_nonce >= 2^32`.
+The Rust state-root shadow now enforces the same bound. The existing randomized
+differential caps nonces at `0xFFFFFFFF`, so this suite keeps the exact overflow
+boundary covered.
 """
 
 from __future__ import annotations
@@ -128,21 +123,14 @@ def test_amount_above_u128_diverges_rust_is_stricter(rust_bin):
     assert rs[0].get("code") in {"amount_out_of_domain", "amount_too_large"}
 
 
-def test_nonce_u32_overflow_is_a_semantic_drift(rust_bin):
-    # KEY FINDING: Python rejects nonce >= 2^32 (NonceTable u32 bound); the Rust
-    # state-root shadow accepts and encodes it. This drift is invisible to the
-    # existing randomized differential (it caps nonces at 0xFFFFFFFF). It is a
-    # promotion blocker for pure rust_authority on state_root.
+def test_nonce_u32_overflow_rejected_by_both(rust_bin):
     st = [{"nonces": [{"pubkey": _PK, "last_nonce": 1 << 32}]}]
     py = lib.py_eval_all(st)
     rs = lib.run_rust(rust_bin, st)
     assert py[0]["ok"] is False, "Python must reject an out-of-u32 nonce"
-    assert rs[0]["ok"] is True, (
-        "regression: Rust now rejects out-of-u32 nonces too — the drift is "
-        "fixed; update this test and the state_root promotion status"
-    )
-    # The divergence is exactly what the differential must surface.
-    assert lib.diff_results(py, rs)
+    assert rs[0]["ok"] is False, "Rust must reject the same out-of-u32 nonce"
+    assert rs[0].get("code") == "nonce_too_large"
+    assert not lib.diff_results(py, rs)
 
 
 def test_raw_duplicate_balance_keys_rejected_by_rust(rust_bin):
@@ -200,18 +188,18 @@ def test_selector_root_unchanged_across_modes(rust_bin):
     assert _no_diff(d_py.result, d_shadow.result)
 
 
-def test_selector_fails_closed_on_nonce_drift(rust_bin):
-    # The nonce-u32 drift must make the shadow-checked authority fail closed,
-    # NOT silently accept Rust's looser result.
-    drift = [{"nonces": [{"pubkey": _PK, "last_nonce": 1 << 32}]}]
-    with pytest.raises(AuthorityError):
-        decide(
-            "state_root",
-            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
-            python_fn=lambda: lib.py_eval_all(drift),
-            rust_fn=lambda: lib.run_rust(rust_bin, drift),
-            compare=_no_diff,
-        )
+def test_selector_rust_authority_with_shadow_rejects_nonce_overflow_in_agreement(rust_bin):
+    overflow = [{"nonces": [{"pubkey": _PK, "last_nonce": 1 << 32}]}]
+    d = decide(
+        "state_root",
+        AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+        python_fn=lambda: lib.py_eval_all(overflow),
+        rust_fn=lambda: lib.run_rust(rust_bin, overflow),
+        compare=_no_diff,
+    )
+    assert d.authority == "rust"
+    assert d.agreed is True
+    assert d.result[0]["ok"] is False
 
 
 def test_selector_fails_closed_on_injected_disagreement(rust_bin):

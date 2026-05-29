@@ -257,6 +257,28 @@ def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
+def _return_signed_tau_tx_payload() -> bool:
+    """Default OFF: do not echo the signed Tau tx payload in API responses
+    (D-KEY-001). Clients submit via the server (`sendtx`)."""
+    return _env_bool("ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False)
+
+
+def _redacted_tau_tx_payload(payload: Any) -> Any:
+    """Strip the BLS signature from the echoed Tau tx payload unless explicitly
+    opted in. The signature is the replay-capable authority artifact; without it
+    the echoed object cannot be replayed. Operations/metadata are preserved so
+    clients can still inspect the built tx. (Disaster class D-KEY-001.)"""
+    if payload is None:
+        return None
+    if _return_signed_tau_tx_payload():
+        return payload
+    if not isinstance(payload, Mapping):
+        return payload
+    redacted = {key: value for key, value in payload.items() if key != "signature"}
+    redacted["signature_redacted"] = True
+    return redacted
+
+
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
     amount = _request_int(body, name="amount", default=None)
@@ -355,7 +377,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
                 }
                 for receipt in report.tau_receipts
             ],
-            "tau_tx_payload": report.tau_tx_payload,
+            "tau_tx_payload": _redacted_tau_tx_payload(report.tau_tx_payload),
         },
     }
     if for_submit:
