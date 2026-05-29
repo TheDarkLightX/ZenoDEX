@@ -13,7 +13,16 @@ on:
       - "src/core/balance_kernel.py"
       - "src/core/zusd.py"
       - "src/core/burn_receipts.py"
+      - "src/core/dex_intent_auth_message.py"
+      - "src/core/dex_intent_auth_shape_gate.py"
+      - "src/core/perp_v2/**"
+      - "src/kernels/python/settlement_swap_runtime_v1.py"
       - "src/state/canonical.py"
+      - "src/state/state_root.py"
+      - "src/state/balances.py"
+      - "src/state/lp.py"
+      - "src/state/nonces.py"
+      - "src/state/pools.py"
       - "tools/runtime/**"
       - "tests/runtime/**"
       - "rust-runtime/**"
@@ -28,7 +37,16 @@ on:
       - "src/core/balance_kernel.py"
       - "src/core/zusd.py"
       - "src/core/burn_receipts.py"
+      - "src/core/dex_intent_auth_message.py"
+      - "src/core/dex_intent_auth_shape_gate.py"
+      - "src/core/perp_v2/**"
+      - "src/kernels/python/settlement_swap_runtime_v1.py"
       - "src/state/canonical.py"
+      - "src/state/state_root.py"
+      - "src/state/balances.py"
+      - "src/state/lp.py"
+      - "src/state/nonces.py"
+      - "src/state/pools.py"
       - "tools/runtime/**"
       - "tests/runtime/**"
       - "rust-runtime/**"
@@ -69,24 +87,16 @@ jobs:
 
       - name: Golden traces export deterministically (byte-stable)
         run: |
-          python3 tools/runtime/export_golden_trace.py --out /tmp/smoke.json
-          diff -u tests/runtime/golden_traces/smoke.json /tmp/smoke.json
-          python3 tools/runtime/export_golden_trace.py --scenario replay_guard_smoke --out /tmp/rg.json
-          diff -u tests/runtime/golden_traces/replay_guard_smoke.json /tmp/rg.json
-          python3 tools/runtime/export_golden_trace.py --scenario balance_smoke --out /tmp/bal.json
-          diff -u tests/runtime/golden_traces/balance_smoke.json /tmp/bal.json
-          python3 tools/runtime/export_golden_trace.py --scenario zusd_smoke --out /tmp/zusd.json
-          diff -u tests/runtime/golden_traces/zusd_smoke.json /tmp/zusd.json
-          python3 tools/runtime/export_golden_trace.py --scenario burn_smoke --out /tmp/burn.json
-          diff -u tests/runtime/golden_traces/burn_smoke.json /tmp/burn.json
+          python3 tools/runtime/export_golden_trace.py --scenario all --out-dir /tmp/gt
+          for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
+            diff -u "tests/runtime/golden_traces/$f.json" "/tmp/gt/$f.json"
+          done
 
       - name: Golden traces replay cleanly
         run: |
-          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/smoke.json
-          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/replay_guard_smoke.json
-          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/balance_smoke.json
-          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/zusd_smoke.json
-          python3 tools/runtime/replay_golden_trace.py tests/runtime/golden_traces/burn_smoke.json
+          for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
+            python3 tools/runtime/replay_golden_trace.py "tests/runtime/golden_traces/$f.json"
+          done
 
   rust-runtime:
     name: Rust core (test / clippy / fmt)
@@ -131,18 +141,21 @@ jobs:
         working-directory: rust-runtime
         run: cargo build --bin zenodex-runtime
 
-      - name: Python/Rust conformance differential
+      - name: Python/Rust conformance + cross-language vectors differential
         run: |
-          python -m pytest tests/runtime/test_fee_router_conformance.py \
+          python -m pytest -q \
+            tests/runtime/test_fee_router_conformance.py \
             tests/runtime/test_replay_guard_conformance.py \
             tests/runtime/test_balance_kernel_conformance.py \
             tests/runtime/test_zusd_conformance.py \
-            tests/runtime/test_burn_receipts_conformance.py -q
+            tests/runtime/test_burn_receipts_conformance.py \
+            tests/runtime/test_canonical_primitives_vectors.py \
+            tests/runtime/test_state_root_vectors.py \
+            tests/runtime/test_tx_receipt_hash_vectors.py \
+            tests/runtime/test_perp_math_vectors.py
 
       - name: Shadow replay (Rust must agree with Python)
         run: |
-          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/smoke.json
-          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/replay_guard_smoke.json
-          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/balance_smoke.json
-          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/zusd_smoke.json
-          python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/burn_smoke.json
+          for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
+            python3 tools/runtime/rust_shadow_replay.py "tests/runtime/golden_traces/$f.json"
+          done
