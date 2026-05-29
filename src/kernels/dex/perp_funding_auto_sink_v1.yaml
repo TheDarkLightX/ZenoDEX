@@ -1,0 +1,143 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_funding_auto_sink_v1"
+  notes: 'Funding-auto zero-sum bounded-sink settlement (replaces the
+    counterparty-residual / zero-net-position gate).
+
+    Each open account receives exactly its formula-derived funding payment, so
+    the total trader collateral changes by -projected_net. The net (structural
+    OI imbalance + floor-rounding residual, either sign) is routed into the
+    protocol sink (fee_pool_quote, with fee_income / insurance_balance bumped by
+    the same delta in the Python authority to preserve the persistent
+    identities). The gate admits the action only if every post-sink value stays
+    in domain, otherwise it fails closed BEFORE any mutation.
+
+    This model proves the two runtime safety properties on a bounded domain:
+      I1 (conservation): fee_pool + collateral_sum == init_total is invariant,
+         i.e. Delta(sum collateral + fee_pool) == 0 across every funding step.
+      I2/I3 (sink bounds): 0 <= fee_pool <= sink_max always holds, because the
+         guard rejects any net that would leave the domain.
+
+    The bound (sink_max=1000) is a tractable stand-in for the production
+    MAX_COLLATERAL=1e15; the inductive argument is bound-independent. Validate
+    where the ESSO toolchain is available:
+      PYTHONPATH=external/ESSO python3 -m ESSO verify-multi
+        src/kernels/dex/perp_funding_auto_sink_v1.yaml --solvers z3,cvc5
+
+    Replaces the net_funding_balanced check from
+    src/core/perp_apply_funding_auto_gate.py with the sink_bounds_ok guard.'
+observables:
+  effects:
+  - funding_applied
+  state_vars:
+  - fee_pool
+  - collateral_sum
+state_vars:
+- id: fee_pool
+  role: data
+  type:
+    kind: int
+    max: 1000
+    min: 0
+- id: collateral_sum
+  role: data
+  type:
+    kind: int
+    max: 1000
+    min: 0
+- id: init_total
+  role: data
+  type:
+    kind: int
+    max: 2000
+    min: 0
+invariants:
+- id: inv_conservation
+  kind: safety
+  expr:
+    args:
+    - args:
+      - var: fee_pool
+      - var: collateral_sum
+      op: +
+    - var: init_total
+    op: '='
+- id: inv_fee_pool_nonneg
+  kind: safety
+  expr:
+    args:
+    - var: fee_pool
+    - const: 0
+    op: '>='
+- id: inv_fee_pool_bounded
+  kind: safety
+  expr:
+    args:
+    - var: fee_pool
+    - const: 1000
+    op: <=
+init:
+- expr:
+    const: 100
+  var: fee_pool
+- expr:
+    const: 500
+  var: collateral_sum
+- expr:
+    const: 600
+  var: init_total
+actions:
+- id: apply_funding
+  params:
+  - id: net
+    type:
+      kind: int
+      max: 1000
+      min: -1000
+  guard:
+    args:
+    - args:
+      - args:
+        - var: fee_pool
+        - param: net
+        op: +
+      - const: 0
+      op: '>='
+    - args:
+      - args:
+        - var: fee_pool
+        - param: net
+        op: +
+      - const: 1000
+      op: <=
+    - args:
+      - args:
+        - var: collateral_sum
+        - param: net
+        op: '-'
+      - const: 0
+      op: '>='
+    - args:
+      - args:
+        - var: collateral_sum
+        - param: net
+        op: '-'
+      - const: 1000
+      op: <=
+    op: and
+  updates:
+  - expr:
+      args:
+      - var: fee_pool
+      - param: net
+      op: +
+    var: fee_pool
+  - expr:
+      args:
+      - var: collateral_sum
+      - param: net
+      op: '-'
+    var: collateral_sum
+  effects:
+    funding_applied:
+      param: net
