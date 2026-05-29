@@ -75,7 +75,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | planned | fuzz (promotion) |
 | Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | planned | fuzz (promotion) |
 | Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | fuzz (promotion) |
-| zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ | — | — | add `_reference` + overflow test (Phase D) |
+| zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ + `_reference` (13) | — | — | promotion gate (fuzz) |
 | Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | candidate (Phase H) | — | receipt-body JSON hash (Phase F) |
 | Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | orchestration (multi-pool/CoW/ordering) deferred |
