@@ -1125,6 +1125,7 @@ struct FundingAutoAccountOut {
     position_base: String,
     collateral_quote: String,
     funding_paid_cumulative: String,
+    funding_last_applied_epoch: String,
 }
 
 #[derive(Serialize)]
@@ -1133,6 +1134,8 @@ struct FundingAutoCaseResult {
     ok: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     accounts: Option<Vec<FundingAutoAccountOut>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    funding_rate_bps: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     fee_pool_quote: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1156,6 +1159,7 @@ fn funding_err(index: usize, code: &str) -> FundingAutoCaseResult {
         index,
         ok: false,
         accounts: None,
+        funding_rate_bps: None,
         fee_pool_quote: None,
         fee_income: None,
         insurance_balance: None,
@@ -1167,6 +1171,7 @@ fn funding_err(index: usize, code: &str) -> FundingAutoCaseResult {
 fn eval_funding_auto_case(
     obj: &serde_json::Map<String, Value>,
 ) -> Result<FundingAutoCaseResult, String> {
+    let now_epoch = arg_mag(obj, "now_epoch")?;
     let rate_bps = arg_bps(obj, "rate_bps")?;
     let index_price_e8 = arg_mag(obj, "index_price_e8")?;
     let maintenance_margin_bps = arg_bps(obj, "maintenance_margin_bps")?;
@@ -1192,11 +1197,13 @@ fn eval_funding_auto_case(
             position_base: arg_mag(ao, "position_base")?,
             collateral_quote: arg_mag(ao, "collateral_quote")?,
             funding_paid_cumulative: arg_mag(ao, "funding_paid_cumulative")?,
+            funding_last_applied_epoch: arg_mag(ao, "funding_last_applied_epoch")?,
         });
     }
 
     let input = FundingAutoInput {
         accounts,
+        now_epoch,
         rate_bps,
         index_price_e8,
         maintenance_margin_bps,
@@ -1218,9 +1225,11 @@ fn eval_funding_auto_case(
                         position_base: a.position_base.to_string(),
                         collateral_quote: a.collateral_quote.to_string(),
                         funding_paid_cumulative: a.funding_paid_cumulative.to_string(),
+                        funding_last_applied_epoch: a.funding_last_applied_epoch.to_string(),
                     })
                     .collect(),
             ),
+            funding_rate_bps: Some(out.funding_rate_bps.to_string()),
             fee_pool_quote: Some(out.fee_pool_quote.to_string()),
             fee_income: Some(out.fee_income.to_string()),
             insurance_balance: Some(out.insurance_balance.to_string()),

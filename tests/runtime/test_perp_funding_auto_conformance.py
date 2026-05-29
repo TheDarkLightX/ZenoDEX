@@ -41,6 +41,8 @@ def static_cases() -> list[dict]:
         {"positions": [(AA, 2_000), (BB, -1_000), (CC, -1_000)], "clearing_price_e8": 100_090_000},
         # net-long three accounts
         {"positions": [(AA, 5_000), (BB, -2_000), (CC, -1_000)], "clearing_price_e8": 101_500_000},
+        # same-epoch replay → funding_already_applied on both sides (reason parity)
+        {"positions": [(AA, 2_000), (BB, -1_000)], "clearing_price_e8": 102_000_000, "double_apply": True},
     ]
 
 
