@@ -1,5 +1,6 @@
 import { e8ToNumber, bpsToPercent } from '../../lib/perpMath.js';
 import { EpochPhase } from '../../lib/perpValidation.js';
+import InfoTip from '../InfoTip.jsx';
 import './PerpPriceTicker.css';
 
 /**
@@ -17,7 +18,7 @@ function PerpPriceTicker({ market }) {
         );
     }
 
-    const indexPrice = e8ToNumber(BigInt(market.indexPriceE8));
+    const indexPrice = market.indexPriceE8 ? e8ToNumber(BigInt(market.indexPriceE8)) : null;
     const clearingPrice = market.clearingPriceE8 ? e8ToNumber(BigInt(market.clearingPriceE8)) : null;
     const statusClass = market.breakerActive ? 'danger' : 'normal';
 
@@ -25,15 +26,21 @@ function PerpPriceTicker({ market }) {
         <div className={`perp-price-ticker perp-price-ticker--${statusClass}`}>
             {/* Index Price */}
             <div className="perp-ticker-item perp-ticker-item--primary">
-                <span className="perp-ticker-label">Index Price</span>
+                <span className="perp-ticker-label">
+                    Index Price
+                    <InfoTip label="Index Price">External oracle price for the underlying asset. PnL clears to the index — this is what the protocol believes the market price is.</InfoTip>
+                </span>
                 <span className="perp-ticker-value perp-ticker-value--large">
-                    ${formatPrice(indexPrice)}
+                    {indexPrice != null ? `$${formatPrice(indexPrice)}` : 'Awaiting oracle'}
                 </span>
             </div>
 
             {/* Clearing Price */}
             <div className="perp-ticker-item">
-                <span className="perp-ticker-label">Clearing Price</span>
+                <span className="perp-ticker-label">
+                    Clearing Price
+                    <InfoTip label="Clearing Price">Price at which the current epoch&apos;s positions settled. Set by the oracle authority once per epoch via publish-clearing-price.</InfoTip>
+                </span>
                 <span className="perp-ticker-value">
                     {clearingPrice != null ? `$${formatPrice(clearingPrice)}` : '--'}
                 </span>
@@ -41,7 +48,10 @@ function PerpPriceTicker({ market }) {
 
             {/* Funding Rate */}
             <div className="perp-ticker-item">
-                <span className="perp-ticker-label">Funding Rate</span>
+                <span className="perp-ticker-label">
+                    Funding Rate
+                    <InfoTip label="Funding Rate">Per-epoch payment between long and short sides, in bps. Positive = longs pay shorts; negative = shorts pay longs. Pulls the perp toward the index.</InfoTip>
+                </span>
                 <FundingBadge rateBps={market.fundingRateBps} />
             </div>
 
@@ -69,6 +79,11 @@ function PerpPriceTicker({ market }) {
 }
 
 function FundingBadge({ rateBps }) {
+    // The clearinghouse-2p wallet payload does not expose a funding rate; show a
+    // neutral placeholder rather than "NaN%".
+    if (rateBps == null || !Number.isFinite(Number(rateBps))) {
+        return <span className="perp-ticker-value perp-funding-badge">—</span>;
+    }
     const positive = rateBps >= 0;
     return (
         <span className={`perp-ticker-value perp-funding-badge ${positive ? 'positive' : 'negative'}`}>

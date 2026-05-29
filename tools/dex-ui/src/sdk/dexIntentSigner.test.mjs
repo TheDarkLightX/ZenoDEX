@@ -6,6 +6,7 @@ import { bls12_381 as bls } from '@noble/curves/bls12-381';
 import {
   buildAndSignCreatePoolIntent,
   buildAndSignLiquidityIntent,
+  buildAndSignSwapIntent,
   buildSignedTauTransaction,
   signDexIntentForEngine,
   signPerpOpForEngine,
@@ -140,6 +141,36 @@ test('browser liquidity signer builds an add-liquidity intent accepted by Python
     chainId: CHAIN_ID,
   });
   assert.equal(signed.intent.kind, 'ADD_LIQUIDITY');
+  assert.match(signed.intent.intent_id, /^0x[0-9a-f]{64}$/);
+  assert.deepEqual(pythonVerify(signed.intent, signed.signature), { ok: true, error: null });
+});
+
+test('browser swap signer builds an exact-in swap intent accepted by Python signature policy', async () => {
+  const pool = {
+    poolId: `0x${'ef'.repeat(32)}`,
+    asset0: `0x${'01'.repeat(32)}`,
+    asset1: `0x${'02'.repeat(32)}`,
+    reserve0: 10000,
+    reserve1: 20000,
+  };
+  const payload = {
+    poolId: pool.poolId,
+    assetIn: pool.asset0,
+    assetOut: pool.asset1,
+    amountIn: 20,
+    minAmountOut: 1,
+    senderPubkey: PUBKEY,
+    recipient: PUBKEY,
+    deadline: 1999999999,
+    nonce: 5,
+  };
+  const signed = await buildAndSignSwapIntent({
+    pool,
+    payload,
+    privkey: PRIVKEY,
+    chainId: CHAIN_ID,
+  });
+  assert.equal(signed.intent.kind, 'SWAP_EXACT_IN');
   assert.match(signed.intent.intent_id, /^0x[0-9a-f]{64}$/);
   assert.deepEqual(pythonVerify(signed.intent, signed.signature), { ok: true, error: null });
 });

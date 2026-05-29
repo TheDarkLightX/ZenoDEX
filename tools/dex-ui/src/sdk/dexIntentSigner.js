@@ -393,6 +393,61 @@ export async function buildAndSignLiquidityIntent({
   };
 }
 
+export async function buildAndSignSwapIntent({
+  pool,
+  payload,
+  privkey,
+  signDexIntent,
+  chainId = 'zeno-ledger-localtest-v0',
+}) {
+  if (!pool || typeof pool !== 'object' || Array.isArray(pool)) {
+    throw new Error('pool_must_be_object');
+  }
+  const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
+  const recipient = String(payload.recipient || sender).trim();
+  const poolId = String(payload.poolId || payload.pool_id || pool.poolId || pool.pool_id || '').trim();
+  const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
+  const nonce = asInt(payload.nonce, 'nonce');
+  const amountIn = asInt(payload.amountIn ?? payload.amount_in, 'amount_in');
+  const minAmountOut = asInt(payload.minAmountOut ?? payload.min_amount_out ?? 1, 'min_amount_out');
+  const rawAssetIn = payload.assetIn ?? payload.asset_in;
+  const rawAssetOut = payload.assetOut ?? payload.asset_out;
+  const assetIn = canonicalAssetId(rawAssetIn, 'asset_in');
+  const assetOut = canonicalAssetId(rawAssetOut, 'asset_out');
+  if (assetIn === assetOut) {
+    throw new Error('swap_assets_must_differ');
+  }
+  const intentPayload = {
+    sender_pubkey: sender,
+    recipient,
+    pool_id: poolId,
+    asset_in: assetIn,
+    asset_out: assetOut,
+    amount_in: amountIn,
+    min_amount_out: minAmountOut,
+    nonce,
+  };
+  const operation = {
+    module: 'TauSwap',
+    version: '0.1',
+    kind: 'SWAP_EXACT_IN',
+    intent_id: await hashV0('ui_swap_intent_v0', intentPayload),
+    sender_pubkey: sender,
+    deadline,
+    nonce,
+    pool_id: poolId,
+    asset_in: assetIn,
+    asset_out: assetOut,
+    amount_in: amountIn,
+    min_amount_out: minAmountOut,
+    recipient,
+  };
+  return {
+    intent: operation,
+    signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+  };
+}
+
 export async function buildAndSignCreatePoolIntent({
   payload,
   privkey,

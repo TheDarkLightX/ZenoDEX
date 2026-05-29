@@ -17,7 +17,7 @@ Current mounted posture:
   stability-pool transaction path.
 - Perps has a read-only preview grid plus a live stream-8 wallet panel for
   signed clearinghouse market init, collateral, position, epoch, oracle-price,
-  and settle transactions. Local preview writes for the older `/api/perps/*`
+  and settlement transactions. Local preview writes for the older `/api/perps/*`
   lane require an explicit override and still do not represent authoritative
   settlement.
 - Strategy includes a receipt-backed AutoTrader local/testnet panel for
@@ -167,12 +167,103 @@ Static deployments can override frontend behavior without rebuilding by editing:
 Supported runtime keys:
 
 - `apiBase`
+- `allowDemoMode`
+- `allowBrowserKeyGeneration`
+- `allowDefaultExternalSigner`
 - `demoMode`
+- `defaultExternalSigner`
 - `perpsPreviewWrites`
 - `zenoOracleApiBase`
 
 This is useful for IPFS/static hosting where one bundle may be reused against
 different operator APIs.
+
+The checked-in `public/zenodex-config.json` is currently a temporary
+`local-testnet` testing config with browser key generation enabled. It exists so
+the GUI can be exercised before the standalone `Keys` app is available. Do not
+copy that file into public-testnet or production deployments.
+
+`allowBrowserKeyGeneration` is an explicit last-resort browser fallback and is
+honored only for an explicit local/dev deployment. The normal path is an
+external signer profile. A `defaultExternalSigner` must contain only public
+wallet metadata plus a verified local-signer public receipt, or a `connectUrl`
+that returns one. Signing URLs are accepted only when they are same-origin paths
+or loopback `http://127.0.0.1` / `localhost` URLs.
+
+Supported `signerSecurityProfile` values:
+
+- `native-desktop-loopback-signer-v0`
+
+Hardware wallet, TEE, and threshold signer profiles require their own receipt
+schemas and validators before they can be listed in a deployable profile.
+
+Create and serve a browser-independent native desktop signer:
+
+```bash
+python3 tools/zenodex_local_signer.py create \
+  --vault ~/.zenodex/local-signer-v0.json \
+  --key-id local-testnet-ui \
+  --chain-id zeno-ledger-localtest-v0
+
+python3 tools/zenodex_local_signer.py serve \
+  --vault ~/.zenodex/local-signer-v0.json \
+  --chain-id zeno-ledger-localtest-v0 \
+  --host 127.0.0.1 \
+  --port 8799 \
+  --cors-origin http://127.0.0.1:5173
+```
+
+The `create` and `receipt` commands print the public receipt used by runtime
+config. The bridge keeps the private key inside the local signer process and
+only serves `/public-receipt`, `/sign-dex-intent`, and
+`/sign-tau-transaction-payload` over loopback. Signing requests default to
+terminal approval. The signer prints a request hash plus the relevant sender,
+deadline, nonce, asset, amount, fee, and operation fields; type `approve` only
+after checking the request. The browser-facing bridge also requires an allowed
+`Origin` and a per-session pairing token returned by `/public-receipt`; the UI
+keeps that token in memory and sends it only as `X-ZenoDEX-Signer-Token` on
+signing requests. For hosted testnet or production UI origins, pass the exact
+site origin with `--cors-origin`. Unattended signing requires the explicit
+`--approval-mode unattended --i-understand-unattended-signing` flags and is
+intended for controlled automation, not normal production use.
+
+Example local-testnet external signer config:
+
+```json
+{
+  "deployment": "local-testnet",
+  "allowDefaultExternalSigner": true,
+  "defaultExternalSigner": {
+    "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
+    "signerSecurityProfile": "native-desktop-loopback-signer-v0",
+    "address": "0x<bls-public-key>",
+    "chainId": "zeno-ledger-localtest-v0",
+    "signerProvider": "zenodex-local-signer-v0",
+    "connectUrl": "http://127.0.0.1:8799/public-receipt",
+    "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
+    "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent"
+  }
+}
+```
+
+Production uses the same contract. The difference is that production must set
+`allowDefaultExternalSigner` explicitly and must use a signer receipt that
+attests prompt user approval:
+
+```json
+{
+  "deployment": "production",
+  "allowBrowserKeyGeneration": false,
+  "allowDefaultExternalSigner": true,
+  "defaultExternalSigner": {
+    "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
+    "signerSecurityProfile": "native-desktop-loopback-signer-v0",
+    "connectUrl": "http://127.0.0.1:8799/public-receipt",
+    "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
+    "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent"
+  }
+}
+```
 
 ## IPFS / Static Hosting
 
@@ -196,7 +287,7 @@ so operators can mirror or audit the exact static artifact they are serving.
 
 ## Security Notes (Dev API)
 
-`/api/perps/*` and `/api/zusd/*` are demo/development routes. They operate on in-memory state and are not the production transaction path.
+Legacy in-memory `/api/perps/*` and `/api/zusd/*` demo routes are no longer mounted by the stdlib API. Wallet and monetary paths use Tau-node-backed transport bridges.
 
 The mounted perps preview grid reflects that boundary. In non-demo mode it is
 read-only by default, and it only enables local preview writes when one of these
@@ -214,4 +305,4 @@ auth, and only enable local signing in test environments.
 or testnet transport bridges. Keep them behind local or explicitly controlled
 auth, and only enable local signing in test environments.
 
-The API server refuses to start demo routes on non-loopback binds (e.g. `API_HOST=0.0.0.0`) unless `DEMO_API_TOKEN` is set.
+The API server refuses to start sensitive routes without either `ZENODEX_API_BEARER_TOKEN` or an explicitly declared external auth boundary.

@@ -1,8 +1,7 @@
 .zor-shell {
-  display: grid;
-  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--space-lg);
-  align-items: start;
 }
 
 .zor-dashboard {
@@ -10,262 +9,6 @@
   flex-direction: column;
   gap: var(--space-lg);
   color: var(--text-primary);
-}
-
-.zor-design-rail {
-  position: sticky;
-  top: 104px;
-  max-height: calc(100vh - 124px);
-  overflow: auto;
-  padding: var(--space-lg);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at 18% 5%, rgba(139, 92, 246, 0.20), transparent 26%),
-    linear-gradient(180deg, rgba(10, 15, 26, 0.98), rgba(7, 11, 20, 0.96));
-  box-shadow: inset -1px 0 0 rgba(139, 92, 246, 0.18);
-}
-
-.zor-design-brand {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: var(--space-md);
-  align-items: center;
-  margin-bottom: var(--space-lg);
-}
-
-.zor-design-brand img {
-  width: 58px;
-  height: 58px;
-  display: block;
-  object-fit: contain;
-}
-
-.zor-design-brand h2,
-.zor-design-section h3,
-.zor-design-section h4 {
-  margin: 0;
-}
-
-.zor-design-brand h2 {
-  font-size: var(--font-size-2xl);
-  line-height: 1.04;
-}
-
-.zor-design-brand p,
-.zor-design-section p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.zor-design-section {
-  padding: var(--space-md) 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.18);
-}
-
-.zor-design-section:first-of-type {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.zor-design-section h3 {
-  color: #a78bfa;
-  font-size: var(--font-size-md);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.zor-design-section h4 {
-  color: #c4b5fd;
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.zor-swatch-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
-}
-
-.zor-swatch {
-  min-width: 0;
-}
-
-.zor-swatch span {
-  display: block;
-  width: 100%;
-  height: 32px;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-
-.zor-swatch strong,
-.zor-swatch small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zor-swatch strong {
-  margin-top: 5px;
-  color: var(--text-secondary);
-  font-size: 10px;
-}
-
-.zor-swatch small {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-}
-
-.zor-type-sample {
-  display: grid;
-  grid-template-columns: minmax(92px, 1fr) minmax(0, 1fr);
-  gap: var(--space-md);
-  align-items: end;
-  margin-top: var(--space-md);
-}
-
-.zor-type-sample strong {
-  font-size: 72px;
-  line-height: 0.9;
-  letter-spacing: 0;
-}
-
-.zor-type-sample span {
-  color: var(--text-primary);
-  font-size: var(--font-size-lg);
-  font-weight: 800;
-}
-
-.zor-type-scale {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 5px var(--space-md);
-  margin-top: var(--space-md);
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-
-.zor-type-scale strong {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-}
-
-.zor-token-row,
-.zor-radius-row,
-.zor-demo-badges,
-.zor-icon-grid,
-.zor-demo-buttons,
-.zor-design-inputs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
-}
-
-.zor-token-row span {
-  min-width: 32px;
-  min-height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.025);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-}
-
-.zor-radius-row span {
-  min-width: 64px;
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.025);
-  font-size: var(--font-size-xs);
-}
-
-.zor-radius-row span:nth-child(1) { border-radius: 4px; }
-.zor-radius-row span:nth-child(2) { border-radius: 8px; }
-.zor-radius-row span:nth-child(3) { border-radius: 12px; }
-.zor-radius-row span:nth-child(4) { border-radius: 16px; }
-.zor-radius-row span:nth-child(5) { border-radius: 24px; }
-
-.zor-demo-buttons .btn {
-  min-height: 32px;
-  padding: 0 var(--space-md);
-  font-size: var(--font-size-xs);
-}
-
-.zor-demo-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
-}
-
-.zor-demo-card-grid span {
-  min-height: 42px;
-  padding: var(--space-sm);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.025);
-  font-size: var(--font-size-xs);
-}
-
-.zor-demo-card-grid span:nth-child(2) {
-  border-color: rgba(34, 197, 94, 0.28);
-  color: #bbf7d0;
-  background: rgba(34, 197, 94, 0.07);
-}
-
-.zor-demo-card-grid span:nth-child(3) {
-  border-color: rgba(245, 158, 11, 0.32);
-  color: #fed7aa;
-  background: rgba(245, 158, 11, 0.07);
-}
-
-.zor-demo-card-grid span:nth-child(4) {
-  border-color: rgba(239, 68, 68, 0.32);
-  color: #fecaca;
-  background: rgba(239, 68, 68, 0.07);
-}
-
-.zor-design-inputs {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-.zor-icon-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 28px);
-}
-
-.zor-icon-grid span {
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(148, 163, 184, 0.20);
-  border-radius: 7px;
-  color: #cbd5e1;
-  background: rgba(255, 255, 255, 0.025);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 900;
 }
 
 .zor-topbar {
@@ -277,8 +20,8 @@
   padding: var(--space-sm) var(--space-md);
   border-radius: 8px;
   background:
-    linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(6, 182, 212, 0.06)),
-    rgba(13, 18, 29, 0.94);
+    linear-gradient(135deg, rgba(var(--accent-signal-rgb), 0.14), rgba(6, 182, 212, 0.06)),
+    var(--toolbar-bg);
 }
 
 .zor-brand-lockup {
@@ -344,7 +87,7 @@
 .zor-product-nav button:hover,
 .zor-product-nav .zor-product-nav-active {
   color: var(--text-primary);
-  background: rgba(139, 92, 246, 0.10);
+  background: rgba(var(--accent-signal-rgb), 0.10);
 }
 
 .zor-product-nav .zor-product-nav-active::after {
@@ -379,7 +122,7 @@
   justify-content: center;
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
   font-size: var(--font-size-xs);
   font-weight: 900;
@@ -388,8 +131,8 @@
 
 .zor-icon-button:hover {
   color: var(--text-primary);
-  border-color: rgba(139, 92, 246, 0.34);
-  background: rgba(139, 92, 246, 0.09);
+  border-color: rgba(var(--accent-signal-rgb), 0.34);
+  background: rgba(var(--accent-signal-rgb), 0.09);
 }
 
 .zor-env {
@@ -398,10 +141,10 @@
   gap: var(--space-sm);
   min-height: 40px;
   padding: 0 var(--space-md);
-  border: 1px solid rgba(139, 92, 246, 0.24);
+  border: 1px solid rgba(var(--accent-signal-rgb), 0.24);
   border-radius: 8px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-secondary);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
@@ -424,7 +167,7 @@
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 8px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-secondary);
   font-size: var(--font-size-xs);
   font-weight: 800;
   white-space: nowrap;
@@ -467,7 +210,7 @@
   padding: var(--space-sm);
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-secondary);
 }
 
 .zor-authority-summary small,
@@ -531,7 +274,7 @@
 .zor-key-manager-row {
   display: grid;
   grid-template-columns: minmax(180px, 1.2fr) minmax(96px, 0.7fr) minmax(160px, 1fr) minmax(150px, 1fr);
-  min-width: 720px;
+  min-width: min(720px, 100%);
   gap: var(--space-sm);
   align-items: center;
   padding: var(--space-sm) 0;
@@ -584,7 +327,10 @@
 
 .zor-metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* 6 metrics target 6 columns on wide screens; auto-fit + minmax means
+   * we collapse to 3 columns ~1100px and 2 columns ~720px without
+   * needing extra media queries. */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--space-md);
 }
 
@@ -595,7 +341,7 @@
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
-    rgba(13, 18, 29, 0.86);
+    var(--bg-elev-1);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -642,7 +388,7 @@
 
 .zor-sparkline-neutral polyline {
   stroke: var(--accent-purple);
-  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.30));
+  filter: drop-shadow(0 0 8px rgba(var(--accent-signal-rgb), 0.30));
 }
 
 .zor-metric-positive .zor-metric-delta {
@@ -717,8 +463,8 @@
   border-radius: 8px;
   text-align: left;
   background:
-    linear-gradient(180deg, rgba(139, 92, 246, 0.06), rgba(6, 182, 212, 0.025)),
-    rgba(13, 18, 29, 0.92);
+    linear-gradient(180deg, rgba(var(--accent-signal-rgb), 0.06), rgba(6, 182, 212, 0.025)),
+    var(--bg-panel);
 }
 
 .zor-feeds-panel,
@@ -753,18 +499,21 @@
   justify-content: center;
   min-height: 26px;
   padding: 0 var(--space-sm);
-  border: 1px solid rgba(139, 92, 246, 0.28);
+  border: 1px solid rgba(var(--accent-signal-rgb), 0.28);
   border-radius: 8px;
   color: var(--accent-purple);
-  background: rgba(139, 92, 246, 0.10);
+  background: rgba(var(--accent-signal-rgb), 0.10);
   font-size: var(--font-size-xs);
   font-weight: 700;
   white-space: nowrap;
 }
 
 .zor-text-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
   border: 0;
-  padding: 0;
   background: transparent;
   color: var(--accent-purple);
   font-size: var(--font-size-xs);
@@ -774,7 +523,7 @@
 }
 
 .zor-text-button:hover {
-  color: #c4b5fd;
+  color: var(--text-secondary);
 }
 
 .zor-system-ok {
@@ -793,7 +542,7 @@
   grid-template-columns: minmax(150px, 1.3fr) minmax(108px, 0.9fr) minmax(68px, 0.55fr) minmax(76px, 0.55fr) minmax(88px, 0.7fr) minmax(112px, 0.8fr);
   gap: var(--space-sm);
   align-items: center;
-  min-width: 760px;
+  min-width: min(760px, 100%);
 }
 
 .zor-feed-head {
@@ -819,8 +568,8 @@
 
 .zor-feed-row:hover,
 .zor-feed-row-active {
-  border-color: rgba(139, 92, 246, 0.35);
-  background: rgba(139, 92, 246, 0.07);
+  border-color: rgba(var(--accent-signal-rgb), 0.35);
+  background: rgba(var(--accent-signal-rgb), 0.07);
 }
 
 .zor-feed-row span {
@@ -858,8 +607,8 @@
 
 .zor-evidence-O2 {
   color: #d8b4fe;
-  background: rgba(139, 92, 246, 0.16);
-  border: 1px solid rgba(139, 92, 246, 0.28);
+  background: rgba(var(--accent-signal-rgb), 0.16);
+  border: 1px solid rgba(var(--accent-signal-rgb), 0.28);
 }
 
 .zor-evidence-O3 {
@@ -870,8 +619,8 @@
 
 .zor-evidence-O4 {
   color: #ddd6fe;
-  background: rgba(139, 92, 246, 0.20);
-  border: 1px solid rgba(139, 92, 246, 0.36);
+  background: rgba(var(--accent-signal-rgb), 0.20);
+  border: 1px solid rgba(var(--accent-signal-rgb), 0.36);
 }
 
 .zor-evidence-O5 {
@@ -956,6 +705,8 @@
 
 .zor-muted {
   color: var(--text-muted);
+  font-style: italic;
+  font-weight: normal;
 }
 
 .zor-health-layout,
@@ -976,7 +727,7 @@
   flex-direction: column;
   border-radius: 50%;
   border: 12px solid rgba(34, 197, 94, 0.78);
-  background: radial-gradient(circle, rgba(34, 197, 94, 0.16), rgba(13, 18, 29, 0.92) 62%);
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.16), var(--bg-panel) 62%);
   box-shadow: inset 0 0 32px rgba(34, 197, 94, 0.16);
 }
 
@@ -1044,7 +795,7 @@
   padding: var(--space-sm);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-secondary);
 }
 
 .zor-feed-detail-grid {
@@ -1067,7 +818,7 @@
   align-items: center;
   margin: var(--space-md) 0;
   padding: var(--space-sm) var(--space-md);
-  border: 1px dashed rgba(139, 92, 246, 0.34);
+  border: 1px dashed rgba(var(--accent-signal-rgb), 0.34);
   border-radius: 8px;
   color: var(--text-secondary);
 }
@@ -1120,9 +871,9 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  border: 1px dashed rgba(148, 163, 184, 0.36);
+  border: 1px dashed var(--border-strong);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.022);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
   text-align: center;
 }
@@ -1143,7 +894,7 @@
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: rgba(139, 92, 246, 0.16);
+  background: rgba(var(--accent-signal-rgb), 0.16);
   color: #ddd6fe;
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
@@ -1218,9 +969,9 @@
   gap: 4px;
   margin: var(--space-md) 0;
   padding: var(--space-md);
-  border: 1px solid rgba(139, 92, 246, 0.22);
+  border: 1px solid rgba(var(--accent-signal-rgb), 0.22);
   border-radius: 8px;
-  background: rgba(139, 92, 246, 0.07);
+  background: rgba(var(--accent-signal-rgb), 0.07);
 }
 
 .zor-policy-preview span {
@@ -1276,7 +1027,7 @@
 .zor-reporter-row {
   display: grid;
   grid-template-columns: minmax(150px, 1.2fr) minmax(120px, 0.9fr) 80px 70px minmax(108px, 0.8fr);
-  min-width: 650px;
+  min-width: min(650px, 100%);
   gap: var(--space-sm);
   align-items: center;
   padding: var(--space-sm) 0;
@@ -1303,7 +1054,7 @@
 .zor-rewards-row {
   display: grid;
   grid-template-columns: minmax(150px, 1.2fr) minmax(116px, 0.9fr) minmax(116px, 0.9fr) minmax(116px, 0.9fr) minmax(108px, 0.8fr);
-  min-width: 690px;
+  min-width: min(690px, 100%);
   gap: var(--space-sm);
   align-items: center;
   padding: var(--space-sm) 0;
@@ -1400,19 +1151,44 @@
 
 .zor-empty-state {
   min-height: 72px;
+  padding: var(--space-md);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-xs);
   border: 1px dashed rgba(148, 163, 184, 0.30);
   border-radius: 8px;
   color: var(--text-muted);
   font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.zor-empty-state strong {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+
+.zor-empty-state p {
+  margin: 0;
+  max-width: 42ch;
+  line-height: 1.45;
+}
+
+.zor-feed-row:focus-visible {
+  outline: 2px solid rgba(var(--accent-signal-rgb), 0.7);
+  outline-offset: 2px;
+}
+
+.zor-feed-row[aria-selected="true"] {
+  border-color: rgba(var(--accent-signal-rgb), 0.55);
+  background: rgba(var(--accent-signal-rgb), 0.12);
 }
 
 .zor-evidence-donut {
-  border-color: rgba(139, 92, 246, 0.78);
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.16), rgba(13, 18, 29, 0.92) 62%);
-  box-shadow: inset 0 0 32px rgba(139, 92, 246, 0.16);
+  border-color: rgba(var(--accent-signal-rgb), 0.78);
+  background: radial-gradient(circle, rgba(var(--accent-signal-rgb), 0.16), rgba(13, 18, 29, 0.92) 62%);
+  box-shadow: inset 0 0 32px rgba(var(--accent-signal-rgb), 0.16);
 }
 
 .zor-evidence-donut small {
@@ -1427,10 +1203,10 @@
 
 .zor-evidence-bar-row {
   display: grid;
-  grid-template-columns: minmax(132px, 1fr) minmax(86px, 0.9fr) 48px;
+  grid-template-columns: 120px minmax(40px, 1fr) 36px;
   align-items: center;
   gap: var(--space-sm);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
 }
 
 .zor-evidence-bar-row span {
@@ -1446,7 +1222,7 @@
 
 .zor-evidence-bar div {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6, #22c55e);
+  background: linear-gradient(90deg, #6366f1, var(--accent-signal), #22c55e);
 }
 
 .zor-event-strip {
@@ -1461,7 +1237,7 @@
   padding: var(--space-sm);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -1507,11 +1283,11 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-md);
   padding: var(--space-md);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background:
-    linear-gradient(90deg, rgba(30, 41, 59, 0.84), rgba(13, 18, 29, 0.92)),
-    rgba(13, 18, 29, 0.92);
+    linear-gradient(180deg, rgba(var(--accent-signal-rgb), 0.06), transparent),
+    var(--bg-panel);
 }
 
 .zor-feature-item {
@@ -1529,8 +1305,8 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  border: 1px solid rgba(139, 92, 246, 0.28);
-  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(var(--accent-signal-rgb), 0.28);
+  background: rgba(var(--accent-signal-rgb), 0.12);
   color: #ddd6fe;
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
@@ -1550,14 +1326,6 @@
 }
 
 @media (max-width: 1180px) {
-  .zor-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .zor-design-rail {
-    display: none;
-  }
-
   .zor-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1576,6 +1344,18 @@
 
   .zor-side-rail {
     position: static;
+  }
+}
+
+@media (max-width: 1450px) {
+  .zor-health-layout,
+  .zor-evidence-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .zor-health-ring,
+  .zor-evidence-donut {
+    justify-self: center;
   }
 }
 
@@ -1613,8 +1393,6 @@
   .zor-metrics,
   .zor-authority-summary,
   .zor-form-grid,
-  .zor-health-layout,
-  .zor-evidence-layout,
   .zor-read-grid,
   .zor-feed-detail-grid,
   .zor-two-up,
@@ -1631,10 +1409,367 @@
   .zor-evidence-donut {
     width: 132px;
     height: 132px;
-    justify-self: center;
   }
 
   .zor-inline-form {
     grid-template-columns: 1fr;
   }
+}
+
+/* ─── Status hero (Pass 3) ───────────────────────────────────────── */
+
+.zor-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-xl);
+  padding: var(--space-lg) var(--space-xl);
+}
+
+.zor-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.zor-hero-headline {
+  font-family: var(--font-serif);
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.zor-hero-lede {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  max-width: 65ch;
+}
+
+.zor-hero-aside {
+  display: flex;
+  gap: var(--space-xl);
+  align-items: center;
+}
+
+.zor-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.zor-hero-stat-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.zor-hero-stat-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Section actions (View all link, etc.) ─────────────────────── */
+
+.zor-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.zor-link-button {
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  color: var(--accent-signal);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--transition-fast);
+}
+
+.zor-link-button:hover {
+  border-bottom-color: currentColor;
+}
+
+.zor-link-button:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
+}
+
+/* ─── Action CTA row (Pass 3) ───────────────────────────────────── */
+
+.zor-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+
+.zor-action-cta {
+  flex: 1 1 auto;
+  min-width: 200px;
+  font-size: var(--font-size-sm);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ─── Diagnostics disclosure (Pass 3) ──────────────────────────── */
+
+.zor-diagnostics {
+  padding: 0;
+  overflow: hidden;
+}
+
+.zor-diagnostics-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  transition: background var(--transition-fast);
+}
+
+.zor-diagnostics-summary::-webkit-details-marker { display: none; }
+
+.zor-diagnostics-summary::before {
+  content: '▸';
+  display: inline-block;
+  color: var(--text-muted);
+  transition: transform 160ms ease;
+}
+
+.zor-diagnostics[open] > .zor-diagnostics-summary::before {
+  transform: rotate(90deg);
+}
+
+.zor-diagnostics-title {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.zor-diagnostics-hint {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.zor-diagnostics-summary:hover,
+.zor-diagnostics-summary:focus-visible {
+  background: rgba(255, 255, 255, 0.025);
+  outline: none;
+}
+
+[data-theme="light"] .zor-diagnostics-summary:hover,
+[data-theme="light"] .zor-diagnostics-summary:focus-visible {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.zor-diagnostics-body {
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+@media (max-width: 760px) {
+  .zor-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .zor-hero-aside {
+    gap: var(--space-lg);
+    justify-content: flex-start;
+  }
+  .zor-hero-stat {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+/* ─── Section bar (Pass 3 — replaces the duplicate topbar) ────────
+ * The main app header handles brand + wallet + theme; this strip
+ * only carries Oracle's *internal* section nav + posture chips. */
+
+.zor-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0 var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-lg);
+}
+
+.zor-section-bar > .zor-product-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zor-section-bar > .zor-product-nav button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.zor-section-bar > .zor-product-nav button:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.zor-section-bar > .zor-product-nav button:focus-visible {
+  outline: 2px solid var(--accent-signal);
+  outline-offset: 2px;
+}
+
+.zor-section-bar > .zor-product-nav button.zor-product-nav-active {
+  color: var(--text-primary);
+  background: var(--accent-signal-soft);
+  box-shadow: inset 0 -2px 0 var(--accent-signal);
+}
+
+.zor-section-bar-meta {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Fit-the-screen safeguard: dashboard never overflows its container.
+ * Workspace columns shrink instead of forcing horizontal scroll. */
+.zor-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.zor-dashboard {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  /* Below ~1100px, collapse the workspace to a single column rather
+   * than forcing the side rail to overlap the core. */
+  .zor-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .zor-side-rail {
+    position: static;
+  }
+}
+
+/* ─── Idle-data-plane Overview: hero get-started CTAs + readiness card ───
+ * On a fresh testnet (authority ready, no feeds/reads yet) the Overview
+ * condenses ~8 empty panels into one guiding readiness card and promotes the
+ * start actions into the hero. Built on existing tokens. */
+.zor-hero-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.zor-readiness-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-xl);
+  margin-top: var(--space-sm);
+}
+
+.zor-readiness-subhead {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-sm);
+}
+
+/* Themed status chips (reuse the subtle-chip base). */
+.zor-subtle-chip.zor-chip-ok {
+  color: var(--accent-green);
+  border-color: rgba(var(--accent-green-rgb), 0.4);
+}
+
+.zor-subtle-chip.zor-chip-warn {
+  color: var(--accent-warn);
+  border-color: var(--accent-warn);
+}
+
+/* Compact empty state for list-level / side-rail empties. */
+.zor-empty-state.zor-empty-compact {
+  min-height: auto;
+  padding: var(--space-sm) var(--space-md);
+}
+
+@media (max-width: 860px) {
+  .zor-readiness-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+}
+
+/* Light-theme status-chip contrast: the dark-tuned pastel chip text
+ * (#bbf7d0 / #fed7aa / #fecaca) washes out on light panels. Re-tint with the
+ * deeper per-theme accents so chips stay legible in both themes. */
+[data-theme="light"] .zor-status-fresh,
+[data-theme="light"] .zor-profile-ready,
+[data-theme="light"] .zor-reporter-active,
+[data-theme="light"] .zor-reward-payable {
+  color: var(--accent-green);
+}
+
+[data-theme="light"] .zor-status-stale,
+[data-theme="light"] .zor-status-high-uncertainty,
+[data-theme="light"] .zor-dispute-open,
+[data-theme="light"] .zor-dispute-appeal,
+[data-theme="light"] .zor-profile-pending,
+[data-theme="light"] .zor-reporter-pending {
+  color: var(--accent-warn);
+}
+
+/* Windowed-render footer for the full feeds list (bounded DOM). */
+.zor-feed-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Unknown/unreported evidence class — neutral, not a graded colour. */
+.zor-evidence-unknown {
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
 }

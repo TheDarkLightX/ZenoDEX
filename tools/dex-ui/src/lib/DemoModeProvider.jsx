@@ -12,7 +12,24 @@ function getRuntimeConfigDemoMode() {
     return raw.demoMode === true || raw.demoMode === 'true';
 }
 
+function runtimeAllowsDemoMode() {
+    if (typeof window === 'undefined') {
+        return true;
+    }
+    const raw = window.__ZENODEX_CONFIG__;
+    if (!raw || typeof raw !== 'object') {
+        return true;
+    }
+    if (raw.allowDemoMode === false || raw.allowDemoMode === 'false' || raw.allowDemoMode === 0 || raw.allowDemoMode === '0') {
+        return false;
+    }
+    return true;
+}
+
 function getInitialDemoMode() {
+    if (!runtimeAllowsDemoMode()) {
+        return false;
+    }
     if (typeof window !== 'undefined') {
         // 1. Check URL param (highest priority for testing)
         const urlParams = new URLSearchParams(window.location.search);
@@ -42,15 +59,15 @@ function getInitialDemoMode() {
         return import.meta.env.VITE_DEMO_MODE === 'true';
     }
 
-    // 5. Default: demo mode ON for safety (no accidental mainnet interactions)
-    return true;
+    // 5. Default: demo mode OFF for local testnet testing.
+    return false;
 }
 
 export function DemoModeProvider({ children }) {
     const [demoMode, setDemoModeState] = useState(getInitialDemoMode);
 
     const setDemoMode = useCallback((value) => {
-        const next = Boolean(value);
+        const next = runtimeAllowsDemoMode() ? Boolean(value) : false;
         setDemoModeState(next);
         try {
             localStorage.setItem('zenodex-demo-mode', next.toString());

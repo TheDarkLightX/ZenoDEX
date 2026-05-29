@@ -231,6 +231,12 @@
     background: rgba(var(--accent-rgb), 0.05);
 }
 
+.token-import-unavailable {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
 .import-form {
     display: flex;
     flex-direction: column;

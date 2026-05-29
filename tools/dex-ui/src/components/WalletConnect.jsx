@@ -3,6 +3,24 @@ import './WalletConnect.css';
 import { getRuntimeConfig } from '../lib/api.js';
 import { browserKeyGenerationAllowed, connectPreferredWallet } from '../sdk/walletSignerPolicy.js';
 
+function walletErrorMessage(error) {
+    const message = String(error?.message || error || '').trim();
+    const lower = message.toLowerCase();
+    if (
+        lower.includes('failed to fetch')
+        || lower.includes('fetch failed')
+        || lower.includes('networkerror')
+        || lower.includes('connection refused')
+        || lower.includes('err_connection_refused')
+    ) {
+        return 'Local signer unavailable';
+    }
+    if (message === 'external_signer_unavailable') {
+        return 'External signer unavailable';
+    }
+    return message || 'External signer unavailable';
+}
+
 function WalletConnect({ wallet, onConnect }) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -18,6 +36,7 @@ function WalletConnect({ wallet, onConnect }) {
             onConnect(await connectPreferredWallet({
                 chainId: runtimeConfig.chainId || 'zeno-ledger-localtest-v0',
                 globalObject: typeof window === 'undefined' ? globalThis : window,
+                runtimeConfig,
                 allowBrowserFallback: browserKeyGenerationAllowed({
                     locationSearch: typeof window === 'undefined' ? '' : window.location.search,
                     runtimeConfig,
@@ -26,7 +45,7 @@ function WalletConnect({ wallet, onConnect }) {
             }));
         } catch (error) {
             console.error('Failed to connect wallet:', error);
-            setConnectionError(error?.message || 'secure_signer_unavailable');
+            setConnectionError(walletErrorMessage(error));
         } finally {
             setIsConnecting(false);
         }
@@ -75,7 +94,7 @@ function WalletConnect({ wallet, onConnect }) {
                         <div className="dropdown-header">
                             <span className="connected-badge">
                                 <span className="connected-dot"></span>
-                                {wallet.browserLastResort ? 'Browser fallback signer' : 'Secure signer'}
+                                {wallet.browserLastResort ? 'Browser fallback signer' : 'External signer'}
                             </span>
                         </div>
 
@@ -128,7 +147,7 @@ function WalletConnect({ wallet, onConnect }) {
                 className="btn btn-primary wallet-connect-btn"
                 onClick={handleConnect}
                 disabled={isConnecting}
-                title={connectionError || 'Connect secure signer'}
+                title={connectionError || 'Connect external signer'}
             >
                 {isConnecting ? (
                     <>
