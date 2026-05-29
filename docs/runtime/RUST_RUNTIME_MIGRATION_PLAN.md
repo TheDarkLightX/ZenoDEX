@@ -56,8 +56,9 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
 | 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: state-root, perps math, tx/receipt hashes |
 | 7 | SPARK/Ada sidecar | ☐ fee-router kernel drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
-| 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (+ existing Tau/ESSO/Lean jobs) |
+| 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
+| I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
 
 > The Phase 0–9 numbering above is the original internal milestone scheme. The
 > "remaining-phases" task (`internal/prompts/claude_complete_runtime_port_remaining_phases_2026_05_29.md`)
@@ -72,8 +73,8 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 
 | Surface | Python authority | Rust | GT | Diff | Inv | SPARK | OCaml | Next action |
 |---------|------------------|------|----|----|-----|-------|-------|-------------|
-| Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | planned | fuzz (promotion) |
-| Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | planned | fuzz (promotion) |
+| Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | ✅ oracle | fuzz (promotion) |
+| Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | ✅ oracle | fuzz (promotion) |
 | Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | fuzz (promotion) |
 | zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ + `_reference` (13) | — | — | promotion gate (fuzz) |
 | Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | candidate (Phase H) | — | receipt-body JSON hash (Phase F) |
