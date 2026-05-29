@@ -16,6 +16,7 @@
 //! zenodex-runtime advance-epoch        <cases.json|->   # perps E2 advance_epoch
 //! zenodex-runtime funding-auto         <cases.json|->   # perps E2 apply_funding_auto
 //! zenodex-runtime publish-clearing-price <cases.json|-> # perps E2 publish_clearing_price
+//! zenodex-runtime settle-epoch         <cases.json|->   # perps E2 settle_epoch
 //! ```
 //!
 //! Each reads a golden trace (see `docs/runtime/GOLDEN_TRACE_FORMAT.md`), replays
@@ -54,6 +55,7 @@ use zenodex_runtime_core::perp_math;
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
 };
+use zenodex_runtime_core::perp_settle_epoch::{settle_epoch, SettleAccount, SettleEpochInput};
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::state_root::{
     compute_state_root, BalanceEntry, LpDurationEntry, LpEntry, NonceEntry, PoolEntry, PoolStatus,
@@ -1295,6 +1297,172 @@ fn run_publish_clearing_price_cases(req: &Value) -> Result<PublishClearingPriceO
     })
 }
 
+// --- settle_epoch shadow (stateful perps E2 slice) ----------------------------
+
+#[derive(Serialize)]
+struct SettleAccountOut {
+    key: String,
+    position_base: String,
+    collateral_quote: String,
+    entry_price_e8: String,
+    liquidated_this_step: bool,
+}
+
+#[derive(Serialize)]
+struct SettleEpochCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    epoch_phase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oracle_last_update_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oracle_seen: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    index_price_e8: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    breaker_active: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    breaker_last_trigger_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fee_pool_quote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fee_income: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    insurance_balance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    accounts: Option<Vec<SettleAccountOut>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SettleEpochOutputDoc {
+    version: u32,
+    results: Vec<SettleEpochCaseResult>,
+}
+
+fn settle_epoch_err(index: usize, code: &str) -> SettleEpochCaseResult {
+    SettleEpochCaseResult {
+        index,
+        ok: false,
+        epoch_phase: None,
+        oracle_last_update_epoch: None,
+        oracle_seen: None,
+        index_price_e8: None,
+        breaker_active: None,
+        breaker_last_trigger_epoch: None,
+        fee_pool_quote: None,
+        fee_income: None,
+        insurance_balance: None,
+        accounts: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_settle_epoch_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<SettleEpochCaseResult, String> {
+    let accounts_val = obj
+        .get("accounts")
+        .and_then(Value::as_array)
+        .ok_or("malformed_case")?;
+    let mut accounts = Vec::with_capacity(accounts_val.len());
+    for av in accounts_val {
+        let ao = av.as_object().ok_or("malformed_case")?;
+        let key = ao
+            .get("key")
+            .and_then(Value::as_str)
+            .ok_or("malformed_case")?
+            .to_string();
+        accounts.push(SettleAccount {
+            key,
+            position_base: arg_mag(ao, "position_base")?,
+            collateral_quote: arg_mag(ao, "collateral_quote")?,
+            entry_price_e8: arg_mag(ao, "entry_price_e8")?,
+            liquidated_this_step: arg_bool(ao, "liquidated_this_step")?,
+        });
+    }
+
+    let input = SettleEpochInput {
+        now_epoch: arg_mag(obj, "now_epoch")?,
+        epoch_phase: arg_mag(obj, "epoch_phase")?,
+        clearing_price_seen: arg_bool(obj, "clearing_price_seen")?,
+        clearing_price_epoch: arg_mag(obj, "clearing_price_epoch")?,
+        clearing_price_e8: arg_mag(obj, "clearing_price_e8")?,
+        oracle_last_update_epoch: arg_mag(obj, "oracle_last_update_epoch")?,
+        oracle_seen: arg_bool(obj, "oracle_seen")?,
+        index_price_e8: arg_mag(obj, "index_price_e8")?,
+        max_oracle_move_bps: arg_bps(obj, "max_oracle_move_bps")?,
+        maintenance_margin_bps: arg_bps(obj, "maintenance_margin_bps")?,
+        depeg_buffer_bps: arg_bps(obj, "depeg_buffer_bps")?,
+        liquidation_penalty_bps: arg_bps(obj, "liquidation_penalty_bps")?,
+        min_notional_for_bounty: arg_mag(obj, "min_notional_for_bounty")?,
+        fee_pool_quote: arg_mag(obj, "fee_pool_quote")?,
+        fee_income: arg_mag(obj, "fee_income")?,
+        initial_insurance: arg_mag(obj, "initial_insurance")?,
+        claims_paid: arg_mag(obj, "claims_paid")?,
+        breaker_active: arg_bool(obj, "breaker_active")?,
+        breaker_last_trigger_epoch: arg_mag(obj, "breaker_last_trigger_epoch")?,
+        accounts,
+    };
+
+    match settle_epoch(&input) {
+        Ok(out) => Ok(SettleEpochCaseResult {
+            index: 0,
+            ok: true,
+            epoch_phase: Some(out.epoch_phase.to_string()),
+            oracle_last_update_epoch: Some(out.oracle_last_update_epoch.to_string()),
+            oracle_seen: Some(out.oracle_seen),
+            index_price_e8: Some(out.index_price_e8.to_string()),
+            breaker_active: Some(out.breaker_active),
+            breaker_last_trigger_epoch: Some(out.breaker_last_trigger_epoch.to_string()),
+            fee_pool_quote: Some(out.fee_pool_quote.to_string()),
+            fee_income: Some(out.fee_income.to_string()),
+            insurance_balance: Some(out.insurance_balance.to_string()),
+            accounts: Some(
+                out.accounts
+                    .iter()
+                    .map(|a| SettleAccountOut {
+                        key: a.key.clone(),
+                        position_base: a.position_base.to_string(),
+                        collateral_quote: a.collateral_quote.to_string(),
+                        entry_price_e8: a.entry_price_e8.to_string(),
+                        liquidated_this_step: a.liquidated_this_step,
+                    })
+                    .collect(),
+            ),
+            code: None,
+        }),
+        Err(code) => Ok(settle_epoch_err(0, code)),
+    }
+}
+
+fn run_settle_epoch_cases(req: &Value) -> Result<SettleEpochOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_settle_epoch_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => settle_epoch_err(index, &code),
+            },
+            None => settle_epoch_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(SettleEpochOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
 
 #[derive(Serialize)]
@@ -1535,13 +1703,14 @@ fn main() -> ExitCode {
                 | "advance-epoch"
                 | "funding-auto"
                 | "publish-clearing-price"
+                | "settle-epoch"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
-             publish-clearing-price> <input.json|->"
+             publish-clearing-price|settle-epoch> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1660,6 +1829,25 @@ fn main() -> ExitCode {
 
     if subcommand == "publish-clearing-price" {
         return match run_publish_clearing_price_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "settle-epoch" {
+        return match run_settle_epoch_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
