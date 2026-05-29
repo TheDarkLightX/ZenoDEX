@@ -104,6 +104,7 @@ def main(argv: Sequence[str]) -> None:
             pools=state.pools,
             lp_balances=state.lp_balances,
             nonces=state.nonces,
+            fee_accumulator=state.fee_accumulator,
         )
         intents = parse_intents(dict(ops))
         settlement = parse_settlement(dict(ops))

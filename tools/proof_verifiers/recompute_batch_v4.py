@@ -163,6 +163,17 @@ def _load_witness(proof: Mapping[str, Any]) -> Tuple[Mapping[str, Any], Mapping[
     return snapshot, operations
 
 
+def _projected_snapshot_scope_error(state: Any) -> Optional[str]:
+    fee_acc = getattr(state, "fee_accumulator", None)
+    if int(getattr(fee_acc, "dust", 0)) != 0:
+        return "projected pre_state_snapshot carries unbound fee_accumulator dust"
+    if getattr(state, "vault", None) is not None:
+        return "projected pre_state_snapshot carries unbound vault state"
+    if getattr(state, "oracle", None) is not None:
+        return "projected pre_state_snapshot carries unbound oracle state"
+    return None
+
+
 def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     schema = payload.get("schema")
     if schema != "zenodex_proof":
@@ -186,12 +197,18 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     if proof_batch != batch_commitment:
         return False, "proof/batch_commitment mismatch"
 
-    snapshot, operations = _load_witness(proof)
+    try:
+        snapshot, operations = _load_witness(proof)
+    except (TypeError, ValueError) as exc:
+        return False, f"invalid embedded witness: {exc}"
 
     try:
         state = state_from_snapshot(snapshot)
     except Exception as exc:
         return False, f"invalid pre_state_snapshot: {exc}"
+    scope_error = _projected_snapshot_scope_error(state)
+    if scope_error is not None:
+        return False, scope_error
 
     try:
         intents = parse_intents(dict(operations))

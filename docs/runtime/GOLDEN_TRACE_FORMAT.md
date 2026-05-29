@@ -221,8 +221,9 @@ and emit `{ "version": 1, "results": [ ... ] }`:
   malformed hex / domain labels reject with stable codes
   (`float_not_allowed`, `bad_hex_format`, `bad_hex_chars`, `bad_domain_label`,
   `bad_domain_version`).
-* **`verify-state-root`** — network state-root (v4). Each case is a full state
-  snapshot (`balances`/`pools`/`lp_balances`/`lp_duration_risk`/`nonces`); the
+* **`verify-state-root`** — network state-root (v5). Each case is a full state
+  snapshot (`balances`/`pools`/`lp_balances`/`lp_duration_risk`/`nonces`/
+  `fee_accumulator`); the
   result is `{"ok":true,"state_root":"0x.."}` or `{"ok":false,"code":".."}`.
 * **`perp-math`** — perp stateless risk math (`src/core/perp_v2/math.py`). Each
   case is `{"op":<fn>, <args...>}` for one of `is_oracle_fresh`,

@@ -796,11 +796,25 @@ fn each_obj(state: &Value, key: &str) -> Result<Vec<serde_json::Map<String, Valu
     }
 }
 
+fn fee_accumulator_dust(state: &Value) -> Result<u128, String> {
+    match state.get("fee_accumulator") {
+        None | Some(Value::Null) => Ok(0),
+        Some(Value::Object(o)) => match o.get("dust") {
+            None | Some(Value::Null) => Ok(0),
+            Some(_) => req_u128(o, "dust"),
+        },
+        Some(_) => Err("malformed_state".to_string()),
+    }
+}
+
 fn parse_state(state: &Value) -> Result<StateInput, String> {
     if !state.is_object() {
         return Err("malformed_state".to_string());
     }
-    let mut input = StateInput::default();
+    let mut input = StateInput {
+        fee_accumulator_dust: fee_accumulator_dust(state)?,
+        ..Default::default()
+    };
     for o in each_obj(state, "balances")? {
         input.balances.push(BalanceEntry {
             pubkey: req_str(&o, "pubkey")?,

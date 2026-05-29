@@ -11,7 +11,44 @@ from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
 
 
 def test_state_root_version_commits_lp_age_schema() -> None:
-    assert STATE_ROOT_VERSION == 4
+    assert STATE_ROOT_VERSION == 5
+
+
+def test_state_root_binds_fee_accumulator_dust() -> None:
+    from src.core.fees import FeeAccumulatorState
+
+    pk = "0x" + "11" * 48
+    asset = "0x" + "0a" * 32
+    balances = BalanceTable()
+    balances.set(pk, asset, 1000)
+
+    def root(fee) -> str:
+        return compute_state_root(
+            balances=balances,
+            pools={},
+            lp_balances=LPTable(),
+            nonces=NonceTable(),
+            fee_accumulator=fee,
+        )
+
+    assert root(None) == root(FeeAccumulatorState(dust=0))
+    assert root(FeeAccumulatorState(dust=0)) != root(FeeAccumulatorState(dust=7))
+
+
+def test_state_root_rejects_invalid_fee_accumulator_dust() -> None:
+    balances = BalanceTable()
+    balances.set("0x" + "11" * 48, "0x" + "0a" * 32, 1)
+
+    class BadFee:
+        dust = -1
+
+    with pytest.raises(ValueError):
+        compute_state_root(
+            balances=balances,
+            pools={},
+            lp_balances=LPTable(),
+            fee_accumulator=BadFee(),
+        )
 
 
 def test_state_root_is_insertion_order_independent() -> None:

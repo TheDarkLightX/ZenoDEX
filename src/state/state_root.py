@@ -1,10 +1,21 @@
 """
-Deterministic state root hashing (v4).
+Deterministic state root hashing (v5).
 
 This is intended for:
 - debugging / audit (stable hashes for the same logical state),
 - parity checking between kernels (Python vs reference models),
-- future integration where state commitment is required.
+- the spot-DEX ledger state commitment (header pre/post_state_root via
+  ``dex_state_root_v0``) and the recompute_batch v1/v2 proof schemes.
+
+Scope (spot-DEX lane): this root commits the spot-DEX state mutated by the
+DEX-lane apply path: balances, pools, LP balances + duration-risk metadata,
+nonces, and (since v5) the ``fee_accumulator`` dust carry. ``apply_ops``
+advances the dust accumulator on fee-bearing settlement and the snapshot
+persists it, so it must be bound by the committed root. Other ledger lanes
+(zUSD, perps, oracle, and vault) maintain their own per-lane roots; they are
+outside this spot-DEX root because this apply path does not mutate them.
+
+v5 added the FEE section. v4 omitted fee_accumulator.
 """
 
 from __future__ import annotations
@@ -23,7 +34,7 @@ from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus
 
-STATE_ROOT_VERSION = 4
+STATE_ROOT_VERSION = 5
 
 _POOL_STATUS_CODE: dict[PoolStatus, int] = {
     PoolStatus.ACTIVE: 1,
@@ -213,17 +224,45 @@ def _encode_nonce_section(nonces: NonceTable) -> bytes:
     return bytes(out)
 
 
+def _fee_accumulator_dust(fee_accumulator: object | None) -> int:
+    """Extract and validate the fee-accumulator dust carry.
+
+    Accepts ``None`` (treated as an empty accumulator, dust == 0, identical to
+    ``FeeAccumulatorState()``) or any object exposing a non-negative int
+    ``dust`` attribute. The class is intentionally not imported here so that
+    ``src/state`` stays a leaf layer with no dependency on ``src/core``.
+    """
+    if fee_accumulator is None:
+        return 0
+    dust = getattr(fee_accumulator, "dust", None)
+    if not isinstance(dust, int) or isinstance(dust, bool) or dust < 0:
+        raise ValueError(f"invalid fee_accumulator dust: {dust!r}")
+    return int(dust)
+
+
+def _encode_fee_section(fee_accumulator: object | None) -> bytes:
+    # FEE section (state-root v5): currently the single dust carry. If
+    # FeeAccumulatorState gains fields, append them here and bump the state-root
+    # version so the committed root keeps binding all consensus-relevant fee
+    # state.
+    return encode_uvarint(_fee_accumulator_dust(fee_accumulator))
+
+
 def compute_state_root(
     *,
     balances: BalanceTable,
     pools: Mapping[str, PoolState],
     lp_balances: LPTable,
     nonces: NonceTable | None = None,
+    fee_accumulator: object | None = None,
 ) -> str:
     """
-    Compute a deterministic state root hash for the DEX state.
+    Compute a deterministic state root hash for the spot-DEX state.
 
-    Returns a 0x-prefixed sha256 digest.
+    Binds balances, pools, LP balances + duration-risk metadata, nonces, and
+    (since v5) the ``fee_accumulator`` dust carry. ``fee_accumulator=None`` is
+    equivalent to an empty accumulator (dust == 0). Returns a 0x-prefixed
+    sha256 digest.
     """
     if not isinstance(balances, BalanceTable):
         raise TypeError("balances must be a BalanceTable")
@@ -233,23 +272,53 @@ def compute_state_root(
     if not isinstance(nonce_table, NonceTable):
         raise TypeError("nonces must be a NonceTable")
 
-    balances_section = _encode_balances_section(balances)
-    pools_section = _encode_pools_section(pools)
-    lp_section = _encode_lp_section(lp_balances)
-    lp_duration_risk_section = _encode_lp_duration_risk_section(lp_balances)
-    nonce_section = _encode_nonce_section(nonce_table)
-
-    payload = (
-        domain_sep_bytes("state_root", version=STATE_ROOT_VERSION)
-        + b"BAL"
-        + encode_bytes(balances_section)
-        + b"POL"
-        + encode_bytes(pools_section)
-        + b"LPB"
-        + encode_bytes(lp_section)
-        + b"LPA"
-        + encode_bytes(lp_duration_risk_section)
-        + b"NNC"
-        + encode_bytes(nonce_section)
+    return sha256_hex(
+        state_root_preimage(
+            balances=balances,
+            pools=pools,
+            lp_balances=lp_balances,
+            nonces=nonce_table,
+            fee_accumulator=fee_accumulator,
+        )
     )
-    return sha256_hex(payload)
+
+
+# Ordered section framing for the state-root preimage. Each entry is a 3-byte
+# ASCII label followed by a length-prefixed (`encode_bytes`) section body. The
+# length prefix makes framing self-delimiting, so the concatenation is injective
+# in the section tuple. See tools/runtime/state_root_injectivity.py and
+# tests/runtime/test_state_root_injectivity_proof.py for the checked decoder
+# round-trip proof.
+STATE_ROOT_SECTION_LABELS: tuple[bytes, ...] = (b"BAL", b"POL", b"LPB", b"LPA", b"NNC", b"FEE")
+
+
+def state_root_preimage(
+    *,
+    balances: BalanceTable,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    nonces: NonceTable | None = None,
+    fee_accumulator: object | None = None,
+) -> bytes:
+    """Build the canonical state-root preimage bytes, the input to sha256."""
+    if not isinstance(balances, BalanceTable):
+        raise TypeError("balances must be a BalanceTable")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
+
+    sections = {
+        b"BAL": _encode_balances_section(balances),
+        b"POL": _encode_pools_section(pools),
+        b"LPB": _encode_lp_section(lp_balances),
+        b"LPA": _encode_lp_duration_risk_section(lp_balances),
+        b"NNC": _encode_nonce_section(nonce_table),
+        b"FEE": _encode_fee_section(fee_accumulator),
+    }
+    out = bytearray(domain_sep_bytes("state_root", version=STATE_ROOT_VERSION))
+    for label in STATE_ROOT_SECTION_LABELS:
+        out += label
+        out += encode_bytes(sections[label])
+    return bytes(out)
