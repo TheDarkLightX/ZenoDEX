@@ -80,7 +80,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | orchestration (multi-pool/CoW/ordering) deferred |
 | State root (network) | `src/state/state_root.py` | ✅ v4 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
-| Perps math (stateless) | `src/core/perp_v2/math.py` | ❌ | ❌ | ❌ | ❌ | — | — | new `perp_math.rs` (i128 + floor-div) (Phase E1) |
+| Perps math (stateless) | `src/core/perp_v2/math.py` | ✅ E1 (9 fns) | n/a | ✅ shadow | ✅ sign-sym | — | — | stateful engine/lifecycle = E2 (deferred) |
 | Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ✅ `domain_json_hash` op | n/a | ✅ vectors | ✅ sensitivity | — | — | shape-gate + BLS verify still out of scope |
 | Batch-clearing orchestration | `src/core/batch_clearing.py` (2129 ln) | ❌ | — | — | — | — | — | **OUT OF SCOPE** (multi-pool/CoW/ordering deferred) |
 | Revenue router (fine-source) | *(not on `main`)* | n/a | — | — | — | — | — | hybrid-economics branch only — separate prompt |

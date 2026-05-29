@@ -97,3 +97,4 @@ These fail on the buggy global-state model and pass on the keyed model.
 | `canonical` | per-value (stateless) | n/a (primitive vectors) | ✅ static + 3×400 randomized |
 | `state_root` | `(pubkey,asset)` / `pool_id` / `(pubkey,pool_id)` / `pubkey` | ✅ Python (determinism, order-independence, sensitivity, duplicate-key + bad-encoding rejection) | ✅ static + 4×250 randomized |
 | `tx_receipt_hash` | per-message (stateless) | ✅ Python (chain-id binding, field/body tamper sensitivity) | ✅ static + 3×300 randomized |
+| `perp_math` (E1) | per-call (stateless) | ✅ Python (PnL/funding sign symmetry, settle-clamp band non-zero) | ✅ static + 4×500 randomized |

@@ -224,6 +224,14 @@ and emit `{ "version": 1, "results": [ ... ] }`:
 * **`verify-state-root`** — network state-root (v4). Each case is a full state
   snapshot (`balances`/`pools`/`lp_balances`/`lp_duration_risk`/`nonces`); the
   result is `{"ok":true,"state_root":"0x.."}` or `{"ok":false,"code":".."}`.
+* **`perp-math`** — perp stateless risk math (`src/core/perp_v2/math.py`). Each
+  case is `{"op":<fn>, <args...>}` for one of `is_oracle_fresh`,
+  `oracle_move_violated`, `settle_price`, `notional_quote`, `maint_margin_req`,
+  `init_margin_req`, `pnl_quote`, `is_liquidatable`, `funding_payment`. Results
+  carry a `flag` (predicates) or a decimal-string `value` (signed `i128`).
+  Inputs are signed; magnitude args beyond ±1e18 or bps args beyond ±1e7 reject
+  with `out_of_domain` (the Python authority is unbounded — out-of-domain inputs
+  are not part of the differential).
 
 ## Rejection codes (stable)
 
