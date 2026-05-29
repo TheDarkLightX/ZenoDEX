@@ -28,7 +28,7 @@ def static_cases() -> list[dict]:
         {"params": {"min_notional_for_bounty": 100}},
         {"params": {"liquidation_penalty_bps": 80}, "positions": [(pk, 500_000)]},
         {"params": {"max_position_abs": 100_000}, "positions": [(pk, 500_000)]},
-        {"params": {"funding_cap_bps": 500}},
+        {"params": {"funding_cap_bps": 50}, "funding_rate_bps": 80},
         {"params": {"initial_margin_bps": 2000, "maintenance_margin_bps": 600}},
     ]
 
@@ -57,6 +57,7 @@ def test_rust_matches_python_static(rust_bin):
     assert py[5]["reason"] == "set_market_params_min_notional"
     assert py[6]["reason"] == "set_market_params_anti_farming"
     assert py[7]["reason"] == "set_market_params_account_unsafe"
+    assert py[8]["ok"] and py[8]["funding_rate_bps"] == 50
 
 
 def test_rust_matches_golden_trace(rust_bin):
