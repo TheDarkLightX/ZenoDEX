@@ -26,6 +26,7 @@ on:
       - "tools/runtime/**"
       - "tests/runtime/**"
       - "rust-runtime/**"
+      - "ocaml-runtime/**"
       - ".github/workflows/runtime-shadow.yml"
   push:
     branches:
@@ -50,6 +51,7 @@ on:
       - "tools/runtime/**"
       - "tests/runtime/**"
       - "rust-runtime/**"
+      - "ocaml-runtime/**"
       - ".github/workflows/runtime-shadow.yml"
   workflow_dispatch:
 
@@ -83,7 +85,11 @@ jobs:
             --ignore=tests/runtime/test_replay_guard_conformance.py \
             --ignore=tests/runtime/test_balance_kernel_conformance.py \
             --ignore=tests/runtime/test_zusd_conformance.py \
-            --ignore=tests/runtime/test_burn_receipts_conformance.py
+            --ignore=tests/runtime/test_burn_receipts_conformance.py \
+            --ignore=tests/runtime/test_canonical_primitives_vectors.py \
+            --ignore=tests/runtime/test_state_root_vectors.py \
+            --ignore=tests/runtime/test_tx_receipt_hash_vectors.py \
+            --ignore=tests/runtime/test_perp_math_vectors.py
 
       - name: Golden traces export deterministically (byte-stable)
         run: |
@@ -159,3 +165,32 @@ jobs:
           for f in smoke replay_guard_smoke balance_smoke zusd_smoke burn_smoke cpmm_smoke; do
             python3 tools/runtime/rust_shadow_replay.py "tests/runtime/golden_traces/$f.json"
           done
+
+  ocaml-spec:
+    name: OCaml spec oracle (dune build/test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Vectors are in sync with the Python authority
+        run: python3 tools/runtime/ocaml_spec_vectors.py --check
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5"
+
+      - name: Install dune
+        run: opam install -y dune
+
+      - name: dune build && dune test
+        working-directory: ocaml-runtime
+        run: |
+          opam exec -- dune build
+          opam exec -- dune test
