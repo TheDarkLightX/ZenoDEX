@@ -61,7 +61,7 @@ from ..core.perp_epoch import (
     perp_epoch_isolated_default_initial_state,
 )
 from ..core.perp_v2.funding_rule import compute_funding_rate_bps
-from ..core.perp_v2.math import MAX_COLLATERAL, MAX_FUNDING_CUMULATIVE
+from ..core.perp_v2.math import MAX_COLLATERAL
 from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
 from ..core.perp_v2.math import is_oracle_fresh as _perp_v2_is_oracle_fresh
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
@@ -2274,6 +2274,9 @@ def _apply_isolated_apply_funding_auto(
         projected_net_funding_quote=int(projected_net_funding),
         any_funding_applied_this_epoch=any_funding_applied_this_epoch,
         net_position_base=int(net_position_base),
+        fee_pool_quote=int(market.global_state.get("fee_pool_quote", 0)),
+        fee_income=int(market.global_state.get("fee_income", 0)),
+        insurance_balance=int(market.global_state.get("insurance_balance", 0)),
     )
     gate_error = perp_apply_funding_auto_gate_error(funding_gate)
     if gate_error is not None:
@@ -2299,50 +2302,23 @@ def _apply_isolated_apply_funding_auto(
         new_accounts[str(pk)] = post_acct
         applied_accounts += 1
 
-    residual_target: str | None = None
-    residual_adjustment_quote = 0
-    if projected_net_funding != 0:
-        if new_rate_bps == 0 or net_position_base != 0:
-            return "internal error: funding residual requires zero-net nonzero-rate book"
-        def _is_funding_payer(acct: PerpAccountState) -> bool:
-            return (int(acct.position_base) >= 0) == (new_rate_bps >= 0)
-
-        if projected_net_funding > 0:
-            candidates = tuple(
-                (pk, acct)
-                for pk, acct in open_accounts
-                if not _is_funding_payer(acct)
-            )
-        else:
-            candidates = tuple(
-                (pk, acct)
-                for pk, acct in open_accounts
-                if _is_funding_payer(acct)
-            )
-        if not candidates:
-            return "internal error: no funding residual target"
-        residual_target, _ = max(candidates, key=lambda item: (abs(int(item[1].position_base)), str(item[0])))
-        post_target = new_accounts[str(residual_target)]
-        residual_adjustment_quote = -int(projected_net_funding)
-        adjusted_collateral = int(post_target.collateral_quote) - residual_adjustment_quote
-        adjusted_cumulative = int(post_target.funding_paid_cumulative) + residual_adjustment_quote
-        if adjusted_collateral < 0 or adjusted_collateral > MAX_COLLATERAL:
-            return "apply_funding_auto residual adjustment would violate collateral bounds"
-        if adjusted_cumulative < -MAX_FUNDING_CUMULATIVE or adjusted_cumulative > MAX_FUNDING_CUMULATIVE:
-            return "apply_funding_auto residual adjustment would violate cumulative funding bounds"
-        maint_req = _perp_v2_maint_margin_req(
-            int(post_target.position_base),
-            int(market.global_state.get("index_price_e8", 0)),
-            int(market.global_state.get("maintenance_margin_bps", 0)),
-            int(market.global_state.get("depeg_buffer_bps", 0)),
-        )
-        if adjusted_collateral < maint_req:
-            return "apply_funding_auto residual adjustment would violate maintenance margin"
-        new_accounts[str(residual_target)] = replace(
-            post_target,
-            collateral_quote=int(adjusted_collateral),
-            funding_paid_cumulative=int(adjusted_cumulative),
-        )
+    # Zero-sum funding settlement via a bounded sink. Each open account already
+    # received its exact floor-divided funding_payment above, so
+    #   Δ(Σ collateral) = -projected_net_funding.
+    # Route the net (structural OI imbalance + floor-rounding residual, either
+    # sign) into the protocol sink so total value is conserved:
+    #   Δ(Σ collateral + fee_pool_quote) = -projected_net + projected_net = 0.
+    # Bumping fee_income and insurance_balance by the same delta keeps the
+    # persistent identities intact (fee_pool_quote == fee_income;
+    # insurance_balance == initial_insurance + fee_income - claims_paid). The
+    # gate already rejected (before any mutation) any net that would drive a
+    # sink below 0 or above the finite-domain max, so no user account ever
+    # absorbs a global accounting residual.
+    funding_sink_delta = int(projected_net_funding)
+    if funding_sink_delta != 0:
+        expected_global["fee_pool_quote"] = int(expected_global["fee_pool_quote"]) + funding_sink_delta
+        expected_global["fee_income"] = int(expected_global["fee_income"]) + funding_sink_delta
+        expected_global["insurance_balance"] = int(expected_global["insurance_balance"]) + funding_sink_delta
 
     ctx.markets[market_id] = PerpMarketState(
         quote_asset=market.quote_asset,
@@ -2359,8 +2335,7 @@ def _apply_isolated_apply_funding_auto(
             "accounts_applied": int(applied_accounts),
             "raw_projected_net_funding_quote": int(projected_net_funding),
             "net_position_base": int(net_position_base),
-            "funding_rounding_residual_target": residual_target,
-            "funding_rounding_residual_adjustment_quote": int(residual_adjustment_quote),
+            "funding_sink_delta_quote": funding_sink_delta,
         }
     )
     return None
