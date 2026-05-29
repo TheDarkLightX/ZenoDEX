@@ -147,6 +147,11 @@ def quote_cpmm_swap_exact_out(
         amount_out=amount_out,
         fee_bps=fee_bps,
     )
+    if res.new_reserve_in > DEX_POOL_RESERVE_MAX:
+        raise ValueError(
+            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
+            f"{reserve_in} + {res.amount_in}"
+        )
     gap_bps = _gap_bps(overdelivery_gap=int(res.overdelivery_gap), amount_out=amount_out)
     if gap_bps > max_overdelivery_gap_bps:
         raise ValueError(
