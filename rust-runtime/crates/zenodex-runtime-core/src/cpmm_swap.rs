@@ -265,10 +265,13 @@ pub fn swap_exact_out(
     let net_in = ceil_div(reserve_in * amount_out, reserve_out - amount_out);
     let gross_in = ceil_div(net_in * BPS_DENOM, BPS_DENOM - pool.fee_bps);
     let fee_total = gross_in - net_in;
+    let new_in = reserve_in + gross_in;
+    if new_in > DEX_POOL_RESERVE_MAX {
+        return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
+    }
     if gross_in > max_amount_in {
         return Err(REJ_SLIPPAGE);
     }
-    let new_in = reserve_in + gross_in;
     let new_out = reserve_out - amount_out;
     Ok(Accepted {
         receipt: SwapReceipt {
@@ -337,6 +340,17 @@ mod tests {
         assert_eq!(
             swap_exact_out(&p, true, 1_000_000, u128::MAX),
             Err(REJ_AMOUNT_OUT_GE_RESERVE)
+        );
+    }
+
+    #[test]
+    fn exact_out_rejects_reserve_domain_exceeded() {
+        let p = init_pool(&Pool::default(), DEX_POOL_RESERVE_MAX, 1_000_000, 30)
+            .unwrap()
+            .pool;
+        assert_eq!(
+            swap_exact_out(&p, true, 1, u128::MAX),
+            Err(REJ_RESERVE_DOMAIN_EXCEEDED)
         );
     }
 

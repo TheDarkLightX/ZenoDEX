@@ -32,7 +32,12 @@ from src.kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
     quote_cpmm_swap_exact_out,
 )
-from tools.runtime.cpmm_settlement_lib import Pool, REJ_SLIPPAGE, apply_tx
+from tools.runtime.cpmm_settlement_lib import (
+    Pool,
+    REJ_RESERVE_DOMAIN_EXCEEDED,
+    REJ_SLIPPAGE,
+    apply_tx,
+)
 
 
 def _directed(pool: Pool, zfo: bool) -> tuple[int, int]:
@@ -156,6 +161,28 @@ def test_slippage_admission_exact_out():
     ok, new_pool, reason, _ = apply_tx(pool, {**base, "max_amount_in": q.amount_in - 1})
     assert not ok and reason == REJ_SLIPPAGE
     assert (new_pool.reserve0, new_pool.reserve1) == (pool.reserve0, pool.reserve1)
+
+
+def test_exact_out_rejects_reserve_domain_exceeded():
+    pool = Pool(
+        initialized=True,
+        reserve0=DEX_POOL_RESERVE_MAX,
+        reserve1=1_000_000,
+        fee_bps=30,
+    )
+    ok, new_pool, reason, rh = apply_tx(
+        pool,
+        {
+            "kind": "swap_exact_out",
+            "zero_for_one": True,
+            "amount_out": 1,
+            "max_amount_in": DEX_SWAP_AMOUNT_MAX,
+        },
+    )
+    assert not ok
+    assert reason == REJ_RESERVE_DOMAIN_EXCEEDED
+    assert new_pool == pool
+    assert rh is None
 
 
 # --- I4: rejects are no-ops --------------------------------------------------

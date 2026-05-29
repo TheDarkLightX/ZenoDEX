@@ -27,6 +27,7 @@ on:
       - "tests/runtime/**"
       - "rust-runtime/**"
       - "ocaml-runtime/**"
+      - "spark-kernels/**"
       - ".github/workflows/runtime-shadow.yml"
   push:
     branches:
@@ -52,6 +53,7 @@ on:
       - "tests/runtime/**"
       - "rust-runtime/**"
       - "ocaml-runtime/**"
+      - "spark-kernels/**"
       - ".github/workflows/runtime-shadow.yml"
   workflow_dispatch:
 
@@ -86,6 +88,7 @@ jobs:
             --ignore=tests/runtime/test_balance_kernel_conformance.py \
             --ignore=tests/runtime/test_zusd_conformance.py \
             --ignore=tests/runtime/test_burn_receipts_conformance.py \
+            --ignore=tests/runtime/test_cpmm_settlement_conformance.py \
             --ignore=tests/runtime/test_canonical_primitives_vectors.py \
             --ignore=tests/runtime/test_state_root_vectors.py \
             --ignore=tests/runtime/test_tx_receipt_hash_vectors.py \
@@ -155,6 +158,7 @@ jobs:
             tests/runtime/test_balance_kernel_conformance.py \
             tests/runtime/test_zusd_conformance.py \
             tests/runtime/test_burn_receipts_conformance.py \
+            tests/runtime/test_cpmm_settlement_conformance.py \
             tests/runtime/test_canonical_primitives_vectors.py \
             tests/runtime/test_state_root_vectors.py \
             tests/runtime/test_tx_receipt_hash_vectors.py \

@@ -55,7 +55,7 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; `hex_to_bytes_fixed`/`canonical_json_bytes` + full network state-root parity in progress (see gap map) |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
 | 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: state-root, perps math, tx/receipt hashes |
-| 7 | SPARK/Ada sidecar | ☐ fee-router kernel drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
+| 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
 | 9 | Promotion criteria | ☐ documented; not yet met for any surface |
 | I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
@@ -77,7 +77,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | ✅ oracle | fuzz (promotion) |
 | Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | fuzz (promotion) |
 | zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ + `_reference` (13) | — | — | promotion gate (fuzz) |
-| Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | candidate (Phase H) | — | receipt-body JSON hash (Phase F) |
+| Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | advisory ✅ | — | receipt-body JSON hash (Phase F) |
 | Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | orchestration (multi-pool/CoW/ordering) deferred |
 | State root (network) | `src/state/state_root.py` | ✅ v4 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
@@ -100,8 +100,8 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
   `hex_to_bytes_fixed`; tx/receipt hashing (Phase F) needs `canonical_json_bytes`.
   Both are added first (Phase A.5) before the surfaces that consume them.
 * **Tooling on this host:** `cargo` 1.87.0 ✅; `gnatprove` ❌ (SPARK advisory only,
-  never claimed "proven"); `dune` ❌ but `opam` 2.1.5 ✅ (OCaml spec-oracle build is
-  attempted; documented blocked if install fails).
+  never claimed "proven"); `opam exec -- dune` ✅ (OCaml spec-oracle build/test
+  passes here).
 
 ## Phase 3 — fee router (delivered)
 
@@ -328,4 +328,5 @@ python3 tools/runtime/rust_shadow_replay.py tests/runtime/golden_traces/smoke.js
 ```
 
 See also: `RUNTIME_TRUSTED_CORE_BOUNDARY.md`, `GOLDEN_TRACE_FORMAT.md`,
-`../../rust-runtime/README.md`, `../../spark-kernels/fee_router/README.md`.
+`../../rust-runtime/README.md`, `../../spark-kernels/fee_router/README.md`,
+`../../spark-kernels/burn_rails/README.md`.

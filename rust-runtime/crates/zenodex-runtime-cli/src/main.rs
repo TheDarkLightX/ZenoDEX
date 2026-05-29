@@ -968,7 +968,8 @@ fn arg_bounded(
         .and_then(classify_integer)
         .ok_or("malformed_case")?;
     let v = s.parse::<i128>().map_err(|_| "out_of_domain".to_string())?;
-    if v.abs() > max_abs {
+    let abs = v.checked_abs().ok_or_else(|| "out_of_domain".to_string())?;
+    if abs > max_abs {
         return Err("out_of_domain".to_string());
     }
     Ok(v)

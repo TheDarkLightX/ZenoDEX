@@ -1,0 +1,96 @@
+{
+  "cases": [
+    {
+      "batch_before": 0,
+      "burn_amount": 1,
+      "burn_budget": 1,
+      "expected": {
+        "batch_after": 1,
+        "supply_after": 0
+      },
+      "supply_before": 1
+    },
+    {
+      "batch_before": 0,
+      "burn_amount": 1,
+      "burn_budget": 100,
+      "expected": {
+        "batch_after": 1,
+        "supply_after": 99
+      },
+      "supply_before": 100
+    },
+    {
+      "batch_before": 0,
+      "burn_amount": 100,
+      "burn_budget": 100,
+      "expected": {
+        "batch_after": 100,
+        "supply_after": 0
+      },
+      "supply_before": 100
+    },
+    {
+      "batch_before": 0,
+      "burn_amount": 1,
+      "burn_budget": 32767,
+      "expected": {
+        "batch_after": 1,
+        "supply_after": 32766
+      },
+      "supply_before": 32767
+    },
+    {
+      "batch_before": 0,
+      "burn_amount": 32767,
+      "burn_budget": 32767,
+      "expected": {
+        "batch_after": 32767,
+        "supply_after": 0
+      },
+      "supply_before": 32767
+    },
+    {
+      "batch_before": 250,
+      "burn_amount": 250,
+      "burn_budget": 1000,
+      "expected": {
+        "batch_after": 500,
+        "supply_after": 250
+      },
+      "supply_before": 500
+    },
+    {
+      "batch_before": 16384,
+      "burn_amount": 16384,
+      "burn_budget": 32767,
+      "expected": {
+        "batch_after": 32768,
+        "supply_after": 16383
+      },
+      "supply_before": 32767
+    },
+    {
+      "batch_before": 32767,
+      "burn_amount": 32767,
+      "burn_budget": 32767,
+      "expected": {
+        "batch_after": 65534,
+        "supply_after": 0
+      },
+      "supply_before": 32767
+    },
+    {
+      "batch_before": 7,
+      "burn_amount": 3,
+      "burn_budget": 9,
+      "expected": {
+        "batch_after": 10,
+        "supply_after": 7
+      },
+      "supply_before": 10
+    }
+  ],
+  "kernel": "burn_rail_conservation",
+  "version": 1
+}

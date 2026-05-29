@@ -2,11 +2,12 @@
 //! `zenodex-runtime-core` — deterministic, integer-only runtime kernels.
 //!
 //! This crate is the **production candidate** for ZenoDEX's runtime-critical
-//! transitions. It currently owns three surfaces: the protocol [`fee_router`],
-//! the [`replay_guard`] (idempotency / nonce), and the [`balance_kernel`]
-//! (multi-asset ledger). Each is built as a *shadow* of an authoritative Python
-//! runtime (`src/core/*.py`) and must agree with it bit-for-bit on every golden
-//! trace (see `docs/runtime/`).
+//! transitions. It currently shadows fee routing, replay/idempotency, balance
+//! accounting, zUSD, burn rails, CPMM settlement arithmetic, state roots,
+//! canonical encodings, receipt hashes, and stateless perps math. Each surface
+//! is built against an authoritative Python runtime or encoder and must agree
+//! with it bit-for-bit on every golden trace or vector corpus (see
+//! `docs/runtime/`).
 //!
 //! Design rules enforced here (see the migration "Hard Rules"):
 //!
