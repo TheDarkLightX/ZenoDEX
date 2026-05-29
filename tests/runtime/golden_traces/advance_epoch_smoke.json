@@ -43,6 +43,18 @@
       "epoch_phase": 2,
       "oracle_last_update_epoch": 1,
       "delta": 10001
+    },
+    {
+      "now_epoch": 2,
+      "epoch_phase": 0,
+      "oracle_last_update_epoch": 2,
+      "delta": 1
+    },
+    {
+      "now_epoch": 3,
+      "epoch_phase": 2,
+      "oracle_last_update_epoch": 2,
+      "delta": 1
     }
   ],
   "expected": [
@@ -86,6 +98,16 @@
       "index": 6,
       "ok": false,
       "code": "param_domain_delta"
+    },
+    {
+      "index": 7,
+      "ok": false,
+      "code": "advance_epoch_inconsistent_state"
+    },
+    {
+      "index": 8,
+      "ok": false,
+      "code": "advance_epoch_inconsistent_state"
     }
   ]
 }

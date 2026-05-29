@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import shutil
 import subprocess
 from dataclasses import replace
@@ -74,7 +75,14 @@ def _with_oracle_snapshot(state: DexState, *, market_id: str, price_e8: int) -> 
     return replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
 
 
-def build_state(*, market_id: str, setup: str) -> DexState:
+def _settle_current_epoch(state: DexState, *, market_id: str) -> DexState:
+    """Drive the current Open epoch through publish -> settle, ending Settled."""
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
+    state = _apply(state=state, tx_sender_pubkey=OPERATOR, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    return _apply(state=state, tx_sender_pubkey=OPERATOR, ops=[_op(market_id, "settle_epoch")])
+
+
+def build_state(*, market_id: str, setup: str, cycles: int = 0) -> DexState:
     quote_asset = "0x" + "41" * 32
     state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
     state = _apply(state=state, tx_sender_pubkey=OPERATOR, ops=[_op(market_id, "init_market", quote_asset=quote_asset)])
@@ -89,13 +97,21 @@ def build_state(*, market_id: str, setup: str) -> DexState:
         return state
     state = _apply(state=state, tx_sender_pubkey=OPERATOR, ops=[_op(market_id, "settle_epoch")])
     if setup == "settled":
+        # Optionally advance through `cycles` more full epochs to vary now_epoch.
+        for _ in range(max(0, int(cycles))):
+            state = _apply(state=state, tx_sender_pubkey=OPERATOR, ops=[_op(market_id, "advance_epoch", delta=1)])
+            state = _settle_current_epoch(state, market_id=market_id)
         return state
     raise ValueError(f"unknown setup: {setup!r}")
 
 
 def py_eval(index: int, case: dict) -> dict:
     market_id = case.get("market_id", f"perp:adv{index}")
-    state = build_state(market_id=market_id, setup=str(case.get("setup", "init")))
+    state = build_state(
+        market_id=market_id,
+        setup=str(case.get("setup", "init")),
+        cycles=int(case.get("cycles", 0)),
+    )
     assert state.perps is not None
     market = state.perps.markets[market_id]
     gs = market.global_state
@@ -124,6 +140,30 @@ def py_eval(index: int, case: dict) -> dict:
 
 def py_eval_all(cases: list[dict]) -> list[dict]:
     return [py_eval(i, c) for i, c in enumerate(cases)]
+
+
+_SETUPS = ("init", "unsettled_open", "price_published", "settled")
+
+
+def randomized_cases(*, seed: int, n: int) -> list[dict]:
+    """Deterministic randomized differential cases.
+
+    Each case picks one of the four reachable setups and a delta drawn from a
+    distribution that straddles the kernel param-domain `[1, 10_000]` (including
+    `0` and `> MAX_DELTA`, which must reject as `param_domain_delta`). Settled
+    cases additionally vary `now_epoch` via extra epoch cycles so the
+    `now += delta` update is exercised at several base epochs.
+    """
+    rng = random.Random(seed)
+    cases: list[dict] = []
+    for k in range(n):
+        setup = rng.choice(_SETUPS)
+        delta = rng.choice([0, 1, 1, 2, 5, 9_999, 10_000, 10_001, 25_000])
+        case: dict[str, object] = {"setup": setup, "delta": delta, "market_id": f"perp:rnd{seed}_{k}"}
+        if setup == "settled":
+            case["cycles"] = rng.randint(0, 3)
+        cases.append(case)
+    return cases
 
 
 class AdvanceEpochShadowError(RuntimeError):

@@ -62,7 +62,9 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/integration/test_perps_wallet_api.py" \
   "$ROOT_DIR/tests/integration/test_perps_stream8_resilience.py" \
   "$ROOT_DIR/tests/integration/test_zenodex_live_cross_stream_stateful.py" \
-  "$ROOT_DIR/tests/kernels/test_perp_submission_auth_field_selector_gate_v1_native_adapter.py"
+  "$ROOT_DIR/tests/kernels/test_perp_submission_auth_field_selector_gate_v1_native_adapter.py" \
+  "$ROOT_DIR/tests/runtime/test_perp_funding_auto_conformance.py" \
+  "$ROOT_DIR/tests/runtime/test_perp_advance_epoch_conformance.py"
 
 echo "== perps: live cross-stream stateful replay =="
 "$PY" "$ROOT_DIR/tools/zenodex_live_cross_stream_stateful.py" --format json
