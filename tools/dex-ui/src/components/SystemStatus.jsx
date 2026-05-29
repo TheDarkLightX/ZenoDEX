@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatNumber, formatPercent } from '../lib/cpmm';
-import { DEMO_SYSTEM_STATUS } from '../lib/mockData';
+import { FALLBACK_SYSTEM_STATUS as DEMO_SYSTEM_STATUS } from '../lib/mockData';
 import { apiFetchJson } from '../lib/api';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import './SystemStatus.css';
@@ -128,8 +128,8 @@ function SystemStatus() {
                     </div>
                     <div className="status-details">
                         <div className="status-row">
-                            <span>Median AGRS/USDC</span>
-                            <span className="status-value">${formatNumber(status.oracle.medianPrice, 4)}</span>
+                            <span>Median ZDEX/TASSET0</span>
+                            <span className="status-value">{formatNumber(status.oracle.medianPrice, 4)} TASSET0</span>
                         </div>
                         <div className="status-row">
                             <span>Active Sources</span>

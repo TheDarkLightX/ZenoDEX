@@ -1,17 +1,17 @@
 export const CONFIDENTIAL_SURFACE = {
   summary: {
     title: 'Confidential Extensions',
-    subtitle: 'Private execution help for large trades, fairer hidden-bid auctions, and auditable payments to strategy providers.',
+    subtitle: 'Confidential trading runs large orders inside a hardware-attested enclave and withholds size and direction until execution completes.',
     verifiedAt: '2026-03-07',
-    claimScope: 'Evidence covers admission, bounded runtime receipts, replay, response redaction, and local accounting checks.',
-    nonClaim: 'No in-repo proof of TEE hardware confidentiality or fully encrypted on-chain state.',
+    claimScope: 'Evidence covers admission, bounded runtime receipts, sealed-bid commit/reveal, replay, response redaction, and local accounting checks.',
+    nonClaim: 'No in-repo proof of TEE hardware confidentiality, fully encrypted on-chain state, or production asset movement by sealed-bid settlement.',
   },
   checks: [
     {
       id: 'tee-gate',
       label: 'TEE Gate',
       status: 'bounded',
-      detail: 'Nitro / Azure attestation receipts are measured, freshness-bounded, replay-checked, and fee-conserved.',
+      detail: 'Nitro / Azure route-quote receipts are measured, freshness-bounded, replay-checked, and fee-conserved.',
       proof: 'receipt tests + Tau gate',
     },
     {

@@ -1,21 +1,27 @@
 import { apiFetchJson } from './api.js';
 
+// Offline fallback for when /api/pools is unreachable. The live token set
+// and pools come from the local testnet via /api/pools.
+// Canonical local testnet tokens: ZDEX, zUSD, TASSET0, TASSET1, TZENO.
 export const FALLBACK_SWAP_POOLS = {
-    'AGRS-USDC': { token0: 'AGRS', token1: 'USDC', asset0: 'AGRS', asset1: 'USDC', reserve0: 1_000_000, reserve1: 2_500_000, feeBps: 30 },
-    'AGRS-WETH': { token0: 'AGRS', token1: 'WETH', asset0: 'AGRS', asset1: 'WETH', reserve0: 1_000_000, reserve1: 500, feeBps: 25 },
-    'USDC-WETH': { token0: 'USDC', token1: 'WETH', asset0: 'USDC', asset1: 'WETH', reserve0: 2_500_000, reserve1: 1_000, feeBps: 35 },
+    'TASSET0-ZDEX': { token0: 'TASSET0', token1: 'ZDEX', asset0: 'TASSET0', asset1: 'ZDEX', reserve0: 1_000_000, reserve1: 500_000, feeBps: 30 },
+    'TASSET0-TASSET1': { token0: 'TASSET0', token1: 'TASSET1', asset0: 'TASSET0', asset1: 'TASSET1', reserve0: 1_000_000, reserve1: 1_000_000, feeBps: 30 },
+    'TASSET1-TZENO': { token0: 'TASSET1', token1: 'TZENO', asset0: 'TASSET1', asset1: 'TZENO', reserve0: 1_000_000, reserve1: 1_000_000, feeBps: 30 },
 };
 
 export const FALLBACK_SWAP_TOKENS = [
-    { symbol: 'AGRS', name: 'Agoras', icon: '✦', decimals: 18 },
-    { symbol: 'USDC', name: 'USD Coin', icon: '💵', decimals: 6 },
-    { symbol: 'WETH', name: 'Wrapped ETH', icon: '⟠', decimals: 18 },
+    { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡', decimals: 18 },
+    { symbol: 'zUSD', name: 'ZenoUSD', icon: '◈', decimals: 18 },
+    { symbol: 'tAGRS', name: 'Test Agoras', icon: '✦', decimals: 18 },
+    { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀', decimals: 18 },
+    { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁', decimals: 18 },
+    { symbol: 'TZENO', name: 'Test Zeno', icon: 'TZ', decimals: 18 },
 ];
 
 export const FALLBACK_SWAP_BALANCES = {
-    AGRS: 1234.56,
-    USDC: 5000.0,
-    WETH: 2.5,
+    ZDEX: 1_000_000,
+    zUSD: 0,
+    tAGRS: 1_000_000,
     TASSET0: 1_000_000,
     TASSET1: 1_000_000,
     TZENO: 1_000_000,
@@ -52,24 +58,48 @@ function normalizeSymbol(value) {
     return String(value ?? '').trim().toUpperCase();
 }
 
+export function isCanonicalAssetId(value) {
+    return /^0x[0-9a-f]{64}$/i.test(String(value || '').trim());
+}
+
+export function isCompactAssetLabel(value) {
+    return /^Asset [0-9a-f]{4}\.\.\.[0-9a-f]{4}$/i.test(String(value || '').trim());
+}
+
+export function compactAssetLabel(value) {
+    const text = String(value || '').trim();
+    if (!isCanonicalAssetId(text)) return normalizeSymbol(text);
+    return `Asset ${text.slice(2, 6).toUpperCase()}...${text.slice(-4).toUpperCase()}`;
+}
+
+export function displaySymbolForAsset(value) {
+    const text = String(value || '').trim();
+    if (isCanonicalAssetId(text)) return compactAssetLabel(text);
+    if (isCompactAssetLabel(text)) {
+        const match = /^Asset ([0-9a-f]{4})\.\.\.([0-9a-f]{4})$/i.exec(text);
+        return `Asset ${match[1].toUpperCase()}...${match[2].toUpperCase()}`;
+    }
+    return normalizeSymbol(text);
+}
+
 function defaultTokenForSymbol(symbol) {
-    const normalized = normalizeSymbol(symbol);
-    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol === normalized);
+    const normalized = displaySymbolForAsset(symbol);
+    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol.toUpperCase() === normalized.toUpperCase());
     if (known) return known;
     return {
         symbol: normalized,
         name: normalized,
-        icon: '◎',
+        icon: isCanonicalAssetId(symbol) || isCompactAssetLabel(normalized) ? '#' : '◎',
         decimals: 0,
     };
 }
 
 function normalizePoolEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
-    const token0 = normalizeSymbol(entry.token0 ?? entry.symbol0 ?? entry.base ?? entry.asset0);
-    const token1 = normalizeSymbol(entry.token1 ?? entry.symbol1 ?? entry.quote ?? entry.asset1);
     const rawAsset0 = String(entry.asset0 ?? entry.token0 ?? entry.base ?? '').trim();
     const rawAsset1 = String(entry.asset1 ?? entry.token1 ?? entry.quote ?? '').trim();
+    const token0 = displaySymbolForAsset(entry.token0 ?? entry.symbol0 ?? entry.base ?? entry.asset0);
+    const token1 = displaySymbolForAsset(entry.token1 ?? entry.symbol1 ?? entry.quote ?? entry.asset1);
     if (!token0 || !token1 || token0 === token1) return null;
     const reserve0 = toFiniteNumber(entry.reserve0 ?? entry.r0 ?? entry.baseReserve);
     const reserve1 = toFiniteNumber(entry.reserve1 ?? entry.r1 ?? entry.quoteReserve);
@@ -123,7 +153,7 @@ function normalizeTokens(payload, poolSymbols) {
         : [];
     for (const row of rows) {
         if (!row || typeof row !== 'object') continue;
-        const symbol = normalizeSymbol(row.symbol);
+        const symbol = displaySymbolForAsset(row.symbol);
         if (!symbol || !bySymbol.has(symbol)) continue;
         bySymbol.set(symbol, {
             ...defaultTokenForSymbol(symbol),
@@ -133,7 +163,13 @@ function normalizeTokens(payload, poolSymbols) {
             decimals: Number.isFinite(Number(row.decimals)) ? Number(row.decimals) : 0,
         });
     }
-    return Array.from(bySymbol.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+    return Array.from(bySymbol.values()).sort((a, b) => {
+        const aIsUnhinted = a.symbol.startsWith('Asset ') || a.symbol.startsWith('0x');
+        const bIsUnhinted = b.symbol.startsWith('Asset ') || b.symbol.startsWith('0x');
+        if (aIsUnhinted && !bIsUnhinted) return 1;
+        if (!aIsUnhinted && bIsUnhinted) return -1;
+        return a.symbol.localeCompare(b.symbol);
+    });
 }
 
 function normalizePoolsPayload(payload) {
@@ -169,7 +205,7 @@ function normalizePoolsPayload(payload) {
     }
 
     // Map payload form:
-    // { "AGRS-USDC": { reserve0, reserve1, feeBps } }
+    // { "ZDEX-TASSET0": { reserve0, reserve1, feeBps } }
     const out = {};
     for (const [pair, value] of Object.entries(payload)) {
         if (!value || typeof value !== 'object') continue;
@@ -195,17 +231,23 @@ function normalizePoolsPayload(payload) {
     return { pools: out, tokens: normalizeTokens(payload, poolSymbols) };
 }
 
-export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
+export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
     try {
-        const payload = await apiFetchJson('/api/pools', { method: 'GET', timeoutMs });
+        const query = account ? `?account=${encodeURIComponent(account)}` : '';
+        const payload = await apiFetchJson(`/api/pools${query}`, { method: 'GET', timeoutMs });
         const { pools, tokens } = normalizePoolsPayload(payload);
         if (Object.keys(pools).length === 0) {
             throw new Error('empty_pool_set');
         }
+        const rawLastNonce = payload && Object.prototype.hasOwnProperty.call(payload, 'account_last_nonce')
+            ? Number(payload.account_last_nonce)
+            : NaN;
         return {
             source: 'api',
             pools,
             tokens,
+            account: payload?.account || null,
+            accountLastNonce: Number.isSafeInteger(rawLastNonce) ? rawLastNonce : null,
             error: null,
         };
     } catch (err) {
@@ -213,23 +255,25 @@ export async function loadSwapPools({ timeoutMs = 2500 } = {}) {
             source: 'fallback',
             pools: clonePools(FALLBACK_SWAP_POOLS),
             tokens: [...FALLBACK_SWAP_TOKENS],
+            account: account || null,
+            accountLastNonce: null,
             error: err?.message || 'pool_feed_unavailable',
         };
     }
 }
 
 export function resolveWalletTokenBalance(wallet, symbol) {
-    if (!wallet) return 0;
-    const sym = String(symbol || '').toUpperCase();
+    if (!wallet) return null;
     const balances = wallet?.balance || {};
-    if (sym === 'USDC') {
-        const v = Number(balances.USDC ?? balances.USD ?? FALLBACK_SWAP_BALANCES.USDC);
-        return Number.isFinite(v) ? v : 0;
+    const raw = String(symbol || '');
+    // Try exact, upper, and lower-case keys so symbols like `zUSD` resolve
+    // whether wallets store them mixed-case or normalized.
+    const candidates = [raw, raw.toUpperCase(), raw.toLowerCase()];
+    for (const key of candidates) {
+        if (key in balances) {
+            const v = Number(balances[key]);
+            if (Number.isFinite(v)) return v;
+        }
     }
-    if (sym === 'WETH') {
-        const v = Number(balances.WETH ?? balances.ETH ?? FALLBACK_SWAP_BALANCES.WETH);
-        return Number.isFinite(v) ? v : 0;
-    }
-    const v = Number(balances[sym] ?? FALLBACK_SWAP_BALANCES[sym] ?? 0);
-    return Number.isFinite(v) ? v : 0;
+    return null;
 }

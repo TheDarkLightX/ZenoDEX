@@ -25,7 +25,7 @@ function readSmokeConfig() {
     sender_pubkey: params.get('senderPubkey') || '',
     recipient_pubkey: params.get('recipientPubkey') || '',
     operator_pubkey: params.get('operatorPubkey') || '',
-    signer_privkey: params.get('signerPrivkey') || '',
+    signer_privkey: params.get('signerPrivkey') || params.get('smokeSignerPrivkey') || '',
     amount: params.get('zusdAmount') || '100',
     deadline: params.get('zusdDeadline') || '',
   };
@@ -124,8 +124,15 @@ function ZUSDTauWalletSurface() {
       return;
     }
     smokeRan.current = true;
-    setForm(smoke);
-    void apiSubmitZusdWallet(buildPayload(smoke), { timeoutMs: 20000 })
+    async function runSmoke() {
+      const nextSmoke = { ...smoke };
+      setForm(nextSmoke);
+      if (!nextSmoke.signer_privkey.trim()) {
+        throw new Error('smoke signer credential required');
+      }
+      return apiSubmitZusdWallet(buildPayload(nextSmoke), { timeoutMs: 20000 });
+    }
+    void runSmoke()
       .then((payload) => {
         setResult(payload);
         setError('');
@@ -140,31 +147,30 @@ function ZUSDTauWalletSurface() {
     <section className="zusd-wallet-surface">
       <div className="zusd-hero panel panel-glass animate-fade-in">
         <div>
-          <p className="zusd-kicker">Tau testnet transport</p>
-          <h1>zUSD Wallet Transport</h1>
+          <p className="zusd-kicker">zUSD account operations</p>
+          <h1>zUSD Wallet</h1>
           <p className="zusd-subtitle">
-            This live surface targets the Tau-node-backed stream-9 TauToken path.
-            Use it next to the stream-11 monetary vault for transfer, mint, and burn transport checks.
+            Transfer zUSD, review account balances, and submit signed wallet transactions.
           </p>
         </div>
         <div className="zusd-hero-meta">
           <span className="zusd-chip">Live posture</span>
-          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Tau node connected' : 'Tau node required'}</span>
+          <span className="zusd-chip zusd-chip-accent">{status?.node_reachable ? 'Network connected' : 'Network unavailable'}</span>
         </div>
       </div>
 
       <div className="zusd-wallet-grid">
         <div className="panel zusd-wallet-card">
           <div className="zusd-section-header">
-            <h2>Transport Status</h2>
-            <span className="zusd-section-badge">Tau-backed</span>
+            <h2>Wallet Status</h2>
+            <span className="zusd-section-badge">Network-backed</span>
           </div>
           <div className="zusd-wallet-meta">
             <div className="zusd-wallet-kv"><span>Chain</span><span>{status?.chain_id || 'unknown'}</span></div>
             <div className="zusd-wallet-kv"><span>Asset ID</span><span className="zusd-mono">{status?.asset_id || 'unavailable'}</span></div>
-            <div className="zusd-wallet-kv"><span>Node</span><span>{status?.tau_host || '127.0.0.1'}:{status?.tau_port || 65432}</span></div>
-            <div className="zusd-wallet-kv"><span>App Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
-            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'enabled' : 'prepare only'}</span></div>
+            <div className="zusd-wallet-kv"><span>Endpoint</span><span>{status?.tau_host || 'network'}:{status?.tau_port || '-'}</span></div>
+            <div className="zusd-wallet-kv"><span>Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
+            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'Local signer' : 'External signer'}</span></div>
             <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
@@ -177,8 +183,8 @@ function ZUSDTauWalletSurface() {
 
         <div className="panel zusd-wallet-card">
           <div className="zusd-section-header">
-            <h2>Prepare Or Submit</h2>
-            <span className="zusd-section-badge">Stream 9</span>
+            <h2>Submit transfer</h2>
+            <span className="zusd-section-badge">Signed transaction</span>
           </div>
           <div className="zusd-wallet-form">
             <label className="label" htmlFor="zusd-action">Action</label>
@@ -255,7 +261,7 @@ function ZUSDTauWalletSurface() {
               placeholder="optional"
             />
 
-            <label className="label" htmlFor="zusd-signer">Signer Privkey (local test only)</label>
+            <label className="label" htmlFor="zusd-signer">Signer credential</label>
             <input
               id="zusd-signer"
               className="input"
@@ -269,7 +275,7 @@ function ZUSDTauWalletSurface() {
                 {busy ? 'Preparing...' : 'Prepare'}
               </button>
               <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy}>
-                {busy ? 'Submitting...' : 'Submit to Tau node'}
+                {busy ? 'Submitting...' : 'Submit transaction'}
               </button>
             </div>
             {error ? <p className="zusd-wallet-error">{error}</p> : null}
@@ -294,7 +300,7 @@ function ZUSDTauWalletSurface() {
               <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
             </div>
           ) : (
-            <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current Tau-node context.</p>
+            <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current network context.</p>
           )}
         </div>
 

@@ -1,6 +1,48 @@
-import { generateLocalTauWallet } from './dexIntentSigner.js';
+import { encodeTauOperationsForWire, generateLocalTauWallet } from './dexIntentSigner.js';
+import { hashV0, stableStringify } from './zenoProofClient.js';
 
-const SECURE_SIGNER_GLOBALS = ['zenodexSecureSigner', 'zenodexSigner'];
+const EXTERNAL_SIGNER_GLOBALS = ['zenodexLocalSigner', 'zenodexSecureSigner', 'zenodexSigner'];
+const LOCAL_SIGNER_PROVIDER_V0 = 'zenodex-local-signer-v0';
+const LOCAL_SIGNER_VAULT_SCHEMA_V0 = 'zenodex/local_signer/vault/v0';
+const LOCAL_SIGNER_PUBLIC_RECEIPT_SCHEMA_V0 = 'zenodex/local_signer/public_receipt/v0';
+const LOCAL_SIGNER_STORAGE_BACKEND_SCRYPT_AESGCM_V0 = 'encrypted-local-vault-scrypt-aesgcm-v0';
+const TAU_TESTNET_COMPATIBLE_KEYGEN_METHOD_V0 = 'tau-testnet-console-wallet-py-ecc-g2basic-keygen-v0';
+const RUNTIME_DEFAULT_EXTERNAL_SIGNER_SCHEMA_V0 = 'zenodex/dex-ui/runtime-default-external-signer/v0';
+const NATIVE_DESKTOP_LOOPBACK_SIGNER_PROFILE_V0 = 'native-desktop-loopback-signer-v0';
+const SUPPORTED_EXTERNAL_SIGNER_SECURITY_PROFILES = new Set([
+  NATIVE_DESKTOP_LOOPBACK_SIGNER_PROFILE_V0,
+]);
+const REMOTE_HTTPS_EXTERNAL_SIGNER_SECURITY_PROFILES = new Set([]);
+const LOCAL_BROWSER_KEYGEN_DEPLOYMENTS = new Set(['local-testnet', 'localtest', 'local-dev', 'development', 'dev']);
+
+const PUBLIC_RECEIPT_KEYS_V0 = [
+  'schema',
+  'provider',
+  'vault_hash',
+  'vault',
+  'approval_mode',
+  'signer_user_approval_required',
+  'browser_bridge_auth_required',
+  'browser_generated',
+  'zenodex_custody',
+  'receipt_hash',
+];
+const PUBLIC_VAULT_KEYS_V0 = [
+  'schema',
+  'version',
+  'provider',
+  'key_id',
+  'public_key',
+  'algorithm',
+  'chain_id',
+  'allowed_chain_ids',
+  'created_at_epoch',
+  'keygen_method',
+  'storage_backend',
+  'browser_generated',
+  'zenodex_custody',
+  'encrypted_payload_hash',
+];
 
 function parseBooleanLike(raw) {
   if (raw === true || raw === 'true' || raw === '1' || raw === 1) {
@@ -50,20 +92,156 @@ function canonicalPubkey(value, name = 'address') {
   return `0x${body.toLowerCase()}`;
 }
 
+function canonicalRoot(value, name) {
+  const text = String(value || '').trim();
+  const body = text.startsWith('0x') || text.startsWith('0X') ? text.slice(2) : text;
+  if (!/^[0-9a-fA-F]{64}$/.test(body)) {
+    throw new Error(`${name}_must_be_canonical_root`);
+  }
+  return `0x${body.toLowerCase()}`;
+}
+
+function requireRecord(value, name) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${name}_must_be_json_object`);
+  }
+  return value;
+}
+
+function exactKeys(value, keys, name) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new Error(`${name}_keys_mismatch`);
+  }
+}
+
+function bodyWithoutHash(value, hashKey) {
+  const body = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key !== hashKey) {
+      body[key] = item;
+    }
+  }
+  return body;
+}
+
+function requireFalse(value, name) {
+  if (value !== false) {
+    throw new Error(`${name}_must_be_false`);
+  }
+}
+
+function requireNonnegativeSafeInt(value, name) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${name}_must_be_nonnegative_safe_integer`);
+  }
+}
+
+function validateLocalSignerPublicVault(vault, { address, chainId }) {
+  requireRecord(vault, 'signer_bridge_public_receipt_vault');
+  exactKeys(vault, PUBLIC_VAULT_KEYS_V0, 'signer_bridge_public_receipt_vault');
+  if (vault.schema !== LOCAL_SIGNER_VAULT_SCHEMA_V0) {
+    throw new Error('signer_bridge_public_receipt_vault_schema_mismatch');
+  }
+  if (vault.version !== 1) {
+    throw new Error('signer_bridge_public_receipt_vault_version_mismatch');
+  }
+  if (vault.provider !== LOCAL_SIGNER_PROVIDER_V0) {
+    throw new Error('signer_bridge_public_receipt_vault_provider_mismatch');
+  }
+  if (vault.algorithm !== 'bls12-381-g2-basic-release-v0') {
+    throw new Error('signer_bridge_public_receipt_vault_algorithm_mismatch');
+  }
+  if (vault.keygen_method !== TAU_TESTNET_COMPATIBLE_KEYGEN_METHOD_V0) {
+    throw new Error('signer_bridge_public_receipt_keygen_method_mismatch');
+  }
+  if (vault.storage_backend !== LOCAL_SIGNER_STORAGE_BACKEND_SCRYPT_AESGCM_V0) {
+    throw new Error('signer_bridge_public_receipt_storage_backend_mismatch');
+  }
+  if (canonicalPubkey(vault.public_key, 'signer_bridge_public_receipt_public_key') !== address) {
+    throw new Error('signer_bridge_public_receipt_public_key_mismatch');
+  }
+  if (String(vault.chain_id) !== chainId) {
+    throw new Error('signer_bridge_public_receipt_chain_id_mismatch');
+  }
+  if (!Array.isArray(vault.allowed_chain_ids) || !vault.allowed_chain_ids.includes(chainId)) {
+    throw new Error('signer_bridge_public_receipt_chain_not_allowed');
+  }
+  requireNonnegativeSafeInt(vault.created_at_epoch, 'signer_bridge_public_receipt_created_at_epoch');
+  canonicalRoot(vault.encrypted_payload_hash, 'signer_bridge_public_receipt_encrypted_payload_hash');
+  requireFalse(vault.browser_generated, 'signer_bridge_public_receipt_browser_generated');
+  requireFalse(vault.zenodex_custody, 'signer_bridge_public_receipt_zenodex_custody');
+}
+
+async function validateLocalSignerPublicReceipt(receipt, { address, chainId, requireUserApproval = false }) {
+  requireRecord(receipt, 'signer_bridge_public_receipt');
+  exactKeys(receipt, PUBLIC_RECEIPT_KEYS_V0, 'signer_bridge_public_receipt');
+  if (hasSecretField(receipt)) {
+    throw new Error('signer_bridge_public_receipt_contains_private_key_material');
+  }
+  if (receipt.schema !== LOCAL_SIGNER_PUBLIC_RECEIPT_SCHEMA_V0) {
+    throw new Error('signer_bridge_public_receipt_schema_mismatch');
+  }
+  if (receipt.provider !== LOCAL_SIGNER_PROVIDER_V0) {
+    throw new Error('signer_bridge_public_receipt_provider_mismatch');
+  }
+  if (!['offline-cli', 'prompt', 'unattended'].includes(receipt.approval_mode)) {
+    throw new Error('signer_bridge_public_receipt_approval_mode_mismatch');
+  }
+  if (typeof receipt.signer_user_approval_required !== 'boolean') {
+    throw new Error('signer_bridge_public_receipt_user_approval_required_mismatch');
+  }
+  if (typeof receipt.browser_bridge_auth_required !== 'boolean') {
+    throw new Error('signer_bridge_public_receipt_browser_bridge_auth_required_mismatch');
+  }
+  if (receipt.signer_user_approval_required && receipt.approval_mode !== 'prompt') {
+    throw new Error('signer_bridge_public_receipt_approval_posture_mismatch');
+  }
+  if (requireUserApproval) {
+    if (receipt.approval_mode !== 'prompt' || receipt.signer_user_approval_required !== true) {
+      throw new Error('signer_bridge_public_receipt_user_approval_required');
+    }
+    if (receipt.browser_bridge_auth_required !== true) {
+      throw new Error('signer_bridge_public_receipt_browser_bridge_auth_required');
+    }
+  }
+  requireFalse(receipt.browser_generated, 'signer_bridge_public_receipt_browser_generated');
+  requireFalse(receipt.zenodex_custody, 'signer_bridge_public_receipt_zenodex_custody');
+  validateLocalSignerPublicVault(receipt.vault, { address, chainId });
+
+  const expectedVaultHash = await hashV0('local_signer_public_vault_v0', receipt.vault);
+  if (canonicalRoot(receipt.vault_hash, 'signer_bridge_public_receipt_vault_hash') !== expectedVaultHash) {
+    throw new Error('signer_bridge_public_receipt_vault_hash_mismatch');
+  }
+  const expectedReceiptHash = await hashV0('local_signer_public_receipt_v0', bodyWithoutHash(receipt, 'receipt_hash'));
+  if (canonicalRoot(receipt.receipt_hash, 'signer_bridge_public_receipt_hash') !== expectedReceiptHash) {
+    throw new Error('signer_bridge_public_receipt_hash_mismatch');
+  }
+  return receipt;
+}
+
 export function browserKeyGenerationAllowed({
   locationSearch = '',
   runtimeConfig = {},
   env = {},
 } = {}) {
+  const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
+  if (!LOCAL_BROWSER_KEYGEN_DEPLOYMENTS.has(deployment)) {
+    return false;
+  }
+
   const params = new URLSearchParams(String(locationSearch || ''));
   const queryValue = params.has('zenodexAllowBrowserKeygen')
     ? parseBooleanLike(params.get('zenodexAllowBrowserKeygen'))
     : undefined;
+  const runtimeValue = parseBooleanLike(runtimeConfig?.allowBrowserKeyGeneration);
+  if (runtimeValue === false) {
+    return false;
+  }
   if (queryValue !== undefined) {
     return queryValue;
   }
-
-  const runtimeValue = parseBooleanLike(runtimeConfig?.allowBrowserKeyGeneration);
   if (runtimeValue !== undefined) {
     return runtimeValue;
   }
@@ -76,17 +254,299 @@ export function browserKeyGenerationAllowed({
   return false;
 }
 
-function findSecureSigner(globalObject) {
+function findExternalSigner(globalObject) {
   if (!globalObject || typeof globalObject !== 'object') {
     return null;
   }
-  for (const name of SECURE_SIGNER_GLOBALS) {
+  for (const name of EXTERNAL_SIGNER_GLOBALS) {
     const candidate = globalObject[name];
     if (candidate && typeof candidate.connect === 'function') {
       return { name, signer: candidate };
     }
   }
   return null;
+}
+
+function isLocalTestnetRuntime({ runtimeConfig = {}, chainId = '' } = {}) {
+  const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
+  const chain = String(runtimeConfig?.chainId || chainId || '').toLowerCase();
+  return deployment === 'local-testnet'
+    || deployment === 'localtest'
+    || chain.includes('local-testnet')
+    || chain.includes('localtest');
+}
+
+function runtimeDefaultExternalSignerAllowed({ runtimeConfig = {}, chainId = '' } = {}) {
+  const flag = parseBooleanLike(runtimeConfig?.allowDefaultExternalSigner);
+  if (flag !== undefined) {
+    return flag;
+  }
+  const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
+  if (deployment && deployment !== 'local-testnet' && deployment !== 'localtest') {
+    return false;
+  }
+  return isLocalTestnetRuntime({ runtimeConfig, chainId });
+}
+
+function runtimeDefaultExternalSignerConfig(runtimeConfig = {}) {
+  return runtimeConfig?.defaultExternalSigner
+    || runtimeConfig?.defaultExternalWallet
+    || runtimeConfig?.externalDefaultSigner
+    || null;
+}
+
+function signerSecurityProfile(config) {
+  const profile = String(
+    config.signerSecurityProfile
+    || config.signer_security_profile
+    || config.securityProfile
+    || config.providerProfile
+    || NATIVE_DESKTOP_LOOPBACK_SIGNER_PROFILE_V0,
+  );
+  if (!SUPPORTED_EXTERNAL_SIGNER_SECURITY_PROFILES.has(profile)) {
+    throw new Error('runtime_default_external_signer_security_profile_unsupported');
+  }
+  return profile;
+}
+
+function remoteHttpsAllowedForProfile(profile) {
+  return REMOTE_HTTPS_EXTERNAL_SIGNER_SECURITY_PROFILES.has(profile);
+}
+
+function loopbackHostname(hostname) {
+  const normalized = String(hostname || '').toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '127.0.0.1'
+    || normalized === '::1'
+    || normalized === '[::1]';
+}
+
+function normalizeSignerEndpoint(raw, { allowRemoteHttps = false, name = 'external_signer_endpoint' } = {}) {
+  if (raw == null || raw === '') {
+    return '';
+  }
+  const text = String(raw).trim();
+  if (!text) {
+    return '';
+  }
+  if (text.startsWith('/')) {
+    if (text.startsWith('//')) {
+      throw new Error(`${name}_must_be_same_origin_or_loopback`);
+    }
+    return text;
+  }
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error(`${name}_must_be_valid_url`);
+  }
+  if (url.protocol === 'http:' && loopbackHostname(url.hostname)) {
+    return url.toString();
+  }
+  if (url.protocol === 'https:' && allowRemoteHttps) {
+    return url.toString();
+  }
+  throw new Error(`${name}_must_be_same_origin_or_loopback`);
+}
+
+async function postSignerJson(endpoint, body, { globalObject = globalThis, operation, headers = {} }) {
+  const fetchFn = globalObject?.fetch || globalThis.fetch;
+  if (typeof fetchFn !== 'function') {
+    throw new Error(`${operation}_fetch_unavailable`);
+  }
+  const response = await fetchFn(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    credentials: 'omit',
+    body: JSON.stringify(body),
+  });
+  const text = typeof response?.text === 'function' ? await response.text() : '';
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`${operation}_response_must_be_json`);
+    }
+  }
+  if (!response?.ok) {
+    throw new Error(data?.error || `${operation}_failed`);
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`${operation}_response_must_be_json_object`);
+  }
+  if (hasSecretField(data)) {
+    throw new Error(`${operation}_response_contains_private_key_material`);
+  }
+  return data;
+}
+
+function tauTransactionPayloadFromRequest(request) {
+  const value = requireRecord(request, 'tau_transaction_sign_request');
+  return {
+    sender_pubkey: String(value.sender_pubkey ?? value.senderPubkey ?? ''),
+    sequence_number: value.sequence_number ?? value.sequenceNumber,
+    expiration_time: value.expiration_time ?? value.expirationTime,
+    operations: encodeTauOperationsForWire(value.operations || {}),
+    fee_limit: String(value.fee_limit ?? value.feeLimit ?? '0'),
+  };
+}
+
+function normalizedTauPubkey(value, name) {
+  return canonicalPubkey(value, name).slice(2);
+}
+
+function safeNonnegativeIntLike(value, name) {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new Error(`${name}_must_be_nonnegative_safe_integer`);
+  }
+  return n;
+}
+
+function normalizedTauPayload(value, name) {
+  const payload = requireRecord(value, name);
+  return {
+    sender_pubkey: normalizedTauPubkey(payload.sender_pubkey, `${name}_sender_pubkey`),
+    sequence_number: safeNonnegativeIntLike(payload.sequence_number, `${name}_sequence_number`),
+    expiration_time: safeNonnegativeIntLike(payload.expiration_time, `${name}_expiration_time`),
+    operations: encodeTauOperationsForWire(payload.operations || {}),
+    fee_limit: String(payload.fee_limit ?? '0'),
+  };
+}
+
+function signedTauTransactionFromResponse(data, payload) {
+  const signed = data.signed_tau_tx_payload || data.signedTauTxPayload || data.payload;
+  let signature = '';
+  if (signed && typeof signed === 'object' && !Array.isArray(signed)) {
+    if (hasSecretField(signed)) {
+      throw new Error('runtime_default_external_signer_signed_payload_contains_private_key_material');
+    }
+    const allowedKeys = new Set(['sender_pubkey', 'sequence_number', 'expiration_time', 'operations', 'fee_limit', 'signature']);
+    for (const key of Object.keys(signed)) {
+      if (!allowedKeys.has(key)) {
+        throw new Error('runtime_default_external_signer_signed_payload_keys_mismatch');
+      }
+    }
+    signature = String(signed.signature || '');
+    const expected = normalizedTauPayload(payload, 'requested_tau_payload');
+    const actual = normalizedTauPayload(signed, 'signed_tau_payload');
+    if (stableStringify(actual) !== stableStringify(expected)) {
+      throw new Error('runtime_default_external_signer_signed_payload_request_mismatch');
+    }
+    if (!signature) {
+      throw new Error('runtime_default_external_signer_signed_payload_signature_missing');
+    }
+    return { ...expected, signature };
+  }
+  if (typeof data.signature === 'string' && data.signature) {
+    signature = data.signature;
+    return { ...normalizedTauPayload(payload, 'requested_tau_payload'), signature };
+  }
+  throw new Error('runtime_default_external_signer_signed_payload_missing');
+}
+
+function dexIntentSignatureFromResponse(data) {
+  if (typeof data.signature === 'string' && data.signature) {
+    return data.signature;
+  }
+  const receipt = data.signature_receipt || data.signatureReceipt || data.receipt;
+  if (receipt && typeof receipt === 'object' && typeof receipt.signature === 'string' && receipt.signature) {
+    return receipt.signature;
+  }
+  throw new Error('runtime_default_external_signer_signature_missing');
+}
+
+function buildRuntimeDefaultExternalSigner(raw, { chainId, globalObject, runtimeConfig }) {
+  const config = requireRecord(raw, 'runtime_default_external_signer');
+  if (hasSecretField(config)) {
+    throw new Error('runtime_default_external_signer_contains_private_key_material');
+  }
+  if (config.schema && config.schema !== RUNTIME_DEFAULT_EXTERNAL_SIGNER_SCHEMA_V0) {
+    throw new Error('runtime_default_external_signer_schema_mismatch');
+  }
+  if (!runtimeDefaultExternalSignerAllowed({ runtimeConfig, chainId })) {
+    throw new Error('runtime_default_external_signer_not_allowed');
+  }
+  const securityProfile = signerSecurityProfile(config);
+  const requestedRemoteHttps = parseBooleanLike(config.allowRemoteHttpsEndpoint) === true
+    || parseBooleanLike(runtimeConfig?.allowRemoteExternalSignerEndpoint) === true;
+  const allowRemoteHttps = requestedRemoteHttps && remoteHttpsAllowedForProfile(securityProfile);
+  if (requestedRemoteHttps && !allowRemoteHttps) {
+    throw new Error('runtime_default_external_signer_remote_https_profile_not_allowed');
+  }
+  const connectUrl = normalizeSignerEndpoint(config.connectUrl || config.connect_url, {
+    allowRemoteHttps,
+    name: 'runtime_default_external_signer_connect_url',
+  });
+  const signTauUrl = normalizeSignerEndpoint(
+    config.signTauTransactionPayloadUrl || config.signTauTransactionPayloadURL || config.signTauTransactionUrl,
+    { allowRemoteHttps, name: 'runtime_default_external_signer_sign_tau_url' },
+  );
+  const signDexUrl = normalizeSignerEndpoint(
+    config.signDexIntentForEngineUrl || config.signDexIntentUrl || config.signIntentUrl,
+    { allowRemoteHttps, name: 'runtime_default_external_signer_sign_dex_url' },
+  );
+  const providerName = String(config.signerProvider || config.signer_provider || LOCAL_SIGNER_PROVIDER_V0);
+  const baseWallet = {
+    address: config.address ?? config.publicKey ?? config.public_key,
+    chainId: String(config.chainId || config.chain_id || chainId),
+    signerProvider: providerName,
+    publicReceipt: config.publicReceipt || config.public_receipt,
+    balance: config.balance,
+    signerSecurityProfile: securityProfile,
+  };
+  let signerPairingToken = '';
+  const signerAuthHeaders = () => (signerPairingToken ? { 'x-zenodex-signer-token': signerPairingToken } : {});
+  const signer = {
+    async connect() {
+      if (connectUrl) {
+        const data = await postSignerJson(connectUrl, { chainId }, {
+          globalObject,
+          operation: 'runtime_default_external_signer_connect',
+        });
+        const wallet = data.wallet || data;
+        signerPairingToken = String(data.signerPairingToken || data.localSignerPairingToken || wallet.signerPairingToken || '');
+        delete wallet.signerPairingToken;
+        delete wallet.localSignerPairingToken;
+        return {
+          ...wallet,
+          signerSecurityProfile: wallet.signerSecurityProfile || wallet.signer_security_profile || securityProfile,
+        };
+      }
+      return baseWallet;
+    },
+  };
+  if (signTauUrl) {
+    signer.signTauTransactionPayload = async (request) => {
+      const payload = tauTransactionPayloadFromRequest(request);
+      const data = await postSignerJson(signTauUrl, {
+        chainId: request?.chainId || request?.chain_id || chainId,
+        payload,
+      }, {
+        globalObject,
+        operation: 'runtime_default_external_signer_sign_tau',
+        headers: signerAuthHeaders(),
+      });
+      return signedTauTransactionFromResponse(data, payload);
+    };
+  }
+  if (signDexUrl) {
+    signer.signDexIntentForEngine = async (intent, options = {}) => {
+      const data = await postSignerJson(signDexUrl, {
+        chainId: options?.chainId || options?.chain_id || chainId,
+        intent,
+      }, {
+        globalObject,
+        operation: 'runtime_default_external_signer_sign_dex',
+        headers: signerAuthHeaders(),
+      });
+      return dexIntentSignatureFromResponse(data);
+    };
+    signer.signDexIntent = signer.signDexIntentForEngine;
+  }
+  return { name: providerName, signer };
 }
 
 const SIGNER_CALLBACK_KEYS = [
@@ -99,20 +559,58 @@ const SIGNER_CALLBACK_KEYS = [
   'signPerpOp',
 ];
 
-function normalizeSecureSignerWallet(raw, { chainId, providerName, signer }) {
+function strictRuntimeRequiresSignerApproval(runtimeConfig = {}) {
+  const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
+  if (deployment === 'production' || deployment === 'public-testnet') {
+    return true;
+  }
+  return parseBooleanLike(runtimeConfig?.signerUserApprovalRequired) === true;
+}
+
+function runtimeDefaultSignerUnavailable(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('failed to fetch')
+    || message.includes('fetch failed')
+    || message.includes('networkerror')
+    || message.includes('load failed')
+    || message.includes('connection refused')
+    || message.includes('econnrefused')
+    || message.includes('err_connection_refused');
+}
+
+async function generateBrowserFallbackWallet({ chainId, generateLocalWallet }) {
+  const wallet = await generateLocalWallet({ chainId });
+  return {
+    ...wallet,
+    signerProvider: 'browser-local-last-resort',
+    browserLastResort: true,
+    localTestnetGenerated: true,
+  };
+}
+
+async function normalizeExternalSignerWallet(raw, { chainId, providerName, signer, runtimeConfig = {} }) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('secure_signer_result_invalid');
+    throw new Error('signer_bridge_result_invalid');
   }
   if (hasSecretField(raw)) {
-    throw new Error('secure_signer_result_contains_private_key_material');
+    throw new Error('signer_bridge_result_contains_private_key_material');
   }
   const wallet = {
     ...raw,
-    address: canonicalPubkey(raw.address ?? raw.publicKey ?? raw.public_key, 'secure_signer_address'),
+    address: canonicalPubkey(raw.address ?? raw.publicKey ?? raw.public_key, 'signer_bridge_address'),
     chainId: String(raw.chainId || raw.chain_id || chainId),
     signerProvider: String(raw.signerProvider || raw.signer_provider || providerName),
     localTestnetGenerated: false,
   };
+  const publicReceipt = raw.publicReceipt || raw.public_receipt;
+  if (!publicReceipt) {
+    throw new Error('signer_bridge_public_receipt_required');
+  }
+  wallet.publicReceipt = await validateLocalSignerPublicReceipt(publicReceipt, {
+    address: wallet.address,
+    chainId: wallet.chainId,
+    requireUserApproval: strictRuntimeRequiresSignerApproval(runtimeConfig),
+  });
   for (const key of SIGNER_CALLBACK_KEYS) {
     if (typeof wallet[key] !== 'function' && typeof signer?.[key] === 'function') {
       wallet[key] = signer[key].bind(signer);
@@ -126,22 +624,40 @@ export async function connectPreferredWallet({
   globalObject = globalThis,
   allowBrowserFallback = false,
   generateLocalWallet = generateLocalTauWallet,
+  runtimeConfig = {},
 } = {}) {
-  const secure = findSecureSigner(globalObject);
-  if (secure) {
-    const raw = await secure.signer.connect({ chainId });
-    return normalizeSecureSignerWallet(raw, { chainId, providerName: secure.name, signer: secure.signer });
+  const external = findExternalSigner(globalObject);
+  if (external) {
+    const raw = await external.signer.connect({ chainId });
+    return normalizeExternalSignerWallet(raw, { chainId, providerName: external.name, signer: external.signer, runtimeConfig });
+  }
+
+  const runtimeDefault = runtimeDefaultExternalSignerConfig(runtimeConfig);
+  if (runtimeDefault) {
+    const externalDefault = buildRuntimeDefaultExternalSigner(runtimeDefault, {
+      chainId,
+      globalObject,
+      runtimeConfig,
+    });
+    try {
+      const raw = await externalDefault.signer.connect({ chainId });
+      return normalizeExternalSignerWallet(raw, {
+        chainId,
+        providerName: externalDefault.name,
+        signer: externalDefault.signer,
+        runtimeConfig,
+      });
+    } catch (error) {
+      if (allowBrowserFallback && runtimeDefaultSignerUnavailable(error)) {
+        return generateBrowserFallbackWallet({ chainId, generateLocalWallet });
+      }
+      throw error;
+    }
   }
 
   if (allowBrowserFallback) {
-    const wallet = await generateLocalWallet({ chainId });
-    return {
-      ...wallet,
-      signerProvider: 'browser-local-last-resort',
-      browserLastResort: true,
-      localTestnetGenerated: true,
-    };
+    return generateBrowserFallbackWallet({ chainId, generateLocalWallet });
   }
 
-  throw new Error('secure_signer_unavailable');
+  throw new Error('external_signer_unavailable');
 }

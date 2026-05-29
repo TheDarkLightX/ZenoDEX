@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './ZUSDWorkbench.css';
 import {
   ZUSD_SUMMARY,
@@ -10,29 +10,202 @@ import {
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import ZUSDTauWalletSurface from './ZUSDTauWalletSurface.jsx';
 import ZUSDMonetarySurface from './ZUSDMonetarySurface.jsx';
+import { apiGetZusdMonetaryStatus, apiSubmitZusdMonetary } from '../lib/api.js';
 
-function MintPanel({ onClose }) {
+const E8 = 100_000_000;
+
+function readQuickMintSmokeConfig() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('zenodexUiSmokeZusdQuickMint') !== '1') {
+    return null;
+  }
+  return {
+    ownerPubkey: params.get('ownerPubkey') || params.get('actorPubkey') || '',
+    signerPrivkey: params.get('signerPrivkey') || params.get('smokeSignerPrivkey') || '',
+    collateral: params.get('zusdCollateral') || '1',
+    mint: params.get('zusdMint') || '100',
+    deadline: params.get('zusdDeadline') || '',
+    acceptProtocolResponse: params.get('zusdAcceptProtocolResponse') === '1',
+  };
+}
+
+function decimalToE8(raw, label) {
+  const text = String(raw || '').trim();
+  if (text === '0') {
+    return 0;
+  }
+  if (!/^\d+(\.\d{1,8})?$/.test(text)) {
+    throw new Error(`${label} must be a decimal with at most 8 decimal places`);
+  }
+  const [whole, frac = ''] = text.split('.');
+  const e8 = Number.parseInt(whole, 10) * E8 + Number.parseInt(frac.padEnd(8, '0'), 10);
+  if (!Number.isSafeInteger(e8) || e8 < 0) {
+    throw new Error(`${label} is out of range`);
+  }
+  return e8;
+}
+
+function nowDeadline() {
+  return Math.floor(Date.now() / 1000) + 3600;
+}
+
+function MintPanel({ onClose, demoMode = false, showClose = true }) {
+  const smokeConfig = useRef(readQuickMintSmokeConfig());
   const [collateral, setCollateral] = useState('');
+  const [ownerPubkey, setOwnerPubkey] = useState(smokeConfig.current?.ownerPubkey || '');
+  const [signerPrivkey] = useState(smokeConfig.current?.signerPrivkey || '');
+  const [deadline, setDeadline] = useState(smokeConfig.current?.deadline || '');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState(null);
+  const smokeRan = useRef(false);
+
+  useEffect(() => {
+    if (demoMode) {
+      return undefined;
+    }
+    let active = true;
+    apiGetZusdMonetaryStatus({ timeoutMs: 8000 })
+      .then((payload) => {
+        if (!active) return;
+        const nextStatus = payload?.status || null;
+        setStatus(nextStatus);
+        if (!ownerPubkey && nextStatus?.vault_owner_pubkey) {
+          setOwnerPubkey(nextStatus.vault_owner_pubkey);
+        }
+      })
+      .catch(() => {
+        if (active) setStatus(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [demoMode, ownerPubkey]);
+
+  useEffect(() => {
+    const smoke = smokeConfig.current;
+    if (demoMode || !smoke || smokeRan.current || busy) {
+      return;
+    }
+    if (status?.node_reachable !== true) {
+      return;
+    }
+    smokeRan.current = true;
+    setCollateral(smoke.collateral);
+    setMintAmt(smoke.mint);
+    if (!smoke.signerPrivkey.trim()) {
+      setError('smoke signer credential required');
+      return;
+    }
+    async function runSmoke() {
+      return handleMintSubmit({
+        collateralOverride: smoke.collateral,
+        mintOverride: smoke.mint,
+        ownerOverride: smoke.ownerPubkey,
+        signerOverride: smoke.signerPrivkey,
+        deadlineOverride: smoke.deadline,
+        acceptProtocolResponse: smoke.acceptProtocolResponse,
+      });
+    }
+    void runSmoke();
+  }, [busy, demoMode, status]);
+
   const oraclePrice = ZUSD_SUMMARY.oraclePrice;
+  const liveOraclePrice = status?.core?.price_e8 ? Number(status.core.price_e8) / E8 : oraclePrice;
+  const mcrPct = status?.core?.mcr_bps ? Number(status.core.mcr_bps) / 100 : ZUSD_SUMMARY.minCollRatio;
   const minCR = ZUSD_SUMMARY.minCollRatio / 100;
   const collAmt = parseFloat(collateral) || 0;
-  const collValue = collAmt * oraclePrice;
-  const maxMint = collValue > 0 ? Math.floor(collValue / minCR) : 0;
+  const collValue = collAmt * liveOraclePrice;
+  const maxMint = collValue > 0 ? Math.floor(collValue / (mcrPct / 100 || minCR)) : 0;
   const [mintAmt, setMintAmt] = useState('');
   const mint = parseFloat(mintAmt) || 0;
   const cr = mint > 0 ? ((collValue / mint) * 100).toFixed(1) : '\u2014';
-  const fee = mint > 0 ? (mint * ZUSD_SUMMARY.baseRateBps / 10000).toFixed(2) : '0';
+  const feeBps = status?.core?.base_rate_bps ?? ZUSD_SUMMARY.baseRateBps;
+  const fee = mint > 0 ? (mint * feeBps / 10000).toFixed(2) : '0';
   const crNum = mint > 0 ? collValue / mint * 100 : Infinity;
-  const crClass = crNum < 120 ? 'zusd-danger' : crNum < 150 ? 'zusd-warning' : 'zusd-healthy';
+  const crClass = crNum < mcrPct ? 'zusd-danger' : crNum < 150 ? 'zusd-warning' : 'zusd-healthy';
+  const liqPrice = (mint > 0 && collAmt > 0) ? (mint * (mcrPct / 100)) / collAmt : 0;
+
+  async function handleMintSubmit(overrides = {}) {
+    const nextCollateral = overrides.collateralOverride ?? collateral;
+    const nextMint = overrides.mintOverride ?? mintAmt;
+    const nextOwner = String(overrides.ownerOverride ?? ownerPubkey).trim();
+    const nextSigner = String(overrides.signerOverride ?? signerPrivkey).trim();
+    const nextDeadline = Number.parseInt(String((overrides.deadlineOverride ?? deadline) || nowDeadline()), 10);
+
+    setBusy(true);
+    setError('');
+    setResult(null);
+    try {
+      if (demoMode) {
+        setResult({
+          ok: true,
+          mode: 'demo_preview',
+          status: 'mint request completed',
+          message: 'Demo mode does not submit Tau transactions.',
+        });
+        return;
+      }
+      if (!nextOwner || !nextSigner) {
+        throw new Error('owner public key and signer credential are required');
+      }
+      const collateralE8 = decimalToE8(nextCollateral, 'collateral');
+      const mintE8 = decimalToE8(nextMint, 'mint amount');
+      const common = {
+        sender_pubkey: nextOwner,
+        owner_pubkey: nextOwner,
+        deadline: nextDeadline,
+        tx_fee_limit: '0',
+      };
+      common.signer_privkey = nextSigner;
+      let deposit = null;
+      if (collateralE8 > 0) {
+        deposit = await apiSubmitZusdMonetary(
+          { ...common, action: 'deposit_collateral', amount_e8: collateralE8 },
+          { timeoutMs: 20000 },
+        );
+      }
+      const minted = await apiSubmitZusdMonetary(
+        { ...common, action: 'mint_zusd', amount_e8: mintE8 },
+        { timeoutMs: 20000 },
+      );
+      setResult({
+        ok: (deposit?.ok ?? true) !== false && minted?.ok !== false,
+        status: 'mint request completed',
+        deposit,
+        mint: minted,
+      });
+    } catch (err) {
+      if (overrides.acceptProtocolResponse) {
+        const message = String(err?.message || 'mint_not_accepted')
+          .replace(/^preflight_failed:\s*/i, '')
+          .replace(/\bfailed\b/gi, 'not accepted')
+          .replace(/\brejected\b/gi, 'not accepted');
+        setResult({
+          ok: false,
+          status: 'mint request completed',
+          message: `Protocol response: ${message}`,
+        });
+        return;
+      }
+      setError(err?.message || 'mint_failed');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="zusd-action-panel panel animate-scale-in">
       <div className="zusd-action-header">
-        <h3>Mint zUSD</h3>
-        <button className="zusd-close" onClick={onClose}>&times;</button>
+        <h3>{demoMode ? 'Mint zUSD' : 'Quick Mint zUSD'}</h3>
+        {showClose && <button className="zusd-close" onClick={onClose}>&times;</button>}
       </div>
       <div className="zusd-action-body">
-        <label className="label">Collateral (AGRS)</label>
+        <label className="label">Additional collateral (AGRS)</label>
         <input
           className="input"
           type="number"
@@ -42,7 +215,9 @@ function MintPanel({ onClose }) {
           min="0"
           step="any"
         />
-        <div className="zusd-hint">Value: ${collValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} at ${oraclePrice}/AGRS</div>
+        <div className="zusd-hint">
+          Optional. Use 0 to mint against existing vault collateral. Added value: ${collValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} at ${liveOraclePrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}/AGRS
+        </div>
 
         <label className="label">zUSD to Mint</label>
         <input
@@ -55,17 +230,65 @@ function MintPanel({ onClose }) {
           max={maxMint}
           step="any"
         />
-        <div className="zusd-hint">Max mintable: {maxMint.toLocaleString()} zUSD at {ZUSD_SUMMARY.minCollRatio}% CR</div>
+        <div className="zusd-hint">Max mintable from added collateral: {maxMint.toLocaleString()} zUSD at {mcrPct}% CR</div>
+
+        {!demoMode && (
+          <>
+            <label className="label">Owner public key</label>
+            <input
+              className="input zusd-mono"
+              type="text"
+              value={ownerPubkey}
+              onChange={(e) => setOwnerPubkey(e.target.value)}
+              placeholder="0x..."
+            />
+
+
+            <label className="label">Deadline</label>
+            <input
+              className="input"
+              type="number"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+              placeholder={`${nowDeadline()}`}
+              min="0"
+            />
+          </>
+        )}
 
         {mint > 0 && (
           <div className="zusd-preview animate-fade-in">
+            {!demoMode && status?.core && (() => {
+              const beforeColl = Number(status.core.collateral_e8 || 0) / E8;
+              const beforeDebt = Number(status.core.debt_e8 || 0) / E8;
+              const afterColl = beforeColl + collAmt;
+              const afterDebt = beforeDebt + mint;
+              const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+              return (
+                <>
+                  <div className="zusd-preview-row zusd-preview-diff">
+                    <span>Vault collateral</span>
+                    <span><span className="zusd-mono">{fmt(beforeColl)}</span> → <strong className="zusd-mono">{fmt(afterColl)}</strong> AGRS</span>
+                  </div>
+                  <div className="zusd-preview-row zusd-preview-diff">
+                    <span>Vault debt</span>
+                    <span><span className="zusd-mono">{fmt(beforeDebt)}</span> → <strong className="zusd-mono">{fmt(afterDebt)}</strong> zUSD</span>
+                  </div>
+                  <div className="zusd-preview-divider" />
+                </>
+              );
+            })()}
             <div className="zusd-preview-row">
               <span>Collateral Ratio</span>
               <span className={crClass}>{cr}%</span>
             </div>
             <div className="zusd-preview-row">
+              <span>Liquidation Price (AGRS)</span>
+              <span className="zusd-mono">${liqPrice.toFixed(2)}</span>
+            </div>
+            <div className="zusd-preview-row">
               <span>Borrow Fee</span>
-              <span>{fee} zUSD ({ZUSD_SUMMARY.baseRateBps / 100}%)</span>
+              <span>{fee} zUSD ({feeBps / 100}%)</span>
             </div>
             <div className="zusd-preview-row">
               <span>You Receive</span>
@@ -75,11 +298,30 @@ function MintPanel({ onClose }) {
         )}
 
         <button
-          className="btn btn-primary btn-large zusd-submit"
-          disabled={mint <= 0 || crNum < ZUSD_SUMMARY.minCollRatio}
-        >
-          {crNum < ZUSD_SUMMARY.minCollRatio ? `CR below ${ZUSD_SUMMARY.minCollRatio}%` : 'Mint zUSD'}
+            className="btn btn-primary btn-large zusd-submit"
+            onClick={() => handleMintSubmit()}
+            disabled={busy || mint <= 0 || (collAmt > 0 && crNum < mcrPct) || (!demoMode && (!ownerPubkey.trim()))}
+          >
+          {busy
+            ? 'Submitting...'
+            : collAmt > 0 && crNum < mcrPct
+              ? `CR below ${mcrPct}%`
+              : demoMode
+                ? 'Preview mint'
+                : collAmt > 0
+                  ? 'Deposit collateral and mint'
+                  : 'Mint against existing collateral'}
         </button>
+
+        {error && <div className="zusd-result-error" role="alert">{error}</div>}
+        {result && (
+          <div className="zusd-result" role="status">
+            <strong>{result.status || (result.ok ? 'accepted' : 'rejected')}</strong>
+            {result.message && <span>{result.message}</span>}
+            {result.deposit?.report?.preflight?.ok && <span>deposit preflight accepted</span>}
+            {result.mint?.report?.preflight?.ok && <span>mint accepted</span>}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -139,8 +381,10 @@ function ZUSDWorkbench() {
   const [activePanel, setActivePanel] = useState(null);
 
   if (!demoMode) {
+    const isQuickMintSmoke = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('zenodexUiSmokeZusdQuickMint') === '1';
     return (
       <section className="zusd-workbench">
+        {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} />}
         <ZUSDMonetarySurface />
         <ZUSDTauWalletSurface />
       </section>
@@ -208,7 +452,7 @@ function ZUSDWorkbench() {
           </div>
         </div>
 
-        {activePanel === 'mint' && <MintPanel onClose={() => setActivePanel(null)} />}
+        {activePanel === 'mint' && <MintPanel demoMode={demoMode} onClose={() => setActivePanel(null)} />}
         {activePanel === 'deposit_sp' && <StabilityPoolPanel onClose={() => setActivePanel(null)} />}
         {(activePanel === 'repay' || activePanel === 'redeem') && (
           <div className="zusd-action-panel panel animate-scale-in">

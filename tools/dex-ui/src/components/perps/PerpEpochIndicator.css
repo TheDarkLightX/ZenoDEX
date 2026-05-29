@@ -68,9 +68,9 @@
 /* Active state */
 .perp-epoch-step.active .perp-epoch-dot {
     background: var(--accent-cyan);
-    color: #061018;
+    color: var(--btn-primary-text);
     border: 2px solid var(--accent-cyan);
-    box-shadow: 0 0 8px rgba(76, 201, 240, 0.3);
+    box-shadow: 0 0 8px rgba(var(--accent-signal-rgb), 0.3);
 }
 
 /* Done state */

@@ -147,7 +147,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                         onClick={handleSubmit}
                         disabled={!wallet || !validation.ok}
                     >
-                        {!wallet ? 'Connect Wallet'
+                        {!wallet ? 'Connect wallet in header →'
                             : !amount ? 'Enter Amount'
                             : validation.error ? validation.error
                             : tab === 'deposit' ? 'Deposit' : 'Withdraw'}

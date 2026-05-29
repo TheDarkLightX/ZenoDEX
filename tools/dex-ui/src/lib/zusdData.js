@@ -1,19 +1,29 @@
 /**
- * Demo data for the zUSD stablecoin tab.
+ * Reference data for the zUSD stablecoin tab.
  * Models the backend zUSD system: vaults, stability pool, oracle, redemption.
+ * Live values come from the network /api/zusd/* endpoints when reachable.
+ *
+ * Collateral asset: AGRS (Agoras) is the canonical production collateral.
  */
 
+export const ZUSD_COLLATERAL = {
+  canonicalSymbol: 'AGRS',
+  testSymbol: 'AGRS',
+  testnetNote: 'AGRS collateral backs zUSD vault operations.',
+};
+
 export const ZUSD_SUMMARY = {
-  totalDebt: 2_450_000,
-  totalCollateral: 5_250_000,
-  globalCR: 214.3,
-  stabilityPoolSize: 820_000,
+  totalDebt: 0,
+  totalCollateral: 0,
+  globalCR: 0,
+  stabilityPoolSize: 0,
   baseRateBps: 50,
   minCollRatio: 110,
-  oraclePrice: 2.50,
-  oracleAsset: 'AGRS',
+  oraclePrice: 1.0,
+  oracleAsset: ZUSD_COLLATERAL.testSymbol,
   oracleStale: false,
-  lastOracleEpoch: 1238,
+  lastOracleEpoch: 0,
+  collateralAvailable: true,
 };
 
 export const ZUSD_OPERATIONS = [
@@ -21,20 +31,20 @@ export const ZUSD_OPERATIONS = [
     id: 'mint',
     label: 'Mint zUSD',
     description: 'Deposit AGRS collateral to mint new zUSD stablecoins.',
-    action: 'Deposit collateral, receive zUSD',
+    action: 'Deposit AGRS, receive zUSD',
     minCR: '110%',
   },
   {
     id: 'repay',
     label: 'Repay Debt',
     description: 'Burn zUSD to reduce vault debt and free collateral.',
-    action: 'Burn zUSD, withdraw collateral',
+    action: 'Burn zUSD, withdraw AGRS',
     minCR: 'N/A',
   },
   {
     id: 'redeem',
     label: 'Redeem',
-    description: 'Exchange zUSD 1:1 for collateral from the riskiest vaults.',
+    description: 'Exchange zUSD 1:1 for AGRS from the riskiest vaults.',
     action: '1 zUSD = $1 of AGRS',
     minCR: 'N/A',
   },
@@ -47,48 +57,7 @@ export const ZUSD_OPERATIONS = [
   },
 ];
 
-export const DEMO_VAULTS = [
-  {
-    id: 'vault_001',
-    owner: '0xabc1...f234',
-    collateral: 10000,
-    debt: 4000,
-    cr: 250.0,
-    status: 'healthy',
-  },
-  {
-    id: 'vault_002',
-    owner: '0xdef5...6789',
-    collateral: 5500,
-    debt: 4200,
-    cr: 130.9,
-    status: 'warning',
-  },
-  {
-    id: 'vault_003',
-    owner: '0x1234...abcd',
-    collateral: 3000,
-    debt: 2500,
-    cr: 120.0,
-    status: 'danger',
-  },
-  {
-    id: 'vault_004',
-    owner: '0x5678...ef01',
-    collateral: 25000,
-    debt: 8000,
-    cr: 312.5,
-    status: 'healthy',
-  },
-  {
-    id: 'vault_005',
-    owner: '0x9abc...2345',
-    collateral: 8000,
-    debt: 3200,
-    cr: 250.0,
-    status: 'healthy',
-  },
-];
+export const DEMO_VAULTS = [];
 
 export const ZUSD_GUARDS = [
   {
@@ -101,7 +70,7 @@ export const ZUSD_GUARDS = [
   {
     id: 'debt_homomorphism',
     label: 'Debt Conservation Homomorphism',
-    detail: 'Net debt flow is additive: \u0394(s\u2081 + s\u2082) = \u0394(s\u2081) + \u0394(s\u2082).',
+    detail: 'Net debt flow is additive: Δ(s₁ + s₂) = Δ(s₁) + Δ(s₂).',
     proof: 'ZUSDDebtHomomorphism.lean',
     status: 'proved',
   },

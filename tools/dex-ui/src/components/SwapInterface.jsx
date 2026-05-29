@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { calcSwapOutput, calcPriceImpact, formatNumber, formatPercent } from '../lib/cpmm';
 import { validateSwap, getSlippageOptions, getPriceImpactSeverity } from '../lib/validation';
-import { apiDexImpactPreview, apiDexSlippageAdvice, apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap } from '../lib/api';
+import { apiDexImpactPreview, apiDexSlippageAdvice, apiDexPokayokeSwapSuggest, apiDexPokayokeSwapSuggestHeavy, apiSwap, getRuntimeConfig } from '../lib/api';
 import { createQuoteDagCache, computeSwapQuotePreviewIncremental } from '../lib/incrementalQuoteDag';
 import {
     deriveAutoProfile,
@@ -13,13 +13,57 @@ import {
 import { createQuoteCertificate, verifyQuoteCertificate } from '../lib/quoteCertificate';
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
+import TokenSelectModal from './TokenSelectModal.jsx';
 import {
     FALLBACK_SWAP_POOLS,
     FALLBACK_SWAP_TOKENS,
     loadSwapPools,
     resolveWalletTokenBalance,
 } from '../lib/swapData.js';
+import VerifiedBySpec from './VerifiedBySpec.jsx';
+import CopyHash from './CopyHash.jsx';
+import { buildAndSignSwapIntent } from '../sdk/dexIntentSigner.js';
 import './SwapInterface.css';
+
+// SVGs
+const SettingsIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+);
+
+const RefreshIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+        <path d="M16 21v-5h5" />
+    </svg>
+);
+
+const SwapDirectionIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <polyline points="19 12 12 19 5 12"/>
+    </svg>
+);
+
+const InfoIcon = ({ className = "icon" }) => (
+    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+);
+
+const AlertIcon = ({ className = "icon" }) => (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+);
 
 // Tooltip component
 function Tooltip({ text, children }) {
@@ -87,6 +131,8 @@ function SwapInterface({ wallet }) {
     const { demoMode } = useDemoMode();
     const [fromToken, setFromToken] = useState(FALLBACK_SWAP_TOKENS[0]);
     const [toToken, setToToken] = useState(FALLBACK_SWAP_TOKENS[1]);
+    const [tokenModalSide, setTokenModalSide] = useState(null);
+    const [customTokens, setCustomTokens] = useState([]);
     const [amountIn, setAmountIn] = useState('');
     const [slippage, setSlippage] = useState(0.005);
     const [showSettings, setShowSettings] = useState(false);
@@ -134,12 +180,25 @@ function SwapInterface({ wallet }) {
     ), [poolFeed.tokens]);
     const tokenSymbols = useMemo(() => tokens.map((token) => token.symbol), [tokens]);
     const uiSmokeSwap = useMemo(() => {
-        if (typeof window === 'undefined') return { enabled: false, amountIn: '' };
+        if (typeof window === 'undefined') {
+            return { enabled: false, amountIn: '', minAmountOut: '', signature: '', nonce: '', deadline: '', fromSymbol: '', toSymbol: '' };
+        }
         const params = new URLSearchParams(window.location.search);
         return {
             enabled: params.get('zenodexUiSmokeSwap') === '1',
             amountIn: params.get('smokeAmountIn') || '100',
+            minAmountOut: params.get('smokeMinAmountOut') || '',
+            signature: params.get('smokeIntentSignature') || '',
+            nonce: params.get('smokeNonce') || '',
+            deadline: params.get('smokeDeadline') || '',
+            fromSymbol: params.get('smokeFromSymbol') || '',
+            toSymbol: params.get('smokeToSymbol') || '',
         };
+    }, []);
+    const uiSmokeTokenSelectSide = useMemo(() => {
+        if (typeof window === 'undefined') return '';
+        const side = String(new URLSearchParams(window.location.search).get('zenodexUiSmokeTokenSelect') || '').trim();
+        return side === 'from' || side === 'to' ? side : '';
     }, []);
 
     // Auto-refresh prices every 15 seconds
@@ -188,7 +247,7 @@ function SwapInterface({ wallet }) {
             timer = setTimeout(runLoad, delayMs);
         };
         const runLoad = async () => {
-            const next = await loadSwapPools({ timeoutMs: 2200 });
+            const next = await loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' });
             if (!cancelled) {
                 setPoolFeed(next);
                 // Back off when API is unavailable to reduce noisy retries in local-only mode.
@@ -200,7 +259,7 @@ function SwapInterface({ wallet }) {
             cancelled = true;
             if (timer) clearTimeout(timer);
         };
-    }, []);
+    }, [wallet?.address]);
 
     useEffect(() => {
         if (tokens.length < 2) return;
@@ -214,9 +273,26 @@ function SwapInterface({ wallet }) {
     }, [tokens, fromToken.symbol, toToken.symbol]);
 
     useEffect(() => {
+        if (!uiSmokeSwap.enabled || tokens.length < 2) return;
+        const requestedFrom = String(uiSmokeSwap.fromSymbol || '').trim().toUpperCase();
+        const requestedTo = String(uiSmokeSwap.toSymbol || '').trim().toUpperCase();
+        if (!requestedFrom || !requestedTo || requestedFrom === requestedTo) return;
+        const nextFrom = tokens.find((token) => token.symbol === requestedFrom);
+        const nextTo = tokens.find((token) => token.symbol === requestedTo);
+        if (!nextFrom || !nextTo) return;
+        setFromToken(nextFrom);
+        setToToken(nextTo);
+    }, [uiSmokeSwap, tokens]);
+
+    useEffect(() => {
         if (!uiSmokeSwap.enabled || poolFeed.source !== 'api' || amountIn) return;
         setAmountIn(uiSmokeSwap.amountIn);
     }, [uiSmokeSwap, poolFeed.source, amountIn]);
+
+    useEffect(() => {
+        if (!uiSmokeTokenSelectSide || poolFeed.source !== 'api') return;
+        setTokenModalSide(uiSmokeTokenSelectSide);
+    }, [uiSmokeTokenSelectSide, poolFeed.source]);
 
     useEffect(() => {
         if (!submittedSwap || submittedSwap.status !== 'pending') return undefined;
@@ -459,8 +535,8 @@ function SwapInterface({ wallet }) {
     );
 
     // Get user balance for from token
-    const fromBalance = wallet ? resolveWalletTokenBalance(wallet, fromToken.symbol) : 0;
-    const toBalance = wallet ? resolveWalletTokenBalance(wallet, toToken.symbol) : 0;
+    const fromBalance = wallet ? resolveWalletTokenBalance(wallet, fromToken.symbol) : null;
+    const toBalance = wallet ? resolveWalletTokenBalance(wallet, toToken.symbol) : null;
 
     // Incremental quote DAG (performance-oriented quote path)
     const swapQuote = useMemo(() => {
@@ -647,7 +723,7 @@ function SwapInterface({ wallet }) {
             return { ok: false, error: 'Enter a valid amount' };
         }
 
-        if (wallet && input > fromBalance) {
+        if (wallet && fromBalance != null && input > fromBalance) {
             return { ok: false, error: `Insufficient ${fromToken.symbol} balance` };
         }
 
@@ -747,15 +823,36 @@ function SwapInterface({ wallet }) {
         setQuoteError('');
     };
 
+    const handleSelectToken = (token) => {
+        if (!tokenModalSide || !token) return;
+        if (tokenModalSide === 'from') {
+            setFromToken(token);
+        } else {
+            setToToken(token);
+        }
+        setAmountIn('');
+        setQuoteError('');
+        setTokenModalSide(null);
+    };
+
+    const handleImportToken = (token) => {
+        if (!demoMode || !token) return;
+        setCustomTokens((prev) => [...prev, token]);
+        handleSelectToken(token);
+    };
+
     const handleMaxAmount = () => {
-        if (wallet && fromBalance > 0) {
-            // Leave a small amount for gas if native token
-            const maxAmount = fromToken.symbol === 'AGRS'
-                ? Math.max(0, fromBalance - 0.01)
-                : fromBalance;
-            setAmountIn(maxAmount.toString());
+        if (wallet && fromBalance != null && fromBalance > 0) {
+            setAmountIn(String(fromBalance));
             setQuoteError('');
         }
+    };
+
+    const handlePresetFraction = (fraction) => {
+        if (!wallet || fromBalance == null || fromBalance <= 0) return;
+        const amount = fromBalance * fraction;
+        setAmountIn(amount > 0 ? String(amount) : '');
+        setQuoteError('');
     };
 
     const handleSwapClick = () => {
@@ -781,7 +878,7 @@ function SwapInterface({ wallet }) {
             setPokayokeHeavySuggestions(null);
             setPokayokeHeavySuggestError('');
             setConfirmConfig({
-                title: '⚠️ Confirm Swap',
+                title: 'Confirm Swap',
                 messages: Array.isArray(gate.messages) ? gate.messages : [],
                 reasons: Array.isArray(gate.reasons) ? gate.reasons : [],
                 requireTyped: String(gate.action) === 'typed_confirm',
@@ -800,7 +897,7 @@ function SwapInterface({ wallet }) {
             setPokayokeHeavySuggestions(null);
             setPokayokeHeavySuggestError('');
             setConfirmConfig({
-                title: '⚠️ Confirm Swap',
+                title: 'Confirm Swap',
                 messages: ['High price impact. Consider trading a smaller amount or adding liquidity.'],
                 reasons: ['legacy_high_impact'],
                 requireTyped: false,
@@ -873,7 +970,44 @@ function SwapInterface({ wallet }) {
             }
             try {
                 const amountInUnits = Math.max(1, Math.round(Number(amountIn)));
-                const minAmountOutUnits = Math.max(0, Math.floor(Number(activePreview.minOutput ?? 1)));
+                const minAmountOutUnits = uiSmokeSwap.minAmountOut
+                    ? Math.max(0, Math.floor(Number(uiSmokeSwap.minAmountOut)))
+                    : Math.max(0, Math.floor(Number(activePreview.minOutput ?? 1)));
+                const currentPool = poolFeed.pools[poolKey];
+                let intentSignature = uiSmokeSwap.signature || undefined;
+                let intentNonce = uiSmokeSwap.nonce ? Number(uiSmokeSwap.nonce) : null;
+                let intentDeadline = uiSmokeSwap.deadline ? Number(uiSmokeSwap.deadline) : 1_999_999_999;
+                if (!Number.isSafeInteger(intentDeadline) || intentDeadline <= 0) {
+                    throw new Error('swap_deadline_unavailable');
+                }
+                if (!intentSignature) {
+                    const nextNonce = Number.isSafeInteger(poolFeed.accountLastNonce)
+                        ? poolFeed.accountLastNonce + 1
+                        : null;
+                    if (!Number.isSafeInteger(nextNonce) || nextNonce <= 0) {
+                        throw new Error('swap_nonce_unavailable');
+                    }
+                    const signed = await buildAndSignSwapIntent({
+                        pool: currentPool,
+                        payload: {
+                            poolId: livePoolIntent?.poolId,
+                            assetIn: livePoolIntent?.assetIn,
+                            assetOut: livePoolIntent?.assetOut,
+                            amountIn: amountInUnits,
+                            minAmountOut: minAmountOutUnits,
+                            senderPubkey: wallet?.address,
+                            recipient: wallet?.address,
+                            deadline: intentDeadline,
+                            nonce: nextNonce,
+                        },
+                        privkey: wallet?.privkey,
+                        signDexIntent: wallet?.signDexIntentForEngine || wallet?.signDexIntent,
+                        chainId: getRuntimeConfig().chainId || wallet?.chainId || 'zeno-ledger-localtest-v0',
+                    });
+                    intentSignature = signed.signature;
+                    intentNonce = signed.intent.nonce;
+                    intentDeadline = signed.intent.deadline;
+                }
                 const maybeRemote = await apiSwap(
                     {
                         from: fromToken.symbol,
@@ -885,6 +1019,9 @@ function SwapInterface({ wallet }) {
                         assetOut: livePoolIntent?.assetOut,
                         senderPubkey: wallet?.address,
                         recipient: wallet?.address,
+                        signature: intentSignature,
+                        nonce: intentNonce || undefined,
+                        deadline: intentDeadline,
                     },
                     { timeoutMs: 3500 },
                 );
@@ -898,6 +1035,9 @@ function SwapInterface({ wallet }) {
                 remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
                 remoteHeight = maybeRemote?.height ?? null;
                 submitPath = 'api';
+                loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' })
+                    .then((next) => setPoolFeed(next))
+                    .catch(() => {});
             } catch (err) {
                 if (!demoMode) {
                     const msg = err && typeof err === 'object' ? String(err.message || 'swap_submit_failed') : 'swap_submit_failed';
@@ -944,7 +1084,7 @@ function SwapInterface({ wallet }) {
         } finally {
             setIsSubmitting(false);
         }
-    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed.source, livePoolIntent, wallet]);
+    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed, poolKey, livePoolIntent, wallet, uiSmokeSwap]);
 
     useEffect(() => {
         if (!uiSmokeSwap.enabled) return;
@@ -1081,20 +1221,236 @@ function SwapInterface({ wallet }) {
     const impactSeverity = activePreview ? getPriceImpactSeverity(activePreview.priceImpact) : 'low';
     const routeProfiles = listRouteProfiles();
 
+    // ── Runtime verification posture (honest, node-reported) ──────────────
+    // Strict ZK + a real subprocess verifier means settlement is proof-gated;
+    // otherwise the Tau spec still defines the math but proofs are not enforced
+    // in this environment. The header chip and proof panel reflect this exactly.
+    const zkPosture = getRuntimeConfig()?.localTestnetZkPosture || {};
+    const proofEnforced = zkPosture.zk_required === true
+        && zkPosture.zk_mode_effective === 'strict'
+        && zkPosture.proof_verifier_kind === 'subprocess';
+    const postureKnown = Boolean(zkPosture.zk_mode_effective);
+
+    // ── Market rail derived values ────────────────────────────────────────
+    const livePool = poolFeed.pools[poolKey] || null;
+    const railFeeBps = Number(livePool?.feeBps ?? 30);
+    const midPrice = reserves ? reserves.reserveOut / reserves.reserveIn : null;
+    const invariantK = reserves ? reserves.reserveIn * reserves.reserveOut : null;
+    const depthInPct = reserves
+        ? Math.max(4, Math.min(96, (reserves.reserveIn / (reserves.reserveIn + reserves.reserveOut)) * 100))
+        : 50;
+    const fmtBig = (n) => {
+        if (!Number.isFinite(n)) return '—';
+        const abs = Math.abs(n);
+        if (abs >= 1e12) return `${(n / 1e12).toFixed(2)}T`;
+        if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+        if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+        if (abs >= 1e3) return `${(n / 1e3).toFixed(2)}K`;
+        return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    };
+
+    // Position of the expected output within the worst→best envelope (honest,
+    // data-driven; falls back to centre when bounds are unavailable).
+    const envHasBounds = Boolean(
+        activePreview
+        && Number.isFinite(activePreview.amountOutWorstCase)
+        && Number.isFinite(activePreview.amountOutBestCase)
+        && activePreview.amountOutBestCase > activePreview.amountOutWorstCase,
+    );
+    const envPos = envHasBounds
+        ? Math.max(2, Math.min(98, ((activePreview.output - activePreview.amountOutWorstCase)
+            / (activePreview.amountOutBestCase - activePreview.amountOutWorstCase)) * 100))
+        : 50;
+
+    const marketRail = (
+        <aside className="swap-market panel" aria-label="Market reserves">
+            <div className="swap-rail-head">
+                <span className="swap-rail-eyebrow">Market</span>
+                <h3 className="swap-rail-pair">
+                    <span className="token-icon-small">{fromToken.icon}</span>
+                    {fromToken.symbol}
+                    <span className="swap-rail-sep">/</span>
+                    <span className="token-icon-small">{toToken.icon}</span>
+                    {toToken.symbol}
+                </h3>
+            </div>
+            {reserves ? (
+                <>
+                    <div className="swap-rail-price">
+                        <span className="swap-rail-price-value mono">{midPrice ? formatNumber(midPrice, 6) : '—'}</span>
+                        <span className="swap-rail-price-unit">{toToken.symbol} per {fromToken.symbol}</span>
+                    </div>
+                    <dl className="swap-rail-stats">
+                        <div className="swap-rail-stat">
+                            <dt>Reserve {fromToken.symbol}</dt>
+                            <dd className="mono">{fmtBig(reserves.reserveIn)}</dd>
+                        </div>
+                        <div className="swap-rail-stat">
+                            <dt>Reserve {toToken.symbol}</dt>
+                            <dd className="mono">{fmtBig(reserves.reserveOut)}</dd>
+                        </div>
+                        <div className="swap-rail-stat">
+                            <dt>Invariant k</dt>
+                            <dd className="mono">{fmtBig(invariantK)}</dd>
+                        </div>
+                        <div className="swap-rail-stat">
+                            <dt>LP fee</dt>
+                            <dd className="mono">{(railFeeBps / 100).toFixed(2)}%</dd>
+                        </div>
+                    </dl>
+                    <div className="swap-rail-depth">
+                        <div className="swap-rail-depth-bar" title="Reserve balance between the two assets">
+                            <span className="swap-rail-depth-in" style={{ width: `${depthInPct}%` }} />
+                            <span className="swap-rail-depth-out" style={{ width: `${100 - depthInPct}%` }} />
+                        </div>
+                        <div className="swap-rail-depth-legend">
+                            <span>{fromToken.symbol}</span>
+                            <span>{toToken.symbol}</span>
+                        </div>
+                    </div>
+                    <div className={`swap-rail-feed ${poolFeed.source === 'api' ? 'is-live' : 'is-snapshot'}`}>
+                        <span className="swap-rail-dot" aria-hidden="true" />
+                        {poolFeed.source === 'api' ? 'Live pool feed' : 'Reference snapshot'}
+                    </div>
+                </>
+            ) : (
+                <div className="swap-rail-empty">
+                    <p className="swap-rail-empty-title">No live pool for {fromToken.symbol}/{toToken.symbol}</p>
+                    <p className="swap-rail-empty-hint">Pick a pair with an active pool, or add liquidity from the Pools tab to seed reserves.</p>
+                </div>
+            )}
+        </aside>
+    );
+
+    const proofPanel = (
+        <aside className="swap-proof panel" aria-label="Execution proof">
+            <div className="swap-rail-head">
+                <span className="swap-rail-eyebrow">Execution proof</span>
+                <h3 className="swap-rail-title">Verification</h3>
+            </div>
+
+            <div className={`swap-proof-posture ${proofEnforced ? 'is-enforced' : 'is-advisory'}`}>
+                <div className="swap-proof-posture-head">
+                    <span className="swap-proof-posture-dot" aria-hidden="true" />
+                    <span className="swap-proof-posture-label">
+                        {proofEnforced
+                            ? 'Proof-enforced settlement'
+                            : (postureKnown ? 'Spec-checked · proofs off' : 'Posture unavailable')}
+                    </span>
+                </div>
+                <p className="swap-proof-posture-detail">
+                    {proofEnforced ? (
+                        <>Swap math is validated by Tau spec <code>cpmm_v1</code> and settlement is gated by the <code>{zkPosture.proof_verifier_kind}</code> proof verifier (zk {zkPosture.zk_mode_effective}).</>
+                    ) : (
+                        <>Tau spec <code>cpmm_v1</code> defines the math, but this environment runs zk <code>{zkPosture.zk_mode_effective || 'unknown'}</code> with proof verification <strong>disabled</strong>. Treat green checks as spec conformance, not a production proof.</>
+                    )}
+                </p>
+            </div>
+
+            <div className="swap-proof-evidence" role="list">
+                <span className="swap-proof-ev" role="listitem">
+                    <span className={`swap-proof-ev-dot ${proofEnforced ? 'ev-on' : 'ev-off'}`} aria-hidden="true" />
+                    Proof verifier {proofEnforced ? 'active' : 'off'}
+                </span>
+                <span className="swap-proof-ev" role="listitem">
+                    <span className="swap-proof-ev-dot ev-on" aria-hidden="true" />
+                    Tau spec cpmm_v1
+                </span>
+                <span className="swap-proof-ev" role="listitem">
+                    <span className={`swap-proof-ev-dot ${(!advancedMode || certificateCheck.ok) ? 'ev-on' : 'ev-off'}`} aria-hidden="true" />
+                    {advancedMode ? (certificateCheck.ok ? 'Quote cert verified' : 'Quote cert stale') : 'Deterministic quote'}
+                </span>
+            </div>
+
+            {activePreview ? (
+                <div className="swap-proof-envelope">
+                    <div className="swap-proof-envelope-head">
+                        <span>Execution envelope</span>
+                        <span className={`impact-${impactSeverity}`}>{formatPercent(activePreview.priceImpact)} impact</span>
+                    </div>
+                    {envHasBounds ? (
+                        <>
+                            <div className="swap-proof-envelope-bar" aria-hidden="true">
+                                <span className="swap-proof-envelope-mid" style={{ left: `${envPos}%` }} />
+                            </div>
+                            <div className="swap-proof-envelope-legend mono">
+                                <span>min {formatNumber(activePreview.amountOutWorstCase)}</span>
+                                <span>exp {formatNumber(activePreview.output)}</span>
+                                <span>max {formatNumber(activePreview.amountOutBestCase)}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="swap-proof-envelope-legend mono single">
+                            <span>min received</span>
+                            <span>{formatNumber(activePreview.minOutput)} {toToken.symbol}</span>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="swap-rail-empty">
+                    <p className="swap-rail-empty-hint">Enter an amount to compute the deterministic execution envelope and minimum received.</p>
+                </div>
+            )}
+
+            {submittedSwap?.receipt?.receipt_hash && (
+                <div className="swap-proof-receipt">
+                    <div className="swap-proof-receipt-head">
+                        <span className="swap-proof-receipt-dot" aria-hidden="true" />
+                        Settlement receipt
+                    </div>
+                    <div className="swap-proof-receipt-row">
+                        <span>Hash</span>
+                        <CopyHash value={submittedSwap.receipt.receipt_hash} label="receipt hash" />
+                    </div>
+                    {submittedSwap.receipt.body?.schema && (
+                        <div className="swap-proof-receipt-row">
+                            <span>Schema</span>
+                            <span className="mono swap-proof-receipt-schema">{submittedSwap.receipt.body.schema}</span>
+                        </div>
+                    )}
+                    <div className="swap-proof-receipt-row">
+                        <span>Canonical route</span>
+                        <span className={submittedSwap.receipt.body?.canonical_route_certificate ? 'impact-low' : 'impact-medium'}>
+                            {submittedSwap.receipt.body?.canonical_route_certificate ? 'certified winner' : 'not attached'}
+                        </span>
+                    </div>
+                </div>
+            )}
+        </aside>
+    );
+
     return (
-        <div className="swap-panel panel">
+        <div className="swap-instrument">
+            {marketRail}
+            <div className="swap-panel panel">
             <div className="swap-header">
-                <h2>Swap</h2>
+                <div className="swap-header-titles">
+                    <h2>Swap</h2>
+                    {proofEnforced ? (
+                        <VerifiedBySpec
+                            spec="cpmm_v1"
+                            kind="tau"
+                            title={`Swap math validated by Tau spec cpmm_v1; settlement gated by the ${zkPosture.proof_verifier_kind} proof verifier (zk ${zkPosture.zk_mode_effective}).`}
+                        />
+                    ) : (
+                        <Tooltip text={`Tau spec cpmm_v1 defines the swap math, but this environment runs zk ${zkPosture.zk_mode_effective || 'unknown'} with proof verification disabled${zkPosture.zk_fallback_reason ? ` — ${zkPosture.zk_fallback_reason}` : ''}. Spec conformance only, not a production proof.`}>
+                            <span className="swap-spec-advisory">Spec cpmm_v1 · proofs off</span>
+                        </Tooltip>
+                    )}
+                </div>
                 <div className="swap-header-actions">
                     <span className={`refresh-indicator ${isRefreshing ? 'active' : ''}`} title="Prices refresh every 15s">
-                        🔄
+                        <RefreshIcon />
                     </span>
                     <button
+                        type="button"
                         className="settings-btn"
                         onClick={() => setShowSettings(!showSettings)}
                         title="Transaction settings"
+                        aria-label="Transaction settings"
+                        aria-expanded={showSettings}
                     >
-                        ⚙️
+                        <SettingsIcon />
                     </button>
                 </div>
             </div>
@@ -1104,7 +1460,7 @@ function SwapInterface({ wallet }) {
                     <div className="settings-row">
                         <span className="label">
                             <Tooltip text="Maximum price movement you're willing to accept">
-                                Slippage Tolerance ℹ️
+                                <span className="label-with-icon">Slippage Tolerance <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         {suggestedSlippage !== slippage && (
@@ -1137,7 +1493,7 @@ function SwapInterface({ wallet }) {
                     <div className="settings-row">
                         <span className="label">
                             <Tooltip text="Enable experimental mistake-proofing interlocks (confirm/typed confirm) driven by deterministic MEV + revert-safety signals">
-                                Safety Interlocks (Experimental) ℹ️
+                                <span className="label-with-icon">Safety Interlocks (Experimental) <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         <button
@@ -1152,7 +1508,7 @@ function SwapInterface({ wallet }) {
                     <div className="settings-row">
                         <span className="label">
                             <Tooltip text="Enable experimental route optimization and quote certificates">
-                                Advanced Mode ℹ️
+                                <span className="label-with-icon">Advanced Mode <InfoIcon /></span>
                             </Tooltip>
                         </span>
                         <button
@@ -1170,7 +1526,7 @@ function SwapInterface({ wallet }) {
                             <div className="settings-row">
                                 <span className="label">
                                     <Tooltip text="Deterministic route policy frontier: Latency ↔ Quality">
-                                        Route Profile ℹ️
+                                        <span className="label-with-icon">Route Profile <InfoIcon /></span>
                                     </Tooltip>
                                 </span>
                                 <button
@@ -1215,8 +1571,8 @@ function SwapInterface({ wallet }) {
                 <div className="swap-input-header">
                     <span className="label">From</span>
                     <span className="balance" onClick={handleMaxAmount} style={{ cursor: wallet ? 'pointer' : 'default' }}>
-                        Balance: {wallet ? formatNumber(fromBalance) : '-'}
-                        {wallet && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
+                        Balance: {wallet ? (fromBalance == null ? 'N/A' : formatNumber(fromBalance)) : '-'}
+                        {wallet && fromBalance != null && fromBalance > 0 && <span className="max-label"> (MAX)</span>}
                     </span>
                 </div>
                 <div className="swap-input-row">
@@ -1229,11 +1585,48 @@ function SwapInterface({ wallet }) {
                         min="0"
                         step="any"
                     />
-                    <div className="token-selector">
+                    <button
+                        className="token-selector"
+                        type="button"
+                        onClick={() => setTokenModalSide('from')}
+                        title="Select source token"
+                    >
                         <span className="token-icon-small">{fromToken.icon}</span>
                         <span>{fromToken.symbol}</span>
-                    </div>
+                    </button>
                 </div>
+                {wallet && fromBalance != null && fromBalance > 0 && (
+                    <div className="swap-presets" role="group" aria-label="Quick fill from balance">
+                        <button
+                            type="button"
+                            className="swap-preset-btn"
+                            onClick={() => handlePresetFraction(0.25)}
+                        >
+                            25%
+                        </button>
+                        <button
+                            type="button"
+                            className="swap-preset-btn"
+                            onClick={() => handlePresetFraction(0.5)}
+                        >
+                            50%
+                        </button>
+                        <button
+                            type="button"
+                            className="swap-preset-btn"
+                            onClick={() => handlePresetFraction(0.75)}
+                        >
+                            75%
+                        </button>
+                        <button
+                            type="button"
+                            className="swap-preset-btn swap-preset-max"
+                            onClick={handleMaxAmount}
+                        >
+                            MAX
+                        </button>
+                    </div>
+                )}
                 {validation.error && amountIn && (
                     <div className="input-error-hint">{validation.error}</div>
                 )}
@@ -1242,7 +1635,7 @@ function SwapInterface({ wallet }) {
             {/* Swap Direction Button */}
             <div className="swap-direction">
                 <button className="swap-direction-btn" onClick={handleSwapTokens} title="Swap tokens">
-                    ↕️
+                    <SwapDirectionIcon />
                 </button>
             </div>
 
@@ -1250,7 +1643,7 @@ function SwapInterface({ wallet }) {
             <div className="swap-input-container">
                 <div className="swap-input-header">
                     <span className="label">To (estimated)</span>
-                    <span className="balance">Balance: {wallet ? formatNumber(toBalance) : '-'}</span>
+                    <span className="balance">Balance: {wallet ? (toBalance == null ? 'N/A' : formatNumber(toBalance)) : '-'}</span>
                 </div>
                 <div className="swap-input-row">
                     <input
@@ -1260,10 +1653,15 @@ function SwapInterface({ wallet }) {
                         value={activePreview ? formatNumber(activePreview.output) : ''}
                         readOnly
                     />
-                    <div className="token-selector">
+                    <button
+                        className="token-selector"
+                        type="button"
+                        onClick={() => setTokenModalSide('to')}
+                        title="Select destination token"
+                    >
                         <span className="token-icon-small">{toToken.icon}</span>
                         <span>{toToken.symbol}</span>
-                    </div>
+                    </button>
                 </div>
             </div>
 
@@ -1282,7 +1680,7 @@ function SwapInterface({ wallet }) {
                         </Tooltip>
                         <span className={`impact-${impactSeverity}`}>
                             {formatPercent(activePreview.priceImpact)}
-                            {impactSeverity === 'high' && ' ⚠️'}
+                            {impactSeverity === 'high' && <AlertIcon className="icon-warning" />}
                         </span>
                     </div>
                     <div className="swap-detail-row">
@@ -1359,32 +1757,32 @@ function SwapInterface({ wallet }) {
             {/* High Impact Warning */}
             {activePreview && impactSeverity === 'high' && (
                 <div className="swap-warning">
-                    ⚠️ High price impact! Consider trading a smaller amount or adding liquidity.
+                    <AlertIcon /> <span>High price impact! Consider trading a smaller amount or adding liquidity.</span>
                 </div>
             )}
 
             {/* Medium Impact Notice */}
             {activePreview && impactSeverity === 'medium' && (
                 <div className="swap-notice">
-                    ℹ️ Moderate price impact ({formatPercent(activePreview.priceImpact)})
+                    <InfoIcon /> <span>Moderate price impact ({formatPercent(activePreview.priceImpact)})</span>
                 </div>
             )}
 
             {poolFeed.source !== 'api' && (
                 <div className="swap-notice">
-                    ℹ️ Live pool feed unavailable. Using a reference reserve snapshot for preview quotes.
+                    <InfoIcon /> <span>Live pool feed unavailable. Using a reference reserve snapshot for preview quotes.</span>
                 </div>
             )}
 
             {advancedMode && activePreview && !certificateCheck.ok && (
                 <div className="swap-warning">
-                    ⚠️ Quote certificate check failed: {certificateCheck.reason}. Refresh quote before swapping.
+                    <AlertIcon /> <span>Quote certificate check failed: {certificateCheck.reason}. Refresh quote before swapping.</span>
                 </div>
             )}
 
             {quoteError && (
                 <div className="swap-warning">
-                    ⚠️ {quoteError}
+                    <AlertIcon /> <span>{quoteError}</span>
                 </div>
             )}
 
@@ -1412,7 +1810,7 @@ function SwapInterface({ wallet }) {
                     }}
                 >
                     <div className="confirm-modal animate-slide-up" onClick={e => e.stopPropagation()}>
-                        <h3>{confirmConfig?.title || '⚠️ Confirm Swap'}</h3>
+                        <h3 className="confirm-title"><AlertIcon /> {confirmConfig?.title || 'Confirm Swap'}</h3>
                         <p>This swap has a <strong className="impact-high">{formatPercent(activePreview.priceImpact)}</strong> price impact.</p>
                         <div className="confirm-details">
                             <div className="confirm-row">
@@ -1738,10 +2136,29 @@ function SwapInterface({ wallet }) {
                 </div>
             )}
 
-            <div className="swap-footer">
-                <span className="verified-badge">✓ Tau-Verified</span>
-                <span className="network-badge">Tau Net Alpha</span>
+                <div className="swap-footer">
+                    {proofEnforced ? (
+                        <span className="verified-badge">✓ Proof-enforced</span>
+                    ) : (
+                        <span className="verified-badge verified-badge-advisory">Spec-checked (proofs off)</span>
+                    )}
+                    <span className="network-badge">Tau local-testnet</span>
+                </div>
             </div>
+
+            {proofPanel}
+
+            <TokenSelectModal
+                isOpen={Boolean(tokenModalSide)}
+                onClose={() => setTokenModalSide(null)}
+                onSelect={handleSelectToken}
+                excludeToken={tokenModalSide === 'from' ? toToken : fromToken}
+                wallet={wallet}
+                availableTokens={tokens}
+                customTokens={demoMode ? customTokens : []}
+                onImportToken={handleImportToken}
+                allowImportCustom={demoMode}
+            />
         </div>
     );
 }

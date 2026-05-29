@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useReducer, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useDemoMode } from './DemoModeContext.jsx';
 import { PerpContext } from './PerpContext.jsx';
 import { PERP_DEMO_MARKETS, PERP_DEMO_POSITIONS, PERP_DEMO_HISTORY } from './perpMockData.js';
@@ -36,7 +36,17 @@ function _derivePhase(market) {
     const now = Number(market?.now_epoch ?? 0);
     const cpEpoch = Number(market?.clearing_price_epoch ?? 0);
     const cpE8 = Number(market?.clearing_price_e8 ?? 0);
-    if (cpEpoch >= now && cpE8 > 0) return 'PricePublished';
+    // A clearing price set for the CURRENT epoch means it has been published.
+    if (cpEpoch === now && cpE8 > 0) return 'PricePublished';
+    // SETTLED is intentionally NOT inferred here. The authoritative kernel rule
+    // (src/core/perps.py `_infer_epoch_phase`) distinguishes SETTLED from
+    // PRICE_PUBLISHED via a `clearing_price_seen`/settled flag that the wallet
+    // /status payload does not expose — both phases share
+    // clearing_price_epoch == now_epoch. Guessing from epoch arithmetic alone
+    // (e.g. cpEpoch < now) would falsely label a freshly-advanced OPEN epoch as
+    // Settled. The honest fix is backend: surface clearing_price_seen in the 2p
+    // market summary, then resolve SETTLED here. Until then the stepper stops at
+    // PRICE_PUBLISHED rather than showing a false SETTLED.
     return 'Open';
 }
 
@@ -95,12 +105,18 @@ function derivePositionFromWalletMarket(walletMarket, userPubkey) {
     const b = _normalizePubkey(walletMarket.account_b_pubkey);
     let positionBase = 0;
     let collateralQuote = 0;
+    // `collateral_e8_*` is e8-scaled quote per the kernel (1e8 = 1 quote unit),
+    // but `collateralQuote` is PLAIN integer quote everywhere downstream
+    // (perpMath/perpValidation/position panel + demo data). Divide out the 1e8
+    // scale here at the read boundary; trunc drops the sub-1-quote fraction for
+    // display. The WRITE path (deposit/withdrawCollateral) stays unscaled —
+    // perp_engine scales amount*1e8 server-side, so do NOT pre-scale there.
     if (u && u === a) {
         positionBase = Number(walletMarket.position_base_a ?? 0);
-        collateralQuote = Number(walletMarket.collateral_e8_a ?? 0);
+        collateralQuote = Math.trunc(Number(walletMarket.collateral_e8_a ?? 0) / 1e8);
     } else if (u && u === b) {
         positionBase = Number(walletMarket.position_base_b ?? 0);
-        collateralQuote = Number(walletMarket.collateral_e8_b ?? 0);
+        collateralQuote = Math.trunc(Number(walletMarket.collateral_e8_b ?? 0) / 1e8);
     } else {
         return null;
     }
@@ -401,7 +417,12 @@ export function PerpProvider({ children, wallet, onTransaction }) {
                 // Live mode: read from the Tau-node-backed wallet status. This
                 // is the authoritative source. The legacy /api/perps/markets
                 // demo endpoint is no longer consulted in live mode.
-                const statusResp = await apiGetPerpsWalletStatus({ timeoutMs: 4000 });
+                // 12s budget: the Tau-node-backed status response can carry
+                // wallet authority + signer ceremony evidence and routinely
+                // takes 2–3 s on local-testnet, so a tighter cap shows the
+                // user spurious "timeout" banners even when the call would
+                // have finished in time.
+                const statusResp = await apiGetPerpsWalletStatus({ timeoutMs: 12000 });
                 if (seq !== loadSeqRef.current) return; // stale
                 const status = statusResp?.status || {};
                 const rawMarkets = Array.isArray(status.markets) ? status.markets : [];
