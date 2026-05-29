@@ -34,6 +34,7 @@ from tools.runtime import perp_partial_liquidate_lib as plq  # noqa: E402
 from tools.runtime import perp_publish_clearing_price_lib as pub  # noqa: E402
 from tools.runtime import perp_set_market_params_lib as smp  # noqa: E402
 from tools.runtime import perp_settle_epoch_lib as settle  # noqa: E402
+from src.runtime.authority import AuthorityError, AuthorityMode, RustUnavailable, decide  # noqa: E402
 
 # Each shadowed isolated-perps op: (label, lib, expect_rejects).
 OP_LIBS = [
@@ -84,3 +85,84 @@ def test_fuzz_differential(label, lib, expect_rejects, rust_bin):
     assert any(p["ok"] for p in py), f"{label}: fuzz produced no accepts"
     if expect_rejects:
         assert any(not p["ok"] for p in py), f"{label}: fuzz produced no rejects"
+
+
+def _selector_cases(label: str, lib) -> list[dict]:
+    return lib.randomized_cases(seed=20260529 + len(label), n=8)
+
+
+def _compare_with(lib):
+    def compare(py_results, rust_results) -> bool:
+        return not lib.diff_results(py_results, rust_results)
+
+    return compare
+
+
+@pytest.mark.parametrize("label,lib,_expect_rejects", OP_LIBS, ids=[label for label, _, _ in OP_LIBS])
+def test_selector_rust_authority_with_python_shadow_agrees_for_perps(label, lib, _expect_rejects, rust_bin):
+    """Test-only selector exercise: Rust decides, Python shadows, no production profile flips."""
+    cases = _selector_cases(label, lib)
+    py = lib.py_eval_all(cases)
+    d = decide(
+        f"perps_e2:{label}",
+        AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+        python_fn=lambda: py,
+        rust_fn=lambda: lib.run_rust(rust_bin, py),
+        compare=_compare_with(lib),
+    )
+    assert d.authority == "rust"
+    assert d.shadow_checked is True
+    assert d.agreed is True
+
+
+@pytest.mark.parametrize("label,lib,_expect_rejects", OP_LIBS, ids=[label for label, _, _ in OP_LIBS])
+def test_selector_fails_closed_on_injected_perps_disagreement(label, lib, _expect_rejects, rust_bin):
+    cases = _selector_cases(label, lib)
+    py = lib.py_eval_all(cases)
+
+    def tampered_rust():
+        out = lib.run_rust(rust_bin, py)
+        out[0] = {**out[0], "ok": not bool(out[0].get("ok"))}
+        return out
+
+    with pytest.raises(AuthorityError):
+        decide(
+            f"perps_e2:{label}",
+            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+            python_fn=lambda: py,
+            rust_fn=tampered_rust,
+            compare=_compare_with(lib),
+        )
+
+
+def test_selector_fails_closed_on_malformed_perps_rust_output(rust_bin):
+    label, lib, _ = OP_LIBS[0]
+    cases = _selector_cases(label, lib)
+    py = lib.py_eval_all(cases)
+
+    with pytest.raises(AuthorityError):
+        decide(
+            f"perps_e2:{label}",
+            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+            python_fn=lambda: py,
+            rust_fn=lambda: [],
+            compare=_compare_with(lib),
+        )
+
+
+def test_selector_fails_closed_when_perps_rust_unavailable_under_authority():
+    label, lib, _ = OP_LIBS[0]
+    cases = _selector_cases(label, lib)
+    py = lib.py_eval_all(cases)
+
+    def rust_missing():
+        raise RustUnavailable("perps runtime not built")
+
+    with pytest.raises(AuthorityError):
+        decide(
+            f"perps_e2:{label}",
+            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+            python_fn=lambda: py,
+            rust_fn=rust_missing,
+            compare=_compare_with(lib),
+        )
