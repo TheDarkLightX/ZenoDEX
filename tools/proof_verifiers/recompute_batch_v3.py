@@ -86,20 +86,26 @@ def _zlib_decompress_limited(data: bytes, *, name: str, max_out: int) -> bytes:
     out = bytearray()
     view = memoryview(data)
 
-    for off in range(0, len(view), _ZLIB_CHUNK):
-        chunk = view[off : off + _ZLIB_CHUNK]
-        buf = bytes(chunk)
-        while buf:
-            remaining = max_out - len(out)
-            if remaining <= 0:
-                raise ValueError(f"{name} decompressed too large")
-            out += d.decompress(buf, remaining)
-            buf = d.unconsumed_tail
+    try:
+        for off in range(0, len(view), _ZLIB_CHUNK):
+            chunk = view[off : off + _ZLIB_CHUNK]
+            buf = bytes(chunk)
+            while buf:
+                remaining = max_out - len(out)
+                if remaining <= 0:
+                    raise ValueError(f"{name} decompressed too large")
+                out += d.decompress(buf, remaining)
+                buf = d.unconsumed_tail
 
-    remaining = max_out - len(out)
-    if remaining <= 0:
-        raise ValueError(f"{name} decompressed too large")
-    out += d.flush(remaining)
+        remaining = max_out - len(out)
+        if remaining <= 0:
+            raise ValueError(f"{name} decompressed too large")
+        out += d.flush(remaining)
+    except zlib.error as exc:
+        # A corrupt (vs merely truncated) zlib stream raises zlib.error mid-
+        # decompress; convert it to a typed ValueError so the verifier returns a
+        # structured rejection (fail-closed) instead of crashing with a traceback.
+        raise ValueError(f"{name} invalid zlib stream") from exc
     if len(out) > max_out:
         raise ValueError(f"{name} decompressed too large")
     if not d.eof:
@@ -177,6 +183,17 @@ def _load_witness(proof: Mapping[str, Any]) -> Tuple[Mapping[str, Any], Mapping[
     return snapshot, operations
 
 
+def _projected_snapshot_scope_error(state: Any) -> Optional[str]:
+    fee_acc = getattr(state, "fee_accumulator", None)
+    if int(getattr(fee_acc, "dust", 0)) != 0:
+        return "projected pre_state_snapshot carries unbound fee_accumulator dust"
+    if getattr(state, "vault", None) is not None:
+        return "projected pre_state_snapshot carries unbound vault state"
+    if getattr(state, "oracle", None) is not None:
+        return "projected pre_state_snapshot carries unbound oracle state"
+    return None
+
+
 def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     schema = payload.get("schema")
     if schema != "zenodex_proof":
@@ -200,12 +217,18 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     if proof_batch != batch_commitment:
         return False, "proof/batch_commitment mismatch"
 
-    snapshot, operations = _load_witness(proof)
+    try:
+        snapshot, operations = _load_witness(proof)
+    except (TypeError, ValueError) as exc:
+        return False, f"invalid embedded witness: {exc}"
 
     try:
         state = state_from_snapshot(snapshot)
     except Exception as exc:
         return False, f"invalid pre_state_snapshot: {exc}"
+    scope_error = _projected_snapshot_scope_error(state)
+    if scope_error is not None:
+        return False, scope_error
 
     try:
         intents = parse_intents(dict(operations))

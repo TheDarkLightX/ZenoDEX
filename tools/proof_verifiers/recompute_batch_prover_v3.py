@@ -180,25 +180,6 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
         nonce_entries.append({"pubkey": pubkey, "last_nonce": int(last_nonce)})
     nonce_entries.sort(key=lambda e: e["pubkey"])
 
-    fee_acc = state.fee_accumulator
-    fee_acc_obj: Dict[str, Any] = {"dust": int(getattr(fee_acc, "dust", 0))}
-
-    vault_obj = None
-    if getattr(state, "vault", None) is not None:
-        v = state.vault
-        vault_obj = {
-            "acc_reward_per_share": int(v.acc_reward_per_share),
-            "last_update_acc": int(v.last_update_acc),
-            "pending_rewards": int(v.pending_rewards),
-            "reward_balance": int(v.reward_balance),
-            "staked_lp_shares": int(v.staked_lp_shares),
-        }
-
-    oracle_obj = None
-    if getattr(state, "oracle", None) is not None:
-        o = state.oracle
-        oracle_obj = {"price_timestamp": int(o.price_timestamp), "max_staleness_seconds": int(o.max_staleness_seconds)}
-
     return {
         "version": DEX_SNAPSHOT_VERSION,
         "balances": balances_entries,
@@ -207,9 +188,12 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
         "lp_mint_timestamps": lp_mint_timestamp_entries,
         "lp_duration_risk": lp_duration_risk_entries,
         "nonces": nonce_entries,
-        "fee_accumulator": fee_acc_obj,
-        "vault": vault_obj,
-        "oracle": oracle_obj,
+        # v3 support proofs bind only the projected settlement read-set. Keep
+        # required snapshot-only sections canonical so the witness cannot carry
+        # unbound live accounting or oracle/vault state.
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
     }
 
 

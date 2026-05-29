@@ -17,7 +17,8 @@ State JSON shape (all hex lowercase, 0x-prefixed; pubkey 48 bytes, asset/pool 32
       "lp_duration_risk":[{"pubkey","pool_id","last_mint_timestamp",
                            "last_remove_timestamp","churn_tier",
                            "last_churn_update_timestamp"}],
-      "nonces":          [{"pubkey","last_nonce"}]
+      "nonces":          [{"pubkey","last_nonce"}],
+      "fee_accumulator": {"dust"}
     }
 
 Modelling rules the generator must honour (so the Python table model and the
@@ -37,6 +38,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from src.core.fees import FeeAccumulatorState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
@@ -58,7 +60,7 @@ _STATUS_LABEL = {v: k for k, v in _STATUS.items()}
 
 
 def build_tables(state: dict):
-    """Build (balances, pools, lp, nonces) domain objects from a JSON `state`.
+    """Build (balances, pools, lp, nonces, fee_accumulator) from JSON `state`.
 
     May raise (TypeError/ValueError) when the state is invalid — e.g. a CPMM pool
     with non-empty curve_params, an out-of-range nonce, or a bad pubkey.
@@ -104,14 +106,23 @@ def build_tables(state: dict):
     for e in state.get("nonces", []) or []:
         nonces.set_last(e["pubkey"], e["last_nonce"])
 
-    return balances, pools, lp, nonces
+    fee_obj = state.get("fee_accumulator") or {}
+    if not isinstance(fee_obj, dict):
+        raise TypeError("fee_accumulator must be an object")
+    fee_accumulator = FeeAccumulatorState(dust=fee_obj.get("dust", 0))
+
+    return balances, pools, lp, nonces, fee_accumulator
 
 
 def state_root_from_json(state: dict) -> str:
     """Build the domain objects from `state` and return the authoritative root."""
-    balances, pools, lp, nonces = build_tables(state)
+    balances, pools, lp, nonces, fee_accumulator = build_tables(state)
     return compute_state_root(
-        balances=balances, pools=pools, lp_balances=lp, nonces=nonces
+        balances=balances,
+        pools=pools,
+        lp_balances=lp,
+        nonces=nonces,
+        fee_accumulator=fee_accumulator,
     )
 
 
@@ -123,7 +134,7 @@ def to_rust_json(state: dict) -> dict:
     canonicalization, and curve-param normalization — guaranteeing Rust encodes
     exactly the bytes Python hashes. Raises if `state` is invalid.
     """
-    balances, pools, lp, nonces = build_tables(state)
+    balances, pools, lp, nonces, fee_accumulator = build_tables(state)
     out: dict = {
         "balances": [
             {"pubkey": pk, "asset": asset, "amount": amount}
@@ -163,6 +174,7 @@ def to_rust_json(state: dict) -> dict:
         "nonces": [
             {"pubkey": pk, "last_nonce": n} for pk, n in nonces.get_all().items()
         ],
+        "fee_accumulator": {"dust": fee_accumulator.dust},
     }
     return out
 
@@ -264,6 +276,8 @@ def static_states() -> list[dict]:
         },
         # Nonces at the u32 boundary.
         {"nonces": [{"pubkey": pk1, "last_nonce": 1}, {"pubkey": pk2, "last_nonce": 0xFFFFFFFF}]},
+        # Fee-accumulator dust only.
+        {"fee_accumulator": {"dust": 7}},
         # Balance at the u128 boundary (in-domain max the shadow can encode).
         {"balances": [{"pubkey": pk1, "asset": a0, "amount": (1 << 128) - 1}]},
         # Everything at once.
@@ -291,6 +305,7 @@ def static_states() -> list[dict]:
                  "last_churn_update_timestamp": None}
             ],
             "nonces": [{"pubkey": pk1, "last_nonce": 3}],
+            "fee_accumulator": {"dust": 9},
         },
     ]
 
@@ -388,6 +403,7 @@ def random_states(seed: int, n: int) -> list[dict]:
         states.append({
             "balances": balances, "pools": pools, "lp_balances": lp_balances,
             "lp_duration_risk": lp_dur, "nonces": nonces,
+            "fee_accumulator": {"dust": rng.randint(0, 999)},
         })
     return states
 

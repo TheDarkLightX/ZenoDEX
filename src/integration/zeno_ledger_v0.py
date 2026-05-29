@@ -257,6 +257,7 @@ def dex_state_root_v0(state: DexState) -> str:
         pools=state.pools,
         lp_balances=state.lp_balances,
         nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
     )
 
 

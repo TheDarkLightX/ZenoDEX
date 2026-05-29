@@ -94,6 +94,15 @@ def test_build_submit_proof_packet_rejects_stale_snapshot_budget() -> None:
         build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=_verification_flags())
 
 
+def test_build_submit_proof_packet_rejects_flags_that_drift_from_claim_commitment() -> None:
+    claim = _claim()
+    snapshot = _snapshot()
+    flags = _verification_flags()
+    flags["proof_ok"] = False
+    with pytest.raises(ValueError, match="verification_flags do not match claim-committed flags"):
+        build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=flags)
+
+
 def test_assign_proposal_slot_linear_probe() -> None:
     claim = _claim()
     proposal_hash = claim["body"]["proposal_hash"]

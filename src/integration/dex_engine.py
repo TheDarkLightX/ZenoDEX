@@ -1067,6 +1067,7 @@ def _validate_critical_settlement_oracle_authorization(
             pools=state.pools,
             lp_balances=state.lp_balances,
             nonces=state.nonces,
+            fee_accumulator=state.fee_accumulator,
         )
     except Exception as exc:
         return f"critical_settlement_oracle_authorization_rejected: invalid pre-state root: {_clean_error(exc)}"
@@ -1554,6 +1555,7 @@ def apply_ops(
                         pools=state.pools,
                         lp_balances=state.lp_balances,
                         nonces=state.nonces,
+                        fee_accumulator=state.fee_accumulator,
                     )
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid state for commitment: {exc}")

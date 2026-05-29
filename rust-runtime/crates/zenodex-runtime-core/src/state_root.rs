@@ -1,17 +1,19 @@
-//! Network state-root shadow (v4).
+//! Network state-root shadow (v5).
 //!
 //! Byte-for-byte mirror of `compute_state_root` in `src/state/state_root.py`.
-//! The root commits to five ordered sections — balances, pools, LP balances, LP
-//! duration-risk metadata, and nonces — under a versioned domain separator:
+//! The root commits to six ordered sections: balances, pools, LP balances, LP
+//! duration-risk metadata, nonces, and fee-accumulator dust, under a versioned
+//! domain separator:
 //!
 //! ```text
 //! sha256(
-//!   domain_sep("state_root", v4)
+//!   domain_sep("state_root", v5)
 //!   + b"BAL" + encode_bytes(balances_section)
 //!   + b"POL" + encode_bytes(pools_section)
 //!   + b"LPB" + encode_bytes(lp_section)
 //!   + b"LPA" + encode_bytes(lp_duration_risk_section)
 //!   + b"NNC" + encode_bytes(nonce_section)
+//!   + b"FEE" + encode_bytes(fee_section)
 //! )
 //! ```
 //!
@@ -32,7 +34,7 @@ use crate::canonical::{
 use std::collections::BTreeSet;
 
 /// State-root encoding version (must equal `STATE_ROOT_VERSION` in Python).
-pub const STATE_ROOT_VERSION: u32 = 4;
+pub const STATE_ROOT_VERSION: u32 = 5;
 
 const PUBKEY_NBYTES: usize = 48;
 const ASSET_NBYTES: usize = 32;
@@ -152,6 +154,7 @@ pub struct StateInput {
     pub lp_balances: Vec<LpEntry>,
     pub lp_duration_risk: Vec<LpDurationEntry>,
     pub nonces: Vec<NonceEntry>,
+    pub fee_accumulator_dust: u128,
 }
 
 fn push_optional_ts(out: &mut Vec<u8>, ts: Option<u128>) {
@@ -285,13 +288,18 @@ fn encode_nonces(entries: &[NonceEntry]) -> Result<Vec<u8>, StateRootError> {
     Ok(out)
 }
 
-/// Compute the deterministic v4 state root. Returns a `0x`-prefixed SHA-256.
+fn encode_fee_accumulator(dust: u128) -> Vec<u8> {
+    encode_uvarint(dust)
+}
+
+/// Compute the deterministic v5 state root. Returns a `0x`-prefixed SHA-256.
 pub fn compute_state_root(input: &StateInput) -> Result<String, StateRootError> {
     let balances = encode_balances(&input.balances)?;
     let pools = encode_pools(&input.pools)?;
     let lp = encode_lp(&input.lp_balances)?;
     let lp_duration = encode_lp_duration(&input.lp_duration_risk)?;
     let nonces = encode_nonces(&input.nonces)?;
+    let fee = encode_fee_accumulator(input.fee_accumulator_dust);
 
     let mut payload = domain_sep_bytes("state_root", STATE_ROOT_VERSION);
     payload.extend_from_slice(b"BAL");
@@ -304,6 +312,8 @@ pub fn compute_state_root(input: &StateInput) -> Result<String, StateRootError> 
     payload.extend_from_slice(&encode_bytes(&lp_duration));
     payload.extend_from_slice(b"NNC");
     payload.extend_from_slice(&encode_bytes(&nonces));
+    payload.extend_from_slice(b"FEE");
+    payload.extend_from_slice(&encode_bytes(&fee));
     Ok(sha256_hex(&payload))
 }
 
@@ -380,6 +390,22 @@ mod tests {
                 asset: id32(9),
                 amount: 101,
             }],
+            ..Default::default()
+        };
+        assert_ne!(
+            compute_state_root(&a).unwrap(),
+            compute_state_root(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn fee_accumulator_dust_changes_root() {
+        let a = StateInput {
+            fee_accumulator_dust: 0,
+            ..Default::default()
+        };
+        let b = StateInput {
+            fee_accumulator_dust: 7,
             ..Default::default()
         };
         assert_ne!(

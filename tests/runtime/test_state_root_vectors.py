@@ -1,4 +1,4 @@
-"""Cross-language vectors for the network state root (v4).
+"""Cross-language vectors for the network state root (v5).
 
 Proves the Rust core's `state_root::compute_state_root` (via the
 `verify-state-root` CLI subcommand) agrees byte-for-byte with the authoritative
@@ -53,6 +53,12 @@ def test_order_independent():
 def test_sensitive_to_amount():
     a = {"balances": [{"pubkey": _pk(1), "asset": _id(9), "amount": 100}]}
     b = {"balances": [{"pubkey": _pk(1), "asset": _id(9), "amount": 101}]}
+    assert lib.state_root_from_json(a) != lib.state_root_from_json(b)
+
+
+def test_sensitive_to_fee_accumulator_dust():
+    a = {"fee_accumulator": {"dust": 0}}
+    b = {"fee_accumulator": {"dust": 1}}
     assert lib.state_root_from_json(a) != lib.state_root_from_json(b)
 
 
