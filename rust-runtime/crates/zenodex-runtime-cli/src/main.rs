@@ -43,6 +43,9 @@ use zenodex_runtime_core::canonical::{
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
+use zenodex_runtime_core::perp_funding_auto::{
+    apply_funding_auto, FundingAccount, FundingAutoInput,
+};
 use zenodex_runtime_core::perp_math;
 use zenodex_runtime_core::replay_guard::{admit, canonical_sender, ReplayGuardState, U32_MAX};
 use zenodex_runtime_core::state_root::{
@@ -1114,6 +1117,145 @@ fn run_perp_math_cases(req: &Value) -> Result<PerpMathOutput, String> {
     })
 }
 
+// --- funding-auto settlement shadow (stateful perps E2 slice) ----------------
+
+#[derive(Serialize)]
+struct FundingAutoAccountOut {
+    key: String,
+    position_base: String,
+    collateral_quote: String,
+    funding_paid_cumulative: String,
+}
+
+#[derive(Serialize)]
+struct FundingAutoCaseResult {
+    index: usize,
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    accounts: Option<Vec<FundingAutoAccountOut>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fee_pool_quote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fee_income: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    insurance_balance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    projected_net: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+#[derive(Serialize)]
+struct FundingAutoOutputDoc {
+    version: u32,
+    results: Vec<FundingAutoCaseResult>,
+}
+
+fn funding_err(index: usize, code: &str) -> FundingAutoCaseResult {
+    FundingAutoCaseResult {
+        index,
+        ok: false,
+        accounts: None,
+        fee_pool_quote: None,
+        fee_income: None,
+        insurance_balance: None,
+        projected_net: None,
+        code: Some(code.to_string()),
+    }
+}
+
+fn eval_funding_auto_case(
+    obj: &serde_json::Map<String, Value>,
+) -> Result<FundingAutoCaseResult, String> {
+    let rate_bps = arg_bps(obj, "rate_bps")?;
+    let index_price_e8 = arg_mag(obj, "index_price_e8")?;
+    let maintenance_margin_bps = arg_bps(obj, "maintenance_margin_bps")?;
+    let depeg_buffer_bps = arg_bps(obj, "depeg_buffer_bps")?;
+    let fee_pool_quote = arg_mag(obj, "fee_pool_quote")?;
+    let fee_income = arg_mag(obj, "fee_income")?;
+    let insurance_balance = arg_mag(obj, "insurance_balance")?;
+
+    let accounts_val = obj
+        .get("accounts")
+        .and_then(Value::as_array)
+        .ok_or("malformed_case")?;
+    let mut accounts = Vec::with_capacity(accounts_val.len());
+    for av in accounts_val {
+        let ao = av.as_object().ok_or("malformed_case")?;
+        let key = ao
+            .get("key")
+            .and_then(Value::as_str)
+            .ok_or("malformed_case")?
+            .to_string();
+        accounts.push(FundingAccount {
+            key,
+            position_base: arg_mag(ao, "position_base")?,
+            collateral_quote: arg_mag(ao, "collateral_quote")?,
+            funding_paid_cumulative: arg_mag(ao, "funding_paid_cumulative")?,
+        });
+    }
+
+    let input = FundingAutoInput {
+        accounts,
+        rate_bps,
+        index_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+        fee_pool_quote,
+        fee_income,
+        insurance_balance,
+    };
+
+    match apply_funding_auto(&input) {
+        Ok(out) => Ok(FundingAutoCaseResult {
+            index: 0,
+            ok: true,
+            accounts: Some(
+                out.accounts
+                    .iter()
+                    .map(|a| FundingAutoAccountOut {
+                        key: a.key.clone(),
+                        position_base: a.position_base.to_string(),
+                        collateral_quote: a.collateral_quote.to_string(),
+                        funding_paid_cumulative: a.funding_paid_cumulative.to_string(),
+                    })
+                    .collect(),
+            ),
+            fee_pool_quote: Some(out.fee_pool_quote.to_string()),
+            fee_income: Some(out.fee_income.to_string()),
+            insurance_balance: Some(out.insurance_balance.to_string()),
+            projected_net: Some(out.projected_net.to_string()),
+            code: None,
+        }),
+        Err(code) => Ok(funding_err(0, code)),
+    }
+}
+
+fn run_funding_auto_cases(req: &Value) -> Result<FundingAutoOutputDoc, String> {
+    let cases = req
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let mut results = Vec::with_capacity(cases.len());
+    for (index, case) in cases.iter().enumerate() {
+        let result = match case.as_object() {
+            Some(obj) => match eval_funding_auto_case(obj) {
+                Ok(mut r) => {
+                    r.index = index;
+                    r
+                }
+                Err(code) => funding_err(index, &code),
+            },
+            None => funding_err(index, "malformed_case"),
+        };
+        results.push(result);
+    }
+    Ok(FundingAutoOutputDoc {
+        version: 1,
+        results,
+    })
+}
+
 // --- Generic trace driver -----------------------------------------------------
 
 /// Replay every step, threading `state` from its initial value via `eval`.
@@ -1203,12 +1345,13 @@ fn main() -> ExitCode {
                 | "canonical-hash"
                 | "verify-state-root"
                 | "perp-math"
+                | "funding-auto"
         )
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
-             verify-state-root|perp-math> <input.json|->"
+             verify-state-root|perp-math|funding-auto> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -1270,6 +1413,25 @@ fn main() -> ExitCode {
 
     if subcommand == "perp-math" {
         return match run_perp_math_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "funding-auto" {
+        return match run_funding_auto_cases(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");

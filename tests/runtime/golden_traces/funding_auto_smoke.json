@@ -1,0 +1,286 @@
+{
+  "cases": [
+    {
+      "accounts": [
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": -1000000
+        }
+      ],
+      "depeg_buffer_bps": 100,
+      "fee_income": 0,
+      "fee_pool_quote": 0,
+      "index_price_e8": 100000000,
+      "insurance_balance": 0,
+      "maintenance_margin_bps": 500,
+      "rate_bps": 100
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 2000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": -1000
+        }
+      ],
+      "depeg_buffer_bps": 100,
+      "fee_income": 0,
+      "fee_pool_quote": 0,
+      "index_price_e8": 100000000,
+      "insurance_balance": 0,
+      "maintenance_margin_bps": 500,
+      "rate_bps": 100
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": -2000
+        }
+      ],
+      "depeg_buffer_bps": 100,
+      "fee_income": 0,
+      "fee_pool_quote": 0,
+      "index_price_e8": 100000000,
+      "insurance_balance": 0,
+      "maintenance_margin_bps": 500,
+      "rate_bps": 100
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 1000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": -2000
+        }
+      ],
+      "depeg_buffer_bps": 100,
+      "fee_income": 50,
+      "fee_pool_quote": 50,
+      "index_price_e8": 100000000,
+      "insurance_balance": 50,
+      "maintenance_margin_bps": 500,
+      "rate_bps": 100
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 2000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": -1000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "position_base": -1000
+        }
+      ],
+      "depeg_buffer_bps": 100,
+      "fee_income": 0,
+      "fee_pool_quote": 0,
+      "index_price_e8": 100000000,
+      "insurance_balance": 0,
+      "maintenance_margin_bps": 500,
+      "rate_bps": 9
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": 5000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": -2000
+        },
+        {
+          "collateral_quote": 200000,
+          "funding_paid_cumulative": 0,
+          "key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "position_base": -1000
+        }
+      ],
+      "depeg_buffer_bps": 100,
+      "fee_income": 0,
+      "fee_pool_quote": 0,
+      "index_price_e8": 100000000,
+      "insurance_balance": 0,
+      "maintenance_margin_bps": 500,
+      "rate_bps": 100
+    }
+  ],
+  "expected": [
+    {
+      "accounts": [
+        {
+          "collateral_quote": "190000",
+          "funding_paid_cumulative": "10000",
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "1000000"
+        },
+        {
+          "collateral_quote": "210000",
+          "funding_paid_cumulative": "-10000",
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": "-1000000"
+        }
+      ],
+      "fee_income": "0",
+      "fee_pool_quote": "0",
+      "index": 0,
+      "insurance_balance": "0",
+      "ok": true,
+      "projected_net": "0"
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": "199980",
+          "funding_paid_cumulative": "20",
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "2000"
+        },
+        {
+          "collateral_quote": "200010",
+          "funding_paid_cumulative": "-10",
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": "-1000"
+        }
+      ],
+      "fee_income": "10",
+      "fee_pool_quote": "10",
+      "index": 1,
+      "insurance_balance": "10",
+      "ok": true,
+      "projected_net": "10"
+    },
+    {
+      "code": "sink_out_of_domain",
+      "index": 2,
+      "ok": false
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": "199990",
+          "funding_paid_cumulative": "10",
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "1000"
+        },
+        {
+          "collateral_quote": "200020",
+          "funding_paid_cumulative": "-20",
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": "-2000"
+        }
+      ],
+      "fee_income": "40",
+      "fee_pool_quote": "40",
+      "index": 3,
+      "insurance_balance": "40",
+      "ok": true,
+      "projected_net": "-10"
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": "199999",
+          "funding_paid_cumulative": "1",
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "2000"
+        },
+        {
+          "collateral_quote": "200000",
+          "funding_paid_cumulative": "0",
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": "-1000"
+        },
+        {
+          "collateral_quote": "200000",
+          "funding_paid_cumulative": "0",
+          "key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "position_base": "-1000"
+        }
+      ],
+      "fee_income": "1",
+      "fee_pool_quote": "1",
+      "index": 4,
+      "insurance_balance": "1",
+      "ok": true,
+      "projected_net": "1"
+    },
+    {
+      "accounts": [
+        {
+          "collateral_quote": "199950",
+          "funding_paid_cumulative": "50",
+          "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "position_base": "5000"
+        },
+        {
+          "collateral_quote": "200020",
+          "funding_paid_cumulative": "-20",
+          "key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "position_base": "-2000"
+        },
+        {
+          "collateral_quote": "200010",
+          "funding_paid_cumulative": "-10",
+          "key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "position_base": "-1000"
+        }
+      ],
+      "fee_income": "20",
+      "fee_pool_quote": "20",
+      "index": 5,
+      "insurance_balance": "20",
+      "ok": true,
+      "projected_net": "20"
+    }
+  ],
+  "kernel": "perp_funding_auto",
+  "note": "apply_funding_auto bounded-sink settlement; cases are pre-funding Rust inputs, expected is the pinned settlement output (== Python authority).",
+  "version": 1
+}
