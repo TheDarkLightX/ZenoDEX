@@ -174,27 +174,41 @@ Rust disagreement fails closed before the copied transaction state is committed.
 Unavailable Rust is skipped in `rust_shadow`, preserving deployability. This is
 still not a Rust-authority promotion because Python owns integration checks,
 balances, oracle bridge authorization, effects, and state materialization for
-this surface. `rust_authority*` modes are explicitly rejected for
-`perp_stateful` until full-state Rust materialization exists.
+this surface. `rust_authority*` modes are explicitly rejected for `perp_stateful`
+until Rust **decides accept/reject from the pre-state and commits** the
+materialized post-state + effects for every op (full-state + effect *materialization*
+now exists for `advance_epoch`, but it is consumed as a shadow check, not as the
+deciding authority — see the shadow-materialization foundation note below).
 
-**Materialization foundation (this change).** The authority-grade materializer
+**Shadow materialization foundation (this change).** The materializer
 `zenodex-runtime perp-isolated-op` is introduced: it emits the **full post-market
-state** (`quote_asset` + every global key + every account) and an effects summary,
-consuming explicit integration facts (`operator_ok`, `sender_bound_ok`,
-`oracle_adapter_ok`, `oracle_authorization_ok`, `all_positions_flat`,
-`balance_available`) without re-deriving crypto; a reject never carries a
-post-state. The first operation is materialized: **`advance_epoch`**. The bridge
-(`rust_invoker.perp_isolated_op`) and `perp_engine` now compare the **full** Rust
-post-market vs Python (`_full_post_markets_agree`) for materialized ops, so
-`rust_authority_with_python_shadow` is unblocked for `advance_epoch` (it accepts on
-parity, fails closed on disagreement / unavailable / timeout). Non-materialized
-ops stay checker-only and remain blocked under `rust_authority*`. **`perp_stateful`
-remains `rust_shadow` in every profile** — promotion requires materializing every
-isolated op (`publish_clearing_price`, `apply_funding_auto`, `settle_epoch`,
-`clear_breaker`, `set_market_params`, `deposit/withdraw/set_position`,
-`partial_liquidate`) with full post-state + effects parity, then the gate + human
-sign-off. Kani 0.60.0 is available; bounded-model-checking harnesses for the
-high-risk Rust kernels are the next step. No profile flips in this change.
+state** (`quote_asset` + every global key + every account) **plus the exact kernel
+effect payload**, consuming explicit integration facts (`operator_ok`,
+`sender_bound_ok`, `oracle_adapter_ok`, `oracle_authorization_ok`,
+`all_positions_flat`, `balance_available`) without re-deriving crypto; a reject
+never carries a post-state. The request boundary is authority-grade: it requires
+the exact `schema` (`zenodex/perp_isolated_op/v1`) and `version` (1), requires the
+`facts` object with every required key (a missing fact rejects as
+`perp_isolated_op_missing_facts`, *not* as a semantic operator failure), and
+rejects unknown op fields. The first operation is materialized: **`advance_epoch`**.
+
+This is consumed as a **`rust_shadow` check only**: the bridge
+(`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
+post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
+`_effects_agree`), failing closed on any state OR effect divergence. It is **not**
+yet authority: Rust post-checks Python's accepted transition — it does not decide
+accept/reject from the pre-state nor commit its materialized result. Accordingly
+**`perp_stateful` stays blocked under every `rust_authority*` mode** (for materialized
+and unmaterialized ops alike) and **remains `rust_shadow` in every profile**.
+
+Promotion requires (a) materializing every isolated op (`publish_clearing_price`,
+`apply_funding_auto`, `settle_epoch`, `clear_breaker`, `set_market_params`,
+`deposit/withdraw/set_position`, `partial_liquidate`) with full post-state +
+exact effect parity, (b) inverting the authority path so Rust **decides from the
+pre-state and commits** its materialized result (Python becomes the shadow), then
+(c) the gate + human sign-off. Kani 0.60.0 is available; bounded-model-checking
+harnesses for the high-risk Rust kernels are a parallel next step. No profile flips
+in this change.
 
 ## Findings / blockers
 
