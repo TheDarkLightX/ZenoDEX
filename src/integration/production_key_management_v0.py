@@ -487,6 +487,12 @@ def _admission_decision(
         return (*_reject("testnet_key_for_production"), role_signers)
     if any(descriptor["status"] != "active" for descriptor in role_signers):
         return (*_reject("revoked_or_expired_key"), role_signers)
+    packet_epoch = int(packet["epoch"])
+    if any(
+        int(descriptor["valid_from_epoch"]) > packet_epoch or int(descriptor["valid_until_epoch"]) < packet_epoch
+        for descriptor in role_signers
+    ):
+        return (*_reject("revoked_or_expired_key"), role_signers)
     if len(role_signers) < int(policy["threshold"]):
         return (*_reject("threshold_not_met"), role_signers)
     custodian_count = len({str(descriptor["custodian_id"]) for descriptor in role_signers})
