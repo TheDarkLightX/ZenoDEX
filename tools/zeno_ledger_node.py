@@ -2438,6 +2438,8 @@ def _public_network_config_to_join_config_v0(
     if expected_hash is not None and expected_hash != _public_network_config_hash_v0(network_config):
         raise ValueError("public network config hash mismatch")
     config_quorum_admission: dict[str, Any] | None = None
+    if require_network_config_quorum and expected_config_signer_registry_hash is None:
+        raise ValueError("public network config signer registry hash is required when quorum is required")
     if require_network_config_quorum or expected_config_signer_registry_hash is not None:
         if not _has_public_network_config_quorum_fields_v0(network_config):
             raise ValueError("public network config quorum is required")
@@ -2543,6 +2545,8 @@ def doctor_public_node_v0(
                 if actual_hash != pinned_hash:
                     raise ValueError("public network config hash did not match expected hash")
             config_quorum_admission: dict[str, Any] | None = None
+            if require_network_config_quorum and expected_config_signer_registry_hash is None:
+                raise ValueError("public network config signer registry hash is required when quorum is required")
             if require_network_config_quorum or expected_config_signer_registry_hash is not None:
                 if not _has_public_network_config_quorum_fields_v0(network_config):
                     raise ValueError("public network config quorum is required")
