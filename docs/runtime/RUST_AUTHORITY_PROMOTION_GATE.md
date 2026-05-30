@@ -101,13 +101,13 @@ authority-eligible:
 
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
-| copied-tx replay | upstream ✅ | ✅ | upstream ✅ | ☐ | replay flag ✅ | n/a | n/a | n/a |
-| stale snapshot | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | ✅ | stateless ✅ |
-| duplicate IDs | ✅ | ✅ | ✅ | ☐ | n/a | n/a | ✅ | n/a |
-| malformed bytes | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ✅ | ✅ |
-| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ⚠️ | ✅ |
-| unauthorized mutation | ✅ | ✅ | ✅ | ☐ | n/a | n/a | n/a | n/a |
-| no-op on reject | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | n/a | stateless ✅ |
+| copied-tx replay | upstream ✅ | ✅ | upstream ✅ | upstream ✅ | replay flag ✅ | n/a | n/a | n/a |
+| stale snapshot | ✅ | ✅ | ✅ | ✅ | stateless ✅ | ✅ | ✅ | stateless ✅ |
+| duplicate IDs | ✅ | ✅ | ✅ | n/a | n/a | n/a | ✅ | n/a |
+| malformed bytes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| overflow/underflow | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| unauthorized mutation | ✅ | ✅ | ✅ | auth gates ✅ | n/a | n/a | n/a | n/a |
+| no-op on reject | ✅ | ✅ | ✅ | ✅ | stateless ✅ | ✅ | n/a | stateless ✅ |
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
@@ -206,6 +206,23 @@ root-preserving across `python_authority`, `rust_shadow`, and
 `python_authority`. Multi-pool ordering, CoW netting, and liquidity operations
 remain Python-owned batch-clearing orchestration.
 
+**zUSD single-vault.** `tests/runtime/test_zusd_disaster_state.py` covers
+half-configured profile rejection, deterministic stale-state replay,
+no-op-on-reject, malformed state documents, huge command rejection,
+malformed Rust output, malformed rejected-output payloads, deterministic fuzz,
+and selector fail-closed rows. The live path is `src/core/zusd.py::step`, which
+routes the single-vault transition through `zusd-op` when the active surface
+policy selects Rust authority. The bridge takes the full 32-field state object,
+returns the post-state object plus receipt hash, and compares the Python
+reference `_step_python` by state root, receipt hash, reject code, and post-state
+fields. Event/effect payloads remain Python-derived after agreement, so API
+callers keep the existing effect shape while the state transition is
+shadow-checked Rust authority. `tests/runtime/test_zusd_live_path.py` proves
+active-policy wiring for `rust_authority_with_python_shadow`, `rust_shadow`,
+unavailable Rust, and injected disagreement. `public-testnet` now runs `zusd` as
+`rust_authority_with_python_shadow`; production remains `python_authority`.
+Multi-vault zUSD remains Python-owned.
+
 **Perp stateless math (E1).** `tests/runtime/test_perp_math_disaster_state.py`
 covers stale deterministic replay of pure math cases, malformed Rust output,
 unknown or malformed operations, out-of-domain integer and bps inputs,
@@ -244,12 +261,13 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 3. replay / idempotency guard — public-testnet shadow-authority lane active
 4. balance accounting — public-testnet shadow-authority lane active
 5. fee router — public-testnet shadow-authority lane active
-6. burn rails — public-testnet shadow-authority lane active
-7. CPMM per-pool primitive — public-testnet shadow-authority lane active
-8. perp stateless math — public-testnet shadow-authority lane active
+6. zUSD single-vault — public-testnet shadow-authority lane active
+7. burn rails — public-testnet shadow-authority lane active
+8. CPMM per-pool primitive — public-testnet shadow-authority lane active
+9. perp stateless math — public-testnet shadow-authority lane active
 
-Next lower-risk candidate: zUSD single-vault. **Defer** batch-clearing
-orchestration and multi-vault zUSD (not shadowed).
+Next candidate: stateful isolated perps live-path wiring. **Defer**
+batch-clearing orchestration and multi-vault zUSD (not shadowed).
 
 **Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:
 all 10 `_ISOLATED_ACTION_HANDLERS` ops (`advance_epoch`, `publish_clearing_price`,

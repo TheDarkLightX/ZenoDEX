@@ -103,6 +103,7 @@ def test_public_testnet_profile_promotes_cpmm_settlement():
         "perp_math",
         "replay_guard",
         "state_root",
+        "zusd",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
     assert any("cpmm_settlement" in c and "half-configured Rust authority" in c for c in conflicts)

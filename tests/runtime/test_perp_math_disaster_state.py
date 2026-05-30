@@ -75,6 +75,7 @@ def test_public_testnet_profile_promotes_perp_math():
         "fee_router",
         "replay_guard",
         "state_root",
+        "zusd",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
     assert any("perp_math" in c and "half-configured Rust authority" in c for c in conflicts)

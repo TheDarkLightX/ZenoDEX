@@ -5,8 +5,8 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
 **As of this writing: canonical primitives, state root v5, replay/idempotency
-guard, balance accounting, the fee router, burn rails, CPMM per-pool
-settlement, and perp stateless math are promoted only in the `public-testnet` profile to
+guard, balance accounting, the fee router, zUSD single-vault, burn rails, CPMM
+per-pool settlement, and perp stateless math are promoted only in the `public-testnet` profile to
 `rust_authority_with_python_shadow`.** The
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
@@ -28,7 +28,7 @@ human decision + profile entry.
 | Fee router (4-way + dust) | Rust+Python shadow on public-testnet | `fee_router.rs` | ✅ | ✅⁶ | ✅ | ✅⁶ |
 | Burn rails | Rust+Python shadow on public-testnet | `burn_receipts.rs` | ✅ | ✅⁷ | ✅ | ✅⁷ |
 | CPMM per-pool settlement | Rust+Python shadow on public-testnet | `cpmm_swap.rs` | ✅ | ✅⁸ | ✅ | ✅⁸ |
-| zUSD single-vault | Python | `zusd.rs` | ✅ | ☐ | ☐ | ☐ |
+| zUSD single-vault | Rust+Python shadow on public-testnet | `zusd.rs` | ✅ | ✅¹⁰ | ✅ | ✅¹⁰ |
 | Perp stateless math (E1) | Rust+Python shadow on public-testnet | `perp_math.rs` | ✅ | ✅⁹ | ✅ | ✅⁹ |
 | Perp stateful (E2, all 10 ops) | Python | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
 
@@ -123,6 +123,21 @@ disagreement, and the allowed-overdelivery witness. `public-testnet` lists
 `cpmm_settlement` in `promoted_surfaces`; production remains
 `python_authority`. Batch-clearing orchestration remains Python-owned.
 
+¹⁰ zUSD single-vault is now live-wired through `src/core/zusd.py::step` using
+the `zusd-op` Rust bridge from an explicit 32-field state object. The promoted
+surface is the single-vault transition only: oracle bootstrap/report/commit,
+collateral deposit/withdraw, mint/repay, stability-pool deposit/withdraw,
+redeem, liquidate, and epoch advance. The Python reference remains `_step_python`
+for differential evidence, and the runtime returns the Python event/effects only
+after Rust/Python state-root and receipt agreement. `tests/runtime/test_zusd_disaster_state.py`
+covers half-configured profile rejection, deterministic replay from a stale
+state, no-op-on-reject, malformed state documents, huge command rejection,
+malformed Rust output, malformed rejected-output payloads, and deterministic
+fuzz. `tests/runtime/test_zusd_live_path.py` checks active-policy wiring for
+`rust_authority_with_python_shadow`, `rust_shadow`, unavailable Rust, and
+injected disagreement. `public-testnet` lists `zusd` in `promoted_surfaces`;
+production remains `python_authority`. Multi-vault zUSD remains Python-owned.
+
 ⁹ Perp stateless math is now live-wired through `src/core/perp_v2/math.py` for
 the nine pure E1 operations: oracle freshness, oracle move, settle-price clamp,
 notional, maintenance margin, initial margin, signed PnL, liquidation
@@ -188,8 +203,8 @@ verifies the selector receives an agreed rejection rather than a drift.
 
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
   primitives, state root v5, replay/idempotency guard, balance accounting, fee
-  router, burn rails, CPMM per-pool settlement, perp stateless math.
-- **Not yet**: zUSD single-vault.
+  router, zUSD single-vault, burn rails, CPMM per-pool settlement, perp
+  stateless math.
 - **Shadowed (E2 complete), awaiting live-path wiring**: the **stateful
   isolated-perps engine (all 10 ops)**. Evidence 1–3 + fuzz + input-disaster are
   green, and the generic selector fail-closed rows are exercised in tests. Stays
@@ -204,9 +219,9 @@ Evidence categories 1–3, 5–6 (golden traces, differential, property tests, C
 formal) are **green for all 10 surfaces**. The outstanding gate for most
 remaining surfaces is **disaster-state (4) + fuzz (9)** plus the human promotion
 decision (12). Canonical primitives, state root v5, replay/idempotency guard,
-balance accounting, the fee router, burn rails, CPMM per-pool settlement, and
-perp stateless math have passed those rows for the public-testnet shadow-checked
-Rust lane.
+balance accounting, the fee router, zUSD single-vault, burn rails, CPMM
+per-pool settlement, and perp stateless math have passed those rows for the
+public-testnet shadow-checked Rust lane.
 
 ## This PR (Phase 1 + 2)
 
@@ -223,7 +238,7 @@ Delivered:
 - **Deployment-facts wiring** — `runtime_authority_policy` section added to
   `config/deploy/{local-dev,public-testnet,production-strict}.yaml`. Public
   testnet now promotes `canonical`, `state_root`, `replay_guard`, `balances`,
-  `fee_router`, `burn_receipts`, `cpmm_settlement`, and `perp_math`;
+  `fee_router`, `zusd`, `burn_receipts`, `cpmm_settlement`, and `perp_math`;
   production remains all-Python.
   `validate_authority_policy` rejects a half-configured Rust authority (and a
   blanket Rust default) under `public-testnet` and `production-strict`;

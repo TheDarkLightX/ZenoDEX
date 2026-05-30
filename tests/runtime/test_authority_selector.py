@@ -394,6 +394,7 @@ def test_real_deploy_profiles_load_and_validate():
             assert policy.mode_for("perp_math") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("zusd") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.promoted_surfaces == frozenset(
                 {
                     "balances",
@@ -404,6 +405,7 @@ def test_real_deploy_profiles_load_and_validate():
                     "perp_math",
                     "replay_guard",
                     "state_root",
+                    "zusd",
                 }
             )
         if profile_id == "production-strict":

@@ -449,3 +449,84 @@ def perp_math_eval(
         if "value" in result or "flag" in result:
             raise RustInvocationError("perp-math: rejected result carried success payload")
     return result
+
+
+def zusd_op(
+    *,
+    state: dict[str, Any],
+    tx: dict[str, Any],
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust zUSD single-vault transition from an explicit state."""
+
+    out = invoke(
+        "zusd-op",
+        {"version": 1, "state": state, "tx": tx},
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict):
+        raise RustInvocationError("zusd-op: output must be an object")
+    if out.get("version") != 1 or out.get("kernel") != "zusd":
+        raise RustInvocationError("zusd-op: unsupported output header")
+    if not isinstance(out.get("accept"), bool):
+        raise RustInvocationError("zusd-op: accept must be a bool")
+    for key in ("pre_state_root", "post_state_root"):
+        if not isinstance(out.get(key), str):
+            raise RustInvocationError(f"zusd-op: {key} must be a string")
+    _validate_zusd_state_doc(out.get("post_state"))
+    if out["accept"]:
+        receipt = out.get("receipt")
+        if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
+            raise RustInvocationError("zusd-op: accepted output missing receipt")
+        if not isinstance(receipt.get("tag"), str):
+            raise RustInvocationError("zusd-op: malformed receipt")
+        if out.get("reject_reason") is not None:
+            raise RustInvocationError("zusd-op: accepted output carried reject reason")
+    else:
+        if not isinstance(out.get("reject_reason"), str):
+            raise RustInvocationError("zusd-op: rejected output missing reason")
+        if out.get("receipt") is not None or out.get("receipt_hash") is not None:
+            raise RustInvocationError("zusd-op: rejected output carried receipt")
+    return out
+
+
+def _validate_zusd_state_doc(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise RustInvocationError("zusd-op: post_state must be an object")
+    if not isinstance(value.get("oracle_seen"), bool):
+        raise RustInvocationError("zusd-op: post_state.oracle_seen must be a bool")
+    for key in (
+        "now_epoch",
+        "oracle_last_update_epoch",
+        "price_e8",
+        "price_pending_e8",
+        "max_oracle_staleness_epochs",
+        "collateral_e8",
+        "debt_e8",
+        "free_debt_e8",
+        "sp_debt_e8",
+        "sp_coll_e8",
+        "protocol_collateral_e8",
+        "protocol_revenue_zusd_cum_e8",
+        "liquidator_compensation_collateral_cum_e8",
+        "mcr_bps",
+        "ccr_bps",
+        "min_debt_open_e8",
+        "max_debt_e8",
+        "max_debt_supply_e8",
+        "max_sp_coll_e8",
+        "max_protocol_coll_e8",
+        "base_rate_bps",
+        "base_rate_last_epoch",
+        "base_rate_decay_per_epoch_bps",
+        "base_rate_borrow_bump_bps",
+        "base_rate_redeem_bump_bps",
+        "borrow_fee_floor_bps",
+        "borrow_fee_max_bps",
+        "redemption_fee_floor_bps",
+        "redemption_fee_max_bps",
+        "liquidation_gas_comp_fixed_collateral_e8",
+        "liquidation_gas_comp_bps",
+    ):
+        if not isinstance(value.get(key), str):
+            raise RustInvocationError(f"zusd-op: post_state.{key} must be a string")

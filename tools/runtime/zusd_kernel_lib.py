@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.zusd import ZUSDCommand, ZUSDState, init_state, step
+from src.core.zusd import ZUSDCommand, ZUSDState, _step_python as step, init_state
 from src.state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex
 
 SCHEMA_VERSION = 1

@@ -84,6 +84,7 @@ def test_public_testnet_profile_promotes_replay_guard():
         "fee_router",
         "perp_math",
         "state_root",
+        "zusd",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
     assert any("replay_guard" in conflict and "half-configured Rust authority" in conflict for conflict in conflicts)

@@ -11,6 +11,7 @@
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
 //! zenodex-runtime balance-op           <request.json|-> # one balances transition
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
+//! zenodex-runtime zusd-op              <request.json|-> # one zUSD transition
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
 //! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
 //! zenodex-runtime cpmm-op              <request.json|-> # one cpmm_settlement transition
@@ -209,6 +210,60 @@ struct BalanceOpOutput {
     pre_state_root: String,
     post_state_root: String,
     post_state_entries: Vec<BalanceStateEntryOut>,
+}
+
+#[derive(Serialize)]
+struct ZusdStateOut {
+    now_epoch: String,
+    oracle_seen: bool,
+    oracle_last_update_epoch: String,
+    price_e8: String,
+    price_pending_e8: String,
+    max_oracle_staleness_epochs: String,
+    collateral_e8: String,
+    debt_e8: String,
+    free_debt_e8: String,
+    sp_debt_e8: String,
+    sp_coll_e8: String,
+    protocol_collateral_e8: String,
+    protocol_revenue_zusd_cum_e8: String,
+    liquidator_compensation_collateral_cum_e8: String,
+    mcr_bps: String,
+    ccr_bps: String,
+    min_debt_open_e8: String,
+    max_debt_e8: String,
+    max_debt_supply_e8: String,
+    max_sp_coll_e8: String,
+    max_protocol_coll_e8: String,
+    base_rate_bps: String,
+    base_rate_last_epoch: String,
+    base_rate_decay_per_epoch_bps: String,
+    base_rate_borrow_bump_bps: String,
+    base_rate_redeem_bump_bps: String,
+    borrow_fee_floor_bps: String,
+    borrow_fee_max_bps: String,
+    redemption_fee_floor_bps: String,
+    redemption_fee_max_bps: String,
+    liquidation_gas_comp_fixed_collateral_e8: String,
+    liquidation_gas_comp_bps: String,
+}
+
+#[derive(Serialize)]
+struct ZusdReceiptOut {
+    tag: String,
+}
+
+#[derive(Serialize)]
+struct ZusdOpOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
+    receipt_hash: Option<String>,
+    receipt: Option<ZusdReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_state: ZusdStateOut,
 }
 
 #[derive(Serialize)]
@@ -996,6 +1051,195 @@ fn run_balance_op(request: &Value) -> Result<BalanceOpOutput, String> {
 }
 
 // --- zusd kernel --------------------------------------------------------------
+
+const ZUSD_STATE_FIELDS: [&str; 32] = [
+    "now_epoch",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "price_e8",
+    "price_pending_e8",
+    "max_oracle_staleness_epochs",
+    "collateral_e8",
+    "debt_e8",
+    "free_debt_e8",
+    "sp_debt_e8",
+    "sp_coll_e8",
+    "protocol_collateral_e8",
+    "protocol_revenue_zusd_cum_e8",
+    "liquidator_compensation_collateral_cum_e8",
+    "mcr_bps",
+    "ccr_bps",
+    "min_debt_open_e8",
+    "max_debt_e8",
+    "max_debt_supply_e8",
+    "max_sp_coll_e8",
+    "max_protocol_coll_e8",
+    "base_rate_bps",
+    "base_rate_last_epoch",
+    "base_rate_decay_per_epoch_bps",
+    "base_rate_borrow_bump_bps",
+    "base_rate_redeem_bump_bps",
+    "borrow_fee_floor_bps",
+    "borrow_fee_max_bps",
+    "redemption_fee_floor_bps",
+    "redemption_fee_max_bps",
+    "liquidation_gas_comp_fixed_collateral_e8",
+    "liquidation_gas_comp_bps",
+];
+
+fn zusd_u128(obj: &serde_json::Map<String, Value>, key: &str) -> Result<u128, String> {
+    obj.get(key)
+        .and_then(classify_integer)
+        .and_then(|s| s.parse::<u128>().ok())
+        .ok_or_else(|| format!("bad_state_field:{key}"))
+}
+
+fn zusd_state_from_value(value: &Value) -> Result<ZusdState, String> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "state must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &ZUSD_STATE_FIELDS) {
+        return Err(reason);
+    }
+    let oracle_seen = obj
+        .get("oracle_seen")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| "bad_state_field:oracle_seen".to_string())?;
+    Ok(ZusdState {
+        now_epoch: zusd_u128(obj, "now_epoch")?,
+        oracle_seen,
+        oracle_last_update_epoch: zusd_u128(obj, "oracle_last_update_epoch")?,
+        price_e8: zusd_u128(obj, "price_e8")?,
+        price_pending_e8: zusd_u128(obj, "price_pending_e8")?,
+        max_oracle_staleness_epochs: zusd_u128(obj, "max_oracle_staleness_epochs")?,
+        collateral_e8: zusd_u128(obj, "collateral_e8")?,
+        debt_e8: zusd_u128(obj, "debt_e8")?,
+        free_debt_e8: zusd_u128(obj, "free_debt_e8")?,
+        sp_debt_e8: zusd_u128(obj, "sp_debt_e8")?,
+        sp_coll_e8: zusd_u128(obj, "sp_coll_e8")?,
+        protocol_collateral_e8: zusd_u128(obj, "protocol_collateral_e8")?,
+        protocol_revenue_zusd_cum_e8: zusd_u128(obj, "protocol_revenue_zusd_cum_e8")?,
+        liquidator_compensation_collateral_cum_e8: zusd_u128(
+            obj,
+            "liquidator_compensation_collateral_cum_e8",
+        )?,
+        mcr_bps: zusd_u128(obj, "mcr_bps")?,
+        ccr_bps: zusd_u128(obj, "ccr_bps")?,
+        min_debt_open_e8: zusd_u128(obj, "min_debt_open_e8")?,
+        max_debt_e8: zusd_u128(obj, "max_debt_e8")?,
+        max_debt_supply_e8: zusd_u128(obj, "max_debt_supply_e8")?,
+        max_sp_coll_e8: zusd_u128(obj, "max_sp_coll_e8")?,
+        max_protocol_coll_e8: zusd_u128(obj, "max_protocol_coll_e8")?,
+        base_rate_bps: zusd_u128(obj, "base_rate_bps")?,
+        base_rate_last_epoch: zusd_u128(obj, "base_rate_last_epoch")?,
+        base_rate_decay_per_epoch_bps: zusd_u128(obj, "base_rate_decay_per_epoch_bps")?,
+        base_rate_borrow_bump_bps: zusd_u128(obj, "base_rate_borrow_bump_bps")?,
+        base_rate_redeem_bump_bps: zusd_u128(obj, "base_rate_redeem_bump_bps")?,
+        borrow_fee_floor_bps: zusd_u128(obj, "borrow_fee_floor_bps")?,
+        borrow_fee_max_bps: zusd_u128(obj, "borrow_fee_max_bps")?,
+        redemption_fee_floor_bps: zusd_u128(obj, "redemption_fee_floor_bps")?,
+        redemption_fee_max_bps: zusd_u128(obj, "redemption_fee_max_bps")?,
+        liquidation_gas_comp_fixed_collateral_e8: zusd_u128(
+            obj,
+            "liquidation_gas_comp_fixed_collateral_e8",
+        )?,
+        liquidation_gas_comp_bps: zusd_u128(obj, "liquidation_gas_comp_bps")?,
+    })
+}
+
+fn zusd_state_out(state: &ZusdState) -> ZusdStateOut {
+    ZusdStateOut {
+        now_epoch: state.now_epoch.to_string(),
+        oracle_seen: state.oracle_seen,
+        oracle_last_update_epoch: state.oracle_last_update_epoch.to_string(),
+        price_e8: state.price_e8.to_string(),
+        price_pending_e8: state.price_pending_e8.to_string(),
+        max_oracle_staleness_epochs: state.max_oracle_staleness_epochs.to_string(),
+        collateral_e8: state.collateral_e8.to_string(),
+        debt_e8: state.debt_e8.to_string(),
+        free_debt_e8: state.free_debt_e8.to_string(),
+        sp_debt_e8: state.sp_debt_e8.to_string(),
+        sp_coll_e8: state.sp_coll_e8.to_string(),
+        protocol_collateral_e8: state.protocol_collateral_e8.to_string(),
+        protocol_revenue_zusd_cum_e8: state.protocol_revenue_zusd_cum_e8.to_string(),
+        liquidator_compensation_collateral_cum_e8: state
+            .liquidator_compensation_collateral_cum_e8
+            .to_string(),
+        mcr_bps: state.mcr_bps.to_string(),
+        ccr_bps: state.ccr_bps.to_string(),
+        min_debt_open_e8: state.min_debt_open_e8.to_string(),
+        max_debt_e8: state.max_debt_e8.to_string(),
+        max_debt_supply_e8: state.max_debt_supply_e8.to_string(),
+        max_sp_coll_e8: state.max_sp_coll_e8.to_string(),
+        max_protocol_coll_e8: state.max_protocol_coll_e8.to_string(),
+        base_rate_bps: state.base_rate_bps.to_string(),
+        base_rate_last_epoch: state.base_rate_last_epoch.to_string(),
+        base_rate_decay_per_epoch_bps: state.base_rate_decay_per_epoch_bps.to_string(),
+        base_rate_borrow_bump_bps: state.base_rate_borrow_bump_bps.to_string(),
+        base_rate_redeem_bump_bps: state.base_rate_redeem_bump_bps.to_string(),
+        borrow_fee_floor_bps: state.borrow_fee_floor_bps.to_string(),
+        borrow_fee_max_bps: state.borrow_fee_max_bps.to_string(),
+        redemption_fee_floor_bps: state.redemption_fee_floor_bps.to_string(),
+        redemption_fee_max_bps: state.redemption_fee_max_bps.to_string(),
+        liquidation_gas_comp_fixed_collateral_e8: state
+            .liquidation_gas_comp_fixed_collateral_e8
+            .to_string(),
+        liquidation_gas_comp_bps: state.liquidation_gas_comp_bps.to_string(),
+    }
+}
+
+fn run_zusd_op(request: &Value) -> Result<ZusdOpOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) =
+        first_unknown_field(obj.keys().map(String::as_str), &["version", "state", "tx"])
+    {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let state = zusd_state_from_value(
+        request
+            .get("state")
+            .ok_or_else(|| "state is required".to_string())?,
+    )?;
+    let tx = request
+        .get("tx")
+        .ok_or_else(|| "tx is required".to_string())?;
+    let pre_state_root = state.state_root();
+    match eval_zusd_tx(&state, tx) {
+        Eval::Accept { receipt_hash, next } => Ok(ZusdOpOutput {
+            version: 1,
+            kernel: "zusd".to_string(),
+            accept: true,
+            reject_reason: None,
+            receipt_hash: Some(receipt_hash),
+            receipt: Some(ZusdReceiptOut {
+                tag: tx
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+            }),
+            pre_state_root,
+            post_state_root: next.state_root(),
+            post_state: zusd_state_out(&next),
+        }),
+        Eval::Reject(reason) => Ok(ZusdOpOutput {
+            version: 1,
+            kernel: "zusd".to_string(),
+            accept: false,
+            reject_reason: Some(reason),
+            receipt_hash: None,
+            receipt: None,
+            pre_state_root: pre_state_root.clone(),
+            post_state_root: pre_state_root,
+            post_state: zusd_state_out(&state),
+        }),
+    }
+}
 
 /// Integer-shaped arg as a literal string, else `None` (zUSD `_require_pos_int`
 /// validates `> 0` in the core). zUSD ignores unknown fields, like the authority.
@@ -2873,6 +3117,7 @@ fn main() -> ExitCode {
                 | "replay-balance-trace"
                 | "balance-op"
                 | "replay-zusd-trace"
+                | "zusd-op"
                 | "verify-burn-trace"
                 | "settle-swap-trace"
                 | "cpmm-op"
@@ -2891,7 +3136,7 @@ fn main() -> ExitCode {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
              fee-route|replay-balance-trace|balance-op|\
-             replay-zusd-trace|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
+             replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
              set-market-params> <input.json|->"
@@ -2975,6 +3220,25 @@ fn main() -> ExitCode {
 
     if subcommand == "balance-op" {
         return match run_balance_op(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "zusd-op" {
+        return match run_zusd_op(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");
