@@ -2,7 +2,7 @@
 
 Proves the four required properties from the promotion prompt:
   * unsupported authority mode rejects;
-  * a strict (production) profile cannot enable half-configured Rust authority;
+  * strict public-testnet / production profiles cannot enable half-configured Rust authority;
   * disagreement between Rust and Python fails closed;
   * state roots are unchanged across python_authority and
     rust_authority_with_python_shadow for promoted (agreeing) surfaces;
@@ -27,9 +27,12 @@ from src.runtime.authority import (  # noqa: E402
     AuthorityMode,
     AuthorityPolicy,
     RustUnavailable,
+    active_mode,
     decide,
     load_authority_policy,
     parse_authority_mode,
+    reset_active_authority_policy,
+    set_active_authority_policy,
     validate_authority_policy,
 )
 
@@ -79,6 +82,21 @@ def test_default_mode_is_python():
     assert DEFAULT_MODE is AuthorityMode.PYTHON_AUTHORITY
     policy = load_authority_policy(None)
     assert policy.mode_for("any_surface") is AuthorityMode.PYTHON_AUTHORITY
+
+
+def test_active_policy_defaults_and_resets():
+    reset_active_authority_policy()
+    assert active_mode("canonical") is AuthorityMode.PYTHON_AUTHORITY
+    set_active_authority_policy(
+        AuthorityPolicy(
+            default=AuthorityMode.PYTHON_AUTHORITY,
+            per_surface={"canonical": AuthorityMode.RUST_SHADOW},
+            promoted_surfaces=frozenset(),
+        )
+    )
+    assert active_mode("canonical") is AuthorityMode.RUST_SHADOW
+    reset_active_authority_policy()
+    assert active_mode("canonical") is AuthorityMode.PYTHON_AUTHORITY
 
 
 # --------------------------------------------------------------------------
@@ -318,6 +336,16 @@ def test_production_profile_allows_promoted_surface():
     validate_authority_policy(policy, profile_id="production-strict")
 
 
+def test_public_testnet_profile_rejects_half_configured_rust_authority():
+    policy = AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={"canonical": AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW},
+        promoted_surfaces=frozenset(),
+    )
+    with pytest.raises(AuthorityError):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
 def test_production_profile_rejects_blanket_rust_default():
     policy = AuthorityPolicy(
         default=AuthorityMode.RUST_AUTHORITY,
@@ -356,6 +384,10 @@ def test_real_deploy_profiles_load_and_validate():
         seen.add(profile_id)
         policy = load_authority_policy(profile)
         validate_authority_policy(policy, profile_id=profile_id)  # must not raise
+        if profile_id == "public-testnet":
+            assert policy.default is AuthorityMode.PYTHON_AUTHORITY
+            assert policy.mode_for("canonical") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.promoted_surfaces == frozenset({"canonical"})
         if profile_id == "production-strict":
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY
             assert policy.promoted_surfaces == frozenset()

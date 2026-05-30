@@ -6801,6 +6801,9 @@ def _print_api_auth_posture_error(code: str) -> None:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     _ = argv
+    from src.runtime.authority import reset_active_authority_policy  # pylint: disable=import-outside-toplevel
+
+    reset_active_authority_policy()
     host = _env_str("API_HOST", "127.0.0.1")
     port = _env_int("API_PORT", 8000, lo=1, hi=65535)
     cors_origins = _parse_cors_origins(_env_str("CORS_ORIGINS", ""))
@@ -6901,6 +6904,44 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             for _conflict in _deploy_conflicts:
                 print(f"Refusing to start: {_conflict}")
             return 2
+
+        from src.runtime.authority import (  # pylint: disable=import-outside-toplevel
+            AuthorityError,
+            RUST_AUTHORITATIVE_MODES,
+            RustUnavailable,
+            load_authority_policy,
+            set_active_authority_policy,
+            validate_authority_policy,
+        )
+
+        try:
+            _authority_policy = load_authority_policy(_deploy_profile)
+            validate_authority_policy(_authority_policy, profile_id=_deploy_profile_id)
+        except (AuthorityError, ValueError, TypeError) as exc:
+            print(
+                f"Refusing to start: invalid runtime_authority_policy in "
+                f"{_deploy_profile_id!r}: {exc}"
+            )
+            return 2
+        if (
+            _authority_policy.default in RUST_AUTHORITATIVE_MODES
+            or any(mode in RUST_AUTHORITATIVE_MODES for mode in _authority_policy.per_surface.values())
+        ):
+            from src.runtime.rust_invoker import locate_runtime_binary  # pylint: disable=import-outside-toplevel
+
+            try:
+                locate_runtime_binary()
+            except RustUnavailable as exc:
+                _rust_error = (
+                    "Refusing to start: runtime_authority_policy in "
+                    f"{_deploy_profile_id!r} requires Rust authority but "
+                    f"zenodex-runtime is unavailable: {exc}"
+                )
+                print(
+                    _rust_error
+                )
+                return 2
+        set_active_authority_policy(_authority_policy)
 
     # API-surface profile gate (D-CONFIG-002): the profiles in
     # api_surface_profiles.py (e.g. production-strict forbids demo/value-moving

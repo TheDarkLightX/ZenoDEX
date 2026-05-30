@@ -4,9 +4,10 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_AUTHORITY_PROMOTION_GATE.md` (the gate) and
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
-**As of this writing: no surface is Rust-authoritative. The default everywhere
-is `python_authority`.** This PR adds the *machinery* (authority selector +
-gate + deployment-facts wiring), not any promotion.
+**As of this writing: canonical primitives are promoted only in the
+`public-testnet` profile to `rust_authority_with_python_shadow`.** The default
+mode remains `python_authority`, `production-strict` remains all-Python, and no
+surface runs pure `rust_authority`.
 
 ## Phase 0 inventory — promotion map
 
@@ -17,7 +18,7 @@ human decision + profile entry.
 
 | Surface | Authority | Rust shadow | 1–8,10–11 | DS (4) | Fuzz (9) | Promoted (12) |
 |---|---|---|---|---|---|---|
-| Canonical primitives | Python | `canonical.rs` | ✅ | ✅¹ | ☐ | ☐ |
+| Canonical primitives | Rust+Python shadow on public-testnet | `canonical.rs` | ✅ | ✅¹ | ✅ | ✅¹ |
 | State root v5 | Python | `state_root.rs` | ✅ | ✅² | ☐ | ☐ |
 | Replay / idempotency guard | Python | `replay_guard.rs` | ✅ | ☐ | ☐ | ☐ |
 | Balance accounting | Python | `balance_kernel.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -32,9 +33,14 @@ human decision + profile entry.
 (malformed bytes, overflow/underflow, determinism, purity) covered by
 `tests/runtime/test_canonical_primitives_disaster_state.py`, plus the
 cross-language disaster differential and the first end-to-end authority-selector
-exercise over a real surface. This is the first surface with complete
-criterion-4 evidence. Fuzz (9) and the human decision (12) remain; no profile
-flips it to Rust authority yet.
+exercise over a real surface. `tests/runtime/test_canonical_primitives_fuzz_gate.py`
+adds the deterministic fuzz gate for JSON, domain-separated hashes, and fixed
+hex. `config/deploy/public-testnet.yaml` now lists `canonical` in
+`promoted_surfaces` and sets it to `rust_authority_with_python_shadow`; rollback
+to Python is root-preserving by differential test. The first live call site is
+`src/core/burn_receipts.py::burn_receipt_hash`, which routes its
+domain-separated body hash through the active authority policy. Production
+remains `python_authority`.
 
 ² State root v5 has a disaster-state suite
 (`tests/runtime/test_state_root_disaster_state.py`) that documents the bridge
@@ -85,8 +91,10 @@ verifies the selector receives an agreed rejection rather than a drift.
 
 ### Classification (Phase 0 step 3)
 
+- **Promoted to public-testnet shadow-checked Rust authority**: canonical
+  primitives.
 - **Promotable after evidence refresh + selector wiring** (lowest risk, do
-  first): canonical primitives, state-root v5, replay guard, balance
+  next): state-root v5, replay guard, balance
   accounting, fee router.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
@@ -120,11 +128,12 @@ Delivered:
   - Every decision carries audit metadata (`mode`, `decided_by`,
     `shadow_checked`, `shadow_agreed`) for receipts/logs.
 - **Deployment-facts wiring** — `runtime_authority_policy` section added to
-  `config/deploy/{local-dev,public-testnet,production-strict}.yaml` (all safe
-  all-Python); `validate_authority_policy` rejects a half-configured Rust
-  authority (and a blanket Rust default) under `production-strict`;
+  `config/deploy/{local-dev,public-testnet,production-strict}.yaml`. Public
+  testnet now promotes only `canonical`; production remains all-Python.
+  `validate_authority_policy` rejects a half-configured Rust authority (and a
+  blanket Rust default) under `public-testnet` and `production-strict`;
   `tools/check_deployment_profiles.py` enforces it in CI.
-- **Tests** — `tests/runtime/test_authority_selector.py` (27 cases): unsupported
+- **Tests** — `tests/runtime/test_authority_selector.py`: unsupported
   mode rejects; default is Python; each mode's semantics; disagreement fails
   closed; Rust-unavailable skipped in shadow but fatal under authority;
   state-root unchanged across `python_authority` and
@@ -132,12 +141,11 @@ Delivered:
   real deploy profiles load + validate.
 - **Gate** — `RUST_AUTHORITY_PROMOTION_GATE.md`.
 
-Not in this PR (require explicit go-ahead — they change a surface's authority):
+Not in this PR (require explicit go-ahead — they change another surface's authority):
 
-- Any surface promotion (Phase 3+).
 - The disaster-state test catalog rows (criterion 4) and fuzz harness
-  (criterion 9).
-- Wiring `decide(...)` into the live transaction path of any surface.
+  (criterion 9) for non-canonical surfaces.
+- Wiring `decide(...)` into the live transaction path of any non-canonical surface.
 
 ## Preconditions / environment notes
 

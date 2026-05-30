@@ -54,7 +54,7 @@ SHADOW_PAIRED_MODES = frozenset(
 )
 
 #: Deployment profiles that must never run a half-configured Rust authority.
-STRICT_PROFILE_IDS = frozenset({"production-strict"})
+STRICT_PROFILE_IDS = frozenset({"public-testnet", "production-strict"})
 
 POLICY_SCHEMA_V1 = "zenodex/runtime_authority_policy/v1"
 
@@ -129,6 +129,40 @@ class AuthorityPolicy:
         return self.per_surface.get(surface, self.default)
 
 
+#: Process-wide active policy. Runtime bootstrap installs the deployment
+#: profile's policy through ``set_active_authority_policy``. Until then every
+#: surface stays on the safe all-Python default.
+_ACTIVE_POLICY: AuthorityPolicy = AuthorityPolicy(DEFAULT_MODE, {}, frozenset())
+
+
+def set_active_authority_policy(policy: AuthorityPolicy) -> None:
+    """Install the process-wide authority policy, typically during startup."""
+
+    if not isinstance(policy, AuthorityPolicy):
+        raise TypeError("policy must be an AuthorityPolicy")
+    global _ACTIVE_POLICY
+    _ACTIVE_POLICY = policy
+
+
+def active_authority_policy() -> AuthorityPolicy:
+    """Return the currently installed process-wide authority policy."""
+
+    return _ACTIVE_POLICY
+
+
+def reset_active_authority_policy() -> None:
+    """Restore the safe all-Python default, mainly for tests."""
+
+    global _ACTIVE_POLICY
+    _ACTIVE_POLICY = AuthorityPolicy(DEFAULT_MODE, {}, frozenset())
+
+
+def active_mode(surface: str) -> AuthorityMode:
+    """Return the active authority mode for ``surface``."""
+
+    return _ACTIVE_POLICY.mode_for(surface)
+
+
 def load_authority_policy(profile: Mapping[str, Any] | None) -> AuthorityPolicy:
     """Build an :class:`AuthorityPolicy` from a deployment-profile mapping.
 
@@ -172,14 +206,14 @@ def load_authority_policy(profile: Mapping[str, Any] | None) -> AuthorityPolicy:
 def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> None:
     """Reject half-configured Rust authority under a strict deployment profile.
 
-    Under a strict profile (``production-strict``):
+    Under a strict profile (``public-testnet`` or ``production-strict``):
 
     * the blanket ``default`` may not be a Rust-authoritative mode (that would
       promote every surface at once, including unshadowed ones);
     * a per-surface Rust-authoritative mode is only allowed for a surface that
       is explicitly listed in ``promoted_surfaces`` (i.e. has passed the gate).
 
-    Outside strict profiles this is advisory (no raise) so dev/testnet can
+    Outside strict profiles this is advisory (no raise) so local-dev can
     experiment, but the same shape is recommended.
     """
     if profile_id not in STRICT_PROFILE_IDS:

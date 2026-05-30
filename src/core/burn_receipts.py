@@ -16,11 +16,31 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 
+from ..runtime.authority import AuthorityMode, active_mode, decide
+from ..runtime.rust_invoker import canonical_domain_json_hash
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 
+_BURN_RECEIPT_HASH_LABEL = "zenodex.burn_receipt/v1"
+
+
+def _burn_receipt_hash_python(receipt_body: Dict[str, Any]) -> str:
+    return sha256_hex(domain_sep_bytes(_BURN_RECEIPT_HASH_LABEL) + canonical_json_bytes(receipt_body))
+
+
 def burn_receipt_hash(receipt_body: Dict[str, Any]) -> str:
-    return sha256_hex(domain_sep_bytes("zenodex.burn_receipt/v1") + canonical_json_bytes(receipt_body))
+    """Authority-gated burn-receipt body hash using the canonical surface."""
+
+    mode = active_mode("canonical")
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _burn_receipt_hash_python(receipt_body)
+    return decide(
+        "canonical",
+        mode,
+        python_fn=lambda: _burn_receipt_hash_python(receipt_body),
+        rust_fn=lambda: canonical_domain_json_hash(_BURN_RECEIPT_HASH_LABEL, receipt_body),
+        compare=lambda python_hash, rust_hash: python_hash == rust_hash,
+    ).result
 
 
 def _rail_replay_guard(*, do_burn: int, receipt_bound: int, nullifier_unused: int, policy_ok: int) -> bool:

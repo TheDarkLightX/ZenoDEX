@@ -7,6 +7,7 @@ emits, so a test can prove byte-for-byte agreement.
 
 Case shapes (input):
     {"op": "json_bytes"|"json_hash", "value": <any JSON value>}
+    {"op": "domain_json_hash", "label": "...", "version": <int>, "value": <any JSON value>}
     {"op": "hex_to_bytes", "hex": "0x..", "nbytes": <int>}
 
 Result shape (output), per case, index-aligned with the input list:
@@ -32,6 +33,7 @@ from typing import Any
 
 from src.state.canonical import (
     canonical_json_bytes,
+    domain_sep_bytes,
     hex_to_bytes_fixed,
     sha256_hex,
 )
@@ -58,6 +60,14 @@ def py_eval(index: int, case: dict) -> dict:
             "bytes": "0x" + raw.hex(),
             "hash": sha256_hex(raw),
         }
+    if op == "domain_json_hash":
+        try:
+            label = case.get("label")
+            version = case.get("version", 1)
+            msg = domain_sep_bytes(label, version) + canonical_json_bytes(case.get("value"))
+        except (TypeError, ValueError):
+            return {"index": index, "ok": False}
+        return {"index": index, "ok": True, "hash": sha256_hex(msg)}
     if op == "hex_to_bytes":
         try:
             out = hex_to_bytes_fixed(
@@ -104,6 +114,22 @@ def static_cases() -> list[dict]:
                 "fields": {"asset": "zUSD", "min_out": 100},
             },
         },
+        {
+            "op": "domain_json_hash",
+            "label": "zenodex.test",
+            "version": 1,
+            "value": {"amount": 12_345, "asset": "zUSD"},
+        },
+        {
+            "op": "domain_json_hash",
+            "label": "zenodex.test",
+            "version": 2,
+            "value": {"amount": 12_345, "asset": "zUSD"},
+        },
+        {"op": "domain_json_hash", "label": "", "version": 1, "value": {}},
+        {"op": "domain_json_hash", "label": "bad\x00label", "version": 1, "value": {}},
+        {"op": "domain_json_hash", "label": "é", "version": 1, "value": {}},
+        {"op": "domain_json_hash", "label": "x", "version": 0, "value": {}},
         # --- canonical_json_bytes rejections ---
         {"op": "json_bytes", "value": 1.5},
         {"op": "json_bytes", "value": [1, 2.0, 3]},
@@ -157,10 +183,27 @@ def random_cases(seed: int, n: int) -> list[dict]:
     cases: list[dict] = []
     for _ in range(n):
         roll = rng.random()
-        if roll < 0.6:
+        if roll < 0.55:
             op = "json_hash" if rng.random() < 0.5 else "json_bytes"
             cases.append({"op": op, "value": _rand_json(rng, depth=3)})
-        elif roll < 0.75:
+        elif roll < 0.68:
+            label_roll = rng.random()
+            if label_roll < 0.75:
+                label = rng.choice(["zenodex.test", "fee_receipt", "state_root", "x"])
+            elif label_roll < 0.9:
+                label = ""
+            else:
+                label = rng.choice(["bad\x00label", "é"])
+            version = rng.choice([1, 2, 3, 0, -1])
+            cases.append(
+                {
+                    "op": "domain_json_hash",
+                    "label": label,
+                    "version": version,
+                    "value": _rand_json(rng, depth=2),
+                }
+            )
+        elif roll < 0.78:
             # Occasionally inject a float to exercise reject agreement.
             cases.append({"op": "json_bytes", "value": rng.uniform(-5, 5)})
         else:

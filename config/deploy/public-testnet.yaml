@@ -38,9 +38,10 @@ runtime_policy:
   external_static_analysis_required_in_ci: true
 runtime_authority_policy:
   schema: zenodex/runtime_authority_policy/v1
-  # Python authority everywhere by default. Per-surface promotion to a Rust
-  # shadow-checked mode is permitted on testnet for surfaces that have passed
-  # the promotion gate; list them in promoted_surfaces when promoting.
+  # Python authority by default. Canonical primitives have passed the first
+  # promotion gate and run Rust authority with Python shadow on public testnet.
   default: python_authority
-  per_surface: {}
-  promoted_surfaces: []
+  per_surface:
+    canonical: rust_authority_with_python_shadow
+  promoted_surfaces:
+    - canonical

@@ -96,8 +96,8 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
         errors.append("public-testnet must reject raw private key flags")
 
     # Runtime authority policy (optional section; absent => safe all-Python).
-    # A malformed policy, or a half-configured Rust authority under a strict
-    # profile, is a deployment-facts error.
+    # A malformed policy, or a half-configured Rust authority under public
+    # testnet / production-strict, is a deployment-facts error.
     if "runtime_authority_policy" in obj:
         try:
             policy = load_authority_policy(obj)

@@ -127,8 +127,12 @@ are **✅ covered** by `tests/runtime/test_canonical_primitives_disaster_state.p
 which also runs the cross-language disaster differential and the first
 end-to-end authority-selector exercise (`rust_authority_with_python_shadow`:
 agreement, root-stability, fail-closed on disagreement and on unavailable Rust).
-Canonical primitives are therefore the first surface with complete criterion-4
-evidence; fuzz (criterion 9) and the human decision (criterion 12) remain.
+`tests/runtime/test_canonical_primitives_fuzz_gate.py` adds the deterministic
+fuzz gate. `config/deploy/public-testnet.yaml` is the first promoted lane:
+`canonical` runs as `rust_authority_with_python_shadow` and is listed in
+`promoted_surfaces`. The live path currently covers the burn-receipt
+domain-separated canonical hash. `production-strict` remains `python_authority`;
+pure `rust_authority` still requires a sustained shadow-checked release lane.
 
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
@@ -146,7 +150,7 @@ path and does not flip any deployment profile, so perps stays `python_authority`
 
 Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 
-1. canonical primitives
+1. canonical primitives — public-testnet shadow-authority lane active
 2. state root v5
 3. replay / idempotency guard
 4. balance accounting
@@ -175,7 +179,8 @@ deliberately test-only and does not promote the surface.
 3. Set the surface to `rust_authority_with_python_shadow` in the target
    deployment profile **and** add it to that profile's `promoted_surfaces`.
    `check_deployment_profiles.py` rejects the half-configured case (rust
-   authority without the `promoted_surfaces` entry) under `production-strict`.
+   authority without the `promoted_surfaces` entry) under `public-testnet` and
+   `production-strict`.
 4. Prove no state-root drift (the selector + agreement guarantee it; assert it).
 5. Document residual risk in `RUST_AUTHORITY_MIGRATION_STATUS.md`.
 6. Get explicit human sign-off (criterion 12).
@@ -186,5 +191,5 @@ deliberately test-only and does not promote the surface.
 - A blanket `default: rust_authority*` in a strict profile (rejected by
   `validate_authority_policy`).
 - Promotion of a surface not present in `rust-runtime` (batch-clearing
-  orchestration, stateful perps, multi-vault zUSD, intent shape-gate, BLS).
+  orchestration, multi-vault zUSD, intent shape-gate, BLS).
 - Silent fallback: any Rust error/timeout/disagreement is a hard reject.
