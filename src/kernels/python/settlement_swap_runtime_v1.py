@@ -293,6 +293,32 @@ def _quote_cpmm_swap_exact_in_python(
     )
 
 
+def quote_cpmm_swap_exact_in_for_ordering_simulation(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+    fee_bps: int,
+) -> SettlementSwapExactInQuote:
+    """Return a deterministic, side-effect-free CPMM exact-in quote for ordering simulation.
+
+    Design by contract:
+    - Precondition: callers provide candidate reserves, amount, and fee in the
+      same integer domains accepted by ``quote_cpmm_swap_exact_in``.
+    - Invariant: ordering exploration is pure arithmetic and never crosses the
+      external Rust subprocess boundary.
+    - Postcondition: accepted quotes are byte-identical to the Python authority
+      quote used for Rust differential checks.
+    """
+
+    return _quote_cpmm_swap_exact_in_python(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+        fee_bps=fee_bps,
+    )
+
+
 def quote_cpmm_swap_exact_in(
     *,
     reserve_in: int,
