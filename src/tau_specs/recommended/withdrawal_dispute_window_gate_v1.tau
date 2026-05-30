@@ -1,0 +1,18 @@
+# CATEGORY: withdrawal / dispute window
+# CLAIM: finalize only when no dispute was raised in the previous two epochs.
+#
+# Stream mapping:
+#   i1 = finalize requested
+#   i2 = dispute raised
+#   o1 = finality admit
+#
+# Contract:
+#   o1[t] = finalize_requested[t] & ~dispute[t-1] & ~dispute[t-2]
+#
+# This is input-history only. It has no output feedback and no resettable latch,
+# so it preserves one output row per input row. The first two rows fail closed
+# because the full two-epoch lookback is not yet available.
+set charvar off
+
+always
+  (o1[t]:sbf = (i1[t]:sbf & (i2[t-1]:sbf)' & (i2[t-2]:sbf)')).
