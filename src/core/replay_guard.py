@@ -1,8 +1,10 @@
 """
 Replay / idempotency guard (deterministic, integer-only).
 
-This is the **reference / authoritative** implementation of ZenoDEX's replay
-protection for the Rust runtime migration (Phase 6, surface 1). It is the
+This is the **Python reference** implementation of ZenoDEX's replay protection
+for the Rust runtime migration (Phase 6, surface 1). By default it is still the
+runtime authority; deployment profiles may promote the Rust transition with
+Python shadow checking. It is the
 single-transition form of the per-sender strict-sequential nonce policy already
 enforced by :mod:`src.state.nonces`
 (:func:`validate_and_apply_intent_nonce_batch`): each sender must use nonces
@@ -28,7 +30,7 @@ addition to the Python/Rust differential — see
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from typing import Any, Union
 
 from ..state.canonical import (
     canonical_hex_fixed_allow_0x,
@@ -51,9 +53,11 @@ __all__ = [
     "AdmitAccepted",
     "AdmitRejected",
     "AdmitResult",
+    "REPLAY_GUARD_SURFACE",
     "admit",
 ]
 
+REPLAY_GUARD_SURFACE = "replay_guard"
 U32_MAX = 0xFFFFFFFF
 SENDER_NBYTES = 48  # BLS12-381 pubkey, matching src/state/nonces.py
 
@@ -178,7 +182,64 @@ class AdmitRejected:
 AdmitResult = Union[AdmitAccepted, AdmitRejected]
 
 
-def admit(*, state: ReplayGuardState, sender: str, nonce: int) -> AdmitResult:
+def _state_entries_json(state: ReplayGuardState) -> list[dict[str, Any]]:
+    return [{"sender": e.sender, "last_nonce": e.last_nonce} for e in state.entries]
+
+
+def _result_to_authority_doc(pre_state: ReplayGuardState, result: AdmitResult) -> dict[str, Any]:
+    pre_root = pre_state.state_root()
+    if isinstance(result, AdmitAccepted):
+        return {
+            "version": 1,
+            "kernel": REPLAY_GUARD_SURFACE,
+            "accept": True,
+            "reject_reason": None,
+            "receipt_hash": result.receipt.receipt_hash(),
+            "receipt": {
+                "sender": result.receipt.sender,
+                "nonce": result.receipt.nonce,
+                "prev_nonce": result.receipt.prev_nonce,
+            },
+            "pre_state_root": pre_root,
+            "post_state_root": result.state.state_root(),
+            "post_state_entries": _state_entries_json(result.state),
+        }
+    return {
+        "version": 1,
+        "kernel": REPLAY_GUARD_SURFACE,
+        "accept": False,
+        "reject_reason": result.reason,
+        "receipt_hash": None,
+        "receipt": None,
+        "pre_state_root": pre_root,
+        "post_state_root": pre_root,
+        "post_state_entries": _state_entries_json(pre_state),
+    }
+
+
+def _authority_doc_to_result(doc: dict[str, Any]) -> AdmitResult:
+    if bool(doc.get("accept")):
+        receipt_doc = doc.get("receipt")
+        if not isinstance(receipt_doc, dict):
+            raise ValueError("accepted replay_guard authority doc missing receipt")
+        entries = tuple(
+            _Entry(str(entry["sender"]), int(entry["last_nonce"]))
+            for entry in doc.get("post_state_entries", [])
+        )
+        state = ReplayGuardState(entries=entries)
+        receipt = AdmissionReceipt(
+            sender=str(receipt_doc["sender"]),
+            nonce=int(receipt_doc["nonce"]),
+            prev_nonce=int(receipt_doc["prev_nonce"]),
+        )
+        return AdmitAccepted(receipt=receipt, state=state)
+    reason = doc.get("reject_reason")
+    if not isinstance(reason, str):
+        raise ValueError("rejected replay_guard authority doc missing reason")
+    return AdmitRejected(reason)
+
+
+def _admit_python(*, state: ReplayGuardState, sender: str, nonce: int) -> AdmitResult:
     """
     Admit (sender, nonce) under the strict-sequential per-sender policy.
 
@@ -208,3 +269,41 @@ def admit(*, state: ReplayGuardState, sender: str, nonce: int) -> AdmitResult:
     new_state = state.with_last(canon, nonce)
     receipt = AdmissionReceipt(sender=canon, nonce=nonce, prev_nonce=last)
     return AdmitAccepted(receipt=receipt, state=new_state)
+
+
+def admit(*, state: ReplayGuardState, sender: str, nonce: int) -> AdmitResult:
+    """
+    Authority-routed replay/idempotency guard transition.
+
+    The safe default remains the Python reference. If the active deployment
+    policy promotes ``replay_guard``, Rust computes the transition and Python
+    re-runs it as a shadow. Any disagreement raises ``AuthorityError`` and the
+    caller must reject the transaction without mutating state.
+    """
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import replay_guard_admit
+
+    mode = active_mode(REPLAY_GUARD_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _admit_python(state=state, sender=sender, nonce=nonce)
+
+    def python_doc() -> dict[str, Any]:
+        return _result_to_authority_doc(
+            state,
+            _admit_python(state=state, sender=sender, nonce=nonce),
+        )
+
+    def rust_doc() -> dict[str, Any]:
+        return replay_guard_admit(
+            state_entries=_state_entries_json(state),
+            sender=sender,
+            nonce=nonce,
+        )
+
+    decision = decide(
+        REPLAY_GUARD_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=rust_doc,
+    )
+    return _authority_doc_to_result(decision.result)

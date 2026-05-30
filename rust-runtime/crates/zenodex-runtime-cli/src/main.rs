@@ -6,6 +6,7 @@
 //! ```text
 //! zenodex-runtime replay-fee-trace     <trace.json|->   # kernel = fee_router
 //! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
+//! zenodex-runtime replay-guard-admit   <request.json|-> # one replay_guard transition
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
@@ -101,6 +102,32 @@ struct ReplayOutput {
 enum Eval<S> {
     Accept { receipt_hash: String, next: S },
     Reject(String),
+}
+
+#[derive(Serialize)]
+struct ReplayGuardStateEntryOut {
+    sender: String,
+    last_nonce: u64,
+}
+
+#[derive(Serialize)]
+struct ReplayGuardReceiptOut {
+    sender: String,
+    nonce: u64,
+    prev_nonce: u64,
+}
+
+#[derive(Serialize)]
+struct ReplayGuardAdmitOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
+    receipt_hash: Option<String>,
+    receipt: Option<ReplayGuardReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_state_entries: Vec<ReplayGuardStateEntryOut>,
 }
 
 // --- Shared JSON helpers ------------------------------------------------------
@@ -249,6 +276,109 @@ fn eval_admit_tx(state: &ReplayGuardState, tx: &Value) -> Eval<ReplayGuardState>
             next: accepted.state,
         },
         Err(reason) => Eval::Reject(reason.reason_str()),
+    }
+}
+
+fn replay_guard_entries_out(state: &ReplayGuardState) -> Vec<ReplayGuardStateEntryOut> {
+    state
+        .entries()
+        .map(|(sender, last_nonce)| ReplayGuardStateEntryOut {
+            sender: sender.to_string(),
+            last_nonce,
+        })
+        .collect()
+}
+
+fn replay_guard_state_from_request(v: &Value) -> Result<ReplayGuardState, String> {
+    let entries = v
+        .get("state_entries")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "state_entries must be an array".to_string())?;
+    let mut parsed = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| format!("state_entries[{index}] must be an object"))?;
+        if let Some(reason) =
+            first_unknown_field(obj.keys().map(String::as_str), &["sender", "last_nonce"])
+        {
+            return Err(format!("state_entries[{index}]:{reason}"));
+        }
+        let sender = obj
+            .get("sender")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("state_entries[{index}].sender must be a string"))?;
+        let last_nonce = match obj.get("last_nonce").and_then(classify_integer) {
+            Some(s) => match s.parse::<u64>() {
+                Ok(v) => v,
+                Err(_) => return Err(format!("state_entries[{index}].last_nonce invalid_nonce")),
+            },
+            None => return Err(format!("state_entries[{index}].last_nonce invalid_nonce")),
+        };
+        parsed.push((sender.to_string(), last_nonce));
+    }
+    ReplayGuardState::from_entries(parsed)
+        .map_err(|reason| format!("invalid replay_guard state: {}", reason.reason_str()))
+}
+
+fn run_replay_guard_admit(request: &Value) -> Result<ReplayGuardAdmitOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(
+        obj.keys().map(String::as_str),
+        &["version", "state_entries", "tx"],
+    ) {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let state = replay_guard_state_from_request(request)?;
+    let pre_state_root = state.state_root();
+    let tx = request
+        .get("tx")
+        .ok_or_else(|| "tx is required".to_string())?;
+    match eval_admit_tx(&state, tx) {
+        Eval::Accept { receipt_hash, next } => {
+            let sender = tx
+                .get("sender")
+                .and_then(Value::as_str)
+                .and_then(canonical_sender)
+                .ok_or_else(|| "accepted replay_guard tx had no canonical sender".to_string())?;
+            let nonce = tx
+                .get("nonce")
+                .and_then(classify_integer)
+                .and_then(|s| s.parse::<u64>().ok())
+                .ok_or_else(|| "accepted replay_guard tx had no nonce".to_string())?;
+            let prev_nonce = state.last_for(&sender);
+            Ok(ReplayGuardAdmitOutput {
+                version: 1,
+                kernel: "replay_guard".to_string(),
+                accept: true,
+                reject_reason: None,
+                receipt_hash: Some(receipt_hash),
+                receipt: Some(ReplayGuardReceiptOut {
+                    sender,
+                    nonce,
+                    prev_nonce,
+                }),
+                pre_state_root,
+                post_state_root: next.state_root(),
+                post_state_entries: replay_guard_entries_out(&next),
+            })
+        }
+        Eval::Reject(reason) => Ok(ReplayGuardAdmitOutput {
+            version: 1,
+            kernel: "replay_guard".to_string(),
+            accept: false,
+            reject_reason: Some(reason),
+            receipt_hash: None,
+            receipt: None,
+            pre_state_root: pre_state_root.clone(),
+            post_state_root: pre_state_root,
+            post_state_entries: replay_guard_entries_out(&state),
+        }),
     }
 }
 
@@ -2068,6 +2198,7 @@ fn main() -> ExitCode {
             subcommand,
             "replay-fee-trace"
                 | "replay-guard-trace"
+                | "replay-guard-admit"
                 | "replay-balance-trace"
                 | "replay-zusd-trace"
                 | "verify-burn-trace"
@@ -2085,7 +2216,8 @@ fn main() -> ExitCode {
         )
     {
         eprintln!(
-            "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-balance-trace|\
+            "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
+             replay-balance-trace|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
@@ -2113,6 +2245,25 @@ fn main() -> ExitCode {
     // (a list of cases, not a state-threaded trace), so handle it separately.
     if subcommand == "canonical-hash" {
         return match run_canonical_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "replay-guard-admit" {
+        return match run_replay_guard_admit(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");

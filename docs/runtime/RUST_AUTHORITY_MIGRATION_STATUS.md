@@ -4,8 +4,9 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_AUTHORITY_PROMOTION_GATE.md` (the gate) and
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
-**As of this writing: canonical primitives and state root v5 are promoted only
-in the `public-testnet` profile to `rust_authority_with_python_shadow`.** The
+**As of this writing: canonical primitives, state root v5, and replay/idempotency
+guard are promoted only in the `public-testnet` profile to
+`rust_authority_with_python_shadow`.** The
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
 
@@ -21,7 +22,7 @@ human decision + profile entry.
 |---|---|---|---|---|---|---|
 | Canonical primitives | Rust+Python shadow on public-testnet | `canonical.rs` | ✅ | ✅¹ | ✅ | ✅¹ |
 | State root v5 | Rust+Python shadow on public-testnet | `state_root.rs` | ✅ | ✅² | ✅ | ✅² |
-| Replay / idempotency guard | Python | `replay_guard.rs` | ✅ | ☐ | ☐ | ☐ |
+| Replay / idempotency guard | Rust+Python shadow on public-testnet | `replay_guard.rs` | ✅ | ✅⁴ | ✅ | ✅⁴ |
 | Balance accounting | Python | `balance_kernel.rs` | ✅ | ☐ | ☐ | ☐ |
 | Fee router (4-way + dust) | Python | `fee_router.rs` | ✅ | ☐ | ☐ | ☐ |
 | Burn rails | Python | `burn_receipts.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -52,6 +53,18 @@ itself now routes through the active authority policy, using a private Python
 implementation for shadow comparison so the Python shadow cannot recurse through
 the selector. `config/deploy/public-testnet.yaml` lists `state_root` in
 `promoted_surfaces`; production remains `python_authority`.
+
+⁴ Replay/idempotency guard is now live-wired through
+`src/core/replay_guard.py::admit`. The Rust bridge evaluates one transition from
+explicit current state entries, so it does not replay history to reconstruct the
+state. `tests/runtime/test_replay_guard_disaster_state.py` covers copied-tx
+replay, stale snapshot replay, duplicate decoded state IDs, malformed sender
+bytes, nonce over/underflow, unauthorized cross-sender mutation, no-op-on-reject,
+deterministic fuzz, and selector fail-closed rows. `test_replay_guard_live_path.py`
+checks active-policy wiring for `rust_authority_with_python_shadow`,
+`rust_shadow`, unavailable Rust, and injected disagreement. `public-testnet`
+lists `replay_guard` in `promoted_surfaces`; production remains
+`python_authority`.
 
 ³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
 `publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
@@ -98,9 +111,9 @@ verifies the selector receives an agreed rejection rather than a drift.
 ### Classification (Phase 0 step 3)
 
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
-  primitives, state root v5.
+  primitives, state root v5, replay/idempotency guard.
 - **Promotable after evidence refresh + selector wiring** (lowest risk, do
-  next): replay guard, balance accounting, fee router.
+  next): balance accounting, fee router.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.
@@ -115,10 +128,10 @@ verifies the selector receives an agreed rejection rather than a drift.
 ### The one universal blocker
 
 Evidence categories 1–3, 5–6 (golden traces, differential, property tests, CI,
-formal) are **green for all 9 surfaces**. The outstanding gate for *every*
-surface is **disaster-state (4) + fuzz (9)** plus the human promotion decision
-(12). No surface can flip until its disaster-state row in the gate catalog is
-filled.
+formal) are **green for all 9 surfaces**. The outstanding gate for most
+remaining surfaces is **disaster-state (4) + fuzz (9)** plus the human promotion
+decision (12). Canonical primitives, state root v5, and replay/idempotency guard
+have passed those rows for the public-testnet shadow-checked Rust lane.
 
 ## This PR (Phase 1 + 2)
 
@@ -134,7 +147,8 @@ Delivered:
     `shadow_checked`, `shadow_agreed`) for receipts/logs.
 - **Deployment-facts wiring** — `runtime_authority_policy` section added to
   `config/deploy/{local-dev,public-testnet,production-strict}.yaml`. Public
-  testnet now promotes only `canonical`; production remains all-Python.
+  testnet now promotes `canonical`, `state_root`, and `replay_guard`;
+  production remains all-Python.
   `validate_authority_policy` rejects a half-configured Rust authority (and a
   blanket Rust default) under `public-testnet` and `production-strict`;
   `tools/check_deployment_profiles.py` enforces it in CI.
