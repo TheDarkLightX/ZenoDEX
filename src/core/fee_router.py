@@ -89,7 +89,7 @@ DOMAINS: frozenset[str] = frozenset({DEX, PERPS, BORROW, REDEMPTION})
 RECEIPT_DOMAIN_SEP_LABEL = "fee_receipt"
 ACCUMULATOR_DOMAIN_SEP_LABEL = "fee_accumulator"
 RECEIPT_VERSION = 1
-ACCUMULATOR_VERSION = 1
+ACCUMULATOR_VERSION = 2
 FEE_ROUTER_SURFACE = "fee_router"
 
 # --- Stable rejection codes (must match Rust RejectedReason::code()) ----------
@@ -196,21 +196,61 @@ class FeeAssetAmount:
 
 @dataclass(frozen=True)
 class FeeDustEntry:
-    """Rounding dust carried for exactly one source/asset fee stream."""
+    """Per-bucket scaled remainders for one source/asset fee stream.
+
+    Design by Contract:
+    * Preconditions: all remainders are non-negative basis-point numerators.
+    * Invariant: ``amount`` is the whole-token dust represented by the sum of
+      bucket remainders divided by ``BPS_DENOM`` for entries produced by this
+      module. Legacy scalar-only entries are accepted and deterministically
+      expanded at route time using the active split table.
+    """
 
     source: Domain
     asset: str
     amount: int
+    buyburn_remainder: int = 0
+    stakers_remainder: int = 0
+    reserve_remainder: int = 0
+    hosts_remainder: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.source, str):
             raise TypeError("source must be a str")
         if not isinstance(self.asset, str):
             raise TypeError("asset must be a str")
-        if not _is_plain_int(self.amount):
-            raise TypeError("amount must be an int")
-        if self.amount < 0:
-            raise ValueError("amount must be non-negative")
+        for name, value in self._items():
+            if not _is_plain_int(value):
+                raise TypeError(f"{name} must be an int")
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative")
+        self._check_remainder_invariant()
+
+    def _check_remainder_invariant(self) -> None:
+        remainders = self.remainders()
+        if remainders == (0, 0, 0, 0):
+            return
+        if any(remainder >= BPS_DENOM for remainder in remainders):
+            raise ValueError("dust remainders must be below BPS_DENOM")
+        if sum(remainders) != self.amount * BPS_DENOM:
+            raise ValueError("dust amount must equal scaled remainder sum")
+
+    def _items(self) -> tuple[tuple[str, int], ...]:
+        return (
+            ("amount", self.amount),
+            ("buyburn_remainder", self.buyburn_remainder),
+            ("stakers_remainder", self.stakers_remainder),
+            ("reserve_remainder", self.reserve_remainder),
+            ("hosts_remainder", self.hosts_remainder),
+        )
+
+    def remainders(self) -> tuple[int, int, int, int]:
+        return (
+            self.buyburn_remainder,
+            self.stakers_remainder,
+            self.reserve_remainder,
+            self.hosts_remainder,
+        )
 
 
 def _canonical_asset_amounts(entries: tuple[FeeAssetAmount, ...]) -> tuple[FeeAssetAmount, ...]:
@@ -244,11 +284,46 @@ def _asset_amount(entries: tuple[FeeAssetAmount, ...], asset: str) -> int:
     return 0
 
 
-def _dust_amount(entries: tuple[FeeDustEntry, ...], source: Domain, asset: str) -> int:
+def _dust_entry(
+    entries: tuple[FeeDustEntry, ...], source: Domain, asset: str
+) -> Union[FeeDustEntry, None]:
     for entry in entries:
         if entry.source == source and entry.asset == asset:
-            return entry.amount
-    return 0
+            return entry
+    return None
+
+
+def _dust_amount(entries: tuple[FeeDustEntry, ...], source: Domain, asset: str) -> int:
+    entry = _dust_entry(entries, source, asset)
+    if entry is None:
+        return 0
+    return entry.amount
+
+
+def _legacy_remainders(amount: int, table: FeeSplitTable) -> tuple[int, int, int, int]:
+    return (
+        amount * table.buyburn_bps,
+        amount * table.stakers_bps,
+        amount * table.reserve_bps,
+        amount * table.hosts_bps,
+    )
+
+
+def _entry_remainders(
+    entry: Union[FeeDustEntry, None], table: FeeSplitTable
+) -> tuple[int, int, int, int]:
+    if entry is None:
+        return (0, 0, 0, 0)
+    if entry.remainders() == (0, 0, 0, 0) and entry.amount != 0:
+        return _legacy_remainders(entry.amount, table)
+    return entry.remainders()
+
+
+def _dust_from_remainders(remainders: tuple[int, int, int, int]) -> int:
+    remainder_sum = sum(remainders)
+    if remainder_sum % BPS_DENOM != 0:
+        raise AssertionError("fee split produced fractional aggregate dust")
+    return remainder_sum // BPS_DENOM
 
 
 def _set_asset_amount(
@@ -260,14 +335,29 @@ def _set_asset_amount(
     return _canonical_asset_amounts(rest + (FeeAssetAmount(asset=asset, amount=amount),))
 
 
-def _set_dust_amount(
-    entries: tuple[FeeDustEntry, ...], source: Domain, asset: str, amount: int
+def _set_dust_entry(
+    entries: tuple[FeeDustEntry, ...],
+    source: Domain,
+    asset: str,
+    amount: int,
+    remainders: tuple[int, int, int, int],
 ) -> tuple[FeeDustEntry, ...]:
     rest = tuple(e for e in entries if not (e.source == source and e.asset == asset))
     if amount == 0:
         return rest
     return _canonical_dust_entries(
-        rest + (FeeDustEntry(source=source, asset=asset, amount=amount),)
+        rest
+        + (
+            FeeDustEntry(
+                source=source,
+                asset=asset,
+                amount=amount,
+                buyburn_remainder=remainders[0],
+                stakers_remainder=remainders[1],
+                reserve_remainder=remainders[2],
+                hosts_remainder=remainders[3],
+            ),
+        )
     )
 
 
@@ -285,6 +375,10 @@ def _encode_dust_entries(entries: tuple[FeeDustEntry, ...]) -> bytes:
         payload += b"SRC" + encode_bytes(entry.source.encode("ascii"))
         payload += b"AST" + encode_bytes(entry.asset.encode("utf-8"))
         payload += b"AMT" + encode_uvarint(entry.amount)
+        payload += b"BBR" + encode_uvarint(entry.buyburn_remainder)
+        payload += b"STR" + encode_uvarint(entry.stakers_remainder)
+        payload += b"RSR" + encode_uvarint(entry.reserve_remainder)
+        payload += b"HSR" + encode_uvarint(entry.hosts_remainder)
     return payload
 
 
@@ -331,9 +425,17 @@ class FeeAccumulator:
     def bucket_total(self, bucket: str, asset: str) -> int:
         return _asset_amount(getattr(self, bucket), asset)
 
-    def with_dust(self, source: Domain, asset: str, amount: int) -> "FeeAccumulator":
+    def with_dust(
+        self,
+        source: Domain,
+        asset: str,
+        amount: int,
+        remainders: tuple[int, int, int, int] = (0, 0, 0, 0),
+    ) -> "FeeAccumulator":
         return FeeAccumulator(
-            dust_by_stream=_set_dust_amount(self.dust_by_stream, source, asset, amount),
+            dust_by_stream=_set_dust_entry(
+                self.dust_by_stream, source, asset, amount, remainders
+            ),
             cum_buyburn=self.cum_buyburn,
             cum_stakers=self.cum_stakers,
             cum_reserve=self.cum_reserve,
@@ -406,7 +508,15 @@ def _reject_reason_str(rejected: RouteRejected) -> str:
 def _accumulator_json(accumulator: FeeAccumulator) -> dict[str, list[dict[str, Any]]]:
     return {
         "dust_by_stream": [
-            {"source": e.source, "asset": e.asset, "amount": e.amount}
+            {
+                "source": e.source,
+                "asset": e.asset,
+                "amount": e.amount,
+                "buyburn_remainder": e.buyburn_remainder,
+                "stakers_remainder": e.stakers_remainder,
+                "reserve_remainder": e.reserve_remainder,
+                "hosts_remainder": e.hosts_remainder,
+            }
             for e in accumulator.dust_by_stream
         ],
         "cum_buyburn": [
@@ -427,7 +537,15 @@ def _accumulator_json(accumulator: FeeAccumulator) -> dict[str, list[dict[str, A
 def _accumulator_from_json(doc: dict[str, Any]) -> FeeAccumulator:
     return FeeAccumulator(
         dust_by_stream=tuple(
-            FeeDustEntry(str(e["source"]), str(e["asset"]), int(e["amount"]))
+            FeeDustEntry(
+                str(e["source"]),
+                str(e["asset"]),
+                int(e["amount"]),
+                int(e.get("buyburn_remainder", 0)),
+                int(e.get("stakers_remainder", 0)),
+                int(e.get("reserve_remainder", 0)),
+                int(e.get("hosts_remainder", 0)),
+            )
             for e in doc.get("dust_by_stream", [])
         ),
         cum_buyburn=tuple(
@@ -484,7 +602,15 @@ def _receipt_json(receipt: FeeReceipt) -> dict[str, str]:
 def _accumulator_doc_strings(accumulator: FeeAccumulator) -> dict[str, list[dict[str, str]]]:
     return {
         "dust_by_stream": [
-            {"source": e.source, "asset": e.asset, "amount": str(e.amount)}
+            {
+                "source": e.source,
+                "asset": e.asset,
+                "amount": str(e.amount),
+                "buyburn_remainder": str(e.buyburn_remainder),
+                "stakers_remainder": str(e.stakers_remainder),
+                "reserve_remainder": str(e.reserve_remainder),
+                "hosts_remainder": str(e.hosts_remainder),
+            }
             for e in accumulator.dust_by_stream
         ],
         "cum_buyburn": [
@@ -663,20 +789,22 @@ def _route_fee_python(
     if domain_rej is not None:
         return domain_rej
 
-    # 6) Deterministic floor split with dust carry. Dust is carried only within
-    # the same source/asset stream, so token units and fee-policy streams cannot
-    # contaminate each other.
-    dust_in = accumulator.dust_for(source, asset)
-    total = amount + dust_in
-    buyburn = (total * split_table.buyburn_bps) // BPS_DENOM
-    stakers = (total * split_table.stakers_bps) // BPS_DENOM
-    reserve = (total * split_table.reserve_bps) // BPS_DENOM
-    hosts = (total * split_table.hosts_bps) // BPS_DENOM
-    distributed = buyburn + stakers + reserve + hosts
-    # Floor division guarantees distributed <= total; assert defends the invariant.
-    if distributed > total:
-        raise AssertionError("fee split over-distributed (unreachable)")
-    dust_out = total - distributed
+    # 6) Deterministic per-bucket remainder split. Each bucket carries only its
+    # own scaled fractional entitlement, so small-fee granularity cannot move
+    # reserve/host/staker value into a dominant bucket.
+    prev_remainders = _entry_remainders(
+        _dust_entry(accumulator.dust_by_stream, source, asset), split_table
+    )
+    buyburn_num = amount * split_table.buyburn_bps + prev_remainders[0]
+    stakers_num = amount * split_table.stakers_bps + prev_remainders[1]
+    reserve_num = amount * split_table.reserve_bps + prev_remainders[2]
+    hosts_num = amount * split_table.hosts_bps + prev_remainders[3]
+    buyburn, buyburn_rem = divmod(buyburn_num, BPS_DENOM)
+    stakers, stakers_rem = divmod(stakers_num, BPS_DENOM)
+    reserve, reserve_rem = divmod(reserve_num, BPS_DENOM)
+    hosts, hosts_rem = divmod(hosts_num, BPS_DENOM)
+    dust_remainders = (buyburn_rem, stakers_rem, reserve_rem, hosts_rem)
+    dust_out = _dust_from_remainders(dust_remainders)
 
     # 7) Accumulate (defensive overflow guard keeps parity with the u128 shadow).
     new_buyburn = accumulator.bucket_total("cum_buyburn", asset) + buyburn
@@ -687,7 +815,7 @@ def _route_fee_python(
         if v > MAX_FEE_AMOUNT:
             return RouteRejected(REJ_ARITHMETIC_OVERFLOW)
     new_acc = (
-        accumulator.with_dust(source, asset, dust_out)
+        accumulator.with_dust(source, asset, dust_out, dust_remainders)
         .with_bucket_amount("cum_buyburn", asset, new_buyburn)
         .with_bucket_amount("cum_stakers", asset, new_stakers)
         .with_bucket_amount("cum_reserve", asset, new_reserve)

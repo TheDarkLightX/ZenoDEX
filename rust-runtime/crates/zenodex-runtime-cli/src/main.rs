@@ -123,6 +123,10 @@ struct FeeDustEntryOut {
     source: String,
     asset: String,
     amount: String,
+    buyburn_remainder: String,
+    stakers_remainder: String,
+    reserve_remainder: String,
+    hosts_remainder: String,
 }
 
 #[derive(Serialize)]
@@ -362,11 +366,15 @@ fn fee_asset_out(asset: &str, amount: u128) -> FeeAssetAmountOut {
 fn fee_accumulator_out(acc: &FeeAccumulator) -> FeeAccumulatorOut {
     FeeAccumulatorOut {
         dust_by_stream: acc
-            .dust_entries()
-            .map(|(source, asset, amount)| FeeDustEntryOut {
-                source: source.to_string(),
-                asset: asset.to_string(),
-                amount: amount.to_string(),
+            .dust_entries_full()
+            .map(|entry| FeeDustEntryOut {
+                source: entry.source.to_string(),
+                asset: entry.asset.to_string(),
+                amount: entry.amount.to_string(),
+                buyburn_remainder: entry.buyburn_remainder.to_string(),
+                stakers_remainder: entry.stakers_remainder.to_string(),
+                reserve_remainder: entry.reserve_remainder.to_string(),
+                hosts_remainder: entry.hosts_remainder.to_string(),
             })
             .collect(),
         cum_buyburn: acc
@@ -520,7 +528,15 @@ fn parse_fee_dust_entries(v: &Value) -> Result<Vec<DustEntry>, String> {
             .ok_or_else(|| format!("dust_by_stream[{index}] must be an object"))?;
         if let Some(reason) = first_unknown_field(
             obj.keys().map(String::as_str),
-            &["source", "asset", "amount"],
+            &[
+                "source",
+                "asset",
+                "amount",
+                "buyburn_remainder",
+                "stakers_remainder",
+                "reserve_remainder",
+                "hosts_remainder",
+            ],
         ) {
             return Err(format!("dust_by_stream[{index}]:{reason}"));
         }
@@ -538,10 +554,34 @@ fn parse_fee_dust_entries(v: &Value) -> Result<Vec<DustEntry>, String> {
             })?,
             &format!("dust_by_stream[{index}].amount"),
         )?;
+        let buyburn_remainder = parse_fee_state_amount(
+            obj.get("buyburn_remainder")
+                .unwrap_or(&Value::String("0".to_string())),
+            &format!("dust_by_stream[{index}].buyburn_remainder"),
+        )?;
+        let stakers_remainder = parse_fee_state_amount(
+            obj.get("stakers_remainder")
+                .unwrap_or(&Value::String("0".to_string())),
+            &format!("dust_by_stream[{index}].stakers_remainder"),
+        )?;
+        let reserve_remainder = parse_fee_state_amount(
+            obj.get("reserve_remainder")
+                .unwrap_or(&Value::String("0".to_string())),
+            &format!("dust_by_stream[{index}].reserve_remainder"),
+        )?;
+        let hosts_remainder = parse_fee_state_amount(
+            obj.get("hosts_remainder")
+                .unwrap_or(&Value::String("0".to_string())),
+            &format!("dust_by_stream[{index}].hosts_remainder"),
+        )?;
         parsed.push(DustEntry {
             source: source.to_string(),
             asset: asset.to_string(),
             amount,
+            buyburn_remainder,
+            stakers_remainder,
+            reserve_remainder,
+            hosts_remainder,
         });
     }
     Ok(parsed)
