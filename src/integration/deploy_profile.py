@@ -13,6 +13,8 @@ from typing import Any, Mapping
 
 import yaml
 
+from src.runtime.authority import AuthorityError, load_authority_policy, validate_authority_policy
+
 DEPLOY_PROFILE_SCHEMA = "zenodex/deployment_profile/v1"
 _DEPLOY_DIR = Path(__file__).resolve().parents[2] / "config" / "deploy"
 
@@ -125,6 +127,11 @@ def evaluate_deploy_profile_consistency(
                 f"[{profile_id}] required_auth.public_api={public_auth} but sensitive APIs "
                 "are enabled without a bearer token or external auth boundary"
             )
+    try:
+        authority_policy = load_authority_policy(profile)
+        validate_authority_policy(authority_policy, profile_id=profile_id)
+    except (AuthorityError, ValueError, TypeError) as exc:
+        conflicts.append(f"[{profile_id}] runtime_authority_policy invalid: {exc}")
     return tuple(dict.fromkeys(conflicts))
 
 
@@ -133,4 +140,5 @@ def enforced_policy_fields() -> tuple[str, ...]:
         "key_policy.raw_private_key_flags_allowed",
         "runtime_policy.local_only_routes_allowed",
         "required_auth.public_api",
+        "runtime_authority_policy",
     )

@@ -52,12 +52,12 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 1 | Golden trace corpus | ✅ format + exporter/replayer + `smoke.json` |
 | 2 | Rust workspace scaffold | ✅ `rust-runtime/` core + cli, checked arithmetic |
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
-| 4 | State root & canonical serialization | ◑ canonical primitives + fee receipt/accumulator roots done; `hex_to_bytes_fixed`/`canonical_json_bytes` + full network state-root parity in progress (see gap map) |
+| 4 | State root & canonical serialization | ◑ canonical primitives promoted to public-testnet `rust_authority_with_python_shadow`; state-root parity remains a separate promotion surface |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
 | 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: state-root, perps math, tx/receipt hashes |
 | 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
-| 9 | Promotion criteria | ☐ documented; not yet met for any surface |
+| 9 | Promotion criteria | ◑ canonical primitives promoted on public-testnet; remaining surfaces stay in evidence-gathering |
 | I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
 
 > The Phase 0–9 numbering above is the original internal milestone scheme. The
@@ -271,9 +271,11 @@ wrap established libraries behind a deterministic verification interface.
 
 ### Phase 9 / K promotion criteria
 
-**No surface is Rust-authoritative.** Python remains the sole authority for every
-surface; the Rust core is a shadow/checker. Promotion is a later, explicit,
-human-reviewed decision — never taken in code by this work.
+**Canonical primitives are the first shadow-checked Rust-authority lane on
+`public-testnet`.** Python remains the default authority, `production-strict`
+remains all-Python, and no surface runs pure `rust_authority`. Further
+promotions require explicit profile entries, replayable evidence, and human
+review.
 
 A surface is *eligible* for Rust authority only when **all** hold:
 

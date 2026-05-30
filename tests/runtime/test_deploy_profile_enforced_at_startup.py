@@ -4,6 +4,7 @@ import pytest
 
 from src.integration import api_server
 from src.integration.deploy_profile import evaluate_deploy_profile_consistency, load_deploy_profile
+from src.runtime.authority import reset_active_authority_policy
 
 
 _RELEVANT_ENV = (
@@ -28,6 +29,7 @@ _RELEVANT_ENV = (
     "AUTOTRADER_LIVE_API_ENABLED",
     "CONFIDENTIAL_ATTESTATION_API_ENABLED",
     "DEX_API_ENABLED",
+    "ZENODEX_RUNTIME_BIN",
 )
 
 
@@ -35,7 +37,8 @@ _RELEVANT_ENV = (
 def clean_env(monkeypatch):
     for name in _RELEVANT_ENV:
         monkeypatch.delenv(name, raising=False)
-    return monkeypatch
+    yield monkeypatch
+    reset_active_authority_policy()
 
 
 @pytest.mark.parametrize(
@@ -72,6 +75,22 @@ def test_production_strict_startup_rejects_zusd_tau_local_signing(clean_env):
 def test_public_testnet_startup_rejects_autotrader_local_signing(clean_env):
     clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "public-testnet")
     clean_env.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+
+    assert api_server.main([]) == 2
+
+
+def test_public_testnet_deploy_profile_rejects_half_configured_rust_authority():
+    profile = load_deploy_profile("public-testnet")
+    profile["runtime_authority_policy"]["promoted_surfaces"] = []
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any("half-configured Rust authority" in conflict for conflict in conflicts)
+
+
+def test_public_testnet_startup_rejects_missing_rust_authority_binary(clean_env):
+    clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "public-testnet")
+    clean_env.setenv("ZENODEX_RUNTIME_BIN", "/tmp/zenodex-runtime-missing")
 
     assert api_server.main([]) == 2
 
