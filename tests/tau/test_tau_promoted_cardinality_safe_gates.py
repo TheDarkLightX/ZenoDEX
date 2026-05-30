@@ -17,8 +17,9 @@ ORDER_ROUTE = REC / "order_route_decision_table_v1.tau"
 INTENT_ONESHOT = REC / "intent_oneshot_admission_gate_v1.tau"
 NONCE_WINDOW = REC / "nonce_window_replay_guard_v1.tau"
 EPOCH_STEP = REC / "epoch_monotonic_step_gate_v1.tau"
+ORACLE_SUSTAINED = REC / "oracle_sustained_freshness_2epoch_gate_v1.tau"
 
-PROMOTED = (ORDER_ROUTE, INTENT_ONESHOT, NONCE_WINDOW, EPOCH_STEP)
+PROMOTED = (ORDER_ROUTE, INTENT_ONESHOT, NONCE_WINDOW, EPOCH_STEP, ORACLE_SUSTAINED)
 
 
 def _run(profile: str, spec_path: Path, steps: list[dict[str, int]]) -> dict[int, dict[str, int]]:
@@ -80,10 +81,33 @@ def test_epoch_monotonic_step_rejects_skips(profile: str) -> None:
     assert _o1(profile, EPOCH_STEP, [0, 3, 1, 1, 2]) == [0, 0, 0, 0, 1]
 
 
+@pytest.mark.parametrize("profile", TAU_PROFILES)
+def test_oracle_sustained_freshness_requires_two_consecutive_fresh_requested_epochs(profile: str) -> None:
+    steps = [
+        {"i1": 10, "i2": 10, "i3": 2, "i4": 1},
+        {"i1": 11, "i2": 11, "i3": 2, "i4": 1},
+        {"i1": 12, "i2": 9, "i3": 2, "i4": 1},
+        {"i1": 13, "i2": 13, "i3": 2, "i4": 1},
+        {"i1": 14, "i2": 14, "i3": 2, "i4": 1},
+        {"i1": 15, "i2": 15, "i3": 2, "i4": 0},
+        {"i1": 16, "i2": 16, "i3": 2, "i4": 1},
+    ]
+    out = _run(profile, ORACLE_SUSTAINED, steps)
+    assert [out[idx]["o1"] for idx in range(len(steps))] == [0, 1, 0, 0, 1, 0, 0]
+
+
 @pytest.mark.parametrize("spec_path", PROMOTED, ids=lambda path: path.stem)
 def test_promoted_specs_profiles_agree_on_representative_trace(spec_path: Path) -> None:
     if not find_tau_bin(ROOT, profile="runtime") or not find_tau_bin(ROOT, profile="latest"):
         pytest.skip("both Tau profiles required")
-    values = [0, 1, 2, 3, 4, 255] if spec_path in {ORDER_ROUTE, EPOCH_STEP} else [0, 1, 1, 0, 1, 0]
-    steps = [{"i1": value} for value in values]
+    if spec_path == ORACLE_SUSTAINED:
+        steps = [
+            {"i1": 10, "i2": 10, "i3": 2, "i4": 1},
+            {"i1": 11, "i2": 11, "i3": 2, "i4": 1},
+            {"i1": 12, "i2": 9, "i3": 2, "i4": 1},
+            {"i1": 13, "i2": 13, "i3": 2, "i4": 1},
+        ]
+    else:
+        values = [0, 1, 2, 3, 4, 255] if spec_path in {ORDER_ROUTE, EPOCH_STEP} else [0, 1, 1, 0, 1, 0]
+        steps = [{"i1": value} for value in values]
     assert _run("runtime", spec_path, steps) == _run("latest", spec_path, steps)

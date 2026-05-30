@@ -4,7 +4,7 @@ This is a mechanical extraction of recommended Tau control surfaces and output e
 It is not a human-reviewed semantic contract or an exactness proof.
 
 Execution census: `formal/tau/recommended_execution_census_best.json`
-Spec count: `214`
+Spec count: `215`
 
 ## add_liquidity_apply_v1
 
@@ -932,6 +932,17 @@ Spec count: `214`
 - Data helpers: `freshness_ok, jump_bounded, jump_ok, max_safe_32, monotonic_ok, order_ok, staleness_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> (params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32]) && freshness_ok(i1[t]:bv[32], i2[t...`
+
+## oracle_sustained_freshness_2epoch_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i4`, bv inputs `i1, i2, i3`, always clauses `1`
+- Data helpers: `fresh, quote_not_future`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( (i4[t]:sbf = 1:sbf) && (i4[t-1]:sbf = 1:sbf) && fresh(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && fresh(i1[t-1]:bv[32], i2[t-1]:bv[32], i3[t-1]:bv[32]) ))`
 
 ## order_route_decision_table_v1
 

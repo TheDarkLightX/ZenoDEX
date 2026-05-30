@@ -9,7 +9,7 @@
     "formal_plan": "formal/tau/recommended_proof_plan.json"
   },
   "summary": {
-    "recommended_spec_count": 214,
+    "recommended_spec_count": 215,
     "execution_observed_count": 149,
     "execution_hard_count": 25,
     "confirmed_reviewed_spec_count": 11,
@@ -24,18 +24,18 @@
       "semantic_contract_covered": 4,
       "source_backed_confirmed_review": 10,
       "structured_hard_review": 14,
-      "syntax_only": 40
+      "syntax_only": 41
     },
     "heuristic_style_counts": {
       "host_projected_boolean_gate": 52,
-      "native_tau_guard": 162
+      "native_tau_guard": 163
     },
     "proof_profile_counts": {
       "bundle_or_composition": 38,
       "exact_combinational_guard": 71,
       "multi_limb_word_arithmetic": 6,
       "proof_gate_or_certificate": 13,
-      "stateful_policy_guard": 86
+      "stateful_policy_guard": 87
     }
   },
   "entries": [
@@ -1946,6 +1946,30 @@
       "bounded_formal_seeded": true,
       "understanding_tier": "bounded_formal_seeded",
       "understanding_tier_rank": 5
+    },
+    {
+      "spec_id": "oracle_sustained_freshness_2epoch_gate_v1",
+      "spec_path": "src/tau_specs/recommended/oracle_sustained_freshness_2epoch_gate_v1.tau",
+      "proof_profile": "stateful_policy_guard",
+      "proof_rule": "governance_and_policy_suite",
+      "heuristic_style": "native_tau_guard",
+      "input_stream_count": 4,
+      "output_stream_count": 1,
+      "execution_status": "missing",
+      "execution_observed": false,
+      "execution_runner": "",
+      "execution_error_types": [],
+      "structured_hard_review": false,
+      "confirmed_findings_count": 0,
+      "lightweight_contract_covered": false,
+      "semantic_contract_covered": false,
+      "formal_contract_covered": false,
+      "formal_contract_status": "",
+      "proof_scope": "",
+      "promotion_blocker": "missing_formal_contract",
+      "bounded_formal_seeded": false,
+      "understanding_tier": "syntax_only",
+      "understanding_tier_rank": 0
     },
     {
       "spec_id": "order_route_decision_table_v1",
