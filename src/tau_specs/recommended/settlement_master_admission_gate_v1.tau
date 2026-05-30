@@ -10,8 +10,9 @@
 #   i9     = settle requested
 #   o1     = settlement master admit
 #
-# Conservation uses the Delta-sandwich equality form:
-#   sum <= target && sum >= target
+# Conservation uses the Delta-sandwich equality form after proving that
+# every bv32 partial sum is non-wrapping:
+#   no overflow && sum <= target && sum >= target
 #
 # Freshness uses the addition form:
 #   last <= now && now <= last + max_staleness
@@ -20,10 +21,22 @@
 # last + max_staleness wraps, the check fails closed for ordinary epoch domains.
 set charvar off
 
+partial_sum_ab(a : bv[32], b : bv[32]) :=
+  a + b.
+
+partial_sum_abc(a : bv[32], b : bv[32], c : bv[32]) :=
+  partial_sum_ab(a, b) + c.
+
 leg_sum(a : bv[32], b : bv[32], c : bv[32], d : bv[32]) :=
-  a + b + c + d.
+  partial_sum_abc(a, b, c) + d.
+
+non_wrapping_sum(a : bv[32], b : bv[32], c : bv[32], d : bv[32]) :=
+  (partial_sum_ab(a, b) >= a) &&
+  (partial_sum_abc(a, b, c) >= partial_sum_ab(a, b)) &&
+  (leg_sum(a, b, c, d) >= partial_sum_abc(a, b, c)).
 
 conservation_ok(a : bv[32], b : bv[32], c : bv[32], d : bv[32], target : bv[32]) :=
+  non_wrapping_sum(a, b, c, d) &&
   (leg_sum(a, b, c, d) <= target) &&
   (leg_sum(a, b, c, d) >= target).
 

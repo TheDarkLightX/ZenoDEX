@@ -20348,7 +20348,10 @@
         "data_helper_names": [
           "conservation_ok",
           "leg_sum",
-          "oracle_fresh"
+          "non_wrapping_sum",
+          "oracle_fresh",
+          "partial_sum_ab",
+          "partial_sum_abc"
         ],
         "definitions": [
           {
@@ -20361,8 +20364,8 @@
               "d",
               "target"
             ],
-            "body": "(leg_sum(a, b, c, d) <= target) && (leg_sum(a, b, c, d) >= target)",
-            "body_short": "(leg_sum(a, b, c, d) <= target) && (leg_sum(a, b, c, d) >= target)"
+            "body": "non_wrapping_sum(a, b, c, d) && (leg_sum(a, b, c, d) <= target) && (leg_sum(a, b, c, d) >= target)",
+            "body_short": "non_wrapping_sum(a, b, c, d) && (leg_sum(a, b, c, d) <= target) && (leg_sum(a, b, c, d) >= target)"
           },
           {
             "name": "leg_sum",
@@ -20373,8 +20376,20 @@
               "c",
               "d"
             ],
-            "body": "a + b + c + d",
-            "body_short": "a + b + c + d"
+            "body": "partial_sum_abc(a, b, c) + d",
+            "body_short": "partial_sum_abc(a, b, c) + d"
+          },
+          {
+            "name": "non_wrapping_sum",
+            "kind": "data_predicate",
+            "params": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "body": "(partial_sum_ab(a, b) >= a) && (partial_sum_abc(a, b, c) >= partial_sum_ab(a, b)) && (leg_sum(a, b, c, d) >= partial_sum_abc(a, b, c))",
+            "body_short": "(partial_sum_ab(a, b) >= a) && (partial_sum_abc(a, b, c) >= partial_sum_ab(a, b)) && (leg_sum(a, b, c, d) >= partial_sum_abc(a, b, c))"
           },
           {
             "name": "oracle_fresh",
@@ -20386,6 +20401,27 @@
             ],
             "body": "(last_epoch <= now_epoch) && (now_epoch <= (last_epoch + max_staleness))",
             "body_short": "(last_epoch <= now_epoch) && (now_epoch <= (last_epoch + max_staleness))"
+          },
+          {
+            "name": "partial_sum_ab",
+            "kind": "data_predicate",
+            "params": [
+              "a",
+              "b"
+            ],
+            "body": "a + b",
+            "body_short": "a + b"
+          },
+          {
+            "name": "partial_sum_abc",
+            "kind": "data_predicate",
+            "params": [
+              "a",
+              "b",
+              "c"
+            ],
+            "body": "partial_sum_ab(a, b) + c",
+            "body_short": "partial_sum_ab(a, b) + c"
           }
         ]
       },
@@ -20401,7 +20437,7 @@
             "index": "t",
             "type": "sbf",
             "style": "iff_true",
-            "expr_short": "( (i9[t]:sbf = 1:sbf) && (((((i1[t]:bv[32])) + ((i2[t]:bv[32])) + ((i3[t]:bv[32])) + ((i4[t]:bv[32]))) <= (i5[t]:bv[32])) && ((((i1[t]:bv[32])) + ((i2[t]:bv[32])) + ((i3[t]:bv[32])) + ((i4[t]:bv[32]))) >= (i5[t]:bv[32..."
+            "expr_short": "( (i9[t]:sbf = 1:sbf) && (((((((i1[t]:bv[32]))) + (((i2[t]:bv[32])))) >= ((i1[t]:bv[32]))) && (((((((i1[t]:bv[32])))) + ((((i2[t]:bv[32]))))) + (((i3[t]:bv[32])))) >= ((((i1[t]:bv[32]))) + (((i2[t]:bv[32]))))) && ((((..."
           }
         ]
       },
