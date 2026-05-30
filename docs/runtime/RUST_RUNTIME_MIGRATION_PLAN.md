@@ -54,10 +54,10 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ✅ canonical primitives and state root v5 promoted to public-testnet `rust_authority_with_python_shadow` |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, burn rails ✅, **CPMM settlement** ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅; next: zUSD, perps math |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, burn rails ✅, **CPMM settlement** ✅, **perp stateless math** ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅; next: zUSD promotion gate, stateful perps promotion gates |
 | 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
-| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, fee router, burn rails, and CPMM per-pool settlement promoted on public-testnet; remaining surfaces stay in evidence-gathering |
+| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, fee router, burn rails, CPMM per-pool settlement, and perp stateless math promoted on public-testnet; remaining surfaces stay in evidence-gathering |
 | I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
 
 > The Phase 0–9 numbering above is the original internal milestone scheme. The
@@ -81,7 +81,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | public-testnet promoted; orchestration (multi-pool/CoW/ordering) deferred |
 | State root (network) | `src/state/state_root.py` | ✅ v5 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
-| Perps math (stateless) | `src/core/perp_v2/math.py` | ✅ E1 (9 fns) | n/a | ✅ shadow | ✅ sign-sym | — | — | stateful engine/lifecycle = E2 (deferred) |
+| Perps math (stateless) | `src/core/perp_v2/math.py` | ✅ E1 (9 fns) | n/a | ✅ shadow | ✅ sign-sym | — | — | public-testnet promoted; stateful engine/lifecycle = E2 separate |
 | Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ✅ `domain_json_hash` op | n/a | ✅ vectors | ✅ sensitivity | — | — | shape-gate + BLS verify still out of scope |
 | Batch-clearing orchestration | `src/core/batch_clearing.py` (2129 ln) | ❌ | — | — | — | — | — | **OUT OF SCOPE** (multi-pool/CoW/ordering deferred) |
 | Revenue router (fine-source) | *(not on `main`)* | n/a | — | — | — | — | — | hybrid-economics branch only — separate prompt |
@@ -266,15 +266,17 @@ For each new surface: add the Rust implementation, add golden traces (happy +
 disaster), add Python/Rust differential + property + rejection tests, run fuzz,
 and update the boundary table. The promoted public-testnet order so far is
 replay/idempotency guards → balance accounting → fee router → burn rails → CPMM
-per-pool settlement. Remaining high-value surfaces are zUSD single-vault and
-perps math/state transitions; full batch-clearing orchestration stays deferred.
+per-pool settlement → perp stateless math. Remaining high-value surfaces are
+zUSD single-vault and stateful perps transitions; full batch-clearing
+orchestration stays deferred.
 **Do not move crypto first** — wrap established libraries behind a deterministic
 verification interface.
 
 ### Phase 9 / K promotion criteria
 
 **Canonical primitives, state root v5, replay/idempotency guard, balance
-accounting, the fee router, burn rails, and CPMM per-pool settlement are
+accounting, the fee router, burn rails, CPMM per-pool settlement, and perp
+stateless math are
 shadow-checked Rust-authority lanes on
 `public-testnet`.** Python remains the default authority, `production-strict`
 remains all-Python, and no surface runs pure `rust_authority`. Further
@@ -298,8 +300,7 @@ A surface is *eligible* for Rust authority only when **all** hold:
 12. human review + explicit promotion decision
 ```
 
-Per-surface status (criteria 1–8, 10–11 are what this work can establish; **9
-fuzz** and **12 human promotion** are outstanding for *every* surface):
+Per-surface status:
 
 | Surface | 1 trace | 2 diff | 3 inv | 4 root/receipt | 5 reject | 6–8 hygiene | 9 fuzz | 12 promoted |
 |---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -311,7 +312,7 @@ fuzz** and **12 human promotion** are outstanding for *every* surface):
 | cpmm_settlement | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | state_root | ✅ vectors | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | tx/receipt hash | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
-| perp_math (E1) | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
+| perp_math (E1) | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ✅ | ✅ |
 
 The remaining authoritative surfaces with no Rust shadow yet (full
 batch-clearing orchestration, multi-vault zUSD, the intent shape-gate, BLS

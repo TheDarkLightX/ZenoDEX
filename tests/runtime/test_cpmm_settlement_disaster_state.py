@@ -100,6 +100,7 @@ def test_public_testnet_profile_promotes_cpmm_settlement():
         "burn_receipts",
         "canonical",
         "fee_router",
+        "perp_math",
         "replay_guard",
         "state_root",
     ]

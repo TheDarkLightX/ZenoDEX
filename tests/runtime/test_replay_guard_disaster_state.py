@@ -82,6 +82,7 @@ def test_public_testnet_profile_promotes_replay_guard():
         "canonical",
         "cpmm_settlement",
         "fee_router",
+        "perp_math",
         "state_root",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})

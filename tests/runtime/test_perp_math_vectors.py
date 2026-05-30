@@ -27,20 +27,20 @@ P = m.PRICE_SCALE
 
 
 def test_pnl_sign_symmetry():
-    long = m.pnl_quote(1000, 110 * P, 100 * P)
-    short = m.pnl_quote(-1000, 110 * P, 100 * P)
+    long = m._pnl_quote_python(1000, 110 * P, 100 * P)
+    short = m._pnl_quote_python(-1000, 110 * P, 100 * P)
     assert long > 0 and short < 0 and long == -short
 
 
 def test_funding_sign_symmetry():
-    longp = m.funding_payment(1000, 100 * P, 50)
-    shortp = m.funding_payment(-1000, 100 * P, 50)
+    longp = m._funding_payment_python(1000, 100 * P, 50)
+    shortp = m._funding_payment_python(-1000, 100 * P, 50)
     assert longp > 0 and shortp < 0 and longp == -shortp
 
 
 def test_settle_price_clamp_band_nonzero():
     # index*move < BPS_SCALE -> floor delta is 0, ceil-div keeps the band open.
-    p = m.settle_price(1_000_000, 100, 1, True)
+    p = m._settle_price_python(1_000_000, 100, 1, True)
     assert p != 100
 
 

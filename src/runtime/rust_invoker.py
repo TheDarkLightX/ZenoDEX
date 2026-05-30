@@ -406,3 +406,46 @@ def _validate_cpmm_pool_doc(value: Any) -> None:
     for key in ("reserve0", "reserve1", "fee_bps"):
         if not isinstance(value.get(key), str):
             raise RustInvocationError(f"cpmm-op: post_pool.{key} must be a string")
+
+
+def perp_math_eval(
+    case: dict[str, Any],
+    *,
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust stateless perps math for one pure arithmetic case."""
+
+    out = invoke("perp-math", {"cases": [case]}, timeout_seconds=timeout_seconds)
+    if not isinstance(out, dict) or out.get("version") != 1:
+        raise RustInvocationError("perp-math: unsupported output header")
+    results = out.get("results")
+    if not isinstance(results, list) or len(results) != 1:
+        raise RustInvocationError("perp-math: unexpected results shape")
+    result = results[0]
+    if not isinstance(result, dict):
+        raise RustInvocationError("perp-math: result must be an object")
+    allowed = {"index", "ok", "value", "flag", "code"}
+    extra = set(result) - allowed
+    if extra:
+        raise RustInvocationError(f"perp-math: unexpected result fields {sorted(extra)!r}")
+    if result.get("index") != 0:
+        raise RustInvocationError("perp-math: result index mismatch")
+    if not isinstance(result.get("ok"), bool):
+        raise RustInvocationError("perp-math: ok must be a bool")
+    if result["ok"]:
+        has_value = "value" in result
+        has_flag = "flag" in result
+        if has_value == has_flag:
+            raise RustInvocationError("perp-math: accepted result must carry exactly one value or flag")
+        if has_value and not isinstance(result["value"], str):
+            raise RustInvocationError("perp-math: accepted value must be a string")
+        if has_flag and not isinstance(result["flag"], bool):
+            raise RustInvocationError("perp-math: accepted flag must be a bool")
+        if "code" in result:
+            raise RustInvocationError("perp-math: accepted result carried reject code")
+    else:
+        if not isinstance(result.get("code"), str):
+            raise RustInvocationError("perp-math: rejected result missing code")
+        if "value" in result or "flag" in result:
+            raise RustInvocationError("perp-math: rejected result carried success payload")
+    return result

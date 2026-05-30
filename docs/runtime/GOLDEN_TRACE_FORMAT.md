@@ -263,7 +263,10 @@ and emit `{ "version": 1, "results": [ ... ] }`:
   carry a `flag` (predicates) or a decimal-string `value` (signed `i128`).
   Inputs are signed; magnitude args beyond ±1e18 or bps args beyond ±1e7 reject
   with `out_of_domain` (the Python authority is unbounded — out-of-domain inputs
-  are not part of the differential).
+  are not part of the differential). This subcommand is also the live one-step
+  authority bridge for the `public-testnet` `perp_math` surface; malformed bridge
+  shape or Python/Rust disagreement rejects under
+  `rust_authority_with_python_shadow`.
 
 ## Rejection codes (stable)
 

@@ -15,12 +15,15 @@ Conventions (see `types.py` for full units):
 
 from __future__ import annotations
 
+from typing import Any
+
 # Domain constants (from YAML type bounds)
 PRICE_SCALE: int = 100_000_000  # 1e8
 BPS_SCALE: int = 10_000
 MAX_EPOCH: int = 1_000_000
 MAX_COLLATERAL: int = 1_000_000_000_000_000
 MAX_FUNDING_CUMULATIVE: int = 1_000_000_000_000_000
+PERP_MATH_SURFACE = "perp_math"
 
 
 # -- Basic helpers -----------------------------------------------------------
@@ -31,10 +34,79 @@ def abs_val(x: int) -> int:
     return x if x >= 0 else -x
 
 
+def _perp_math_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if bool(left.get("ok")) != bool(right.get("ok")):
+        return False
+    if not left.get("ok"):
+        return left.get("code") == right.get("code")
+    if "flag" in left or "flag" in right:
+        return left.get("flag") == right.get("flag")
+    return left.get("value") == right.get("value")
+
+
+def _python_doc(fn, *args: Any) -> dict[str, Any]:
+    try:
+        value = fn(*args)
+    except Exception as exc:
+        return {"ok": False, "code": f"python_error:{type(exc).__name__}"}
+    if isinstance(value, bool):
+        return {"ok": True, "flag": value}
+    return {"ok": True, "value": str(int(value))}
+
+
+def _rust_doc(op: str, **case: Any) -> dict[str, Any]:
+    from src.runtime.rust_invoker import perp_math_eval
+
+    result = perp_math_eval({"op": op, **case})
+    if result["ok"]:
+        if "flag" in result:
+            return {"ok": True, "flag": bool(result["flag"])}
+        return {"ok": True, "value": str(result["value"])}
+    return {"ok": False, "code": str(result["code"])}
+
+
+def _decide_perp_math_value(op: str, python_fn, *args: Any, **case: Any) -> int:
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+
+    mode = active_mode(PERP_MATH_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return int(python_fn(*args))
+    decision = decide(
+        PERP_MATH_SURFACE,
+        mode,
+        python_fn=lambda: _python_doc(python_fn, *args),
+        rust_fn=lambda: _rust_doc(op, **case),
+        compare=_perp_math_docs_agree,
+    )
+    doc = decision.result
+    if not doc["ok"]:
+        raise ValueError(f"perp_math rejected: {doc['code']}")
+    return int(doc["value"])
+
+
+def _decide_perp_math_flag(op: str, python_fn, *args: Any, **case: Any) -> bool:
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+
+    mode = active_mode(PERP_MATH_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return bool(python_fn(*args))
+    decision = decide(
+        PERP_MATH_SURFACE,
+        mode,
+        python_fn=lambda: _python_doc(python_fn, *args),
+        rust_fn=lambda: _rust_doc(op, **case),
+        compare=_perp_math_docs_agree,
+    )
+    doc = decision.result
+    if not doc["ok"]:
+        raise ValueError(f"perp_math rejected: {doc['code']}")
+    return bool(doc["flag"])
+
+
 # -- Oracle helpers ----------------------------------------------------------
 
 
-def is_oracle_fresh(
+def _is_oracle_fresh_python(
     now_epoch: int,
     oracle_last_update_epoch: int,
     max_oracle_staleness_epochs: int,
@@ -49,6 +121,27 @@ def is_oracle_fresh(
     return (now_epoch - oracle_last_update_epoch) <= max_oracle_staleness_epochs
 
 
+def is_oracle_fresh(
+    now_epoch: int,
+    oracle_last_update_epoch: int,
+    max_oracle_staleness_epochs: int,
+    oracle_seen: bool,
+) -> bool:
+    """True when the oracle has been seen and is not stale."""
+    return _decide_perp_math_flag(
+        "is_oracle_fresh",
+        _is_oracle_fresh_python,
+        now_epoch,
+        oracle_last_update_epoch,
+        max_oracle_staleness_epochs,
+        oracle_seen,
+        now_epoch=now_epoch,
+        oracle_last_update_epoch=oracle_last_update_epoch,
+        max_oracle_staleness_epochs=max_oracle_staleness_epochs,
+        oracle_seen=oracle_seen,
+    )
+
+
 def is_settle_oracle_usable(
     now_epoch: int,
     oracle_last_update_epoch: int,
@@ -59,7 +152,7 @@ def is_settle_oracle_usable(
     """True when settlement can safely rely on oracle/index state."""
     if index_price_e8 <= 0:
         return False
-    return is_oracle_fresh(
+    return _is_oracle_fresh_python(
         now_epoch,
         oracle_last_update_epoch,
         max_oracle_staleness_epochs,
@@ -67,7 +160,7 @@ def is_settle_oracle_usable(
     )
 
 
-def oracle_move_violated(
+def _oracle_move_violated_python(
     clearing_price_e8: int,
     index_price_e8: int,
     max_oracle_move_bps: int,
@@ -86,7 +179,28 @@ def oracle_move_violated(
     return diff * BPS_SCALE > max_oracle_move_bps * index_price_e8
 
 
-def settle_price(
+def oracle_move_violated(
+    clearing_price_e8: int,
+    index_price_e8: int,
+    max_oracle_move_bps: int,
+    oracle_seen: bool,
+) -> bool:
+    """True when the clearing-to-index price move exceeds the bound."""
+    return _decide_perp_math_flag(
+        "oracle_move_violated",
+        _oracle_move_violated_python,
+        clearing_price_e8,
+        index_price_e8,
+        max_oracle_move_bps,
+        oracle_seen,
+        clearing_price_e8=clearing_price_e8,
+        index_price_e8=index_price_e8,
+        max_oracle_move_bps=max_oracle_move_bps,
+        oracle_seen=oracle_seen,
+    )
+
+
+def _settle_price_python(
     clearing_price_e8: int,
     index_price_e8: int,
     max_oracle_move_bps: int,
@@ -102,7 +216,7 @@ def settle_price(
     - We compute `δ` using ceil-division so the clamp band cannot collapse to
       width 0 when the intended percent move is non-zero but < 1 tick.
     """
-    if not oracle_move_violated(
+    if not _oracle_move_violated_python(
         clearing_price_e8, index_price_e8, max_oracle_move_bps, oracle_seen
     ):
         return clearing_price_e8
@@ -115,12 +229,45 @@ def settle_price(
     return index_price_e8 - max_delta
 
 
+def settle_price(
+    clearing_price_e8: int,
+    index_price_e8: int,
+    max_oracle_move_bps: int,
+    oracle_seen: bool,
+) -> int:
+    """Settlement price used for mark-to-market in `settle_epoch`."""
+    return _decide_perp_math_value(
+        "settle_price",
+        _settle_price_python,
+        clearing_price_e8,
+        index_price_e8,
+        max_oracle_move_bps,
+        oracle_seen,
+        clearing_price_e8=clearing_price_e8,
+        index_price_e8=index_price_e8,
+        max_oracle_move_bps=max_oracle_move_bps,
+        oracle_seen=oracle_seen,
+    )
+
+
 # -- Position / margin helpers -----------------------------------------------
+
+
+def _notional_quote_python(position_base: int, price_e8: int) -> int:
+    """Absolute notional in quote: ``floor(|pos| * price_e8 / 1e8)``."""
+    return (abs_val(position_base) * price_e8) // PRICE_SCALE
 
 
 def notional_quote(position_base: int, price_e8: int) -> int:
     """Absolute notional in quote: ``floor(|pos| * price_e8 / 1e8)``."""
-    return (abs_val(position_base) * price_e8) // PRICE_SCALE
+    return _decide_perp_math_value(
+        "notional_quote",
+        _notional_quote_python,
+        position_base,
+        price_e8,
+        position_base=position_base,
+        price_e8=price_e8,
+    )
 
 
 def margin_requirement(notional: int, margin_bps: int) -> int:
@@ -128,18 +275,50 @@ def margin_requirement(notional: int, margin_bps: int) -> int:
     return (notional * margin_bps) // BPS_SCALE
 
 
-def maint_margin_req(
+def _maint_margin_req_python(
     position_base: int, price_e8: int, maint_bps: int, depeg_bps: int
 ) -> int:
     """Maintenance margin in quote (includes depeg buffer)."""
     return margin_requirement(
-        notional_quote(position_base, price_e8), maint_bps + depeg_bps
+        _notional_quote_python(position_base, price_e8), maint_bps + depeg_bps
     )
+
+
+def maint_margin_req(
+    position_base: int, price_e8: int, maint_bps: int, depeg_bps: int
+) -> int:
+    """Maintenance margin in quote (includes depeg buffer)."""
+    return _decide_perp_math_value(
+        "maint_margin_req",
+        _maint_margin_req_python,
+        position_base,
+        price_e8,
+        maint_bps,
+        depeg_bps,
+        position_base=position_base,
+        price_e8=price_e8,
+        maint_bps=maint_bps,
+        depeg_bps=depeg_bps,
+    )
+
+
+def _init_margin_req_python(position_base: int, price_e8: int, init_bps: int) -> int:
+    """Initial margin in quote."""
+    return margin_requirement(_notional_quote_python(position_base, price_e8), init_bps)
 
 
 def init_margin_req(position_base: int, price_e8: int, init_bps: int) -> int:
     """Initial margin in quote."""
-    return margin_requirement(notional_quote(position_base, price_e8), init_bps)
+    return _decide_perp_math_value(
+        "init_margin_req",
+        _init_margin_req_python,
+        position_base,
+        price_e8,
+        init_bps,
+        position_base=position_base,
+        price_e8=price_e8,
+        init_bps=init_bps,
+    )
 
 
 # -- PnL helpers (symmetric — magnitude from abs values) ---------------------
@@ -159,11 +338,25 @@ def pnl_same_sign(
     return (position_base >= 0) == (settle_price_e8 >= index_price_e8)
 
 
-def pnl_quote(position_base: int, settle_price_e8: int, index_price_e8: int) -> int:
+def _pnl_quote_python(position_base: int, settle_price_e8: int, index_price_e8: int) -> int:
     """Signed PnL: +magnitude when profitable, -magnitude when losing."""
     mag = pnl_magnitude(position_base, settle_price_e8, index_price_e8)
     return (
         mag if pnl_same_sign(position_base, settle_price_e8, index_price_e8) else -mag
+    )
+
+
+def pnl_quote(position_base: int, settle_price_e8: int, index_price_e8: int) -> int:
+    """Signed PnL: +magnitude when profitable, -magnitude when losing."""
+    return _decide_perp_math_value(
+        "pnl_quote",
+        _pnl_quote_python,
+        position_base,
+        settle_price_e8,
+        index_price_e8,
+        position_base=position_base,
+        settle_price_e8=settle_price_e8,
+        index_price_e8=index_price_e8,
     )
 
 
@@ -177,7 +370,7 @@ def liq_penalty(
     min_notional_for_bounty: int,
 ) -> int:
     """Liquidation penalty (0 when notional < anti-bounty-farming threshold)."""
-    notional = notional_quote(position_base, settle_price_e8)
+    notional = _notional_quote_python(position_base, settle_price_e8)
     if notional < min_notional_for_bounty:
         return 0
     return margin_requirement(notional, liquidation_penalty_bps)
@@ -197,7 +390,7 @@ def liq_penalty_capped(
     return min(collateral_after_pnl, raw)
 
 
-def is_liquidatable(
+def _is_liquidatable_python(
     position_base: int,
     collateral_after_pnl: int,
     settle_price_e8: int,
@@ -207,11 +400,35 @@ def is_liquidatable(
     """True when collateral < effective maintenance requirement."""
     if position_base == 0:
         return False
-    return collateral_after_pnl < maint_margin_req(
+    return collateral_after_pnl < _maint_margin_req_python(
         position_base,
         settle_price_e8,
         maintenance_margin_bps,
         depeg_buffer_bps,
+    )
+
+
+def is_liquidatable(
+    position_base: int,
+    collateral_after_pnl: int,
+    settle_price_e8: int,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+) -> bool:
+    """True when collateral < effective maintenance requirement."""
+    return _decide_perp_math_flag(
+        "is_liquidatable",
+        _is_liquidatable_python,
+        position_base,
+        collateral_after_pnl,
+        settle_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+        position_base=position_base,
+        collateral_after_pnl=collateral_after_pnl,
+        settle_price_e8=settle_price_e8,
+        maintenance_margin_bps=maintenance_margin_bps,
+        depeg_buffer_bps=depeg_buffer_bps,
     )
 
 
@@ -221,7 +438,7 @@ def is_liquidatable(
 def funding_magnitude(position_base: int, index_price_e8: int, rate_bps: int) -> int:
     """Unsigned funding: ``floor(notional * |rate_bps| / 10_000)``."""
     return (
-        notional_quote(position_base, index_price_e8) * abs_val(rate_bps)
+        _notional_quote_python(position_base, index_price_e8) * abs_val(rate_bps)
     ) // BPS_SCALE
 
 
@@ -230,10 +447,24 @@ def funding_same_sign(position_base: int, rate_bps: int) -> bool:
     return (position_base >= 0) == (rate_bps >= 0)
 
 
-def funding_payment(position_base: int, index_price_e8: int, rate_bps: int) -> int:
+def _funding_payment_python(position_base: int, index_price_e8: int, rate_bps: int) -> int:
     """Signed funding: +magnitude for payer, -magnitude for payee."""
     mag = funding_magnitude(position_base, index_price_e8, rate_bps)
     return mag if funding_same_sign(position_base, rate_bps) else -mag
+
+
+def funding_payment(position_base: int, index_price_e8: int, rate_bps: int) -> int:
+    """Signed funding: +magnitude for payer, -magnitude for payee."""
+    return _decide_perp_math_value(
+        "funding_payment",
+        _funding_payment_python,
+        position_base,
+        index_price_e8,
+        rate_bps,
+        position_base=position_base,
+        index_price_e8=index_price_e8,
+        rate_bps=rate_bps,
+    )
 
 
 # -- Liquidation price estimate ---------------------------------------------
@@ -316,8 +547,8 @@ def _is_partial_fraction_sufficient(
     coll_after = collateral_after_pnl - penalty
     if remaining == 0:
         return True
-    mreq = maint_margin_req(remaining, settle_price_e8,
-                            maintenance_margin_bps, depeg_buffer_bps)
+    mreq = _maint_margin_req_python(remaining, settle_price_e8,
+                                    maintenance_margin_bps, depeg_buffer_bps)
     return coll_after >= mreq
 
 
@@ -340,7 +571,7 @@ def compute_partial_close_fraction(
     if position_base == 0:
         return 0
 
-    if not is_liquidatable(
+    if not _is_liquidatable_python(
         position_base, collateral_after_pnl, settle_price_e8,
         maintenance_margin_bps, depeg_buffer_bps,
     ):
