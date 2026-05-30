@@ -80,6 +80,38 @@ pub struct ReplayGuardState {
 }
 
 impl ReplayGuardState {
+    /// Build a state from explicit `(sender, last_nonce)` entries.
+    ///
+    /// This is used by the live authority bridge, which must evaluate one
+    /// transition from the current Python state without replaying the whole
+    /// sender history. Entries are canonicalized, duplicate decoded senders
+    /// reject, and stored nonces must be in `[1, U32_MAX]`.
+    pub fn from_entries<I, S>(entries: I) -> Result<ReplayGuardState, ReplayRejectedReason>
+    where
+        I: IntoIterator<Item = (S, u64)>,
+        S: AsRef<str>,
+    {
+        let mut last = BTreeMap::new();
+        for (sender, nonce) in entries {
+            let canonical =
+                canonical_sender(sender.as_ref()).ok_or(ReplayRejectedReason::InvalidSender)?;
+            if !(1..=U32_MAX).contains(&nonce) {
+                return Err(ReplayRejectedReason::InvalidNonce);
+            }
+            if last.insert(canonical, nonce).is_some() {
+                return Err(ReplayRejectedReason::DuplicateNonce);
+            }
+        }
+        Ok(ReplayGuardState { last })
+    }
+
+    /// Canonical state entries in root-encoding order.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, u64)> {
+        self.last
+            .iter()
+            .map(|(sender, nonce)| (sender.as_str(), *nonce))
+    }
+
     /// Last accepted nonce for `sender` (0 if never seen / invalid).
     pub fn last_for(&self, sender: &str) -> u64 {
         match canonical_sender(sender) {
@@ -274,6 +306,31 @@ mod tests {
         assert_eq!(
             admit(&state, &b, third),
             Err(ReplayRejectedReason::NonceGap)
+        );
+    }
+
+    #[test]
+    fn from_entries_canonicalizes_and_rejects_duplicate_decoded_senders() {
+        let a = sender(0x11);
+        let raw = a.strip_prefix("0x").unwrap().to_string();
+        let state = ReplayGuardState::from_entries([(raw.clone(), 3)]).unwrap();
+        assert_eq!(state.last_for(&a), 3);
+        assert_eq!(
+            ReplayGuardState::from_entries([(a.clone(), 1), (raw, 2)]),
+            Err(ReplayRejectedReason::DuplicateNonce)
+        );
+    }
+
+    #[test]
+    fn from_entries_rejects_invalid_stored_nonce() {
+        let a = sender(0x11);
+        assert_eq!(
+            ReplayGuardState::from_entries([(a.clone(), 0)]),
+            Err(ReplayRejectedReason::InvalidNonce)
+        );
+        assert_eq!(
+            ReplayGuardState::from_entries([(a, U32_MAX + 1)]),
+            Err(ReplayRejectedReason::InvalidNonce)
         );
     }
 

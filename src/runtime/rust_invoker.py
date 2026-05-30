@@ -115,3 +115,53 @@ def state_root_hash(
         code = result.get("code") if isinstance(result, dict) else "malformed"
         raise RustInvocationError(f"verify-state-root rejected: {code}")
     return str(result["state_root"])
+
+
+def replay_guard_admit(
+    *,
+    state_entries: list[dict[str, Any]],
+    sender: Any,
+    nonce: Any,
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust replay/idempotency guard for one transition from an explicit state."""
+
+    out = invoke(
+        "replay-guard-admit",
+        {
+            "version": 1,
+            "state_entries": state_entries,
+            "tx": {"kind": "admit", "sender": sender, "nonce": nonce},
+        },
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict):
+        raise RustInvocationError("replay-guard-admit: output must be an object")
+    if out.get("version") != 1 or out.get("kernel") != "replay_guard":
+        raise RustInvocationError("replay-guard-admit: unsupported output header")
+    if not isinstance(out.get("accept"), bool):
+        raise RustInvocationError("replay-guard-admit: accept must be a bool")
+    for key in ("pre_state_root", "post_state_root"):
+        if not isinstance(out.get(key), str):
+            raise RustInvocationError(f"replay-guard-admit: {key} must be a string")
+    if not isinstance(out.get("post_state_entries"), list):
+        raise RustInvocationError("replay-guard-admit: post_state_entries must be a list")
+    for entry in out["post_state_entries"]:
+        if not isinstance(entry, dict):
+            raise RustInvocationError("replay-guard-admit: state entry must be an object")
+        if not isinstance(entry.get("sender"), str) or not isinstance(entry.get("last_nonce"), int):
+            raise RustInvocationError("replay-guard-admit: malformed state entry")
+    if out["accept"]:
+        receipt = out.get("receipt")
+        if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
+            raise RustInvocationError("replay-guard-admit: accepted output missing receipt")
+        if (
+            not isinstance(receipt.get("sender"), str)
+            or not isinstance(receipt.get("nonce"), int)
+            or not isinstance(receipt.get("prev_nonce"), int)
+        ):
+            raise RustInvocationError("replay-guard-admit: malformed receipt")
+    else:
+        if not isinstance(out.get("reject_reason"), str):
+            raise RustInvocationError("replay-guard-admit: rejected output missing reason")
+    return out

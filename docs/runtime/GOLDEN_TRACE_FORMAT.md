@@ -100,7 +100,10 @@ larger than `u64`). Tools must preserve integer precision (the Rust CLI enables
 }
 ```
 
-Replayed via the `replay-guard-trace` CLI subcommand. Reject codes:
+Replayed via the `replay-guard-trace` CLI subcommand for full traces. The live
+authority bridge uses `replay-guard-admit`, which takes explicit
+`state_entries` plus one `tx` so Rust can evaluate the current transition
+without replaying sender history. Reject codes:
 `malformed_tx`, `unknown_tx_kind`, `unknown_field:<name>` (structural), and
 `invalid_sender`, `invalid_nonce`, `duplicate_nonce` (`nonce == last`),
 `stale_nonce` (`nonce < last`), `nonce_gap` (`nonce > last + 1`) (semantic).
