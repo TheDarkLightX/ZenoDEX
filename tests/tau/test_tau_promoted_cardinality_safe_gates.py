@@ -15,7 +15,7 @@ TAU_PROFILES = ("runtime", "latest")
 
 ORDER_ROUTE = REC / "order_route_decision_table_v1.tau"
 INTENT_ONESHOT = REC / "intent_oneshot_admission_gate_v1.tau"
-NONCE_WINDOW = REC / "nonce_window_replay_guard_v1.tau"
+QUIET_WINDOW = REC / "quiet_window_request_gate_v1.tau"
 EPOCH_STEP = REC / "epoch_monotonic_step_gate_v1.tau"
 ORACLE_SUSTAINED = REC / "oracle_sustained_freshness_2epoch_gate_v1.tau"
 SETTLEMENT_MASTER = REC / "settlement_master_admission_gate_v1.tau"
@@ -25,7 +25,7 @@ WITHDRAWAL_DISPUTE = REC / "withdrawal_dispute_window_gate_v1.tau"
 PROMOTED = (
     ORDER_ROUTE,
     INTENT_ONESHOT,
-    NONCE_WINDOW,
+    QUIET_WINDOW,
     EPOCH_STEP,
     ORACLE_SUSTAINED,
     SETTLEMENT_MASTER,
@@ -81,10 +81,19 @@ def test_intent_oneshot_admits_only_witnessed_rising_edges(profile: str) -> None
     assert _o1(profile, INTENT_ONESHOT, [0, 1, 1, 0, 1]) == [0, 1, 0, 0, 1]
 
 
+def test_quiet_window_gate_is_not_advertised_as_nonce_replay_protection() -> None:
+    spec_text = QUIET_WINDOW.read_text(encoding="utf-8")
+
+    assert not (REC / "nonce_window_replay_guard_v1.tau").exists()
+    assert "# CATEGORY: bounded request-rate window / quiet-period admission" in spec_text
+    assert "not nonce replay protection" in spec_text
+    assert "# CATEGORY: replay-protection" not in spec_text
+
+
 @pytest.mark.parametrize("profile", TAU_PROFILES)
-def test_nonce_window_rejects_reuse_inside_two_step_window(profile: str) -> None:
-    assert _o1(profile, NONCE_WINDOW, [0, 0, 1, 1, 0, 0, 1]) == [0, 0, 1, 0, 0, 0, 1]
-    assert _o1(profile, NONCE_WINDOW, [1, 0, 1, 0, 1]) == [0, 0, 0, 0, 0]
+def test_quiet_window_admits_only_after_two_quiet_rows(profile: str) -> None:
+    assert _o1(profile, QUIET_WINDOW, [0, 0, 1, 1, 0, 0, 1]) == [0, 0, 1, 0, 0, 0, 1]
+    assert _o1(profile, QUIET_WINDOW, [1, 0, 1, 0, 1]) == [0, 0, 0, 0, 0]
 
 
 @pytest.mark.parametrize("profile", TAU_PROFILES)
