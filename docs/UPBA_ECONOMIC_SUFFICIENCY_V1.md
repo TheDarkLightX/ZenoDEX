@@ -37,7 +37,7 @@ The policy checker is:
 python3 tools/check_upba_grid_policy.py
 ```
 
-It accepts a policy only for the current v1 full-fill exact-in UPBA grid scorer:
+It accepts a policy only for the current v1 full-fill exact-in UPBA grid scorer and requires `trade_direction = base_to_quote`:
 
 ```text
 zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in
@@ -50,6 +50,8 @@ oracle fairness, inclusion fairness, or unbounded rational prices.
 ## Bounded Model
 
 The policy declares:
+
+- trade direction (`base_to_quote` only for this v1 checker);
 
 - pool reserves in atom units;
 - token decimals;
