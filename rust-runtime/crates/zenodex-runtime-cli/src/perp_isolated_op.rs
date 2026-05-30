@@ -245,6 +245,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         "deposit_collateral" => {
             materialize_deposit_collateral(&quote_asset, global, accounts, op, &facts)
         }
+        "withdraw_collateral" => {
+            materialize_withdraw_collateral(&quote_asset, global, accounts, op, &facts)
+        }
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -756,6 +759,50 @@ fn materialize_deposit_collateral(
         facts.all_positions_flat,
         "deposit_collateral",
         "CollateralDeposited",
+    ) {
+        Ok(v) => v,
+        Err(e) => reject(e),
+    }
+}
+
+/// `withdraw_collateral`: sender-gated single-account op. Same shape as deposit
+/// (op fields {action, account_pubkey, amount}); the core `withdraw_collateral`
+/// rejects an over-withdraw OR a post-state that breaches maintenance margin —
+/// both fold into the single `withdraw_collateral_guard` reason (REJ_MAINT_MARGIN
+/// is `set_position`-only, not emitted here).
+fn materialize_withdraw_collateral(
+    quote_asset: &str,
+    global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    for k in op.keys() {
+        if k != "action" && k != "account_pubkey" && k != "amount" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.sender_bound_ok {
+        return reject(REJ_SENDER_NOT_BOUND);
+    }
+    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
+        Some(s) => s,
+        None => return reject(REJ_BAD_REQUEST),
+    };
+    let amount = match op.get("amount").map(as_i128) {
+        Some(Ok(v)) => v,
+        _ => return reject(REJ_BAD_REQUEST),
+    };
+    match materialize_account_op(
+        quote_asset,
+        global,
+        accounts,
+        account_pubkey,
+        amount,
+        0,
+        facts.all_positions_flat,
+        "withdraw_collateral",
+        "CollateralWithdrawn",
     ) {
         Ok(v) => v,
         Err(e) => reject(e),
@@ -1284,6 +1331,132 @@ mod tests {
         let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
         assert_eq!(a["liquidated_this_step"], json!(false)); // reset, not preserved
         assert_eq!(r["effects"]["liquidated"], json!(false));
+    }
+
+    #[test]
+    fn withdraw_existing_account_materializes_collateral_and_effect() {
+        let accounts = json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]);
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "10000"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["collateral_quote"], json!("990000")); // 1_000_000 - 10_000
+        assert_eq!(a["position_base"], json!("300000")); // unchanged
+        assert_eq!(a["funding_paid_cumulative"], json!("7")); // preserved
+        assert_eq!(a["funding_last_applied_epoch"], json!("2")); // preserved
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("CollateralWithdrawn"));
+        assert_eq!(fx["notional_quote"], json!("300000")); // account-derived, nonzero
+        assert_eq!(fx["maint_req_quote"], json!("18000"));
+        assert_eq!(fx["collateral_after"], json!("990000"));
+        assert_eq!(fx["margin_ok"], json!(true));
+    }
+
+    #[test]
+    fn withdraw_breaching_maint_margin_rejects() {
+        // Withdraw most collateral while holding a position -> remaining < maint_req.
+        // The core folds this post-margin check into the withdraw guard (it does NOT
+        // emit the set_position-only REJ_MAINT_MARGIN), so the stable reason is
+        // withdraw_collateral_guard. In rust_shadow Python rejects first ("guard"),
+        // so the materializer is never invoked on this path; this asserts the core's
+        // own reason for direct/authority use.
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "999000"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_WITHDRAW_GUARD)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn withdraw_over_collateral_rejects() {
+        // amount > collateral -> negative balance -> withdraw guard (not margin).
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "2000000"}),
+            json!([acct_json("aa", 0, 1_000_000, 0)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_WITHDRAW_GUARD)
+        );
+    }
+
+    #[test]
+    fn withdraw_resets_liquidated_flag_and_preserves_funding() {
+        let accounts = json!([{
+            "key": "aa", "position_base": "0", "collateral_quote": "1000",
+            "entry_price_e8": "0", "funding_paid_cumulative": "99",
+            "funding_last_applied_epoch": "3", "liquidated_this_step": true
+        }]);
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "100"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["liquidated_this_step"], json!(false)); // reset
+        assert_eq!(a["funding_paid_cumulative"], json!("99")); // preserved
+        assert_eq!(a["funding_last_applied_epoch"], json!("3")); // preserved
+        assert_eq!(a["collateral_quote"], json!("900"));
+        assert_eq!(r["effects"]["liquidated"], json!(false));
+    }
+
+    #[test]
+    fn withdraw_sender_gate_and_missing_fact() {
+        // Sender-gated: false sender fact -> semantic reject; missing fact -> boundary.
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "100"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        r["facts"]["sender_bound_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r)["reject_reason"],
+            json!(REJ_SENDER_NOT_BOUND)
+        );
+        let mut r2 = req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "100"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        r2["facts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sender_bound_ok");
+        assert_eq!(
+            materialize_isolated_op(&r2)["reject_reason"],
+            json!(REJ_MISSING_FACTS)
+        );
+    }
+
+    #[test]
+    fn withdraw_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "100", "delta": "1"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
     }
 
     #[test]
