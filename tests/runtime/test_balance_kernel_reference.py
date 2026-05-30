@@ -51,15 +51,19 @@ def test_raw_and_upper_hex_match_runtime_canonicalization():
     raw_a = A[2:]
     upper_x = "0X" + X[2:].upper()
     spaced_b = f"  {B[2:].upper()}  "
+    control_wrapped_c = f"\x1c{C}\x1f"
     prefixed = _credit(BalanceState(), A, X, 100)
     raw = _credit(BalanceState(), raw_a, upper_x, 100)
     spaced = _credit(BalanceState(), spaced_b, X, 100)
+    control_wrapped = _credit(BalanceState(), control_wrapped_c, X, 100)
     assert isinstance(prefixed, BalanceAccepted)
     assert isinstance(raw, BalanceAccepted)
     assert isinstance(spaced, BalanceAccepted)
+    assert isinstance(control_wrapped, BalanceAccepted)
     assert raw.receipt.recipient == A
     assert raw.receipt.asset == X
     assert spaced.receipt.recipient == B
+    assert control_wrapped.receipt.recipient == C
     assert raw.receipt.receipt_hash() == prefixed.receipt.receipt_hash()
     assert raw.state.state_root() == prefixed.state.state_root()
 

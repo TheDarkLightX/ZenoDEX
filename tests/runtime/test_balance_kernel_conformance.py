@@ -57,6 +57,20 @@ def test_rust_matches_recorded_smoke_trace(rust_bin):
     assert diffs == [], "\n\n".join(diffs)
 
 
+def test_info_separator_whitespace_canonicalization_matches_python(rust_bin, tmp_path):
+    txs = [
+        {
+            "kind": "credit",
+            "recipient": f"\x1c{PKS[0]}\x1f",
+            "asset": f"\x1d{ASSETS[0][2:]}\x1e",
+            "amount": 100,
+        }
+    ]
+    python_out = balance_kernel_lib.replay_txs(txs)
+    rust_out = _run_rust_on_txs(rust_bin, txs, tmp_path)
+    assert python_out == rust_out
+
+
 def _pk(rng):
     return rng.choice(PKS + ["0x11", "", 123, PKS[0].upper(), PKS[1][2:], f"  {PKS[2].upper()}  "])
 

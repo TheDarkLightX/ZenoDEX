@@ -246,7 +246,9 @@ fn dust_from_remainders(remainders: (u128, u128, u128, u128)) -> Result<u128, Re
         checked_add(remainders.0, remainders.1)?,
         checked_add(remainders.2, remainders.3)?,
     )?;
-    debug_assert_eq!(total % BPS_DENOM, 0, "fractional aggregate dust");
+    if total % BPS_DENOM != 0 {
+        return Err(RejectedReason::ArithmeticOverflow);
+    }
     Ok(total / BPS_DENOM)
 }
 
@@ -742,6 +744,14 @@ mod tests {
         assert_eq!(
             r.amount,
             r.buyburn + r.stakers + r.reserve + r.hosts + r.dust
+        );
+    }
+
+    #[test]
+    fn fractional_aggregate_dust_rejects_in_release_too() {
+        assert_eq!(
+            dust_from_remainders((1, 0, 0, 0)),
+            Err(RejectedReason::ArithmeticOverflow)
         );
     }
 

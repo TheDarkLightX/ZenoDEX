@@ -26,6 +26,10 @@ pub enum CanonicalError {
     BadHexFormat,
     /// Hex body contains a non-`[0-9a-fA-F]` character.
     BadHexChars,
+    /// Domain-separation label is empty, non-ASCII, or contains NUL.
+    BadDomainLabel,
+    /// Domain-separation version is zero.
+    BadDomainVersion,
     /// A JSON number is not an integer (floats are rejected, matching Python).
     FloatNotAllowed,
 }
@@ -36,6 +40,8 @@ impl CanonicalError {
         match self {
             CanonicalError::BadHexFormat => "bad_hex_format",
             CanonicalError::BadHexChars => "bad_hex_chars",
+            CanonicalError::BadDomainLabel => "bad_domain_label",
+            CanonicalError::BadDomainVersion => "bad_domain_version",
             CanonicalError::FloatNotAllowed => "float_not_allowed",
         }
     }
@@ -72,25 +78,29 @@ pub fn encode_bytes(value: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Domain-separation prefix: `b"zenodex:" + label + b":v" + version + b"\x00"`.
-///
-/// `label` is expected to be non-empty ASCII without a NUL byte (all call sites
-/// use compile-time constants that satisfy this).
-pub fn domain_sep_bytes(label: &str, version: u32) -> Vec<u8> {
-    debug_assert!(!label.is_empty(), "domain-sep label must be non-empty");
-    debug_assert!(label.is_ascii(), "domain-sep label must be ASCII");
-    debug_assert!(
-        !label.contains('\u{0}'),
-        "domain-sep label must not contain NUL"
-    );
-    debug_assert!(version > 0, "domain-sep version must be positive");
+/// Fallible domain-separation prefix constructor.
+pub fn try_domain_sep_bytes(label: &str, version: u32) -> Result<Vec<u8>, CanonicalError> {
+    if label.is_empty() || !label.is_ascii() || label.contains('\u{0}') {
+        return Err(CanonicalError::BadDomainLabel);
+    }
+    if version == 0 {
+        return Err(CanonicalError::BadDomainVersion);
+    }
     let mut out = Vec::new();
     out.extend_from_slice(b"zenodex:");
     out.extend_from_slice(label.as_bytes());
     out.extend_from_slice(b":v");
     out.extend_from_slice(version.to_string().as_bytes());
     out.push(0x00);
-    out
+    Ok(out)
+}
+
+/// Domain-separation prefix: `b"zenodex:" + label + b":v" + version + b"\x00"`.
+///
+/// Core call sites pass compile-time constants. Dynamic labels should use
+/// [`try_domain_sep_bytes`] and propagate the typed rejection.
+pub fn domain_sep_bytes(label: &str, version: u32) -> Vec<u8> {
+    try_domain_sep_bytes(label, version).expect("static domain separator is valid")
 }
 
 /// Lowercase SHA-256 of `data`, `0x`-prefixed.
@@ -251,6 +261,26 @@ mod tests {
         assert_eq!(
             domain_sep_bytes("fee_accumulator", 1),
             b"zenodex:fee_accumulator:v1\x00".to_vec()
+        );
+    }
+
+    #[test]
+    fn try_domain_sep_rejects_bad_labels_and_versions() {
+        assert_eq!(
+            try_domain_sep_bytes("", 1),
+            Err(CanonicalError::BadDomainLabel)
+        );
+        assert_eq!(
+            try_domain_sep_bytes("bad\u{0}label", 1),
+            Err(CanonicalError::BadDomainLabel)
+        );
+        assert_eq!(
+            try_domain_sep_bytes("nonasciié", 1),
+            Err(CanonicalError::BadDomainLabel)
+        );
+        assert_eq!(
+            try_domain_sep_bytes("fee_receipt", 0),
+            Err(CanonicalError::BadDomainVersion)
         );
     }
 

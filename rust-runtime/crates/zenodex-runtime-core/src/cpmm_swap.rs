@@ -297,14 +297,14 @@ pub fn swap_exact_out_with_max_gap_bps(
     let fee_total = gross_in - net_in;
     let net_in_actual = gross_in - fee_total;
     let amount_out_quote = (reserve_out * net_in_actual) / (reserve_in + net_in_actual);
+    let new_in = reserve_in + gross_in;
+    if new_in > DEX_POOL_RESERVE_MAX {
+        return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
+    }
     let overdelivery_gap = amount_out_quote.saturating_sub(amount_out);
     let gap_bps = ceil_div(overdelivery_gap * BPS_DENOM, amount_out);
     if gap_bps > max_overdelivery_gap_bps {
         return Err(REJ_OVERDELIVERY_GAP);
-    }
-    let new_in = reserve_in + gross_in;
-    if new_in > DEX_POOL_RESERVE_MAX {
-        return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
     }
     if gross_in > max_amount_in {
         return Err(REJ_SLIPPAGE);
@@ -390,6 +390,17 @@ mod tests {
             .pool;
         assert_eq!(
             swap_exact_out(&p, true, 1, u128::MAX),
+            Err(REJ_RESERVE_DOMAIN_EXCEEDED)
+        );
+    }
+
+    #[test]
+    fn exact_out_rejects_reserve_domain_before_gap_policy_when_both_trip() {
+        let p = init_pool(&Pool::default(), 1_000_000, 2_613_288_063, 9_999)
+            .unwrap()
+            .pool;
+        assert_eq!(
+            swap_exact_out_with_max_gap_bps(&p, true, 884_635_356, u128::MAX, 0),
             Err(REJ_RESERVE_DOMAIN_EXCEEDED)
         );
     }

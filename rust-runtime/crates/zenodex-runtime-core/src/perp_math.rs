@@ -10,9 +10,9 @@
 //!   `rate_bps`, price differences, `collateral_after_pnl`, and the PnL/funding
 //!   outputs. So this module uses `i128`, unlike the unsigned kernels.
 //! * The Python authority computes every floor-division on **non-negative
-//!   magnitudes** (`abs_val` first, sign applied afterwards), so Rust's
-//!   truncating `/` equals Python's flooring `//` at every division site — there
-//!   is no toward-zero-vs-toward-−∞ divergence here. This is mirrored exactly.
+//!   magnitudes** where possible. A few stateless-math probes still permit
+//!   negative price inputs, so signed divisions use Python-compatible floor
+//!   division instead of Rust's truncating `/`.
 //! * Inputs are domain-bounded by the caller (the CLI bridge rejects magnitude
 //!   args outside ±[`MAX_ABS`] and bps args outside ±[`MAX_BPS`]). Within those
 //!   bounds the worst intermediate product is
@@ -31,6 +31,12 @@ pub const MAX_ABS: i128 = 1_000_000_000_000_000_000; // 1e18
 /// Bound for basis-point inputs. Real rates/margins are ≤ a few ×1e4; this
 /// keeps `notional·bps` (≤ 1e28·1e7 = 1e35) safely inside `i128`.
 pub const MAX_BPS: i128 = 10_000_000; // 1e7
+
+#[inline]
+fn floor_div_const(numerator: i128, denominator: i128) -> i128 {
+    crate::arith::floor_div_i128(numerator, denominator)
+        .expect("perp math denominators are positive constants")
+}
 
 #[inline]
 pub fn abs_val(x: i128) -> i128 {
@@ -86,7 +92,10 @@ pub fn settle_price(
         return clearing_price_e8;
     }
     // Ceil-div clamp band so a non-zero intended move cannot collapse to width 0.
-    let max_delta = ((index_price_e8 * max_oracle_move_bps) + (BPS_SCALE - 1)) / BPS_SCALE;
+    let max_delta = floor_div_const(
+        (index_price_e8 * max_oracle_move_bps) + (BPS_SCALE - 1),
+        BPS_SCALE,
+    );
     if clearing_price_e8 >= index_price_e8 {
         index_price_e8 + max_delta
     } else {
@@ -97,11 +106,11 @@ pub fn settle_price(
 // -- Position / margin helpers -----------------------------------------------
 
 pub fn notional_quote(position_base: i128, price_e8: i128) -> i128 {
-    (abs_val(position_base) * price_e8) / PRICE_SCALE
+    floor_div_const(abs_val(position_base) * price_e8, PRICE_SCALE)
 }
 
 pub fn margin_requirement(notional: i128, margin_bps: i128) -> i128 {
-    (notional * margin_bps) / BPS_SCALE
+    floor_div_const(notional * margin_bps, BPS_SCALE)
 }
 
 pub fn maint_margin_req(
@@ -132,11 +141,13 @@ pub fn init_margin_req(position_base: i128, price_e8: i128, init_bps: i128) -> i
 // divide by zero or overflow; only the abs/mul need checking.
 
 pub fn checked_notional_quote(position_base: i128, price_e8: i128) -> Option<i128> {
-    Some(position_base.checked_abs()?.checked_mul(price_e8)? / PRICE_SCALE)
+    let product = position_base.checked_abs()?.checked_mul(price_e8)?;
+    crate::arith::floor_div_i128(product, PRICE_SCALE)
 }
 
 pub fn checked_margin_requirement(notional: i128, margin_bps: i128) -> Option<i128> {
-    Some(notional.checked_mul(margin_bps)? / BPS_SCALE)
+    let product = notional.checked_mul(margin_bps)?;
+    crate::arith::floor_div_i128(product, BPS_SCALE)
 }
 
 pub fn checked_maint_margin_req(
@@ -395,7 +406,10 @@ pub fn compute_partial_close_fraction(
 // -- Funding helpers (symmetric) ---------------------------------------------
 
 pub fn funding_magnitude(position_base: i128, index_price_e8: i128, rate_bps: i128) -> i128 {
-    (notional_quote(position_base, index_price_e8) * abs_val(rate_bps)) / BPS_SCALE
+    floor_div_const(
+        notional_quote(position_base, index_price_e8) * abs_val(rate_bps),
+        BPS_SCALE,
+    )
 }
 
 pub fn funding_same_sign(position_base: i128, rate_bps: i128) -> bool {
@@ -431,6 +445,15 @@ mod tests {
         assert!(p > 100);
         // No violation -> raw clearing returned.
         assert_eq!(settle_price(100, 100, 50, true), 100);
+    }
+
+    #[test]
+    fn negative_price_divisions_match_python_flooring() {
+        assert_eq!(settle_price(-20_000, -10_000, 1, true), -9_999);
+        assert_eq!(notional_quote(5, -150_000_001), -8);
+        assert_eq!(margin_requirement(-8, 500), -1);
+        assert_eq!(maint_margin_req(5, -150_000_001, 500, 0), -1);
+        assert_eq!(funding_magnitude(5, -150_000_001, 1), -1);
     }
 
     #[test]
