@@ -96,7 +96,13 @@ current route without reconstructing prior fee history. The accumulator shape is
 
 ```json
 {
-  "dust_by_stream": [{"source": "dex", "asset": "zUSD", "amount": 1}],
+  "dust_by_stream": [
+    {
+      "source": "dex", "asset": "zUSD", "amount": 1,
+      "buyburn_remainder": 6000, "stakers_remainder": 0,
+      "reserve_remainder": 2000, "hosts_remainder": 2000
+    }
+  ],
   "cum_buyburn": [{"asset": "zUSD", "amount": 10}],
   "cum_stakers": [],
   "cum_reserve": [],
@@ -104,8 +110,9 @@ current route without reconstructing prior fee history. The accumulator shape is
 }
 ```
 
-Accumulator input amounts are JSON integers; bridge output amounts are decimal
-strings to preserve exact `u128` values across Python/Rust JSON tooling.
+Accumulator input amounts and per-bucket scaled remainder numerators are JSON
+integers; bridge output values are decimal strings to preserve exact `u128` values
+across Python/Rust JSON tooling.
 
 ## `tx` kinds — `replay_guard`
 
@@ -322,14 +329,17 @@ ordered byte pre-image built with the repo's canonical primitives
 `SRC`(source) `AST`(asset) `AMT`(amount) `BBN`(buyburn) `STK`(stakers)
 `RSV`(reserve) `HST`(hosts) `DST`(dust).
 
-**Accumulator root** (`domain_sep "fee_accumulator" v1`): `DST` encodes a
-sorted list of `(source, asset, amount)` dust entries. `CBB`, `CST`, `CRS`, and
+**Accumulator root** (`domain_sep "fee_accumulator" v2`): `DST` encodes a
+sorted list of `(source, asset, amount, buyburn_remainder, stakers_remainder,
+reserve_remainder, hosts_remainder)` dust entries. `CBB`, `CST`, `CRS`, and
 `CHS` each encode a sorted list of `(asset, amount)` bucket entries for
 buyburn, stakers, reserve, and hosts. Empty and zero entries are omitted.
 
-Dust is scoped by `(source, asset)`. Bucket totals are scoped by `asset`. This
-prevents a remainder or balance in one token unit from being consumed as another
-token unit.
+Dust is scoped by `(source, asset)` and its fractional entitlement is carried as
+per-bucket basis-point remainders, so one bucket cannot consume another bucket's
+rounding share across repeated tiny fees. Bucket totals are scoped by `asset`.
+This prevents a remainder or balance in one token unit from being consumed as
+another token unit.
 
 No floats appear anywhere in a pre-image; all numbers are LEB128-encoded
 integers. Output ordering is explicit (never map iteration).
