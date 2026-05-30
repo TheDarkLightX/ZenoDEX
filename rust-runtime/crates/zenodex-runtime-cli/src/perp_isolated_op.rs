@@ -30,6 +30,7 @@ use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput}
 use zenodex_runtime_core::perp_math::{
     init_margin_req, is_oracle_fresh, maint_margin_req, notional_quote,
 };
+use zenodex_runtime_core::perp_partial_liquidate::{partial_liquidate, PartialLiquidateInput};
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
 };
@@ -44,6 +45,8 @@ pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
 pub const REJ_SENDER_NOT_BOUND: &str = "sender_not_bound_to_account";
+pub const REJ_ORACLE_ADAPTER: &str = "oracle_adapter_not_accepted";
+pub const REJ_ORACLE_AUTHORIZATION: &str = "oracle_authorization_not_accepted";
 
 /// The authority-grade wire format requires this exact schema + version so the
 /// request boundary cannot silently accept a mis-shaped or future payload.
@@ -67,9 +70,7 @@ struct Facts {
     all_positions_flat: bool,
     #[allow(dead_code)]
     balance_available: i128,
-    #[allow(dead_code)]
     oracle_adapter_ok: bool,
-    #[allow(dead_code)]
     oracle_authorization_ok: bool,
 }
 
@@ -250,6 +251,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         }
         "set_position" => materialize_set_position(&quote_asset, global, accounts, op, &facts),
         "clear_breaker" => materialize_clear_breaker(&quote_asset, global, accounts, op, &facts),
+        "partial_liquidate" => {
+            materialize_partial_liquidate(&quote_asset, global, accounts, op, &facts)
+        }
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -743,6 +747,12 @@ fn materialize_deposit_collateral(
     if !facts.sender_bound_ok {
         return reject(REJ_SENDER_NOT_BOUND);
     }
+    if !facts.oracle_adapter_ok {
+        return reject(REJ_ORACLE_ADAPTER);
+    }
+    if !facts.oracle_authorization_ok {
+        return reject(REJ_ORACLE_AUTHORIZATION);
+    }
     let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
         Some(s) => s,
         None => return reject(REJ_BAD_REQUEST),
@@ -929,6 +939,130 @@ fn clear_breaker_inner(
     };
     let out = account_op("clear_breaker", &input)?;
     Ok((out.breaker_active, out.breaker_last_trigger_epoch))
+}
+
+/// `partial_liquidate`: sender-gated single-account op that ALSO accumulates the
+/// liquidation penalty into the global fee/insurance (so it does NOT reuse
+/// materialize_account_op, which leaves globals untouched and resets
+/// liquidated_this_step to false — the opposite of this op). The core
+/// `partial_liquidate` recomputes liquidatability from state (the integration's
+/// eligibility/oracle-adapter checks are upstream facts), resolves fraction_bps
+/// (0 => auto-compute the minimum viable close), debits the penalty from the
+/// account collateral, credits it to fee_pool + fee_income + insurance, and sets
+/// liquidated_this_step = true (remaining position keeps entry := index, or 0 when
+/// fully closed). Rejects: partial_liquidate_out_of_domain, param_domain_fraction_bps,
+/// partial_liquidate_guard.
+///
+/// Effect base (verified against Python, and DISTINCT from settle): the kernel
+/// applies penalty accumulation in one call, so _common_effects sees the POST
+/// (accumulated) fee_pool/insurance — fee_pool_after/insurance_after are the
+/// accumulated values, computed over the POST account (now liquidated). So the
+/// effect is account_effect over the post account + the post global, NOT a
+/// flat-dummy/base split.
+fn materialize_partial_liquidate(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    mut accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    for k in op.keys() {
+        if k != "action" && k != "account_pubkey" && k != "fraction_bps" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.sender_bound_ok {
+        return reject(REJ_SENDER_NOT_BOUND);
+    }
+    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
+        Some(s) => s,
+        None => return reject(REJ_BAD_REQUEST),
+    };
+    let fraction_bps = match op.get("fraction_bps").map(as_i128) {
+        Some(Ok(v)) => v,
+        _ => return reject(REJ_BAD_REQUEST),
+    };
+    let idx = accounts.iter().position(|a| a.key == account_pubkey);
+    let pre = match idx {
+        Some(i) => accounts[i].clone(),
+        None => Account {
+            key: account_pubkey.to_string(),
+            position_base: 0,
+            collateral_quote: 0,
+            entry_price_e8: 0,
+            funding_paid_cumulative: 0,
+            funding_last_applied_epoch: 0,
+            liquidated_this_step: false,
+        },
+    };
+    let input = match build_partial_liquidate_input(&global, &pre, fraction_bps) {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let out = match partial_liquidate(&input) {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    // Post account: position/entry/collateral/liquidated change; funding preserved.
+    let post = Account {
+        key: account_pubkey.to_string(),
+        position_base: out.position_base,
+        collateral_quote: out.collateral_quote,
+        entry_price_e8: out.entry_price_e8,
+        funding_paid_cumulative: pre.funding_paid_cumulative,
+        funding_last_applied_epoch: pre.funding_last_applied_epoch,
+        liquidated_this_step: out.liquidated_this_step,
+    };
+    match idx {
+        Some(i) => accounts[i] = post.clone(),
+        None => accounts.push(post.clone()),
+    }
+    // Accumulated globals: penalty -> fee_pool + fee_income + insurance.
+    global.insert(
+        "fee_pool_quote".into(),
+        Value::String(out.fee_pool_quote.to_string()),
+    );
+    global.insert(
+        "fee_income".into(),
+        Value::String(out.fee_income.to_string()),
+    );
+    global.insert(
+        "insurance_balance".into(),
+        Value::String(out.insurance_balance.to_string()),
+    );
+    // Effect over the POST account + POST (accumulated) global.
+    match account_effect(&global, &post, "PartialLiquidationApplied") {
+        Ok(effects) => accept(quote_asset, &global, &accounts, effects),
+        Err(code) => reject(code),
+    }
+}
+
+/// Build the core `partial_liquidate` input from the global + the target account.
+fn build_partial_liquidate_input(
+    global: &Map<String, Value>,
+    pre: &Account,
+    fraction_bps: i128,
+) -> Result<PartialLiquidateInput, &'static str> {
+    Ok(PartialLiquidateInput {
+        now_epoch: gget(global, "now_epoch")?,
+        epoch_phase: gget(global, "epoch_phase")?,
+        oracle_last_update_epoch: gget(global, "oracle_last_update_epoch")?,
+        max_oracle_staleness_epochs: gget(global, "max_oracle_staleness_epochs")?,
+        oracle_seen: bget(global, "oracle_seen")?,
+        index_price_e8: gget(global, "index_price_e8")?,
+        position_base: pre.position_base,
+        collateral_quote: pre.collateral_quote,
+        entry_price_e8: pre.entry_price_e8,
+        maintenance_margin_bps: gget(global, "maintenance_margin_bps")?,
+        depeg_buffer_bps: gget(global, "depeg_buffer_bps")?,
+        liquidation_penalty_bps: gget(global, "liquidation_penalty_bps")?,
+        min_notional_for_bounty: gget(global, "min_notional_for_bounty")?,
+        fee_pool_quote: gget(global, "fee_pool_quote")?,
+        fee_income: gget(global, "fee_income")?,
+        initial_insurance: gget(global, "initial_insurance")?,
+        claims_paid: gget(global, "claims_paid")?,
+        fraction_bps,
+    })
 }
 
 #[cfg(test)]
@@ -1920,6 +2054,192 @@ mod tests {
         let r = materialize_isolated_op(&req(
             breaker_active_global(5),
             json!({"action": "clear_breaker", "account_pubkey": "aa"}),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    fn liq_global(now: i128, penalty_bps: i128) -> Value {
+        // Open, oracle fresh, no bounty floor so auto-fraction can act; caller sets
+        // the liquidation penalty.
+        let mut g = open_global(now);
+        g["liquidation_penalty_bps"] = json!(penalty_bps.to_string());
+        g["min_notional_for_bounty"] = json!("0");
+        g
+    }
+
+    #[test]
+    fn partial_liquidate_full_close_accumulates_penalty_and_effect() {
+        // Underwater account (pos 500000, coll 1) -> auto-fraction fully closes it;
+        // penalty 1 accumulates to fee_pool/fee_income/insurance, and the effect's
+        // after-values are the POST (accumulated) globals over the POST (flat) account.
+        let r = materialize_isolated_op(&req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let a = r["post"]["accounts"].as_array().unwrap()[0].clone();
+        assert_eq!(a["position_base"], json!("0")); // fully closed
+        assert_eq!(a["entry_price_e8"], json!("0")); // flat -> entry zeroed
+        assert_eq!(a["collateral_quote"], json!("0")); // 1 - penalty(1)
+        assert_eq!(a["liquidated_this_step"], json!(true)); // set true (NOT reset)
+        assert_eq!(a["funding_paid_cumulative"], json!("7")); // preserved
+        let pg = &r["post"]["global_state"];
+        assert_eq!(pg["fee_pool_quote"], json!("1"));
+        assert_eq!(pg["fee_income"], json!("1"));
+        assert_eq!(pg["insurance_balance"], json!("1"));
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("PartialLiquidationApplied"));
+        assert_eq!(fx["liquidated"], json!(true));
+        assert_eq!(fx["notional_quote"], json!("0")); // post account is flat
+        assert_eq!(fx["collateral_after"], json!("0"));
+        assert_eq!(fx["fee_pool_after"], json!("1")); // POST (accumulated), not base 0
+        assert_eq!(fx["insurance_after"], json!("1"));
+    }
+
+    #[test]
+    fn partial_liquidate_partial_close_keeps_remaining_and_accumulates() {
+        // Larger penalty (5%) + auto-fraction leaves a small remaining position
+        // (50) with entry := index; penalty 24997 accumulates; the effect is
+        // account-derived over the POST account (nonzero notional) with POST globals.
+        let r = materialize_isolated_op(&req_accts(
+            liq_global(5, 500),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 25_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let a = r["post"]["accounts"].as_array().unwrap()[0].clone();
+        assert_eq!(a["position_base"], json!("50")); // partial: remaining
+        assert_eq!(a["entry_price_e8"], json!("100000000")); // remaining -> entry := index
+        assert_eq!(a["collateral_quote"], json!("3"));
+        assert_eq!(a["liquidated_this_step"], json!(true));
+        let pg = &r["post"]["global_state"];
+        assert_eq!(pg["fee_pool_quote"], json!("24997"));
+        assert_eq!(pg["insurance_balance"], json!("24997"));
+        let fx = &r["effects"];
+        assert_eq!(fx["notional_quote"], json!("50")); // POST account, nonzero
+        assert_eq!(fx["maint_req_quote"], json!("3"));
+        assert_eq!(fx["init_req_quote"], json!("5"));
+        assert_eq!(fx["collateral_after"], json!("3"));
+        assert_eq!(fx["fee_pool_after"], json!("24997")); // POST accumulated
+        assert_eq!(fx["insurance_after"], json!("24997"));
+    }
+
+    #[test]
+    fn partial_liquidate_explicit_fraction_too_large_rejects_guard() {
+        // An explicit 50% close that leaves the remaining position below maintenance
+        // -> partial_liquidate_guard (post-state maint check).
+        let r = materialize_isolated_op(&req_accts(
+            liq_global(5, 500),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "5000"}),
+            json!([acct_json("aa", 500_000, 25_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_partial_liquidate::REJ_GUARD)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn partial_liquidate_not_liquidatable_rejects_guard() {
+        // A healthy account (ample collateral) is not liquidatable -> guard.
+        let r = materialize_isolated_op(&req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_partial_liquidate::REJ_GUARD)
+        );
+    }
+
+    #[test]
+    fn partial_liquidate_fraction_out_of_range_rejects_param() {
+        // fraction_bps > FRACTION_BPS_MAX (10000) -> param reject (before guard).
+        let r = materialize_isolated_op(&req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "10001"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_partial_liquidate::REJ_PARAM_FRACTION)
+        );
+    }
+
+    #[test]
+    fn partial_liquidate_sender_gate_and_missing_fact() {
+        let mut r = req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
+            true,
+        );
+        r["facts"]["sender_bound_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r)["reject_reason"],
+            json!(REJ_SENDER_NOT_BOUND)
+        );
+        let mut r2 = req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
+            true,
+        );
+        r2["facts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sender_bound_ok");
+        assert_eq!(
+            materialize_isolated_op(&r2)["reject_reason"],
+            json!(REJ_MISSING_FACTS)
+        );
+    }
+
+    #[test]
+    fn partial_liquidate_oracle_facts_fail_closed() {
+        let mut r = req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
+            true,
+        );
+        r["facts"]["oracle_adapter_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r)["reject_reason"],
+            json!(REJ_ORACLE_ADAPTER)
+        );
+
+        let mut r2 = req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
+            true,
+        );
+        r2["facts"]["oracle_authorization_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r2)["reject_reason"],
+            json!(REJ_ORACLE_AUTHORIZATION)
+        );
+    }
+
+    #[test]
+    fn partial_liquidate_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req_accts(
+            liq_global(5, 200),
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0", "amount": "1"}),
+            json!([acct_json("aa", 500_000, 1, 100_000_000)]),
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));

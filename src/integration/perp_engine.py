@@ -3205,6 +3205,7 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
         "withdraw_collateral",
         "set_position",
         "clear_breaker",
+        "partial_liquidate",
     }
 )
 
@@ -3288,6 +3289,14 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
         # new_position_base is signed (a short is negative): non_negative=False.
         op_obj["new_position_base"] = str(
             _require_int(op.data.get("new_position_base", 0), name="new_position_base", non_negative=False)
+        )
+    elif op.action == "partial_liquidate":
+        op_obj["account_pubkey"] = _require_str(
+            op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512
+        )
+        # fraction_bps in [0, 10000]; 0 => auto-compute the minimum viable close.
+        op_obj["fraction_bps"] = str(
+            _require_int(op.data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
         )
     # clear_breaker (and the global ops settle_epoch) carry no op params; the
     # materializer reads everything it needs from global_state + the all_positions_flat
