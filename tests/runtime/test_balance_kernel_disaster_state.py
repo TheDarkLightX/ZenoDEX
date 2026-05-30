@@ -89,6 +89,7 @@ def test_public_testnet_profile_promotes_balances():
         "perp_math",
         "replay_guard",
         "state_root",
+        "zusd",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
     assert any("balances" in conflict and "half-configured Rust authority" in conflict for conflict in conflicts)

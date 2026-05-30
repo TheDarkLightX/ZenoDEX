@@ -171,9 +171,11 @@ collapse to lowercase `0x...` form before hashing or state updates.
         | "deposit_sp" | "withdraw_sp" | "liquidate", ... }
 ```
 
-Replayed via `replay-zusd-trace`. The authority is `src/core/zusd.py`'s
-single-vault `step`; the Rust shadow mirrors it. Unknown fields are **ignored**
-(matching the authority). Amounts are arbitrary positive integers — the
+Replayed via `replay-zusd-trace`; live one-step authority uses `zusd-op` with
+the full 32-field state object plus one `tx`. The authority is
+`src/core/zusd.py`'s single-vault `step`; `_step_python` is the reference used by
+the shadow differential. Unknown fields are **ignored** (matching the
+authority). Amounts are arbitrary positive integers — the
 authority's `_require_pos_int` is unbounded and oversized values are rejected by
 command-specific logic, so the shadow uses bignum arithmetic. Reject reasons are
 stable codes mapped from the authority's prose (e.g. `mint_blocked_oracle`,
@@ -181,7 +183,10 @@ stable codes mapped from the authority's prose (e.g. `mint_blocked_oracle`,
 `not_positive_int`, `bounded_check_failed`, `invariant_violation`,
 `unknown_action`, ...); see `tools/runtime/zusd_kernel_lib.py`. State root is
 `domain_sep("zusd_state", v1)` over the 32 state fields as uvarints; the receipt
-hash commits to `(command_tag, post_state_root)`.
+hash commits to `(command_tag, post_state_root)`. In the public-testnet
+authority lane, Rust decides the post-state and Python verifies the same
+state-root, receipt hash, reject code, and post-state fields. Event/effect
+payloads remain Python-derived after agreement.
 
 ## `tx` kinds — `burn_receipts`
 

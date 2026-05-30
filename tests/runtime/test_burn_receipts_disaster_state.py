@@ -109,6 +109,7 @@ def test_public_testnet_profile_promotes_burn_receipts():
         "perp_math",
         "replay_guard",
         "state_root",
+        "zusd",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
     assert any("burn_receipts" in conflict and "half-configured Rust authority" in conflict for conflict in conflicts)
