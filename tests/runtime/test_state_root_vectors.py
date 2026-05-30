@@ -107,6 +107,54 @@ def test_rust_matches_python_randomized(rust_bin, seed):
     _assert_agrees(states, rust_bin)
 
 
+def test_rust_rejects_raw_noncanonical_authority_inputs(rust_bin):
+    canonical_pool = {
+        "pool_id": _id(1),
+        "asset0": _id(2),
+        "asset1": _id(3),
+        "reserve0": 1,
+        "reserve1": 1,
+        "fee_bps": 30,
+        "lp_supply": 0,
+        "status": "active",
+        "created_at": 0,
+        "curve_tag": "CPMM",
+        "curve_params": "",
+    }
+    states = [
+        {"balances": [{"pubkey": _pk(1), "asset": _id(9), "amount": 0}]},
+        {"lp_balances": [{"pubkey": _pk(1), "pool_id": _id(9), "amount": 0}]},
+        {"pools": [{**canonical_pool, "asset0": _id(3), "asset1": _id(2)}]},
+        {"pools": [{**canonical_pool, "curve_tag": "BOGUS_CURVE"}]},
+        {"pools": [{**canonical_pool, "curve_tag": "cpmm"}]},
+        {"pools": [{**canonical_pool, "curve_params": "{}"}]},
+        {
+            "pools": [
+                {
+                    **canonical_pool,
+                    "curve_tag": "QUARTIC_BLEND_V1",
+                    "curve_params": '{"c_den":4,"c_num":2}',
+                }
+            ]
+        },
+        {"nonces": [{"pubkey": _pk(1), "last_nonce": 2**32}]},
+        {
+            "lp_duration_risk": [
+                {
+                    "pubkey": _pk(1),
+                    "pool_id": _id(9),
+                    "last_mint_timestamp": 5,
+                    "last_remove_timestamp": None,
+                    "churn_tier": 0,
+                    "last_churn_update_timestamp": None,
+                }
+            ]
+        },
+    ]
+    rs = lib.run_rust(rust_bin, states)
+    assert all(not r["ok"] for r in rs), rs
+
+
 def test_invalid_encodings_reject_on_both(rust_bin):
     states = [
         {"nonces": [{"pubkey": "0x1234", "last_nonce": 1}]},      # short pubkey
