@@ -3203,6 +3203,7 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
         "settle_epoch",
         "deposit_collateral",
         "withdraw_collateral",
+        "set_position",
     }
 )
 
@@ -3278,6 +3279,14 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
         )
         op_obj["amount"] = str(
             _require_int(op.data.get("amount", 0), name="amount", non_negative=True)
+        )
+    elif op.action == "set_position":
+        op_obj["account_pubkey"] = _require_str(
+            op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512
+        )
+        # new_position_base is signed (a short is negative): non_negative=False.
+        op_obj["new_position_base"] = str(
+            _require_int(op.data.get("new_position_base", 0), name="new_position_base", non_negative=False)
         )
     all_flat = all(int(acct.position_base) == 0 for acct in pre_market.accounts.values())
     return {
