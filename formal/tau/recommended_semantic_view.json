@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/tau/semantic-view/v1",
   "execution_census_ref": "formal/tau/recommended_execution_census_best.json",
-  "spec_count": 214,
+  "spec_count": 215,
   "packets": [
     {
       "spec_id": "add_liquidity_apply_v1",
@@ -9691,6 +9691,88 @@
         "observed_output_signatures": [
           "0000"
         ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "oracle_sustained_freshness_2epoch_gate_v1",
+      "spec_path": "src/tau_specs/recommended/oracle_sustained_freshness_2epoch_gate_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "governance_and_policy_suite",
+      "temporal": true,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]",
+        "i4": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i4"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i4[t]:sbf = 1:sbf) && (i4[t-1]:sbf = 1:sbf) && fresh(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && fresh(i1[t-1]:bv[32], i2[t-1]:bv[32], i3[t-1]:bv[32]) ))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "fresh",
+          "quote_not_future"
+        ],
+        "definitions": [
+          {
+            "name": "fresh",
+            "kind": "data_predicate",
+            "params": [
+              "current_epoch",
+              "quote_epoch",
+              "max_staleness"
+            ],
+            "body": "quote_not_future(current_epoch, quote_epoch) && ((current_epoch - quote_epoch) <= max_staleness)",
+            "body_short": "quote_not_future(current_epoch, quote_epoch) && ((current_epoch - quote_epoch) <= max_staleness)"
+          },
+          {
+            "name": "quote_not_future",
+            "kind": "data_predicate",
+            "params": [
+              "current_epoch",
+              "quote_epoch"
+            ],
+            "body": "quote_epoch <= current_epoch",
+            "body_short": "quote_epoch <= current_epoch"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i4[t]:sbf = 1:sbf) && (i4[t-1]:sbf = 1:sbf) && ((((i2[t]:bv[32])) <= ((i1[t]:bv[32]))) && (((i1[t]:bv[32]) - (i2[t]:bv[32])) <= (i3[t]:bv[32]))) && ((((i2[t-1]:bv[32])) <= ((i1[t-1]:bv[32]))) && (((i1[t-1]:bv[32]) ..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
         "error_messages": []
       }
     },
