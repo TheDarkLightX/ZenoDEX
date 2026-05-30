@@ -3197,7 +3197,13 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
 # This set does NOT grant authority: Rust post-checks Python in every mode, and
 # every `rust_authority*` mode stays blocked for `perp_stateful` regardless.
 _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
-    {"advance_epoch", "publish_clearing_price", "settle_epoch", "deposit_collateral"}
+    {
+        "advance_epoch",
+        "publish_clearing_price",
+        "settle_epoch",
+        "deposit_collateral",
+        "withdraw_collateral",
+    }
 )
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
@@ -3266,7 +3272,7 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
         op_obj["price_e8"] = str(
             _require_int(op.data.get("price_e8", 0), name="price_e8", non_negative=True)
         )
-    elif op.action == "deposit_collateral":
+    elif op.action in ("deposit_collateral", "withdraw_collateral"):
         op_obj["account_pubkey"] = _require_str(
             op.data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512
         )
