@@ -120,6 +120,45 @@ pub fn init_margin_req(position_base: i128, price_e8: i128, init_bps: i128) -> i
     margin_requirement(notional_quote(position_base, price_e8), init_bps)
 }
 
+// -- Checked variants -------------------------------------------------------
+// The plain helpers above use unchecked `*` and `abs`, which is sound ONLY when
+// callers pre-bound every operand to [-MAX_ABS, MAX_ABS] / [-MAX_BPS, MAX_BPS]
+// (true on every kernel path, which validates its input domain first). The
+// materializer's *effect* path, however, reads some globals (notably
+// initial_margin_bps) that a given op's kernel never validates — e.g.
+// partial_liquidate does not carry initial_margin_bps — so the effect must use
+// these checked variants and fail closed on overflow rather than panic.
+// PRICE_SCALE / BPS_SCALE are positive constants, so the divisions cannot
+// divide by zero or overflow; only the abs/mul need checking.
+
+pub fn checked_notional_quote(position_base: i128, price_e8: i128) -> Option<i128> {
+    Some(position_base.checked_abs()?.checked_mul(price_e8)? / PRICE_SCALE)
+}
+
+pub fn checked_margin_requirement(notional: i128, margin_bps: i128) -> Option<i128> {
+    Some(notional.checked_mul(margin_bps)? / BPS_SCALE)
+}
+
+pub fn checked_maint_margin_req(
+    position_base: i128,
+    price_e8: i128,
+    maint_bps: i128,
+    depeg_bps: i128,
+) -> Option<i128> {
+    let notional = checked_notional_quote(position_base, price_e8)?;
+    let bps = maint_bps.checked_add(depeg_bps)?;
+    checked_margin_requirement(notional, bps)
+}
+
+pub fn checked_init_margin_req(
+    position_base: i128,
+    price_e8: i128,
+    init_bps: i128,
+) -> Option<i128> {
+    let notional = checked_notional_quote(position_base, price_e8)?;
+    checked_margin_requirement(notional, init_bps)
+}
+
 // -- PnL helpers (symmetric) -------------------------------------------------
 
 pub fn pnl_magnitude(position_base: i128, settle_price_e8: i128, index_price_e8: i128) -> i128 {
@@ -420,5 +459,42 @@ mod tests {
         assert!(!is_liquidatable(0, -100, 100 * PRICE_SCALE, 500, 0));
         // Tiny collateral, real position -> liquidatable.
         assert!(is_liquidatable(1_000_000, 0, 100 * PRICE_SCALE, 500, 0));
+    }
+
+    #[test]
+    fn checked_margin_helpers_match_unchecked_in_range() {
+        // For in-domain operands the checked variants equal the plain ones.
+        let pos = 500_000;
+        let price = 100 * PRICE_SCALE;
+        assert_eq!(
+            checked_notional_quote(pos, price),
+            Some(notional_quote(pos, price))
+        );
+        assert_eq!(
+            checked_maint_margin_req(pos, price, 500, 100),
+            Some(maint_margin_req(pos, price, 500, 100))
+        );
+        assert_eq!(
+            checked_init_margin_req(pos, price, 1000),
+            Some(init_margin_req(pos, price, 1000))
+        );
+    }
+
+    #[test]
+    fn checked_margin_helpers_return_none_on_overflow() {
+        // Degenerate operands (the unchecked helpers would panic/wrap) -> None.
+        assert_eq!(checked_margin_requirement(1_000_000, i128::MAX), None);
+        assert_eq!(
+            checked_init_margin_req(500_000, 100 * PRICE_SCALE, i128::MAX),
+            None
+        );
+        assert_eq!(
+            checked_maint_margin_req(500_000, 100 * PRICE_SCALE, i128::MAX, 1),
+            None
+        );
+        // notional overflow: |pos| * price before the divide.
+        assert_eq!(checked_notional_quote(i128::MAX, i128::MAX), None);
+        // abs of i128::MIN must not panic -> None.
+        assert_eq!(checked_notional_quote(i128::MIN, 1), None);
     }
 }
