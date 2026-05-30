@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import os
+import selectors
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,12 @@ from .authority import RustUnavailable
 _REPO = Path(__file__).resolve().parents[2]
 _RUST_RUNTIME_DIR = _REPO / "rust-runtime"
 _DEFAULT_TIMEOUT_SECONDS = 5.0
+_MAX_STDOUT_BYTES = 8 * 1024 * 1024
+_MAX_STDERR_BYTES = 64 * 1024
+_MAX_STDIN_BYTES = 8 * 1024 * 1024
+_MAX_REPLAY_GUARD_STATE_ENTRIES = 10_000
+_MAX_REPLAY_GUARD_STDOUT_BYTES = 2 * 1024 * 1024
+_MAX_REPLAY_GUARD_STDIN_BYTES = 2 * 1024 * 1024
 
 
 class RustInvocationError(RuntimeError):
@@ -39,25 +47,136 @@ def locate_runtime_binary() -> Path:
     raise RustUnavailable("zenodex-runtime binary not found; set ZENODEX_RUNTIME_BIN or build rust-runtime")
 
 
-def invoke(subcommand: str, request: dict[str, Any], *, timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS) -> Any:
-    """Run ``zenodex-runtime <subcommand> -`` with a JSON request on stdin."""
+def _kill_and_wait(proc: subprocess.Popen[bytes]) -> None:
+    proc.kill()
+    proc.wait()
+
+
+def _collect_child_output(
+    *,
+    proc: subprocess.Popen[bytes],
+    stdin_bytes: bytes,
+    subcommand: str,
+    timeout_seconds: float,
+    max_stdout_bytes: int,
+    max_stderr_bytes: int,
+) -> tuple[bytes, bytes]:
+    """DbC: collect child pipes without exceeding the configured byte caps."""
+
+    deadline = time.monotonic() + timeout_seconds
+    stdout = bytearray()
+    stderr = bytearray()
+    stdin_offset = 0
+    streams = {proc.stdout: stdout, proc.stderr: stderr}
+
+    with selectors.DefaultSelector() as selector:
+        for pipe in (proc.stdout, proc.stderr, proc.stdin):
+            if pipe is not None:
+                os.set_blocking(pipe.fileno(), False)
+        if proc.stdout is not None:
+            selector.register(proc.stdout, selectors.EVENT_READ)
+        if proc.stderr is not None:
+            selector.register(proc.stderr, selectors.EVENT_READ)
+        if proc.stdin is not None:
+            selector.register(proc.stdin, selectors.EVENT_WRITE)
+
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _kill_and_wait(proc)
+                raise RustInvocationError(f"rust {subcommand} timed out after {timeout_seconds}s")
+            for key, mask in selector.select(remaining):
+                pipe = key.fileobj
+                if mask & selectors.EVENT_WRITE:
+                    stdin_offset = _write_stdin_chunk(selector, pipe, stdin_bytes, stdin_offset)
+                    continue
+                _read_output_chunk(
+                    selector,
+                    pipe,
+                    streams[pipe],
+                    max_stdout_bytes if pipe is proc.stdout else max_stderr_bytes,
+                    subcommand,
+                )
+    return bytes(stdout), bytes(stderr)
+
+
+def _write_stdin_chunk(
+    selector: selectors.BaseSelector,
+    pipe: Any,
+    stdin_bytes: bytes,
+    stdin_offset: int,
+) -> int:
+    if stdin_offset >= len(stdin_bytes):
+        selector.unregister(pipe)
+        pipe.close()
+        return stdin_offset
+    try:
+        written = os.write(pipe.fileno(), stdin_bytes[stdin_offset:])
+    except BrokenPipeError:
+        selector.unregister(pipe)
+        pipe.close()
+        return len(stdin_bytes)
+    return stdin_offset + written
+
+
+def _read_output_chunk(
+    selector: selectors.BaseSelector,
+    pipe: Any,
+    buffer: bytearray,
+    max_bytes: int,
+    subcommand: str,
+) -> None:
+    chunk = os.read(pipe.fileno(), 8192)
+    if not chunk:
+        selector.unregister(pipe)
+        pipe.close()
+        return
+    buffer.extend(chunk)
+    if len(buffer) <= max_bytes:
+        return
+    raise RustInvocationError(f"rust {subcommand} exceeded {max_bytes} output bytes")
+
+
+def invoke(
+    subcommand: str,
+    request: dict[str, Any],
+    *,
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+    max_stdout_bytes: int = _MAX_STDOUT_BYTES,
+    max_stdin_bytes: int = _MAX_STDIN_BYTES,
+) -> Any:
+    """Run ``zenodex-runtime <subcommand> -`` with capped JSON stdin/stdout."""
+
+    stdin_bytes = json.dumps(request).encode()
+    if len(stdin_bytes) > max_stdin_bytes:
+        raise RustInvocationError(f"rust {subcommand} request exceeded {max_stdin_bytes} bytes")
 
     bin_path = locate_runtime_binary()
+    proc = subprocess.Popen(
+        [str(bin_path), subcommand, "-"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     try:
-        proc = subprocess.run(
-            [str(bin_path), subcommand, "-"],
-            input=json.dumps(request),
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
+        stdout, stderr = _collect_child_output(
+            proc=proc,
+            stdin_bytes=stdin_bytes,
+            subcommand=subcommand,
+            timeout_seconds=timeout_seconds,
+            max_stdout_bytes=max_stdout_bytes,
+            max_stderr_bytes=_MAX_STDERR_BYTES,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise RustInvocationError(f"rust {subcommand} timed out after {timeout_seconds}s") from exc
-    if proc.returncode != 0:
-        stderr = proc.stderr.strip()[:200]
-        raise RustInvocationError(f"rust {subcommand} exited {proc.returncode}: {stderr}")
+    except RustInvocationError:
+        if proc.poll() is None:
+            _kill_and_wait(proc)
+        raise
+    returncode = proc.wait()
+    if returncode != 0:
+        err = stderr.decode(errors="replace").strip()[:200]
+        raise RustInvocationError(f"rust {subcommand} exited {returncode}: {err}")
     try:
-        return json.loads(proc.stdout)
+        return json.loads(stdout.decode())
     except json.JSONDecodeError as exc:
         raise RustInvocationError(f"rust {subcommand} produced malformed output") from exc
 
@@ -117,6 +236,16 @@ def state_root_hash(
     return str(result["state_root"])
 
 
+def _validate_replay_guard_entry_budget(entries: list[Any], *, label: str) -> None:
+    """DbC: replay-guard bridge state must remain within public-testnet budget."""
+
+    if len(entries) <= _MAX_REPLAY_GUARD_STATE_ENTRIES:
+        return
+    raise RustInvocationError(
+        f"replay-guard-admit: {label} exceeds {_MAX_REPLAY_GUARD_STATE_ENTRIES} entries"
+    )
+
+
 def replay_guard_admit(
     *,
     state_entries: list[dict[str, Any]],
@@ -126,6 +255,7 @@ def replay_guard_admit(
 ) -> dict[str, Any]:
     """Rust replay/idempotency guard for one transition from an explicit state."""
 
+    _validate_replay_guard_entry_budget(state_entries, label="input state")
     out = invoke(
         "replay-guard-admit",
         {
@@ -134,6 +264,8 @@ def replay_guard_admit(
             "tx": {"kind": "admit", "sender": sender, "nonce": nonce},
         },
         timeout_seconds=timeout_seconds,
+        max_stdout_bytes=_MAX_REPLAY_GUARD_STDOUT_BYTES,
+        max_stdin_bytes=_MAX_REPLAY_GUARD_STDIN_BYTES,
     )
     if not isinstance(out, dict):
         raise RustInvocationError("replay-guard-admit: output must be an object")
@@ -146,6 +278,7 @@ def replay_guard_admit(
             raise RustInvocationError(f"replay-guard-admit: {key} must be a string")
     if not isinstance(out.get("post_state_entries"), list):
         raise RustInvocationError("replay-guard-admit: post_state_entries must be a list")
+    _validate_replay_guard_entry_budget(out["post_state_entries"], label="output state")
     for entry in out["post_state_entries"]:
         if not isinstance(entry, dict):
             raise RustInvocationError("replay-guard-admit: state entry must be an object")

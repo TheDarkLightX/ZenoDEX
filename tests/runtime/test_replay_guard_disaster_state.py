@@ -22,6 +22,8 @@ for _p in (str(_REPO), str(_TOOLS_RUNTIME)):
         sys.path.insert(0, _p)
 
 from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
+
+import src.runtime.rust_invoker as rust_invoker  # noqa: E402
 from src.core.replay_guard import (  # noqa: E402
     U32_MAX,
     AdmitAccepted,
@@ -29,8 +31,18 @@ from src.core.replay_guard import (  # noqa: E402
     ReplayGuardState,
     admit,
 )
-from src.integration.deploy_profile import evaluate_deploy_profile_consistency, load_deploy_profile  # noqa: E402
-from src.runtime.authority import AuthorityError, AuthorityMode, AuthorityPolicy, load_authority_policy, set_active_authority_policy, reset_active_authority_policy  # noqa: E402
+from src.integration.deploy_profile import (  # noqa: E402
+    evaluate_deploy_profile_consistency,
+    load_deploy_profile,
+)
+from src.runtime.authority import (  # noqa: E402
+    AuthorityError,
+    AuthorityMode,
+    AuthorityPolicy,
+    load_authority_policy,
+    reset_active_authority_policy,
+    set_active_authority_policy,
+)
 from src.runtime.rust_invoker import RustInvocationError, replay_guard_admit  # noqa: E402
 
 A = "0x" + "11" * 48
@@ -207,3 +219,61 @@ def test_selector_fails_closed_on_malformed_rust_output(rust_env, monkeypatch):
     monkeypatch.setattr("src.runtime.rust_invoker.replay_guard_admit", malformed_output)
     with pytest.raises(AuthorityError):
         admit(state=ReplayGuardState(), sender=A, nonce=1)
+
+
+def test_replay_guard_bridge_rejects_oversized_input_state(monkeypatch):
+    called = False
+
+    def forbidden_invoke(*args, **kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("oversized replay state must not reach Rust")
+
+    monkeypatch.setattr("src.runtime.rust_invoker.invoke", forbidden_invoke)
+    oversized_entries = [
+        {"sender": f"0x{i:096x}", "last_nonce": 1}
+        for i in range(rust_invoker._MAX_REPLAY_GUARD_STATE_ENTRIES + 1)
+    ]
+
+    with pytest.raises(RustInvocationError, match="input state exceeds"):
+        replay_guard_admit(state_entries=oversized_entries, sender=A, nonce=1)
+
+    assert called is False
+
+
+def test_replay_guard_bridge_rejects_oversized_output_state(monkeypatch):
+    oversized_entries = [
+        {"sender": f"0x{i:096x}", "last_nonce": 1}
+        for i in range(rust_invoker._MAX_REPLAY_GUARD_STATE_ENTRIES + 1)
+    ]
+
+    def oversized_output(*args, **kwargs):
+        return {
+            "version": 1,
+            "kernel": "replay_guard",
+            "accept": False,
+            "reject_reason": "duplicate_nonce",
+            "pre_state_root": "0x00",
+            "post_state_root": "0x00",
+            "post_state_entries": oversized_entries,
+        }
+
+    monkeypatch.setattr("src.runtime.rust_invoker.invoke", oversized_output)
+
+    with pytest.raises(RustInvocationError, match="output state exceeds"):
+        replay_guard_admit(state_entries=[], sender=A, nonce=1)
+
+
+def test_rust_invoker_caps_stdout_before_json_decode(tmp_path, monkeypatch):
+    runtime = tmp_path / "zenodex-runtime"
+    runtime.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        "sys.stdin.read()\n"
+        "sys.stdout.write('{\\\"padding\\\":\\\"' + ('x' * 128) + '\\\"}')\n"
+    )
+    runtime.chmod(0o755)
+    monkeypatch.setattr("src.runtime.rust_invoker.locate_runtime_binary", lambda: runtime)
+
+    with pytest.raises(RustInvocationError, match="exceeded 32 output bytes"):
+        rust_invoker.invoke("canonical-hash", {}, max_stdout_bytes=32)
