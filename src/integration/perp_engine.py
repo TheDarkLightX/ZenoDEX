@@ -3204,6 +3204,7 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
         "deposit_collateral",
         "withdraw_collateral",
         "set_position",
+        "clear_breaker",
     }
 )
 
@@ -3288,6 +3289,9 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
         op_obj["new_position_base"] = str(
             _require_int(op.data.get("new_position_base", 0), name="new_position_base", non_negative=False)
         )
+    # clear_breaker (and the global ops settle_epoch) carry no op params; the
+    # materializer reads everything it needs from global_state + the all_positions_flat
+    # fact, so the bare {"action": ...} op object above is complete.
     all_flat = all(int(acct.position_base) == 0 for acct in pre_market.accounts.values())
     return {
         "schema": "zenodex/perp_isolated_op/v1",
