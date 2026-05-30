@@ -598,3 +598,74 @@ def test_rust_shadow_withdraw_resets_liquidated_flag(rust_env):
     )
     assert res.ok is True, res.error  # parity: materializer resets the flag like Python
     assert res.state.perps.markets[market_id].accounts[PK_A].liquidated_this_step is False
+
+
+def test_rust_shadow_set_position_parity(rust_env):
+    # set_position materialized: rust_shadow compares the full post-market AND the
+    # PositionSet effect (account context -> nonzero notional/maint/init). Setting a
+    # new position moves position_base and entry_price_e8 := index.
+    market_id = "perp:shadow-setpos"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "set_position", account_pubkey=PK_A, new_position_base=500_000)],
+    )
+    assert res.ok is True, res.error  # full state + account-effect parity held
+    acct = res.state.perps.markets[market_id].accounts[PK_A]
+    assert int(acct.position_base) == 500_000
+
+
+def test_rust_shadow_set_position_short_parity(rust_env):
+    # new_position_base is signed: a short (negative) must round-trip through the
+    # request as a decimal string and parity-match (notional uses |position|).
+    market_id = "perp:shadow-setpos-short"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "set_position", account_pubkey=PK_A, new_position_base=-200_000)],
+    )
+    assert res.ok is True, res.error  # parity including the signed/negative path
+    assert int(res.state.perps.markets[market_id].accounts[PK_A].position_base) == -200_000
+
+
+def test_rust_shadow_set_position_zero_creates_new_account_parity(rust_env):
+    # Mirrors Python's account-op behavior: a missing account is treated as a flat
+    # initial account, so setting a zero position materializes a flat account.
+    market_id = "perp:shadow-setpos-new-flat"
+    state = _open_market(market_id, [])
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "set_position", account_pubkey=PK_A, new_position_base=0)],
+    )
+    assert res.ok is True, res.error
+    acct = res.state.perps.markets[market_id].accounts[PK_A]
+    assert int(acct.position_base) == 0
+    assert int(acct.entry_price_e8) == 0
+    assert int(acct.collateral_quote) == 0
+
+
+def test_rust_shadow_set_position_resets_liquidated_flag(rust_env):
+    # A carried liquidation flag must be reset by set_position too
+    # (apply_set_position forces False), with funding fields preserved.
+    market_id = "perp:shadow-setpos-liq"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    market = state.perps.markets[market_id]
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], liquidated_this_step=True)  # carry the prior flag
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=accts
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+    assert state.perps.markets[market_id].accounts[PK_A].liquidated_this_step is True
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "set_position", account_pubkey=PK_A, new_position_base=400_000)],
+    )
+    assert res.ok is True, res.error  # parity: materializer resets the flag like Python
+    assert res.state.perps.markets[market_id].accounts[PK_A].liquidated_this_step is False

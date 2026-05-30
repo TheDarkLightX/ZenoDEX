@@ -248,6 +248,7 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         "withdraw_collateral" => {
             materialize_withdraw_collateral(&quote_asset, global, accounts, op, &facts)
         }
+        "set_position" => materialize_set_position(&quote_asset, global, accounts, op, &facts),
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -803,6 +804,54 @@ fn materialize_withdraw_collateral(
         facts.all_positions_flat,
         "withdraw_collateral",
         "CollateralWithdrawn",
+    ) {
+        Ok(v) => v,
+        Err(e) => reject(e),
+    }
+}
+
+/// `set_position`: sender-gated single-account op. Op fields
+/// {action, account_pubkey, new_position_base}; `new_position_base` is SIGNED
+/// (a short is negative). The core `set_position` sets `position_base` to the
+/// requested value and `entry_price_e8` to the index (or 0 when flat), rejecting
+/// with `param_domain_new_position_base` (out of param range),
+/// `set_position_guard` (phase/oracle/max-position/initial-margin, or the
+/// breaker reduce-only rules), or `invariant_maint_margin` (a breaker reduce-only
+/// that still leaves the remaining position below maintenance — the only
+/// account_op that emits REJ_MAINT_MARGIN).
+fn materialize_set_position(
+    quote_asset: &str,
+    global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    for k in op.keys() {
+        if k != "action" && k != "account_pubkey" && k != "new_position_base" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.sender_bound_ok {
+        return reject(REJ_SENDER_NOT_BOUND);
+    }
+    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
+        Some(s) => s,
+        None => return reject(REJ_BAD_REQUEST),
+    };
+    let new_position_base = match op.get("new_position_base").map(as_i128) {
+        Some(Ok(v)) => v,
+        _ => return reject(REJ_BAD_REQUEST),
+    };
+    match materialize_account_op(
+        quote_asset,
+        global,
+        accounts,
+        account_pubkey,
+        0,
+        new_position_base,
+        facts.all_positions_flat,
+        "set_position",
+        "PositionSet",
     ) {
         Ok(v) => v,
         Err(e) => reject(e),
@@ -1454,6 +1503,216 @@ mod tests {
             open_global(5),
             json!({"action": "withdraw_collateral", "account_pubkey": "aa", "amount": "100", "delta": "1"}),
             json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    #[test]
+    fn set_position_long_materializes_position_entry_and_effect() {
+        // Open, oracle fresh, ample collateral -> set a long; entry := index price,
+        // and the PositionSet effect is account-derived (nonzero notional/maint/init).
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "500000"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["position_base"], json!("500000"));
+        assert_eq!(a["entry_price_e8"], json!("100000000")); // := index
+        assert_eq!(a["collateral_quote"], json!("1000000")); // unchanged
+        assert_eq!(a["funding_paid_cumulative"], json!("7")); // preserved
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("PositionSet"));
+        assert_eq!(fx["notional_quote"], json!("500000"));
+        assert_eq!(fx["maint_req_quote"], json!("30000")); // 500000 * 6% / scale
+        assert_eq!(fx["init_req_quote"], json!("50000")); // 500000 * 10%
+        assert_eq!(fx["margin_ok"], json!(true));
+    }
+
+    #[test]
+    fn set_position_short_sets_negative_and_abs_notional() {
+        // new_position_base is SIGNED; a short is negative. Notional uses |position|.
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "-200000"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let a = r["post"]["accounts"].as_array().unwrap()[0].clone();
+        assert_eq!(a["position_base"], json!("-200000"));
+        assert_eq!(a["entry_price_e8"], json!("100000000"));
+        assert_eq!(r["effects"]["notional_quote"], json!("200000")); // |−200000|
+        assert_eq!(r["effects"]["maint_req_quote"], json!("12000"));
+    }
+
+    #[test]
+    fn set_position_exact_param_boundaries_accept_when_margin_sufficient() {
+        for pos in ["1000000", "-1000000"] {
+            let r = materialize_isolated_op(&req_accts(
+                open_global(5),
+                json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": pos}),
+                json!([acct_json("aa", 0, 1_000_000, 0)]),
+                true,
+            ));
+            assert_eq!(r["accept"], json!(true), "pos={pos} response={r}");
+            let a = r["post"]["accounts"].as_array().unwrap()[0].clone();
+            assert_eq!(a["position_base"], json!(pos));
+            assert_eq!(a["entry_price_e8"], json!("100000000"));
+            assert_eq!(r["effects"]["notional_quote"], json!("1000000"));
+        }
+    }
+
+    #[test]
+    fn set_position_zero_creates_new_flat_account() {
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "newkey", "new_position_base": "0"}),
+            json!([]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "newkey").unwrap();
+        assert_eq!(a["position_base"], json!("0"));
+        assert_eq!(a["entry_price_e8"], json!("0"));
+        assert_eq!(a["collateral_quote"], json!("0"));
+        assert_eq!(r["effects"]["event"], json!("PositionSet"));
+    }
+
+    #[test]
+    fn set_position_flat_zeroes_entry() {
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "0"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let a = r["post"]["accounts"].as_array().unwrap()[0].clone();
+        assert_eq!(a["position_base"], json!("0"));
+        assert_eq!(a["entry_price_e8"], json!("0")); // flat -> entry zeroed
+        assert_eq!(r["effects"]["notional_quote"], json!("0"));
+    }
+
+    #[test]
+    fn set_position_insufficient_initial_margin_is_guard() {
+        // new long needs initial margin (10%); collateral 10_000 < 100_000 -> guard.
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "1000000"}),
+            json!([acct_json("aa", 0, 10_000, 0)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_SET_POSITION_GUARD)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn set_position_over_param_max_is_param_reject() {
+        // |new_position_base| beyond the param domain -> param reject (before guard).
+        let huge = "100000000000000000000000000000000000000"; // > POSITION_PARAM_MAX
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": huge}),
+            json!([acct_json("aa", 0, 1_000_000, 0)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_PARAM_NEW_POSITION)
+        );
+    }
+
+    #[test]
+    fn set_position_breaker_reduce_only_below_maint_is_invariant() {
+        // The distinguishing case: under breaker, reduce-only passes the guard, but
+        // the remaining position is below maintenance -> REJ_MAINT_MARGIN (the only
+        // account_op that emits it; withdraw folds margin into its guard instead).
+        let mut g = open_global(5);
+        g["breaker_active"] = json!(true);
+        g["breaker_last_trigger_epoch"] = json!("5");
+        // pos 300000 -> reduce to 200000; maint(200000 @ 1e8, 6%) = 12000 > coll 10000.
+        let r = materialize_isolated_op(&req_accts(
+            g,
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "200000"}),
+            json!([acct_json("aa", 300_000, 10_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_MAINT_MARGIN)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn set_position_resets_liquidated_flag_and_preserves_funding() {
+        let accounts = json!([{
+            "key": "aa", "position_base": "300000", "collateral_quote": "1000000",
+            "entry_price_e8": "100000000", "funding_paid_cumulative": "55",
+            "funding_last_applied_epoch": "6", "liquidated_this_step": true
+        }]);
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "400000"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let a = r["post"]["accounts"].as_array().unwrap()[0].clone();
+        assert_eq!(a["liquidated_this_step"], json!(false)); // reset
+        assert_eq!(a["funding_paid_cumulative"], json!("55")); // preserved
+        assert_eq!(a["funding_last_applied_epoch"], json!("6"));
+        assert_eq!(a["position_base"], json!("400000"));
+        assert_eq!(r["effects"]["liquidated"], json!(false));
+    }
+
+    #[test]
+    fn set_position_sender_gate_and_missing_fact() {
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "100000"}),
+            json!([acct_json("aa", 0, 1_000_000, 0)]),
+            true,
+        );
+        r["facts"]["sender_bound_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r)["reject_reason"],
+            json!(REJ_SENDER_NOT_BOUND)
+        );
+        let mut r2 = req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "100000"}),
+            json!([acct_json("aa", 0, 1_000_000, 0)]),
+            true,
+        );
+        r2["facts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sender_bound_ok");
+        assert_eq!(
+            materialize_isolated_op(&r2)["reject_reason"],
+            json!(REJ_MISSING_FACTS)
+        );
+    }
+
+    #[test]
+    fn set_position_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "100000", "amount": "1"}),
+            json!([acct_json("aa", 0, 1_000_000, 0)]),
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
