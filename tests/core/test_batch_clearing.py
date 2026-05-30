@@ -33,6 +33,12 @@ from src.core.batch_clearing import (
 )
 from src.core.liquidity import create_pool
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
+from src.runtime.authority import (
+    AuthorityMode,
+    AuthorityPolicy,
+    reset_active_authority_policy,
+    set_active_authority_policy,
+)
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -1927,6 +1933,58 @@ def test_process_liquidity_intent_reject_matrix_and_helper_paths(monkeypatch) ->
         lp_balances,
         balances,
     ).reason == "UNKNOWN_INTENT_TYPE"
+
+
+def test_cpmm_ordering_simulation_avoids_rust_subprocess_hot_path(monkeypatch) -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    reserves = (pool.reserve0, pool.reserve1)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1120 + i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 100 + i,
+                "min_amount_out": 1,
+            },
+        )
+        for i in range(4)
+    ]
+
+    def _blocked_rust_invoke(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("ordering simulation must not invoke the Rust runtime")
+
+    monkeypatch.setattr("src.runtime.rust_invoker.invoke", _blocked_rust_invoke)
+    set_active_authority_policy(
+        AuthorityPolicy(
+            default=AuthorityMode.PYTHON_AUTHORITY,
+            per_surface={"cpmm_settlement": AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW},
+            promoted_surfaces=frozenset({"cpmm_settlement"}),
+        )
+    )
+
+    try:
+        ordered = batch_clearing_module._order_swaps_greedy_ab(intents, pool_state=pool, reserves=reserves)
+        refined = _refine_b_ordering(ordered, pool_state=pool, reserves=reserves)
+    finally:
+        reset_active_authority_policy()
+
+    assert sorted(it.intent_id for it in refined) == sorted(it.intent_id for it in intents)
 
 
 def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:

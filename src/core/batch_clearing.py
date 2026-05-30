@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
+    quote_cpmm_swap_exact_in_for_ordering_simulation,
     quote_cpmm_swap_exact_out,
 )
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
@@ -949,7 +950,7 @@ def _order_swaps_optimal_ab_bounded(
                     continue
                 try:
                     if pool_state.curve_tag == CURVE_TAG_CPMM:
-                        quote = quote_cpmm_swap_exact_in(
+                        quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
                             reserve_in=r_in,
                             reserve_out=r_out,
                             amount_in=amount_in,
@@ -1775,7 +1776,7 @@ def _simulate_swap_reserves(
 
     try:
         if pool_state.curve_tag == CURVE_TAG_CPMM:
-            quote = quote_cpmm_swap_exact_in(
+            quote = quote_cpmm_swap_exact_in_for_ordering_simulation(
                 reserve_in=reserve_in,
                 reserve_out=reserve_out,
                 amount_in=amount_in,
