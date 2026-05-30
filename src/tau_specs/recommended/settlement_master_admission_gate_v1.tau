@@ -2,16 +2,18 @@
 # CLAIM: admit settlement only when request, conservation, and oracle freshness all hold.
 #
 # Stream mapping:
-#   i1..i4 = bv32 settlement leg deltas
-#   i5     = conservation target; host pins 0 for zero-net settlement
+#   i1..i4 = bv32 unsigned settlement leg magnitudes
+#   i5     = expected unsigned total for those projected legs
 #   i6     = current epoch
 #   i7     = oracle last update epoch
 #   i8     = max oracle staleness
 #   i9     = settle requested
 #   o1     = settlement master admit
 #
-# Conservation uses the Delta-sandwich equality form after proving that
-# every bv32 partial sum is non-wrapping:
+# Conservation uses the Delta-sandwich equality form after proving that every
+# bv32 partial sum is non-wrapping. This gate is an unsigned projection, not a
+# two's-complement signed-delta checker; signed zero-net conservation must be
+# projected by the host into non-wrapping unsigned totals or checked separately:
 #   no overflow && sum <= target && sum >= target
 #
 # Freshness uses the addition form:

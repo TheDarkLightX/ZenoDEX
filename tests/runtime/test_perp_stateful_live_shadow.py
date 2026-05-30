@@ -230,6 +230,31 @@ def test_rust_shadow_skips_oversized_materialized_account_table(monkeypatch):
     assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
 
 
+def test_rust_shadow_skips_materialized_request_above_bridge_stdin_cap(monkeypatch):
+    from src.integration import perp_engine
+    from src.runtime import rust_invoker
+
+    market_id = "perp:shadow-oversized-request"
+    state = _settled(market_id)
+
+    def fail_if_invoked(request, **kwargs):
+        raise AssertionError("oversized materialized request invoked Rust")
+
+    monkeypatch.setattr(perp_engine, "_PERP_STATEFUL_MATERIALIZED_REQUEST_BYTES_LIMIT", 1)
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", fail_if_invoked)
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "advance_epoch", delta=1)],
+    )
+
+    assert res.ok is True, res.error
+    assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
+
+
 def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
     # advance_epoch is materialized: under rust_shadow the selector compares the full
     # Rust post-market AND the exact kernel effect payload vs Python, accepting on

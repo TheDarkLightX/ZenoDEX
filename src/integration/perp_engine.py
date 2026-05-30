@@ -39,6 +39,7 @@ from dataclasses import dataclass, fields, replace
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 import hashlib
+import json
 from pathlib import Path
 import re
 import sys
@@ -3209,6 +3210,7 @@ _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
 # - Invariant: oversized shadow inputs never spawn the Rust subprocess.
 # - Postcondition: Python remains authoritative in rust_shadow, matching RustUnavailable semantics.
 _PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT = 50_000
+_PERP_STATEFUL_MATERIALIZED_REQUEST_BYTES_LIMIT = 8 * 1024 * 1024
 
 _ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
     {"breaker_active", "clearing_price_seen", "oracle_seen"}
@@ -3244,6 +3246,11 @@ def _isolated_accounts_doc(accounts: Mapping[str, PerpAccountState]) -> list[dic
 def _materialized_shadow_account_count_bounded(pre_market: PerpMarketState) -> bool:
     """Return whether full-state Rust shadow materialization is resource-bounded."""
     return len(pre_market.accounts) <= _PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT
+
+
+def _materialized_shadow_request_bounded(request: Mapping[str, Any]) -> bool:
+    """Return whether the request can fit through the Rust bridge stdin cap."""
+    return len(json.dumps(request).encode()) <= _PERP_STATEFUL_MATERIALIZED_REQUEST_BYTES_LIMIT
 
 
 def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
@@ -3390,6 +3397,8 @@ def _shadow_accepted_isolated_op(
     try:
         if materialized:
             request = _build_isolated_op_request(pre_market=pre_market, op=op)
+            if not _materialized_shadow_request_bounded(request):
+                return None
             decide(
                 PERP_STATEFUL_SURFACE,
                 mode,
