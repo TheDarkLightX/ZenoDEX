@@ -1769,7 +1769,7 @@ Spec count: `218`
 - Temporal: `False`
 - Execution: `missing` via ``
 - Control surface: sbf inputs `i9`, bv inputs `i1, i2, i3, i4, i5, i6, i7, i8`, always clauses `1`
-- Data helpers: `conservation_ok, leg_sum, oracle_fresh`
+- Data helpers: `conservation_ok, leg_sum, non_wrapping_sum, oracle_fresh, partial_sum_ab, partial_sum_abc`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ( (i9[t]:sbf = 1:sbf) && conservation_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && oracle_fresh(i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32]) ))`
 

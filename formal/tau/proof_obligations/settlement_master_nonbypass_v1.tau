@@ -1,5 +1,5 @@
 # CATEGORY: settlement-master non-bypass proof obligation
-# CLAIM: the settlement master gate cannot admit an unbalanced settlement.
+# CLAIM: the settlement master gate cannot admit an unbalanced or wrapping settlement.
 #
 # Verification lane:
 #   - latest Tau unsat command
@@ -11,7 +11,15 @@ set charvar off
 unsat ((ADM:sbf = (sreq:sbf & cons:sbf & fresh:sbf))
   && (ADM:sbf = 1:sbf)
   && ((cons:sbf = 1:sbf) <-> (
-       ((a1:bv[32] + a2:bv[32] + a3:bv[32] + a4:bv[32]) <= t:bv[32])
-    && ((a1:bv[32] + a2:bv[32] + a3:bv[32] + a4:bv[32]) >= t:bv[32])
+       ((a1:bv[32] + a2:bv[32]) >= a1:bv[32])
+    && (((a1:bv[32] + a2:bv[32]) + a3:bv[32]) >= (a1:bv[32] + a2:bv[32]))
+    && ((((a1:bv[32] + a2:bv[32]) + a3:bv[32]) + a4:bv[32]) >= ((a1:bv[32] + a2:bv[32]) + a3:bv[32]))
+    && ((((a1:bv[32] + a2:bv[32]) + a3:bv[32]) + a4:bv[32]) <= t:bv[32])
+    && ((((a1:bv[32] + a2:bv[32]) + a3:bv[32]) + a4:bv[32]) >= t:bv[32])
   ))
-  && ((a1:bv[32] + a2:bv[32] + a3:bv[32] + a4:bv[32]) != t:bv[32])).
+  && (
+       ((((a1:bv[32] + a2:bv[32]) + a3:bv[32]) + a4:bv[32]) != t:bv[32])
+    || !(((a1:bv[32] + a2:bv[32]) >= a1:bv[32])
+      && (((a1:bv[32] + a2:bv[32]) + a3:bv[32]) >= (a1:bv[32] + a2:bv[32]))
+      && ((((a1:bv[32] + a2:bv[32]) + a3:bv[32]) + a4:bv[32]) >= ((a1:bv[32] + a2:bv[32]) + a3:bv[32])))
+  )).
