@@ -42,6 +42,12 @@ _POOL_STATUS_CODE: dict[PoolStatus, int] = {
     PoolStatus.DISABLED: 3,
 }
 
+_POOL_STATUS_LABEL: dict[PoolStatus, str] = {
+    PoolStatus.ACTIVE: "active",
+    PoolStatus.FROZEN: "frozen",
+    PoolStatus.DISABLED: "disabled",
+}
+
 
 def _sorted_balance_entries(balances: BalanceTable) -> list[tuple[bytes, bytes, int]]:
     entries: list[tuple[bytes, bytes, int]] = []
@@ -248,6 +254,84 @@ def _encode_fee_section(fee_accumulator: object | None) -> bytes:
     return encode_uvarint(_fee_accumulator_dust(fee_accumulator))
 
 
+def _fee_accumulator_json(fee_accumulator: object | None) -> dict[str, int]:
+    return {"dust": _fee_accumulator_dust(fee_accumulator)}
+
+
+def _state_root_json(
+    *,
+    balances: BalanceTable,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    nonces: NonceTable,
+    fee_accumulator: object | None = None,
+) -> dict[str, object]:
+    """Build the normalized JSON state consumed by the Rust state-root CLI."""
+
+    return {
+        "balances": [
+            {"pubkey": pubkey, "asset": asset, "amount": amount}
+            for (pubkey, asset), amount in balances.get_all_balances().items()
+        ],
+        "pools": [
+            {
+                "pool_id": pool.pool_id,
+                "asset0": pool.asset0,
+                "asset1": pool.asset1,
+                "reserve0": pool.reserve0,
+                "reserve1": pool.reserve1,
+                "fee_bps": pool.fee_bps,
+                "lp_supply": pool.lp_supply,
+                "status": _POOL_STATUS_LABEL[pool.status],
+                "created_at": pool.created_at,
+                "curve_tag": pool.curve_tag,
+                "curve_params": pool.curve_params,
+            }
+            for pool in pools.values()
+        ],
+        "lp_balances": [
+            {"pubkey": pubkey, "pool_id": pool_id, "amount": amount}
+            for (pubkey, pool_id), amount in lp_balances.get_all_balances().items()
+        ],
+        "lp_duration_risk": [
+            {
+                "pubkey": pubkey,
+                "pool_id": pool_id,
+                "last_mint_timestamp": metadata.last_mint_timestamp,
+                "last_remove_timestamp": metadata.last_remove_timestamp,
+                "churn_tier": metadata.churn_tier,
+                "last_churn_update_timestamp": metadata.last_churn_update_timestamp,
+            }
+            for (pubkey, pool_id), metadata in lp_balances.get_all_duration_risk_metadata().items()
+        ],
+        "nonces": [
+            {"pubkey": pubkey, "last_nonce": last_nonce}
+            for pubkey, last_nonce in nonces.get_all().items()
+        ],
+        "fee_accumulator": _fee_accumulator_json(fee_accumulator),
+    }
+
+
+def _compute_state_root_python(
+    *,
+    balances: BalanceTable,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    nonces: NonceTable | None = None,
+    fee_accumulator: object | None = None,
+) -> str:
+    nonce_table = NonceTable() if nonces is None else nonces
+    return sha256_hex(
+        state_root_preimage(
+            balances=balances,
+            pools=pools,
+            lp_balances=lp_balances,
+            nonces=nonce_table,
+            fee_accumulator=fee_accumulator,
+        )
+    )
+
+
 def compute_state_root(
     *,
     balances: BalanceTable,
@@ -272,15 +356,47 @@ def compute_state_root(
     if not isinstance(nonce_table, NonceTable):
         raise TypeError("nonces must be a NonceTable")
 
-    return sha256_hex(
-        state_root_preimage(
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+
+    mode = active_mode("state_root")
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _compute_state_root_python(
             balances=balances,
             pools=pools,
             lp_balances=lp_balances,
             nonces=nonce_table,
             fee_accumulator=fee_accumulator,
         )
-    )
+
+    def _python_root() -> str:
+        return _compute_state_root_python(
+            balances=balances,
+            pools=pools,
+            lp_balances=lp_balances,
+            nonces=nonce_table,
+            fee_accumulator=fee_accumulator,
+        )
+
+    def _rust_root() -> str:
+        from src.runtime.rust_invoker import state_root_hash
+
+        return state_root_hash(
+            _state_root_json(
+                balances=balances,
+                pools=pools,
+                lp_balances=lp_balances,
+                nonces=nonce_table,
+                fee_accumulator=fee_accumulator,
+            )
+        )
+
+    return decide(
+        "state_root",
+        mode,
+        python_fn=_python_root,
+        rust_fn=_rust_root,
+        compare=lambda python_root, rust_root: python_root == rust_root,
+    ).result
 
 
 # Ordered section framing for the state-root preimage. Each entry is a 3-byte

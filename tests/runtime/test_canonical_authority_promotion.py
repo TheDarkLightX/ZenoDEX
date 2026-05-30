@@ -48,13 +48,13 @@ def _cases() -> list[dict]:
     ]
 
 
-def test_public_testnet_profile_promotes_canonical_only():
+def test_public_testnet_profile_promotes_canonical():
     profile = load_deploy_profile("public-testnet")
     policy = load_authority_policy(profile)
 
     assert policy.default is AuthorityMode.PYTHON_AUTHORITY
     assert policy.mode_for(CANONICAL_SURFACE) is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-    assert policy.promoted_surfaces == frozenset({CANONICAL_SURFACE})
+    assert CANONICAL_SURFACE in policy.promoted_surfaces
     validate_authority_policy(policy, profile_id="public-testnet")
 
 

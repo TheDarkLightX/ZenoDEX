@@ -4,14 +4,15 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_AUTHORITY_PROMOTION_GATE.md` (the gate) and
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
-**As of this writing: canonical primitives are promoted only in the
-`public-testnet` profile to `rust_authority_with_python_shadow`.** The default
-mode remains `python_authority`, `production-strict` remains all-Python, and no
-surface runs pure `rust_authority`.
+**As of this writing: canonical primitives and state root v5 are promoted only
+in the `public-testnet` profile to `rust_authority_with_python_shadow`.** The
+default mode remains `python_authority`, `production-strict` remains all-Python,
+and no surface runs pure `rust_authority`.
 
 ## Phase 0 inventory — promotion map
 
-`Authority` = who computes the canonical result today. All surfaces are Python
+`Authority` = who computes the canonical result today. Promoted public-testnet
+surfaces run Rust authority with Python shadow; all other surfaces remain Python
 authority with a Rust shadow. `1–8/10–11` = the migration plan's met criteria;
 `DS` = disaster-state suite; `Fuzz` = fuzz/weird-machine evidence; `Promoted` =
 human decision + profile entry.
@@ -19,7 +20,7 @@ human decision + profile entry.
 | Surface | Authority | Rust shadow | 1–8,10–11 | DS (4) | Fuzz (9) | Promoted (12) |
 |---|---|---|---|---|---|---|
 | Canonical primitives | Rust+Python shadow on public-testnet | `canonical.rs` | ✅ | ✅¹ | ✅ | ✅¹ |
-| State root v5 | Python | `state_root.rs` | ✅ | ✅² | ☐ | ☐ |
+| State root v5 | Rust+Python shadow on public-testnet | `state_root.rs` | ✅ | ✅² | ✅ | ✅² |
 | Replay / idempotency guard | Python | `replay_guard.rs` | ✅ | ☐ | ☐ | ☐ |
 | Balance accounting | Python | `balance_kernel.rs` | ✅ | ☐ | ☐ | ☐ |
 | Fee router (4-way + dust) | Python | `fee_router.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -45,7 +46,12 @@ remains `python_authority`.
 ² State root v5 has a disaster-state suite
 (`tests/runtime/test_state_root_disaster_state.py`) that documents the bridge
 boundaries and the selector wiring. It surfaced SR-DRIFT-001, which has now been
-fixed in Rust and locked by regression tests.
+fixed in Rust and locked by regression tests. `tests/runtime/test_state_root_fuzz_gate.py`
+adds deterministic valid-state and invalid-state fuzz. `compute_state_root`
+itself now routes through the active authority policy, using a private Python
+implementation for shadow comparison so the Python shadow cannot recurse through
+the selector. `config/deploy/public-testnet.yaml` lists `state_root` in
+`promoted_surfaces`; production remains `python_authority`.
 
 ³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
 `publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
@@ -92,10 +98,9 @@ verifies the selector receives an agreed rejection rather than a drift.
 ### Classification (Phase 0 step 3)
 
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
-  primitives.
+  primitives, state root v5.
 - **Promotable after evidence refresh + selector wiring** (lowest risk, do
-  next): state-root v5, replay guard, balance
-  accounting, fee router.
+  next): replay guard, balance accounting, fee router.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.

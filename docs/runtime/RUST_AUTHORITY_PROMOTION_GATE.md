@@ -134,6 +134,16 @@ fuzz gate. `config/deploy/public-testnet.yaml` is the first promoted lane:
 domain-separated canonical hash. `production-strict` remains `python_authority`;
 pure `rust_authority` still requires a sustained shadow-checked release lane.
 
+**State root v5.** `tests/runtime/test_state_root_disaster_state.py` covers
+u128/u32 bridge boundaries, malformed bytes, duplicate decoded keys,
+determinism, root sensitivity, and selector fail-closed rows. SR-DRIFT-001
+(Rust accepted `last_nonce = 2^32` while Python rejected) is fixed and locked by
+regression. `tests/runtime/test_state_root_fuzz_gate.py` adds deterministic
+valid-state and invalid-state fuzz. `compute_state_root` is now live-wired to
+the authority selector, with Rust deciding and Python shadow-checking under
+`public-testnet`; rollback to Python is root-preserving by differential test.
+`production-strict` remains `python_authority`.
+
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
@@ -151,7 +161,7 @@ path and does not flip any deployment profile, so perps stays `python_authority`
 Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 
 1. canonical primitives — public-testnet shadow-authority lane active
-2. state root v5
+2. state root v5 — public-testnet shadow-authority lane active
 3. replay / idempotency guard
 4. balance accounting
 5. fee router
