@@ -236,3 +236,33 @@ def test_bonded_slashing_accepts_watcher_equivocation() -> None:
         bond_registry_before=registry,
         policy=policy,
     )
+
+
+def test_checkpoint_evidence_is_order_invariant() -> None:
+    checkpoint_a = build_checkpoint_v0(_header(height=7, body_label="a"))
+    checkpoint_b = build_checkpoint_v0(_header(height=7, body_label="b"))
+
+    evidence_ab = build_checkpoint_equivocation_slashing_evidence_v0(checkpoint_a, checkpoint_b)
+    evidence_ba = build_checkpoint_equivocation_slashing_evidence_v0(checkpoint_b, checkpoint_a)
+
+    assert evidence_ab == evidence_ba
+
+
+def test_watcher_evidence_is_order_invariant() -> None:
+    attestation_a = build_watcher_attestation_v0(
+        verify_report=_verify_report(from_height=3, to_height=8, last_header_hash=_root("tip-a")),
+        watcher_id="watcher-a",
+        observed_time_ms=1,
+        verifier_ref="python:zeno_ledger_verify:v0",
+    )
+    attestation_b = build_watcher_attestation_v0(
+        verify_report=_verify_report(from_height=5, to_height=8, last_header_hash=_root("tip-b")),
+        watcher_id="watcher-b",
+        observed_time_ms=2,
+        verifier_ref="python:zeno_ledger_verify:v0",
+    )
+
+    evidence_ab = build_watcher_attestation_equivocation_slashing_evidence_v0(attestation_a, attestation_b)
+    evidence_ba = build_watcher_attestation_equivocation_slashing_evidence_v0(attestation_b, attestation_a)
+
+    assert evidence_ab == evidence_ba
