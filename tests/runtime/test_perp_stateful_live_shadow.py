@@ -313,11 +313,14 @@ def test_rust_shadow_settle_liquidation_parity(rust_env):
         clearing_price_e8=101_000_000, deposit=1_000_000,
     )  # PricePublished
     market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = 200
     accts = dict(market.accounts)
     accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # make it liquidatable
     markets = dict(state.perps.markets)
     markets[market_id] = type(market)(
-        quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=accts
+        quote_asset=market.quote_asset, global_state=gs, accounts=accts
     )
     state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
 
@@ -330,6 +333,8 @@ def test_rust_shadow_settle_liquidation_parity(rust_env):
     m = res.state.perps.markets[market_id]
     assert int(m.accounts[PK_A].position_base) == 0  # liquidated -> flat
     assert m.accounts[PK_A].liquidated_this_step is True
+    assert int(m.global_state["fee_pool_quote"]) > 0
+    assert int(m.global_state["insurance_balance"]) > 0
 
 
 def test_rust_shadow_fails_closed_on_state_tamper(rust_env, monkeypatch):

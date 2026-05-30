@@ -468,6 +468,40 @@ fn settled_market(
             .collect(),
     };
     let out = settle_epoch(&input)?;
+    // Build the Python kernel effect before applying the accumulated liquidation
+    // penalties. The Python integration records `res0.effects` from the flat
+    // dummy settle; the outer integration effect carries `fee_pool_delta`
+    // separately. Shadow parity must mirror that existing receipt shape exactly.
+    let mut effect_global = global.clone();
+    effect_global.insert(
+        "epoch_phase".into(),
+        Value::String(out.epoch_phase.to_string()),
+    );
+    effect_global.insert(
+        "oracle_last_update_epoch".into(),
+        Value::String(out.oracle_last_update_epoch.to_string()),
+    );
+    effect_global.insert("oracle_seen".into(), Value::Bool(out.oracle_seen));
+    effect_global.insert(
+        "index_price_e8".into(),
+        Value::String(out.index_price_e8.to_string()),
+    );
+    effect_global.insert("breaker_active".into(), Value::Bool(out.breaker_active));
+    effect_global.insert(
+        "breaker_last_trigger_epoch".into(),
+        Value::String(out.breaker_last_trigger_epoch.to_string()),
+    );
+    let no_penalty_insurance = input
+        .initial_insurance
+        .checked_add(input.fee_income)
+        .and_then(|v| v.checked_sub(input.claims_paid))
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    effect_global.insert(
+        "insurance_balance".into(),
+        Value::String(no_penalty_insurance.to_string()),
+    );
+    let effects = global_op_effect(&effect_global, "EpochSettled")?;
+
     // Overwrite exactly the global keys settle changes (others carry through).
     global.insert(
         "epoch_phase".into(),
@@ -517,7 +551,6 @@ fn settled_market(
             liquidated_this_step: sa.liquidated_this_step,
         });
     }
-    let effects = global_op_effect(&global, "EpochSettled")?;
     Ok(accept(quote_asset, &global, &post_accounts, effects))
 }
 
@@ -911,9 +944,10 @@ mod tests {
             insurance > 0,
             "liquidation penalty should flow to insurance"
         );
-        // Effect after-values reflect the materialized post-state exactly.
-        assert_eq!(r["effects"]["fee_pool_after"], pg["fee_pool_quote"]);
-        assert_eq!(r["effects"]["insurance_after"], pg["insurance_balance"]);
+        // The Python integration records the flat-dummy settle kernel effect here;
+        // the outer integration effect carries the accumulated fee_pool_delta.
+        assert_eq!(r["effects"]["fee_pool_after"], json!("0"));
+        assert_eq!(r["effects"]["insurance_after"], json!("0"));
     }
 
     #[test]
