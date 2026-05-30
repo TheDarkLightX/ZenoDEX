@@ -3190,13 +3190,11 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
     return True
 
 
-# Actions for which the Rust runtime emits a full materialized post-market state
-# (`perp-isolated-op`), making them authority-eligible. Other actions remain
-# checker-only (per-op subcommands) and stay blocked under Rust-authority modes.
 # Ops with a full materialized Rust transition (emits the complete post-market
 # state + the exact kernel effect payload). For these, the `rust_shadow` check
 # compares the full post-state + effects; other ops use the per-op field checkers.
-# This set does NOT grant authority: Rust post-checks Python in every mode.
+# This set does NOT grant authority: Rust post-checks Python in every mode, and
+# every `rust_authority*` mode stays blocked for `perp_stateful` regardless.
 _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset({"advance_epoch"})
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (

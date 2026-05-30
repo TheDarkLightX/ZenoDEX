@@ -35,6 +35,7 @@ pub const REJ_BAD_SCHEMA: &str = "perp_isolated_op_bad_schema";
 pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
+pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
 
 /// The authority-grade wire format requires this exact schema + version so the
 /// request boundary cannot silently accept a mis-shaped or future payload.
@@ -305,12 +306,15 @@ fn advance_effect(global: &Map<String, Value>) -> Result<Value, &'static str> {
     let depeg = gget(global, "depeg_buffer_bps")?;
     let fee_pool = gget(global, "fee_pool_quote")?;
     let insurance = gget(global, "insurance_balance")?;
+    // Checked: margin bps are carried verbatim and are not bounded by the advance
+    // gate, so a degenerate global must reject (fail-closed), never panic/wrap.
+    let effective_maint_bps = maint.checked_add(depeg).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
     let oracle_fresh = is_oracle_fresh(now, oracle_last, max_stale, oracle_seen);
     Ok(json!({
         "event": "EpochAdvanced",
         "oracle_fresh": oracle_fresh,
         "notional_quote": "0",
-        "effective_maint_bps": (maint + depeg).to_string(),
+        "effective_maint_bps": effective_maint_bps.to_string(),
         "maint_req_quote": "0",
         "init_req_quote": "0",
         "margin_ok": true,
@@ -454,6 +458,23 @@ mod tests {
         );
         let out = materialize_isolated_op(&r);
         assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn effect_arithmetic_overflow_rejects_without_panic() {
+        // maintenance_margin_bps + depeg_buffer_bps must not panic (debug) or wrap
+        // (release) on a degenerate global; it fails closed instead.
+        let mut g = settled_global(5);
+        g["maintenance_margin_bps"] = json!(i128::MAX.to_string());
+        g["depeg_buffer_bps"] = json!("1");
+        let out = materialize_isolated_op(&req(
+            g,
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_ARITHMETIC_OVERFLOW));
         assert!(out.get("post").is_none());
     }
 
