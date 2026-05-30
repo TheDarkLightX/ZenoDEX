@@ -391,6 +391,7 @@ def test_real_deploy_profiles_load_and_validate():
             assert policy.mode_for("canonical") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("cpmm_settlement") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("fee_router") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("perp_math") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.promoted_surfaces == frozenset(
@@ -400,6 +401,7 @@ def test_real_deploy_profiles_load_and_validate():
                     "canonical",
                     "cpmm_settlement",
                     "fee_router",
+                    "perp_math",
                     "replay_guard",
                     "state_root",
                 }

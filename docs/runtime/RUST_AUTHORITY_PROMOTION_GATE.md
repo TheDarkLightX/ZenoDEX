@@ -102,12 +102,12 @@ authority-eligible:
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
 | copied-tx replay | upstream ✅ | ✅ | upstream ✅ | ☐ | replay flag ✅ | n/a | n/a | n/a |
-| stale snapshot | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | ✅ | n/a |
+| stale snapshot | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | ✅ | stateless ✅ |
 | duplicate IDs | ✅ | ✅ | ✅ | ☐ | n/a | n/a | ✅ | n/a |
-| malformed bytes | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ✅ | ☐ |
-| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ⚠️ | ☐ |
+| malformed bytes | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ✅ | ✅ |
+| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ⚠️ | ✅ |
 | unauthorized mutation | ✅ | ✅ | ✅ | ☐ | n/a | n/a | n/a | n/a |
-| no-op on reject | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | n/a | n/a |
+| no-op on reject | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | n/a | stateless ✅ |
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
@@ -115,7 +115,7 @@ revealed SR-DRIFT-001, a nonce-bound semantic drift now fixed and locked by
 regression tests. The state_root row remains eligible for the next promotion
 gate only while those regressions stay green.
 
-(Evidence 1–3 and 5–6 are already green for all 9 surfaces — see
+(Evidence 1–3 and 5–6 are already green for all 10 surfaces. See
 `RUST_RUNTIME_MIGRATION_PLAN.md` Phase 9 table. Disaster-state (4) + fuzz are
 what this gate adds.)
 
@@ -206,6 +206,23 @@ root-preserving across `python_authority`, `rust_shadow`, and
 `python_authority`. Multi-pool ordering, CoW netting, and liquidity operations
 remain Python-owned batch-clearing orchestration.
 
+**Perp stateless math (E1).** `tests/runtime/test_perp_math_disaster_state.py`
+covers stale deterministic replay of pure math cases, malformed Rust output,
+unknown or malformed operations, out-of-domain integer and bps inputs,
+deterministic fuzz, and selector fail-closed rows. The live path is
+`src/core/perp_v2/math.py`, which routes the nine pure E1 operations through
+`perp-math` when the active surface policy selects Rust authority. Accepted Rust
+outputs must carry exactly one of decimal-string `value` or boolean `flag`; any
+shape drift rejects before the value is trusted. The promoted public-testnet
+domain is intentionally signed and bounded (`abs(value) <= 1e18`,
+`abs(bps) <= 1e7`). Python can evaluate larger integers, so those over-domain
+cases become Rust/Python disagreement and fail closed under
+`rust_authority_with_python_shadow`. `tests/runtime/test_perp_math_live_path.py`
+proves active-policy wiring for `rust_authority_with_python_shadow`,
+`rust_shadow`, unavailable Rust, and injected disagreement. `public-testnet` now
+runs `perp_math` as `rust_authority_with_python_shadow`; production remains
+`python_authority`. Stateful perps remains Python-owned.
+
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
@@ -229,10 +246,10 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 5. fee router — public-testnet shadow-authority lane active
 6. burn rails — public-testnet shadow-authority lane active
 7. CPMM per-pool primitive — public-testnet shadow-authority lane active
+8. perp stateless math — public-testnet shadow-authority lane active
 
-Then, only after the above are stable: zUSD single-vault and perp stateless
-math. **Defer** batch-clearing orchestration and multi-vault zUSD (not
-shadowed).
+Next lower-risk candidate: zUSD single-vault. **Defer** batch-clearing
+orchestration and multi-vault zUSD (not shadowed).
 
 **Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:
 all 10 `_ISOLATED_ACTION_HANDLERS` ops (`advance_epoch`, `publish_clearing_price`,

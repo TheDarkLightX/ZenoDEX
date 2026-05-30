@@ -33,27 +33,27 @@ _BOOL_OPS = {"is_oracle_fresh", "oracle_move_violated", "is_liquidatable"}
 # op -> (callable, ordered arg names)
 _OPS = {
     "is_oracle_fresh": (
-        m.is_oracle_fresh,
+        m._is_oracle_fresh_python,
         ["now_epoch", "oracle_last_update_epoch", "max_oracle_staleness_epochs", "oracle_seen"],
     ),
     "oracle_move_violated": (
-        m.oracle_move_violated,
+        m._oracle_move_violated_python,
         ["clearing_price_e8", "index_price_e8", "max_oracle_move_bps", "oracle_seen"],
     ),
     "settle_price": (
-        m.settle_price,
+        m._settle_price_python,
         ["clearing_price_e8", "index_price_e8", "max_oracle_move_bps", "oracle_seen"],
     ),
-    "notional_quote": (m.notional_quote, ["position_base", "price_e8"]),
-    "maint_margin_req": (m.maint_margin_req, ["position_base", "price_e8", "maint_bps", "depeg_bps"]),
-    "init_margin_req": (m.init_margin_req, ["position_base", "price_e8", "init_bps"]),
-    "pnl_quote": (m.pnl_quote, ["position_base", "settle_price_e8", "index_price_e8"]),
+    "notional_quote": (m._notional_quote_python, ["position_base", "price_e8"]),
+    "maint_margin_req": (m._maint_margin_req_python, ["position_base", "price_e8", "maint_bps", "depeg_bps"]),
+    "init_margin_req": (m._init_margin_req_python, ["position_base", "price_e8", "init_bps"]),
+    "pnl_quote": (m._pnl_quote_python, ["position_base", "settle_price_e8", "index_price_e8"]),
     "is_liquidatable": (
-        m.is_liquidatable,
+        m._is_liquidatable_python,
         ["position_base", "collateral_after_pnl", "settle_price_e8",
          "maintenance_margin_bps", "depeg_buffer_bps"],
     ),
-    "funding_payment": (m.funding_payment, ["position_base", "index_price_e8", "rate_bps"]),
+    "funding_payment": (m._funding_payment_python, ["position_base", "index_price_e8", "rate_bps"]),
 }
 
 
