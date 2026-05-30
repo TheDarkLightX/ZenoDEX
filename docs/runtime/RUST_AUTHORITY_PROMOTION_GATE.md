@@ -96,18 +96,18 @@ agreement, not correctness** (see `SEMANTIC_DRIFT_CONTROLS.md`).
 
 ## Disaster-state test catalog (per surface)
 
-Until each shadowed surface has the rows below, it is **not** authority-eligible
-(this is the single outstanding gate for all 9 surfaces today — criterion 9):
+Until each shadowed surface has the applicable rows below, it is **not**
+authority-eligible:
 
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
 | copied-tx replay | upstream ✅ | ✅ | upstream ✅ | ☐ | replay flag ✅ | n/a | n/a | n/a |
-| stale snapshot | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ☐ | ✅ | n/a |
-| duplicate IDs | ✅ | ✅ | ✅ | ☐ | n/a | ☐ | ✅ | n/a |
-| malformed bytes | ✅ | ✅ | ✅ | ☐ | ✅ | ☐ | ✅ | ☐ |
-| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ✅ | ☐ | ⚠️ | ☐ |
-| unauthorized mutation | ✅ | ✅ | ✅ | ☐ | n/a | ☐ | n/a | n/a |
-| no-op on reject | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ☐ | n/a | n/a |
+| stale snapshot | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | ✅ | n/a |
+| duplicate IDs | ✅ | ✅ | ✅ | ☐ | n/a | n/a | ✅ | n/a |
+| malformed bytes | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ✅ | ☐ |
+| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ✅ | ✅ | ⚠️ | ☐ |
+| unauthorized mutation | ✅ | ✅ | ✅ | ☐ | n/a | n/a | n/a | n/a |
+| no-op on reject | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ✅ | n/a | n/a |
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
@@ -192,6 +192,20 @@ root-preserving across `python_authority`, `rust_shadow`, and
 `rust_authority_with_python_shadow`. `public-testnet` now runs `burn_receipts`
 as `rust_authority_with_python_shadow`; production remains `python_authority`.
 
+**CPMM per-pool settlement.** `tests/runtime/test_cpmm_settlement_disaster_state.py`
+covers stale deterministic quote replay, malformed Rust output, boundary
+rejections, no-op-on-reject, overdelivery-gap policy, deterministic fuzz, and
+selector fail-closed rows. The promotion fixed a Rust semantic drift in exact-out:
+the Rust path now enforces Python's default `200` bps overdelivery cap and emits
+`amount_out_quote`, `overdelivery_gap`, and `gap_bps` for exact shadow comparison.
+`tests/runtime/test_cpmm_settlement_live_path.py` proves
+`quote_cpmm_swap_exact_in/out` use the active authority policy and remain
+root-preserving across `python_authority`, `rust_shadow`, and
+`rust_authority_with_python_shadow`. `public-testnet` now runs
+`cpmm_settlement` as `rust_authority_with_python_shadow`; production remains
+`python_authority`. Multi-pool ordering, CoW netting, and liquidity operations
+remain Python-owned batch-clearing orchestration.
+
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
@@ -214,10 +228,11 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 4. balance accounting — public-testnet shadow-authority lane active
 5. fee router — public-testnet shadow-authority lane active
 6. burn rails — public-testnet shadow-authority lane active
+7. CPMM per-pool primitive — public-testnet shadow-authority lane active
 
-Then, only after the above are stable: CPMM per-pool primitive, zUSD
-single-vault, perp stateless math. **Defer** batch-clearing
-orchestration and multi-vault zUSD (not shadowed).
+Then, only after the above are stable: zUSD single-vault and perp stateless
+math. **Defer** batch-clearing orchestration and multi-vault zUSD (not
+shadowed).
 
 **Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:
 all 10 `_ISOLATED_ACTION_HANDLERS` ops (`advance_epoch`, `publish_clearing_price`,

@@ -80,6 +80,7 @@ def test_public_testnet_profile_promotes_replay_guard():
         "balances",
         "burn_receipts",
         "canonical",
+        "cpmm_settlement",
         "fee_router",
         "state_root",
     ]

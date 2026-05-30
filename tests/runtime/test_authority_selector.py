@@ -389,11 +389,20 @@ def test_real_deploy_profiles_load_and_validate():
             assert policy.mode_for("balances") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("burn_receipts") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("canonical") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("cpmm_settlement") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("fee_router") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.promoted_surfaces == frozenset(
-                {"balances", "burn_receipts", "canonical", "fee_router", "replay_guard", "state_root"}
+                {
+                    "balances",
+                    "burn_receipts",
+                    "canonical",
+                    "cpmm_settlement",
+                    "fee_router",
+                    "replay_guard",
+                    "state_root",
+                }
             )
         if profile_id == "production-strict":
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY

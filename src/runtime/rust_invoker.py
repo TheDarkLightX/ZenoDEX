@@ -341,3 +341,68 @@ def burn_rails_verify(
         "pre_state_root": str(result["pre_state_root"]),
         "post_state_root": str(result["post_state_root"]),
     }
+
+
+def cpmm_op(
+    *,
+    pool: dict[str, Any],
+    tx: dict[str, Any],
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust CPMM per-pool settlement for one init/swap transition."""
+
+    out = invoke(
+        "cpmm-op",
+        {
+            "version": 1,
+            "pool": pool,
+            "tx": tx,
+        },
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict):
+        raise RustInvocationError("cpmm-op: output must be an object")
+    if out.get("version") != 1 or out.get("kernel") != "cpmm_settlement":
+        raise RustInvocationError("cpmm-op: unsupported output header")
+    if not isinstance(out.get("accept"), bool):
+        raise RustInvocationError("cpmm-op: accept must be a bool")
+    for key in ("pre_state_root", "post_state_root"):
+        if not isinstance(out.get(key), str):
+            raise RustInvocationError(f"cpmm-op: {key} must be a string")
+    _validate_cpmm_pool_doc(out.get("post_pool"))
+    if out["accept"]:
+        receipt = out.get("receipt")
+        if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
+            raise RustInvocationError("cpmm-op: accepted output missing receipt")
+        if not isinstance(receipt.get("kind"), str) or not isinstance(receipt.get("zero_for_one"), bool):
+            raise RustInvocationError("cpmm-op: malformed receipt header")
+        for key in (
+            "amount_in",
+            "amount_out",
+            "fee_total",
+            "amount_out_quote",
+            "overdelivery_gap",
+            "gap_bps",
+            "new_reserve0",
+            "new_reserve1",
+        ):
+            if not isinstance(receipt.get(key), str):
+                raise RustInvocationError(f"cpmm-op: receipt.{key} must be a string")
+        if out.get("reject_reason") is not None:
+            raise RustInvocationError("cpmm-op: accepted output carried reject reason")
+    else:
+        if not isinstance(out.get("reject_reason"), str):
+            raise RustInvocationError("cpmm-op: rejected output missing reason")
+        if out.get("receipt") is not None or out.get("receipt_hash") is not None:
+            raise RustInvocationError("cpmm-op: rejected output carried receipt")
+    return out
+
+
+def _validate_cpmm_pool_doc(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise RustInvocationError("cpmm-op: post_pool must be an object")
+    if not isinstance(value.get("initialized"), bool):
+        raise RustInvocationError("cpmm-op: post_pool.initialized must be a bool")
+    for key in ("reserve0", "reserve1", "fee_bps"):
+        if not isinstance(value.get(key), str):
+            raise RustInvocationError(f"cpmm-op: post_pool.{key} must be a string")

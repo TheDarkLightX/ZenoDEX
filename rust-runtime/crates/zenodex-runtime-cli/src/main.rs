@@ -13,6 +13,7 @@
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
 //! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
+//! zenodex-runtime cpmm-op              <request.json|-> # one cpmm_settlement transition
 //! zenodex-runtime canonical-hash       <cases.json|->   # canonical primitive vectors
 //! zenodex-runtime verify-state-root    <cases.json|->   # network state-root parity
 //! zenodex-runtime perp-math            <cases.json|->   # perp stateless math
@@ -51,7 +52,8 @@ use zenodex_runtime_core::canonical::{
     JsonValue,
 };
 use zenodex_runtime_core::cpmm_swap::{
-    init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
+    init_pool, swap_exact_in, swap_exact_out_with_max_gap_bps, Pool, SwapReceipt, BPS_DENOM,
+    CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT, DEX_POOL_RESERVE_MAX,
 };
 use zenodex_runtime_core::fee_router::{AssetAmount, DustEntry};
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
@@ -207,6 +209,41 @@ struct BalanceOpOutput {
     pre_state_root: String,
     post_state_root: String,
     post_state_entries: Vec<BalanceStateEntryOut>,
+}
+
+#[derive(Serialize)]
+struct CpmmPoolOut {
+    initialized: bool,
+    reserve0: String,
+    reserve1: String,
+    fee_bps: String,
+}
+
+#[derive(Serialize)]
+struct CpmmReceiptOut {
+    kind: String,
+    zero_for_one: bool,
+    amount_in: String,
+    amount_out: String,
+    fee_total: String,
+    amount_out_quote: String,
+    overdelivery_gap: String,
+    gap_bps: String,
+    new_reserve0: String,
+    new_reserve1: String,
+}
+
+#[derive(Serialize)]
+struct CpmmOpOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
+    receipt_hash: Option<String>,
+    receipt: Option<CpmmReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_pool: CpmmPoolOut,
 }
 
 // --- Shared JSON helpers ------------------------------------------------------
@@ -1277,7 +1314,14 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
 
 const INIT_FIELDS: [&str; 4] = ["kind", "reserve0", "reserve1", "fee_bps"];
 const EXACT_IN_FIELDS: [&str; 4] = ["kind", "zero_for_one", "amount_in", "min_amount_out"];
-const EXACT_OUT_FIELDS: [&str; 4] = ["kind", "zero_for_one", "amount_out", "max_amount_in"];
+const EXACT_OUT_FIELDS: [&str; 5] = [
+    "kind",
+    "zero_for_one",
+    "amount_out",
+    "max_amount_in",
+    "max_overdelivery_gap_bps",
+];
+const CPMM_POOL_FIELDS: [&str; 4] = ["initialized", "reserve0", "reserve1", "fee_bps"];
 
 /// Present integer-shaped field as a literal string, else `None` (missing/non-int).
 fn int_field(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
@@ -1290,27 +1334,30 @@ fn u128_sat(s: &str) -> u128 {
     s.parse::<u128>().unwrap_or(u128::MAX)
 }
 
-fn eval_cpmm_tx(pool: &Pool, tx: &Value) -> Eval<Pool> {
+fn apply_cpmm_tx(
+    pool: &Pool,
+    tx: &Value,
+) -> Result<zenodex_runtime_core::cpmm_swap::Accepted, String> {
     let obj = match tx.as_object() {
         Some(o) => o,
-        None => return Eval::Reject("malformed_tx".to_string()),
+        None => return Err("malformed_tx".to_string()),
     };
     let kind = obj.get("kind").and_then(Value::as_str).unwrap_or("");
     let allowed: &[&str] = match kind {
         "init_pool" => &INIT_FIELDS,
         "swap_exact_in" => &EXACT_IN_FIELDS,
         "swap_exact_out" => &EXACT_OUT_FIELDS,
-        _ => return Eval::Reject("unknown_tx_kind".to_string()),
+        _ => return Err("unknown_tx_kind".to_string()),
     };
     if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), allowed) {
-        return Eval::Reject(reason);
+        return Err(reason);
     }
 
     let result = match kind {
         "init_pool" => {
             // `already_initialized` precedes field validation (mirrors the harness).
             if pool.initialized {
-                return Eval::Reject("already_initialized".to_string());
+                return Err("already_initialized".to_string());
             }
             let (r0, r1, fee) = match (
                 int_field(obj, "reserve0"),
@@ -1318,62 +1365,201 @@ fn eval_cpmm_tx(pool: &Pool, tx: &Value) -> Eval<Pool> {
                 int_field(obj, "fee_bps"),
             ) {
                 (Some(a), Some(b), Some(c)) => (a, b, c),
-                _ => return Eval::Reject("malformed_tx".to_string()),
+                _ => return Err("malformed_tx".to_string()),
             };
             // Reserves and fee carry their own out-of-domain reject codes.
             let reserve0 = match r0.parse::<u128>() {
                 Ok(v) if (1..=DEX_POOL_RESERVE_MAX).contains(&v) => v,
-                _ => return Eval::Reject("invalid_reserve".to_string()),
+                _ => return Err("invalid_reserve".to_string()),
             };
             let reserve1 = match r1.parse::<u128>() {
                 Ok(v) if (1..=DEX_POOL_RESERVE_MAX).contains(&v) => v,
-                _ => return Eval::Reject("invalid_reserve".to_string()),
+                _ => return Err("invalid_reserve".to_string()),
             };
             let fee_bps = match fee.parse::<u128>() {
                 Ok(v) if v <= BPS_DENOM => v,
-                _ => return Eval::Reject("invalid_fee_bps".to_string()),
+                _ => return Err("invalid_fee_bps".to_string()),
             };
             init_pool(pool, reserve0, reserve1, fee_bps)
         }
         "swap_exact_in" => {
             let zero_for_one = match obj.get("zero_for_one").and_then(Value::as_bool) {
                 Some(b) => b,
-                None => return Eval::Reject("malformed_tx".to_string()),
+                None => return Err("malformed_tx".to_string()),
             };
             let amount_in = match int_field(obj, "amount_in") {
                 Some(s) => u128_sat(&s),
-                None => return Eval::Reject("malformed_tx".to_string()),
+                None => return Err("malformed_tx".to_string()),
             };
             let min_out = match int_field(obj, "min_amount_out") {
                 Some(s) if !s.starts_with('-') => u128_sat(&s),
-                _ => return Eval::Reject("malformed_tx".to_string()),
+                _ => return Err("malformed_tx".to_string()),
             };
             swap_exact_in(pool, zero_for_one, amount_in, min_out)
         }
         "swap_exact_out" => {
             let zero_for_one = match obj.get("zero_for_one").and_then(Value::as_bool) {
                 Some(b) => b,
-                None => return Eval::Reject("malformed_tx".to_string()),
+                None => return Err("malformed_tx".to_string()),
             };
             let amount_out = match int_field(obj, "amount_out") {
                 Some(s) => u128_sat(&s),
-                None => return Eval::Reject("malformed_tx".to_string()),
+                None => return Err("malformed_tx".to_string()),
             };
             let max_in = match int_field(obj, "max_amount_in") {
                 Some(s) if !s.starts_with('-') => u128_sat(&s),
-                _ => return Eval::Reject("malformed_tx".to_string()),
+                _ => return Err("malformed_tx".to_string()),
             };
-            swap_exact_out(pool, zero_for_one, amount_out, max_in)
+            let max_gap_bps = match int_field(obj, "max_overdelivery_gap_bps") {
+                Some(s) if !s.starts_with('-') => u128_sat(&s),
+                None => CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+                _ => return Err("malformed_tx".to_string()),
+            };
+            swap_exact_out_with_max_gap_bps(pool, zero_for_one, amount_out, max_in, max_gap_bps)
         }
         _ => unreachable!(),
     };
 
+    result.map_err(str::to_string)
+}
+
+fn eval_cpmm_tx(pool: &Pool, tx: &Value) -> Eval<Pool> {
+    let result = apply_cpmm_tx(pool, tx);
     match result {
         Ok(accepted) => Eval::Accept {
             receipt_hash: accepted.receipt.receipt_hash(),
             next: accepted.pool,
         },
-        Err(code) => Eval::Reject(code.to_string()),
+        Err(code) => Eval::Reject(code),
+    }
+}
+
+fn cpmm_pool_out(pool: &Pool) -> CpmmPoolOut {
+    CpmmPoolOut {
+        initialized: pool.initialized,
+        reserve0: pool.reserve0.to_string(),
+        reserve1: pool.reserve1.to_string(),
+        fee_bps: pool.fee_bps.to_string(),
+    }
+}
+
+fn cpmm_receipt_out(r: &SwapReceipt) -> CpmmReceiptOut {
+    let kind = match r.kind {
+        zenodex_runtime_core::cpmm_swap::SwapKind::InitPool => "init_pool",
+        zenodex_runtime_core::cpmm_swap::SwapKind::ExactIn => "swap_exact_in",
+        zenodex_runtime_core::cpmm_swap::SwapKind::ExactOut => "swap_exact_out",
+    };
+    CpmmReceiptOut {
+        kind: kind.to_string(),
+        zero_for_one: r.zero_for_one,
+        amount_in: r.amount_in.to_string(),
+        amount_out: r.amount_out.to_string(),
+        fee_total: r.fee_total.to_string(),
+        amount_out_quote: r.amount_out_quote.to_string(),
+        overdelivery_gap: r.overdelivery_gap.to_string(),
+        gap_bps: r.gap_bps.to_string(),
+        new_reserve0: r.new_reserve0.to_string(),
+        new_reserve1: r.new_reserve1.to_string(),
+    }
+}
+
+fn cpmm_pool_from_request(v: &Value) -> Result<Pool, String> {
+    let obj = v
+        .get("pool")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "pool must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &CPMM_POOL_FIELDS) {
+        return Err(reason);
+    }
+    let initialized = obj
+        .get("initialized")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| "pool.initialized must be a bool".to_string())?;
+    let reserve0 = match obj.get("reserve0").and_then(classify_integer) {
+        Some(s) if !s.starts_with('-') => s
+            .parse::<u128>()
+            .map_err(|_| "pool.reserve0 invalid_reserve".to_string())?,
+        _ => return Err("pool.reserve0 invalid_reserve".to_string()),
+    };
+    let reserve1 = match obj.get("reserve1").and_then(classify_integer) {
+        Some(s) if !s.starts_with('-') => s
+            .parse::<u128>()
+            .map_err(|_| "pool.reserve1 invalid_reserve".to_string())?,
+        _ => return Err("pool.reserve1 invalid_reserve".to_string()),
+    };
+    let fee_bps = match obj.get("fee_bps").and_then(classify_integer) {
+        Some(s) if !s.starts_with('-') => s
+            .parse::<u128>()
+            .map_err(|_| "pool.fee_bps invalid_fee_bps".to_string())?,
+        _ => return Err("pool.fee_bps invalid_fee_bps".to_string()),
+    };
+    if initialized {
+        if !(1..=DEX_POOL_RESERVE_MAX).contains(&reserve0)
+            || !(1..=DEX_POOL_RESERVE_MAX).contains(&reserve1)
+        {
+            return Err("pool.reserve invalid_reserve".to_string());
+        }
+        if fee_bps > BPS_DENOM {
+            return Err("pool.fee_bps invalid_fee_bps".to_string());
+        }
+    } else if reserve0 != 0 || reserve1 != 0 || fee_bps != 0 {
+        return Err("pool.uninitialized_nonzero".to_string());
+    }
+    Ok(Pool {
+        initialized,
+        reserve0,
+        reserve1,
+        fee_bps,
+    })
+}
+
+fn rejected_cpmm_output(pool: &Pool, pre_state_root: String, reason: String) -> CpmmOpOutput {
+    CpmmOpOutput {
+        version: 1,
+        kernel: "cpmm_settlement".to_string(),
+        accept: false,
+        reject_reason: Some(reason),
+        receipt_hash: None,
+        receipt: None,
+        pre_state_root: pre_state_root.clone(),
+        post_state_root: pre_state_root,
+        post_pool: cpmm_pool_out(pool),
+    }
+}
+
+fn run_cpmm_op(request: &Value) -> Result<CpmmOpOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) =
+        first_unknown_field(obj.keys().map(String::as_str), &["version", "pool", "tx"])
+    {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let pool = cpmm_pool_from_request(request)?;
+    let pre_state_root = pool.state_root();
+    let tx = request
+        .get("tx")
+        .ok_or_else(|| "tx is required".to_string())?;
+    match apply_cpmm_tx(&pool, tx) {
+        Ok(accepted) => {
+            let receipt_hash = accepted.receipt.receipt_hash();
+            Ok(CpmmOpOutput {
+                version: 1,
+                kernel: "cpmm_settlement".to_string(),
+                accept: true,
+                reject_reason: None,
+                receipt_hash: Some(receipt_hash),
+                receipt: Some(cpmm_receipt_out(&accepted.receipt)),
+                pre_state_root,
+                post_state_root: accepted.pool.state_root(),
+                post_pool: cpmm_pool_out(&accepted.pool),
+            })
+        }
+        Err(reason) => Ok(rejected_cpmm_output(&pool, pre_state_root, reason)),
     }
 }
 
@@ -2689,6 +2875,7 @@ fn main() -> ExitCode {
                 | "replay-zusd-trace"
                 | "verify-burn-trace"
                 | "settle-swap-trace"
+                | "cpmm-op"
                 | "canonical-hash"
                 | "verify-state-root"
                 | "perp-math"
@@ -2704,7 +2891,7 @@ fn main() -> ExitCode {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
              fee-route|replay-balance-trace|balance-op|\
-             replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
+             replay-zusd-trace|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
              set-market-params> <input.json|->"
@@ -2788,6 +2975,25 @@ fn main() -> ExitCode {
 
     if subcommand == "balance-op" {
         return match run_balance_op(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "cpmm-op" {
+        return match run_cpmm_op(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");

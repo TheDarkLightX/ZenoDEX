@@ -84,6 +84,7 @@ def test_public_testnet_profile_promotes_balances():
     broken["runtime_authority_policy"]["promoted_surfaces"] = [
         "burn_receipts",
         "canonical",
+        "cpmm_settlement",
         "fee_router",
         "replay_guard",
         "state_root",

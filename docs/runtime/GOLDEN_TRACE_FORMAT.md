@@ -213,22 +213,28 @@ A single constant-product pool threaded across the trace. Three kinds:
 ```json
 { "kind": "init_pool", "reserve0": 1000000, "reserve1": 2000000, "fee_bps": 30 }
 { "kind": "swap_exact_in",  "zero_for_one": true,  "amount_in": 10000,  "min_amount_out": 0 }
-{ "kind": "swap_exact_out", "zero_for_one": false, "amount_out": 5000,  "max_amount_in": 1000000000 }
+{ "kind": "swap_exact_out", "zero_for_one": false, "amount_out": 5000,  "max_amount_in": 1000000000,
+  "max_overdelivery_gap_bps": 200 }
 ```
 
-Replayed via `settle-swap-trace`. The authority is
+Replayed via `settle-swap-trace`; the live one-step authority bridge uses
+`cpmm-op`. The authority is
 `src/kernels/python/settlement_swap_runtime_v1.py`
 (`quote_cpmm_swap_exact_in` / `quote_cpmm_swap_exact_out`); the Rust shadow is
 `zenodex-runtime-core::cpmm_swap`. Reserves/fee are domain-bounded
 (`reserve ∈ [1, DEX_POOL_RESERVE_MAX]`, `fee_bps ∈ [0, 10000]`); fee is ceil,
-exact-in output is floor, exact-out input is ceil. Reject codes:
+exact-in output is floor, exact-out input is ceil. Exact-out also enforces the
+same overdelivery-gap cap as Python, default `200` bps. Reject codes:
 `unknown_tx_kind`, `unknown_field:<name>`, `already_initialized`,
 `invalid_reserve`, `invalid_fee_bps`, `pool_not_initialized`,
 `reserve_domain_exceeded`, `reserve_out_of_domain`, `amount_out_ge_reserve`,
-`trade_too_small`, `slippage`. State root is `domain_sep("cpmm_pool", v1)` over
-`(initialized, reserve0, reserve1, fee_bps)` as uvarints. This is the per-pool
-settlement **primitive**; multi-pool aggregation, swap-ordering heuristics, CoW
-netting, and liquidity intents (`src/core/batch_clearing.py`) remain Python-only.
+`overdelivery_gap`, `trade_too_small`, `slippage`. State root is
+`domain_sep("cpmm_pool", v1)` over `(initialized, reserve0, reserve1, fee_bps)`
+as uvarints. `cpmm-op` also returns `amount_out_quote`, `overdelivery_gap`, and
+`gap_bps` for exact-out shadow comparison; these fields are not part of the
+receipt hash. This is the per-pool settlement **primitive**; multi-pool
+aggregation, swap-ordering heuristics, CoW netting, and liquidity intents
+(`src/core/batch_clearing.py`) remain Python-only.
 
 ## Non-trace differential subcommands
 
