@@ -16,13 +16,17 @@ Rust are **not** both independently authoritative on network state.
 load-bearing for zUSD compensation, host compensation, the reserve, and
 buy-burn. It is implemented and conformance-tested today:
 
-* Authoritative Python reference: `src/core/fee_router.py`
-* Rust shadow: `rust-runtime/crates/zenodex-runtime-core/src/fee_router.rs`
+* Python reference: `src/core/fee_router.py`
+* Rust authority candidate: `rust-runtime/crates/zenodex-runtime-core/src/fee_router.rs`
 * Conformance: `tests/runtime/test_fee_router_conformance.py` (static +
   400-case randomized differential), `tools/runtime/rust_shadow_replay.py`.
+* Live authority wiring: `tests/runtime/test_fee_router_live_path.py`.
+* Disaster-state evidence:
+  `tests/runtime/test_fee_router_disaster_state.py`.
 
-Rust is **not** production-authoritative for fee routing yet — Python remains
-the authority and Rust is the shadow checker.
+Fee routing now runs as `rust_authority_with_python_shadow` in the
+`public-testnet` profile. The default and `production-strict` profiles remain
+Python-authoritative.
 
 The fee-router accumulator is asset-aware. Dust is keyed by `(source, asset)`;
 bucket totals are keyed by `asset`. This is part of the trusted-core boundary
@@ -48,7 +52,7 @@ surface can be promoted to Rust authority.
 
 | Module | Current language | RC? | Target | Evidence required |
 |--------|------------------|-----|--------|-------------------|
-| Protocol fee routing — `src/core/fee_router.py` | Python (+ Rust shadow) | yes | **Rust (owns first)** | ✅ golden traces, ✅ Python/Rust differential, ✅ property tests, fuzz (Phase 9) |
+| Protocol fee routing — `src/core/fee_router.py` | Rust+Python shadow on public-testnet | yes | **Rust (public-testnet promoted)** | ✅ golden traces, ✅ Python/Rust differential, ✅ property tests, ✅ live authority wiring, ✅ disaster-state rows and deterministic fuzz. Production remains Python authority |
 | Canonical serialization — `src/state/canonical.py` | Python (+ Rust `canonical`) | yes | Rust | cross-language primitive vectors (✅ uvarint/bytes/domain-sep/sha256), full state-encoder parity (Phase 4/6) |
 | State-root generation — `src/state/state_root.py` (+ Rust `state_root`) | Python (+ Rust shadow) | yes | **Rust (Phase C, done)** | ✅ v5 shadow (`zenodex-runtime-core::state_root`) over six sections incl. LP duration-risk and fee-accumulator dust; ✅ same-root/different-root/order-independence fixtures; ✅ Python/Rust differential (static + 4×250 randomized) feeding the *normalized* built state; ✅ malformed-encoding + duplicate-key + fee-bps rejection. Amounts use `u128` (covers the live domain; ≥2^128 rejected at the bridge). fuzz (Phase 9) |
 | Replay / idempotency guards — `src/core/replay_guard.py` (+ Rust shadow), policy from `src/state/nonces.py` | Rust+Python shadow on public-testnet | yes | **Rust (public-testnet promoted)** | ✅ golden traces incl. duplicate/stale/gap rejection + cross-sender case, ✅ Python/Rust differential, ✅ semantic invariants (per-sender isolation), ✅ live authority wiring, ✅ disaster-state rows and deterministic fuzz. Production remains Python authority |

@@ -1,8 +1,8 @@
 """
 Protocol fee router (deterministic, integer-only) -- 4-way split with dust carry.
 
-This is the **reference / authoritative** implementation of ZenoDEX protocol-fee
-routing for the Rust runtime migration (see ``docs/runtime/``). It routes a
+This is the Python reference implementation of ZenoDEX protocol-fee routing for
+the Rust runtime migration (see ``docs/runtime/``). It routes a
 per-domain protocol fee into four buckets -- ``buyburn``, ``stakers``,
 ``reserve``, ``hosts`` -- carrying rounding dust forward per ``(source, asset)``
 stream so value is never stranded across repeated splits or mixed across token
@@ -35,7 +35,7 @@ When ``dust_in == 0`` this reduces to the task's literal statement
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
+from typing import Any, Union
 
 from ..state.canonical import (
     domain_sep_bytes,
@@ -54,6 +54,7 @@ __all__ = [
     "FeeAssetAmount",
     "FeeDustEntry",
     "FeeAccumulator",
+    "FEE_ROUTER_SURFACE",
     "RouteAccepted",
     "RouteRejected",
     "RouteResult",
@@ -89,6 +90,7 @@ RECEIPT_DOMAIN_SEP_LABEL = "fee_receipt"
 ACCUMULATOR_DOMAIN_SEP_LABEL = "fee_accumulator"
 RECEIPT_VERSION = 1
 ACCUMULATOR_VERSION = 1
+FEE_ROUTER_SURFACE = "fee_router"
 
 # --- Stable rejection codes (must match Rust RejectedReason::code()) ----------
 REJ_NEGATIVE_AMOUNT = "negative_amount"
@@ -395,6 +397,164 @@ class RouteRejected:
 RouteResult = Union[RouteAccepted, RouteRejected]
 
 
+def _reject_reason_str(rejected: RouteRejected) -> str:
+    if rejected.detail is None:
+        return rejected.reason
+    return f"{rejected.reason}:{rejected.detail}"
+
+
+def _accumulator_json(accumulator: FeeAccumulator) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "dust_by_stream": [
+            {"source": e.source, "asset": e.asset, "amount": e.amount}
+            for e in accumulator.dust_by_stream
+        ],
+        "cum_buyburn": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_buyburn
+        ],
+        "cum_stakers": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_stakers
+        ],
+        "cum_reserve": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_reserve
+        ],
+        "cum_hosts": [
+            {"asset": e.asset, "amount": e.amount} for e in accumulator.cum_hosts
+        ],
+    }
+
+
+def _accumulator_from_json(doc: dict[str, Any]) -> FeeAccumulator:
+    return FeeAccumulator(
+        dust_by_stream=tuple(
+            FeeDustEntry(str(e["source"]), str(e["asset"]), int(e["amount"]))
+            for e in doc.get("dust_by_stream", [])
+        ),
+        cum_buyburn=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_buyburn", [])
+        ),
+        cum_stakers=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_stakers", [])
+        ),
+        cum_reserve=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_reserve", [])
+        ),
+        cum_hosts=tuple(
+            FeeAssetAmount(str(e["asset"]), int(e["amount"]))
+            for e in doc.get("cum_hosts", [])
+        ),
+    )
+
+
+def _split_table_json(table: FeeSplitTable) -> dict[str, int]:
+    return {
+        "buyburn_bps": table.buyburn_bps,
+        "stakers_bps": table.stakers_bps,
+        "reserve_bps": table.reserve_bps,
+        "hosts_bps": table.hosts_bps,
+    }
+
+
+def _tx_json(source: Domain, asset: str, amount: int, split_table: FeeSplitTable) -> dict[str, Any]:
+    return {
+        "kind": "route_fee",
+        "source": source,
+        "asset": asset,
+        "amount": amount,
+        "split_table": _split_table_json(split_table),
+    }
+
+
+def _receipt_json(receipt: FeeReceipt) -> dict[str, str]:
+    return {
+        "source": receipt.source,
+        "asset": receipt.asset,
+        "amount": str(receipt.amount),
+        "buyburn": str(receipt.buyburn),
+        "stakers": str(receipt.stakers),
+        "reserve": str(receipt.reserve),
+        "hosts": str(receipt.hosts),
+        "dust": str(receipt.dust),
+    }
+
+
+def _accumulator_doc_strings(accumulator: FeeAccumulator) -> dict[str, list[dict[str, str]]]:
+    return {
+        "dust_by_stream": [
+            {"source": e.source, "asset": e.asset, "amount": str(e.amount)}
+            for e in accumulator.dust_by_stream
+        ],
+        "cum_buyburn": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_buyburn
+        ],
+        "cum_stakers": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_stakers
+        ],
+        "cum_reserve": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_reserve
+        ],
+        "cum_hosts": [
+            {"asset": e.asset, "amount": str(e.amount)} for e in accumulator.cum_hosts
+        ],
+    }
+
+
+def _result_to_authority_doc(pre_accumulator: FeeAccumulator, result: RouteResult) -> dict[str, Any]:
+    pre_root = pre_accumulator.state_root()
+    if isinstance(result, RouteAccepted):
+        return {
+            "version": 1,
+            "kernel": FEE_ROUTER_SURFACE,
+            "accept": True,
+            "reject_reason": None,
+            "receipt_hash": result.receipt.receipt_hash(),
+            "receipt": _receipt_json(result.receipt),
+            "pre_state_root": pre_root,
+            "post_state_root": result.accumulator.state_root(),
+            "post_accumulator": _accumulator_doc_strings(result.accumulator),
+        }
+    return {
+        "version": 1,
+        "kernel": FEE_ROUTER_SURFACE,
+        "accept": False,
+        "reject_reason": _reject_reason_str(result),
+        "receipt_hash": None,
+        "receipt": None,
+        "pre_state_root": pre_root,
+        "post_state_root": pre_root,
+        "post_accumulator": _accumulator_doc_strings(pre_accumulator),
+    }
+
+
+def _authority_doc_to_result(doc: dict[str, Any]) -> RouteResult:
+    if bool(doc.get("accept")):
+        receipt_doc = doc.get("receipt")
+        accumulator_doc = doc.get("post_accumulator")
+        if not isinstance(receipt_doc, dict) or not isinstance(accumulator_doc, dict):
+            raise ValueError("accepted fee_router authority doc missing receipt or accumulator")
+        receipt = FeeReceipt(
+            source=str(receipt_doc["source"]),
+            asset=str(receipt_doc["asset"]),
+            amount=int(receipt_doc["amount"]),
+            buyburn=int(receipt_doc["buyburn"]),
+            stakers=int(receipt_doc["stakers"]),
+            reserve=int(receipt_doc["reserve"]),
+            hosts=int(receipt_doc["hosts"]),
+            dust=int(receipt_doc["dust"]),
+        )
+        return RouteAccepted(receipt=receipt, accumulator=_accumulator_from_json(accumulator_doc))
+    reason = doc.get("reject_reason")
+    if not isinstance(reason, str):
+        raise ValueError("rejected fee_router authority doc missing reason")
+    if ":" in reason:
+        code, detail = reason.split(":", 1)
+        return RouteRejected(code, detail)
+    return RouteRejected(reason)
+
+
 # --- Canonical MVP split tables ----------------------------------------------
 # Expressed in basis points. See docs/runtime/RUST_RUNTIME_MIGRATION_PLAN.md and
 # the "Important Current Economics Context" in the migration task.
@@ -444,7 +604,7 @@ def _check_domain_constraints(
     return None
 
 
-def route_fee(
+def _route_fee_python(
     *,
     source: Domain,
     asset: str,
@@ -545,6 +705,72 @@ def route_fee(
         dust=dust_out,
     )
     return RouteAccepted(receipt=receipt, accumulator=new_acc)
+
+
+def route_fee(
+    *,
+    source: Domain,
+    asset: str,
+    amount: int,
+    split_table: FeeSplitTable,
+    accumulator: FeeAccumulator,
+) -> RouteResult:
+    """
+    Route ``amount`` of protocol fees through the active runtime authority
+    policy, carrying dust from / into ``accumulator``.
+
+    Python remains the default authority. A deployment profile can promote this
+    surface to Rust authority with Python shadow checking.
+    """
+    if not isinstance(source, str):
+        raise TypeError("source must be a str")
+    if not isinstance(asset, str):
+        raise TypeError("asset must be a str")
+    if not isinstance(split_table, FeeSplitTable):
+        raise TypeError("split_table must be a FeeSplitTable")
+    if not isinstance(accumulator, FeeAccumulator):
+        raise TypeError("accumulator must be a FeeAccumulator")
+    if not _is_plain_int(amount):
+        raise TypeError("amount must be an int")
+
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import fee_route
+
+    mode = active_mode(FEE_ROUTER_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _route_fee_python(
+            source=source,
+            asset=asset,
+            amount=amount,
+            split_table=split_table,
+            accumulator=accumulator,
+        )
+
+    def python_doc() -> dict[str, Any]:
+        return _result_to_authority_doc(
+            accumulator,
+            _route_fee_python(
+                source=source,
+                asset=asset,
+                amount=amount,
+                split_table=split_table,
+                accumulator=accumulator,
+            ),
+        )
+
+    def rust_doc() -> dict[str, Any]:
+        return fee_route(
+            accumulator=_accumulator_json(accumulator),
+            tx=_tx_json(source, asset, amount, split_table),
+        )
+
+    decision = decide(
+        FEE_ROUTER_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=rust_doc,
+    )
+    return _authority_doc_to_result(decision.result)
 
 
 def _conservation_holds(amount: int, dust_in: int, receipt: FeeReceipt) -> bool:
