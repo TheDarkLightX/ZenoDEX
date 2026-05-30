@@ -206,6 +206,33 @@ def test_liquidity_without_pool_assets_uses_global_wildcard_conflict() -> None:
     assert graph["edges"][0]["shared_cells"] == [GLOBAL_DEX_CELL_V0]
 
 
+
+
+def test_liquidity_with_spoofed_assets_still_conflicts_conservatively() -> None:
+    pool_ab = compute_pool_id(ASSET_A, ASSET_B, 30)
+    pool_ca = compute_pool_id(ASSET_A, ASSET_C, 30)
+    add_liquidity_spoofed = _liquidity_tx(
+        kind="ADD_LIQUIDITY",
+        sender=SENDER_A,
+        recipient=SENDER_A,
+        pool_id=pool_ab,
+        nonce=1,
+        asset0=ASSET_C,
+        asset1=ASSET_C,
+    )
+    swap_touching_real_asset = _swap_tx(
+        sender=SENDER_B,
+        pool_id=pool_ca,
+        asset_in=ASSET_C,
+        asset_out=ASSET_A,
+        nonce=2,
+        recipient=SENDER_A,
+    )
+
+    touched = touched_cells_for_transaction_v0(add_liquidity_spoofed)
+    assert GLOBAL_DEX_CELL_V0 in touched
+    assert transactions_conflict_v0(add_liquidity_spoofed, swap_touching_real_asset)
+
 def test_token_create_conflicts_by_registry_symbol_or_asset() -> None:
     asset = hash_v0("test_asset", {"symbol": "tMANGO"})
     left = {
