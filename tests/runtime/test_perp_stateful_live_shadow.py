@@ -16,14 +16,15 @@ for _p in (str(_REPO), str(_TOOLS_RUNTIME)):
         sys.path.insert(0, _p)
 
 from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
-from tools.runtime import perp_funding_auto_lib as fa  # noqa: E402
+
+from src.core.perps import PerpAccountState  # noqa: E402
 from src.runtime.authority import (  # noqa: E402
     AuthorityMode,
     AuthorityPolicy,
     reset_active_authority_policy,
     set_active_authority_policy,
 )
-
+from tools.runtime import perp_funding_auto_lib as fa  # noqa: E402
 
 OPERATOR = fa.OPERATOR
 PK_A = "aa" * 48
@@ -180,6 +181,53 @@ def test_rust_shadow_unavailable_keeps_python():
             os.environ.pop("ZENODEX_RUNTIME_BIN", None)
         else:
             os.environ["ZENODEX_RUNTIME_BIN"] = old
+
+
+def test_rust_shadow_skips_oversized_materialized_account_table(monkeypatch):
+    # DbC/security regression: a Sybil-bloated market must not make rust_shadow
+    # serialize/parse/echo an unbounded account table. Python remains authoritative
+    # for oversized shadow-only materialization, just like when Rust is unavailable.
+    from src.integration import perp_engine
+    from src.runtime import rust_invoker
+
+    market_id = "perp:shadow-oversized"
+    state = _settled(market_id)
+    assert state.perps is not None
+
+    account = PerpAccountState(
+        position_base=0,
+        entry_price_e8=0,
+        collateral_quote=0,
+        funding_paid_cumulative=0,
+        funding_last_applied_epoch=0,
+        liquidated_this_step=False,
+    )
+    market = state.perps.markets[market_id]
+    accounts = {PK_A: account, PK_B: account}
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=accounts,
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    def fail_if_invoked(request, **kwargs):
+        raise AssertionError("oversized materialized shadow invoked Rust")
+
+    monkeypatch.setattr(perp_engine, "_PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT", 1)
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", fail_if_invoked)
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "advance_epoch", delta=1)],
+    )
+
+    assert res.ok is True, res.error
+    assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
 
 
 def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
