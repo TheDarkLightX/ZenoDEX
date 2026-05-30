@@ -182,8 +182,10 @@ def test_rust_shadow_unavailable_keeps_python():
             os.environ["ZENODEX_RUNTIME_BIN"] = old
 
 
-def test_rust_authority_mode_rejects_until_full_state_materialization_exists(rust_env):
-    market_id = "perp:live-authority-block"
+def test_rust_authority_advance_epoch_materialized_accepts(rust_env):
+    # advance_epoch is now materialized: under rust_authority_with_python_shadow the
+    # selector compares the full Rust post-market vs Python and accepts on parity.
+    market_id = "perp:live-authority-advance"
     state = fa.build_market(
         market_id=market_id,
         quote_asset=QUOTE,
@@ -204,5 +206,72 @@ def test_rust_authority_mode_rejects_until_full_state_materialization_exists(rus
         operator_pubkey=OPERATOR,
         ops=[fa._op(market_id, "advance_epoch", delta=1)],
     )
+    assert res.ok is True, res.error
+    assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
+
+
+def test_rust_authority_rejects_unmaterialized_op(rust_env):
+    # Ops without a full materialized Rust transition stay blocked under authority.
+    market_id = "perp:live-authority-block"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000), (PK_B, -300_000)],
+        clearing_price_e8=101_000_000,
+        deposit=1_000_000,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "apply_funding_auto")],
+    )
     assert res.ok is False
-    assert "perp_stateful Rust authority is not live-wired" in (res.error or "")
+    assert "not live-wired for this op" in (res.error or "")
+
+
+def _settled(market_id: str):
+    state = fa.build_market(
+        market_id=market_id, quote_asset=QUOTE, positions=[], clearing_price_e8=100_000_000, deposit=1_000_000
+    )
+    return fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR, ops=[fa._op(market_id, "settle_epoch")]
+    )
+
+
+def test_rust_authority_fails_closed_on_injected_disagreement(rust_env, monkeypatch):
+    from src.runtime import rust_invoker
+
+    def tampered(request, **kwargs):
+        out = rust_invoker.invoke("perp-isolated-op", request)
+        out["post"]["global_state"]["now_epoch"] = "999999"  # corrupt the post-state
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
+    state = _settled("perp:live-disagree")
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:live-disagree", "advance_epoch", delta=1)],
+    )
+    assert res.ok is False
+    assert "disagreement" in (res.error or "")
+
+
+def test_rust_authority_advance_unavailable_fails_closed():
+    state = _settled("perp:live-auth-unavail")  # built under default python_authority
+    old = os.environ.get("ZENODEX_RUNTIME_BIN")
+    os.environ["ZENODEX_RUNTIME_BIN"] = str(_REPO / "rust-runtime" / "target" / "nonexistent-bin")
+    try:
+        set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+        res = fa._apply_result(
+            state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+            ops=[fa._op("perp:live-auth-unavail", "advance_epoch", delta=1)],
+        )
+        assert res.ok is False  # Rust unavailable + authoritative -> fail closed
+    finally:
+        if old is None:
+            os.environ.pop("ZENODEX_RUNTIME_BIN", None)
+        else:
+            os.environ["ZENODEX_RUNTIME_BIN"] = old
