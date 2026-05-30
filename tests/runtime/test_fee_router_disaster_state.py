@@ -98,6 +98,7 @@ def test_public_testnet_profile_promotes_fee_router():
     broken["runtime_authority_policy"] = dict(profile["runtime_authority_policy"])
     broken["runtime_authority_policy"]["promoted_surfaces"] = [
         "balances",
+        "burn_receipts",
         "canonical",
         "replay_guard",
         "state_root",

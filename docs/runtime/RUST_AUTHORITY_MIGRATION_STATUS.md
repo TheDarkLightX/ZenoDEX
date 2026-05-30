@@ -5,7 +5,7 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
 **As of this writing: canonical primitives, state root v5, replay/idempotency
-guard, balance accounting, and the fee router are promoted only in the
+guard, balance accounting, the fee router, and burn rails are promoted only in the
 `public-testnet` profile to `rust_authority_with_python_shadow`.** The
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
@@ -25,7 +25,7 @@ human decision + profile entry.
 | Replay / idempotency guard | Rust+Python shadow on public-testnet | `replay_guard.rs` | ✅ | ✅⁴ | ✅ | ✅⁴ |
 | Balance accounting | Rust+Python shadow on public-testnet | `balance_kernel.rs` | ✅ | ✅⁵ | ✅ | ✅⁵ |
 | Fee router (4-way + dust) | Rust+Python shadow on public-testnet | `fee_router.rs` | ✅ | ✅⁶ | ✅ | ✅⁶ |
-| Burn rails | Python | `burn_receipts.rs` | ✅ | ☐ | ☐ | ☐ |
+| Burn rails | Rust+Python shadow on public-testnet | `burn_receipts.rs` | ✅ | ✅⁷ | ✅ | ✅⁷ |
 | CPMM per-pool settlement | Python | `cpmm_swap.rs` | ✅ | ☐ | ☐ | ☐ |
 | zUSD single-vault | Python | `zusd.rs` | ✅ | ☐ | ☐ | ☐ |
 | Perp stateless math (E1) | Python | `perp_math.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -93,6 +93,19 @@ active-policy wiring for `rust_authority_with_python_shadow`, `rust_shadow`,
 unavailable Rust, and injected disagreement. `public-testnet` lists
 `fee_router` in `promoted_surfaces`; production remains `python_authority`.
 
+⁷ Burn rails are now live-wired through
+`src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
+envelope and hash checks. The Rust bridge verifies the eleven integer rail
+fields as a stateless tuple, while Python still owns schema validation,
+canonical-JSON receipt hashing, and the existing lenient `int()` coercion.
+`tests/runtime/test_burn_receipts_disaster_state.py` covers replay/nullifier
+flag failure, stateless deterministic replay, malformed rail tuples,
+amount/supply/batch over/underflow, hash mismatch before rails, deterministic
+fuzz, and selector fail-closed rows. `test_burn_receipts_live_path.py` checks
+active-policy wiring for `rust_authority_with_python_shadow`, `rust_shadow`,
+unavailable Rust, and injected disagreement. `public-testnet` lists
+`burn_receipts` in `promoted_surfaces`; production remains `python_authority`.
+
 ³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
 `publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
 `partial_liquidate`, `deposit_collateral`, `withdraw_collateral`, `set_position`,
@@ -139,9 +152,8 @@ verifies the selector receives an agreed rejection rather than a drift.
 
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
   primitives, state root v5, replay/idempotency guard, balance accounting, fee
-  router.
-- **Promotable after small missing tests**: burn rails, CPMM primitive, perp
-  stateless math.
+  router, burn rails.
+- **Promotable after small missing tests**: CPMM primitive, perp stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.
 - **Shadowed (E2 complete), awaiting live-path wiring**: the **stateful
   isolated-perps engine (all 10 ops)**. Evidence 1–3 + fuzz + input-disaster are
