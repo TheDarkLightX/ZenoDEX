@@ -254,6 +254,31 @@ def _settled(market_id: str):
     )
 
 
+def _open(market_id: str):
+    # Settled -> advance -> Open, so publish_clearing_price's guard (Open + cpe<now) holds.
+    state = _settled(market_id)
+    return fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "advance_epoch", delta=1)],
+    )
+
+
+def test_rust_shadow_publish_full_state_and_effects_parity(rust_env):
+    # publish_clearing_price is materialized: rust_shadow compares the full post-market
+    # + the exact ClearingPricePublished effect vs Python, accepting on parity.
+    market_id = "perp:shadow-publish"
+    state = _open(market_id)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "publish_clearing_price", price_e8=101_000_000)],
+    )
+    assert res.ok is True, res.error
+    gs = res.state.perps.markets[market_id].global_state
+    assert int(gs["epoch_phase"]) == 1
+    assert int(gs["clearing_price_e8"]) == 101_000_000
+
+
 def test_rust_shadow_fails_closed_on_state_tamper(rust_env, monkeypatch):
     # rust_shadow is fail-closed: a corrupted Rust post-state diverges from Python
     # and rejects the op rather than silently accepting.

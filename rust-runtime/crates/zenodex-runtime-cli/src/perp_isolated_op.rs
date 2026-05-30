@@ -27,6 +27,9 @@ use serde_json::{json, Map, Value};
 
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
 use zenodex_runtime_core::perp_math::is_oracle_fresh;
+use zenodex_runtime_core::perp_publish_clearing_price::{
+    publish_clearing_price, PublishClearingPriceInput,
+};
 
 pub const REJ_BAD_REQUEST: &str = "perp_isolated_op_bad_request";
 pub const REJ_OPERATOR: &str = "operator only";
@@ -228,6 +231,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
 
     match action {
         "advance_epoch" => materialize_advance_epoch(&quote_asset, global, accounts, op, &facts),
+        "publish_clearing_price" => {
+            materialize_publish_clearing_price(&quote_asset, global, accounts, op, &facts)
+        }
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -279,7 +285,7 @@ fn materialize_advance_epoch(
                 "epoch_phase".into(),
                 Value::String(out.epoch_phase.to_string()),
             );
-            match advance_effect(&global) {
+            match global_op_effect(&global, "EpochAdvanced") {
                 Ok(effects) => accept(quote_asset, &global, &accounts, effects),
                 Err(code) => reject(code),
             }
@@ -288,13 +294,102 @@ fn materialize_advance_epoch(
     }
 }
 
-/// The exact `advance_epoch` kernel effect payload: the `EpochAdvanced` event plus
-/// `_common_effects`, computed on the flat dummy account the Python integration
-/// uses for global ops (so the account-derived fields are zero/true/false) and on
-/// the *post* global (oracle freshness, margin params, fee/insurance after-values).
-/// Int fields cross as decimal strings; the Python shadow emits the same fields and
-/// the bridge compares them with int coercion.
-fn advance_effect(global: &Map<String, Value>) -> Result<Value, &'static str> {
+/// `publish_clearing_price`: operator-gated global transition. The kernel checks
+/// (input domain, state-consistency, price sign/positivity/domain, and the
+/// `Open` + `clearing_price_epoch < now` guard) are reused from
+/// `perp_publish_clearing_price`; only the clearing-price fields and `epoch_phase`
+/// change (`now_epoch` is unchanged).
+fn materialize_publish_clearing_price(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    // Reject unknown op fields: publish takes only `action` and `price_e8`.
+    for k in op.keys() {
+        if k != "action" && k != "price_e8" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.operator_ok {
+        return reject(REJ_OPERATOR);
+    }
+    let now_epoch = match gget(&global, "now_epoch") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let epoch_phase = match gget(&global, "epoch_phase") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let clearing_price_seen = match global
+        .get("clearing_price_seen")
+        .ok_or(REJ_BAD_REQUEST)
+        .and_then(as_bool)
+    {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let clearing_price_epoch = match gget(&global, "clearing_price_epoch") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let clearing_price_e8 = match gget(&global, "clearing_price_e8") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let oracle_last = match gget(&global, "oracle_last_update_epoch") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let price_e8 = match op.get("price_e8").map(as_i128) {
+        Some(Ok(v)) => v,
+        _ => return reject(REJ_BAD_REQUEST),
+    };
+    match publish_clearing_price(&PublishClearingPriceInput {
+        now_epoch,
+        epoch_phase,
+        clearing_price_seen,
+        clearing_price_epoch,
+        clearing_price_e8,
+        oracle_last_update_epoch: oracle_last,
+        price_e8,
+    }) {
+        Ok(out) => {
+            global.insert(
+                "epoch_phase".into(),
+                Value::String(out.epoch_phase.to_string()),
+            );
+            global.insert(
+                "clearing_price_seen".into(),
+                Value::Bool(out.clearing_price_seen),
+            );
+            global.insert(
+                "clearing_price_epoch".into(),
+                Value::String(out.clearing_price_epoch.to_string()),
+            );
+            global.insert(
+                "clearing_price_e8".into(),
+                Value::String(out.clearing_price_e8.to_string()),
+            );
+            match global_op_effect(&global, "ClearingPricePublished") {
+                Ok(effects) => accept(quote_asset, &global, &accounts, effects),
+                Err(code) => reject(code),
+            }
+        }
+        Err(code) => reject(code),
+    }
+}
+
+/// The exact kernel effect payload for a **global** op (one that runs on the flat
+/// dummy account the Python integration uses): `event` (`EpochAdvanced` for
+/// `advance_epoch`, `ClearingPricePublished` for `publish_clearing_price`) plus
+/// `_common_effects`. Account-derived fields are zero/true/false (flat dummy); the
+/// rest come from the *post* global (oracle freshness, margin params, fee/insurance
+/// after-values). Int fields cross as decimal strings; the Python shadow emits the
+/// same fields and the bridge compares them with int coercion.
+fn global_op_effect(global: &Map<String, Value>, event: &str) -> Result<Value, &'static str> {
     let now = gget(global, "now_epoch")?;
     let oracle_last = gget(global, "oracle_last_update_epoch")?;
     let max_stale = gget(global, "max_oracle_staleness_epochs")?;
@@ -306,12 +401,12 @@ fn advance_effect(global: &Map<String, Value>) -> Result<Value, &'static str> {
     let depeg = gget(global, "depeg_buffer_bps")?;
     let fee_pool = gget(global, "fee_pool_quote")?;
     let insurance = gget(global, "insurance_balance")?;
-    // Checked: margin bps are carried verbatim and are not bounded by the advance
-    // gate, so a degenerate global must reject (fail-closed), never panic/wrap.
+    // Checked: margin bps are carried verbatim and are not bounded by the op gate,
+    // so a degenerate global must reject (fail-closed), never panic/wrap.
     let effective_maint_bps = maint.checked_add(depeg).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
     let oracle_fresh = is_oracle_fresh(now, oracle_last, max_stale, oracle_seen);
     Ok(json!({
-        "event": "EpochAdvanced",
+        "event": event,
         "oracle_fresh": oracle_fresh,
         "notional_quote": "0",
         "effective_maint_bps": effective_maint_bps.to_string(),
@@ -335,6 +430,24 @@ mod tests {
             "oracle_last_update_epoch": now.to_string(), "oracle_seen": true,
             "clearing_price_seen": true, "clearing_price_epoch": now.to_string(),
             "clearing_price_e8": "100000000", "index_price_e8": "100000000",
+            "breaker_active": false, "breaker_last_trigger_epoch": "0",
+            "max_oracle_staleness_epochs": "100", "max_oracle_move_bps": "500",
+            "initial_margin_bps": "1000", "maintenance_margin_bps": "500",
+            "depeg_buffer_bps": "100", "liquidation_penalty_bps": "50",
+            "max_position_abs": "1000000", "fee_pool_quote": "0",
+            "funding_rate_bps": "0", "funding_cap_bps": "1000",
+            "insurance_balance": "0", "initial_insurance": "0",
+            "fee_income": "0", "claims_paid": "0", "min_notional_for_bounty": "100000000"
+        })
+    }
+
+    fn open_global(now: i128) -> Value {
+        // A consistent Open state: clearing price unseen, oracle stale (oracle != now).
+        json!({
+            "now_epoch": now.to_string(), "epoch_phase": "0",
+            "oracle_last_update_epoch": (now - 1).to_string(), "oracle_seen": true,
+            "clearing_price_seen": false, "clearing_price_epoch": "0",
+            "clearing_price_e8": "0", "index_price_e8": "100000000",
             "breaker_active": false, "breaker_last_trigger_epoch": "0",
             "max_oracle_staleness_epochs": "100", "max_oracle_move_bps": "500",
             "initial_margin_bps": "1000", "maintenance_margin_bps": "500",
@@ -476,6 +589,85 @@ mod tests {
         assert_eq!(out["accept"], json!(false));
         assert_eq!(out["reject_reason"], json!(REJ_ARITHMETIC_OVERFLOW));
         assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn publish_from_open_materializes_full_post_state() {
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({"action": "publish_clearing_price", "price_e8": "101000000"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true));
+        let pg = &r["post"]["global_state"];
+        // Changed by publish: phase Open->PricePublished, clearing-price fields set.
+        assert_eq!(pg["epoch_phase"], json!("1"));
+        assert_eq!(pg["clearing_price_seen"], json!(true));
+        assert_eq!(pg["clearing_price_epoch"], json!("5"));
+        assert_eq!(pg["clearing_price_e8"], json!("101000000"));
+        // Carried verbatim: now_epoch and unrelated keys are unchanged.
+        assert_eq!(pg["now_epoch"], json!("5"));
+        assert_eq!(pg["index_price_e8"], json!("100000000"));
+        assert_eq!(pg["max_position_abs"], json!("1000000"));
+        // Exact effect payload (ClearingPricePublished + _common_effects, flat dummy).
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("ClearingPricePublished"));
+        assert_eq!(fx["oracle_fresh"], json!(true));
+        assert_eq!(fx["effective_maint_bps"], json!("600"));
+        assert_eq!(fx["notional_quote"], json!("0"));
+        assert_eq!(fx["margin_ok"], json!(true));
+        assert_eq!(fx["fee_pool_after"], json!("0"));
+        assert_eq!(fx["insurance_after"], json!("0"));
+    }
+
+    #[test]
+    fn publish_operator_gate_rejects() {
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({"action": "publish_clearing_price", "price_e8": "101000000"}),
+            false,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_OPERATOR));
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn publish_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({"action": "publish_clearing_price", "price_e8": "101000000", "delta": "1"}),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    #[test]
+    fn publish_wrong_phase_rejects_with_kernel_reason() {
+        // settled_global is phase Settled; publish needs Open -> kernel guard rejects.
+        let r = materialize_isolated_op(&req(
+            settled_global(5),
+            json!({"action": "publish_clearing_price", "price_e8": "101000000"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_publish_clearing_price::REJ_GUARD)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn publish_negative_price_rejects_with_kernel_reason() {
+        let r = materialize_isolated_op(&req(
+            open_global(5),
+            json!({"action": "publish_clearing_price", "price_e8": "-1"}),
+            true,
+        ));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_publish_clearing_price::REJ_PRICE_NEGATIVE)
+        );
     }
 
     #[test]

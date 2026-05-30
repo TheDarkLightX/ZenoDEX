@@ -3195,7 +3195,9 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
 # compares the full post-state + effects; other ops use the per-op field checkers.
 # This set does NOT grant authority: Rust post-checks Python in every mode, and
 # every `rust_authority*` mode stays blocked for `perp_stateful` regardless.
-_PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset({"advance_epoch"})
+_PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
+    {"advance_epoch", "publish_clearing_price"}
+)
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
     "perp_stateful Rust authority is not live-wired (shadow materialization only); "
@@ -3242,6 +3244,10 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
     op_obj: dict[str, Any] = {"action": op.action}
     if op.action == "advance_epoch":
         op_obj["delta"] = str(_require_int(op.data.get("delta", 0), name="delta", non_negative=True))
+    elif op.action == "publish_clearing_price":
+        op_obj["price_e8"] = str(
+            _require_int(op.data.get("price_e8", 0), name="price_e8", non_negative=True)
+        )
     all_flat = all(int(acct.position_base) == 0 for acct in pre_market.accounts.values())
     return {
         "schema": "zenodex/perp_isolated_op/v1",
