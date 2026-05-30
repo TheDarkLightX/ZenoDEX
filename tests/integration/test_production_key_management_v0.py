@@ -276,6 +276,34 @@ def test_rejects_revoked_and_expired_keys() -> None:
         assert receipt["reject_reason"] == "revoked_or_expired_key"
 
 
+
+
+def test_rejects_signers_outside_validity_window() -> None:
+    action = "protocol_treasury_spend"
+
+    expired_packet = _packet(action, epoch=10)
+    expired_keys = _keys_for(action)
+    expired_keys[0] = {**expired_keys[0], "valid_from_epoch": 0, "valid_until_epoch": 5}
+    expired_keys[0]["key_descriptor_hash"] = hash_v0(
+        "production_key_descriptor_v0",
+        {k: v for k, v in expired_keys[0].items() if k != "key_descriptor_hash"},
+    )
+    expired_receipt = _receipt(action, keys=expired_keys, packet=expired_packet)
+    assert expired_receipt["ok"] is False
+    assert expired_receipt["reject_reason"] == "revoked_or_expired_key"
+
+    future_packet = _packet(action, epoch=10)
+    future_keys = _keys_for(action)
+    future_keys[0] = {**future_keys[0], "valid_from_epoch": 100, "valid_until_epoch": 200}
+    future_keys[0]["key_descriptor_hash"] = hash_v0(
+        "production_key_descriptor_v0",
+        {k: v for k, v in future_keys[0].items() if k != "key_descriptor_hash"},
+    )
+    future_receipt = _receipt(action, keys=future_keys, packet=future_packet)
+    assert future_receipt["ok"] is False
+    assert future_receipt["reject_reason"] == "revoked_or_expired_key"
+
+
 def test_rejects_testnet_key_for_production() -> None:
     action = "protocol_treasury_spend"
     keys = _keys_for(action)
