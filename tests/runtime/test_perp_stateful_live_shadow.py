@@ -279,6 +279,59 @@ def test_rust_shadow_publish_full_state_and_effects_parity(rust_env):
     assert int(gs["clearing_price_e8"]) == 101_000_000
 
 
+def test_rust_shadow_settle_full_state_and_effects_parity(rust_env):
+    # settle_epoch is materialized (the first account-mutating op): rust_shadow
+    # compares the full settled post-market (global fee/insurance + every account's
+    # realized P&L) AND the EpochSettled effect. build_market leaves PricePublished.
+    market_id = "perp:shadow-settle"
+    state = fa.build_market(
+        market_id=market_id, quote_asset=QUOTE,
+        positions=[(PK_A, 300_000), (PK_B, -300_000)],
+        clearing_price_e8=101_000_000, deposit=1_000_000,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+    assert res.ok is True, res.error
+    m = res.state.perps.markets[market_id]
+    assert int(m.global_state["epoch_phase"]) == 2
+    # P&L was realized (parity already enforced by the shadow compare).
+    assert int(m.accounts[PK_A].collateral_quote) != 1_000_000
+    assert int(m.accounts[PK_B].collateral_quote) != 1_000_000
+
+
+def test_rust_shadow_settle_liquidation_parity(rust_env):
+    # Force a liquidatable account (large position, tiny collateral) into settle and
+    # confirm full-state + effect parity on the penalty-accumulation path (the branch
+    # that mutates fee_pool/insurance), not just the plain-P&L path.
+    market_id = "perp:shadow-settle-liq"
+    state = fa.build_market(
+        market_id=market_id, quote_asset=QUOTE,
+        positions=[(PK_A, 500_000)],
+        clearing_price_e8=101_000_000, deposit=1_000_000,
+    )  # PricePublished
+    market = state.perps.markets[market_id]
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # make it liquidatable
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=accts
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+    assert res.ok is True, res.error  # rust_shadow accepted -> full state + effect agreed
+    m = res.state.perps.markets[market_id]
+    assert int(m.accounts[PK_A].position_base) == 0  # liquidated -> flat
+    assert m.accounts[PK_A].liquidated_this_step is True
+
+
 def test_rust_shadow_fails_closed_on_state_tamper(rust_env, monkeypatch):
     # rust_shadow is fail-closed: a corrupted Rust post-state diverges from Python
     # and rejects the op rather than silently accepting.

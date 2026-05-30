@@ -190,9 +190,13 @@ never carries a post-state. The request boundary is authority-grade: it requires
 the exact `schema` (`zenodex/perp_isolated_op/v1`) and `version` (1), requires the
 `facts` object with every required key (a missing fact rejects as
 `perp_isolated_op_missing_facts`, *not* as a semantic operator failure), and
-rejects unknown op fields. Two global ops are materialized so far:
-**`advance_epoch`** and **`publish_clearing_price`** (each emits its full post-state
-and exact effect — `EpochAdvanced` / `ClearingPricePublished`).
+rejects unknown op fields. Three ops are materialized so far: the global ops
+**`advance_epoch`** and **`publish_clearing_price`**, plus **`settle_epoch`** — the
+first account-mutating op, which emits the full settled post-state (per-account
+realized P&L / liquidation + global fee/insurance accumulation) and the
+`EpochSettled` effect, reusing `perp_settle_epoch::settle_epoch`. Each emits its
+full post-state and exact effect (`EpochAdvanced` / `ClearingPricePublished` /
+`EpochSettled`).
 
 This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
@@ -204,7 +208,7 @@ accept/reject from the pre-state nor commit its materialized result. Accordingly
 and unmaterialized ops alike) and **remains `rust_shadow` in every profile**.
 
 Promotion requires (a) materializing the remaining isolated ops
-(`apply_funding_auto`, `settle_epoch`, `clear_breaker`, `set_market_params`,
+(`apply_funding_auto`, `clear_breaker`, `set_market_params`,
 `deposit/withdraw/set_position`, `partial_liquidate`) with full post-state +
 exact effect parity, (b) inverting the authority path so Rust **decides from the
 pre-state and commits** its materialized result (Python becomes the shadow), then

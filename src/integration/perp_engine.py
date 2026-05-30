@@ -3196,7 +3196,7 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
 # This set does NOT grant authority: Rust post-checks Python in every mode, and
 # every `rust_authority*` mode stays blocked for `perp_stateful` regardless.
 _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
-    {"advance_epoch", "publish_clearing_price"}
+    {"advance_epoch", "publish_clearing_price", "settle_epoch"}
 )
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
