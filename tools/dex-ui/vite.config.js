@@ -84,7 +84,8 @@ export function resolveApiProxyTarget({ command, env = process.env, execFile = e
   if (Object.prototype.hasOwnProperty.call(env, 'API_PROXY_TARGET')) {
     return normalizeProxyTarget(env.API_PROXY_TARGET);
   }
-  if (command !== 'build') {
+  const allowLocalTestnetDiscovery = env.API_PROXY_ALLOW_LOCAL_TESTNET_DISCOVERY === '1';
+  if (command === 'serve' && allowLocalTestnetDiscovery) {
     const localTestnetTarget = discoverLocalTestnetApiProxyTarget({ execFile });
     if (localTestnetTarget) {
       return localTestnetTarget;
@@ -95,6 +96,7 @@ export function resolveApiProxyTarget({ command, env = process.env, execFile = e
 
 export default defineConfig(({ command }) => {
   const apiTarget = resolveApiProxyTarget({ command });
+  const previewApiTarget = normalizeProxyTarget(process.env.API_PROXY_TARGET);
   const basePathRaw = (process.env.VITE_BASE_PATH || '/').toString().trim();
   const basePath = basePathRaw || '/';
   return {
@@ -124,9 +126,9 @@ export default defineConfig(({ command }) => {
       } : undefined,
     },
     preview: {
-      proxy: apiTarget ? {
+      proxy: previewApiTarget ? {
         '/api': {
-          target: apiTarget,
+          target: previewApiTarget,
           changeOrigin: true,
         },
       } : undefined,
