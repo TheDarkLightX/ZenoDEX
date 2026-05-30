@@ -102,6 +102,38 @@ pub struct BalanceState {
 }
 
 impl BalanceState {
+    /// Build a sparse balance state from explicit entries.
+    ///
+    /// Used by the live authority bridge to evaluate one transition from the
+    /// current Python balance table. Entries are canonicalized; duplicate
+    /// decoded `(pubkey, asset)` keys and zero/out-of-domain balances reject.
+    pub fn from_entries<I, P, A>(entries: I) -> Result<BalanceState, &'static str>
+    where
+        I: IntoIterator<Item = (P, A, u128)>,
+        P: AsRef<str>,
+        A: AsRef<str>,
+    {
+        let mut balances = BTreeMap::new();
+        for (pubkey, asset, amount) in entries {
+            let pk = canonical_pubkey(pubkey.as_ref()).ok_or("invalid_recipient")?;
+            let ast = canonical_asset(asset.as_ref()).ok_or("invalid_asset")?;
+            if !valid_amount(amount) {
+                return Err("invalid_amount");
+            }
+            if balances.insert((pk, ast), amount).is_some() {
+                return Err("duplicate_balance_key");
+            }
+        }
+        Ok(BalanceState { balances })
+    }
+
+    /// Canonical sparse entries in root-encoding order.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &str, u128)> {
+        self.balances
+            .iter()
+            .map(|((pubkey, asset), amount)| (pubkey.as_str(), asset.as_str(), *amount))
+    }
+
     /// Balance for `(pubkey, asset)` (0 if absent / invalid).
     pub fn balance_of(&self, pubkey: &str, asset: &str) -> u128 {
         match (canonical_pubkey(pubkey), canonical_asset(asset)) {
@@ -329,6 +361,34 @@ mod tests {
         let st = transfer(&st, &a, &b, &x, 50).unwrap().state;
         assert_eq!(st.balance_of(&a, &x), 0);
         assert!(!st.balances.contains_key(&(a, x)));
+    }
+
+    #[test]
+    fn from_entries_canonicalizes_and_rejects_duplicate_decoded_keys() {
+        let a = pk(0x11);
+        let x = asset(0xAA);
+        let raw_a = a.strip_prefix("0x").unwrap().to_string();
+        let upper_x = format!("0X{}", x.strip_prefix("0x").unwrap().to_ascii_uppercase());
+        let state = BalanceState::from_entries([(raw_a.clone(), upper_x.clone(), 7)]).unwrap();
+        assert_eq!(state.balance_of(&a, &x), 7);
+        assert_eq!(
+            BalanceState::from_entries([(a, x, 1), (raw_a, upper_x, 2)]),
+            Err("duplicate_balance_key")
+        );
+    }
+
+    #[test]
+    fn from_entries_rejects_invalid_stored_amount() {
+        let a = pk(0x11);
+        let x = asset(0xAA);
+        assert_eq!(
+            BalanceState::from_entries([(a.clone(), x.clone(), 0)]),
+            Err("invalid_amount")
+        );
+        assert_eq!(
+            BalanceState::from_entries([(a, x, MAX_BALANCE + 1)]),
+            Err("invalid_amount")
+        );
     }
 
     proptest! {

@@ -123,7 +123,10 @@ Sender canonicalization matches the runtime fixed-hex helper: raw hex, `0x` /
   "asset": "0x<64 hex>", "amount": N }
 ```
 
-Replayed via `replay-balance-trace`. `credit` funds `(recipient, asset)`;
+Replayed via `replay-balance-trace`. The live authority bridge uses
+`balance-op`, which takes explicit sparse `state_entries` plus one `tx` so Rust
+can evaluate the current credit/transfer without reconstructing history.
+`credit` funds `(recipient, asset)`;
 `transfer` moves `amount` of `asset` from `sender` to `recipient` and is
 supply-conserving. `amount` is an integer in `[1, MAX_BALANCE]`
 (`MAX_BALANCE = 2**112 - 1`). Reject codes: `malformed_tx`, `unknown_tx_kind`,
