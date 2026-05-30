@@ -112,6 +112,8 @@ def _write_stdin_chunk(
         return stdin_offset
     try:
         written = os.write(pipe.fileno(), stdin_bytes[stdin_offset:])
+    except BlockingIOError:
+        return stdin_offset
     except BrokenPipeError:
         selector.unregister(pipe)
         pipe.close()
@@ -126,7 +128,10 @@ def _read_output_chunk(
     max_bytes: int,
     subcommand: str,
 ) -> None:
-    chunk = os.read(pipe.fileno(), 8192)
+    try:
+        chunk = os.read(pipe.fileno(), 8192)
+    except BlockingIOError:
+        return
     if not chunk:
         selector.unregister(pipe)
         pipe.close()
@@ -171,6 +176,10 @@ def invoke(
         if proc.poll() is None:
             _kill_and_wait(proc)
         raise
+    except Exception as exc:
+        if proc.poll() is None:
+            _kill_and_wait(proc)
+        raise RustInvocationError(f"rust {subcommand} invocation failed: {exc}") from exc
     returncode = proc.wait()
     if returncode != 0:
         err = stderr.decode(errors="replace").strip()[:200]

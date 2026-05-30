@@ -277,3 +277,30 @@ def test_rust_invoker_caps_stdout_before_json_decode(tmp_path, monkeypatch):
 
     with pytest.raises(RustInvocationError, match="exceeded 32 output bytes"):
         rust_invoker.invoke("canonical-hash", {}, max_stdout_bytes=32)
+
+
+def test_rust_invoker_nonblocking_pipe_retries_do_not_escape(monkeypatch):
+    class DummySelector:
+        def __init__(self):
+            self.unregistered = False
+
+        def unregister(self, _pipe):
+            self.unregistered = True
+
+    class DummyPipe:
+        def fileno(self):
+            return 123456
+
+        def close(self):
+            raise AssertionError("retryable nonblocking pipe event must not close")
+
+    selector = DummySelector()
+    pipe = DummyPipe()
+
+    monkeypatch.setattr(rust_invoker.os, "write", lambda *_args: (_ for _ in ()).throw(BlockingIOError()))
+    assert rust_invoker._write_stdin_chunk(selector, pipe, b"abc", 1) == 1
+    assert selector.unregistered is False
+
+    monkeypatch.setattr(rust_invoker.os, "read", lambda *_args: (_ for _ in ()).throw(BlockingIOError()))
+    rust_invoker._read_output_chunk(selector, pipe, bytearray(), 8, "canonical-hash")
+    assert selector.unregistered is False

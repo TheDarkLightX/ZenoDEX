@@ -20,13 +20,14 @@ from src.core.uniform_batch_price_grid_table import (  # noqa: E402
     UPBA_PRICE_GRID_MAX_ROWS,
     UPBA_PRICE_GRID_SCORE_FUNCTION_ID_V1,
 )
-from src.state.pools import POOL_FEE_BPS_MAX, POOL_FEE_BPS_MIN  # noqa: E402
 
 POLICY_SCHEMA = "zenodex.upba.grid_economic_sufficiency_policy.v1"
 REPORT_SCHEMA = "zenodex.upba.grid_economic_sufficiency_check.v1"
 BPS_DENOM = 10_000
 PPM_DENOM = 1_000_000
 DECIMAL_MAX = 36
+POOL_FEE_BPS_MIN = 0
+POOL_FEE_BPS_MAX = BPS_DENOM
 
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_unbounded_rational_optimality",
