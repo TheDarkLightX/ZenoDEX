@@ -90,6 +90,23 @@ migration plan and is **kernel-agnostic**.
 larger than `u64`). Tools must preserve integer precision (the Rust CLI enables
 `serde_json`'s `arbitrary_precision`).
 
+Replayed via `replay-fee-trace`. The live authority bridge uses `fee-route`,
+which takes an explicit accumulator plus one `tx` so Rust can evaluate the
+current route without reconstructing prior fee history. The accumulator shape is:
+
+```json
+{
+  "dust_by_stream": [{"source": "dex", "asset": "zUSD", "amount": 1}],
+  "cum_buyburn": [{"asset": "zUSD", "amount": 10}],
+  "cum_stakers": [],
+  "cum_reserve": [],
+  "cum_hosts": []
+}
+```
+
+Accumulator input amounts are JSON integers; bridge output amounts are decimal
+strings to preserve exact `u128` values across Python/Rust JSON tooling.
+
 ## `tx` kinds — `replay_guard`
 
 ```json

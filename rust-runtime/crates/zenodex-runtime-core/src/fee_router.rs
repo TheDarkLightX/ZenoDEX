@@ -19,6 +19,8 @@
 //! | borrow     | 0       | 6000    | 2000    | 2000  |
 //! | redemption | 0       | 6000    | 4000    | 0     |
 
+use std::collections::BTreeSet;
+
 use crate::arith::{checked_add, mul_div_floor};
 use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
 use crate::error::{DomainConstraint, RejectedReason};
@@ -281,6 +283,60 @@ pub struct FeeAccumulator {
 }
 
 impl FeeAccumulator {
+    /// Build an accumulator from explicit sparse entries.
+    ///
+    /// Live authority calls use this to evaluate one route from the current
+    /// Python accumulator. Duplicate decoded keys, zero entries, and values
+    /// above the live MAX domain reject.
+    pub fn from_parts(
+        dust_by_stream: Vec<DustEntry>,
+        cum_buyburn: Vec<AssetAmount>,
+        cum_stakers: Vec<AssetAmount>,
+        cum_reserve: Vec<AssetAmount>,
+        cum_hosts: Vec<AssetAmount>,
+    ) -> Result<FeeAccumulator, &'static str> {
+        validate_dust_entries(&dust_by_stream)?;
+        validate_asset_entries(&cum_buyburn)?;
+        validate_asset_entries(&cum_stakers)?;
+        validate_asset_entries(&cum_reserve)?;
+        validate_asset_entries(&cum_hosts)?;
+        Ok(FeeAccumulator {
+            dust_by_stream: canonical_dust_entries(dust_by_stream),
+            cum_buyburn: canonical_asset_amounts(cum_buyburn),
+            cum_stakers: canonical_asset_amounts(cum_stakers),
+            cum_reserve: canonical_asset_amounts(cum_reserve),
+            cum_hosts: canonical_asset_amounts(cum_hosts),
+        })
+    }
+
+    pub fn dust_entries(&self) -> impl Iterator<Item = (&str, &str, u128)> {
+        self.dust_by_stream
+            .iter()
+            .map(|e| (e.source.as_str(), e.asset.as_str(), e.amount))
+    }
+
+    pub fn buyburn_entries(&self) -> impl Iterator<Item = (&str, u128)> {
+        self.cum_buyburn
+            .iter()
+            .map(|e| (e.asset.as_str(), e.amount))
+    }
+
+    pub fn stakers_entries(&self) -> impl Iterator<Item = (&str, u128)> {
+        self.cum_stakers
+            .iter()
+            .map(|e| (e.asset.as_str(), e.amount))
+    }
+
+    pub fn reserve_entries(&self) -> impl Iterator<Item = (&str, u128)> {
+        self.cum_reserve
+            .iter()
+            .map(|e| (e.asset.as_str(), e.amount))
+    }
+
+    pub fn hosts_entries(&self) -> impl Iterator<Item = (&str, u128)> {
+        self.cum_hosts.iter().map(|e| (e.asset.as_str(), e.amount))
+    }
+
     pub fn dust_for(&self, source: &str, asset: &str) -> u128 {
         dust_amount(&self.dust_by_stream, source, asset)
     }
@@ -317,6 +373,35 @@ impl FeeAccumulator {
         buf.extend(encode_asset_amounts(&self.cum_hosts));
         sha256_hex(&buf)
     }
+}
+
+fn validate_asset_entries(entries: &[AssetAmount]) -> Result<(), &'static str> {
+    let mut seen = BTreeSet::new();
+    for entry in entries {
+        if entry.amount == 0 || entry.amount > MAX_FEE_AMOUNT {
+            return Err("invalid_accumulator_amount");
+        }
+        if !seen.insert(entry.asset.as_str()) {
+            return Err("duplicate_asset_entry");
+        }
+    }
+    Ok(())
+}
+
+fn validate_dust_entries(entries: &[DustEntry]) -> Result<(), &'static str> {
+    let mut seen = BTreeSet::new();
+    for entry in entries {
+        if Domain::from_label(&entry.source).is_none() {
+            return Err("unknown_domain");
+        }
+        if entry.amount == 0 || entry.amount > MAX_FEE_AMOUNT {
+            return Err("invalid_accumulator_amount");
+        }
+        if !seen.insert((entry.source.as_str(), entry.asset.as_str())) {
+            return Err("duplicate_dust_entry");
+        }
+    }
+    Ok(())
 }
 
 /// Successful transition: a receipt plus the next accumulator.
@@ -468,6 +553,63 @@ mod tests {
         assert_eq!(a.receipt.buyburn, 0);
         assert_eq!(a.receipt.hosts, 0);
         assert_eq!((a.receipt.stakers, a.receipt.reserve), (6_000, 4_000));
+    }
+
+    #[test]
+    fn from_parts_rejects_duplicate_keys_and_invalid_amounts() {
+        assert_eq!(
+            FeeAccumulator::from_parts(
+                vec![],
+                vec![
+                    AssetAmount {
+                        asset: "zUSD".to_string(),
+                        amount: 1
+                    },
+                    AssetAmount {
+                        asset: "zUSD".to_string(),
+                        amount: 2
+                    },
+                ],
+                vec![],
+                vec![],
+                vec![],
+            ),
+            Err("duplicate_asset_entry")
+        );
+        assert_eq!(
+            FeeAccumulator::from_parts(
+                vec![
+                    DustEntry {
+                        source: "dex".to_string(),
+                        asset: "zUSD".to_string(),
+                        amount: 1
+                    },
+                    DustEntry {
+                        source: "dex".to_string(),
+                        asset: "zUSD".to_string(),
+                        amount: 2
+                    },
+                ],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+            ),
+            Err("duplicate_dust_entry")
+        );
+        assert_eq!(
+            FeeAccumulator::from_parts(
+                vec![],
+                vec![AssetAmount {
+                    asset: "zUSD".to_string(),
+                    amount: 0
+                }],
+                vec![],
+                vec![],
+                vec![],
+            ),
+            Err("invalid_accumulator_amount")
+        );
     }
 
     #[test]

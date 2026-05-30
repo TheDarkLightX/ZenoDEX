@@ -76,7 +76,12 @@ def test_public_testnet_profile_promotes_replay_guard():
 
     broken = dict(profile)
     broken["runtime_authority_policy"] = dict(profile["runtime_authority_policy"])
-    broken["runtime_authority_policy"]["promoted_surfaces"] = ["balances", "canonical", "state_root"]
+    broken["runtime_authority_policy"]["promoted_surfaces"] = [
+        "balances",
+        "canonical",
+        "fee_router",
+        "state_root",
+    ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
     assert any("replay_guard" in conflict and "half-configured Rust authority" in conflict for conflict in conflicts)
 

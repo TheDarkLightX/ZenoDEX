@@ -54,10 +54,10 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ✅ canonical primitives and state root v5 promoted to public-testnet `rust_authority_with_python_shadow` |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: state-root, perps math, tx/receipt hashes |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: burn rails, CPMM, zUSD, perps math |
 | 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
-| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, and balance accounting promoted on public-testnet; remaining surfaces stay in evidence-gathering |
+| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, and fee router promoted on public-testnet; remaining surfaces stay in evidence-gathering |
 | I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
 
 > The Phase 0–9 numbering above is the original internal milestone scheme. The
@@ -73,7 +73,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 
 | Surface | Python authority | Rust | GT | Diff | Inv | SPARK | OCaml | Next action |
 |---------|------------------|------|----|----|-----|-------|-------|-------------|
-| Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | ✅ oracle | fuzz (promotion) |
+| Fee router (4-way + dust) | `src/core/fee_router.py` | ✅ | ✅ | ✅ 400 | ✅ | advisory ✅ | ✅ oracle | public-testnet promoted |
 | Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | ✅ oracle | public-testnet promoted |
 | Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | public-testnet promoted |
 | zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ + `_reference` (13) | — | — | promotion gate (fuzz) |
@@ -271,11 +271,12 @@ wrap established libraries behind a deterministic verification interface.
 
 ### Phase 9 / K promotion criteria
 
-**Canonical primitives and state root v5 are the first shadow-checked
-Rust-authority lanes on `public-testnet`.** Python remains the default
-authority, `production-strict` remains all-Python, and no surface runs pure
-`rust_authority`. Further promotions require explicit profile entries,
-replayable evidence, and human review.
+**Canonical primitives, state root v5, replay/idempotency guard, balance
+accounting, and the fee router are shadow-checked Rust-authority lanes on
+`public-testnet`.** Python remains the default authority, `production-strict`
+remains all-Python, and no surface runs pure `rust_authority`. Further
+promotions require explicit profile entries, replayable evidence, and human
+review.
 
 A surface is *eligible* for Rust authority only when **all** hold:
 
@@ -299,20 +300,21 @@ fuzz** and **12 human promotion** are outstanding for *every* surface):
 
 | Surface | 1 trace | 2 diff | 3 inv | 4 root/receipt | 5 reject | 6–8 hygiene | 9 fuzz | 12 promoted |
 |---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fee_router | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| fee_router | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | replay_guard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | balance_kernel | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | zusd (single-vault) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | burn_receipts rails | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | cpmm_settlement | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| state_root | ✅ vectors | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| state_root | ✅ vectors | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | tx/receipt hash | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
 | perp_math (E1) | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |
 
-The remaining authoritative surfaces with no Rust shadow yet (full batch-clearing
-orchestration, the stateful perps engine, multi-vault zUSD, the intent
-shape-gate, BLS verification) are tracked in the gap map above and are **not**
-eligible until shadowed.
+The remaining authoritative surfaces with no Rust shadow yet (full
+batch-clearing orchestration, multi-vault zUSD, the intent shape-gate, BLS
+verification) are tracked in the gap map above and are **not** eligible until
+shadowed. Stateful isolated perps is shadowed, but still needs live-path wiring
+and promotion gates before any profile flip.
 
 ## How to run
 

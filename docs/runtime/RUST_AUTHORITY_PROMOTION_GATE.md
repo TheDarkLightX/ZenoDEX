@@ -101,13 +101,13 @@ Until each shadowed surface has the rows below, it is **not** authority-eligible
 
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
-| copied-tx replay | ☐ | ✅ | upstream ✅ | ☐ | ☐ | n/a | n/a | n/a |
-| stale snapshot | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
-| duplicate IDs | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
-| malformed bytes | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | ☐ |
-| overflow/underflow | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ⚠️ | ☐ |
-| unauthorized mutation | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
-| no-op on reject | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
+| copied-tx replay | upstream ✅ | ✅ | upstream ✅ | ☐ | ☐ | n/a | n/a | n/a |
+| stale snapshot | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
+| duplicate IDs | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
+| malformed bytes | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | ☐ |
+| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ⚠️ | ☐ |
+| unauthorized mutation | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
+| no-op on reject | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
@@ -167,6 +167,19 @@ across `python_authority`, `rust_shadow`, and
 `rust_authority_with_python_shadow`. `public-testnet` now runs `balances` as
 `rust_authority_with_python_shadow`; production remains `python_authority`.
 
+**Fee router.** `tests/runtime/test_fee_router_disaster_state.py` covers
+stale-snapshot determinism, duplicate decoded accumulator keys at the Rust
+bridge, malformed bridge inputs, amount/split/domain over/underflow,
+unauthorized cross-stream mutation, no-op-on-reject, deterministic fuzz, and
+selector fail-closed rows. Fee-router transitions intentionally do not carry
+nonce semantics; copied transaction replay is blocked by the promoted
+`replay_guard` upstream, and the fee-router disaster suite exercises that
+composed boundary. `tests/runtime/test_fee_router_live_path.py` proves the real
+`route_fee` call uses the active authority policy and remains root-preserving
+across `python_authority`, `rust_shadow`, and
+`rust_authority_with_python_shadow`. `public-testnet` now runs `fee_router` as
+`rust_authority_with_python_shadow`; production remains `python_authority`.
+
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
@@ -187,10 +200,10 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 2. state root v5 — public-testnet shadow-authority lane active
 3. replay / idempotency guard — public-testnet shadow-authority lane active
 4. balance accounting — public-testnet shadow-authority lane active
-5. fee router
+5. fee router — public-testnet shadow-authority lane active
 
-Then, only after the above are promoted and stable: burn rails, CPMM per-pool
-primitive, zUSD single-vault, perp stateless math. **Defer** batch-clearing
+Then, only after the above are stable: burn rails, CPMM per-pool primitive,
+zUSD single-vault, perp stateless math. **Defer** batch-clearing
 orchestration and multi-vault zUSD (not shadowed).
 
 **Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:

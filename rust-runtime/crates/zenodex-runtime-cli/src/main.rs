@@ -5,6 +5,7 @@
 //!
 //! ```text
 //! zenodex-runtime replay-fee-trace     <trace.json|->   # kernel = fee_router
+//! zenodex-runtime fee-route            <request.json|-> # one fee_router transition
 //! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
 //! zenodex-runtime replay-guard-admit   <request.json|-> # one replay_guard transition
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
@@ -52,6 +53,7 @@ use zenodex_runtime_core::canonical::{
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out, Pool, BPS_DENOM, DEX_POOL_RESERVE_MAX,
 };
+use zenodex_runtime_core::fee_router::{AssetAmount, DustEntry};
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
 use zenodex_runtime_core::perp_funding_auto::{
@@ -103,6 +105,53 @@ struct ReplayOutput {
 enum Eval<S> {
     Accept { receipt_hash: String, next: S },
     Reject(String),
+}
+
+#[derive(Serialize)]
+struct FeeAssetAmountOut {
+    asset: String,
+    amount: String,
+}
+
+#[derive(Serialize)]
+struct FeeDustEntryOut {
+    source: String,
+    asset: String,
+    amount: String,
+}
+
+#[derive(Serialize)]
+struct FeeAccumulatorOut {
+    dust_by_stream: Vec<FeeDustEntryOut>,
+    cum_buyburn: Vec<FeeAssetAmountOut>,
+    cum_stakers: Vec<FeeAssetAmountOut>,
+    cum_reserve: Vec<FeeAssetAmountOut>,
+    cum_hosts: Vec<FeeAssetAmountOut>,
+}
+
+#[derive(Serialize)]
+struct FeeReceiptOut {
+    source: String,
+    asset: String,
+    amount: String,
+    buyburn: String,
+    stakers: String,
+    reserve: String,
+    hosts: String,
+    dust: String,
+}
+
+#[derive(Serialize)]
+struct FeeRouteOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
+    receipt_hash: Option<String>,
+    receipt: Option<FeeReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_accumulator: FeeAccumulatorOut,
 }
 
 #[derive(Serialize)]
@@ -202,6 +251,49 @@ fn first_unknown_field<'a>(
 
 // --- fee_router kernel --------------------------------------------------------
 
+struct FeeRouteParts {
+    source: String,
+    asset: String,
+    amount_str: String,
+    split: FeeSplitTable,
+}
+
+fn fee_asset_out(asset: &str, amount: u128) -> FeeAssetAmountOut {
+    FeeAssetAmountOut {
+        asset: asset.to_string(),
+        amount: amount.to_string(),
+    }
+}
+
+fn fee_accumulator_out(acc: &FeeAccumulator) -> FeeAccumulatorOut {
+    FeeAccumulatorOut {
+        dust_by_stream: acc
+            .dust_entries()
+            .map(|(source, asset, amount)| FeeDustEntryOut {
+                source: source.to_string(),
+                asset: asset.to_string(),
+                amount: amount.to_string(),
+            })
+            .collect(),
+        cum_buyburn: acc
+            .buyburn_entries()
+            .map(|(asset, amount)| fee_asset_out(asset, amount))
+            .collect(),
+        cum_stakers: acc
+            .stakers_entries()
+            .map(|(asset, amount)| fee_asset_out(asset, amount))
+            .collect(),
+        cum_reserve: acc
+            .reserve_entries()
+            .map(|(asset, amount)| fee_asset_out(asset, amount))
+            .collect(),
+        cum_hosts: acc
+            .hosts_entries()
+            .map(|(asset, amount)| fee_asset_out(asset, amount))
+            .collect(),
+    }
+}
+
 fn parse_split_table(v: Option<&Value>) -> Result<FeeSplitTable, String> {
     let obj = match v.and_then(|v| v.as_object()) {
         Some(o) => o,
@@ -225,33 +317,47 @@ fn parse_split_table(v: Option<&Value>) -> Result<FeeSplitTable, String> {
     })
 }
 
-fn eval_fee_tx(acc: &FeeAccumulator, tx: &Value) -> Eval<FeeAccumulator> {
+fn parse_fee_route_parts(tx: &Value) -> Result<FeeRouteParts, String> {
     let obj = match tx.as_object() {
         Some(o) => o,
-        None => return Eval::Reject("malformed_tx".to_string()),
+        None => return Err("malformed_tx".to_string()),
     };
     if obj.get("kind").and_then(Value::as_str) != Some("route_fee") {
-        return Eval::Reject("unknown_tx_kind".to_string());
+        return Err("unknown_tx_kind".to_string());
     }
     if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &TX_FIELDS) {
-        return Eval::Reject(reason);
+        return Err(reason);
     }
     let source = match obj.get("source").and_then(Value::as_str) {
         Some(s) => s,
-        None => return Eval::Reject("malformed_tx".to_string()),
+        None => return Err("malformed_tx".to_string()),
     };
     let asset = match obj.get("asset").and_then(Value::as_str) {
         Some(s) => s,
-        None => return Eval::Reject("malformed_tx".to_string()),
+        None => return Err("malformed_tx".to_string()),
     };
     let amount_str = match obj.get("amount").and_then(classify_integer) {
         Some(s) => s,
-        None => return Eval::Reject("malformed_tx".to_string()),
+        None => return Err("malformed_tx".to_string()),
     };
-    let split = match parse_split_table(obj.get("split_table")) {
-        Ok(t) => t,
+    let split = parse_split_table(obj.get("split_table"))?;
+    Ok(FeeRouteParts {
+        source: source.to_string(),
+        asset: asset.to_string(),
+        amount_str,
+        split,
+    })
+}
+
+fn eval_fee_tx(acc: &FeeAccumulator, tx: &Value) -> Eval<FeeAccumulator> {
+    let parts = match parse_fee_route_parts(tx) {
+        Ok(parts) => parts,
         Err(reason) => return Eval::Reject(reason),
     };
+    let source = parts.source.as_str();
+    let asset = parts.asset.as_str();
+    let amount_str = parts.amount_str;
+    let split = parts.split;
     if amount_str.starts_with('-') {
         return Eval::Reject("negative_amount".to_string());
     }
@@ -265,6 +371,209 @@ fn eval_fee_tx(acc: &FeeAccumulator, tx: &Value) -> Eval<FeeAccumulator> {
             next: accepted.accumulator,
         },
         Err(reason) => Eval::Reject(reason.reason_str()),
+    }
+}
+
+fn parse_fee_state_amount(v: &Value, label: &str) -> Result<u128, String> {
+    let amount = match classify_integer(v) {
+        Some(s) => s,
+        None => return Err(format!("{label} invalid_accumulator_amount")),
+    };
+    amount
+        .parse::<u128>()
+        .map_err(|_| format!("{label} invalid_accumulator_amount"))
+}
+
+fn parse_fee_asset_entries(v: &Value, label: &str) -> Result<Vec<AssetAmount>, String> {
+    let entries = v
+        .as_array()
+        .ok_or_else(|| format!("{label} must be an array"))?;
+    let mut parsed = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| format!("{label}[{index}] must be an object"))?;
+        if let Some(reason) =
+            first_unknown_field(obj.keys().map(String::as_str), &["asset", "amount"])
+        {
+            return Err(format!("{label}[{index}]:{reason}"));
+        }
+        let asset = obj
+            .get("asset")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("{label}[{index}].asset must be a string"))?;
+        let amount = parse_fee_state_amount(
+            obj.get("amount")
+                .ok_or_else(|| format!("{label}[{index}].amount invalid_accumulator_amount"))?,
+            &format!("{label}[{index}].amount"),
+        )?;
+        parsed.push(AssetAmount {
+            asset: asset.to_string(),
+            amount,
+        });
+    }
+    Ok(parsed)
+}
+
+fn parse_fee_dust_entries(v: &Value) -> Result<Vec<DustEntry>, String> {
+    let entries = v
+        .as_array()
+        .ok_or_else(|| "dust_by_stream must be an array".to_string())?;
+    let mut parsed = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| format!("dust_by_stream[{index}] must be an object"))?;
+        if let Some(reason) = first_unknown_field(
+            obj.keys().map(String::as_str),
+            &["source", "asset", "amount"],
+        ) {
+            return Err(format!("dust_by_stream[{index}]:{reason}"));
+        }
+        let source = obj
+            .get("source")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("dust_by_stream[{index}].source must be a string"))?;
+        let asset = obj
+            .get("asset")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("dust_by_stream[{index}].asset must be a string"))?;
+        let amount = parse_fee_state_amount(
+            obj.get("amount").ok_or_else(|| {
+                format!("dust_by_stream[{index}].amount invalid_accumulator_amount")
+            })?,
+            &format!("dust_by_stream[{index}].amount"),
+        )?;
+        parsed.push(DustEntry {
+            source: source.to_string(),
+            asset: asset.to_string(),
+            amount,
+        });
+    }
+    Ok(parsed)
+}
+
+fn fee_accumulator_from_request(v: &Value) -> Result<FeeAccumulator, String> {
+    let obj = v
+        .get("accumulator")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "accumulator must be an object".to_string())?;
+    let fields = [
+        "dust_by_stream",
+        "cum_buyburn",
+        "cum_stakers",
+        "cum_reserve",
+        "cum_hosts",
+    ];
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &fields) {
+        return Err(reason);
+    }
+    let empty = Value::Array(Vec::new());
+    let dust = parse_fee_dust_entries(obj.get("dust_by_stream").unwrap_or(&empty))?;
+    let buyburn = parse_fee_asset_entries(obj.get("cum_buyburn").unwrap_or(&empty), "cum_buyburn")?;
+    let stakers = parse_fee_asset_entries(obj.get("cum_stakers").unwrap_or(&empty), "cum_stakers")?;
+    let reserve = parse_fee_asset_entries(obj.get("cum_reserve").unwrap_or(&empty), "cum_reserve")?;
+    let hosts = parse_fee_asset_entries(obj.get("cum_hosts").unwrap_or(&empty), "cum_hosts")?;
+    FeeAccumulator::from_parts(dust, buyburn, stakers, reserve, hosts)
+        .map_err(|reason| format!("invalid fee accumulator: {reason}"))
+}
+
+fn fee_receipt_out(r: &zenodex_runtime_core::FeeReceipt) -> FeeReceiptOut {
+    FeeReceiptOut {
+        source: r.source.clone(),
+        asset: r.asset.clone(),
+        amount: r.amount.to_string(),
+        buyburn: r.buyburn.to_string(),
+        stakers: r.stakers.to_string(),
+        reserve: r.reserve.to_string(),
+        hosts: r.hosts.to_string(),
+        dust: r.dust.to_string(),
+    }
+}
+
+fn rejected_fee_output(
+    acc: &FeeAccumulator,
+    pre_state_root: String,
+    reason: String,
+) -> FeeRouteOutput {
+    FeeRouteOutput {
+        version: 1,
+        kernel: "fee_router".to_string(),
+        accept: false,
+        reject_reason: Some(reason),
+        receipt_hash: None,
+        receipt: None,
+        pre_state_root: pre_state_root.clone(),
+        post_state_root: pre_state_root,
+        post_accumulator: fee_accumulator_out(acc),
+    }
+}
+
+fn run_fee_route(request: &Value) -> Result<FeeRouteOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(
+        obj.keys().map(String::as_str),
+        &["version", "accumulator", "tx"],
+    ) {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let acc = fee_accumulator_from_request(request)?;
+    let pre_state_root = acc.state_root();
+    let tx = request
+        .get("tx")
+        .ok_or_else(|| "tx is required".to_string())?;
+    let parts = match parse_fee_route_parts(tx) {
+        Ok(parts) => parts,
+        Err(reason) => return Ok(rejected_fee_output(&acc, pre_state_root, reason)),
+    };
+    if parts.amount_str.starts_with('-') {
+        return Ok(rejected_fee_output(
+            &acc,
+            pre_state_root,
+            "negative_amount".to_string(),
+        ));
+    }
+    let amount: u128 = match parts.amount_str.parse::<u128>() {
+        Ok(v) => v,
+        Err(_) => {
+            return Ok(rejected_fee_output(
+                &acc,
+                pre_state_root,
+                "amount_too_large".to_string(),
+            ))
+        }
+    };
+    match route_fee(
+        parts.source.as_str(),
+        parts.asset.as_str(),
+        amount,
+        &parts.split,
+        &acc,
+    ) {
+        Ok(accepted) => {
+            let receipt_hash = accepted.receipt.receipt_hash();
+            Ok(FeeRouteOutput {
+                version: 1,
+                kernel: "fee_router".to_string(),
+                accept: true,
+                reject_reason: None,
+                receipt_hash: Some(receipt_hash),
+                receipt: Some(fee_receipt_out(&accepted.receipt)),
+                pre_state_root,
+                post_state_root: accepted.accumulator.state_root(),
+                post_accumulator: fee_accumulator_out(&accepted.accumulator),
+            })
+        }
+        Err(reason) => Ok(rejected_fee_output(
+            &acc,
+            pre_state_root,
+            reason.reason_str(),
+        )),
     }
 }
 
@@ -2372,6 +2681,7 @@ fn main() -> ExitCode {
         || !matches!(
             subcommand,
             "replay-fee-trace"
+                | "fee-route"
                 | "replay-guard-trace"
                 | "replay-guard-admit"
                 | "replay-balance-trace"
@@ -2393,7 +2703,7 @@ fn main() -> ExitCode {
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
-             replay-balance-trace|balance-op|\
+             fee-route|replay-balance-trace|balance-op|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
@@ -2421,6 +2731,25 @@ fn main() -> ExitCode {
     // (a list of cases, not a state-threaded trace), so handle it separately.
     if subcommand == "canonical-hash" {
         return match run_canonical_cases(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "fee-route" {
+        return match run_fee_route(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");

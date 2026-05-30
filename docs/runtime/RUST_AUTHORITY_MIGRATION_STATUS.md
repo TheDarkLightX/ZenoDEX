@@ -5,8 +5,8 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
 **As of this writing: canonical primitives, state root v5, replay/idempotency
-guard, and balance accounting are promoted only in the `public-testnet` profile to
-`rust_authority_with_python_shadow`.** The
+guard, balance accounting, and the fee router are promoted only in the
+`public-testnet` profile to `rust_authority_with_python_shadow`.** The
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
 
@@ -24,7 +24,7 @@ human decision + profile entry.
 | State root v5 | Rust+Python shadow on public-testnet | `state_root.rs` | ✅ | ✅² | ✅ | ✅² |
 | Replay / idempotency guard | Rust+Python shadow on public-testnet | `replay_guard.rs` | ✅ | ✅⁴ | ✅ | ✅⁴ |
 | Balance accounting | Rust+Python shadow on public-testnet | `balance_kernel.rs` | ✅ | ✅⁵ | ✅ | ✅⁵ |
-| Fee router (4-way + dust) | Python | `fee_router.rs` | ✅ | ☐ | ☐ | ☐ |
+| Fee router (4-way + dust) | Rust+Python shadow on public-testnet | `fee_router.rs` | ✅ | ✅⁶ | ✅ | ✅⁶ |
 | Burn rails | Python | `burn_receipts.rs` | ✅ | ☐ | ☐ | ☐ |
 | CPMM per-pool settlement | Python | `cpmm_swap.rs` | ✅ | ☐ | ☐ | ☐ |
 | zUSD single-vault | Python | `zusd.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -79,6 +79,20 @@ composed boundary rather than pretending balances alone carry nonce semantics.
 injected disagreement. `public-testnet` lists `balances` in
 `promoted_surfaces`; production remains `python_authority`.
 
+⁶ Fee router is now live-wired through `src/core/fee_router.py::route_fee`.
+The Rust bridge evaluates one route from an explicit current accumulator
+(`dust_by_stream`, `cum_buyburn`, `cum_stakers`, `cum_reserve`, `cum_hosts`),
+so it does not replay prior fee history to reconstruct state.
+`tests/runtime/test_fee_router_disaster_state.py` covers stale-snapshot
+determinism, duplicate decoded accumulator keys, malformed bridge inputs,
+amount/split/domain over/underflow, no-op-on-reject, cross-stream dust and
+asset isolation, deterministic fuzz, and selector fail-closed rows. Copied
+transaction replay is owned by the promoted `replay_guard`; the fee-router test
+exercises that composed boundary. `test_fee_router_live_path.py` checks
+active-policy wiring for `rust_authority_with_python_shadow`, `rust_shadow`,
+unavailable Rust, and injected disagreement. `public-testnet` lists
+`fee_router` in `promoted_surfaces`; production remains `python_authority`.
+
 ³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
 `publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
 `partial_liquidate`, `deposit_collateral`, `withdraw_collateral`, `set_position`,
@@ -124,9 +138,8 @@ verifies the selector receives an agreed rejection rather than a drift.
 ### Classification (Phase 0 step 3)
 
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
-  primitives, state root v5, replay/idempotency guard, balance accounting.
-- **Promotable after evidence refresh + selector wiring** (lowest risk, do
-  next): fee router.
+  primitives, state root v5, replay/idempotency guard, balance accounting, fee
+  router.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.

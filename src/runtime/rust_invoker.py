@@ -220,3 +220,68 @@ def balance_op(
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("balance-op: rejected output missing reason")
     return out
+
+
+def fee_route(
+    *,
+    accumulator: dict[str, Any],
+    tx: dict[str, Any],
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust protocol fee router for one transition from an explicit accumulator."""
+
+    out = invoke(
+        "fee-route",
+        {
+            "version": 1,
+            "accumulator": accumulator,
+            "tx": tx,
+        },
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict):
+        raise RustInvocationError("fee-route: output must be an object")
+    if out.get("version") != 1 or out.get("kernel") != "fee_router":
+        raise RustInvocationError("fee-route: unsupported output header")
+    if not isinstance(out.get("accept"), bool):
+        raise RustInvocationError("fee-route: accept must be a bool")
+    for key in ("pre_state_root", "post_state_root"):
+        if not isinstance(out.get(key), str):
+            raise RustInvocationError(f"fee-route: {key} must be a string")
+    _validate_fee_accumulator_doc(out.get("post_accumulator"))
+    if out["accept"]:
+        receipt = out.get("receipt")
+        if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
+            raise RustInvocationError("fee-route: accepted output missing receipt")
+        for key in ("source", "asset", "amount", "buyburn", "stakers", "reserve", "hosts", "dust"):
+            if not isinstance(receipt.get(key), str):
+                raise RustInvocationError(f"fee-route: receipt.{key} must be a string")
+    else:
+        if not isinstance(out.get("reject_reason"), str):
+            raise RustInvocationError("fee-route: rejected output missing reason")
+        if out.get("receipt") is not None or out.get("receipt_hash") is not None:
+            raise RustInvocationError("fee-route: rejected output must not carry receipt")
+    return out
+
+
+def _validate_fee_accumulator_doc(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise RustInvocationError("fee-route: post_accumulator must be an object")
+    for key in ("dust_by_stream", "cum_buyburn", "cum_stakers", "cum_reserve", "cum_hosts"):
+        if not isinstance(value.get(key), list):
+            raise RustInvocationError(f"fee-route: post_accumulator.{key} must be a list")
+    for entry in value["dust_by_stream"]:
+        if not isinstance(entry, dict):
+            raise RustInvocationError("fee-route: dust entry must be an object")
+        if (
+            not isinstance(entry.get("source"), str)
+            or not isinstance(entry.get("asset"), str)
+            or not isinstance(entry.get("amount"), str)
+        ):
+            raise RustInvocationError("fee-route: malformed dust entry")
+    for bucket in ("cum_buyburn", "cum_stakers", "cum_reserve", "cum_hosts"):
+        for entry in value[bucket]:
+            if not isinstance(entry, dict):
+                raise RustInvocationError(f"fee-route: {bucket} entry must be an object")
+            if not isinstance(entry.get("asset"), str) or not isinstance(entry.get("amount"), str):
+                raise RustInvocationError(f"fee-route: malformed {bucket} entry")
