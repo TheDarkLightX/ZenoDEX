@@ -451,6 +451,53 @@ def perp_math_eval(
     return result
 
 
+_PERP_STATEFUL_SUBCOMMANDS = frozenset(
+    {
+        "advance-epoch",
+        "funding-auto",
+        "publish-clearing-price",
+        "settle-epoch",
+        "partial-liquidate",
+        "account-op",
+        "set-market-params",
+    }
+)
+
+
+def perp_stateful_case(
+    subcommand: str,
+    case: dict[str, Any],
+    *,
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust stateful isolated-perps checker for one accepted transition case."""
+
+    if subcommand not in _PERP_STATEFUL_SUBCOMMANDS:
+        raise RustInvocationError(f"perp-stateful: unsupported subcommand {subcommand!r}")
+    out = invoke(
+        subcommand,
+        {"cases": [case]},
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict) or out.get("version") != 1:
+        raise RustInvocationError(f"{subcommand}: unexpected output header")
+    results = out.get("results")
+    if not isinstance(results, list) or len(results) != 1:
+        raise RustInvocationError(f"{subcommand}: unexpected results shape")
+    result = results[0]
+    if not isinstance(result, dict) or result.get("index") != 0:
+        raise RustInvocationError(f"{subcommand}: malformed result")
+    if not isinstance(result.get("ok"), bool):
+        raise RustInvocationError(f"{subcommand}: result.ok must be a bool")
+    if result["ok"]:
+        if "code" in result:
+            raise RustInvocationError(f"{subcommand}: accepted result carried code")
+    else:
+        if not isinstance(result.get("code"), str):
+            raise RustInvocationError(f"{subcommand}: rejected result missing code")
+    return result
+
+
 def zusd_op(
     *,
     state: dict[str, Any],

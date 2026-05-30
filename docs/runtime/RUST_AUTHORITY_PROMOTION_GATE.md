@@ -248,9 +248,13 @@ off-by-one, over-domain), exercising malformed/out-of-domain, overflow/underflow
 and reject-path parity (rejected cases yield no Rust post-state and stable reject
 codes). The same test also exercises the generic authority selector over the perps
 shadow surface in `rust_authority_with_python_shadow` mode, including fail-closed
-rows for injected disagreement, malformed Rust output, and unavailable Rust. This
-is a test-only selector exercise. It does not wire perps into the live transaction
-path and does not flip any deployment profile, so perps stays `python_authority`.
+rows for injected disagreement, malformed Rust output, and unavailable Rust.
+`public-testnet` now also configures `perp_stateful: rust_shadow`, and the live
+isolated transaction path checks accepted transitions against Rust when the
+binary is available. This keeps Python authoritative and fail-closes on
+available Rust disagreement. `rust_authority*` remains blocked for this surface
+until Rust emits the full post-state/effects document needed to materialize the
+transaction without Python.
 
 ## Promotion order (lowest risk first)
 
@@ -266,7 +270,7 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 8. CPMM per-pool primitive — public-testnet shadow-authority lane active
 9. perp stateless math — public-testnet shadow-authority lane active
 
-Next candidate: stateful isolated perps live-path wiring. **Defer**
+Next candidate: stateful isolated perps authority-grade materialization. **Defer**
 batch-clearing orchestration and multi-vault zUSD (not shadowed).
 
 **Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:
@@ -275,11 +279,12 @@ all 10 `_ISOLATED_ACTION_HANDLERS` ops (`advance_epoch`, `publish_clearing_price
 `withdraw_collateral`, `set_position`, `clear_breaker`, `set_market_params`) have
 Rust shadows with real-authority differentials, golden traces, property/proptests,
 and now the high-volume fuzz + input-disaster-state gate
-(`tests/runtime/test_perp_disaster_state.py`). It joins the eligibility queue
-behind the lower-risk surfaces above; what remains before it can flip to
-`rust_authority_with_python_shadow` is live-path wiring, target-profile policy
-updates, the CI gate, and human sign-off. The current selector coverage is
-deliberately test-only and does not promote the surface.
+(`tests/runtime/test_perp_disaster_state.py`). It now also has live
+`rust_shadow` wiring in `src/integration/perp_engine.py` and
+`tests/runtime/test_perp_stateful_live_shadow.py`, plus the public-testnet
+profile entry. What remains before it can flip to
+`rust_authority_with_python_shadow` is authority-grade Rust state/effects
+materialization, CI enforcement for that materialized path, and human sign-off.
 
 ## How a promotion PR looks
 

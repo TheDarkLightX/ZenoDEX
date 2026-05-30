@@ -30,7 +30,7 @@ human decision + profile entry.
 | CPMM per-pool settlement | Rust+Python shadow on public-testnet | `cpmm_swap.rs` | ✅ | ✅⁸ | ✅ | ✅⁸ |
 | zUSD single-vault | Rust+Python shadow on public-testnet | `zusd.rs` | ✅ | ✅¹⁰ | ✅ | ✅¹⁰ |
 | Perp stateless math (E1) | Rust+Python shadow on public-testnet | `perp_math.rs` | ✅ | ✅⁹ | ✅ | ✅⁹ |
-| Perp stateful (E2, all 10 ops) | Python | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
+| Perp stateful (E2, all 10 ops) | Python + live Rust shadow on public-testnet | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
 
 ¹ Canonical primitives (stateless) have the applicable disaster-state rows
 (malformed bytes, overflow/underflow, determinism, purity) covered by
@@ -167,12 +167,15 @@ golden traces, a real-authority differential (driving `apply_perp_ops`), and Rus
 unit/proptests. `tests/runtime/test_perp_disaster_state.py` adds the **fuzz**
 evidence (≈1.7k randomized cases/run) and the **input-disaster** rows
 (malformed/out-of-domain, overflow/underflow at every parameter bound,
-reject-path parity). It also exercises the generic authority selector in
-`rust_authority_with_python_shadow` mode against each perps shadow and fails closed
-on injected disagreement, malformed Rust output, and unavailable Rust. This is
-test-only selector coverage: today each perp shadow is still a CLI checker, not a
-live decision path. Until live wiring + CI + human sign-off exist, perps stays
-`python_authority`. No profile flips it.
+reject-path parity). The live integration path now enables `perp_stateful:
+rust_shadow` in `public-testnet`: accepted isolated-perps transitions run the
+same Rust checker after Python materializes the transition, and any available
+Rust disagreement fails closed before the copied transaction state is committed.
+Unavailable Rust is skipped in `rust_shadow`, preserving deployability. This is
+still not a Rust-authority promotion because Python owns integration checks,
+balances, oracle bridge authorization, effects, and state materialization for
+this surface. `rust_authority*` modes are explicitly rejected for
+`perp_stateful` until full-state Rust materialization exists.
 
 ## Findings / blockers
 
@@ -205,11 +208,13 @@ verifies the selector receives an agreed rejection rather than a drift.
   primitives, state root v5, replay/idempotency guard, balance accounting, fee
   router, zUSD single-vault, burn rails, CPMM per-pool settlement, perp
   stateless math.
-- **Shadowed (E2 complete), awaiting live-path wiring**: the **stateful
-  isolated-perps engine (all 10 ops)**. Evidence 1–3 + fuzz + input-disaster are
-  green, and the generic selector fail-closed rows are exercised in tests. Stays
-  `python_authority` until profile policy, live-path wiring, CI, and human sign-off
-  are complete.
+- **Live Rust shadow, awaiting authority-grade materialization**: the
+  **stateful isolated-perps engine (all 10 ops)**. Evidence 1–3 +
+  fuzz + input-disaster are green, and `public-testnet` runs
+  `perp_stateful: rust_shadow` on accepted isolated transitions. It stays Python
+  authority until Rust emits a full post-DexState/effects-equivalent document,
+  the profile flips to `rust_authority_with_python_shadow`, CI enforces it, and
+  human sign-off is recorded.
 - **Intentionally Python-only**: batch-clearing orchestration, multi-vault zUSD,
   intent shape-gate, BLS verification (crypto is wrapped, never reimplemented).
 
