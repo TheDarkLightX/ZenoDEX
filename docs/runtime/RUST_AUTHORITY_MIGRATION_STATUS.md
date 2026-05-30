@@ -177,11 +177,11 @@ balances, oracle bridge authorization, effects, and state materialization for
 this surface. `rust_authority*` modes are explicitly rejected for `perp_stateful`
 until Rust **decides accept/reject from the pre-state and commits** the
 materialized post-state + effects for every op (full-state + effect *materialization*
-now exists for `advance_epoch`, but it is consumed as a shadow check, not as the
-deciding authority — see the shadow-materialization foundation note below).
+now exists for eight of the ten isolated ops, but it is consumed as a shadow check,
+not as the deciding authority — see the shadow-materialization foundation note below).
 
-**Shadow materialization foundation (this change).** The materializer
-`zenodex-runtime perp-isolated-op` is introduced: it emits the **full post-market
+**Shadow materialization (in progress).** The materializer
+`zenodex-runtime perp-isolated-op` emits the **full post-market
 state** (`quote_asset` + every global key + every account) **plus the exact kernel
 effect payload**, consuming explicit integration facts (`operator_ok`,
 `sender_bound_ok`, `oracle_adapter_ok`, `oracle_authorization_ok`,
@@ -190,13 +190,20 @@ never carries a post-state. The request boundary is authority-grade: it requires
 the exact `schema` (`zenodex/perp_isolated_op/v1`) and `version` (1), requires the
 `facts` object with every required key (a missing fact rejects as
 `perp_isolated_op_missing_facts`, *not* as a semantic operator failure), and
-rejects unknown op fields. Three ops are materialized so far: the global ops
-**`advance_epoch`** and **`publish_clearing_price`**, plus **`settle_epoch`** — the
-first account-mutating op, which emits the full settled post-state (per-account
-realized P&L / liquidation + global fee/insurance accumulation) and the
-`EpochSettled` effect, reusing `perp_settle_epoch::settle_epoch`. Each emits its
-full post-state and exact effect (`EpochAdvanced` / `ClearingPricePublished` /
-`EpochSettled`).
+rejects unknown op fields. Eight of the ten isolated ops are materialized: the
+global ops **`advance_epoch`**, **`publish_clearing_price`**, and **`settle_epoch`**
+(the first account-mutating op — per-account realized P&L / liquidation + global
+fee/insurance accumulation); the four `account_op`-family ops
+**`deposit_collateral`**, **`withdraw_collateral`**, **`set_position`**, and
+**`clear_breaker`**; and **`partial_liquidate`** (penalty accumulation into
+fee_pool/fee_income/insurance, `liquidated_this_step=true`). Each emits its full
+post-state and exact kernel effect (`EpochAdvanced` / `ClearingPricePublished` /
+`EpochSettled` / `CollateralDeposited` / `CollateralWithdrawn` / `PositionSet` /
+`BreakerCleared` / `PartialLiquidationApplied`). `settle_epoch` and
+`partial_liquidate` additionally fail closed on the oracle-adapter / authorization
+facts, matching their Python handlers. The remaining two — **`apply_funding_auto`**
+and **`set_market_params`** — are not yet materialized (their bridge keeps Python
+authoritative).
 
 This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
@@ -207,10 +214,9 @@ accept/reject from the pre-state nor commit its materialized result. Accordingly
 **`perp_stateful` stays blocked under every `rust_authority*` mode** (for materialized
 and unmaterialized ops alike) and **remains `rust_shadow` in every profile**.
 
-Promotion requires (a) materializing the remaining isolated ops
-(`apply_funding_auto`, `clear_breaker`, `set_market_params`,
-`deposit/withdraw/set_position`, `partial_liquidate`) with full post-state +
-exact effect parity, (b) inverting the authority path so Rust **decides from the
+Promotion requires (a) materializing the remaining two isolated ops
+(`apply_funding_auto`, `set_market_params`) with full post-state + exact effect
+parity, (b) inverting the authority path so Rust **decides from the
 pre-state and commits** its materialized result (Python becomes the shadow), then
 (c) the gate + human sign-off. Kani 0.60.0 is available; bounded-model-checking
 harnesses for the high-risk Rust kernels are a parallel next step. No profile flips
