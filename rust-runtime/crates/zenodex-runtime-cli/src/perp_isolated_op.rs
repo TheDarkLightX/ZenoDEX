@@ -249,6 +249,7 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
             materialize_withdraw_collateral(&quote_asset, global, accounts, op, &facts)
         }
         "set_position" => materialize_set_position(&quote_asset, global, accounts, op, &facts),
+        "clear_breaker" => materialize_clear_breaker(&quote_asset, global, accounts, op, &facts),
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -858,6 +859,78 @@ fn materialize_set_position(
     }
 }
 
+/// `clear_breaker`: operator-gated GLOBAL op (NOT a single-account op despite living
+/// in the `account_op` dispatch). It takes no account target — the Python integration
+/// runs it on the flat dummy and the only state change is the two global breaker
+/// fields (accounts pass through verbatim). The core `clear_breaker` rejects with
+/// `clear_breaker_positions_open` (some account still has an open position; the
+/// integration's aggregate flat check arrives as the `all_positions_flat` fact) or
+/// `clear_breaker_guard` (breaker not active). The effect is the flat-dummy
+/// `global_op_effect`, event `BreakerCleared` — like advance/settle, not account ops.
+fn materialize_clear_breaker(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    // clear_breaker takes only `action` (no account_pubkey / amount / position).
+    for k in op.keys() {
+        if k != "action" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.operator_ok {
+        return reject(REJ_OPERATOR);
+    }
+    match clear_breaker_inner(&global, facts.all_positions_flat) {
+        Ok((breaker_active, breaker_last)) => {
+            global.insert("breaker_active".into(), Value::Bool(breaker_active));
+            global.insert(
+                "breaker_last_trigger_epoch".into(),
+                Value::String(breaker_last.to_string()),
+            );
+            match global_op_effect(&global, "BreakerCleared") {
+                Ok(effects) => accept(quote_asset, &global, &accounts, effects),
+                Err(code) => reject(code),
+            }
+        }
+        Err(code) => reject(code),
+    }
+}
+
+/// Run the core `clear_breaker` over the global state, returning the post breaker
+/// fields. Only `all_positions_flat` and `breaker_active` drive the decision; the
+/// remaining `AccountOpInput` fields are populated from the global for a well-typed
+/// call (the kernel domain check still applies).
+fn clear_breaker_inner(
+    global: &Map<String, Value>,
+    all_positions_flat: bool,
+) -> Result<(bool, i128), &'static str> {
+    let input = AccountOpInput {
+        now_epoch: gget(global, "now_epoch")?,
+        epoch_phase: gget(global, "epoch_phase")?,
+        oracle_last_update_epoch: gget(global, "oracle_last_update_epoch")?,
+        max_oracle_staleness_epochs: gget(global, "max_oracle_staleness_epochs")?,
+        oracle_seen: bget(global, "oracle_seen")?,
+        index_price_e8: gget(global, "index_price_e8")?,
+        position_base: 0,
+        collateral_quote: 0,
+        entry_price_e8: 0,
+        maintenance_margin_bps: gget(global, "maintenance_margin_bps")?,
+        depeg_buffer_bps: gget(global, "depeg_buffer_bps")?,
+        initial_margin_bps: gget(global, "initial_margin_bps")?,
+        max_position_abs: gget(global, "max_position_abs")?,
+        breaker_active: bget(global, "breaker_active")?,
+        breaker_last_trigger_epoch: gget(global, "breaker_last_trigger_epoch")?,
+        amount: 0,
+        new_position_base: 0,
+        all_positions_flat,
+    };
+    let out = account_op("clear_breaker", &input)?;
+    Ok((out.breaker_active, out.breaker_last_trigger_epoch))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -945,6 +1018,23 @@ mod tests {
             "global_state": global, "accounts": accounts, "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
                       "all_positions_flat": false, "balance_available": "0",
+                      "oracle_adapter_ok": true, "oracle_authorization_ok": true}
+        })
+    }
+
+    fn req_accts_flat(
+        global: Value,
+        op: Value,
+        accounts: Value,
+        operator_ok: bool,
+        all_positions_flat: bool,
+    ) -> Value {
+        json!({
+            "schema": SCHEMA_ID, "version": SCHEMA_VERSION,
+            "quote_asset": "0x".to_string() + &"41".repeat(32),
+            "global_state": global, "accounts": accounts, "op": op,
+            "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
+                      "all_positions_flat": all_positions_flat, "balance_available": "0",
                       "oracle_adapter_ok": true, "oracle_authorization_ok": true}
         })
     }
@@ -1713,6 +1803,123 @@ mod tests {
             open_global(5),
             json!({"action": "set_position", "account_pubkey": "aa", "new_position_base": "100000", "amount": "1"}),
             json!([acct_json("aa", 0, 1_000_000, 0)]),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    fn breaker_active_global(now: i128) -> Value {
+        let mut g = open_global(now);
+        g["breaker_active"] = json!(true);
+        g["breaker_last_trigger_epoch"] = json!(now.to_string());
+        g
+    }
+
+    #[test]
+    fn clear_breaker_materializes_global_reset_and_effect() {
+        // Operator-gated global op: clears the two breaker fields, leaves accounts
+        // verbatim, and emits the flat-dummy BreakerCleared effect. `req` carries
+        // all_positions_flat=true.
+        let r = materialize_isolated_op(&req(
+            breaker_active_global(5),
+            json!({"action": "clear_breaker"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let pg = &r["post"]["global_state"];
+        assert_eq!(pg["breaker_active"], json!(false)); // reset
+        assert_eq!(pg["breaker_last_trigger_epoch"], json!("0")); // reset
+        assert_eq!(pg["now_epoch"], json!("5")); // unchanged
+        assert!(r["post"]["accounts"].as_array().unwrap().is_empty());
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("BreakerCleared"));
+        assert_eq!(fx["oracle_fresh"], json!(true));
+        assert_eq!(fx["effective_maint_bps"], json!("600"));
+        assert_eq!(fx["notional_quote"], json!("0")); // flat dummy
+        assert_eq!(fx["collateral_after"], json!("0"));
+    }
+
+    #[test]
+    fn clear_breaker_passes_accounts_through_verbatim() {
+        // Accounts are not the target of clear_breaker; they must echo unchanged.
+        let r = materialize_isolated_op(&req_accts_flat(
+            breaker_active_global(5),
+            json!({"action": "clear_breaker"}),
+            json!([acct_json("aa", 0, 1_000_000, 0)]),
+            true,
+            true, // all_positions_flat
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        assert_eq!(accts.len(), 1);
+        assert_eq!(accts[0]["key"], json!("aa"));
+        assert_eq!(accts[0]["collateral_quote"], json!("1000000")); // untouched
+        assert_eq!(r["post"]["global_state"]["breaker_active"], json!(false));
+    }
+
+    #[test]
+    fn clear_breaker_operator_gate_rejects() {
+        let r = materialize_isolated_op(&req(
+            breaker_active_global(5),
+            json!({"action": "clear_breaker"}),
+            false,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_OPERATOR));
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn clear_breaker_is_not_sender_gated() {
+        let mut r = req(
+            breaker_active_global(5),
+            json!({"action": "clear_breaker"}),
+            true,
+        );
+        r["facts"]["sender_bound_ok"] = json!(false);
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["accept"], json!(true), "{out}");
+        assert_eq!(out["effects"]["event"], json!("BreakerCleared"));
+    }
+
+    #[test]
+    fn clear_breaker_positions_open_rejects() {
+        // An account with an open position -> all_positions_flat=false -> the core's
+        // aggregate gate rejects with clear_breaker_positions_open (before the
+        // breaker-active guard).
+        let r = materialize_isolated_op(&req_accts(
+            breaker_active_global(5),
+            json!({"action": "clear_breaker"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_POSITIONS_OPEN)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn clear_breaker_not_active_rejects_with_guard() {
+        // Flat positions but breaker inactive -> clear_breaker_guard.
+        let r = materialize_isolated_op(&req(
+            open_global(5), // breaker_active=false
+            json!({"action": "clear_breaker"}),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_account_ops::REJ_CLEAR_BREAKER_GUARD)
+        );
+    }
+
+    #[test]
+    fn clear_breaker_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req(
+            breaker_active_global(5),
+            json!({"action": "clear_breaker", "account_pubkey": "aa"}),
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));

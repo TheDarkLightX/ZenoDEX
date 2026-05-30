@@ -669,3 +669,43 @@ def test_rust_shadow_set_position_resets_liquidated_flag(rust_env):
     )
     assert res.ok is True, res.error  # parity: materializer resets the flag like Python
     assert res.state.perps.markets[market_id].accounts[PK_A].liquidated_this_step is False
+
+
+def test_rust_shadow_clear_breaker_materialized_parity(rust_env):
+    # clear_breaker is now materialized (operator-gated GLOBAL op): rust_shadow
+    # compares the full post-market (both breaker globals reset; accounts verbatim)
+    # AND the flat-dummy BreakerCleared effect. A flat funded account is present to
+    # confirm it passes through untouched. (The legacy test_rust_shadow_checks_
+    # clear_breaker also exercises this path; this one asserts the materialized
+    # full-state reset explicitly.)
+    market_id = "perp:shadow-clearbrk"
+    state = _open_market(market_id, [])  # flat -> all_positions_flat holds
+    funded = BalanceTable()
+    for (pk, asset), amt in state.balances.get_all_balances().items():
+        funded.set(pk, asset, int(amt))
+    funded.set(PK_A, QUOTE, 1_000_000_000)
+    state = replace(state, balances=funded)
+    state = fa._apply(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=500_000)],
+    )
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["breaker_active"] = True
+    gs["breaker_last_trigger_epoch"] = int(gs["now_epoch"])
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset, global_state=gs, accounts=dict(market.accounts)
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "clear_breaker")],
+    )
+    assert res.ok is True, res.error  # full state + BreakerCleared effect parity held
+    post = res.state.perps.markets[market_id]
+    assert post.global_state["breaker_active"] is False
+    assert int(post.global_state["breaker_last_trigger_epoch"]) == 0  # reset
+    assert int(post.accounts[PK_A].collateral_quote) == 500_000  # account untouched
