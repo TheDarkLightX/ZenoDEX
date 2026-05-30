@@ -54,10 +54,10 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ✅ canonical primitives and state root v5 promoted to public-testnet `rust_authority_with_python_shadow` |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, buyback burn rails ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: burn rails, CPMM, zUSD, perps math |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, burn rails ✅, **zUSD full single-vault** (mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery gating) ✅, **batch-clearing CPMM settlement** (per-pool primitive) ✅; next: CPMM, zUSD, perps math |
 | 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
-| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, and fee router promoted on public-testnet; remaining surfaces stay in evidence-gathering |
+| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, fee router, and burn rails promoted on public-testnet; remaining surfaces stay in evidence-gathering |
 | I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
 
 > The Phase 0–9 numbering above is the original internal milestone scheme. The
@@ -77,7 +77,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | Replay/idempotency guard | `src/core/replay_guard.py` | ✅ | ✅ | ✅ 400 | ✅ | — | ✅ oracle | public-testnet promoted |
 | Balance accounting | `src/core/balance_kernel.py` | ✅ | ✅ | ✅ 400 | ✅ | — | — | public-testnet promoted |
 | zUSD single-vault (full) | `src/core/zusd.py` `step` | ✅ mint/repay/deposit-sp/withdraw-sp/redeem/liquidate + oracle/recovery | ✅ | ✅ 500 (>u128) | ✅ + `_reference` (13) | — | — | promotion gate (fuzz) |
-| Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | advisory ✅ | — | receipt-body JSON hash (Phase F) |
+| Buyback burn rails | `src/core/burn_receipts.py` | ✅ rails | ✅ | ✅ 600 | ✅ | advisory ✅ | — | public-testnet promoted |
 | Canonical primitives | `src/state/canonical.py` | ✅ uvarint/bytes/domain-sep/sha256 + `hex_to_bytes_fixed` + `canonical_json_bytes` | n/a | ✅ vectors | n/a | — | planned | — |
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | orchestration (multi-pool/CoW/ordering) deferred |
 | State root (network) | `src/state/state_root.py` | ✅ v5 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
@@ -272,7 +272,7 @@ wrap established libraries behind a deterministic verification interface.
 ### Phase 9 / K promotion criteria
 
 **Canonical primitives, state root v5, replay/idempotency guard, balance
-accounting, and the fee router are shadow-checked Rust-authority lanes on
+accounting, the fee router, and burn rails are shadow-checked Rust-authority lanes on
 `public-testnet`.** Python remains the default authority, `production-strict`
 remains all-Python, and no surface runs pure `rust_authority`. Further
 promotions require explicit profile entries, replayable evidence, and human
@@ -304,7 +304,7 @@ fuzz** and **12 human promotion** are outstanding for *every* surface):
 | replay_guard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | balance_kernel | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | zusd (single-vault) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| burn_receipts rails | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| burn_receipts rails | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | cpmm_settlement | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | state_root | ✅ vectors | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | tx/receipt hash | ✅ vectors | ✅ | ✅ | n/a | ✅ | ✅ | ☐ | ☐ |

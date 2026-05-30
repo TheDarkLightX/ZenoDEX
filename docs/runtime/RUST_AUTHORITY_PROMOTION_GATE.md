@@ -101,13 +101,13 @@ Until each shadowed surface has the rows below, it is **not** authority-eligible
 
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
-| copied-tx replay | upstream ✅ | ✅ | upstream ✅ | ☐ | ☐ | n/a | n/a | n/a |
-| stale snapshot | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
-| duplicate IDs | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
-| malformed bytes | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | ☐ |
-| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | ⚠️ | ☐ |
-| unauthorized mutation | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
-| no-op on reject | ✅ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
+| copied-tx replay | upstream ✅ | ✅ | upstream ✅ | ☐ | replay flag ✅ | n/a | n/a | n/a |
+| stale snapshot | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ☐ | ✅ | n/a |
+| duplicate IDs | ✅ | ✅ | ✅ | ☐ | n/a | ☐ | ✅ | n/a |
+| malformed bytes | ✅ | ✅ | ✅ | ☐ | ✅ | ☐ | ✅ | ☐ |
+| overflow/underflow | ✅ | ✅ | ✅ | ☐ | ✅ | ☐ | ⚠️ | ☐ |
+| unauthorized mutation | ✅ | ✅ | ✅ | ☐ | n/a | ☐ | n/a | n/a |
+| no-op on reject | ✅ | ✅ | ✅ | ☐ | stateless ✅ | ☐ | n/a | n/a |
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
@@ -180,6 +180,18 @@ across `python_authority`, `rust_shadow`, and
 `rust_authority_with_python_shadow`. `public-testnet` now runs `fee_router` as
 `rust_authority_with_python_shadow`; production remains `python_authority`.
 
+**Burn rails.** `tests/runtime/test_burn_receipts_disaster_state.py` covers
+the replay/nullifier host flag, stateless deterministic replay, malformed rail
+tuples, amount/supply/batch over/underflow, hash mismatch before rails,
+deterministic fuzz, and selector fail-closed rows. The live verifier keeps the
+receipt envelope, canonical-JSON hash, and legacy `int()` coercion in Python,
+then routes the eleven integer rails through Rust under the active authority
+policy. `tests/runtime/test_burn_receipts_live_path.py` proves
+`verify_burn_receipt` uses the active authority policy and remains
+root-preserving across `python_authority`, `rust_shadow`, and
+`rust_authority_with_python_shadow`. `public-testnet` now runs `burn_receipts`
+as `rust_authority_with_python_shadow`; production remains `python_authority`.
+
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
@@ -201,9 +213,10 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 3. replay / idempotency guard — public-testnet shadow-authority lane active
 4. balance accounting — public-testnet shadow-authority lane active
 5. fee router — public-testnet shadow-authority lane active
+6. burn rails — public-testnet shadow-authority lane active
 
-Then, only after the above are stable: burn rails, CPMM per-pool primitive,
-zUSD single-vault, perp stateless math. **Defer** batch-clearing
+Then, only after the above are stable: CPMM per-pool primitive, zUSD
+single-vault, perp stateless math. **Defer** batch-clearing
 orchestration and multi-vault zUSD (not shadowed).
 
 **Update (E2 done).** The **stateful isolated-perps engine is now fully shadowed**:

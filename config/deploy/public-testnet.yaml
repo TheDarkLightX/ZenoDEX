@@ -43,12 +43,14 @@ runtime_authority_policy:
   default: python_authority
   per_surface:
     balances: rust_authority_with_python_shadow
+    burn_receipts: rust_authority_with_python_shadow
     canonical: rust_authority_with_python_shadow
     fee_router: rust_authority_with_python_shadow
     replay_guard: rust_authority_with_python_shadow
     state_root: rust_authority_with_python_shadow
   promoted_surfaces:
     - balances
+    - burn_receipts
     - canonical
     - fee_router
     - replay_guard

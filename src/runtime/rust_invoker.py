@@ -285,3 +285,59 @@ def _validate_fee_accumulator_doc(value: Any) -> None:
                 raise RustInvocationError(f"fee-route: {bucket} entry must be an object")
             if not isinstance(entry.get("asset"), str) or not isinstance(entry.get("amount"), str):
                 raise RustInvocationError(f"fee-route: malformed {bucket} entry")
+
+
+def burn_rails_verify(
+    *,
+    tx: dict[str, Any],
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust burn accounting rails for one stateless rail tuple."""
+
+    out = invoke(
+        "verify-burn-trace",
+        {
+            "version": 1,
+            "kernel": "burn_receipts",
+            "steps": [{"tx": tx}],
+        },
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict):
+        raise RustInvocationError("verify-burn-trace: output must be an object")
+    if out.get("version") != 1 or out.get("kernel") != "burn_receipts":
+        raise RustInvocationError("verify-burn-trace: unsupported output header")
+    if not isinstance(out.get("initial_state_root"), str) or not isinstance(
+        out.get("final_state_root"), str
+    ):
+        raise RustInvocationError("verify-burn-trace: malformed state roots")
+    results = out.get("results")
+    if not isinstance(results, list) or len(results) != 1:
+        raise RustInvocationError("verify-burn-trace: expected exactly one result")
+    result = results[0]
+    if not isinstance(result, dict):
+        raise RustInvocationError("verify-burn-trace: result must be an object")
+    if result.get("index") != 0 or not isinstance(result.get("accept"), bool):
+        raise RustInvocationError("verify-burn-trace: malformed result header")
+    for key in ("pre_state_root", "post_state_root"):
+        if not isinstance(result.get(key), str):
+            raise RustInvocationError(f"verify-burn-trace: {key} must be a string")
+    if result["accept"]:
+        if not isinstance(result.get("receipt_hash"), str):
+            raise RustInvocationError("verify-burn-trace: accepted result missing receipt hash")
+        if result.get("reject_reason") is not None:
+            raise RustInvocationError("verify-burn-trace: accepted result carried reject reason")
+    else:
+        if not isinstance(result.get("reject_reason"), str):
+            raise RustInvocationError("verify-burn-trace: rejected result missing reason")
+        if result.get("receipt_hash") is not None:
+            raise RustInvocationError("verify-burn-trace: rejected result carried receipt hash")
+    return {
+        "version": 1,
+        "kernel": "burn_receipts",
+        "accept": bool(result["accept"]),
+        "reject_reason": None if result["accept"] else str(result["reject_reason"]),
+        "receipt_hash": result.get("receipt_hash"),
+        "pre_state_root": str(result["pre_state_root"]),
+        "post_state_root": str(result["post_state_root"]),
+    }

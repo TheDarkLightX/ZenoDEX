@@ -203,6 +203,8 @@ four rails (replay / amount-budget / supply / batch-sum). Reject codes
 `post_state_root` equals the `initial_state_root`; on accept the `receipt_hash`
 commits to the validated rail tuple. The receipt structural envelope (schema /
 canonical-JSON hash) of `verify_burn_receipt` is validated in Python only.
+The live authority bridge reuses `verify-burn-trace` with one step after Python
+has validated the envelope and coerced the host/accounting fields to integers.
 
 ## `tx` kinds — `cpmm_settlement`
 
