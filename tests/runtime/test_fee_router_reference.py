@@ -111,6 +111,26 @@ def test_dust_carry_conserves_across_steps():
     )
 
 
+def test_repeated_tiny_dex_fees_preserve_long_run_split():
+    acc = FeeAccumulator()
+    for _ in range(10):
+        res = route_fee(
+            source=DEX,
+            asset="zUSD",
+            amount=1,
+            split_table=canonical_split_table(DEX),
+            accumulator=acc,
+        )
+        assert isinstance(res, RouteAccepted)
+        acc = res.accumulator
+
+    assert acc.bucket_total("cum_buyburn", "zUSD") == 6
+    assert acc.bucket_total("cum_stakers", "zUSD") == 0
+    assert acc.bucket_total("cum_reserve", "zUSD") == 2
+    assert acc.bucket_total("cum_hosts", "zUSD") == 2
+    assert acc.dust_for(DEX, "zUSD") == 0
+
+
 def test_dust_is_scoped_by_source_and_asset():
     acc = FeeAccumulator()
     first = route_fee(
