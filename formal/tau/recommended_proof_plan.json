@@ -229,6 +229,7 @@
         "epoch_monotonic_step_gate_v1.tau",
         "intent_oneshot_admission_gate_v1.tau",
         "oracle_sustained_freshness_2epoch_gate_v1.tau",
+        "quiet_window_request_gate_v1.tau",
         "withdrawal_dispute_window_gate_v1.tau"
       ],
       "include_globs": [

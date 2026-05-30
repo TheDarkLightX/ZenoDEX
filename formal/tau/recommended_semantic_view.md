@@ -839,16 +839,6 @@ Spec count: `218`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> nonce_fresh(i1[t]:bv[32], i2[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> nonce_sequential(i1[t]:bv[32], i3[t]:bv[32])) &&...`
 
-## nonce_window_replay_guard_v1
-
-- Profile: `stateful_policy_guard`
-- Rule: `governance_and_policy_suite`
-- Temporal: `True`
-- Execution: `missing` via ``
-- Control surface: sbf inputs `i1`, bv inputs `(none)`, always clauses `1`
-- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
-- Always: `(o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)'))`
-
 ## optimal_choice_certificate_v1
 
 - Profile: `proof_gate_or_certificate`
@@ -1488,6 +1478,16 @@ Spec count: `218`
 - Control helpers: `chain_binding_ok, peer_capability_subset_ok, runtime_profile_ok, service_identity_ok`
 - Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
 - Always: `(o1[t]:sbf = 1:sbf <-> chain_binding_ok(i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> runtime_profile_ok(i4[t]:sbf, i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> peer_capability_subset_ok(i6[t]:sbf, i7[t]:sbf)) && (o4[t]:s...`
+
+## quiet_window_request_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)'))`
 
 ## quorum_validator_v1
 

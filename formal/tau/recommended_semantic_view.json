@@ -8483,56 +8483,6 @@
       }
     },
     {
-      "spec_id": "nonce_window_replay_guard_v1",
-      "spec_path": "src/tau_specs/recommended/nonce_window_replay_guard_v1.tau",
-      "profile": "stateful_policy_guard",
-      "rule": "governance_and_policy_suite",
-      "temporal": true,
-      "input_streams": {
-        "i1": "sbf"
-      },
-      "output_streams": {
-        "o1": "sbf"
-      },
-      "control_surface": {
-        "sbf_inputs": [
-          "i1"
-        ],
-        "bv_inputs": [],
-        "always_count": 1,
-        "always_short": [
-          "(o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)'))"
-        ],
-        "control_helper_names": []
-      },
-      "data_surface": {
-        "data_helper_names": [],
-        "definitions": []
-      },
-      "equation_surface": {
-        "extractable": true,
-        "equation_count": 1,
-        "covered_outputs": [
-          "o1"
-        ],
-        "rows": [
-          {
-            "name": "o1",
-            "index": "t",
-            "type": "sbf",
-            "style": "direct_assign",
-            "expr_short": "(i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)')"
-          }
-        ]
-      },
-      "execution": {
-        "status": "missing",
-        "runner": "",
-        "observed_output_signatures": [],
-        "error_messages": []
-      }
-    },
-    {
       "spec_id": "optimal_choice_certificate_v1",
       "spec_path": "src/tau_specs/recommended/optimal_choice_certificate_v1.tau",
       "profile": "proof_gate_or_certificate",
@@ -16525,6 +16475,56 @@
             "type": "sbf",
             "style": "iff_true",
             "expr_short": "((i1[t]:sbf = 1:sbf) && (((i2[t]:sbf) = 1:sbf) && ((i3[t]:sbf) = 1:sbf)) && (((i4[t]:sbf) = 1:sbf) && ((i5[t]:sbf) = 1:sbf)) && (((i6[t]:sbf) = 1:sbf) && ((i7[t]:sbf) = 1:sbf)) && (((i8[t]:sbf) = 1:sbf) && ((i9[t]:sbf..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "quiet_window_request_gate_v1",
+      "spec_path": "src/tau_specs/recommended/quiet_window_request_gate_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "governance_and_policy_suite",
+      "temporal": true,
+      "input_streams": {
+        "i1": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)'))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "direct_assign",
+            "expr_short": "(i1[t]:sbf & (i1[t-1]:sbf)' & (i1[t-2]:sbf)')"
           }
         ]
       },
