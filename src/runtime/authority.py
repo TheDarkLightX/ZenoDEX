@@ -236,6 +236,8 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
 def _agree(python_result: Any, rust_result: Any, compare: Optional[Callable[[Any, Any], bool]]) -> bool:
     if compare is not None:
         return bool(compare(python_result, rust_result))
+    if python_result is None or rust_result is None:
+        return False
     return python_result == rust_result
 
 

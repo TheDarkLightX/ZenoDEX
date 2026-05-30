@@ -80,6 +80,7 @@ from ..core.perps import (
     PerpMarketState,
     PerpsState,
 )
+from ..state.canonical import bounded_json_utf8_size
 from ..core.perp_market_version_prefix_guard import (
     REJECT_CH2P_PREFIX_MISMATCH,
     REJECT_CH3P_PREFIX_MISMATCH,
@@ -3220,6 +3221,7 @@ _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
 # - Postcondition: Python remains authoritative in rust_shadow, matching RustUnavailable semantics.
 _PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT = 50_000
 _PERP_STATEFUL_MATERIALIZED_REQUEST_BYTES_LIMIT = 8 * 1024 * 1024
+_PERP_STATEFUL_MATERIALIZED_RESPONSE_BYTES_LIMIT = 8 * 1024 * 1024
 
 _ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
     {"breaker_active", "clearing_price_seen", "oracle_seen"}
@@ -3260,6 +3262,27 @@ def _materialized_shadow_account_count_bounded(pre_market: PerpMarketState) -> b
 def _materialized_shadow_request_bounded(request: Mapping[str, Any]) -> bool:
     """Return whether the request can fit through the Rust bridge stdin cap."""
     return len(json.dumps(request).encode()) <= _PERP_STATEFUL_MATERIALIZED_REQUEST_BYTES_LIMIT
+
+
+def _materialized_shadow_response_bounded(python_doc: Mapping[str, Any]) -> bool:
+    """Return whether the accepted Rust materializer response should fit stdout."""
+    response_shape = {
+        "accept": True,
+        "post": {
+            "quote_asset": python_doc.get("quote_asset"),
+            "global_state": python_doc.get("global_state"),
+            "accounts": python_doc.get("accounts"),
+        },
+        "effects": python_doc.get("effects"),
+    }
+    try:
+        bounded_json_utf8_size(
+            response_shape,
+            max_bytes=_PERP_STATEFUL_MATERIALIZED_RESPONSE_BYTES_LIMIT,
+        )
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
@@ -3431,13 +3454,16 @@ def _shadow_accepted_isolated_op(
 
     try:
         if materialized:
+            python_doc = _perp_stateful_full_doc(post_market, python_effect)
+            if not _materialized_shadow_response_bounded(python_doc):
+                return None
             request = _build_isolated_op_request(pre_market=pre_market, op=op)
             if not _materialized_shadow_request_bounded(request):
                 return None
             decide(
                 PERP_STATEFUL_SURFACE,
                 mode,
-                python_fn=lambda: _perp_stateful_full_doc(post_market, python_effect),
+                python_fn=lambda: python_doc,
                 rust_fn=lambda: perp_isolated_op(request),
                 compare=_full_post_markets_agree,
             )

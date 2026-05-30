@@ -2149,6 +2149,24 @@ mod tests {
     }
 
     #[test]
+    fn partial_liquidate_effect_overflow_rejects_without_panic() {
+        // partial_liquidate's kernel does not read initial_margin_bps, but the
+        // emitted effect does. A degenerate global must fail closed in the effect
+        // path instead of panicking inside unchecked margin math.
+        let mut global = liq_global(5, 500);
+        global["initial_margin_bps"] = json!(i128::MAX.to_string());
+        let r = materialize_isolated_op(&req_accts(
+            global,
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 25_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(r["reject_reason"], json!(REJ_ARITHMETIC_OVERFLOW));
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
     fn partial_liquidate_explicit_fraction_too_large_rejects_guard() {
         // An explicit 50% close that leaves the remaining position below maintenance
         // -> partial_liquidate_guard (post-state maint check).

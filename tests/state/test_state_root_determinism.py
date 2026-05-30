@@ -7,6 +7,7 @@ import pytest
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
 from src.state.nonces import NonceTable
+from src.state.pools import PoolState, PoolStatus
 from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
 
 
@@ -233,6 +234,55 @@ def test_state_root_rejects_fee_bps_above_10000() -> None:
 
     pool.fee_bps = 10_001
     with pytest.raises(ValueError):
+        compute_state_root(balances=BalanceTable(), pools={pool_id: pool}, lp_balances=LPTable())
+
+
+def test_pool_assets_canonicalize_hex_case_and_reject_decoded_self_pair() -> None:
+    asset0_upper = "0x" + "0A" * 32
+    asset1_lower = "0x" + "0b" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0_upper,
+        asset1=asset1_lower,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey="0x" + "11" * 48,
+        created_at=0,
+    )
+    assert pool.asset0 == "0x" + "0a" * 32
+    assert pool.asset1 == asset1_lower
+    assert pool_id == pool.pool_id
+
+    with pytest.raises(ValueError, match="canonical order"):
+        PoolState(
+            pool_id="0x" + "12" * 32,
+            asset0=asset0_upper,
+            asset1="0x" + "0a" * 32,
+            reserve0=1,
+            reserve1=1,
+            fee_bps=30,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+
+
+def test_state_root_rejects_mutated_mixed_case_pool_asset_byte_order() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "0a" * 32
+    asset1 = "0x" + "0b" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    pool.asset0 = "0x" + "0B" * 32
+    pool.asset1 = asset0
+    with pytest.raises(ValueError, match="non-canonical pool assets"):
         compute_state_root(balances=BalanceTable(), pools={pool_id: pool}, lp_balances=LPTable())
 
 

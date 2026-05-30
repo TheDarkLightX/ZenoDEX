@@ -133,6 +133,53 @@ def test_nonce_u32_overflow_rejected_by_both(rust_bin):
     assert not lib.diff_results(py, rs)
 
 
+def test_mixed_case_pool_asset_order_and_self_pair_rejected_by_both(rust_bin):
+    # Regression for A1/A2: Python now canonicalizes real asset IDs by decoded
+    # bytes at ingress, matching the Rust commitment boundary. Mixed case can no
+    # longer encode a Python-valid/Rust-invalid pool or a decoded self-pair.
+    states = [
+        {
+            "pools": [
+                {
+                    "pool_id": "0x" + "44" * 32,
+                    "asset0": "0x" + "0B" * 32,
+                    "asset1": "0x" + "0a" * 32,
+                    "reserve0": 500,
+                    "reserve1": 700,
+                    "fee_bps": 30,
+                    "lp_supply": 600,
+                    "status": "active",
+                    "created_at": 12,
+                    "curve_tag": "CPMM",
+                    "curve_params": "",
+                }
+            ]
+        },
+        {
+            "pools": [
+                {
+                    "pool_id": "0x" + "45" * 32,
+                    "asset0": "0x" + "0A" * 32,
+                    "asset1": "0x" + "0a" * 32,
+                    "reserve0": 500,
+                    "reserve1": 700,
+                    "fee_bps": 30,
+                    "lp_supply": 600,
+                    "status": "active",
+                    "created_at": 12,
+                    "curve_tag": "CPMM",
+                    "curve_params": "",
+                }
+            ]
+        },
+    ]
+    py = lib.py_eval_all(states)
+    rs = lib.run_rust(rust_bin, states)
+    assert [r["ok"] for r in py] == [False, False]
+    assert [r["ok"] for r in rs] == [False, False]
+    assert not lib.diff_results(py, rs)
+
+
 def test_raw_duplicate_balance_keys_rejected_by_rust(rust_bin):
     # Fed raw (bypassing the dedup in to_rust_json): two entries with the same
     # (pubkey, asset). The Rust decoder must reject duplicate decoded keys.

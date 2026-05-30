@@ -397,6 +397,25 @@ def test_parse_intents_rejects_same_swap_assets() -> None:
         parse_intents({"2": [{**_min_intent_dict(), "asset_out": "TAU"}]})
 
 
+def test_parse_create_pool_intent_canonicalizes_hex_asset_case() -> None:
+    intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "33" * 32,
+        "sender_pubkey": "0x" + "44" * 48,
+        "deadline": 1,
+        "asset0": "0x" + "0A" * 32,
+        "asset1": "0x" + "0b" * 32,
+        "fee_bps": 30,
+        "amount0": 100,
+        "amount1": 200,
+    }
+    parsed = parse_intents({"2": [intent]})
+    assert parsed[0].fields["asset0"] == "0x" + "0a" * 32
+    assert parsed[0].fields["asset1"] == "0x" + "0b" * 32
+
+
 def test_parse_signed_intents_rejects_invalid_kind_specific_fields() -> None:
     with pytest.raises(ValueError, match="unsupported field for SWAP_EXACT_IN: extra_field"):
         parse_signed_intents({"2": [[{**_min_intent_dict(), "extra_field": "bad"}, "0xsig"]]})

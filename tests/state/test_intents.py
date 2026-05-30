@@ -271,6 +271,26 @@ def test_create_pool_intent_accepts_valid_payload() -> None:
     assert intent.get_field("fee_bps") == 30
 
 
+def test_create_pool_intent_canonicalizes_hex_asset_case() -> None:
+    intent = CreatePoolIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_hex32("1"),
+        sender_pubkey=_pubkey("a"),
+        deadline=123,
+        fields={
+            "asset0": "0x" + "0A" * 32,
+            "asset1": "0x" + "0b" * 32,
+            "fee_bps": 30,
+            "amount0": 10,
+            "amount1": 20,
+        },
+    )
+    assert intent.get_field("asset0") == "0x" + "0a" * 32
+    assert intent.get_field("asset1") == "0x" + "0b" * 32
+
+
 def test_create_pool_intent_rejects_wrong_kind() -> None:
     with pytest.raises(ValueError, match="Invalid kind for CreatePoolIntent"):
         CreatePoolIntent(

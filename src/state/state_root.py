@@ -148,6 +148,8 @@ def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
     for pool_b, pool in entries:
         asset0_b = hex_to_bytes_fixed(pool.asset0, nbytes=32, name="asset0")
         asset1_b = hex_to_bytes_fixed(pool.asset1, nbytes=32, name="asset1")
+        if asset0_b >= asset1_b:
+            raise ValueError(f"non-canonical pool assets: {pool.asset0} < {pool.asset1}")
         status_code = _POOL_STATUS_CODE.get(pool.status)
         if status_code is None:
             raise ValueError(f"unknown pool status: {pool.status}")
