@@ -28,7 +28,7 @@ use serde_json::{json, Map, Value};
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
 use zenodex_runtime_core::perp_math::{
-    init_margin_req, is_oracle_fresh, maint_margin_req, notional_quote,
+    checked_init_margin_req, checked_maint_margin_req, checked_notional_quote, is_oracle_fresh,
 };
 use zenodex_runtime_core::perp_partial_liquidate::{partial_liquidate, PartialLiquidateInput};
 use zenodex_runtime_core::perp_publish_clearing_price::{
@@ -640,16 +640,25 @@ fn account_effect(
     let effective_maint_bps = maint.checked_add(depeg).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
     let pos = account.position_base;
     let coll = account.collateral_quote;
-    let maint_req = maint_margin_req(pos, index_price, maint, depeg);
+    // Checked: a given op's kernel may not validate every margin/price global the
+    // effect reads (e.g. partial_liquidate never validates initial_margin_bps), so a
+    // degenerate global must fail closed here, never panic/wrap. (perp_math's plain
+    // helpers use unchecked * and rely on a caller-side domain bound that is absent
+    // on this path.)
+    let notional = checked_notional_quote(pos, index_price).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let maint_req =
+        checked_maint_margin_req(pos, index_price, maint, depeg).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let init_req =
+        checked_init_margin_req(pos, index_price, init).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
     let margin_ok = pos == 0 || coll >= maint_req;
     let oracle_fresh = is_oracle_fresh(now, oracle_last, max_stale, oracle_seen);
     Ok(json!({
         "event": event,
         "oracle_fresh": oracle_fresh,
-        "notional_quote": notional_quote(pos, index_price).to_string(),
+        "notional_quote": notional.to_string(),
         "effective_maint_bps": effective_maint_bps.to_string(),
         "maint_req_quote": maint_req.to_string(),
-        "init_req_quote": init_margin_req(pos, index_price, init).to_string(),
+        "init_req_quote": init_req.to_string(),
         "margin_ok": margin_ok,
         "liquidated": account.liquidated_this_step,
         "collateral_after": coll.to_string(),
@@ -2298,6 +2307,26 @@ mod tests {
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    #[test]
+    fn partial_liquidate_degenerate_initial_margin_bps_rejects_without_panic() {
+        // Regression: the partial_liquidate kernel never validates initial_margin_bps
+        // (it isn't a field of PartialLiquidateInput), but the success effect reads it
+        // from the global to compute init_req_quote. A degenerate i128::MAX value used
+        // to panic in init_margin_req's unchecked multiply; the effect must now fail
+        // closed with REJ_ARITHMETIC_OVERFLOW instead of panicking.
+        let mut g = liq_global(5, 500);
+        g["initial_margin_bps"] = json!(i128::MAX.to_string());
+        let r = materialize_isolated_op(&req_accts(
+            g,
+            json!({"action": "partial_liquidate", "account_pubkey": "aa", "fraction_bps": "0"}),
+            json!([acct_json("aa", 500_000, 25_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(r["reject_reason"], json!(REJ_ARITHMETIC_OVERFLOW));
+        assert!(r.get("post").is_none());
     }
 
     #[test]
