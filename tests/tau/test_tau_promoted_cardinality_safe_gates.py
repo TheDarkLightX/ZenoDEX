@@ -119,19 +119,24 @@ def test_oracle_sustained_freshness_requires_two_consecutive_fresh_requested_epo
 
 @pytest.mark.parametrize("profile", TAU_PROFILES)
 def test_settlement_master_admits_only_when_request_conservation_and_freshness_hold(profile: str) -> None:
-    mask = (1 << 32) - 1
-    neg_three = mask - 2
-    neg_two = mask - 1
     base = {
         "i1": 5,
-        "i2": neg_three,
-        "i3": neg_two,
+        "i2": 3,
+        "i3": 2,
         "i4": 0,
-        "i5": 0,
+        "i5": 10,
         "i6": 10,
         "i7": 8,
         "i8": 5,
         "i9": 1,
+    }
+    wrapping_attack = {
+        **base,
+        "i1": 0x7FFFFFFF,
+        "i2": 0x7FFFFFFF,
+        "i3": 2,
+        "i4": 0,
+        "i5": 0,
     }
     cases = [
         (base, 1),
@@ -139,6 +144,7 @@ def test_settlement_master_admits_only_when_request_conservation_and_freshness_h
         ({**base, "i7": 2}, 0),
         ({**base, "i6": 7, "i7": 10}, 0),
         ({**base, "i9": 0}, 0),
+        (wrapping_attack, 0),
     ]
     out = _run(profile, SETTLEMENT_MASTER, [step for step, _expected in cases])
     assert [out[idx]["o1"] for idx in range(len(cases))] == [expected for _step, expected in cases]
