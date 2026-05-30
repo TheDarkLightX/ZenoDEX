@@ -279,7 +279,10 @@ def build_semantic_view(
 
 def _render_markdown(view: dict[str, Any]) -> str:
     lines = [
-        "# Tau Semantic View",
+        "# Tau Structural-Semantic View",
+        "",
+        "This is a mechanical extraction of recommended Tau control surfaces and output equations.",
+        "It is not a human-reviewed semantic contract or an exactness proof.",
         "",
         f"Execution census: `{view['execution_census_ref']}`",
         f"Spec count: `{view['spec_count']}`",

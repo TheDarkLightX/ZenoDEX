@@ -26,7 +26,7 @@ from src.integration.tau_runner import (  # noqa: E402
 
 
 TAU_PROFILES = ("runtime", "latest")
-TRACE_SHAPES = ("all-0", "all-max", "alternating", "pulse@0")
+TRACE_SHAPES = ("all-0", "all-max", "alternating", "pulse@0", "pulse@last")
 
 
 @dataclass(frozen=True)
@@ -77,6 +77,8 @@ def _stress_steps(input_streams: dict[str, str], *, shape: str, rows: int) -> li
                 value = max_value if idx % 2 else 0
             elif shape == "pulse@0":
                 value = max_value if idx == 0 else 0
+            elif shape == "pulse@last":
+                value = max_value if idx == rows - 1 else 0
             else:
                 raise ValueError(f"unknown trace shape: {shape}")
             step[name] = value
