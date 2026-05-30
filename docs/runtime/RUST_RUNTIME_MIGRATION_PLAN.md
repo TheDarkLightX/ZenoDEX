@@ -54,10 +54,10 @@ The first milestone is **shadow execution and exact state-root agreement**.
 | 3 | Minimal Rust transition kernel (fee router) | ✅ `route_fee` + Python/Rust conformance |
 | 4 | State root & canonical serialization | ✅ canonical primitives and state root v5 promoted to public-testnet `rust_authority_with_python_shadow` |
 | 5 | Shadow runtime mode | ✅ `tools/runtime/rust_shadow_replay.py` |
-| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, **zUSD full single-vault** ✅, burn rails ✅, **CPMM settlement** ✅, **perp stateless math** ✅; next: stateful perps promotion gates |
+| 6 | Expand Rust surface | ◑ replay/idempotency guards ✅, balance accounting ✅, fee router ✅, **zUSD full single-vault** ✅, burn rails ✅, **CPMM settlement** ✅, **perp stateless math** ✅; stateful isolated perps live Rust shadow ✅; next: authority-grade state/effects materialization |
 | 7 | SPARK/Ada sidecar | ☐ fee-router + burn-rail kernels drafted; toolchain (`gnatprove`) not available in this env → **advisory / vector-checked only** |
 | 8 | CI integration | ✅ `.github/workflows/runtime-shadow.yml` (Python + Rust + shadow + OCaml jobs; existing Tau/ESSO/Lean jobs untouched) |
-| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, fee router, zUSD single-vault, burn rails, CPMM per-pool settlement, and perp stateless math promoted on public-testnet; remaining surfaces stay in evidence-gathering |
+| 9 | Promotion criteria | ◑ canonical primitives, state root v5, replay/idempotency guard, balance accounting, fee router, zUSD single-vault, burn rails, CPMM per-pool settlement, and perp stateless math promoted on public-testnet; stateful isolated perps live-checks as `rust_shadow`; remaining surfaces stay in evidence-gathering |
 | I | OCaml executable spec oracle | ◑ `ocaml-runtime/` — third independent impl of fee-router split + replay-guard nonce policy, driven by Python-derived TSV vectors; `dune build && dune test` green. Pure spec oracle, never a production path. More surfaces TBD |
 
 > The Phase 0–9 numbering above is the original internal milestone scheme. The
@@ -82,6 +82,7 @@ invariants. SPARK/OCaml columns mark assurance-sidecar coverage.
 | CPMM settlement (per-pool) | `src/kernels/python/settlement_swap_runtime_v1.py` | ✅ | ✅ `cpmm_smoke` | ✅ shadow | ✅ | — | — | public-testnet promoted; orchestration (multi-pool/CoW/ordering) deferred |
 | State root (network) | `src/state/state_root.py` | ✅ v5 | ✅ vectors | ✅ shadow | ✅ | — | — | promotion gate (fuzz) |
 | Perps math (stateless) | `src/core/perp_v2/math.py` | ✅ E1 (9 fns) | n/a | ✅ shadow | ✅ sign-sym | — | — | public-testnet promoted; stateful engine/lifecycle = E2 separate |
+| Stateful isolated perps (E2) | `src/integration/perp_engine.py` isolated handlers | ✅ live `rust_shadow` on public-testnet | ✅ per op | ✅ shadow + live accepted-path tests | ✅ fuzz/disaster | Lean funding sink | — | full Rust post-state/effects materialization before authority |
 | Tx auth / receipt hash | `src/core/dex_intent_auth_message.py`, `src/core/burn_receipts.py` body | ✅ `domain_json_hash` op | n/a | ✅ vectors | ✅ sensitivity | — | — | shape-gate + BLS verify still out of scope |
 | Batch-clearing orchestration | `src/core/batch_clearing.py` (2129 ln) | ❌ | — | — | — | — | — | **OUT OF SCOPE** (multi-pool/CoW/ordering deferred) |
 | Revenue router (fine-source) | *(not on `main`)* | n/a | — | — | — | — | — | hybrid-economics branch only — separate prompt |
@@ -268,9 +269,11 @@ For each new surface: add the Rust implementation, add golden traces (happy +
 disaster), add Python/Rust differential + property + rejection tests, run fuzz,
 and update the boundary table. The promoted public-testnet order so far is
 replay/idempotency guards → balance accounting → fee router → burn rails → CPMM
-per-pool settlement → perp stateless math → zUSD single-vault. Remaining
-high-value surface is stateful perps transitions; full batch-clearing
-orchestration stays deferred.
+per-pool settlement → perp stateless math → zUSD single-vault. Stateful isolated
+perps now runs as a live `rust_shadow` checker on public-testnet, with Python
+still authoritative. Remaining high-value work is full Rust post-state/effects
+materialization for those transitions; full batch-clearing orchestration stays
+deferred.
 **Do not move crypto first** — wrap established libraries behind a deterministic
 verification interface.
 
@@ -319,8 +322,9 @@ Per-surface status:
 The remaining authoritative surfaces with no Rust shadow yet (full
 batch-clearing orchestration, multi-vault zUSD, the intent shape-gate, BLS
 verification) are tracked in the gap map above and are **not** eligible until
-shadowed. Stateful isolated perps is shadowed, but still needs live-path wiring
-and promotion gates before any profile flip.
+shadowed. Stateful isolated perps has live `rust_shadow` wiring, but still needs
+full Rust state/effects materialization and promotion gates before any
+authority-profile flip.
 
 ## How to run
 

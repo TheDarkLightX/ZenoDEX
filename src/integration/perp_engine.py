@@ -132,6 +132,7 @@ PERP_OP_VERSION_V0_1 = "0.1"
 PERP_OP_VERSION_CH2P_V0_2 = "0.2"
 PERP_OP_VERSION_CH2P_V1_0 = "1.0"
 PERP_OP_VERSION_CH3P_V1_1 = "1.1"
+PERP_STATEFUL_SURFACE = "perp_stateful"
 
 # v0.2 markets are explicitly namespaced to avoid mixing semantics without a snapshot schema change.
 # This is a fail-closed API convention, not a security boundary.
@@ -2840,6 +2841,392 @@ def _apply_isolated_partial_liquidate(
     return None
 
 
+_PERP_STATEFUL_CONTROL_PARAMS = (
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "funding_cap_bps",
+    "min_notional_for_bounty",
+)
+
+
+def _int_field(mapping: Mapping[str, Any], key: str, default: int = 0) -> int:
+    return int(mapping.get(key, default))
+
+
+def _bool_field(mapping: Mapping[str, Any], key: str, default: bool = False) -> bool:
+    return bool(mapping.get(key, default))
+
+
+def _account_for_shadow(market: PerpMarketState, account_pubkey: object) -> PerpAccountState:
+    if isinstance(account_pubkey, str):
+        return market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    return _kernel_initial_account_state()
+
+
+def _funding_auto_shadow_case(pre_market: PerpMarketState, post_market: PerpMarketState) -> dict[str, Any]:
+    gs = pre_market.global_state
+    return {
+        "now_epoch": _int_field(gs, "now_epoch"),
+        "rate_bps": _int_field(post_market.global_state, "funding_rate_bps"),
+        "index_price_e8": _int_field(gs, "index_price_e8"),
+        "maintenance_margin_bps": _int_field(gs, "maintenance_margin_bps"),
+        "depeg_buffer_bps": _int_field(gs, "depeg_buffer_bps"),
+        "fee_pool_quote": _int_field(gs, "fee_pool_quote"),
+        "fee_income": _int_field(gs, "fee_income"),
+        "insurance_balance": _int_field(gs, "insurance_balance"),
+        "accounts": [
+            {
+                "key": pk,
+                "position_base": int(acct.position_base),
+                "collateral_quote": int(acct.collateral_quote),
+                "funding_paid_cumulative": int(acct.funding_paid_cumulative),
+                "funding_last_applied_epoch": int(acct.funding_last_applied_epoch),
+            }
+            for pk, acct in sorted(pre_market.accounts.items())
+        ],
+    }
+
+
+def _settle_epoch_shadow_case(pre_market: PerpMarketState) -> dict[str, Any]:
+    gs = pre_market.global_state
+    return {
+        "now_epoch": _int_field(gs, "now_epoch"),
+        "epoch_phase": _int_field(gs, "epoch_phase"),
+        "clearing_price_seen": _bool_field(gs, "clearing_price_seen"),
+        "clearing_price_epoch": _int_field(gs, "clearing_price_epoch"),
+        "clearing_price_e8": _int_field(gs, "clearing_price_e8"),
+        "oracle_last_update_epoch": _int_field(gs, "oracle_last_update_epoch"),
+        "oracle_seen": _bool_field(gs, "oracle_seen"),
+        "index_price_e8": _int_field(gs, "index_price_e8"),
+        "max_oracle_move_bps": _int_field(gs, "max_oracle_move_bps"),
+        "maintenance_margin_bps": _int_field(gs, "maintenance_margin_bps"),
+        "depeg_buffer_bps": _int_field(gs, "depeg_buffer_bps"),
+        "liquidation_penalty_bps": _int_field(gs, "liquidation_penalty_bps"),
+        "min_notional_for_bounty": _int_field(gs, "min_notional_for_bounty"),
+        "fee_pool_quote": _int_field(gs, "fee_pool_quote"),
+        "fee_income": _int_field(gs, "fee_income"),
+        "initial_insurance": _int_field(gs, "initial_insurance"),
+        "claims_paid": _int_field(gs, "claims_paid"),
+        "breaker_active": _bool_field(gs, "breaker_active"),
+        "breaker_last_trigger_epoch": _int_field(gs, "breaker_last_trigger_epoch"),
+        "accounts": [
+            {
+                "key": pk,
+                "position_base": int(acct.position_base),
+                "collateral_quote": int(acct.collateral_quote),
+                "entry_price_e8": int(acct.entry_price_e8),
+                "liquidated_this_step": bool(acct.liquidated_this_step),
+            }
+            for pk, acct in sorted(pre_market.accounts.items())
+        ],
+    }
+
+
+def _partial_liquidate_shadow_case(pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
+    gs = pre_market.global_state
+    account_pubkey = op.data.get("account_pubkey")
+    acct = _account_for_shadow(pre_market, account_pubkey)
+    return {
+        "now_epoch": _int_field(gs, "now_epoch"),
+        "epoch_phase": _int_field(gs, "epoch_phase"),
+        "oracle_last_update_epoch": _int_field(gs, "oracle_last_update_epoch"),
+        "max_oracle_staleness_epochs": _int_field(gs, "max_oracle_staleness_epochs"),
+        "oracle_seen": _bool_field(gs, "oracle_seen"),
+        "index_price_e8": _int_field(gs, "index_price_e8"),
+        "position_base": int(acct.position_base),
+        "collateral_quote": int(acct.collateral_quote),
+        "entry_price_e8": int(acct.entry_price_e8),
+        "maintenance_margin_bps": _int_field(gs, "maintenance_margin_bps"),
+        "depeg_buffer_bps": _int_field(gs, "depeg_buffer_bps"),
+        "liquidation_penalty_bps": _int_field(gs, "liquidation_penalty_bps"),
+        "min_notional_for_bounty": _int_field(gs, "min_notional_for_bounty"),
+        "fee_pool_quote": _int_field(gs, "fee_pool_quote"),
+        "fee_income": _int_field(gs, "fee_income"),
+        "initial_insurance": _int_field(gs, "initial_insurance"),
+        "claims_paid": _int_field(gs, "claims_paid"),
+        "fraction_bps": int(op.data.get("fraction_bps", 0)),
+    }
+
+
+def _account_op_shadow_case(pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
+    gs = pre_market.global_state
+    account_pubkey = op.data.get("account_pubkey")
+    acct = _account_for_shadow(pre_market, account_pubkey)
+    return {
+        "op": op.action,
+        "now_epoch": _int_field(gs, "now_epoch"),
+        "epoch_phase": _int_field(gs, "epoch_phase"),
+        "oracle_last_update_epoch": _int_field(gs, "oracle_last_update_epoch"),
+        "max_oracle_staleness_epochs": _int_field(gs, "max_oracle_staleness_epochs"),
+        "oracle_seen": _bool_field(gs, "oracle_seen"),
+        "index_price_e8": _int_field(gs, "index_price_e8"),
+        "position_base": int(acct.position_base),
+        "collateral_quote": int(acct.collateral_quote),
+        "entry_price_e8": int(acct.entry_price_e8),
+        "maintenance_margin_bps": _int_field(gs, "maintenance_margin_bps"),
+        "depeg_buffer_bps": _int_field(gs, "depeg_buffer_bps"),
+        "initial_margin_bps": _int_field(gs, "initial_margin_bps"),
+        "max_position_abs": _int_field(gs, "max_position_abs"),
+        "breaker_active": _bool_field(gs, "breaker_active"),
+        "breaker_last_trigger_epoch": _int_field(gs, "breaker_last_trigger_epoch"),
+        "amount": int(op.data.get("amount", 0)),
+        "new_position_base": int(op.data.get("new_position_base", 0)),
+        "all_positions_flat": not any(int(acct.position_base) != 0 for acct in pre_market.accounts.values()),
+    }
+
+
+def _set_market_params_shadow_case(
+    ctx: _PerpApplyCtx, pre_market: PerpMarketState, op: PerpOp
+) -> dict[str, Any]:
+    gs = pre_market.global_state
+    params = op.data.get("params")
+    if not isinstance(params, Mapping):
+        params = {}
+    case: dict[str, Any] = {f"cur_{key}": _int_field(gs, key) for key in _PERP_STATEFUL_CONTROL_PARAMS}
+    case["cur_funding_rate_bps"] = _int_field(gs, "funding_rate_bps")
+    case["index_price_e8"] = _int_field(gs, "index_price_e8")
+    case["min_collectible_liquidation_penalty_quote"] = _min_collectible_liquidation_penalty_quote(ctx.config)
+    for key, value in params.items():
+        if key in _PERP_STATEFUL_CONTROL_PARAMS:
+            case[f"upd_{key}"] = int(value)
+    case["accounts"] = [
+        {
+            "position_base": int(acct.position_base),
+            "collateral_quote": int(acct.collateral_quote),
+        }
+        for _, acct in sorted(pre_market.accounts.items())
+    ]
+    return case
+
+
+def _perp_stateful_shadow_case(
+    *, ctx: _PerpApplyCtx, pre_market: PerpMarketState, post_market: PerpMarketState, op: PerpOp
+) -> tuple[str, dict[str, Any]]:
+    gs = pre_market.global_state
+    if op.action == "advance_epoch":
+        return (
+            "advance-epoch",
+            {
+                "now_epoch": _int_field(gs, "now_epoch"),
+                "epoch_phase": _int_field(gs, "epoch_phase"),
+                "oracle_last_update_epoch": _int_field(gs, "oracle_last_update_epoch"),
+                "delta": int(op.data.get("delta", 0)),
+            },
+        )
+    if op.action == "publish_clearing_price":
+        return (
+            "publish-clearing-price",
+            {
+                "now_epoch": _int_field(gs, "now_epoch"),
+                "epoch_phase": _int_field(gs, "epoch_phase"),
+                "clearing_price_seen": _bool_field(gs, "clearing_price_seen"),
+                "clearing_price_epoch": _int_field(gs, "clearing_price_epoch"),
+                "clearing_price_e8": _int_field(gs, "clearing_price_e8"),
+                "oracle_last_update_epoch": _int_field(gs, "oracle_last_update_epoch"),
+                "price_e8": int(op.data.get("price_e8", 0)),
+            },
+        )
+    if op.action == "apply_funding_auto":
+        return ("funding-auto", _funding_auto_shadow_case(pre_market, post_market))
+    if op.action == "settle_epoch":
+        return ("settle-epoch", _settle_epoch_shadow_case(pre_market))
+    if op.action == "partial_liquidate":
+        return ("partial-liquidate", _partial_liquidate_shadow_case(pre_market, op))
+    if op.action in {"deposit_collateral", "withdraw_collateral", "set_position", "clear_breaker"}:
+        return ("account-op", _account_op_shadow_case(pre_market, op))
+    if op.action == "set_market_params":
+        return ("set-market-params", _set_market_params_shadow_case(ctx, pre_market, op))
+    raise ValueError(f"unsupported perps stateful shadow action: {op.action}")
+
+
+def _post_account_for_shadow(pre_market: PerpMarketState, post_market: PerpMarketState, op: PerpOp) -> PerpAccountState:
+    account_pubkey = op.data.get("account_pubkey")
+    if isinstance(account_pubkey, str):
+        return post_market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    return _kernel_initial_account_state()
+
+
+def _perp_stateful_python_doc(
+    *, pre_market: PerpMarketState, post_market: PerpMarketState, op: PerpOp
+) -> dict[str, Any]:
+    pg = post_market.global_state
+    if op.action == "advance_epoch":
+        return {
+            "ok": True,
+            "now_epoch": _int_field(pg, "now_epoch"),
+            "epoch_phase": _int_field(pg, "epoch_phase"),
+            "oracle_last_update_epoch": _int_field(pg, "oracle_last_update_epoch"),
+        }
+    if op.action == "publish_clearing_price":
+        return {
+            "ok": True,
+            "now_epoch": _int_field(pg, "now_epoch"),
+            "epoch_phase": _int_field(pg, "epoch_phase"),
+            "clearing_price_seen": _bool_field(pg, "clearing_price_seen"),
+            "clearing_price_epoch": _int_field(pg, "clearing_price_epoch"),
+            "clearing_price_e8": _int_field(pg, "clearing_price_e8"),
+        }
+    if op.action == "apply_funding_auto":
+        return {
+            "ok": True,
+            "funding_rate_bps": _int_field(pg, "funding_rate_bps"),
+            "fee_pool_quote": _int_field(pg, "fee_pool_quote"),
+            "fee_income": _int_field(pg, "fee_income"),
+            "insurance_balance": _int_field(pg, "insurance_balance"),
+            "accounts": [
+                {
+                    "key": pk,
+                    "position_base": int(acct.position_base),
+                    "collateral_quote": int(acct.collateral_quote),
+                    "funding_paid_cumulative": int(acct.funding_paid_cumulative),
+                    "funding_last_applied_epoch": int(acct.funding_last_applied_epoch),
+                }
+                for pk, acct in sorted(post_market.accounts.items())
+            ],
+        }
+    if op.action == "settle_epoch":
+        return {
+            "ok": True,
+            "epoch_phase": _int_field(pg, "epoch_phase"),
+            "oracle_last_update_epoch": _int_field(pg, "oracle_last_update_epoch"),
+            "oracle_seen": _bool_field(pg, "oracle_seen"),
+            "index_price_e8": _int_field(pg, "index_price_e8"),
+            "breaker_active": _bool_field(pg, "breaker_active"),
+            "breaker_last_trigger_epoch": _int_field(pg, "breaker_last_trigger_epoch"),
+            "fee_pool_quote": _int_field(pg, "fee_pool_quote"),
+            "fee_income": _int_field(pg, "fee_income"),
+            "insurance_balance": _int_field(pg, "insurance_balance"),
+            "accounts": [
+                {
+                    "key": pk,
+                    "position_base": int(acct.position_base),
+                    "collateral_quote": int(acct.collateral_quote),
+                    "entry_price_e8": int(acct.entry_price_e8),
+                    "liquidated_this_step": bool(acct.liquidated_this_step),
+                }
+                for pk, acct in sorted(post_market.accounts.items())
+            ],
+        }
+    if op.action == "partial_liquidate":
+        acct = _post_account_for_shadow(pre_market, post_market, op)
+        return {
+            "ok": True,
+            "position_base": int(acct.position_base),
+            "entry_price_e8": int(acct.entry_price_e8),
+            "collateral_quote": int(acct.collateral_quote),
+            "fee_pool_quote": _int_field(pg, "fee_pool_quote"),
+            "fee_income": _int_field(pg, "fee_income"),
+            "insurance_balance": _int_field(pg, "insurance_balance"),
+            "liquidated_this_step": bool(acct.liquidated_this_step),
+        }
+    if op.action in {"deposit_collateral", "withdraw_collateral", "set_position", "clear_breaker"}:
+        acct = _post_account_for_shadow(pre_market, post_market, op)
+        return {
+            "ok": True,
+            "position_base": int(acct.position_base),
+            "entry_price_e8": int(acct.entry_price_e8),
+            "collateral_quote": int(acct.collateral_quote),
+            "breaker_active": _bool_field(pg, "breaker_active"),
+            "breaker_last_trigger_epoch": _int_field(pg, "breaker_last_trigger_epoch"),
+        }
+    if op.action == "set_market_params":
+        doc: dict[str, Any] = {key: _int_field(pg, key) for key in _PERP_STATEFUL_CONTROL_PARAMS}
+        doc["funding_rate_bps"] = _int_field(pg, "funding_rate_bps")
+        doc["ok"] = True
+        return doc
+    raise ValueError(f"unsupported perps stateful shadow action: {op.action}")
+
+
+def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
+    if not isinstance(python_doc, Mapping) or not isinstance(rust_doc, Mapping):
+        return False
+    if bool(python_doc.get("ok")) != bool(rust_doc.get("ok")):
+        return False
+    if not bool(python_doc.get("ok")):
+        return str(python_doc.get("code")) == str(rust_doc.get("code"))
+
+    def same_int(field: str) -> bool:
+        return str(int(python_doc[field])) == str(rust_doc.get(field))
+
+    def same_bool(field: str) -> bool:
+        return isinstance(rust_doc.get(field), bool) and bool(python_doc[field]) == bool(rust_doc[field])
+
+    for field, value in python_doc.items():
+        if field == "ok":
+            continue
+        if isinstance(value, bool):
+            if not same_bool(field):
+                return False
+        elif isinstance(value, int):
+            if not same_int(field):
+                return False
+        elif isinstance(value, list):
+            rust_accounts = rust_doc.get(field)
+            if not isinstance(rust_accounts, list) or len(value) != len(rust_accounts):
+                return False
+            for py_account, rust_account in zip(value, rust_accounts):
+                if not isinstance(py_account, Mapping) or not isinstance(rust_account, Mapping):
+                    return False
+                if str(py_account.get("key")) != str(rust_account.get("key")):
+                    return False
+                for account_field, account_value in py_account.items():
+                    if account_field == "key":
+                        continue
+                    if isinstance(account_value, bool):
+                        if not isinstance(rust_account.get(account_field), bool) or bool(account_value) != bool(
+                            rust_account[account_field]
+                        ):
+                            return False
+                    elif str(int(account_value)) != str(rust_account.get(account_field)):
+                        return False
+        else:
+            if value != rust_doc.get(field):
+                return False
+    return True
+
+
+def _shadow_accepted_isolated_op(
+    *, ctx: _PerpApplyCtx, op: PerpOp, pre_market: PerpMarketState, post_market: PerpMarketState
+) -> Optional[str]:
+    from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import perp_stateful_case
+
+    mode = active_mode(PERP_STATEFUL_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return None
+    if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
+        return "perp_stateful Rust authority is not live-wired; configure rust_shadow only"
+
+    try:
+        subcommand, case = _perp_stateful_shadow_case(
+            ctx=ctx,
+            pre_market=pre_market,
+            post_market=post_market,
+            op=op,
+        )
+        decide(
+            PERP_STATEFUL_SURFACE,
+            mode,
+            python_fn=lambda: _perp_stateful_python_doc(
+                pre_market=pre_market,
+                post_market=post_market,
+                op=op,
+            ),
+            rust_fn=lambda: perp_stateful_case(subcommand, case),
+            compare=_perp_stateful_docs_agree,
+        )
+        return None
+    except AuthorityError as exc:
+        return f"perp_stateful rust shadow disagreement: {exc}"
+    except Exception as exc:
+        return f"perp_stateful rust shadow error: {_safe_error_str(exc)}"
+
+
 _ISOLATED_ACTION_HANDLERS = {
     "advance_epoch": _apply_isolated_advance_epoch,
     "publish_clearing_price": _apply_isolated_publish_clearing_price,
@@ -2855,10 +3242,24 @@ _ISOLATED_ACTION_HANDLERS = {
 
 
 def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState) -> Optional[str]:
+    from src.runtime.authority import AuthorityMode, active_mode
+
+    mode = active_mode(PERP_STATEFUL_SURFACE)
+    if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
+        return "perp_stateful Rust authority is not live-wired; configure rust_shadow only"
+
     handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
     if handler is None:
         return f"unknown perps action: {op.action}"
-    return handler(ctx, i=i, op=op, market=market)
+    err = handler(ctx, i=i, op=op, market=market)
+    if err is not None:
+        return err
+    return _shadow_accepted_isolated_op(
+        ctx=ctx,
+        op=op,
+        pre_market=market,
+        post_market=ctx.markets[op.market_id],
+    )
 
 
 def apply_perp_ops(
