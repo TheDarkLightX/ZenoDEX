@@ -4,7 +4,7 @@ This is a mechanical extraction of recommended Tau control surfaces and output e
 It is not a human-reviewed semantic contract or an exactness proof.
 
 Execution census: `formal/tau/recommended_execution_census_best.json`
-Spec count: `215`
+Spec count: `218`
 
 ## add_liquidity_apply_v1
 
@@ -885,6 +885,17 @@ Spec count: `215`
 - Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
 - Always: `(o1[t]:sbf = 1:sbf <-> budget_facts_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> attempt_order_ok(i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> outcome_...`
 
+## oracle_bounded_move_gate_v1
+
+- Profile: `exact_combinational_guard`
+- Rule: `amm_and_orderflow_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `(none)`, bv inputs `i1, i2, i3`, always clauses `1`
+- Data helpers: `bounded_move`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> bounded_move(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))`
+
 ## oracle_committee_commit_admission_v1
 
 - Profile: `stateful_policy_guard`
@@ -1751,6 +1762,17 @@ Spec count: `215`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf)))`
 
+## settlement_master_admission_gate_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `batching_and_settlement_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i9`, bv inputs `i1, i2, i3, i4, i5, i6, i7, i8`, always clauses `1`
+- Data helpers: `conservation_ok, leg_sum, oracle_fresh`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ( (i9[t]:sbf = 1:sbf) && conservation_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && oracle_fresh(i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32]) ))`
+
 ## settlement_module_flag_bundle_v1
 
 - Profile: `bundle_or_composition`
@@ -2376,6 +2398,16 @@ Spec count: `215`
 - Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7, i8, i9, i10`, bv inputs `(none)`, always clauses `1`
 - Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf))) && (o2[t]:...`
+
+## withdrawal_dispute_window_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `governance_and_policy_suite`
+- Temporal: `True`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = (i1[t]:sbf & (i2[t-1]:sbf)' & (i2[t-2]:sbf)'))`
 
 ## zusd_cross_module_oracle_sync_gate_v1
 

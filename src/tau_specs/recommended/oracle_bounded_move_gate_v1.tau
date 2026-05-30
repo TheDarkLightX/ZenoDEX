@@ -1,0 +1,23 @@
+# CATEGORY: oracle / bounded move
+# CLAIM: admit a price update only when it is within a two-sided per-epoch move band.
+#
+# Stream mapping:
+#   i1 = proposed price
+#   i2 = previous epoch price, supplied by the host
+#   i3 = max move delta
+#   o1 = bounded move admit
+#
+# Contract:
+#   o1 = (price <= previous + delta) && (previous <= price + delta)
+#
+# This is the addition-form equivalent of |price - previous| <= delta over the
+# intended non-wrapping price domain. It avoids bv subtraction underflow. Near
+# bv32 overflow boundaries, the addition form rejects conservatively.
+set charvar off
+
+bounded_move(price : bv[32], previous : bv[32], max_delta : bv[32]) :=
+  (price <= (previous + max_delta)) &&
+  (previous <= (price + max_delta)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> bounded_move(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).

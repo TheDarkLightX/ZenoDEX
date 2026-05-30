@@ -1,0 +1,39 @@
+# CATEGORY: settlement-composition / master admission
+# CLAIM: admit settlement only when request, conservation, and oracle freshness all hold.
+#
+# Stream mapping:
+#   i1..i4 = bv32 settlement leg deltas
+#   i5     = conservation target; host pins 0 for zero-net settlement
+#   i6     = current epoch
+#   i7     = oracle last update epoch
+#   i8     = max oracle staleness
+#   i9     = settle requested
+#   o1     = settlement master admit
+#
+# Conservation uses the Delta-sandwich equality form:
+#   sum <= target && sum >= target
+#
+# Freshness uses the addition form:
+#   last <= now && now <= last + max_staleness
+#
+# The addition form avoids bv subtraction underflow on future quotes. If
+# last + max_staleness wraps, the check fails closed for ordinary epoch domains.
+set charvar off
+
+leg_sum(a : bv[32], b : bv[32], c : bv[32], d : bv[32]) :=
+  a + b + c + d.
+
+conservation_ok(a : bv[32], b : bv[32], c : bv[32], d : bv[32], target : bv[32]) :=
+  (leg_sum(a, b, c, d) <= target) &&
+  (leg_sum(a, b, c, d) >= target).
+
+oracle_fresh(now_epoch : bv[32], last_epoch : bv[32], max_staleness : bv[32]) :=
+  (last_epoch <= now_epoch) &&
+  (now_epoch <= (last_epoch + max_staleness)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> (
+       (i9[t]:sbf = 1:sbf)
+    && conservation_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])
+    && oracle_fresh(i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])
+  )).

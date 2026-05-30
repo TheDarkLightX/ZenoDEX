@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/tau/semantic-view/v1",
   "execution_census_ref": "formal/tau/recommended_execution_census_best.json",
-  "spec_count": 215,
+  "spec_count": 218,
   "packets": [
     {
       "spec_id": "add_liquidity_apply_v1",
@@ -9040,6 +9040,74 @@
             "type": "sbf",
             "style": "iff_true",
             "expr_short": "(((((i1[t]:sbf)) = 1:sbf) && (((i2[t]:sbf)) = 1:sbf) && (((i3[t]:sbf)) = 1:sbf) && (((i4[t]:sbf)) = 1:sbf) && (((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf) && ((((i8[t]:sbf)) = 1:sbf) <-> !(((i7[t]:sbf)) = 1:sb..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "oracle_bounded_move_gate_v1",
+      "spec_path": "src/tau_specs/recommended/oracle_bounded_move_gate_v1.tau",
+      "profile": "exact_combinational_guard",
+      "rule": "amm_and_orderflow_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> bounded_move(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "bounded_move"
+        ],
+        "definitions": [
+          {
+            "name": "bounded_move",
+            "kind": "data_predicate",
+            "params": [
+              "price",
+              "previous",
+              "max_delta"
+            ],
+            "body": "(price <= (previous + max_delta)) && (previous <= (price + max_delta))",
+            "body_short": "(price <= (previous + max_delta)) && (previous <= (price + max_delta))"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((i1[t]:bv[32]) <= ((i2[t]:bv[32]) + (i3[t]:bv[32]))) && ((i2[t]:bv[32]) <= ((i1[t]:bv[32]) + (i3[t]:bv[32]))))"
           }
         ]
       },
@@ -20237,6 +20305,114 @@
       }
     },
     {
+      "spec_id": "settlement_master_admission_gate_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_master_admission_gate_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "batching_and_settlement_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "bv[32]",
+        "i2": "bv[32]",
+        "i3": "bv[32]",
+        "i4": "bv[32]",
+        "i5": "bv[32]",
+        "i6": "bv[32]",
+        "i7": "bv[32]",
+        "i8": "bv[32]",
+        "i9": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i9"
+        ],
+        "bv_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i9[t]:sbf = 1:sbf) && conservation_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && oracle_fresh(i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32]) ))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [
+          "conservation_ok",
+          "leg_sum",
+          "oracle_fresh"
+        ],
+        "definitions": [
+          {
+            "name": "conservation_ok",
+            "kind": "data_predicate",
+            "params": [
+              "a",
+              "b",
+              "c",
+              "d",
+              "target"
+            ],
+            "body": "(leg_sum(a, b, c, d) <= target) && (leg_sum(a, b, c, d) >= target)",
+            "body_short": "(leg_sum(a, b, c, d) <= target) && (leg_sum(a, b, c, d) >= target)"
+          },
+          {
+            "name": "leg_sum",
+            "kind": "data_predicate",
+            "params": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "body": "a + b + c + d",
+            "body_short": "a + b + c + d"
+          },
+          {
+            "name": "oracle_fresh",
+            "kind": "data_predicate",
+            "params": [
+              "now_epoch",
+              "last_epoch",
+              "max_staleness"
+            ],
+            "body": "(last_epoch <= now_epoch) && (now_epoch <= (last_epoch + max_staleness))",
+            "body_short": "(last_epoch <= now_epoch) && (now_epoch <= (last_epoch + max_staleness))"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i9[t]:sbf = 1:sbf) && (((((i1[t]:bv[32])) + ((i2[t]:bv[32])) + ((i3[t]:bv[32])) + ((i4[t]:bv[32]))) <= (i5[t]:bv[32])) && ((((i1[t]:bv[32])) + ((i2[t]:bv[32])) + ((i3[t]:bv[32])) + ((i4[t]:bv[32]))) >= (i5[t]:bv[32..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "settlement_module_flag_bundle_v1",
       "spec_path": "src/tau_specs/recommended/settlement_module_flag_bundle_v1.tau",
       "profile": "bundle_or_composition",
@@ -27928,6 +28104,58 @@
             "type": "sbf",
             "style": "iff_true",
             "expr_short": "((o1[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "withdrawal_dispute_window_gate_v1",
+      "spec_path": "src/tau_specs/recommended/withdrawal_dispute_window_gate_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "governance_and_policy_suite",
+      "temporal": true,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = (i1[t]:sbf & (i2[t-1]:sbf)' & (i2[t-2]:sbf)'))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "direct_assign",
+            "expr_short": "(i1[t]:sbf & (i2[t-1]:sbf)' & (i2[t-2]:sbf)')"
           }
         ]
       },

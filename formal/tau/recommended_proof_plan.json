@@ -228,7 +228,8 @@
       "include": [
         "epoch_monotonic_step_gate_v1.tau",
         "intent_oneshot_admission_gate_v1.tau",
-        "oracle_sustained_freshness_2epoch_gate_v1.tau"
+        "oracle_sustained_freshness_2epoch_gate_v1.tau",
+        "withdrawal_dispute_window_gate_v1.tau"
       ],
       "include_globs": [
         "governance_*.tau",
@@ -289,6 +290,7 @@
         "liquidity_utilization_cap_v1.tau",
         "lp_*.tau",
         "mev_protection_v1.tau",
+        "oracle_bounded_move_gate_v1.tau",
         "oracle_freshness_*.tau",
         "partial_fill_guard_v1.tau",
         "pool_params_binding_guard_v1.tau",
