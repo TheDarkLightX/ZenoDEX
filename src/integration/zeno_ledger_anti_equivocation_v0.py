@@ -148,13 +148,16 @@ def build_checkpoint_equivocation_slashing_evidence_v0(
         raise ValueError("checkpoint equivocation evidence requires matching sequencer_set_hash")
     if a["header_hash"] == b["header_hash"]:
         raise ValueError("checkpoint equivocation evidence requires conflicting header hashes")
-    header_hashes = sorted([str(a["header_hash"]), str(b["header_hash"])])
-    checkpoint_hashes = sorted(
+    ordered_checkpoint_artifacts = sorted(
         [
-            _hash_object("checkpoint_equivocation_artifact_v0", a),
-            _hash_object("checkpoint_equivocation_artifact_v0", b),
-        ]
+            (_hash_object("checkpoint_equivocation_artifact_v0", a), a),
+            (_hash_object("checkpoint_equivocation_artifact_v0", b), b),
+        ],
+        key=lambda item: item[0],
     )
+    checkpoint_hashes = [item[0] for item in ordered_checkpoint_artifacts]
+    ordered_artifacts = [item[1] for item in ordered_checkpoint_artifacts]
+    header_hashes = sorted([str(a["header_hash"]), str(b["header_hash"])])
     return _slashing_evidence_v0(
         {
             "schema": SLASHING_EVIDENCE_SCHEMA_V0,
@@ -169,7 +172,7 @@ def build_checkpoint_equivocation_slashing_evidence_v0(
             },
             "conflicting_header_hashes": header_hashes,
             "artifact_hashes": checkpoint_hashes,
-            "artifacts": [a, b],
+            "artifacts": ordered_artifacts,
             "recommended_action": "operator_review_then_slash_if_policy_allows",
         }
     )
@@ -265,12 +268,15 @@ def build_watcher_attestation_equivocation_slashing_evidence_v0(
         raise ValueError("watcher equivocation evidence requires matching range or tip height")
     if header_a == header_b:
         raise ValueError("watcher equivocation evidence requires conflicting header hashes")
-    attestation_hashes = sorted(
+    ordered_attestation_artifacts = sorted(
         [
-            _watcher_attestation_artifact_hash_v0(a),
-            _watcher_attestation_artifact_hash_v0(b),
-        ]
+            (_watcher_attestation_artifact_hash_v0(a), a),
+            (_watcher_attestation_artifact_hash_v0(b), b),
+        ],
+        key=lambda item: item[0],
     )
+    attestation_hashes = [item[0] for item in ordered_attestation_artifacts]
+    ordered_artifacts = [item[1] for item in ordered_attestation_artifacts]
     header_hashes = sorted([header_a, header_b])
     return _slashing_evidence_v0(
         {
@@ -289,7 +295,7 @@ def build_watcher_attestation_equivocation_slashing_evidence_v0(
             },
             "conflicting_header_hashes": header_hashes,
             "artifact_hashes": attestation_hashes,
-            "artifacts": [a, b],
+            "artifacts": ordered_artifacts,
             "recommended_action": "operator_review_then_slash_if_policy_allows",
         }
     )
