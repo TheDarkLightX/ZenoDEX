@@ -426,6 +426,14 @@ fn materialize_settle_epoch(
     if !facts.operator_ok {
         return reject(REJ_OPERATOR);
     }
+    // settle_epoch gates on the oracle adapter / authorization in Python
+    // (_require_oracle_adapter_bridge); fail closed on those upstream facts.
+    if !facts.oracle_adapter_ok {
+        return reject(REJ_ORACLE_ADAPTER);
+    }
+    if !facts.oracle_authorization_ok {
+        return reject(REJ_ORACLE_AUTHORIZATION);
+    }
     match settled_market(quote_asset, global, accounts) {
         Ok(v) => v,
         Err(e) => reject(e),
@@ -747,12 +755,6 @@ fn materialize_deposit_collateral(
     if !facts.sender_bound_ok {
         return reject(REJ_SENDER_NOT_BOUND);
     }
-    if !facts.oracle_adapter_ok {
-        return reject(REJ_ORACLE_ADAPTER);
-    }
-    if !facts.oracle_authorization_ok {
-        return reject(REJ_ORACLE_AUTHORIZATION);
-    }
     let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
         Some(s) => s,
         None => return reject(REJ_BAD_REQUEST),
@@ -973,6 +975,15 @@ fn materialize_partial_liquidate(
     }
     if !facts.sender_bound_ok {
         return reject(REJ_SENDER_NOT_BOUND);
+    }
+    // partial_liquidate gates on the oracle adapter / authorization in Python
+    // (_require_oracle_adapter_bridge); fail closed on those upstream facts, matching
+    // settle_epoch. (deposit/withdraw/set_position/clear_breaker do NOT gate on these.)
+    if !facts.oracle_adapter_ok {
+        return reject(REJ_ORACLE_ADAPTER);
+    }
+    if !facts.oracle_authorization_ok {
+        return reject(REJ_ORACLE_AUTHORIZATION);
     }
     let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
         Some(s) => s,
@@ -2232,6 +2243,50 @@ mod tests {
             materialize_isolated_op(&r2)["reject_reason"],
             json!(REJ_ORACLE_AUTHORIZATION)
         );
+    }
+
+    #[test]
+    fn settle_epoch_oracle_facts_fail_closed() {
+        // settle_epoch also gates on the oracle adapter / authorization in Python.
+        let mut r = req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([]),
+            true,
+        );
+        r["facts"]["oracle_adapter_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r)["reject_reason"],
+            json!(REJ_ORACLE_ADAPTER)
+        );
+        let mut r2 = req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([]),
+            true,
+        );
+        r2["facts"]["oracle_authorization_ok"] = json!(false);
+        assert_eq!(
+            materialize_isolated_op(&r2)["reject_reason"],
+            json!(REJ_ORACLE_AUTHORIZATION)
+        );
+    }
+
+    #[test]
+    fn deposit_does_not_gate_on_oracle_facts() {
+        // Lock the corrected behavior: deposit_collateral does NOT gate on the oracle
+        // adapter/authorization (Python deposit has no _require_oracle_adapter_bridge),
+        // so oracle_adapter_ok=false must still ACCEPT a valid deposit.
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            json!([acct_json("aa", 0, 1_000, 0)]),
+            true,
+        );
+        r["facts"]["oracle_adapter_ok"] = json!(false);
+        r["facts"]["oracle_authorization_ok"] = json!(false);
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["accept"], json!(true), "{out}");
     }
 
     #[test]
