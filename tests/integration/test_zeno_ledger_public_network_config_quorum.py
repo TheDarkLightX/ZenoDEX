@@ -336,6 +336,38 @@ def test_join_config_conversion_requires_signed_public_network_config_quorum(tmp
     assert join_config["peer_registry_admission"]["peer_count"] == 1
 
 
+def test_join_config_conversion_rejects_unpinned_required_quorum(tmp_path: Path) -> None:
+    bundle_root = tmp_path / "bundle"
+    _bundle(bundle_root)
+    config = build_public_network_config_v0(
+        bundle_root=bundle_root,
+        mirror_base_url="http://127.0.0.1:8000",
+        writer_urls=["http://127.0.0.1:8799"],
+        peer_urls=[],
+        poll_seconds=5,
+        node_port=8788,
+    )
+    registry = _registry()
+    signed_config = attach_public_network_config_quorum_v0(
+        network_config=config,
+        registry=registry,
+        envelopes=_envelopes(str(config["network_config_hash"])),
+    )
+
+    with pytest.raises(ValueError, match="signer registry hash is required when quorum is required"):
+        _public_network_config_to_join_config_v0(
+            network_config=signed_config,
+            node_id="node-b",
+            bundle_root=tmp_path / "synced",
+            data_dir=tmp_path / "node-b",
+            host="127.0.0.1",
+            port=None,
+            poll_seconds=None,
+            serve=False,
+            require_network_config_quorum=True,
+        )
+
+
 def test_join_config_conversion_rejects_unadmitted_submit_peer_url(tmp_path: Path) -> None:
     bundle_root = tmp_path / "bundle"
     _bundle(bundle_root)
@@ -392,6 +424,7 @@ def test_production_strict_join_requires_public_network_config_key_admission(tmp
             poll_seconds=None,
             serve=False,
             require_network_config_quorum=True,
+            expected_config_signer_registry_hash=str(registry["registry_hash"]),
             require_production_key_admission=True,
         )
 
@@ -406,6 +439,7 @@ def test_production_strict_join_requires_public_network_config_key_admission(tmp
         poll_seconds=None,
         serve=False,
         require_network_config_quorum=True,
+        expected_config_signer_registry_hash=str(registry["registry_hash"]),
         require_production_key_admission=True,
     )
 
@@ -444,5 +478,6 @@ def test_production_strict_join_rejects_tampered_key_admission(tmp_path: Path) -
             poll_seconds=None,
             serve=False,
             require_network_config_quorum=True,
+            expected_config_signer_registry_hash=str(registry["registry_hash"]),
             require_production_key_admission=True,
         )
