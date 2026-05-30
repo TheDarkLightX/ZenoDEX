@@ -450,3 +450,100 @@ def test_rust_shadow_fails_closed_on_effect_tamper(rust_env, monkeypatch):
     )
     assert res.ok is False
     assert "disagreement" in (res.error or "")
+
+
+def _open_market(market_id: str, positions):
+    # Bootstrap to an Open epoch with `positions`, so account ops are accepted.
+    state = fa.build_market(
+        market_id=market_id, quote_asset=QUOTE, positions=positions,
+        clearing_price_e8=100_000_000, deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+    return fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "advance_epoch", delta=1)],
+    )
+
+
+def test_rust_shadow_deposit_existing_account_parity(rust_env):
+    # deposit_collateral materialized: rust_shadow compares the full post-market AND
+    # the CollateralDeposited effect, which is computed on the affected account (the
+    # position makes notional/maint NONZERO, not the flat-dummy zeros).
+    market_id = "perp:shadow-deposit"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    pre = int(state.perps.markets[market_id].accounts[PK_A].collateral_quote)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=50_000)],
+    )
+    assert res.ok is True, res.error  # full state + account-effect parity held
+    assert int(res.state.perps.markets[market_id].accounts[PK_A].collateral_quote) == pre + 50_000
+
+
+def test_rust_shadow_deposit_new_account_parity(rust_env):
+    # First deposit to a pubkey with no prior account: Python creates it, and the
+    # materializer must create the same flat account from the request (which does not
+    # include it). Credit the wallet first so the deposit's balance check passes.
+    from src.state.balances import BalanceTable
+
+    market_id = "perp:shadow-deposit-new"
+    pk_new = "cc" * 48
+    state = _open_market(market_id, [])
+    funded = BalanceTable()
+    for (pk, asset), amt in state.balances.get_all_balances().items():
+        funded.set(pk, asset, int(amt))
+    funded.set(pk_new, QUOTE, 1_000_000_000)
+    state = replace(state, balances=funded)
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=pk_new, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=pk_new, amount=50_000)],
+    )
+    assert res.ok is True, res.error  # parity including new-account creation
+    accts = res.state.perps.markets[market_id].accounts
+    assert pk_new in accts
+    assert int(accts[pk_new].collateral_quote) == 50_000
+
+
+def test_rust_shadow_deposit_resets_liquidated_flag(rust_env):
+    # Regression: a liquidation flag set in settle persists through advance_epoch
+    # (which copies real accounts verbatim); a subsequent deposit must reset it
+    # (apply_deposit_collateral forces False). The materializer must mirror that —
+    # preserving the pre-flag would diverge and false-reject a valid deposit.
+    market_id = "perp:shadow-deposit-liq"
+    state = fa.build_market(
+        market_id=market_id, quote_asset=QUOTE,
+        positions=[(PK_A, 500_000)], clearing_price_e8=101_000_000, deposit=1_000_000,
+    )  # PricePublished
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = 200
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=1)  # liquidatable
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=accts)
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+    # settle liquidates PK_A; advance to Open carries the flag forward.
+    state = fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+    state = fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "advance_epoch", delta=1)],
+    )
+    assert state.perps.markets[market_id].accounts[PK_A].liquidated_this_step is True  # persisted
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=50_000)],
+    )
+    assert res.ok is True, res.error  # parity: materializer resets the flag like Python
+    assert res.state.perps.markets[market_id].accounts[PK_A].liquidated_this_step is False
