@@ -3204,6 +3204,12 @@ _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
     "configure rust_shadow"
 )
 
+# Design by Contract:
+# - Precondition: materialized Rust shadow checks receive a bounded account table.
+# - Invariant: oversized shadow inputs never spawn the Rust subprocess.
+# - Postcondition: Python remains authoritative in rust_shadow, matching RustUnavailable semantics.
+_PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT = 50_000
+
 _ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
     {"breaker_active", "clearing_price_seen", "oracle_seen"}
 )
@@ -3233,6 +3239,11 @@ def _isolated_accounts_doc(accounts: Mapping[str, PerpAccountState]) -> list[dic
         }
         for pk, acct in sorted(accounts.items())
     ]
+
+
+def _materialized_shadow_account_count_bounded(pre_market: PerpMarketState) -> bool:
+    """Return whether full-state Rust shadow materialization is resource-bounded."""
+    return len(pre_market.accounts) <= _PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT
 
 
 def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
@@ -3373,6 +3384,8 @@ def _shadow_accepted_isolated_op(
         # Authority therefore stays blocked until Rust decides + commits.
         return _PERP_STATEFUL_AUTHORITY_BLOCK_MSG
     materialized = op.action in _PERP_STATEFUL_MATERIALIZED_ACTIONS
+    if materialized and not _materialized_shadow_account_count_bounded(pre_market):
+        return None
 
     try:
         if materialized:
