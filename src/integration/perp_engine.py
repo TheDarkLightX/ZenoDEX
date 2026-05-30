@@ -3193,7 +3193,16 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
 # Actions for which the Rust runtime emits a full materialized post-market state
 # (`perp-isolated-op`), making them authority-eligible. Other actions remain
 # checker-only (per-op subcommands) and stay blocked under Rust-authority modes.
+# Ops with a full materialized Rust transition (emits the complete post-market
+# state + the exact kernel effect payload). For these, the `rust_shadow` check
+# compares the full post-state + effects; other ops use the per-op field checkers.
+# This set does NOT grant authority: Rust post-checks Python in every mode.
 _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset({"advance_epoch"})
+
+_PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
+    "perp_stateful Rust authority is not live-wired (shadow materialization only); "
+    "configure rust_shadow"
+)
 
 _ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
     {"breaker_active", "clearing_price_seen", "oracle_seen"}
@@ -3254,18 +3263,48 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
     }
 
 
-def _perp_stateful_full_doc(post_market: PerpMarketState) -> dict[str, Any]:
-    """The Python full post-market doc, in the Rust `post` shape, for comparison."""
+def _perp_stateful_full_doc(
+    post_market: PerpMarketState, python_effect: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The Python full post-market doc, in the Rust `post` shape, plus the exact
+    kernel effect payload, for full state + effect parity comparison."""
     return {
         "accept": True,
         "quote_asset": post_market.quote_asset,
         "global_state": _isolated_global_doc(post_market.global_state),
         "accounts": _isolated_accounts_doc(post_market.accounts),
+        "effects": dict(python_effect),
     }
 
 
+def _effects_agree(python_effect: Any, rust_effect: Any) -> bool:
+    """Exact effect parity: identical key set; bool fields strict, int fields
+    coerced (Python emits JSON numbers, Rust emits decimal strings), event string
+    equal. A receipt/effect drift fails closed even when post-state still matches."""
+    if not isinstance(python_effect, Mapping) or not isinstance(rust_effect, Mapping):
+        return False
+    if set(python_effect.keys()) != set(rust_effect.keys()):
+        return False
+    for key, py_val in python_effect.items():
+        rust_val = rust_effect.get(key)
+        if isinstance(py_val, bool):
+            if not isinstance(rust_val, bool) or py_val != rust_val:
+                return False
+        elif isinstance(py_val, int):
+            try:
+                if int(str(rust_val)) != py_val:
+                    return False
+            except (TypeError, ValueError):
+                return False
+        else:
+            if str(py_val) != str(rust_val):
+                return False
+    return True
+
+
 def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
-    """Full post-market parity: accept, quote_asset, every global key, every account."""
+    """Full post-market parity: accept, quote_asset, every global key, every account,
+    and the exact kernel effect payload."""
     if not isinstance(python_doc, Mapping) or not isinstance(rust_response, Mapping):
         return False
     if not bool(rust_response.get("accept")):
@@ -3305,11 +3344,18 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
                     return False
             elif str(value) != str(rust_value):
                 return False
+    if not _effects_agree(python_doc.get("effects"), rust_response.get("effects")):
+        return False
     return True
 
 
 def _shadow_accepted_isolated_op(
-    *, ctx: _PerpApplyCtx, op: PerpOp, pre_market: PerpMarketState, post_market: PerpMarketState
+    *,
+    ctx: _PerpApplyCtx,
+    op: PerpOp,
+    pre_market: PerpMarketState,
+    post_market: PerpMarketState,
+    python_effect: Mapping[str, Any],
 ) -> Optional[str]:
     from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
     from src.runtime.rust_invoker import perp_isolated_op, perp_stateful_case
@@ -3317,12 +3363,12 @@ def _shadow_accepted_isolated_op(
     mode = active_mode(PERP_STATEFUL_SURFACE)
     if mode is AuthorityMode.PYTHON_AUTHORITY:
         return None
+    if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
+        # Shadow materialization only: Rust post-checks Python's accepted transition,
+        # it does not drive accept/reject from the pre-state nor commit its result.
+        # Authority therefore stays blocked until Rust decides + commits.
+        return _PERP_STATEFUL_AUTHORITY_BLOCK_MSG
     materialized = op.action in _PERP_STATEFUL_MATERIALIZED_ACTIONS
-    if (
-        mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW)
-        and not materialized
-    ):
-        return "perp_stateful Rust authority is not live-wired for this op; configure rust_shadow only"
 
     try:
         if materialized:
@@ -3330,7 +3376,7 @@ def _shadow_accepted_isolated_op(
             decide(
                 PERP_STATEFUL_SURFACE,
                 mode,
-                python_fn=lambda: _perp_stateful_full_doc(post_market),
+                python_fn=lambda: _perp_stateful_full_doc(post_market, python_effect),
                 rust_fn=lambda: perp_isolated_op(request),
                 compare=_full_post_markets_agree,
             )
@@ -3377,11 +3423,11 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
     from src.runtime.authority import AuthorityMode, active_mode
 
     mode = active_mode(PERP_STATEFUL_SURFACE)
-    if (
-        mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW)
-        and op.action not in _PERP_STATEFUL_MATERIALIZED_ACTIONS
-    ):
-        return "perp_stateful Rust authority is not live-wired for this op; configure rust_shadow only"
+    if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
+        # No perp_stateful op has a true Rust-authority path yet (Rust would have to
+        # decide from the pre-state and commit its materialized result). Until then,
+        # authority modes fail closed rather than letting Python silently decide.
+        return _PERP_STATEFUL_AUTHORITY_BLOCK_MSG
 
     handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
     if handler is None:
@@ -3389,11 +3435,14 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
     err = handler(ctx, i=i, op=op, market=market)
     if err is not None:
         return err
+    # The accepted op appended exactly one effect; capture it for effect parity.
+    python_effect = ctx.effects[-1].get("effects", {}) if ctx.effects else {}
     return _shadow_accepted_isolated_op(
         ctx=ctx,
         op=op,
         pre_market=market,
         post_market=ctx.markets[op.market_id],
+        python_effect=python_effect,
     )
 
 

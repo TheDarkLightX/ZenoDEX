@@ -522,6 +522,8 @@ def perp_isolated_op(
             or not isinstance(post.get("accounts"), list)
         ):
             raise RustInvocationError("perp-isolated-op: accepted result missing full post-state")
+        if not isinstance(out.get("effects"), dict):
+            raise RustInvocationError("perp-isolated-op: accepted result missing effects payload")
     else:
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("perp-isolated-op: rejected result missing reject_reason")

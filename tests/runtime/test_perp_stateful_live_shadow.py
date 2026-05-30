@@ -182,10 +182,11 @@ def test_rust_shadow_unavailable_keeps_python():
             os.environ["ZENODEX_RUNTIME_BIN"] = old
 
 
-def test_rust_authority_advance_epoch_materialized_accepts(rust_env):
-    # advance_epoch is now materialized: under rust_authority_with_python_shadow the
-    # selector compares the full Rust post-market vs Python and accepts on parity.
-    market_id = "perp:live-authority-advance"
+def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
+    # advance_epoch is materialized: under rust_shadow the selector compares the full
+    # Rust post-market AND the exact kernel effect payload vs Python, accepting on
+    # parity. Python stays authoritative; Rust post-checks, fail-closed on mismatch.
+    market_id = "perp:shadow-advance"
     state = fa.build_market(
         market_id=market_id,
         quote_asset=QUOTE,
@@ -199,7 +200,7 @@ def test_rust_authority_advance_epoch_materialized_accepts(rust_env):
         operator_pubkey=OPERATOR,
         ops=[fa._op(market_id, "settle_epoch")],
     )
-    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
     res = fa._apply_result(
         state=state,
         tx_sender_pubkey=OPERATOR,
@@ -210,25 +211,38 @@ def test_rust_authority_advance_epoch_materialized_accepts(rust_env):
     assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
 
 
-def test_rust_authority_rejects_unmaterialized_op(rust_env):
-    # Ops without a full materialized Rust transition stay blocked under authority.
-    market_id = "perp:live-authority-block"
-    state = fa.build_market(
-        market_id=market_id,
+def test_rust_authority_blocks_all_perp_stateful_ops(rust_env):
+    # No perp_stateful op has a true Rust-authority path: Rust post-checks Python's
+    # transition, it does not decide from the pre-state nor commit its materialized
+    # result. So authority modes fail closed for advance_epoch (materialized) and
+    # apply_funding_auto (unmaterialized) alike, rather than letting Python decide.
+    # Build the pre-states first under the default python_authority policy.
+    advance_state = _settled("perp:auth-block-advance")
+    funded = fa.build_market(
+        market_id="perp:auth-block-funding",
         quote_asset=QUOTE,
         positions=[(PK_A, 300_000), (PK_B, -300_000)],
         clearing_price_e8=101_000_000,
         deposit=1_000_000,
     )
     set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
-    res = fa._apply_result(
-        state=state,
+    res_adv = fa._apply_result(
+        state=advance_state,
         tx_sender_pubkey=OPERATOR,
         operator_pubkey=OPERATOR,
-        ops=[fa._op(market_id, "apply_funding_auto")],
+        ops=[fa._op("perp:auth-block-advance", "advance_epoch", delta=1)],
     )
-    assert res.ok is False
-    assert "not live-wired for this op" in (res.error or "")
+    assert res_adv.ok is False
+    assert "not live-wired" in (res_adv.error or "")
+
+    res_fund = fa._apply_result(
+        state=funded,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:auth-block-funding", "apply_funding_auto")],
+    )
+    assert res_fund.ok is False
+    assert "not live-wired" in (res_fund.error or "")
 
 
 def _settled(market_id: str):
@@ -240,7 +254,9 @@ def _settled(market_id: str):
     )
 
 
-def test_rust_authority_fails_closed_on_injected_disagreement(rust_env, monkeypatch):
+def test_rust_shadow_fails_closed_on_state_tamper(rust_env, monkeypatch):
+    # rust_shadow is fail-closed: a corrupted Rust post-state diverges from Python
+    # and rejects the op rather than silently accepting.
     from src.runtime import rust_invoker
 
     def tampered(request, **kwargs):
@@ -249,29 +265,32 @@ def test_rust_authority_fails_closed_on_injected_disagreement(rust_env, monkeypa
         return out
 
     monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
-    state = _settled("perp:live-disagree")
-    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+    state = _settled("perp:shadow-state-tamper")
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
     res = fa._apply_result(
         state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
-        ops=[fa._op("perp:live-disagree", "advance_epoch", delta=1)],
+        ops=[fa._op("perp:shadow-state-tamper", "advance_epoch", delta=1)],
     )
     assert res.ok is False
     assert "disagreement" in (res.error or "")
 
 
-def test_rust_authority_advance_unavailable_fails_closed():
-    state = _settled("perp:live-auth-unavail")  # built under default python_authority
-    old = os.environ.get("ZENODEX_RUNTIME_BIN")
-    os.environ["ZENODEX_RUNTIME_BIN"] = str(_REPO / "rust-runtime" / "target" / "nonexistent-bin")
-    try:
-        set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
-        res = fa._apply_result(
-            state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
-            ops=[fa._op("perp:live-auth-unavail", "advance_epoch", delta=1)],
-        )
-        assert res.ok is False  # Rust unavailable + authoritative -> fail closed
-    finally:
-        if old is None:
-            os.environ.pop("ZENODEX_RUNTIME_BIN", None)
-        else:
-            os.environ["ZENODEX_RUNTIME_BIN"] = old
+def test_rust_shadow_fails_closed_on_effect_tamper(rust_env, monkeypatch):
+    # The receipt-drift regression: post-STATE matches but the effect payload differs.
+    # Effect parity must catch it (state-only comparison would have passed).
+    from src.runtime import rust_invoker
+
+    def tampered(request, **kwargs):
+        out = rust_invoker.invoke("perp-isolated-op", request)
+        out["effects"]["effective_maint_bps"] = "99999"  # corrupt effect; state intact
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
+    state = _settled("perp:shadow-effect-tamper")
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:shadow-effect-tamper", "advance_epoch", delta=1)],
+    )
+    assert res.ok is False
+    assert "disagreement" in (res.error or "")
