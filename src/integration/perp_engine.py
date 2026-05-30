@@ -3190,36 +3190,168 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
     return True
 
 
+# Actions for which the Rust runtime emits a full materialized post-market state
+# (`perp-isolated-op`), making them authority-eligible. Other actions remain
+# checker-only (per-op subcommands) and stay blocked under Rust-authority modes.
+_PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset({"advance_epoch"})
+
+_ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
+    {"breaker_active", "clearing_price_seen", "oracle_seen"}
+)
+
+
+def _isolated_global_doc(global_state: Mapping[str, Any]) -> dict[str, Any]:
+    """Full isolated global-state doc: int keys as decimal strings, bools as bools."""
+    out: dict[str, Any] = {}
+    for key in sorted(PERP_GLOBAL_KEYS):
+        if key in _ISOLATED_GLOBAL_BOOL_KEYS:
+            out[key] = _bool_field(global_state, key)
+        else:
+            out[key] = str(_int_field(global_state, key))
+    return out
+
+
+def _isolated_accounts_doc(accounts: Mapping[str, PerpAccountState]) -> list[dict[str, Any]]:
+    return [
+        {
+            "key": pk,
+            "position_base": str(int(acct.position_base)),
+            "collateral_quote": str(int(acct.collateral_quote)),
+            "entry_price_e8": str(int(acct.entry_price_e8)),
+            "funding_paid_cumulative": str(int(acct.funding_paid_cumulative)),
+            "funding_last_applied_epoch": str(int(acct.funding_last_applied_epoch)),
+            "liquidated_this_step": bool(acct.liquidated_this_step),
+        }
+        for pk, acct in sorted(accounts.items())
+    ]
+
+
+def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
+    """Build the full `perp-isolated-op` request from the pre-market, op, and the
+    explicit integration facts. This runs only after the Python integration has
+    already accepted the op, so the upstream gate facts (operator, sender binding,
+    oracle adapter/authorization) are satisfied; Rust consumes them, never
+    re-deriving crypto."""
+    op_obj: dict[str, Any] = {"action": op.action}
+    if op.action == "advance_epoch":
+        op_obj["delta"] = str(_require_int(op.data.get("delta", 0), name="delta", non_negative=True))
+    all_flat = all(int(acct.position_base) == 0 for acct in pre_market.accounts.values())
+    return {
+        "schema": "zenodex/perp_isolated_op/v1",
+        "version": 1,
+        "quote_asset": pre_market.quote_asset,
+        "global_state": _isolated_global_doc(pre_market.global_state),
+        "accounts": _isolated_accounts_doc(pre_market.accounts),
+        "op": op_obj,
+        "facts": {
+            "operator_ok": True,
+            "sender_bound_ok": True,
+            "all_positions_flat": bool(all_flat),
+            "balance_available": "0",
+            "oracle_adapter_ok": True,
+            "oracle_authorization_ok": True,
+        },
+    }
+
+
+def _perp_stateful_full_doc(post_market: PerpMarketState) -> dict[str, Any]:
+    """The Python full post-market doc, in the Rust `post` shape, for comparison."""
+    return {
+        "accept": True,
+        "quote_asset": post_market.quote_asset,
+        "global_state": _isolated_global_doc(post_market.global_state),
+        "accounts": _isolated_accounts_doc(post_market.accounts),
+    }
+
+
+def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
+    """Full post-market parity: accept, quote_asset, every global key, every account."""
+    if not isinstance(python_doc, Mapping) or not isinstance(rust_response, Mapping):
+        return False
+    if not bool(rust_response.get("accept")):
+        return False
+    post = rust_response.get("post")
+    if not isinstance(post, Mapping):
+        return False
+    if str(python_doc.get("quote_asset")) != str(post.get("quote_asset")):
+        return False
+    rust_gs = post.get("global_state")
+    if not isinstance(rust_gs, Mapping):
+        return False
+    for key, value in python_doc["global_state"].items():
+        rust_value = rust_gs.get(key)
+        if isinstance(value, bool):
+            if not isinstance(rust_value, bool) or value != rust_value:
+                return False
+        elif str(value) != str(rust_value):
+            return False
+    rust_accounts = post.get("accounts")
+    python_accounts = python_doc["accounts"]
+    if not isinstance(rust_accounts, list) or len(rust_accounts) != len(python_accounts):
+        return False
+    rust_by_key = {a.get("key"): a for a in rust_accounts if isinstance(a, Mapping)}
+    if len(rust_by_key) != len(rust_accounts):
+        return False
+    for py_acct in python_accounts:
+        rust_acct = rust_by_key.get(py_acct["key"])
+        if not isinstance(rust_acct, Mapping):
+            return False
+        for field, value in py_acct.items():
+            if field == "key":
+                continue
+            rust_value = rust_acct.get(field)
+            if isinstance(value, bool):
+                if not isinstance(rust_value, bool) or value != rust_value:
+                    return False
+            elif str(value) != str(rust_value):
+                return False
+    return True
+
+
 def _shadow_accepted_isolated_op(
     *, ctx: _PerpApplyCtx, op: PerpOp, pre_market: PerpMarketState, post_market: PerpMarketState
 ) -> Optional[str]:
     from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
-    from src.runtime.rust_invoker import perp_stateful_case
+    from src.runtime.rust_invoker import perp_isolated_op, perp_stateful_case
 
     mode = active_mode(PERP_STATEFUL_SURFACE)
     if mode is AuthorityMode.PYTHON_AUTHORITY:
         return None
-    if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
-        return "perp_stateful Rust authority is not live-wired; configure rust_shadow only"
+    materialized = op.action in _PERP_STATEFUL_MATERIALIZED_ACTIONS
+    if (
+        mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW)
+        and not materialized
+    ):
+        return "perp_stateful Rust authority is not live-wired for this op; configure rust_shadow only"
 
     try:
-        subcommand, case = _perp_stateful_shadow_case(
-            ctx=ctx,
-            pre_market=pre_market,
-            post_market=post_market,
-            op=op,
-        )
-        decide(
-            PERP_STATEFUL_SURFACE,
-            mode,
-            python_fn=lambda: _perp_stateful_python_doc(
+        if materialized:
+            request = _build_isolated_op_request(pre_market=pre_market, op=op)
+            decide(
+                PERP_STATEFUL_SURFACE,
+                mode,
+                python_fn=lambda: _perp_stateful_full_doc(post_market),
+                rust_fn=lambda: perp_isolated_op(request),
+                compare=_full_post_markets_agree,
+            )
+        else:
+            subcommand, case = _perp_stateful_shadow_case(
+                ctx=ctx,
                 pre_market=pre_market,
                 post_market=post_market,
                 op=op,
-            ),
-            rust_fn=lambda: perp_stateful_case(subcommand, case),
-            compare=_perp_stateful_docs_agree,
-        )
+            )
+            decide(
+                PERP_STATEFUL_SURFACE,
+                mode,
+                python_fn=lambda: _perp_stateful_python_doc(
+                    pre_market=pre_market,
+                    post_market=post_market,
+                    op=op,
+                ),
+                rust_fn=lambda: perp_stateful_case(subcommand, case),
+                compare=_perp_stateful_docs_agree,
+            )
         return None
     except AuthorityError as exc:
         return f"perp_stateful rust shadow disagreement: {exc}"
@@ -3245,8 +3377,11 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
     from src.runtime.authority import AuthorityMode, active_mode
 
     mode = active_mode(PERP_STATEFUL_SURFACE)
-    if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
-        return "perp_stateful Rust authority is not live-wired; configure rust_shadow only"
+    if (
+        mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW)
+        and op.action not in _PERP_STATEFUL_MATERIALIZED_ACTIONS
+    ):
+        return "perp_stateful Rust authority is not live-wired for this op; configure rust_shadow only"
 
     handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
     if handler is None:

@@ -498,6 +498,38 @@ def perp_stateful_case(
     return result
 
 
+def perp_isolated_op(
+    request: dict[str, Any],
+    *,
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust authority-grade **materialized** isolated-perps transition.
+
+    Unlike :func:`perp_stateful_case` (a per-op checker of selected fields), this
+    returns the full post-market state (``post.global_state`` + ``post.accounts``)
+    and an effects summary on accept, or a stable ``reject_reason`` on reject. A
+    reject must not carry a post-state (it cannot be mistaken for committed state).
+    """
+    out = invoke("perp-isolated-op", request, timeout_seconds=timeout_seconds)
+    if not isinstance(out, dict) or not isinstance(out.get("accept"), bool):
+        raise RustInvocationError("perp-isolated-op: malformed output (missing bool accept)")
+    if out["accept"]:
+        post = out.get("post")
+        if (
+            not isinstance(post, dict)
+            or not isinstance(post.get("quote_asset"), str)
+            or not isinstance(post.get("global_state"), dict)
+            or not isinstance(post.get("accounts"), list)
+        ):
+            raise RustInvocationError("perp-isolated-op: accepted result missing full post-state")
+    else:
+        if not isinstance(out.get("reject_reason"), str):
+            raise RustInvocationError("perp-isolated-op: rejected result missing reject_reason")
+        if "post" in out:
+            raise RustInvocationError("perp-isolated-op: reject carried a post-state")
+    return out
+
+
 def zusd_op(
     *,
     state: dict[str, Any],

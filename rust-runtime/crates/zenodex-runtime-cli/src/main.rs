@@ -37,6 +37,8 @@
 //! Structural validation here mirrors the Python trace libraries byte-for-byte
 //! so the two runtimes reject identical inputs with identical reason strings.
 
+mod perp_isolated_op;
+
 use std::io::Read;
 use std::process::ExitCode;
 
@@ -3131,6 +3133,7 @@ fn main() -> ExitCode {
                 | "partial-liquidate"
                 | "account-op"
                 | "set-market-params"
+                | "perp-isolated-op"
         )
     {
         eprintln!(
@@ -3139,7 +3142,7 @@ fn main() -> ExitCode {
              replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
-             set-market-params> <input.json|->"
+             set-market-params|perp-isolated-op> <input.json|->"
         );
         return ExitCode::from(2);
     }
@@ -3289,6 +3292,20 @@ fn main() -> ExitCode {
             },
             Err(e) => {
                 eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "perp-isolated-op" {
+        let out = perp_isolated_op::materialize_isolated_op(&trace);
+        return match serde_json::to_string_pretty(&out) {
+            Ok(s) => {
+                println!("{s}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: cannot serialize output: {e}");
                 ExitCode::from(2)
             }
         };

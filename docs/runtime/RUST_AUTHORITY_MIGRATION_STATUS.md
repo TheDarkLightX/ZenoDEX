@@ -177,6 +177,25 @@ balances, oracle bridge authorization, effects, and state materialization for
 this surface. `rust_authority*` modes are explicitly rejected for
 `perp_stateful` until full-state Rust materialization exists.
 
+**Materialization foundation (this change).** The authority-grade materializer
+`zenodex-runtime perp-isolated-op` is introduced: it emits the **full post-market
+state** (`quote_asset` + every global key + every account) and an effects summary,
+consuming explicit integration facts (`operator_ok`, `sender_bound_ok`,
+`oracle_adapter_ok`, `oracle_authorization_ok`, `all_positions_flat`,
+`balance_available`) without re-deriving crypto; a reject never carries a
+post-state. The first operation is materialized: **`advance_epoch`**. The bridge
+(`rust_invoker.perp_isolated_op`) and `perp_engine` now compare the **full** Rust
+post-market vs Python (`_full_post_markets_agree`) for materialized ops, so
+`rust_authority_with_python_shadow` is unblocked for `advance_epoch` (it accepts on
+parity, fails closed on disagreement / unavailable / timeout). Non-materialized
+ops stay checker-only and remain blocked under `rust_authority*`. **`perp_stateful`
+remains `rust_shadow` in every profile** — promotion requires materializing every
+isolated op (`publish_clearing_price`, `apply_funding_auto`, `settle_epoch`,
+`clear_breaker`, `set_market_params`, `deposit/withdraw/set_position`,
+`partial_liquidate`) with full post-state + effects parity, then the gate + human
+sign-off. Kani 0.60.0 is available; bounded-model-checking harnesses for the
+high-risk Rust kernels are the next step. No profile flips in this change.
+
 ## Findings / blockers
 
 ### SR-DRIFT-001 — Rust state-root shadow did not enforce the u32 nonce bound `[FIXED]`
