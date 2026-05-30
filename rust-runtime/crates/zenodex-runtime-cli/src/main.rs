@@ -3339,7 +3339,7 @@ fn main() -> ExitCode {
 
     if subcommand == "perp-isolated-op" {
         let out = perp_isolated_op::materialize_isolated_op(&trace);
-        return match serde_json::to_string_pretty(&out) {
+        return match serde_json::to_string(&out) {
             Ok(s) => {
                 println!("{s}");
                 ExitCode::SUCCESS

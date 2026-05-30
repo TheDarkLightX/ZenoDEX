@@ -133,6 +133,16 @@ def test_rust_shadow_disagreement_fails_closed():
         decide("fee_router", AuthorityMode.RUST_SHADOW, python_fn=py, rust_fn=ru)
 
 
+def test_rust_shadow_rejects_none_none_default_agreement():
+    with pytest.raises(AuthorityError):
+        decide(
+            "fee_router",
+            AuthorityMode.RUST_SHADOW,
+            python_fn=_Counter(None),
+            rust_fn=_Counter(None),
+        )
+
+
 def test_rust_shadow_unavailable_is_skipped():
     def rust_unavailable():
         raise RustUnavailable("not built")
@@ -186,6 +196,16 @@ def test_rust_authority_with_shadow_disagreement_fails_closed():
             AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
             python_fn=py,
             rust_fn=ru,
+        )
+
+
+def test_rust_authority_with_shadow_rejects_none_none_default_agreement():
+    with pytest.raises(AuthorityError):
+        decide(
+            "fee_router",
+            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+            python_fn=_Counter(None),
+            rust_fn=_Counter(None),
         )
 
 

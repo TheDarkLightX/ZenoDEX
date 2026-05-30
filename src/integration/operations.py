@@ -23,7 +23,7 @@ from ..core.settlement import (
     LPDelta,
 )
 from ..state.intents import Intent, IntentKind
-from ..state.pools import normalize_curve_config
+from ..state.pools import normalize_curve_config, normalize_pool_asset_pair
 
 POOL_FEE_BPS_MIN = 0
 POOL_FEE_BPS_MAX = 10_000
@@ -587,8 +587,12 @@ def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) 
     kind = intent.kind
     asset0 = _require_field_str(fields, "asset0", intent_kind=kind)
     asset1 = _require_field_str(fields, "asset1", intent_kind=kind)
-    if asset0 >= asset1:
-        raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}")
+    try:
+        asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
+    except Exception as exc:
+        raise ValueError(f"intent assets must be in canonical order: {asset0} < {asset1}") from exc
+    fields["asset0"] = asset0_norm
+    fields["asset1"] = asset1_norm
     _require_field_int_range(
         fields,
         "fee_bps",

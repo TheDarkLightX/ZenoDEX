@@ -23,7 +23,7 @@
 //! Operator/epoch-settled gates and unknown-key rejection are integration
 //! concerns out of this transition's scope. Python remains authority; shadow only.
 
-use crate::perp_math::maint_margin_req;
+use crate::perp_math::checked_maint_margin_req;
 
 pub const BPS_SCALE: i128 = 10_000;
 pub const MAX_COLLATERAL: i128 = 1_000_000_000_000_000;
@@ -203,7 +203,11 @@ pub fn set_market_params(
     }
 
     // (4) Funding-rate clamp to the new cap (mutation, not a reject).
-    let funding_rate_bps = if input.cur_funding_rate_bps.abs() > funding_cap_bps {
+    let cur_funding_rate_abs = input
+        .cur_funding_rate_bps
+        .checked_abs()
+        .ok_or(REJ_OUT_OF_DOMAIN)?;
+    let funding_rate_bps = if cur_funding_rate_abs > funding_cap_bps {
         if input.cur_funding_rate_bps >= 0 {
             funding_cap_bps
         } else {
@@ -241,16 +245,18 @@ pub fn set_market_params(
 
     // (7) Open-position safety at the new params.
     for acct in &input.accounts {
-        if acct.position_base.abs() > max_position_abs {
+        let position_abs = acct.position_base.checked_abs().ok_or(REJ_OUT_OF_DOMAIN)?;
+        if position_abs > max_position_abs {
             return Err(REJ_ACCOUNT_UNSAFE);
         }
         if acct.position_base != 0 {
-            let mreq = maint_margin_req(
+            let mreq = checked_maint_margin_req(
                 acct.position_base,
                 input.index_price_e8,
                 maintenance_margin_bps,
                 depeg_buffer_bps,
-            );
+            )
+            .ok_or(REJ_OUT_OF_DOMAIN)?;
             if acct.collateral_quote < mreq {
                 return Err(REJ_ACCOUNT_UNSAFE);
             }
@@ -414,5 +420,24 @@ mod tests {
         let out = set_market_params(&inp).unwrap();
         assert_eq!(out.funding_cap_bps, 500);
         assert_eq!(out.funding_rate_bps, 500); // clamped
+    }
+
+    #[test]
+    fn funding_rate_i128_min_rejects_without_panic() {
+        let mut inp = base();
+        inp.cur_funding_rate_bps = i128::MIN;
+        inp.upd_funding_cap_bps = Some(500);
+        assert_eq!(set_market_params(&inp).unwrap_err(), REJ_OUT_OF_DOMAIN);
+    }
+
+    #[test]
+    fn account_position_i128_min_rejects_without_panic() {
+        let mut inp = base();
+        inp.accounts = vec![MarketParamsAccount {
+            position_base: i128::MIN,
+            collateral_quote: 200_000,
+        }];
+        inp.upd_max_position_abs = Some(500_000);
+        assert_eq!(set_market_params(&inp).unwrap_err(), REJ_OUT_OF_DOMAIN);
     }
 }

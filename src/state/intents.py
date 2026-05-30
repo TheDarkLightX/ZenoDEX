@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
+from .pools import normalize_pool_asset_pair
 
 
 class IntentKind(Enum):
@@ -134,9 +135,13 @@ class CreatePoolIntent(Intent):
         if not asset0 or not asset1:
             raise ValueError("Missing required fields: asset0, asset1")
         
-        # Canonical ordering
-        if asset0 >= asset1:
+        try:
+            asset0_norm, asset1_norm = normalize_pool_asset_pair(asset0, asset1)
+        except Exception as exc:
             raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
+        if self.fields is not None:
+            self.fields["asset0"] = asset0_norm
+            self.fields["asset1"] = asset1_norm
         
         if fee_bps is None or not (0 <= fee_bps <= 10000):
             raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")

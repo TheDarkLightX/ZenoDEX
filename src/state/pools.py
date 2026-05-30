@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 import hashlib
 
 from .balances import AssetId, Amount
-from .canonical import canonical_json_bytes
+from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 
 
 CURVE_TAG_CPMM = "CPMM"
@@ -19,6 +19,45 @@ CURVE_TAG_CUBIC_SUM_V1 = "CUBIC_SUM_V1"
 CURVE_TAG_SUM_BOOST_V1 = "SUM_BOOST_V1"
 CURVE_TAG_QUARTIC_BLEND_V1 = "QUARTIC_BLEND_V1"
 CURVE_TAG_QUINTIC_BLEND_V1 = "QUINTIC_BLEND_V1"
+
+
+def _canonical_asset_id_if_hex(asset: AssetId, *, name: str) -> AssetId:
+    """Canonicalize real 32-byte asset IDs while preserving symbolic test IDs."""
+    if not isinstance(asset, str):
+        raise TypeError(f"{name} must be a string")
+    if asset.strip().lower().startswith("0x"):
+        return canonical_hex_fixed_allow_0x(asset, nbytes=32, name=name)
+    return asset
+
+
+def _asset_order_bytes(asset: AssetId) -> bytes | None:
+    if not isinstance(asset, str) or not asset.startswith("0x") or len(asset) != 66:
+        return None
+    try:
+        return bytes.fromhex(asset[2:])
+    except ValueError:
+        return None
+
+
+def normalize_pool_asset_pair(asset0: AssetId, asset1: AssetId) -> tuple[AssetId, AssetId]:
+    """
+    Normalize and validate a pool asset pair.
+
+    Real 32-byte hex asset IDs are lowercased and ordered by decoded bytes, which
+    matches the state-root/Rust commitment boundary. Non-hex symbolic IDs are
+    kept for older algorithm tests and ordered by the legacy string rule.
+    """
+    asset0_norm = _canonical_asset_id_if_hex(asset0, name="asset0")
+    asset1_norm = _canonical_asset_id_if_hex(asset1, name="asset1")
+    asset0_b = _asset_order_bytes(asset0_norm)
+    asset1_b = _asset_order_bytes(asset1_norm)
+    if asset0_b is not None and asset1_b is not None:
+        if asset0_b >= asset1_b:
+            raise ValueError(f"Assets must be in canonical order: {asset0_norm} < {asset1_norm}")
+        return asset0_norm, asset1_norm
+    if asset0_norm >= asset1_norm:
+        raise ValueError(f"Assets must be in canonical order: {asset0_norm} < {asset1_norm}")
+    return asset0_norm, asset1_norm
 
 
 def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optional[object]) -> Tuple[str, str]:
@@ -272,8 +311,7 @@ def compute_pool_id(
 
     Matches the formula described in `src/core/liquidity.py`.
     """
-    if asset0 >= asset1:
-        raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
+    asset0, asset1 = normalize_pool_asset_pair(asset0, asset1)
     if not (0 <= fee_bps <= 10000):
         raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
     if not isinstance(curve_tag, str) or not curve_tag:
@@ -324,11 +362,7 @@ class PoolState:
     
     def __post_init__(self):
         """Validate pool state invariants."""
-        # Ensure canonical ordering
-        if self.asset0 >= self.asset1:
-            raise ValueError(
-                f"Assets must be in canonical order: {self.asset0} < {self.asset1}"
-            )
+        self.asset0, self.asset1 = normalize_pool_asset_pair(self.asset0, self.asset1)
         
         # Validate fee_bps
         if not (0 <= self.fee_bps <= 10000):
