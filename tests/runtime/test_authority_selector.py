@@ -386,10 +386,13 @@ def test_real_deploy_profiles_load_and_validate():
         validate_authority_policy(policy, profile_id=profile_id)  # must not raise
         if profile_id == "public-testnet":
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY
+            assert policy.mode_for("balances") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("canonical") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.promoted_surfaces == frozenset({"canonical", "replay_guard", "state_root"})
+            assert policy.promoted_surfaces == frozenset(
+                {"balances", "canonical", "replay_guard", "state_root"}
+            )
         if profile_id == "production-strict":
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY
             assert policy.promoted_surfaces == frozenset()

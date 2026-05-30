@@ -8,6 +8,7 @@
 //! zenodex-runtime replay-guard-trace   <trace.json|->   # kernel = replay_guard
 //! zenodex-runtime replay-guard-admit   <request.json|-> # one replay_guard transition
 //! zenodex-runtime replay-balance-trace <trace.json|->   # kernel = balances
+//! zenodex-runtime balance-op           <request.json|-> # one balances transition
 //! zenodex-runtime replay-zusd-trace    <trace.json|->   # kernel = zusd
 //! zenodex-runtime verify-burn-trace    <trace.json|->   # kernel = burn_receipts
 //! zenodex-runtime settle-swap-trace    <trace.json|->   # kernel = cpmm_settlement
@@ -128,6 +129,35 @@ struct ReplayGuardAdmitOutput {
     pre_state_root: String,
     post_state_root: String,
     post_state_entries: Vec<ReplayGuardStateEntryOut>,
+}
+
+#[derive(Serialize)]
+struct BalanceStateEntryOut {
+    pubkey: String,
+    asset: String,
+    amount: String,
+}
+
+#[derive(Serialize)]
+struct BalanceReceiptOut {
+    kind: String,
+    sender: Option<String>,
+    recipient: String,
+    asset: String,
+    amount: String,
+}
+
+#[derive(Serialize)]
+struct BalanceOpOutput {
+    version: u32,
+    kernel: String,
+    accept: bool,
+    reject_reason: Option<String>,
+    receipt_hash: Option<String>,
+    receipt: Option<BalanceReceiptOut>,
+    pre_state_root: String,
+    post_state_root: String,
+    post_state_entries: Vec<BalanceStateEntryOut>,
 }
 
 // --- Shared JSON helpers ------------------------------------------------------
@@ -471,6 +501,151 @@ fn eval_balance_tx(state: &BalanceState, tx: &Value) -> Eval<BalanceState> {
             }
         }
         _ => Eval::Reject("unknown_tx_kind".to_string()),
+    }
+}
+
+fn balance_entries_out(state: &BalanceState) -> Vec<BalanceStateEntryOut> {
+    state
+        .entries()
+        .map(|(pubkey, asset, amount)| BalanceStateEntryOut {
+            pubkey: pubkey.to_string(),
+            asset: asset.to_string(),
+            amount: amount.to_string(),
+        })
+        .collect()
+}
+
+fn balance_state_from_request(v: &Value) -> Result<BalanceState, String> {
+    let entries = v
+        .get("state_entries")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "state_entries must be an array".to_string())?;
+    let mut parsed = Vec::with_capacity(entries.len());
+    for (index, entry) in entries.iter().enumerate() {
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| format!("state_entries[{index}] must be an object"))?;
+        if let Some(reason) = first_unknown_field(
+            obj.keys().map(String::as_str),
+            &["pubkey", "asset", "amount"],
+        ) {
+            return Err(format!("state_entries[{index}]:{reason}"));
+        }
+        let pubkey = obj
+            .get("pubkey")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("state_entries[{index}].pubkey must be a string"))?;
+        let asset = obj
+            .get("asset")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("state_entries[{index}].asset must be a string"))?;
+        let amount = match obj.get("amount").and_then(classify_integer) {
+            Some(s) => match s.parse::<u128>() {
+                Ok(v) => v,
+                Err(_) => return Err(format!("state_entries[{index}].amount invalid_amount")),
+            },
+            None => return Err(format!("state_entries[{index}].amount invalid_amount")),
+        };
+        parsed.push((pubkey.to_string(), asset.to_string(), amount));
+    }
+    BalanceState::from_entries(parsed).map_err(|reason| format!("invalid balance state: {reason}"))
+}
+
+fn accepted_balance_receipt(tx: &Value) -> Result<BalanceReceiptOut, String> {
+    let obj = tx
+        .as_object()
+        .ok_or_else(|| "accepted balance tx must be an object".to_string())?;
+    let kind = obj
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "accepted balance tx missing kind".to_string())?;
+    let asset = obj
+        .get("asset")
+        .and_then(Value::as_str)
+        .and_then(canonical_asset)
+        .ok_or_else(|| "accepted balance tx missing canonical asset".to_string())?;
+    let amount = obj
+        .get("amount")
+        .and_then(classify_integer)
+        .and_then(|s| s.parse::<u128>().ok())
+        .ok_or_else(|| "accepted balance tx missing amount".to_string())?;
+    if kind == "credit" {
+        let recipient = obj
+            .get("recipient")
+            .and_then(Value::as_str)
+            .and_then(canonical_pubkey)
+            .ok_or_else(|| "accepted credit missing canonical recipient".to_string())?;
+        return Ok(BalanceReceiptOut {
+            kind: "credit".to_string(),
+            sender: None,
+            recipient,
+            asset,
+            amount: amount.to_string(),
+        });
+    }
+    if kind == "transfer" {
+        let sender = obj
+            .get("sender")
+            .and_then(Value::as_str)
+            .and_then(canonical_pubkey)
+            .ok_or_else(|| "accepted transfer missing canonical sender".to_string())?;
+        let recipient = obj
+            .get("recipient")
+            .and_then(Value::as_str)
+            .and_then(canonical_pubkey)
+            .ok_or_else(|| "accepted transfer missing canonical recipient".to_string())?;
+        return Ok(BalanceReceiptOut {
+            kind: "transfer".to_string(),
+            sender: Some(sender),
+            recipient,
+            asset,
+            amount: amount.to_string(),
+        });
+    }
+    Err("accepted balance tx had unknown kind".to_string())
+}
+
+fn run_balance_op(request: &Value) -> Result<BalanceOpOutput, String> {
+    let obj = request
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(
+        obj.keys().map(String::as_str),
+        &["version", "state_entries", "tx"],
+    ) {
+        return Err(reason);
+    }
+    if request.get("version").and_then(Value::as_u64).unwrap_or(1) != 1 {
+        return Err("unsupported request version".to_string());
+    }
+    let state = balance_state_from_request(request)?;
+    let pre_state_root = state.state_root();
+    let tx = request
+        .get("tx")
+        .ok_or_else(|| "tx is required".to_string())?;
+    match eval_balance_tx(&state, tx) {
+        Eval::Accept { receipt_hash, next } => Ok(BalanceOpOutput {
+            version: 1,
+            kernel: "balances".to_string(),
+            accept: true,
+            reject_reason: None,
+            receipt_hash: Some(receipt_hash),
+            receipt: Some(accepted_balance_receipt(tx)?),
+            pre_state_root,
+            post_state_root: next.state_root(),
+            post_state_entries: balance_entries_out(&next),
+        }),
+        Eval::Reject(reason) => Ok(BalanceOpOutput {
+            version: 1,
+            kernel: "balances".to_string(),
+            accept: false,
+            reject_reason: Some(reason),
+            receipt_hash: None,
+            receipt: None,
+            pre_state_root: pre_state_root.clone(),
+            post_state_root: pre_state_root,
+            post_state_entries: balance_entries_out(&state),
+        }),
     }
 }
 
@@ -2200,6 +2375,7 @@ fn main() -> ExitCode {
                 | "replay-guard-trace"
                 | "replay-guard-admit"
                 | "replay-balance-trace"
+                | "balance-op"
                 | "replay-zusd-trace"
                 | "verify-burn-trace"
                 | "settle-swap-trace"
@@ -2217,7 +2393,7 @@ fn main() -> ExitCode {
     {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
-             replay-balance-trace|\
+             replay-balance-trace|balance-op|\
              replay-zusd-trace|verify-burn-trace|settle-swap-trace|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
@@ -2264,6 +2440,25 @@ fn main() -> ExitCode {
 
     if subcommand == "replay-guard-admit" {
         return match run_replay_guard_admit(&trace) {
+            Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "balance-op" {
+        return match run_balance_op(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
                 Ok(s) => {
                     println!("{s}");

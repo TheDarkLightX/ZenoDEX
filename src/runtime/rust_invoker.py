@@ -165,3 +165,58 @@ def replay_guard_admit(
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("replay-guard-admit: rejected output missing reason")
     return out
+
+
+def balance_op(
+    *,
+    state_entries: list[dict[str, Any]],
+    tx: dict[str, Any],
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Rust balance accounting for one credit/transfer from an explicit state."""
+
+    out = invoke(
+        "balance-op",
+        {
+            "version": 1,
+            "state_entries": state_entries,
+            "tx": tx,
+        },
+        timeout_seconds=timeout_seconds,
+    )
+    if not isinstance(out, dict):
+        raise RustInvocationError("balance-op: output must be an object")
+    if out.get("version") != 1 or out.get("kernel") != "balances":
+        raise RustInvocationError("balance-op: unsupported output header")
+    if not isinstance(out.get("accept"), bool):
+        raise RustInvocationError("balance-op: accept must be a bool")
+    for key in ("pre_state_root", "post_state_root"):
+        if not isinstance(out.get(key), str):
+            raise RustInvocationError(f"balance-op: {key} must be a string")
+    if not isinstance(out.get("post_state_entries"), list):
+        raise RustInvocationError("balance-op: post_state_entries must be a list")
+    for entry in out["post_state_entries"]:
+        if not isinstance(entry, dict):
+            raise RustInvocationError("balance-op: state entry must be an object")
+        if (
+            not isinstance(entry.get("pubkey"), str)
+            or not isinstance(entry.get("asset"), str)
+            or not isinstance(entry.get("amount"), str)
+        ):
+            raise RustInvocationError("balance-op: malformed state entry")
+    if out["accept"]:
+        receipt = out.get("receipt")
+        if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
+            raise RustInvocationError("balance-op: accepted output missing receipt")
+        if (
+            not isinstance(receipt.get("kind"), str)
+            or not (receipt.get("sender") is None or isinstance(receipt.get("sender"), str))
+            or not isinstance(receipt.get("recipient"), str)
+            or not isinstance(receipt.get("asset"), str)
+            or not isinstance(receipt.get("amount"), str)
+        ):
+            raise RustInvocationError("balance-op: malformed receipt")
+    else:
+        if not isinstance(out.get("reject_reason"), str):
+            raise RustInvocationError("balance-op: rejected output missing reason")
+    return out

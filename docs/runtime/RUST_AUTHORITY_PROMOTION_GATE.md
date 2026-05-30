@@ -101,13 +101,13 @@ Until each shadowed surface has the rows below, it is **not** authority-eligible
 
 | Disaster | fee_router | replay_guard | balance | zusd | burn | cpmm | state_root | perp_math |
 |---|---|---|---|---|---|---|---|---|
-| copied-tx replay | ☐ | ✅ | ☐ | ☐ | ☐ | n/a | n/a | n/a |
-| stale snapshot | ☐ | ✅ | ☐ | ☐ | ☐ | ☐ | ✅ | n/a |
-| duplicate IDs | ☐ | ✅ | ☐ | ☐ | ☐ | ☐ | ✅ | n/a |
-| malformed bytes | ☐ | ✅ | ☐ | ☐ | ☐ | ☐ | ✅ | ☐ |
-| overflow/underflow | ☐ | ✅ | ☐ | ☐ | ☐ | ☐ | ⚠️ | ☐ |
-| unauthorized mutation | ☐ | ✅ | ☐ | ☐ | ☐ | ☐ | n/a | n/a |
-| no-op on reject | ☐ | ✅ | ☐ | ☐ | ☐ | ☐ | n/a | n/a |
+| copied-tx replay | ☐ | ✅ | upstream ✅ | ☐ | ☐ | n/a | n/a | n/a |
+| stale snapshot | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
+| duplicate IDs | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | n/a |
+| malformed bytes | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ✅ | ☐ |
+| overflow/underflow | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | ⚠️ | ☐ |
+| unauthorized mutation | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
+| no-op on reject | ☐ | ✅ | ✅ | ☐ | ☐ | ☐ | n/a | n/a |
 
 state_root rows are covered by `tests/runtime/test_state_root_disaster_state.py`.
 ⚠️ overflow/underflow: both bridge boundaries are tested, but the u32-nonce case
@@ -154,6 +154,19 @@ root-preserving across `python_authority`, `rust_shadow`, and
 `rust_authority_with_python_shadow`. `public-testnet` now runs `replay_guard` as
 `rust_authority_with_python_shadow`; production remains `python_authority`.
 
+**Balance accounting.** `tests/runtime/test_balance_kernel_disaster_state.py`
+covers stale-snapshot determinism, duplicate decoded state IDs at the Rust
+bridge, malformed pubkeys/assets, amount over/underflow, unauthorized
+cross-asset mutation, no-op-on-reject, deterministic fuzz, and selector
+fail-closed rows. Balance transitions intentionally do not carry nonce
+semantics; copied transaction replay is blocked by the promoted `replay_guard`
+upstream, and the balance disaster suite exercises that composed boundary.
+`tests/runtime/test_balance_kernel_live_path.py` proves the real `credit` and
+`transfer` calls use the active authority policy and remain root-preserving
+across `python_authority`, `rust_shadow`, and
+`rust_authority_with_python_shadow`. `public-testnet` now runs `balances` as
+`rust_authority_with_python_shadow`; production remains `python_authority`.
+
 **Stateful isolated perps (E2).** All 10 isolated handlers are shadowed with
 real-authority differentials. `tests/runtime/test_perp_disaster_state.py` adds the
 **input-disaster + fuzz** evidence: a high-volume randomized differential per op
@@ -173,7 +186,7 @@ Per the migration plan and the math-side `RUNTIME_READINESS.md`:
 1. canonical primitives — public-testnet shadow-authority lane active
 2. state root v5 — public-testnet shadow-authority lane active
 3. replay / idempotency guard — public-testnet shadow-authority lane active
-4. balance accounting
+4. balance accounting — public-testnet shadow-authority lane active
 5. fee router
 
 Then, only after the above are promoted and stable: burn rails, CPMM per-pool

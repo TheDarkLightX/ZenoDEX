@@ -4,8 +4,8 @@ Living status for the Python→Rust authority promotion. Pairs with
 `RUST_AUTHORITY_PROMOTION_GATE.md` (the gate) and
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
 
-**As of this writing: canonical primitives, state root v5, and replay/idempotency
-guard are promoted only in the `public-testnet` profile to
+**As of this writing: canonical primitives, state root v5, replay/idempotency
+guard, and balance accounting are promoted only in the `public-testnet` profile to
 `rust_authority_with_python_shadow`.** The
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
@@ -23,7 +23,7 @@ human decision + profile entry.
 | Canonical primitives | Rust+Python shadow on public-testnet | `canonical.rs` | ✅ | ✅¹ | ✅ | ✅¹ |
 | State root v5 | Rust+Python shadow on public-testnet | `state_root.rs` | ✅ | ✅² | ✅ | ✅² |
 | Replay / idempotency guard | Rust+Python shadow on public-testnet | `replay_guard.rs` | ✅ | ✅⁴ | ✅ | ✅⁴ |
-| Balance accounting | Python | `balance_kernel.rs` | ✅ | ☐ | ☐ | ☐ |
+| Balance accounting | Rust+Python shadow on public-testnet | `balance_kernel.rs` | ✅ | ✅⁵ | ✅ | ✅⁵ |
 | Fee router (4-way + dust) | Python | `fee_router.rs` | ✅ | ☐ | ☐ | ☐ |
 | Burn rails | Python | `burn_receipts.rs` | ✅ | ☐ | ☐ | ☐ |
 | CPMM per-pool settlement | Python | `cpmm_swap.rs` | ✅ | ☐ | ☐ | ☐ |
@@ -65,6 +65,19 @@ checks active-policy wiring for `rust_authority_with_python_shadow`,
 `rust_shadow`, unavailable Rust, and injected disagreement. `public-testnet`
 lists `replay_guard` in `promoted_surfaces`; production remains
 `python_authority`.
+
+⁵ Balance accounting is now live-wired through `src/core/balance_kernel.py`
+for both `credit` and `transfer`. The Rust bridge evaluates one transition from
+explicit sparse `(pubkey, asset, amount)` entries. `tests/runtime/test_balance_kernel_disaster_state.py`
+covers stale-snapshot determinism, duplicate decoded state IDs, malformed
+pubkeys/assets, amount over/underflow, no-op-on-reject, cross-asset isolation,
+deterministic fuzz, and selector fail-closed rows. Copied transaction replay is
+owned by the now-promoted `replay_guard`; the balance test exercises that
+composed boundary rather than pretending balances alone carry nonce semantics.
+`test_balance_kernel_live_path.py` checks active-policy wiring for
+`rust_authority_with_python_shadow`, `rust_shadow`, unavailable Rust, and
+injected disagreement. `public-testnet` lists `balances` in
+`promoted_surfaces`; production remains `python_authority`.
 
 ³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
 `publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
@@ -111,9 +124,9 @@ verifies the selector receives an agreed rejection rather than a drift.
 ### Classification (Phase 0 step 3)
 
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
-  primitives, state root v5, replay/idempotency guard.
+  primitives, state root v5, replay/idempotency guard, balance accounting.
 - **Promotable after evidence refresh + selector wiring** (lowest risk, do
-  next): balance accounting, fee router.
+  next): fee router.
 - **Promotable after small missing tests**: burn rails, CPMM primitive, perp
   stateless math.
 - **Not yet (promote after the small ones)**: zUSD single-vault.
@@ -130,8 +143,9 @@ verifies the selector receives an agreed rejection rather than a drift.
 Evidence categories 1–3, 5–6 (golden traces, differential, property tests, CI,
 formal) are **green for all 9 surfaces**. The outstanding gate for most
 remaining surfaces is **disaster-state (4) + fuzz (9)** plus the human promotion
-decision (12). Canonical primitives, state root v5, and replay/idempotency guard
-have passed those rows for the public-testnet shadow-checked Rust lane.
+decision (12). Canonical primitives, state root v5, replay/idempotency guard,
+and balance accounting have passed those rows for the public-testnet
+shadow-checked Rust lane.
 
 ## This PR (Phase 1 + 2)
 
@@ -147,7 +161,8 @@ Delivered:
     `shadow_checked`, `shadow_agreed`) for receipts/logs.
 - **Deployment-facts wiring** — `runtime_authority_policy` section added to
   `config/deploy/{local-dev,public-testnet,production-strict}.yaml`. Public
-  testnet now promotes `canonical`, `state_root`, and `replay_guard`;
+  testnet now promotes `canonical`, `state_root`, `replay_guard`, and
+  `balances`;
   production remains all-Python.
   `validate_authority_policy` rejects a half-configured Rust authority (and a
   blanket Rust default) under `public-testnet` and `production-strict`;
