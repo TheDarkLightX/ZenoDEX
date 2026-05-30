@@ -387,7 +387,8 @@ def test_real_deploy_profiles_load_and_validate():
         if profile_id == "public-testnet":
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY
             assert policy.mode_for("canonical") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.promoted_surfaces == frozenset({"canonical"})
+            assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.promoted_surfaces == frozenset({"canonical", "state_root"})
         if profile_id == "production-strict":
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY
             assert policy.promoted_surfaces == frozenset()

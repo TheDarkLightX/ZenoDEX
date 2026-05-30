@@ -298,7 +298,12 @@ def decide(
             raise AuthorityError(
                 f"surface {surface!r}: rust authority errored: {exc}"
             ) from exc
-        py = python_fn()
+        try:
+            py = python_fn()
+        except Exception as exc:
+            raise AuthorityError(
+                f"surface {surface!r}: python shadow errored: {exc}"
+            ) from exc
         if not _agree(py, ru, compare):
             raise AuthorityError(
                 f"surface {surface!r}: python/rust disagreement (python shadow)"

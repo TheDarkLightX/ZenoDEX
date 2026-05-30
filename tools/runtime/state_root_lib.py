@@ -106,7 +106,9 @@ def build_tables(state: dict):
     for e in state.get("nonces", []) or []:
         nonces.set_last(e["pubkey"], e["last_nonce"])
 
-    fee_obj = state.get("fee_accumulator") or {}
+    fee_obj = state.get("fee_accumulator")
+    if fee_obj is None:
+        fee_obj = {}
     if not isinstance(fee_obj, dict):
         raise TypeError("fee_accumulator must be an object")
     fee_accumulator = FeeAccumulatorState(dust=fee_obj.get("dust", 0))

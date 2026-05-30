@@ -93,3 +93,25 @@ def canonical_domain_json_hash(
         code = result.get("code") if isinstance(result, dict) else "malformed"
         raise RustInvocationError(f"canonical-hash domain_json_hash rejected: {code}")
     return str(result["hash"])
+
+
+def state_root_hash(
+    state: dict[str, Any],
+    *,
+    timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> str:
+    """Rust ``compute_state_root`` for one normalized state-root v5 state."""
+
+    out = invoke(
+        "verify-state-root",
+        {"cases": [state]},
+        timeout_seconds=timeout_seconds,
+    )
+    results = out.get("results") if isinstance(out, dict) else None
+    if not isinstance(results, list) or len(results) != 1:
+        raise RustInvocationError("verify-state-root: unexpected results shape")
+    result = results[0]
+    if not isinstance(result, dict) or not result.get("ok") or "state_root" not in result:
+        code = result.get("code") if isinstance(result, dict) else "malformed"
+        raise RustInvocationError(f"verify-state-root rejected: {code}")
+    return str(result["state_root"])

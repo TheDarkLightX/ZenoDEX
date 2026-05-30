@@ -38,10 +38,13 @@ runtime_policy:
   external_static_analysis_required_in_ci: true
 runtime_authority_policy:
   schema: zenodex/runtime_authority_policy/v1
-  # Python authority by default. Canonical primitives have passed the first
-  # promotion gate and run Rust authority with Python shadow on public testnet.
+  # Python authority by default. Canonical primitives and state root v5 have
+  # passed promotion gates and run Rust authority with Python shadow on public
+  # testnet.
   default: python_authority
   per_surface:
     canonical: rust_authority_with_python_shadow
+    state_root: rust_authority_with_python_shadow
   promoted_surfaces:
     - canonical
+    - state_root
