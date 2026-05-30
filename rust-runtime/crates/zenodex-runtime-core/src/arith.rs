@@ -34,6 +34,24 @@ pub fn mul_div_floor(
     Ok(checked_mul(value, numerator)? / denominator)
 }
 
+/// Python-compatible floor division for signed integers.
+///
+/// Rust's `/` truncates toward zero. Python's `//` floors toward negative
+/// infinity, so negative, non-even divisions need one extra step down.
+#[inline]
+pub fn floor_div_i128(numerator: i128, denominator: i128) -> Option<i128> {
+    if denominator == 0 {
+        return None;
+    }
+    let q = numerator / denominator;
+    let r = numerator % denominator;
+    if r != 0 && ((r < 0) != (denominator < 0)) {
+        q.checked_sub(1)
+    } else {
+        Some(q)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -68,5 +86,15 @@ mod tests {
             mul_div_floor(10, 10_000, 0),
             Err(RejectedReason::ArithmeticOverflow)
         );
+    }
+
+    #[test]
+    fn floor_div_i128_matches_python_rounding() {
+        assert_eq!(floor_div_i128(7, 3), Some(2));
+        assert_eq!(floor_div_i128(-7, 3), Some(-3));
+        assert_eq!(floor_div_i128(7, -3), Some(-3));
+        assert_eq!(floor_div_i128(-7, -3), Some(2));
+        assert_eq!(floor_div_i128(-6, 3), Some(-2));
+        assert_eq!(floor_div_i128(1, 0), None);
     }
 }

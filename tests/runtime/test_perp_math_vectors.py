@@ -44,6 +44,13 @@ def test_settle_price_clamp_band_nonzero():
     assert p != 100
 
 
+def test_python_authority_negative_price_floor_vectors():
+    assert m._settle_price_python(-20_000, -10_000, 1, True) == -9_999
+    assert m._notional_quote_python(5, -150_000_001) == -8
+    assert m._maint_margin_req_python(5, -150_000_001, 500, 0) == -1
+    assert m._funding_payment_python(5, -150_000_001, 1) == -1
+
+
 # --- Rust/Python differential -------------------------------------------------
 
 

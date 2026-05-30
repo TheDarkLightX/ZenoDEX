@@ -72,6 +72,30 @@ def test_exact_out_reserve_domain_rejection_matches_rust(tmp_path, rust_bin):
     assert shadow.diff_trace_against_rust(trace, rust) == []
 
 
+def test_exact_out_reserve_domain_takes_precedence_over_gap_policy(tmp_path, rust_bin):
+    trace = _trace_from_txs(
+        [
+            {
+                "kind": "init_pool",
+                "reserve0": 1_000_000,
+                "reserve1": 2_613_288_063,
+                "fee_bps": 9_999,
+            },
+            {
+                "kind": "swap_exact_out",
+                "zero_for_one": True,
+                "amount_out": 884_635_356,
+                "max_amount_in": DEX_SWAP_AMOUNT_MAX,
+                "max_overdelivery_gap_bps": 0,
+            },
+        ]
+    )
+    assert trace["steps"][1]["expected_reject_reason"] == cpmm.REJ_RESERVE_DOMAIN_EXCEEDED
+
+    rust = shadow.run_rust_replay(rust_bin, _write_trace(tmp_path, trace))
+    assert shadow.diff_trace_against_rust(trace, rust) == []
+
+
 def test_exact_out_overdelivery_policy_rejection_matches_rust(tmp_path, rust_bin):
     trace = _trace_from_txs(
         [

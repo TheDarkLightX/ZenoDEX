@@ -51,7 +51,7 @@ use zenodex_runtime_core::burn_receipts::{
     rail_receipt_hash, stateless_root, verify_rails, RailInputs,
 };
 use zenodex_runtime_core::canonical::{
-    canonical_json_bytes, domain_sep_bytes, hex_to_bytes_fixed, sha256_hex, CanonicalError,
+    canonical_json_bytes, hex_to_bytes_fixed, sha256_hex, try_domain_sep_bytes, CanonicalError,
     JsonValue,
 };
 use zenodex_runtime_core::cpmm_swap::{
@@ -1556,11 +1556,6 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
                         continue;
                     }
                 };
-                // domain_sep_bytes in Python rejects empty / non-ASCII / NUL labels.
-                if label.is_empty() || !label.is_ascii() || label.contains('\u{0}') {
-                    results.push(err_case(index, "bad_domain_label"));
-                    continue;
-                }
                 let version = match obj.get("version") {
                     None => 1u32,
                     Some(v) => match classify_integer(v).and_then(|s| s.parse::<u32>().ok()) {
@@ -1571,10 +1566,16 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
                         }
                     },
                 };
+                let mut msg = match try_domain_sep_bytes(label, version) {
+                    Ok(msg) => msg,
+                    Err(e) => {
+                        results.push(err_case(index, e.code()));
+                        continue;
+                    }
+                };
                 let value = obj.get("value").unwrap_or(&Value::Null);
                 match lower_value(value) {
                     Ok(jv) => {
-                        let mut msg = domain_sep_bytes(label, version);
                         msg.extend_from_slice(&canonical_json_bytes(&jv));
                         results.push(CanonicalCaseResult {
                             index,

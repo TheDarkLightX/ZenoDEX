@@ -94,9 +94,14 @@ def static_cases() -> list[dict]:
          "max_oracle_move_bps": 1, "oracle_seen": True},  # ceil-clamp, band != 0
         {"op": "settle_price", "clearing_price_e8": 100, "index_price_e8": 100,
          "max_oracle_move_bps": 50, "oracle_seen": True},  # no violation
+        {"op": "settle_price", "clearing_price_e8": -20_000, "index_price_e8": -10_000,
+         "max_oracle_move_bps": 1, "oracle_seen": True},  # signed floor division
         {"op": "notional_quote", "position_base": -5000, "price_e8": 100 * P},
+        {"op": "notional_quote", "position_base": 5, "price_e8": -150_000_001},
         {"op": "maint_margin_req", "position_base": -5000, "price_e8": 100 * P,
          "maint_bps": 500, "depeg_bps": 100},
+        {"op": "maint_margin_req", "position_base": 5, "price_e8": -150_000_001,
+         "maint_bps": 500, "depeg_bps": 0},
         {"op": "init_margin_req", "position_base": 5000, "price_e8": 100 * P, "init_bps": 1000},
         {"op": "pnl_quote", "position_base": 1000, "settle_price_e8": 110 * P, "index_price_e8": 100 * P},
         {"op": "pnl_quote", "position_base": -1000, "settle_price_e8": 110 * P, "index_price_e8": 100 * P},
@@ -107,6 +112,7 @@ def static_cases() -> list[dict]:
         {"op": "funding_payment", "position_base": 1000, "index_price_e8": 100 * P, "rate_bps": 50},
         {"op": "funding_payment", "position_base": 1000, "index_price_e8": 100 * P, "rate_bps": -50},
         {"op": "funding_payment", "position_base": -1000, "index_price_e8": 100 * P, "rate_bps": 50},
+        {"op": "funding_payment", "position_base": 5, "index_price_e8": -150_000_001, "rate_bps": 1},
     ]
 
 

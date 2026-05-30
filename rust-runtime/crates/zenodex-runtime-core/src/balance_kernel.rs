@@ -66,8 +66,14 @@ impl BalanceRejectedReason {
     }
 }
 
+fn python_strip(value: &str) -> &str {
+    value.trim_matches(|c: char| {
+        c.is_whitespace() || matches!(c, '\u{001c}' | '\u{001d}' | '\u{001e}' | '\u{001f}')
+    })
+}
+
 fn canonical_hex(value: &str, nbytes: usize) -> Option<String> {
-    let trimmed = value.trim();
+    let trimmed = python_strip(value);
     let body = trimmed
         .strip_prefix("0x")
         .or_else(|| trimmed.strip_prefix("0X"))
@@ -326,6 +332,17 @@ mod tests {
         );
         assert_eq!(prefixed.state.state_root(), raw.state.state_root());
         assert_eq!(prefixed.state.state_root(), spaced.state.state_root());
+    }
+
+    #[test]
+    fn python_info_separator_controls_are_trimmed() {
+        let a = pk(0x11);
+        let x = asset(0xAA);
+        let wrapped_a = format!("\u{001c}{a}\u{001f}");
+        let wrapped_x = format!("\u{001d}{}\u{001e}", x.strip_prefix("0x").unwrap());
+        let acc = credit(&BalanceState::default(), &wrapped_a, &wrapped_x, 100).unwrap();
+        assert_eq!(acc.receipt.recipient, a);
+        assert_eq!(acc.receipt.asset, x);
     }
 
     #[test]
