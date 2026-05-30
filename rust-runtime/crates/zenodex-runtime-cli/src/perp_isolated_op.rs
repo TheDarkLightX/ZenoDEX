@@ -30,6 +30,7 @@ use zenodex_runtime_core::perp_math::is_oracle_fresh;
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
 };
+use zenodex_runtime_core::perp_settle_epoch::{settle_epoch, SettleAccount, SettleEpochInput};
 
 pub const REJ_BAD_REQUEST: &str = "perp_isolated_op_bad_request";
 pub const REJ_OPERATOR: &str = "operator only";
@@ -234,6 +235,7 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         "publish_clearing_price" => {
             materialize_publish_clearing_price(&quote_asset, global, accounts, op, &facts)
         }
+        "settle_epoch" => materialize_settle_epoch(&quote_asset, global, accounts, op, &facts),
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -382,6 +384,143 @@ fn materialize_publish_clearing_price(
     }
 }
 
+/// `settle_epoch`: operator-gated whole-market settle. Reuses
+/// `perp_settle_epoch::settle_epoch` (input domain, the `PricePublished` guard,
+/// per-account P&L / liquidation, penalty accumulation into fee/insurance, and the
+/// account-independent global post-epoch update). This is the first account-mutating
+/// materialized op: it emits the full settled post-state (the global keys settle
+/// changes + every settled account) and the `EpochSettled` effect. Oracle
+/// authorization is a Python-verified fact, never re-derived here.
+fn materialize_settle_epoch(
+    quote_asset: &str,
+    global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    // settle takes no materialized op params (oracle-authorization payloads are
+    // consumed Python-side as facts, not forwarded into the Rust request).
+    for k in op.keys() {
+        if k != "action" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.operator_ok {
+        return reject(REJ_OPERATOR);
+    }
+    match settled_market(quote_asset, global, accounts) {
+        Ok(v) => v,
+        Err(e) => reject(e),
+    }
+}
+
+/// The settle transition body (uses `?`): build the core input from the global +
+/// accounts, run the whole-market settle, then overwrite the global keys settle
+/// changes and rebuild accounts (preserving the funding fields settle never touches).
+fn settled_market(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    accounts: Vec<Account>,
+) -> Result<Value, &'static str> {
+    // Read the three bool globals up front so no immutable borrow outlives the
+    // later mutable inserts.
+    let clearing_price_seen = global
+        .get("clearing_price_seen")
+        .ok_or(REJ_BAD_REQUEST)
+        .and_then(as_bool)?;
+    let oracle_seen = global
+        .get("oracle_seen")
+        .ok_or(REJ_BAD_REQUEST)
+        .and_then(as_bool)?;
+    let breaker_active = global
+        .get("breaker_active")
+        .ok_or(REJ_BAD_REQUEST)
+        .and_then(as_bool)?;
+    let input = SettleEpochInput {
+        now_epoch: gget(&global, "now_epoch")?,
+        epoch_phase: gget(&global, "epoch_phase")?,
+        clearing_price_seen,
+        clearing_price_epoch: gget(&global, "clearing_price_epoch")?,
+        clearing_price_e8: gget(&global, "clearing_price_e8")?,
+        oracle_last_update_epoch: gget(&global, "oracle_last_update_epoch")?,
+        oracle_seen,
+        index_price_e8: gget(&global, "index_price_e8")?,
+        max_oracle_move_bps: gget(&global, "max_oracle_move_bps")?,
+        maintenance_margin_bps: gget(&global, "maintenance_margin_bps")?,
+        depeg_buffer_bps: gget(&global, "depeg_buffer_bps")?,
+        liquidation_penalty_bps: gget(&global, "liquidation_penalty_bps")?,
+        min_notional_for_bounty: gget(&global, "min_notional_for_bounty")?,
+        fee_pool_quote: gget(&global, "fee_pool_quote")?,
+        fee_income: gget(&global, "fee_income")?,
+        initial_insurance: gget(&global, "initial_insurance")?,
+        claims_paid: gget(&global, "claims_paid")?,
+        breaker_active,
+        breaker_last_trigger_epoch: gget(&global, "breaker_last_trigger_epoch")?,
+        accounts: accounts
+            .iter()
+            .map(|a| SettleAccount {
+                key: a.key.clone(),
+                position_base: a.position_base,
+                collateral_quote: a.collateral_quote,
+                entry_price_e8: a.entry_price_e8,
+                liquidated_this_step: a.liquidated_this_step,
+            })
+            .collect(),
+    };
+    let out = settle_epoch(&input)?;
+    // Overwrite exactly the global keys settle changes (others carry through).
+    global.insert(
+        "epoch_phase".into(),
+        Value::String(out.epoch_phase.to_string()),
+    );
+    global.insert(
+        "oracle_last_update_epoch".into(),
+        Value::String(out.oracle_last_update_epoch.to_string()),
+    );
+    global.insert("oracle_seen".into(), Value::Bool(out.oracle_seen));
+    global.insert(
+        "index_price_e8".into(),
+        Value::String(out.index_price_e8.to_string()),
+    );
+    global.insert("breaker_active".into(), Value::Bool(out.breaker_active));
+    global.insert(
+        "breaker_last_trigger_epoch".into(),
+        Value::String(out.breaker_last_trigger_epoch.to_string()),
+    );
+    global.insert(
+        "fee_pool_quote".into(),
+        Value::String(out.fee_pool_quote.to_string()),
+    );
+    global.insert(
+        "fee_income".into(),
+        Value::String(out.fee_income.to_string()),
+    );
+    global.insert(
+        "insurance_balance".into(),
+        Value::String(out.insurance_balance.to_string()),
+    );
+    // Rebuild full accounts: settle gives 5 fields; keep the two funding fields
+    // (funding_paid_cumulative, funding_last_applied_epoch) from the pre-account.
+    let mut post_accounts: Vec<Account> = Vec::with_capacity(out.accounts.len());
+    for sa in &out.accounts {
+        let pre = accounts
+            .iter()
+            .find(|a| a.key == sa.key)
+            .ok_or(REJ_BAD_REQUEST)?;
+        post_accounts.push(Account {
+            key: sa.key.clone(),
+            position_base: sa.position_base,
+            collateral_quote: sa.collateral_quote,
+            entry_price_e8: sa.entry_price_e8,
+            funding_paid_cumulative: pre.funding_paid_cumulative,
+            funding_last_applied_epoch: pre.funding_last_applied_epoch,
+            liquidated_this_step: sa.liquidated_this_step,
+        });
+    }
+    let effects = global_op_effect(&global, "EpochSettled")?;
+    Ok(accept(quote_asset, &global, &post_accounts, effects))
+}
+
 /// The exact kernel effect payload for a **global** op (one that runs on the flat
 /// dummy account the Python integration uses): `event` (`EpochAdvanced` for
 /// `advance_epoch`, `ClearingPricePublished` for `publish_clearing_price`) plus
@@ -469,6 +608,44 @@ mod tests {
             "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
                       "all_positions_flat": true, "balance_available": "0",
+                      "oracle_adapter_ok": true, "oracle_authorization_ok": true}
+        })
+    }
+
+    fn price_published_global(now: i128) -> Value {
+        // Consistent PricePublished at `now`: clearing seen this epoch, oracle stale.
+        json!({
+            "now_epoch": now.to_string(), "epoch_phase": "1",
+            "oracle_last_update_epoch": (now - 1).to_string(), "oracle_seen": true,
+            "clearing_price_seen": true, "clearing_price_epoch": now.to_string(),
+            "clearing_price_e8": "101000000", "index_price_e8": "100000000",
+            "breaker_active": false, "breaker_last_trigger_epoch": "0",
+            "max_oracle_staleness_epochs": "100", "max_oracle_move_bps": "500",
+            "initial_margin_bps": "1000", "maintenance_margin_bps": "500",
+            "depeg_buffer_bps": "100", "liquidation_penalty_bps": "200",
+            "max_position_abs": "1000000", "fee_pool_quote": "0",
+            "funding_rate_bps": "0", "funding_cap_bps": "1000",
+            "insurance_balance": "0", "initial_insurance": "0",
+            "fee_income": "0", "claims_paid": "0", "min_notional_for_bounty": "0"
+        })
+    }
+
+    fn acct_json(key: &str, pos: i128, coll: i128, entry: i128) -> Value {
+        json!({
+            "key": key, "position_base": pos.to_string(),
+            "collateral_quote": coll.to_string(), "entry_price_e8": entry.to_string(),
+            "funding_paid_cumulative": "7", "funding_last_applied_epoch": "2",
+            "liquidated_this_step": false
+        })
+    }
+
+    fn req_accts(global: Value, op: Value, accounts: Value, operator_ok: bool) -> Value {
+        json!({
+            "schema": SCHEMA_ID, "version": SCHEMA_VERSION,
+            "quote_asset": "0x".to_string() + &"41".repeat(32),
+            "global_state": global, "accounts": accounts, "op": op,
+            "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
+                      "all_positions_flat": false, "balance_available": "0",
                       "oracle_adapter_ok": true, "oracle_authorization_ok": true}
         })
     }
@@ -671,6 +848,115 @@ mod tests {
     }
 
     #[test]
+    fn settle_two_accounts_materializes_pnl_global_and_effect() {
+        let accounts = json!([
+            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            acct_json("bb", -300_000, 1_000_000, 100_000_000),
+        ]);
+        let r = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let pg = &r["post"]["global_state"];
+        assert_eq!(pg["epoch_phase"], json!("2"));
+        assert_eq!(pg["oracle_last_update_epoch"], json!("5"));
+        assert_eq!(pg["oracle_seen"], json!(true));
+        assert_eq!(pg["index_price_e8"], json!("101000000")); // settle price
+        assert_eq!(pg["fee_pool_quote"], json!("0")); // no liquidation penalty
+        assert_eq!(pg["insurance_balance"], json!("0"));
+        assert_eq!(pg["now_epoch"], json!("5")); // unchanged
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["collateral_quote"], json!("1003000")); // +3000 P&L
+        assert_eq!(a["entry_price_e8"], json!("101000000")); // reset to settle price
+        assert_eq!(a["position_base"], json!("300000"));
+        // Funding fields settle never touches are carried verbatim from the pre-account.
+        assert_eq!(a["funding_paid_cumulative"], json!("7"));
+        assert_eq!(a["funding_last_applied_epoch"], json!("2"));
+        let b = accts.iter().find(|x| x["key"] == "bb").unwrap();
+        assert_eq!(b["collateral_quote"], json!("997000")); // -3000 P&L
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("EpochSettled"));
+        assert_eq!(fx["oracle_fresh"], json!(true));
+        assert_eq!(fx["effective_maint_bps"], json!("600"));
+        assert_eq!(fx["fee_pool_after"], json!("0"));
+    }
+
+    #[test]
+    fn settle_liquidation_routes_penalty_to_fee_and_insurance() {
+        // A large position with tiny collateral is liquidatable after mark-to-market;
+        // the penalty must flow to the global fee pool + insurance, and the effect's
+        // after-values must match the post-state.
+        let accounts = json!([acct_json("aa", 1_000_000, 1_000, 100_000_000)]);
+        let r = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["position_base"], json!("0")); // liquidated -> flat
+        assert_eq!(a["liquidated_this_step"], json!(true));
+        assert_eq!(a["entry_price_e8"], json!("0"));
+        let pg = &r["post"]["global_state"];
+        let fee_pool: i128 = pg["fee_pool_quote"].as_str().unwrap().parse().unwrap();
+        let insurance: i128 = pg["insurance_balance"].as_str().unwrap().parse().unwrap();
+        assert!(fee_pool > 0, "liquidation penalty should flow to fee pool");
+        assert!(
+            insurance > 0,
+            "liquidation penalty should flow to insurance"
+        );
+        // Effect after-values reflect the materialized post-state exactly.
+        assert_eq!(r["effects"]["fee_pool_after"], pg["fee_pool_quote"]);
+        assert_eq!(r["effects"]["insurance_after"], pg["insurance_balance"]);
+    }
+
+    #[test]
+    fn settle_wrong_phase_rejects_with_kernel_reason() {
+        // Open phase; settle needs PricePublished -> kernel guard rejects.
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert_eq!(
+            r["reject_reason"],
+            json!(zenodex_runtime_core::perp_settle_epoch::REJ_GUARD)
+        );
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn settle_operator_gate_rejects() {
+        let r = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([]),
+            false,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_OPERATOR));
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn settle_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch", "price_e8": "1"}),
+            json!([]),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    #[test]
     fn advance_operator_gate_rejects() {
         let r = materialize_isolated_op(&req(
             settled_global(5),
@@ -710,9 +996,10 @@ mod tests {
 
     #[test]
     fn unmaterialized_action_signals_not_materialized() {
+        // apply_funding_auto is not yet materialized -> the bridge keeps Python authoritative.
         let r = materialize_isolated_op(&req(
             settled_global(5),
-            json!({"action": "settle_epoch"}),
+            json!({"action": "apply_funding_auto"}),
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_NOT_MATERIALIZED));
