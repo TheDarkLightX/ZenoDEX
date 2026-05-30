@@ -20,6 +20,7 @@ pub const BPS_DENOM: u128 = 10_000;
 /// Consensus domain bounds (match `src/core/domain_limits.py`).
 pub const DEX_POOL_RESERVE_MAX: u128 = 3_000_000_000;
 pub const DEX_SWAP_AMOUNT_MAX: u128 = 3_000_000_000;
+pub const CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT: u128 = 200;
 
 const STATE_LABEL: &str = "cpmm_pool";
 const RECEIPT_LABEL: &str = "cpmm_swap_receipt";
@@ -37,6 +38,7 @@ pub const REJ_RESERVE_DOMAIN_EXCEEDED: &str = "reserve_domain_exceeded";
 pub const REJ_TRADE_TOO_SMALL: &str = "trade_too_small";
 pub const REJ_AMOUNT_OUT_GE_RESERVE: &str = "amount_out_ge_reserve";
 pub const REJ_FEE_FULL: &str = "fee_full";
+pub const REJ_OVERDELIVERY_GAP: &str = "overdelivery_gap";
 pub const REJ_SLIPPAGE: &str = "slippage";
 
 fn in_range(v: u128, lo: u128, hi: u128) -> bool {
@@ -81,6 +83,9 @@ pub struct SwapReceipt {
     pub amount_in: u128,
     pub amount_out: u128,
     pub fee_total: u128,
+    pub amount_out_quote: u128,
+    pub overdelivery_gap: u128,
+    pub gap_bps: u128,
     pub new_reserve0: u128,
     pub new_reserve1: u128,
 }
@@ -159,6 +164,9 @@ pub fn init_pool(
             amount_in: 0,
             amount_out: 0,
             fee_total: 0,
+            amount_out_quote: 0,
+            overdelivery_gap: 0,
+            gap_bps: 0,
             new_reserve0: reserve0,
             new_reserve1: reserve1,
         },
@@ -235,6 +243,9 @@ pub fn swap_exact_in(
             amount_in,
             amount_out,
             fee_total,
+            amount_out_quote: amount_out,
+            overdelivery_gap: 0,
+            gap_bps: 0,
             new_reserve0: if zero_for_one { new_in } else { new_out },
             new_reserve1: if zero_for_one { new_out } else { new_in },
         },
@@ -249,12 +260,31 @@ pub fn swap_exact_out(
     amount_out: u128,
     max_amount_in: u128,
 ) -> Result<Accepted, &'static str> {
+    swap_exact_out_with_max_gap_bps(
+        pool,
+        zero_for_one,
+        amount_out,
+        max_amount_in,
+        CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+    )
+}
+
+pub fn swap_exact_out_with_max_gap_bps(
+    pool: &Pool,
+    zero_for_one: bool,
+    amount_out: u128,
+    max_amount_in: u128,
+    max_overdelivery_gap_bps: u128,
+) -> Result<Accepted, &'static str> {
     if !pool.initialized {
         return Err(REJ_POOL_NOT_INITIALIZED);
     }
     let (reserve_in, reserve_out) = directed_reserves(pool, zero_for_one)?;
     if !in_range(amount_out, 1, DEX_SWAP_AMOUNT_MAX) {
         return Err(REJ_INVALID_AMOUNT);
+    }
+    if max_overdelivery_gap_bps > BPS_DENOM {
+        return Err(REJ_OVERDELIVERY_GAP);
     }
     if amount_out >= reserve_out {
         return Err(REJ_AMOUNT_OUT_GE_RESERVE);
@@ -265,6 +295,13 @@ pub fn swap_exact_out(
     let net_in = ceil_div(reserve_in * amount_out, reserve_out - amount_out);
     let gross_in = ceil_div(net_in * BPS_DENOM, BPS_DENOM - pool.fee_bps);
     let fee_total = gross_in - net_in;
+    let net_in_actual = gross_in - fee_total;
+    let amount_out_quote = (reserve_out * net_in_actual) / (reserve_in + net_in_actual);
+    let overdelivery_gap = amount_out_quote.saturating_sub(amount_out);
+    let gap_bps = ceil_div(overdelivery_gap * BPS_DENOM, amount_out);
+    if gap_bps > max_overdelivery_gap_bps {
+        return Err(REJ_OVERDELIVERY_GAP);
+    }
     let new_in = reserve_in + gross_in;
     if new_in > DEX_POOL_RESERVE_MAX {
         return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
@@ -280,6 +317,9 @@ pub fn swap_exact_out(
             amount_in: gross_in,
             amount_out,
             fee_total,
+            amount_out_quote,
+            overdelivery_gap,
+            gap_bps,
             new_reserve0: if zero_for_one { new_in } else { new_out },
             new_reserve1: if zero_for_one { new_out } else { new_in },
         },
@@ -352,6 +392,19 @@ mod tests {
             swap_exact_out(&p, true, 1, u128::MAX),
             Err(REJ_RESERVE_DOMAIN_EXCEEDED)
         );
+    }
+
+    #[test]
+    fn exact_out_enforces_overdelivery_gap_policy() {
+        let p = init_pool(&Pool::default(), 1, 4, 30).unwrap().pool;
+        assert_eq!(
+            swap_exact_out(&p, true, 1, u128::MAX),
+            Err(REJ_OVERDELIVERY_GAP)
+        );
+        let accepted = swap_exact_out_with_max_gap_bps(&p, true, 1, u128::MAX, BPS_DENOM).unwrap();
+        assert_eq!(accepted.receipt.amount_out_quote, 2);
+        assert_eq!(accepted.receipt.overdelivery_gap, 1);
+        assert_eq!(accepted.receipt.gap_bps, BPS_DENOM);
     }
 
     #[test]

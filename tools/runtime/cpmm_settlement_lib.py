@@ -47,11 +47,14 @@ REJ_INVALID_RESERVE = "invalid_reserve"
 REJ_INVALID_FEE_BPS = "invalid_fee_bps"
 REJ_POOL_NOT_INITIALIZED = "pool_not_initialized"
 REJ_RESERVE_DOMAIN_EXCEEDED = "reserve_domain_exceeded"
+REJ_OVERDELIVERY_GAP = "overdelivery_gap"
 REJ_SLIPPAGE = "slippage"
 
 _INIT_FIELDS = frozenset({"kind", "reserve0", "reserve1", "fee_bps"})
 _EXACT_IN_FIELDS = frozenset({"kind", "zero_for_one", "amount_in", "min_amount_out"})
-_EXACT_OUT_FIELDS = frozenset({"kind", "zero_for_one", "amount_out", "max_amount_in"})
+_EXACT_OUT_FIELDS = frozenset(
+    {"kind", "zero_for_one", "amount_out", "max_amount_in", "max_overdelivery_gap_bps"}
+)
 
 
 def _is_plain_int(v: object) -> bool:
@@ -110,6 +113,8 @@ def _map_quote_error(msg: str) -> str:
         return "amount_out_ge_reserve"
     if "cannot compute with 100% fee" in msg:
         return "fee_full"
+    if "overdelivery gap exceeds bps policy" in msg:
+        return REJ_OVERDELIVERY_GAP
     return f"unmapped:{msg}"
 
 
@@ -175,7 +180,10 @@ def apply_tx(pool: Pool, tx: Any) -> tuple[bool, Pool, str | None, str | None]:
 
         amount_out = tx.get("amount_out")
         max_in = tx.get("max_amount_in")
+        max_gap_bps = tx.get("max_overdelivery_gap_bps")
         if not (_is_plain_int(amount_out) and _is_plain_int(max_in) and max_in >= 0):
+            return (False, pool, REJ_MALFORMED_TX, None)
+        if max_gap_bps is not None and not _is_plain_int(max_gap_bps):
             return (False, pool, REJ_MALFORMED_TX, None)
         try:
             q = quote_cpmm_swap_exact_out(
@@ -183,6 +191,7 @@ def apply_tx(pool: Pool, tx: Any) -> tuple[bool, Pool, str | None, str | None]:
                 reserve_out=reserve_out,
                 amount_out=amount_out,
                 fee_bps=pool.fee_bps,
+                **({} if max_gap_bps is None else {"max_overdelivery_gap_bps": max_gap_bps}),
             )
         except (ValueError, TypeError) as exc:
             return (False, pool, _map_quote_error(str(exc)), None)

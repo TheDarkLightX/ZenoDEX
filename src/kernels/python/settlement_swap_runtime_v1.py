@@ -14,6 +14,7 @@ bounds rather than the tiny verifier-friendly state ranges.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from .cpmm_swap_v8 import swap_exact_in as _kernel_swap_exact_in_v8
 from .cpmm_swap_v8 import swap_exact_out as _kernel_swap_exact_out_v8
@@ -25,6 +26,8 @@ BPS_DENOM = 10_000
 DEX_POOL_RESERVE_MAX = 3_000_000_000
 DEX_SWAP_AMOUNT_MAX = 3_000_000_000
 CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT = 200
+CPMM_SETTLEMENT_SURFACE = "cpmm_settlement"
+_U128_MAX = (1 << 128) - 1
 
 
 @dataclass(frozen=True)
@@ -79,7 +82,176 @@ def _require_int_range(
     return value_int
 
 
-def quote_cpmm_swap_exact_in(
+def _quote_error_code(msg: str) -> str:
+    if "swap would exceed reserve_in domain max" in msg:
+        return "reserve_domain_exceeded"
+    if msg.startswith("reserve_in ") or msg.startswith("reserve_out "):
+        return "reserve_out_of_domain"
+    if msg.startswith("amount_in ") or msg.startswith("amount_out must be >= 1") or (
+        msg.startswith("amount_out") and "kernel domain max" in msg
+    ):
+        return "invalid_amount"
+    if "net_in must be positive" in msg or "amount_out is zero" in msg:
+        return "trade_too_small"
+    if "cannot drain full reserve_out" in msg:
+        return "amount_out_ge_reserve"
+    if "cannot compute with 100% fee" in msg:
+        return "fee_full"
+    if "overdelivery gap exceeds bps policy" in msg:
+        return "overdelivery_gap"
+    if "Invariant violation" in msg:
+        return "invariant_violation"
+    return f"unmapped:{msg}"
+
+
+def _pool_doc(*, reserve_in: int, reserve_out: int, fee_bps: int) -> dict[str, Any]:
+    return {
+        "initialized": True,
+        "reserve0": reserve_in,
+        "reserve1": reserve_out,
+        "fee_bps": fee_bps,
+    }
+
+
+def _exact_in_quote_doc(q: SettlementSwapExactInQuote) -> dict[str, Any]:
+    return {
+        "accept": True,
+        "reason": "ok",
+        "quote": {
+            "amount_in": q.amount_in,
+            "amount_out": q.amount_out,
+            "fee_paid": q.fee_paid,
+            "net_in": q.net_in,
+            "reserve_in_before": q.reserve_in_before,
+            "reserve_out_before": q.reserve_out_before,
+            "reserve_in_after": q.reserve_in_after,
+            "reserve_out_after": q.reserve_out_after,
+            "k_before": q.k_before,
+            "k_after": q.k_after,
+        },
+    }
+
+
+def _exact_out_quote_doc(q: SettlementSwapExactOutQuote) -> dict[str, Any]:
+    return {
+        "accept": True,
+        "reason": "ok",
+        "quote": {
+            "amount_in": q.amount_in,
+            "amount_out": q.amount_out,
+            "amount_out_quote": q.amount_out_quote,
+            "overdelivery_gap": q.overdelivery_gap,
+            "gap_bps": q.gap_bps,
+            "fee_paid": q.fee_paid,
+            "net_in_actual": q.net_in_actual,
+            "reserve_in_before": q.reserve_in_before,
+            "reserve_out_before": q.reserve_out_before,
+            "reserve_in_after": q.reserve_in_after,
+            "reserve_out_after": q.reserve_out_after,
+            "k_before": q.k_before,
+            "k_after": q.k_after,
+        },
+    }
+
+
+def _reject_doc(exc: Exception) -> dict[str, Any]:
+    return {"accept": False, "reason": _quote_error_code(str(exc))}
+
+
+def _docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if bool(left.get("accept")) != bool(right.get("accept")):
+        return False
+    if left.get("reason") != right.get("reason"):
+        return False
+    if not left.get("accept"):
+        return True
+    return left.get("quote") == right.get("quote")
+
+
+def _rust_exact_in_doc(*, reserve_in: int, reserve_out: int, amount_in: int, fee_bps: int) -> dict[str, Any]:
+    from src.runtime.rust_invoker import cpmm_op
+
+    out = cpmm_op(
+        pool=_pool_doc(reserve_in=reserve_in, reserve_out=reserve_out, fee_bps=fee_bps),
+        tx={
+            "kind": "swap_exact_in",
+            "zero_for_one": True,
+            "amount_in": amount_in,
+            "min_amount_out": 0,
+        },
+    )
+    if not out["accept"]:
+        return {"accept": False, "reason": str(out["reject_reason"])}
+    receipt = out["receipt"]
+    if not isinstance(receipt, dict):
+        raise ValueError("malformed accepted CPMM Rust output")
+    amount_out = int(receipt["amount_out"])
+    fee_paid = int(receipt["fee_total"])
+    reserve_in_after = int(receipt["new_reserve0"])
+    reserve_out_after = int(receipt["new_reserve1"])
+    quote = SettlementSwapExactInQuote(
+        amount_in=int(receipt["amount_in"]),
+        amount_out=amount_out,
+        fee_paid=fee_paid,
+        net_in=int(receipt["amount_in"]) - fee_paid,
+        reserve_in_before=reserve_in,
+        reserve_out_before=reserve_out,
+        reserve_in_after=reserve_in_after,
+        reserve_out_after=reserve_out_after,
+        k_before=reserve_in * reserve_out,
+        k_after=reserve_in_after * reserve_out_after,
+    )
+    return _exact_in_quote_doc(quote)
+
+
+def _rust_exact_out_doc(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_overdelivery_gap_bps: int,
+) -> dict[str, Any]:
+    from src.runtime.rust_invoker import cpmm_op
+
+    out = cpmm_op(
+        pool=_pool_doc(reserve_in=reserve_in, reserve_out=reserve_out, fee_bps=fee_bps),
+        tx={
+            "kind": "swap_exact_out",
+            "zero_for_one": True,
+            "amount_out": amount_out,
+            "max_amount_in": _U128_MAX,
+            "max_overdelivery_gap_bps": max_overdelivery_gap_bps,
+        },
+    )
+    if not out["accept"]:
+        return {"accept": False, "reason": str(out["reject_reason"])}
+    receipt = out["receipt"]
+    if not isinstance(receipt, dict):
+        raise ValueError("malformed accepted CPMM Rust output")
+    amount_in = int(receipt["amount_in"])
+    fee_paid = int(receipt["fee_total"])
+    reserve_in_after = int(receipt["new_reserve0"])
+    reserve_out_after = int(receipt["new_reserve1"])
+    quote = SettlementSwapExactOutQuote(
+        amount_in=amount_in,
+        amount_out=int(receipt["amount_out"]),
+        amount_out_quote=int(receipt["amount_out_quote"]),
+        overdelivery_gap=int(receipt["overdelivery_gap"]),
+        gap_bps=int(receipt["gap_bps"]),
+        fee_paid=fee_paid,
+        net_in_actual=amount_in - fee_paid,
+        reserve_in_before=reserve_in,
+        reserve_out_before=reserve_out,
+        reserve_in_after=reserve_in_after,
+        reserve_out_after=reserve_out_after,
+        k_before=reserve_in * reserve_out,
+        k_after=reserve_in_after * reserve_out_after,
+    )
+    return _exact_out_quote_doc(quote)
+
+
+def _quote_cpmm_swap_exact_in_python(
     *,
     reserve_in: int,
     reserve_out: int,
@@ -121,7 +293,62 @@ def quote_cpmm_swap_exact_in(
     )
 
 
-def quote_cpmm_swap_exact_out(
+def quote_cpmm_swap_exact_in(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+    fee_bps: int,
+) -> SettlementSwapExactInQuote:
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+
+    mode = active_mode(CPMM_SETTLEMENT_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _quote_cpmm_swap_exact_in_python(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_in=amount_in,
+            fee_bps=fee_bps,
+        )
+
+    def python_doc() -> dict[str, Any]:
+        try:
+            return _exact_in_quote_doc(
+                _quote_cpmm_swap_exact_in_python(
+                    reserve_in=reserve_in,
+                    reserve_out=reserve_out,
+                    amount_in=amount_in,
+                    fee_bps=fee_bps,
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            return _reject_doc(exc)
+
+    decision = decide(
+        CPMM_SETTLEMENT_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=lambda: _rust_exact_in_doc(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_in=amount_in,
+            fee_bps=fee_bps,
+        ),
+        compare=_docs_agree,
+    )
+    doc = decision.result
+    if not doc["accept"]:
+        return _quote_cpmm_swap_exact_in_python(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_in=amount_in,
+            fee_bps=fee_bps,
+        )
+    q = doc["quote"]
+    return SettlementSwapExactInQuote(**q)
+
+
+def _quote_cpmm_swap_exact_out_python(
     *,
     reserve_in: int,
     reserve_out: int,
@@ -175,3 +402,63 @@ def quote_cpmm_swap_exact_out(
         k_before=int(res.k_before),
         k_after=int(res.k_after),
     )
+
+
+def quote_cpmm_swap_exact_out(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_overdelivery_gap_bps: int = CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+) -> SettlementSwapExactOutQuote:
+    from src.runtime.authority import AuthorityMode, active_mode, decide
+
+    mode = active_mode(CPMM_SETTLEMENT_SURFACE)
+    if mode is AuthorityMode.PYTHON_AUTHORITY:
+        return _quote_cpmm_swap_exact_out_python(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_out=amount_out,
+            fee_bps=fee_bps,
+            max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+        )
+
+    def python_doc() -> dict[str, Any]:
+        try:
+            return _exact_out_quote_doc(
+                _quote_cpmm_swap_exact_out_python(
+                    reserve_in=reserve_in,
+                    reserve_out=reserve_out,
+                    amount_out=amount_out,
+                    fee_bps=fee_bps,
+                    max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            return _reject_doc(exc)
+
+    decision = decide(
+        CPMM_SETTLEMENT_SURFACE,
+        mode,
+        python_fn=python_doc,
+        rust_fn=lambda: _rust_exact_out_doc(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_out=amount_out,
+            fee_bps=fee_bps,
+            max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+        ),
+        compare=_docs_agree,
+    )
+    doc = decision.result
+    if not doc["accept"]:
+        return _quote_cpmm_swap_exact_out_python(
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_out=amount_out,
+            fee_bps=fee_bps,
+            max_overdelivery_gap_bps=max_overdelivery_gap_bps,
+        )
+    q = doc["quote"]
+    return SettlementSwapExactOutQuote(**q)
