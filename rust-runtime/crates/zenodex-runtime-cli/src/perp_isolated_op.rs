@@ -25,8 +25,11 @@
 
 use serde_json::{json, Map, Value};
 
+use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
-use zenodex_runtime_core::perp_math::is_oracle_fresh;
+use zenodex_runtime_core::perp_math::{
+    init_margin_req, is_oracle_fresh, maint_margin_req, notional_quote,
+};
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
 };
@@ -40,6 +43,7 @@ pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
+pub const REJ_SENDER_NOT_BOUND: &str = "sender_not_bound_to_account";
 
 /// The authority-grade wire format requires this exact schema + version so the
 /// request boundary cannot silently accept a mis-shaped or future payload.
@@ -59,9 +63,7 @@ struct Account {
 
 struct Facts {
     operator_ok: bool,
-    #[allow(dead_code)]
     sender_bound_ok: bool,
-    #[allow(dead_code)]
     all_positions_flat: bool,
     #[allow(dead_code)]
     balance_available: i128,
@@ -98,6 +100,10 @@ fn as_bool(v: &Value) -> Result<bool, &'static str> {
 
 fn gget(g: &Map<String, Value>, key: &str) -> Result<i128, &'static str> {
     g.get(key).ok_or(REJ_BAD_REQUEST).and_then(as_i128)
+}
+
+fn bget(g: &Map<String, Value>, key: &str) -> Result<bool, &'static str> {
+    g.get(key).ok_or(REJ_BAD_REQUEST).and_then(as_bool)
 }
 
 /// Required fact: missing key is a bad request (NOT a semantic operator failure),
@@ -236,6 +242,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
             materialize_publish_clearing_price(&quote_asset, global, accounts, op, &facts)
         }
         "settle_epoch" => materialize_settle_epoch(&quote_asset, global, accounts, op, &facts),
+        "deposit_collateral" => {
+            materialize_deposit_collateral(&quote_asset, global, accounts, op, &facts)
+        }
         _ => reject(REJ_NOT_MATERIALIZED),
     }
 }
@@ -590,6 +599,167 @@ fn global_op_effect(global: &Map<String, Value>, event: &str) -> Result<Value, &
         "fee_pool_after": fee_pool.to_string(),
         "insurance_after": insurance.to_string(),
     }))
+}
+
+/// The exact kernel effect for an op whose `_common_effects` is computed on a
+/// specific account (the `account_op` ops). Unlike `global_op_effect` (flat dummy),
+/// the margin/notional/`collateral_after` fields reflect the affected account; the
+/// oracle-freshness and fee/insurance after-values come from the post-global.
+fn account_effect(
+    global: &Map<String, Value>,
+    account: &Account,
+    event: &str,
+) -> Result<Value, &'static str> {
+    let now = gget(global, "now_epoch")?;
+    let oracle_last = gget(global, "oracle_last_update_epoch")?;
+    let max_stale = gget(global, "max_oracle_staleness_epochs")?;
+    let oracle_seen = bget(global, "oracle_seen")?;
+    let index_price = gget(global, "index_price_e8")?;
+    let maint = gget(global, "maintenance_margin_bps")?;
+    let depeg = gget(global, "depeg_buffer_bps")?;
+    let init = gget(global, "initial_margin_bps")?;
+    let fee_pool = gget(global, "fee_pool_quote")?;
+    let insurance = gget(global, "insurance_balance")?;
+    let effective_maint_bps = maint.checked_add(depeg).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let pos = account.position_base;
+    let coll = account.collateral_quote;
+    let maint_req = maint_margin_req(pos, index_price, maint, depeg);
+    let margin_ok = pos == 0 || coll >= maint_req;
+    let oracle_fresh = is_oracle_fresh(now, oracle_last, max_stale, oracle_seen);
+    Ok(json!({
+        "event": event,
+        "oracle_fresh": oracle_fresh,
+        "notional_quote": notional_quote(pos, index_price).to_string(),
+        "effective_maint_bps": effective_maint_bps.to_string(),
+        "maint_req_quote": maint_req.to_string(),
+        "init_req_quote": init_margin_req(pos, index_price, init).to_string(),
+        "margin_ok": margin_ok,
+        "liquidated": account.liquidated_this_step,
+        "collateral_after": coll.to_string(),
+        "fee_pool_after": fee_pool.to_string(),
+        "insurance_after": insurance.to_string(),
+    }))
+}
+
+/// Shared body for the `account_op`-based single-account ops (deposit / withdraw /
+/// set_position). Find-or-create the target account (a missing pubkey is a flat
+/// new account, mirroring `_kernel_initial_account_state()` on first deposit), run
+/// the core op, write the account back (preserving the funding fields the op never
+/// touches) and any global breaker flip, then emit the account effect.
+#[allow(clippy::too_many_arguments)]
+fn materialize_account_op(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    mut accounts: Vec<Account>,
+    account_pubkey: &str,
+    amount: i128,
+    new_position_base: i128,
+    all_positions_flat: bool,
+    op_str: &str,
+    event: &str,
+) -> Result<Value, &'static str> {
+    let idx = accounts.iter().position(|a| a.key == account_pubkey);
+    let pre = match idx {
+        Some(i) => accounts[i].clone(),
+        None => Account {
+            key: account_pubkey.to_string(),
+            position_base: 0,
+            collateral_quote: 0,
+            entry_price_e8: 0,
+            funding_paid_cumulative: 0,
+            funding_last_applied_epoch: 0,
+            liquidated_this_step: false,
+        },
+    };
+    let input = AccountOpInput {
+        now_epoch: gget(&global, "now_epoch")?,
+        epoch_phase: gget(&global, "epoch_phase")?,
+        oracle_last_update_epoch: gget(&global, "oracle_last_update_epoch")?,
+        max_oracle_staleness_epochs: gget(&global, "max_oracle_staleness_epochs")?,
+        oracle_seen: bget(&global, "oracle_seen")?,
+        index_price_e8: gget(&global, "index_price_e8")?,
+        position_base: pre.position_base,
+        collateral_quote: pre.collateral_quote,
+        entry_price_e8: pre.entry_price_e8,
+        maintenance_margin_bps: gget(&global, "maintenance_margin_bps")?,
+        depeg_buffer_bps: gget(&global, "depeg_buffer_bps")?,
+        initial_margin_bps: gget(&global, "initial_margin_bps")?,
+        max_position_abs: gget(&global, "max_position_abs")?,
+        breaker_active: bget(&global, "breaker_active")?,
+        breaker_last_trigger_epoch: gget(&global, "breaker_last_trigger_epoch")?,
+        amount,
+        new_position_base,
+        all_positions_flat,
+    };
+    let out = account_op(op_str, &input)?;
+    let post = Account {
+        key: account_pubkey.to_string(),
+        position_base: out.position_base,
+        collateral_quote: out.collateral_quote,
+        entry_price_e8: out.entry_price_e8,
+        funding_paid_cumulative: pre.funding_paid_cumulative,
+        funding_last_applied_epoch: pre.funding_last_applied_epoch,
+        // Every account_op kernel update (deposit/withdraw/set_position/clear_breaker)
+        // unconditionally resets liquidated_this_step to false (see
+        // perp_v2/updates.py). A liquidation flag set in a prior settle persists
+        // through advance_epoch (which copies real accounts verbatim), so carrying
+        // pre.liquidated_this_step here would diverge from Python and false-reject.
+        liquidated_this_step: false,
+    };
+    match idx {
+        Some(i) => accounts[i] = post.clone(),
+        None => accounts.push(post.clone()),
+    }
+    // Account ops may flip the global breaker (the output carries both fields).
+    global.insert("breaker_active".into(), Value::Bool(out.breaker_active));
+    global.insert(
+        "breaker_last_trigger_epoch".into(),
+        Value::String(out.breaker_last_trigger_epoch.to_string()),
+    );
+    let effects = account_effect(&global, &post, event)?;
+    Ok(accept(quote_asset, &global, &accounts, effects))
+}
+
+/// `deposit_collateral`: sender-gated single-account op (the sender owns the
+/// account). Reuses `perp_account_ops::account_op`; the wallet-balance check is a
+/// Python-verified fact, never re-derived here.
+fn materialize_deposit_collateral(
+    quote_asset: &str,
+    global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    for k in op.keys() {
+        if k != "action" && k != "account_pubkey" && k != "amount" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.sender_bound_ok {
+        return reject(REJ_SENDER_NOT_BOUND);
+    }
+    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
+        Some(s) => s,
+        None => return reject(REJ_BAD_REQUEST),
+    };
+    let amount = match op.get("amount").map(as_i128) {
+        Some(Ok(v)) => v,
+        _ => return reject(REJ_BAD_REQUEST),
+    };
+    match materialize_account_op(
+        quote_asset,
+        global,
+        accounts,
+        account_pubkey,
+        amount,
+        0,
+        facts.all_positions_flat,
+        "deposit_collateral",
+        "CollateralDeposited",
+    ) {
+        Ok(v) => v,
+        Err(e) => reject(e),
+    }
 }
 
 #[cfg(test)]
@@ -988,6 +1158,132 @@ mod tests {
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    #[test]
+    fn deposit_existing_account_materializes_collateral_and_effect() {
+        // Account with a position -> the effect's notional/maint are NONZERO (account
+        // context, not flat dummy), and collateral_after is the new collateral.
+        let accounts = json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]);
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["collateral_quote"], json!("1050000"));
+        assert_eq!(a["position_base"], json!("300000")); // unchanged
+        assert_eq!(a["funding_paid_cumulative"], json!("7")); // preserved
+        let fx = &r["effects"];
+        assert_eq!(fx["event"], json!("CollateralDeposited"));
+        assert_eq!(fx["notional_quote"], json!("300000")); // account-derived, nonzero
+        assert_eq!(fx["maint_req_quote"], json!("18000"));
+        assert_eq!(fx["init_req_quote"], json!("30000"));
+        assert_eq!(fx["collateral_after"], json!("1050000"));
+        assert_eq!(fx["margin_ok"], json!(true));
+    }
+
+    #[test]
+    fn deposit_creates_new_account() {
+        // account_pubkey absent from the request accounts -> created flat (first deposit).
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "newkey", "amount": "50000"}),
+            json!([]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        assert_eq!(accts.len(), 1);
+        assert_eq!(accts[0]["key"], json!("newkey"));
+        assert_eq!(accts[0]["collateral_quote"], json!("50000"));
+        assert_eq!(accts[0]["position_base"], json!("0"));
+        assert_eq!(accts[0]["funding_paid_cumulative"], json!("0"));
+        assert_eq!(r["effects"]["notional_quote"], json!("0")); // flat new account
+        assert_eq!(r["effects"]["collateral_after"], json!("50000"));
+    }
+
+    #[test]
+    fn deposit_sender_gate_rejects() {
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        r["facts"]["sender_bound_ok"] = json!(false);
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["reject_reason"], json!(REJ_SENDER_NOT_BOUND));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn deposit_missing_sender_fact_is_boundary_error() {
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        r["facts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("sender_bound_ok");
+        // Missing required fact is a boundary error, NOT the semantic sender reject.
+        assert_eq!(
+            materialize_isolated_op(&r)["reject_reason"],
+            json!(REJ_MISSING_FACTS)
+        );
+    }
+
+    #[test]
+    fn deposit_unknown_op_field_rejects() {
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000", "delta": "1"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        ));
+        assert_eq!(r["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+    }
+
+    #[test]
+    fn deposit_overflow_rejects_without_panic() {
+        // Depositing near i128::MAX must fail closed (kernel domain/guard), never panic.
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": i128::MAX.to_string()}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        ));
+        assert_eq!(r["accept"], json!(false));
+        assert!(r.get("post").is_none());
+    }
+
+    #[test]
+    fn deposit_resets_liquidated_flag() {
+        // A liquidation flag set in a prior settle persists through advance_epoch;
+        // apply_deposit_collateral forces liquidated_this_step=false, so the
+        // materializer must reset it too (NOT preserve the pre-value).
+        let accounts = json!([{
+            "key": "aa", "position_base": "0", "collateral_quote": "1000",
+            "entry_price_e8": "0", "funding_paid_cumulative": "0",
+            "funding_last_applied_epoch": "0", "liquidated_this_step": true
+        }]);
+        let r = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["liquidated_this_step"], json!(false)); // reset, not preserved
+        assert_eq!(r["effects"]["liquidated"], json!(false));
     }
 
     #[test]
