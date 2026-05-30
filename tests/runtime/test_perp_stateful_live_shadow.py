@@ -709,3 +709,41 @@ def test_rust_shadow_clear_breaker_materialized_parity(rust_env):
     assert post.global_state["breaker_active"] is False
     assert int(post.global_state["breaker_last_trigger_epoch"]) == 0  # reset
     assert int(post.accounts[PK_A].collateral_quote) == 500_000  # account untouched
+
+
+def test_rust_shadow_partial_liquidate_nonzero_penalty_parity(rust_env):
+    # partial_liquidate is materialized: rust_shadow compares the full post-market
+    # (post account + the ACCUMULATED fee/insurance globals) AND the
+    # PartialLiquidationApplied effect, whose after-values come from the POST
+    # (accumulated) globals over the POST account. Drive a sizable nonzero penalty
+    # through the full bridge so the accumulation branch is exercised (not just the
+    # 1-unit degenerate case) -- the branch Codex flagged for special attention.
+    market_id = "perp:shadow-pliq"
+    state = fa.build_market(
+        market_id=market_id, quote_asset=QUOTE,
+        positions=[(PK_A, 500_000)], clearing_price_e8=100_000_000, deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch"), fa._op(market_id, "advance_epoch", delta=1)],
+    )
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = 500  # 5% -> sizable penalty
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)  # underwater (maint 30000)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=accts)
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=PK_A, operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "partial_liquidate", account_pubkey=PK_A, fraction_bps=0)],
+    )
+    assert res.ok is True, res.error  # full state + effect parity on the accumulation branch
+    post = res.state.perps.markets[market_id]
+    assert post.accounts[PK_A].liquidated_this_step is True
+    assert int(post.global_state["fee_pool_quote"]) > 1  # nonzero accumulation, not degenerate
+    assert int(post.global_state["insurance_balance"]) > 1
