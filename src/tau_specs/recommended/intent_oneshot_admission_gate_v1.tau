@@ -1,0 +1,19 @@
+# CATEGORY: intent-admission / one-shot rising-edge
+# CLAIM: admit a held submit signal only on a witnessed rising edge.
+#
+# Stream mapping:
+#   i1 = submit flag
+#   o1 = one-shot admit flag
+#
+# Contract:
+#   o1[t] = i1[t] & ~i1[t-1]
+#
+# This is input-history only. It avoids output feedback, so it preserves one
+# output row per input step under the runtime Tau runner. In both supported Tau
+# builds, a high first input is fail-closed because no prior-low edge was
+# observed.
+set charvar off
+
+always
+  (o1[t]:sbf = (i1[t]:sbf & (i1[t-1]:sbf)')).
+end

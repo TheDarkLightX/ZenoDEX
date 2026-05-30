@@ -1,0 +1,20 @@
+# CATEGORY: epoch-lifecycle / no-skip phase transition
+# CLAIM: admit only the single-step epoch cycle Open -> PricePublished -> Settled -> Open.
+#
+# Stream mapping:
+#   i1 = proposed phase code (bv[8]): Open=0, PricePublished=1, Settled=2
+#   o1 = transition admit
+#
+# Contract:
+#   admit iff (prev, cur) is one of (0,1), (1,2), (2,0).
+#
+# This uses input history only. The first row is fail-closed because no prior
+# phase transition exists at the stream boundary.
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (
+       ((i1[t-1]:bv[8] = { #x00 }:bv[8]) && (i1[t]:bv[8] = { #x01 }:bv[8]))
+    || ((i1[t-1]:bv[8] = { #x01 }:bv[8]) && (i1[t]:bv[8] = { #x02 }:bv[8]))
+    || ((i1[t-1]:bv[8] = { #x02 }:bv[8]) && (i1[t]:bv[8] = { #x00 }:bv[8]))
+  )).

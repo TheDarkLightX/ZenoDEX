@@ -1,0 +1,21 @@
+# CATEGORY: decision-table / order routing
+# CLAIM: decode a packed order-route class into an admit bit plus one-hot route class bits.
+#
+# Stream mapping:
+#   i1 = order route class code (bv[8])
+#   o1 = admit known class
+#   o2 = direct route
+#   o3 = two-hop route
+#   o4 = split route
+#   o5 = batch route
+#
+# Valid classes are 0..3. Unknown classes fail closed: admit=0 and all route bits=0.
+# This is combinational and uses only bv equality/range predicates feeding sbf outputs.
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i1[t]:bv[8] <= { #x03 }:bv[8]))
+  && (o2[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x00 }:bv[8]))
+  && (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x01 }:bv[8]))
+  && (o4[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x02 }:bv[8]))
+  && (o5[t]:sbf = 1:sbf <-> (i1[t]:bv[8] = { #x03 }:bv[8])).

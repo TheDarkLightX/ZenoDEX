@@ -26,7 +26,7 @@ def test_input_history_candidate_is_cardinality_safe() -> None:
     proc = _run_checker(SAFE_CANDIDATE)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "FAIL" not in proc.stdout
-    assert proc.stdout.count("OK\t") == 8
+    assert proc.stdout.count("OK\t") == 10
 
 
 def test_output_feedback_latch_is_rejected_for_runtime_cardinality() -> None:
