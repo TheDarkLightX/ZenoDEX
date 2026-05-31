@@ -458,6 +458,26 @@ def test_public_testnet_profile_rejects_half_configured_rust_authority():
         validate_authority_policy(policy, profile_id="public-testnet")
 
 
+def test_public_testnet_profile_rejects_stale_promoted_surface():
+    policy = AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={"fee_router": AuthorityMode.RUST_SHADOW},
+        promoted_surfaces=frozenset({"fee_router"}),
+    )
+    with pytest.raises(AuthorityError, match="not configured for Rust authority"):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
+def test_production_profile_rejects_unknown_promoted_surface():
+    policy = AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={},
+        promoted_surfaces=frozenset({"fee_routre"}),
+    )
+    with pytest.raises(AuthorityError, match="not configured for Rust authority"):
+        validate_authority_policy(policy, profile_id="production-strict")
+
+
 def test_production_profile_rejects_blanket_rust_default():
     policy = AuthorityPolicy(
         default=AuthorityMode.RUST_AUTHORITY,

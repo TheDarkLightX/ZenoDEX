@@ -233,6 +233,9 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
       promote every surface at once, including unshadowed ones);
     * a per-surface Rust-authoritative mode is only allowed for a surface that
       is explicitly listed in ``promoted_surfaces`` (i.e. has passed the gate).
+    * every listed ``promoted_surfaces`` entry must actually be configured as a
+      Rust-authoritative per-surface mode, so stale or misspelled promotion
+      evidence cannot linger in strict deployment facts.
 
     Outside strict profiles this is advisory (no raise) so local-dev can
     experiment, but the same shape is recommended.
@@ -246,12 +249,25 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
             "promote every surface to Rust authority; promote per-surface only"
         )
 
+    rust_authoritative_surfaces = frozenset(
+        surface
+        for surface, mode in policy.per_surface.items()
+        if mode in RUST_AUTHORITATIVE_MODES
+    )
+
     for surface, mode in policy.per_surface.items():
         if mode in RUST_AUTHORITATIVE_MODES and surface not in policy.promoted_surfaces:
             raise AuthorityError(
                 f"profile {profile_id!r}: surface {surface!r} set to {mode.value!r} "
                 "but is not in promoted_surfaces (half-configured Rust authority)"
             )
+
+    stale_promotions = sorted(policy.promoted_surfaces - rust_authoritative_surfaces)
+    if stale_promotions:
+        raise AuthorityError(
+            f"profile {profile_id!r}: promoted_surfaces contains surfaces that are not "
+            f"configured for Rust authority: {stale_promotions}"
+        )
 
 
 def _agree(python_result: Any, rust_result: Any, compare: Optional[Callable[[Any, Any], bool]]) -> bool:
