@@ -490,6 +490,60 @@ def test_rust_authority_commits_set_position_without_python_handler(rust_env, mo
     assert res.effects[-1]["effects"]["event"] == "PositionSet"
 
 
+def test_rust_authority_commits_deposit_and_debits_wallet_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-deposit"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    pre_wallet = int(state.balances.get(PK_A, QUOTE))
+    pre_collateral = int(state.perps.markets[market_id].accounts[PK_A].collateral_quote)
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python deposit handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "deposit_collateral",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=50_000)],
+    )
+    assert res.ok is True, res.error
+    post_market = res.state.perps.markets[market_id]
+    assert int(post_market.accounts[PK_A].collateral_quote) == pre_collateral + 50_000
+    assert int(res.state.balances.get(PK_A, QUOTE)) == pre_wallet - 50_000
+    assert res.effects[-1]["account_pubkey"] == PK_A
+    assert res.effects[-1]["effects"]["event"] == "CollateralDeposited"
+
+
+def test_rust_authority_deposit_rejects_insufficient_wallet_balance(rust_env):
+    market_id = "perp:auth-rust-deposit-insufficient"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    funded = BalanceTable()
+    for (pk, asset), amt in state.balances.get_all_balances().items():
+        funded.set(pk, asset, int(amt))
+    funded.set(PK_A, QUOTE, 49_999)
+    state = replace(state, balances=funded)
+    pre_collateral = int(state.perps.markets[market_id].accounts[PK_A].collateral_quote)
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=50_000)],
+    )
+    assert res.ok is False
+    assert res.error == "insufficient balance for deposit"
+    assert int(state.perps.markets[market_id].accounts[PK_A].collateral_quote) == pre_collateral
+    assert int(state.balances.get(PK_A, QUOTE)) == 49_999
+
+
 def _settled(market_id: str):
     state = fa.build_market(
         market_id=market_id, quote_asset=QUOTE, positions=[], clearing_price_e8=100_000_000, deposit=1_000_000
