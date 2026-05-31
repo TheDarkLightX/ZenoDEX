@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.integration.api_surface_profiles import (
     API_SURFACE_PROFILE_LOCAL_DEMO,
     API_SURFACE_PROFILE_PRODUCTION_STRICT,
@@ -90,6 +92,49 @@ def test_production_strict_allows_health_only_surface() -> None:
         )
         == (True, None)
     )
+
+
+def test_api_surface_profile_rejects_malformed_boundary_inputs() -> None:
+    with pytest.raises(TypeError, match="profile id must be a string"):
+        api_surface_profile_violations(
+            profile_id=123,
+            demo_api_token="",
+            perps_enabled=False,
+            zusd_enabled=False,
+            dex_enabled=False,
+        )
+    with pytest.raises(ValueError, match="profile id must be non-empty"):
+        api_surface_profile_violations(
+            profile_id=" production-strict",
+            demo_api_token="",
+            perps_enabled=False,
+            zusd_enabled=False,
+            dex_enabled=False,
+        )
+    with pytest.raises(TypeError, match="perps_enabled must be a bool"):
+        api_surface_profile_violations(
+            profile_id=API_SURFACE_PROFILE_PRODUCTION_STRICT,
+            demo_api_token="",
+            perps_enabled="false",
+            zusd_enabled=False,
+            dex_enabled=False,
+        )
+    with pytest.raises(TypeError, match="dex_enabled must be a bool"):
+        api_surface_profile_violations(
+            profile_id=API_SURFACE_PROFILE_PRODUCTION_STRICT,
+            demo_api_token="",
+            perps_enabled=True,
+            zusd_enabled=False,
+            dex_enabled="false",
+        )
+    with pytest.raises(TypeError, match="demo_api_token must be a string"):
+        api_surface_profile_violations(
+            profile_id=API_SURFACE_PROFILE_PUBLIC_TESTNET,
+            demo_api_token=object(),
+            perps_enabled=True,
+            zusd_enabled=False,
+            dex_enabled=False,
+        )
 
 
 def test_api_server_main_refuses_public_testnet_demo_without_token(monkeypatch) -> None:
