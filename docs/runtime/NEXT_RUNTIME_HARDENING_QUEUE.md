@@ -83,5 +83,9 @@ Both committed (not dirty), outside the audited surfaces:
   `zusd_smoke.json`, `burn_smoke.json`, and `cpmm_smoke.json`. Residual:
   perps isolated-op traces are still covered by their per-op materializer/live
   shadow suites rather than the generic golden-trace replayer.
-- Multi-hop/multi-pool batch proofs and large-batch state/support-root computations — not stress-tested.
+- Large mixed-batch support-root computation now has a deterministic stress
+  regression in `tests/core/test_support_root.py`: many pools, balances, LP
+  duration metadata, nonces, derived support sorting, tracked deltas, and
+  untracked-state insensitivity. Residual: multi-hop/multi-pool batch proofs and
+  large-batch settlement/support-root integration remain future work.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.
