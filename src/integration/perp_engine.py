@@ -69,6 +69,7 @@ from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
 from ..core.perp_v2.math import settle_price as _perp_v2_settle_price
 from ..core.perps import (
     PerpAnyMarketState,
+    PERP_ACCOUNT_KEYS,
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
     PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
     PERP_GLOBAL_KEYS,
@@ -3251,6 +3252,10 @@ _PERP_STATEFUL_MATERIALIZED_RESPONSE_BYTES_LIMIT = 8 * 1024 * 1024
 _ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
     {"breaker_active", "clearing_price_seen", "oracle_seen"}
 )
+_MATERIALIZED_POST_KEYS: frozenset[str] = frozenset({"quote_asset", "global_state", "accounts"})
+_MATERIALIZED_ACCOUNT_KEYS: frozenset[str] = frozenset(PERP_ACCOUNT_KEYS | {"key"})
+_MATERIALIZED_ACCEPT_KEYS: frozenset[str] = frozenset({"accept", "post", "effects"})
+_MATERIALIZED_REJECT_KEYS: frozenset[str] = frozenset({"accept", "reject_reason"})
 
 
 def _isolated_global_doc(global_state: Mapping[str, Any]) -> dict[str, Any]:
@@ -3287,6 +3292,8 @@ def _market_from_materialized_post(post: Mapping[str, Any]) -> PerpMarketState:
     """
     if not isinstance(post, Mapping):
         raise ValueError("materialized post must be an object")
+    if set(post.keys()) != _MATERIALIZED_POST_KEYS:
+        raise ValueError("materialized post keys mismatch")
     quote_asset = _require_str(post.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
     global_doc = post.get("global_state")
     if not isinstance(global_doc, Mapping):
@@ -3311,6 +3318,8 @@ def _market_from_materialized_post(post: Mapping[str, Any]) -> PerpMarketState:
     for raw_account in accounts_doc:
         if not isinstance(raw_account, Mapping):
             raise ValueError("materialized post account must be an object")
+        if set(raw_account.keys()) != _MATERIALIZED_ACCOUNT_KEYS:
+            raise ValueError("materialized post account keys mismatch")
         key = _require_str(raw_account.get("key"), name="account.key", non_empty=True, max_len=512)
         if key in accounts:
             raise ValueError("materialized post has duplicate account key")
@@ -3688,7 +3697,11 @@ def _commit_materialized_rust_accept(
     rust_response: Mapping[str, Any],
 ) -> Optional[str]:
     if not bool(rust_response.get("accept")):
+        if set(rust_response.keys()) != _MATERIALIZED_REJECT_KEYS:
+            return "perp_stateful rust authority malformed reject response"
         return str(rust_response.get("reject_reason") or "perp_stateful rust authority rejected")
+    if set(rust_response.keys()) != _MATERIALIZED_ACCEPT_KEYS:
+        return "perp_stateful rust authority malformed accepted response"
     post = rust_response.get("post")
     if not isinstance(post, Mapping):
         return "perp_stateful rust authority malformed accepted post"

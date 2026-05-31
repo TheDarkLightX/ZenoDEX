@@ -370,6 +370,29 @@ def test_rust_authority_advance_does_not_call_python_handler(rust_env, monkeypat
     assert int(res.state.perps.markets["perp:auth-rust-only-advance"].global_state["epoch_phase"]) == 0
 
 
+def test_rust_authority_rejects_extra_response_field_before_commit(rust_env, monkeypatch):
+    from src.runtime import rust_invoker
+
+    original = rust_invoker.perp_isolated_op
+
+    def tampered(request, **kwargs):
+        out = original(request, **kwargs)
+        out["unexpected"] = "hidden"
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
+    state = _settled("perp:auth-extra-response-field")
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:auth-extra-response-field", "advance_epoch", delta=1)],
+    )
+    assert res.ok is False
+    assert "malformed accepted response" in (res.error or "")
+
+
 def test_rust_authority_with_python_shadow_fails_closed_on_advance_disagreement(rust_env, monkeypatch):
     from src.runtime import rust_invoker
 
@@ -1080,6 +1103,14 @@ def test_rust_materialized_post_round_trips_to_market_state_for_deposit(rust_env
     duplicated["accounts"] = list(captured["post"]["accounts"]) + [captured["post"]["accounts"][0]]
     with pytest.raises(ValueError, match="duplicate account key"):
         perp_engine._market_from_materialized_post(duplicated)
+    extra_post = dict(captured["post"])
+    extra_post["unexpected"] = "hidden"
+    with pytest.raises(ValueError, match="post keys mismatch"):
+        perp_engine._market_from_materialized_post(extra_post)
+    extra_account = dict(captured["post"])
+    extra_account["accounts"] = [dict(captured["post"]["accounts"][0], unexpected="hidden")]
+    with pytest.raises(ValueError, match="account keys mismatch"):
+        perp_engine._market_from_materialized_post(extra_account)
 
 
 def test_rust_shadow_deposit_new_account_parity(rust_env):
