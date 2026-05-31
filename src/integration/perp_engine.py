@@ -3220,11 +3220,16 @@ _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
         "set_position",
         "deposit_collateral",
         "withdraw_collateral",
+        "set_market_params",
     }
 )
 
 _PERP_STATEFUL_ACCOUNT_EFFECT_ACTIONS: frozenset[str] = frozenset(
     {"deposit_collateral", "withdraw_collateral", "set_position", "partial_liquidate"}
+)
+
+_PERP_STATEFUL_TOP_LEVEL_EFFECT_ACTIONS: frozenset[str] = frozenset(
+    {"apply_funding_auto", "set_market_params"}
 )
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
@@ -3666,7 +3671,10 @@ def _commit_materialized_rust_accept(
             )
         except Exception as exc:
             return _safe_error_str(exc)
-    effect_doc["effects"] = dict(effects)
+    if op.action in _PERP_STATEFUL_TOP_LEVEL_EFFECT_ACTIONS:
+        effect_doc.update(dict(effects))
+    else:
+        effect_doc["effects"] = dict(effects)
     if op.action == "deposit_collateral":
         try:
             amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
