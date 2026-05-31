@@ -70,7 +70,7 @@ the receipt does not rely on external verifier logs.
 
 | Technique | Surface | What it reaches that rung-1 cannot | Coverage | Result |
 |---|---|---|---|---|
-| **Exhaustive bounded enumeration** (`itertools.product`, complete over declared bounds) + adversarial structural seeds | `state_root` / `canonical` / `support_root` | LEB128 carry edges (127/128, 2^32±1) deterministically; exact `C(N,2)` assertions over the <=3-entry lattice; field-boundary-shift / split-aliasing / BAL-vs-LPB shapes uniform sampling is unlikely to build | **33,045,733 pair comparisons** implied by exact bound checks | no collision |
+| **Exhaustive bounded enumeration** (`itertools.product`, complete over declared bounds) + adversarial structural seeds | `state_root` / `canonical` / `support_root` | LEB128 carry edges (127/128, 2^32±1) deterministically; exact `C(N,2)` assertions over the <=3-entry lattice; single-pool field lattice; field-boundary-shift / split-aliasing / BAL-vs-LPB shapes uniform sampling is unlikely to build | **34,107,886 pair comparisons** implied by exact bound checks | no collision |
 | **Stateful multi-transition machines** (`RuleBasedStateMachine`, registry threaded forward) | `bonded_slashing`, `dynamic_peers` | multi-slash accumulation, evidence replay, cumulative-slash-over-a-run, post-depletion rejection, multi-round peer accumulation, exact admitted-delta provenance | 2 machines x 250 runs x 20 steps | no witness |
 | **Target-guided boundary pushing** (`hypothesis.target()` + distribution shaping) | quorum / slash-split / schedule | search steered toward `accepted_weight == threshold`, `slash == available`, split-rounding residue, and cycle-wrap slots; deterministic reachability tests pin exact threshold and slash-available edges | 8000 Hypothesis max-example budget plus deterministic boundary tests | no witness |
 
@@ -80,11 +80,12 @@ the genuinely new safety statements. The deeper tests also check processed-hash
 provenance, post-depletion rejection, and the exact peer-admission delta across
 successive rounds.
 
-**Honest limits:** "exhaustive" = complete only over the *deliberately tiny*
-declared bounds (2-pubkey/2-asset sub-alphabets, ≤3 entries, single-nonce), not a
-maximal-domain proof; the pool section is seed-covered, not enumerated. Stateful
-and target-guided remain bounded sampling, just steered far better. SHA-256
-preimage resistance is assumed throughout.
+**Honest limits:** "exhaustive" = complete only over the deliberately tiny
+declared bounds (2-pubkey/2-asset sub-alphabets, <=3 balance/LP entries,
+single-nonce, and one fixed-pool-id field lattice), not a maximal-domain proof.
+Multi-pool composition is still seed-covered rather than enumerated. Stateful and
+target-guided remain bounded sampling, just steered far better. SHA-256 preimage
+resistance is assumed throughout.
 
 ## Refuted at read time
 
@@ -105,7 +106,7 @@ PYTHONPATH="$PWD" python3 -m pytest \
   tests/runtime/test_state_collision_exhaustive_mine.py \
   tests/runtime/test_ledger_stateful_sequence_mine.py \
   tests/runtime/test_boundary_target_guided_mine.py -q
-# 30 passed  (33M bounded pair comparisons + stateful sequences + boundary-steered tests)
+# 31 passed  (34M bounded pair comparisons + stateful sequences + boundary-steered tests)
 ```
 
 ## Scope / non-claims
