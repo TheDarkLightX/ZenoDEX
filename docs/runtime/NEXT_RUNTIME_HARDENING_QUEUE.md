@@ -91,6 +91,9 @@ Both committed (not dirty), outside the audited surfaces:
 - Large mixed-batch support-root computation now has a deterministic stress
   regression in `tests/core/test_support_root.py`: many pools, balances, LP
   duration metadata, nonces, derived support sorting, tracked deltas, and
-  untracked-state insensitivity. Residual: multi-hop/multi-pool batch proofs and
-  large-batch settlement/support-root integration remain future work.
+  untracked-state insensitivity. The projected recompute-batch proof verifiers
+  now reject witness snapshots carrying nonzero balances, pools, LP balances, LP
+  duration metadata, or nonces outside the intent-derived support set. Residual:
+  multi-hop/multi-pool batch proofs and large-batch settlement/support-root
+  integration remain future work.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.
