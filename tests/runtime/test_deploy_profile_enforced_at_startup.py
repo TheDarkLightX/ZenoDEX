@@ -21,6 +21,7 @@ _RELEVANT_ENV = (
     "ZUSD_ORACLE_ADAPTER_REQUIRED",
     "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
     "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+    "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
     "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
     "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
     "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
@@ -48,6 +49,7 @@ def _required_oracle_runtime_facts() -> dict[str, bool]:
         "zusd_oracle_adapter_required": True,
         "zusd_oracle_authorization_required": True,
         "perps_clearinghouse_settle_oracle_adapter_required": True,
+        "perps_clearinghouse_settle_oracle_authorization_required": True,
         "perps_isolated_settle_oracle_adapter_required": True,
         "perps_isolated_partial_liquidate_oracle_adapter_required": True,
         "perps_isolated_settle_oracle_authorization_required": True,
@@ -145,6 +147,10 @@ def test_public_testnet_deploy_profile_allows_signed_intents_route():
         (
             "perps_clearinghouse_settle_oracle_adapter_required",
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        ),
+        (
+            "perps_clearinghouse_settle_oracle_authorization_required",
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
         ),
         (
             "perps_isolated_settle_oracle_adapter_required",

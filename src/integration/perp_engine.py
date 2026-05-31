@@ -590,6 +590,7 @@ class PerpEngineConfig:
     require_oracle_authorization_for_isolated_settle: bool = False
     # Explicit settle_epoch spelling used by adapter bridge policy gates.
     require_oracle_authorization_for_isolated_settle_epoch: bool = False
+    require_oracle_authorization_for_clearinghouse_settle_epoch: bool = False
 
 
 @dataclass(frozen=True)
@@ -1104,6 +1105,128 @@ def _perps_clearinghouse_runtime_oracle_action_id(
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
+def _perps_clearinghouse_oracle_pre_state_hash(
+    *,
+    market_id: str,
+    market_kind: str,
+    quote_asset: str,
+    state: Mapping[str, Any],
+    participant_pubkeys: tuple[str, ...],
+) -> str:
+    payload = {
+        "schema": "zenodex.oracle.perps_clearinghouse_pre_state.v1",
+        "market_kind": market_kind,
+        "market_id": market_id,
+        "quote_asset": quote_asset,
+        "participant_pubkeys": list(participant_pubkeys),
+        "state": dict(state),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_clearinghouse_settle_oracle_runtime_facts(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    market_kind: str,
+    quote_asset: str,
+    state: Mapping[str, Any],
+    participant_pubkeys: tuple[str, ...],
+) -> dict[str, object]:
+    action_id = _perps_clearinghouse_runtime_oracle_action_id(
+        config,
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market_kind=market_kind,
+        quote_asset=quote_asset,
+        state=state,
+        participant_pubkeys=participant_pubkeys,
+    )
+    pre_state_hash = _perps_clearinghouse_oracle_pre_state_hash(
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=quote_asset,
+        state=state,
+        participant_pubkeys=participant_pubkeys,
+    )
+    facts_payload = {
+        "schema": "zenodex.oracle.perps_clearinghouse_settle_epoch_facts.v1",
+        "action_id": action_id,
+        "market_kind": market_kind,
+        "market_id": market_id,
+        "participant_count": len(participant_pubkeys),
+        "pre_state_hash": pre_state_hash,
+        "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+    }
+    return {
+        "action_facts_hash": semantic_hash(
+            "zenodex.perps.clearinghouse.settle_epoch.facts.v1",
+            facts_payload,
+        ),
+        "action_id": action_id,
+        "now_epoch": int(state.get("now_epoch", 0)),
+        "pre_state_hash": pre_state_hash,
+        "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+        # Clearinghouse settlement consumes the published clearing price.
+        # `index_price_e8` is retained in the action id for bridge context, but
+        # older clearinghouse kernels do not populate it on publish.
+        "runtime_value_e8": int(state.get("clearing_price_e8", 0)),
+    }
+
+
+def _check_clearinghouse_settle_oracle_authorization(
+    config: PerpEngineConfig,
+    *,
+    data: Mapping[str, Any],
+    market_id: str,
+    market_kind: str,
+    quote_asset: str,
+    state: Mapping[str, Any],
+    participant_pubkeys: tuple[str, ...],
+) -> Optional[str]:
+    authorization_required = bool(config.require_oracle_authorization_for_clearinghouse_settle_epoch)
+    authorization = data.get("oracle_authorization")
+    if authorization is None:
+        if authorization_required:
+            return "clearinghouse_settle_oracle_authorization_required"
+        return None
+    if not isinstance(authorization, Mapping):
+        return "clearinghouse settle oracle_authorization must be an object"
+    if authorization_required and "oracle_adapter_bridge" not in data:
+        return "settle_epoch requires oracle_adapter_bridge"
+    if int(state.get("clearing_price_e8", 0)) <= 0:
+        return "clearinghouse_settle_oracle_authorization_rejected: clearing_price_e8 must be positive"
+
+    runtime = _perps_clearinghouse_settle_oracle_runtime_facts(
+        config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=quote_asset,
+        state=state,
+        participant_pubkeys=participant_pubkeys,
+    )
+    try:
+        result = check_critical_consumer_authorization(
+            authorization,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            action_id=str(runtime["action_id"]),
+            action_facts_hash=str(runtime["action_facts_hash"]),
+            pre_state_hash=str(runtime["pre_state_hash"]),
+            query_id=str(runtime["query_id"]),
+            runtime_value_e8=int(runtime["runtime_value_e8"]),
+            now_epoch=int(runtime["now_epoch"]),
+            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            max_freshness_window_epochs=2,
+        )
+    except Exception as exc:
+        return f"clearinghouse_settle_oracle_authorization_rejected: {exc}"
+    if not bool(result.get("typed_ok", False)):
+        errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
+        return "clearinghouse_settle_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+    return None
+
+
 def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
     fields = {
         "oracle_spot_fee_bps": config.oracle_spot_fee_bps,
@@ -1485,10 +1608,20 @@ def _apply_ch2p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge", "oracle_authorization"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        participant_pubkeys = (ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey)
+        oracle_action_id = _perps_clearinghouse_runtime_oracle_action_id(
+            config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=ch2p_market.quote_asset,
+            state=ch2p_market.state,
+            participant_pubkeys=participant_pubkeys,
+        )
         err = _require_oracle_adapter_bridge(
             config,
             data=data,
@@ -1496,16 +1629,19 @@ def _apply_ch2p_op(
             action_kind="settle_epoch",
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                config,
-                market_id=market_id,
-                action_kind="settle_epoch",
-                market_kind="clearinghouse_2p_v1",
-                quote_asset=ch2p_market.quote_asset,
-                state=ch2p_market.state,
-                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
-            ),
+            expected_action_id=oracle_action_id,
             required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
+        err = _check_clearinghouse_settle_oracle_authorization(
+            config,
+            data=data,
+            market_id=market_id,
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=ch2p_market.quote_asset,
+            state=ch2p_market.state,
+            participant_pubkeys=participant_pubkeys,
         )
         if err is not None:
             return err
@@ -1832,10 +1968,24 @@ def _apply_ch3p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge", "oracle_authorization"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        participant_pubkeys = (
+            ch3p_market.account_a_pubkey,
+            ch3p_market.account_b_pubkey,
+            ch3p_market.account_c_pubkey,
+        )
+        oracle_action_id = _perps_clearinghouse_runtime_oracle_action_id(
+            config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market_kind="clearinghouse_3p_transfer_v1",
+            quote_asset=ch3p_market.quote_asset,
+            state=ch3p_market.state,
+            participant_pubkeys=participant_pubkeys,
+        )
         err = _require_oracle_adapter_bridge(
             config,
             data=data,
@@ -1843,20 +1993,19 @@ def _apply_ch3p_op(
             action_kind="settle_epoch",
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                config,
-                market_id=market_id,
-                action_kind="settle_epoch",
-                market_kind="clearinghouse_3p_transfer_v1",
-                quote_asset=ch3p_market.quote_asset,
-                state=ch3p_market.state,
-                participant_pubkeys=(
-                    ch3p_market.account_a_pubkey,
-                    ch3p_market.account_b_pubkey,
-                    ch3p_market.account_c_pubkey,
-                ),
-            ),
+            expected_action_id=oracle_action_id,
             required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
+        err = _check_clearinghouse_settle_oracle_authorization(
+            config,
+            data=data,
+            market_id=market_id,
+            market_kind="clearinghouse_3p_transfer_v1",
+            quote_asset=ch3p_market.quote_asset,
+            state=ch3p_market.state,
+            participant_pubkeys=participant_pubkeys,
         )
         if err is not None:
             return err

@@ -55,6 +55,7 @@ RUNTIME_FACT_KEYS = (
     "zusd_oracle_adapter_required",
     "zusd_oracle_authorization_required",
     "perps_clearinghouse_settle_oracle_adapter_required",
+    "perps_clearinghouse_settle_oracle_authorization_required",
     "perps_isolated_settle_oracle_adapter_required",
     "perps_isolated_partial_liquidate_oracle_adapter_required",
     "perps_isolated_settle_oracle_authorization_required",
@@ -208,6 +209,10 @@ def evaluate_deploy_profile_consistency(
         "perps_clearinghouse_settle_oracle_adapter_required": (
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             "perps_clearinghouse_settle_oracle_adapter_required",
+        ),
+        "perps_clearinghouse_settle_oracle_authorization_required": (
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            "perps_clearinghouse_settle_oracle_authorization_required",
         ),
         "perps_isolated_settle_oracle_adapter_required": (
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
