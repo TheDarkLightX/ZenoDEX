@@ -2280,6 +2280,33 @@ def test_status_rejects_malformed_isolated_oracle_adapter_flag(monkeypatch) -> N
     assert "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE" in str(payload["error"])
 
 
+def test_status_reports_isolated_settle_oracle_controls(monkeypatch) -> None:
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["require_oracle_adapter_for_isolated_settle_epoch"] is True
+    assert payload["status"]["require_oracle_authorization_for_isolated_settle_epoch"] is True
+
+
+def test_status_rejects_malformed_isolated_settle_authorization_flag(monkeypatch) -> None:
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", "maybe")
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH" in str(payload["error"])
+
+
 def test_status_loads_ready_perps_wallet_authority_profile(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_after_pair_liquidation(quote_asset=quote_asset))
