@@ -52,6 +52,7 @@ pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_REQUEST_FIELD: &str = "perp_isolated_op_unknown_request_field";
 pub const REJ_UNKNOWN_FACT_FIELD: &str = "perp_isolated_op_unknown_fact_field";
+pub const REJ_UNKNOWN_ACCOUNT_FIELD: &str = "perp_isolated_op_unknown_account_field";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
 pub const REJ_DUPLICATE_ACCOUNT: &str = "perp_isolated_op_duplicate_account";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
@@ -80,6 +81,15 @@ const FACT_KEYS: [&str; 7] = [
     "oracle_adapter_ok",
     "oracle_authorization_ok",
     "min_collectible_liquidation_penalty_quote",
+];
+const ACCOUNT_KEYS: [&str; 7] = [
+    "key",
+    "position_base",
+    "collateral_quote",
+    "entry_price_e8",
+    "funding_paid_cumulative",
+    "funding_last_applied_epoch",
+    "liquidated_this_step",
 ];
 
 #[derive(Clone, Debug)]
@@ -190,6 +200,11 @@ impl Facts {
 
 fn parse_account(v: &Value) -> Result<Account, &'static str> {
     let o = v.as_object().ok_or(REJ_BAD_REQUEST)?;
+    for key in o.keys() {
+        if !ACCOUNT_KEYS.contains(&key.as_str()) {
+            return Err(REJ_UNKNOWN_ACCOUNT_FIELD);
+        }
+    }
     Ok(Account {
         key: o
             .get("key")
@@ -1793,6 +1808,23 @@ mod tests {
         ));
         assert_eq!(out["accept"], json!(false));
         assert_eq!(out["reject_reason"], json!(REJ_DUPLICATE_ACCOUNT));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn unknown_account_field_rejects() {
+        let mut acct = acct_json("aa", 300_000, 1_000_000, 100_000_000);
+        acct.as_object_mut()
+            .unwrap()
+            .insert("unexpected".to_string(), json!("hidden"));
+        let out = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([acct]),
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_ACCOUNT_FIELD));
         assert!(out.get("post").is_none());
     }
 
