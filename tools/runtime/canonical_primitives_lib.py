@@ -1,18 +1,20 @@
 """Canonical-primitive cross-language differential harness.
 
 The authoritative Python encoders live in ``src/state/canonical.py``. This
-module wraps two of them — ``canonical_json_bytes`` and ``hex_to_bytes_fixed`` —
-in the same per-case result shape the Rust ``canonical-hash`` CLI subcommand
-emits, so a test can prove byte-for-byte agreement.
+module wraps the canonical JSON, fixed-hex, and raw framing primitives in the
+same per-case result shape the Rust ``canonical-hash`` CLI subcommand emits, so
+a test can prove byte-for-byte agreement.
 
 Case shapes (input):
     {"op": "json_bytes"|"json_hash", "value": <any JSON value>}
     {"op": "domain_json_hash", "label": "...", "version": <int>, "value": <any JSON value>}
     {"op": "hex_to_bytes", "hex": "0x..", "nbytes": <int>}
+    {"op": "uvarint", "value": <0 <= int <= 2^128-1>}
+    {"op": "encode_bytes", "hex": "0x.."}
 
 Result shape (output), per case, index-aligned with the input list:
     {"index": i, "ok": True,  "bytes": "0x..", "hash": "0x.."}   # json ops
-    {"index": i, "ok": True,  "bytes": "0x.."}                    # hex op
+    {"index": i, "ok": True,  "bytes": "0x.."}                    # hex/framing ops
     {"index": i, "ok": False, "code": "<reason>"}                 # rejection
 
 Only ``ok`` (and, when accepted, ``bytes``/``hash``) are compared across
@@ -34,6 +36,8 @@ from typing import Any
 from src.state.canonical import (
     canonical_json_bytes,
     domain_sep_bytes,
+    encode_bytes,
+    encode_uvarint,
     hex_to_bytes_fixed,
     sha256_hex,
 )
@@ -44,6 +48,7 @@ SCHEMA_VERSION = 1
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parents[1]
 RUST_RUNTIME_DIR = _REPO / "rust-runtime"
+_HEX_DIGITS = set("0123456789abcdefABCDEF")
 
 
 def py_eval(index: int, case: dict) -> dict:
@@ -74,6 +79,30 @@ def py_eval(index: int, case: dict) -> dict:
                 case.get("hex"), nbytes=case.get("nbytes"), name="vector"
             )
         except (TypeError, ValueError):
+            return {"index": index, "ok": False}
+        return {"index": index, "ok": True, "bytes": "0x" + out.hex()}
+    if op == "uvarint":
+        value = case.get("value")
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value >= 2**128:
+            return {"index": index, "ok": False}
+        try:
+            out = encode_uvarint(value)
+        except (TypeError, ValueError):
+            return {"index": index, "ok": False}
+        return {"index": index, "ok": True, "bytes": "0x" + out.hex()}
+    if op == "encode_bytes":
+        hex_str = case.get("hex")
+        if not isinstance(hex_str, str) or not hex_str.startswith("0x"):
+            return {"index": index, "ok": False}
+        body = hex_str[2:]
+        if len(body) % 2 != 0:
+            return {"index": index, "ok": False}
+        if any(ch not in _HEX_DIGITS for ch in body):
+            return {"index": index, "ok": False}
+        try:
+            raw = bytes.fromhex(body)
+            out = encode_bytes(raw)
+        except ValueError:
             return {"index": index, "ok": False}
         return {"index": index, "ok": True, "bytes": "0x" + out.hex()}
     return {"index": index, "ok": False}
@@ -146,6 +175,21 @@ def static_cases() -> list[dict]:
         {"op": "hex_to_bytes", "hex": "0x01", "nbytes": 2},
         {"op": "hex_to_bytes", "hex": "0xzz", "nbytes": 1},
         {"op": "hex_to_bytes", "hex": "0x", "nbytes": 1},
+        # --- raw framing primitives over the Rust bridge domain ---
+        {"op": "uvarint", "value": 0},
+        {"op": "uvarint", "value": 127},
+        {"op": "uvarint", "value": 128},
+        {"op": "uvarint", "value": 2**64},
+        {"op": "uvarint", "value": 2**128 - 1},
+        {"op": "uvarint", "value": -1},
+        {"op": "uvarint", "value": 2**128},
+        {"op": "encode_bytes", "hex": "0x"},
+        {"op": "encode_bytes", "hex": "0x00"},
+        {"op": "encode_bytes", "hex": "0x" + "ab" * 128},
+        {"op": "encode_bytes", "hex": "00"},
+        {"op": "encode_bytes", "hex": "0x0"},
+        {"op": "encode_bytes", "hex": "0xzz"},
+        {"op": "encode_bytes", "hex": "0x00 11 "},
     ]
 
 
