@@ -43,11 +43,21 @@ def api_surface_profile_ids() -> tuple[str, ...]:
 
 
 def get_api_surface_profile(profile_id: str) -> ApiSurfaceProfile:
+    if not isinstance(profile_id, str):
+        raise TypeError(f"API surface profile id must be a string, got {type(profile_id).__name__}")
+    if profile_id != profile_id.strip() or not profile_id:
+        raise ValueError("API surface profile id must be non-empty and whitespace-trimmed")
     try:
-        return API_SURFACE_PROFILES[str(profile_id)]
+        return API_SURFACE_PROFILES[profile_id]
     except KeyError as exc:
         allowed = ", ".join(api_surface_profile_ids())
         raise ValueError(f"unknown API surface profile: {profile_id!r}; expected one of: {allowed}") from exc
+
+
+def _require_bool(value: object, *, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{field} must be a bool, got {type(value).__name__}")
+    return value
 
 
 def api_surface_profile_violations(
@@ -61,11 +71,16 @@ def api_surface_profile_violations(
     """Return reasons an API server posture must not start."""
 
     profile = get_api_surface_profile(profile_id)
-    demo_enabled = bool(perps_enabled or zusd_enabled or dex_enabled)
+    if not isinstance(demo_api_token, str):
+        raise TypeError(f"demo_api_token must be a string, got {type(demo_api_token).__name__}")
+    perps_flag = _require_bool(perps_enabled, field="perps_enabled")
+    zusd_flag = _require_bool(zusd_enabled, field="zusd_enabled")
+    dex_flag = _require_bool(dex_enabled, field="dex_enabled")
+    demo_enabled = perps_flag or zusd_flag or dex_flag
     reasons: list[str] = []
     if demo_enabled and not profile.allow_demo_routes:
         reasons.append(f"{profile.profile_id} forbids demo/value-moving API routes")
-    if demo_enabled and profile.require_token_for_demo_routes and not str(demo_api_token or ""):
+    if demo_enabled and profile.require_token_for_demo_routes and not demo_api_token:
         reasons.append(f"{profile.profile_id} requires DEMO_API_TOKEN for demo/value-moving API routes")
     return tuple(reasons)
 
