@@ -363,6 +363,28 @@ def test_load_policy_rejects_bad_mode():
         )
 
 
+def test_load_policy_rejects_non_string_surface_ids():
+    with pytest.raises(TypeError, match="per_surface surface id must be a string"):
+        load_authority_policy(
+            {"runtime_authority_policy": {"per_surface": {123: "python_authority"}}}
+        )
+    with pytest.raises(TypeError, match="promoted_surfaces surface id must be a string"):
+        load_authority_policy(
+            {"runtime_authority_policy": {"promoted_surfaces": ["fee_router", 123]}}
+        )
+
+
+def test_load_policy_rejects_blank_or_duplicate_surface_ids():
+    with pytest.raises(ValueError, match="surface id must be non-empty"):
+        load_authority_policy(
+            {"runtime_authority_policy": {"per_surface": {" fee_router": "python_authority"}}}
+        )
+    with pytest.raises(ValueError, match="promoted_surfaces must not contain duplicates"):
+        load_authority_policy(
+            {"runtime_authority_policy": {"promoted_surfaces": ["fee_router", "fee_router"]}}
+        )
+
+
 def test_production_profile_rejects_half_configured_rust_authority():
     # fee_router promoted to rust authority but NOT in promoted_surfaces.
     policy = AuthorityPolicy(

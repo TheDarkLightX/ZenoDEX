@@ -94,6 +94,14 @@ def parse_authority_mode(value: object) -> AuthorityMode:
         raise ValueError(f"unsupported authority mode {value!r}; valid: {valid}")
 
 
+def _parse_surface_id(value: object, *, field: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{field} surface id must be a string, got {type(value).__name__}")
+    if value != value.strip() or not value:
+        raise ValueError(f"{field} surface id must be non-empty and whitespace-trimmed")
+    return value
+
+
 @dataclass(frozen=True)
 class AuthorityDecision:
     """The outcome of an authority-gated transition, with audit metadata."""
@@ -191,14 +199,20 @@ def load_authority_policy(profile: Mapping[str, Any] | None) -> AuthorityPolicy:
     if not isinstance(raw_per_surface, Mapping):
         raise TypeError("per_surface must be a mapping")
     per_surface = {
-        str(surface): parse_authority_mode(mode)
+        _parse_surface_id(surface, field="per_surface"): parse_authority_mode(mode)
         for surface, mode in raw_per_surface.items()
     }
 
     raw_promoted = section.get("promoted_surfaces", [])
     if not isinstance(raw_promoted, (list, tuple)):
         raise TypeError("promoted_surfaces must be a list")
-    promoted = frozenset(str(s) for s in raw_promoted)
+    promoted_list = [
+        _parse_surface_id(surface, field="promoted_surfaces")
+        for surface in raw_promoted
+    ]
+    if len(set(promoted_list)) != len(promoted_list):
+        raise ValueError("promoted_surfaces must not contain duplicates")
+    promoted = frozenset(promoted_list)
 
     return AuthorityPolicy(default, per_surface, promoted)
 
