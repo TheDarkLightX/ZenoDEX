@@ -55,9 +55,29 @@ impl std::fmt::Display for CanonicalError {
 
 impl std::error::Error for CanonicalError {}
 
+#[cfg(kani)]
+const UVARINT_U128_MAX_LEN: usize = 19;
+
+fn uvarint_encoded_len(mut value: u128) -> usize {
+    let mut len = 1;
+    while value >= 0x80 {
+        value >>= 7;
+        len += 1;
+    }
+    len
+}
+
+fn is_domain_label_byte(byte: u8) -> bool {
+    byte.is_ascii() && byte != 0
+}
+
+fn is_ascii_hex_digit(byte: u8) -> bool {
+    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || (b'A'..=b'F').contains(&byte)
+}
+
 /// Unsigned LEB128 encoding of `value`.
 pub fn encode_uvarint(mut value: u128) -> Vec<u8> {
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity(uvarint_encoded_len(value));
     loop {
         let byte = (value & 0x7f) as u8;
         value >>= 7;
@@ -80,7 +100,7 @@ pub fn encode_bytes(value: &[u8]) -> Vec<u8> {
 
 /// Fallible domain-separation prefix constructor.
 pub fn try_domain_sep_bytes(label: &str, version: u32) -> Result<Vec<u8>, CanonicalError> {
-    if label.is_empty() || !label.is_ascii() || label.contains('\u{0}') {
+    if label.is_empty() || !label.as_bytes().iter().copied().all(is_domain_label_byte) {
         return Err(CanonicalError::BadDomainLabel);
     }
     if version == 0 {
@@ -127,7 +147,7 @@ pub fn hex_to_bytes_fixed(hex_str: &str, nbytes: usize) -> Result<Vec<u8>, Canon
         Some(b) if hex_str.len() == expected_len => b,
         _ => return Err(CanonicalError::BadHexFormat),
     };
-    if !body.bytes().all(|c| c.is_ascii_hexdigit()) {
+    if !body.bytes().all(is_ascii_hex_digit) {
         return Err(CanonicalError::BadHexChars);
     }
     // Length already pins this to exactly `nbytes` bytes; `hex::decode` cannot fail
@@ -411,5 +431,42 @@ mod tests {
         // Non-ASCII stays raw UTF-8 (ensure_ascii=False), not \uXXXX.
         let u = JsonValue::Str("é".to_string());
         assert_eq!(canonical_json_bytes(&u), "\"é\"".as_bytes());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on heap-free canonical helper predicates.
+//
+// Full symbolic proofs over the Vec/String/JSON/SHA-256 encoders are not the
+// tractable boundary. These contracts prove the byte classifiers and LEB128
+// length helper that the public encoders depend on; cross-language vectors and
+// fuzz remain responsible for heap-heavy encoder byte equality.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    #[kani::proof]
+    fn domain_label_byte_classifier_is_exact() {
+        let byte: u8 = kani::any();
+        assert_eq!(is_domain_label_byte(byte), byte != 0 && byte <= 0x7f);
+    }
+
+    #[kani::proof]
+    fn ascii_hex_digit_classifier_is_exact() {
+        let byte: u8 = kani::any();
+        let expected =
+            byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || (b'A'..=b'F').contains(&byte);
+        assert_eq!(is_ascii_hex_digit(byte), expected);
+    }
+
+    #[kani::proof]
+    fn uvarint_encoded_len_boundary_cases() {
+        assert_eq!(uvarint_encoded_len(0), 1);
+        assert_eq!(uvarint_encoded_len(0x7f), 1);
+        assert_eq!(uvarint_encoded_len(0x80), 2);
+        assert_eq!(uvarint_encoded_len(0x3fff), 2);
+        assert_eq!(uvarint_encoded_len(0x4000), 3);
+        assert_eq!(uvarint_encoded_len(u128::MAX), UVARINT_U128_MAX_LEN);
     }
 }

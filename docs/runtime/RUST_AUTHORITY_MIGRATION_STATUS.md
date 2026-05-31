@@ -63,7 +63,10 @@ hex. `config/deploy/public-testnet.yaml` now lists `canonical` in
 to Python is root-preserving by differential test. The first live call site is
 `src/core/burn_receipts.py::burn_receipt_hash`, which routes its
 domain-separated body hash through the active authority policy. Production
-remains `python_authority`.
+remains `python_authority`. Kani now covers heap-free helper predicates for
+domain-label bytes, ASCII hex digits, and selected LEB128 length boundaries.
+Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain
+vector/fuzz/differential backed.
 
 ² State root v5 has a disaster-state suite
 (`tests/runtime/test_state_root_disaster_state.py`) that documents the bridge
@@ -125,10 +128,10 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 35 harnesses on the actual
-runtime crate passed (arith, balance, replay, fee-router, burn rails, the
-tractable CPMM initialization/fail-closed/helper slice, stateless perps
-checked-effect helpers, and funding-auto arithmetic).
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 38 harnesses on the actual
+runtime crate passed (arith, canonical helper predicates, balance, replay,
+fee-router, burn rails, the tractable CPMM initialization/fail-closed/helper
+slice, stateless perps checked-effect helpers, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
