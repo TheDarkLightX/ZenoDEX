@@ -57,6 +57,7 @@ SHADOW_PAIRED_MODES = frozenset(
 STRICT_PROFILE_IDS = frozenset({"public-testnet", "production-strict"})
 
 POLICY_SCHEMA_V1 = "zenodex/runtime_authority_policy/v1"
+AUTHORITY_POLICY_KEYS = frozenset({"schema", "default", "per_surface", "promoted_surfaces"})
 
 
 class AuthorityError(RuntimeError):
@@ -186,6 +187,12 @@ def load_authority_policy(profile: Mapping[str, Any] | None) -> AuthorityPolicy:
         return AuthorityPolicy(DEFAULT_MODE, {}, frozenset())
     if not isinstance(section, Mapping):
         raise TypeError("runtime_authority_policy must be a mapping")
+    unknown_keys = sorted(
+        (key for key in section.keys() if key not in AUTHORITY_POLICY_KEYS),
+        key=repr,
+    )
+    if unknown_keys:
+        raise ValueError(f"runtime_authority_policy has unknown keys: {unknown_keys}")
 
     schema = section.get("schema")
     if schema != POLICY_SCHEMA_V1:
