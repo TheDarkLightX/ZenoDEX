@@ -72,6 +72,12 @@ Both committed (not dirty), outside the audited surfaces:
   before startup. A typed clearinghouse-specific oracle-authorization path is
   still future work; current hardening is aggregate-adapter enforcement.
 - OCaml runtime conformance (needs `opam`/`dune`) and SPARK/Ada formal verification (needs `gnatprove`) — not run here; advisory.
-- Golden-trace differential replay (`test_golden_trace_replay.py`, `rust_shadow_replay.py`) — only partially run (collection-time import issues in some ESSO/lint modules).
+- Golden-trace differential replay for the committed kernels supported by
+  `tools/runtime/rust_shadow_replay.py` is now a regression gate:
+  `tests/runtime/test_rust_shadow_golden_trace_replay.py` rebuilds the Rust CLI
+  and replays `smoke.json`, `replay_guard_smoke.json`, `balance_smoke.json`,
+  `zusd_smoke.json`, `burn_smoke.json`, and `cpmm_smoke.json`. Residual:
+  perps isolated-op traces are still covered by their per-op materializer/live
+  shadow suites rather than the generic golden-trace replayer.
 - Multi-hop/multi-pool batch proofs and large-batch state/support-root computations — not stress-tested.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.
