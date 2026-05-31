@@ -3148,6 +3148,8 @@ def _perp_stateful_python_doc(
 def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
     if not isinstance(python_doc, Mapping) or not isinstance(rust_doc, Mapping):
         return False
+    if set(python_doc.keys()) != set(rust_doc.keys()):
+        return False
     if bool(python_doc.get("ok")) != bool(rust_doc.get("ok")):
         return False
     if not bool(python_doc.get("ok")):
@@ -3174,6 +3176,8 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
                 return False
             for py_account, rust_account in zip(value, rust_accounts):
                 if not isinstance(py_account, Mapping) or not isinstance(rust_account, Mapping):
+                    return False
+                if set(py_account.keys()) != set(rust_account.keys()):
                     return False
                 if str(py_account.get("key")) != str(rust_account.get("key")):
                     return False

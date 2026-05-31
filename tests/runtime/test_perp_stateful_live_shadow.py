@@ -59,6 +59,45 @@ def test_materialized_reject_parity_requires_no_post_state():
     )
 
 
+def test_legacy_perp_stateful_doc_parity_rejects_extra_fields():
+    from src.integration import perp_engine
+
+    py_reject = {"ok": False, "code": "same_reason"}
+    assert perp_engine._perp_stateful_docs_agree(py_reject, {"ok": False, "code": "same_reason"})
+    assert not perp_engine._perp_stateful_docs_agree(
+        py_reject,
+        {"ok": False, "code": "same_reason", "extra": 1},
+    )
+
+    py_accept = {
+        "ok": True,
+        "accounts": [
+            {
+                "key": "aa",
+                "position_base": 1,
+                "collateral_quote": 2,
+                "liquidated_this_step": False,
+            }
+        ],
+    }
+    assert perp_engine._perp_stateful_docs_agree(py_accept, py_accept)
+    assert not perp_engine._perp_stateful_docs_agree(
+        py_accept,
+        {
+            "ok": True,
+            "accounts": [
+                {
+                    "key": "aa",
+                    "position_base": 1,
+                    "collateral_quote": 2,
+                    "liquidated_this_step": False,
+                    "extra": 3,
+                }
+            ],
+        },
+    )
+
+
 @pytest.fixture(autouse=True)
 def _reset_policy_after():
     yield
