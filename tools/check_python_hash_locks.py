@@ -271,6 +271,7 @@ def audit_install_surface(path: Path, root: Path = ROOT) -> dict[str, Any]:
     allowlisted_unhashed_installs: list[dict[str, Any]] = []
     pip_install_commands = 0
     root_dependency_commands = 0
+    hash_locked_non_root_commands = 0
     for line_no, line in _logical_lines(path.read_text(encoding="utf-8")):
         if not PIP_INSTALL_RE.search(line):
             continue
@@ -299,6 +300,8 @@ def audit_install_surface(path: Path, root: Path = ROOT) -> dict[str, Any]:
                     "supported install surfaces must install root lockfiles, not unlocked root requirement manifests",
                 )
             )
+        if not root_lock_install and not root_manifest_install and "--require-hashes" in line:
+            hash_locked_non_root_commands += 1
         if not root_lock_install and not root_manifest_install and "--require-hashes" not in line:
             reason = _allowlisted_unhashed_install_reason(display, line)
             if reason is None:
@@ -322,6 +325,7 @@ def audit_install_surface(path: Path, root: Path = ROOT) -> dict[str, Any]:
         "ok": not findings,
         "pip_install_commands": pip_install_commands,
         "root_dependency_commands": root_dependency_commands,
+        "hash_locked_non_root_commands": hash_locked_non_root_commands,
         "allowlisted_unhashed_installs": allowlisted_unhashed_installs,
         "allowlisted_unhashed_install_commands": len(allowlisted_unhashed_installs),
         "findings": [finding.to_json() for finding in findings],
@@ -348,11 +352,16 @@ def check_python_hash_locks(root: Path = ROOT) -> dict[str, Any]:
         if (
             report["pip_install_commands"]
             or report["root_dependency_commands"]
+            or report["hash_locked_non_root_commands"]
             or report["allowlisted_unhashed_install_commands"]
             or report["findings"]
         ):
             surface_reports.append(report)
     root_dependency_commands = sum(int(report["root_dependency_commands"]) for report in surface_reports)
+    hash_locked_non_root_commands = sum(
+        int(report["hash_locked_non_root_commands"])
+        for report in surface_reports
+    )
     pip_install_commands = sum(int(report["pip_install_commands"]) for report in surface_reports)
     allowlisted_unhashed_install_commands = sum(
         int(report["allowlisted_unhashed_install_commands"])
@@ -380,6 +389,7 @@ def check_python_hash_locks(root: Path = ROOT) -> dict[str, Any]:
         "install_surfaces": surface_reports,
         "pip_install_commands": pip_install_commands,
         "root_dependency_commands": root_dependency_commands,
+        "hash_locked_non_root_commands": hash_locked_non_root_commands,
         "allowlisted_unhashed_install_commands": allowlisted_unhashed_install_commands,
         "findings": findings,
     }
