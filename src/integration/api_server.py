@@ -51,16 +51,17 @@ for _prewarm_module_name in (
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        v = int(raw.strip())
-    except Exception:
-        return int(default)
-    if v < lo:
-        return int(lo)
-    if v > hi:
-        return int(hi)
-    return int(v)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
 
 
 def _env_str(name: str, default: str) -> str:
@@ -6812,10 +6813,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     reset_active_authority_policy()
     host = _env_str("API_HOST", "127.0.0.1")
-    port = _env_int("API_PORT", 8000, lo=1, hi=65535)
+    try:
+        port = _env_int("API_PORT", 8000, lo=1, hi=65535)
+        rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
+        max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
+    except ValueError as exc:
+        print(f"Refusing to start: invalid integer environment variable: {exc}")
+        return 2
     cors_origins = _parse_cors_origins(_env_str("CORS_ORIGINS", ""))
-    rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
-    max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
 
     try:
         perps_enabled = _env_bool("PERPS_API_ENABLED", False)
