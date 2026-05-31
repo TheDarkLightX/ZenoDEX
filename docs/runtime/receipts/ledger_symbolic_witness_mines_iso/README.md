@@ -94,6 +94,23 @@ maximal-domain proof. Multi-pool composition is still seed-covered rather than
 enumerated. Stateful and target-guided remain bounded sampling, just steered far
 better. SHA-256 preimage resistance is assumed throughout.
 
+## Covert-channel assurance addendum
+
+This branch also adds a bounded covert-channel regression gate:
+`tests/runtime/test_covert_channel_assurance.py`. It checks three concrete
+properties: selected authority kernels do not depend on common side-input or I/O
+modules; replay-guard trace capture leaves the accept/reject sequence and final
+state root unchanged; confidential-extension public reason codes and trace
+events do not echo fixture request IDs, measurements, receipt hashes, or strategy
+sentinels, and the public trace schema blocks raw operation/signature-bearing key
+classes.
+
+The claim is narrow. It is a regression layer for deterministic authority,
+redaction, and replay-equivalent observability. It does not prove constant-time
+execution, traffic-shape privacy, microarchitectural isolation, or full
+integration-log coverage. The scope note is
+`docs/runtime/COVERT_CHANNEL_ASSURANCE.md`.
+
 ## Refuted at read time
 
 `conflict_graph._shared_conflict_cells_v0`'s docstring claims a global-cell tx
@@ -119,6 +136,10 @@ PYTHONPATH="$PWD" python3 -m pytest \
   tests/runtime/test_uniform_batch_admission_lattice.py -q
 # 95 passed  (34M bounded pair comparisons + rail/replay/admission lattices + stateful/targeted tests)
 
+# covert-channel follow-up:
+PYTHONPATH="$PWD" python3 -m pytest tests/runtime/test_covert_channel_assurance.py -q
+# 3 passed
+
 # combined focused runtime assurance command:
 PYTHONPATH="$PWD" python3 -m pytest \
   tests/runtime/test_*_witness_mine.py \
@@ -128,13 +149,14 @@ PYTHONPATH="$PWD" python3 -m pytest \
   tests/runtime/test_fee_router_reference.py \
   tests/runtime/test_burn_receipts_semantic_invariants.py \
   tests/runtime/test_replay_guard_semantic_invariants.py \
-  tests/runtime/test_uniform_batch_admission_lattice.py -q
-# 140 passed in 179.66s
+  tests/runtime/test_uniform_batch_admission_lattice.py \
+  tests/runtime/test_covert_channel_assurance.py -q
+# 143 passed in 174.34s
 ```
 
 ## Scope / non-claims
 
 Bounded, mostly single-module property search. Does **not** assert the composed node
 acceptance path, the BLS crypto, multi-transition / cross-block sequencing, or the
-model↔runtime refinement gap. It adds regression guards against the named
+model-runtime refinement gap. It adds regression guards against the named
 disaster classes and records the remaining scope limits explicitly.
