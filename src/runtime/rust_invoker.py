@@ -33,6 +33,15 @@ class RustInvocationError(RuntimeError):
     """The Rust engine errored, timed out, or returned malformed output."""
 
 
+def _require_exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
+    actual = set(value)
+    if actual == expected:
+        return
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    raise RustInvocationError(f"{label}: unexpected fields missing={missing!r} extra={extra!r}")
+
+
 def locate_runtime_binary() -> Path:
     env_bin = os.environ.get("ZENODEX_RUNTIME_BIN")
     if env_bin:
@@ -213,11 +222,22 @@ def canonical_domain_json_hash(
         },
         timeout_seconds=timeout_seconds,
     )
-    results = out.get("results") if isinstance(out, dict) else None
+    if not isinstance(out, dict):
+        raise RustInvocationError("canonical-hash: output must be an object")
+    _require_exact_fields(out, {"version", "results"}, "canonical-hash output")
+    if out.get("version") != 1:
+        raise RustInvocationError("canonical-hash: unsupported output header")
+    results = out.get("results")
     if not isinstance(results, list) or len(results) != 1:
         raise RustInvocationError("canonical-hash: unexpected results shape")
     result = results[0]
-    if not isinstance(result, dict) or not result.get("ok") or "hash" not in result:
+    if not isinstance(result, dict):
+        raise RustInvocationError("canonical-hash: result must be an object")
+    if result.get("ok") is True:
+        _require_exact_fields(result, {"index", "ok", "hash"}, "canonical-hash result")
+    elif result.get("ok") is False:
+        _require_exact_fields(result, {"index", "ok", "code"}, "canonical-hash result")
+    if not result.get("ok") or "hash" not in result:
         code = result.get("code") if isinstance(result, dict) else "malformed"
         raise RustInvocationError(f"canonical-hash domain_json_hash rejected: {code}")
     return str(result["hash"])
@@ -235,11 +255,22 @@ def state_root_hash(
         {"cases": [state]},
         timeout_seconds=timeout_seconds,
     )
-    results = out.get("results") if isinstance(out, dict) else None
+    if not isinstance(out, dict):
+        raise RustInvocationError("verify-state-root: output must be an object")
+    _require_exact_fields(out, {"version", "results"}, "verify-state-root output")
+    if out.get("version") != 1:
+        raise RustInvocationError("verify-state-root: unsupported output header")
+    results = out.get("results")
     if not isinstance(results, list) or len(results) != 1:
         raise RustInvocationError("verify-state-root: unexpected results shape")
     result = results[0]
-    if not isinstance(result, dict) or not result.get("ok") or "state_root" not in result:
+    if not isinstance(result, dict):
+        raise RustInvocationError("verify-state-root: result must be an object")
+    if result.get("ok") is True:
+        _require_exact_fields(result, {"index", "ok", "state_root"}, "verify-state-root result")
+    elif result.get("ok") is False:
+        _require_exact_fields(result, {"index", "ok", "code"}, "verify-state-root result")
+    if not result.get("ok") or "state_root" not in result:
         code = result.get("code") if isinstance(result, dict) else "malformed"
         raise RustInvocationError(f"verify-state-root rejected: {code}")
     return str(result["state_root"])
@@ -278,6 +309,21 @@ def replay_guard_admit(
     )
     if not isinstance(out, dict):
         raise RustInvocationError("replay-guard-admit: output must be an object")
+    _require_exact_fields(
+        out,
+        {
+            "version",
+            "kernel",
+            "accept",
+            "reject_reason",
+            "receipt_hash",
+            "receipt",
+            "pre_state_root",
+            "post_state_root",
+            "post_state_entries",
+        },
+        "replay-guard-admit output",
+    )
     if out.get("version") != 1 or out.get("kernel") != "replay_guard":
         raise RustInvocationError("replay-guard-admit: unsupported output header")
     if not isinstance(out.get("accept"), bool):
@@ -291,21 +337,27 @@ def replay_guard_admit(
     for entry in out["post_state_entries"]:
         if not isinstance(entry, dict):
             raise RustInvocationError("replay-guard-admit: state entry must be an object")
+        _require_exact_fields(entry, {"sender", "last_nonce"}, "replay-guard-admit state entry")
         if not isinstance(entry.get("sender"), str) or not isinstance(entry.get("last_nonce"), int):
             raise RustInvocationError("replay-guard-admit: malformed state entry")
     if out["accept"]:
         receipt = out.get("receipt")
         if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
             raise RustInvocationError("replay-guard-admit: accepted output missing receipt")
+        _require_exact_fields(receipt, {"sender", "nonce", "prev_nonce"}, "replay-guard-admit receipt")
         if (
             not isinstance(receipt.get("sender"), str)
             or not isinstance(receipt.get("nonce"), int)
             or not isinstance(receipt.get("prev_nonce"), int)
         ):
             raise RustInvocationError("replay-guard-admit: malformed receipt")
+        if out.get("reject_reason") is not None:
+            raise RustInvocationError("replay-guard-admit: accepted output carried reject reason")
     else:
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("replay-guard-admit: rejected output missing reason")
+        if out.get("receipt") is not None or out.get("receipt_hash") is not None:
+            raise RustInvocationError("replay-guard-admit: rejected output carried receipt")
     return out
 
 
@@ -328,6 +380,21 @@ def balance_op(
     )
     if not isinstance(out, dict):
         raise RustInvocationError("balance-op: output must be an object")
+    _require_exact_fields(
+        out,
+        {
+            "version",
+            "kernel",
+            "accept",
+            "reject_reason",
+            "receipt_hash",
+            "receipt",
+            "pre_state_root",
+            "post_state_root",
+            "post_state_entries",
+        },
+        "balance-op output",
+    )
     if out.get("version") != 1 or out.get("kernel") != "balances":
         raise RustInvocationError("balance-op: unsupported output header")
     if not isinstance(out.get("accept"), bool):
@@ -340,6 +407,7 @@ def balance_op(
     for entry in out["post_state_entries"]:
         if not isinstance(entry, dict):
             raise RustInvocationError("balance-op: state entry must be an object")
+        _require_exact_fields(entry, {"pubkey", "asset", "amount"}, "balance-op state entry")
         if (
             not isinstance(entry.get("pubkey"), str)
             or not isinstance(entry.get("asset"), str)
@@ -350,6 +418,11 @@ def balance_op(
         receipt = out.get("receipt")
         if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
             raise RustInvocationError("balance-op: accepted output missing receipt")
+        _require_exact_fields(
+            receipt,
+            {"kind", "sender", "recipient", "asset", "amount"},
+            "balance-op receipt",
+        )
         if (
             not isinstance(receipt.get("kind"), str)
             or not (receipt.get("sender") is None or isinstance(receipt.get("sender"), str))
@@ -361,6 +434,8 @@ def balance_op(
     else:
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("balance-op: rejected output missing reason")
+        if out.get("receipt") is not None or out.get("receipt_hash") is not None:
+            raise RustInvocationError("balance-op: rejected output carried receipt")
     return out
 
 
@@ -383,6 +458,21 @@ def fee_route(
     )
     if not isinstance(out, dict):
         raise RustInvocationError("fee-route: output must be an object")
+    _require_exact_fields(
+        out,
+        {
+            "version",
+            "kernel",
+            "accept",
+            "reject_reason",
+            "receipt_hash",
+            "receipt",
+            "pre_state_root",
+            "post_state_root",
+            "post_accumulator",
+        },
+        "fee-route output",
+    )
     if out.get("version") != 1 or out.get("kernel") != "fee_router":
         raise RustInvocationError("fee-route: unsupported output header")
     if not isinstance(out.get("accept"), bool):
@@ -395,9 +485,16 @@ def fee_route(
         receipt = out.get("receipt")
         if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
             raise RustInvocationError("fee-route: accepted output missing receipt")
+        _require_exact_fields(
+            receipt,
+            {"source", "asset", "amount", "buyburn", "stakers", "reserve", "hosts", "dust"},
+            "fee-route receipt",
+        )
         for key in ("source", "asset", "amount", "buyburn", "stakers", "reserve", "hosts", "dust"):
             if not isinstance(receipt.get(key), str):
                 raise RustInvocationError(f"fee-route: receipt.{key} must be a string")
+        if out.get("reject_reason") is not None:
+            raise RustInvocationError("fee-route: accepted output carried reject reason")
     else:
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("fee-route: rejected output missing reason")
@@ -409,22 +506,45 @@ def fee_route(
 def _validate_fee_accumulator_doc(value: Any) -> None:
     if not isinstance(value, dict):
         raise RustInvocationError("fee-route: post_accumulator must be an object")
+    _require_exact_fields(
+        value,
+        {"dust_by_stream", "cum_buyburn", "cum_stakers", "cum_reserve", "cum_hosts"},
+        "fee-route post_accumulator",
+    )
     for key in ("dust_by_stream", "cum_buyburn", "cum_stakers", "cum_reserve", "cum_hosts"):
         if not isinstance(value.get(key), list):
             raise RustInvocationError(f"fee-route: post_accumulator.{key} must be a list")
     for entry in value["dust_by_stream"]:
         if not isinstance(entry, dict):
             raise RustInvocationError("fee-route: dust entry must be an object")
+        _require_exact_fields(
+            entry,
+            {
+                "source",
+                "asset",
+                "amount",
+                "buyburn_remainder",
+                "stakers_remainder",
+                "reserve_remainder",
+                "hosts_remainder",
+            },
+            "fee-route dust entry",
+        )
         if (
             not isinstance(entry.get("source"), str)
             or not isinstance(entry.get("asset"), str)
             or not isinstance(entry.get("amount"), str)
+            or not isinstance(entry.get("buyburn_remainder"), str)
+            or not isinstance(entry.get("stakers_remainder"), str)
+            or not isinstance(entry.get("reserve_remainder"), str)
+            or not isinstance(entry.get("hosts_remainder"), str)
         ):
             raise RustInvocationError("fee-route: malformed dust entry")
     for bucket in ("cum_buyburn", "cum_stakers", "cum_reserve", "cum_hosts"):
         for entry in value[bucket]:
             if not isinstance(entry, dict):
                 raise RustInvocationError(f"fee-route: {bucket} entry must be an object")
+            _require_exact_fields(entry, {"asset", "amount"}, f"fee-route {bucket} entry")
             if not isinstance(entry.get("asset"), str) or not isinstance(entry.get("amount"), str):
                 raise RustInvocationError(f"fee-route: malformed {bucket} entry")
 
@@ -447,6 +567,11 @@ def burn_rails_verify(
     )
     if not isinstance(out, dict):
         raise RustInvocationError("verify-burn-trace: output must be an object")
+    _require_exact_fields(
+        out,
+        {"version", "kernel", "initial_state_root", "final_state_root", "results"},
+        "verify-burn-trace output",
+    )
     if out.get("version") != 1 or out.get("kernel") != "burn_receipts":
         raise RustInvocationError("verify-burn-trace: unsupported output header")
     if not isinstance(out.get("initial_state_root"), str) or not isinstance(
@@ -459,6 +584,11 @@ def burn_rails_verify(
     result = results[0]
     if not isinstance(result, dict):
         raise RustInvocationError("verify-burn-trace: result must be an object")
+    _require_exact_fields(
+        result,
+        {"index", "accept", "reject_reason", "receipt_hash", "pre_state_root", "post_state_root"},
+        "verify-burn-trace result",
+    )
     if result.get("index") != 0 or not isinstance(result.get("accept"), bool):
         raise RustInvocationError("verify-burn-trace: malformed result header")
     for key in ("pre_state_root", "post_state_root"):
@@ -504,6 +634,21 @@ def cpmm_op(
     )
     if not isinstance(out, dict):
         raise RustInvocationError("cpmm-op: output must be an object")
+    _require_exact_fields(
+        out,
+        {
+            "version",
+            "kernel",
+            "accept",
+            "reject_reason",
+            "receipt_hash",
+            "receipt",
+            "pre_state_root",
+            "post_state_root",
+            "post_pool",
+        },
+        "cpmm-op output",
+    )
     if out.get("version") != 1 or out.get("kernel") != "cpmm_settlement":
         raise RustInvocationError("cpmm-op: unsupported output header")
     if not isinstance(out.get("accept"), bool):
@@ -516,6 +661,22 @@ def cpmm_op(
         receipt = out.get("receipt")
         if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
             raise RustInvocationError("cpmm-op: accepted output missing receipt")
+        _require_exact_fields(
+            receipt,
+            {
+                "kind",
+                "zero_for_one",
+                "amount_in",
+                "amount_out",
+                "fee_total",
+                "amount_out_quote",
+                "overdelivery_gap",
+                "gap_bps",
+                "new_reserve0",
+                "new_reserve1",
+            },
+            "cpmm-op receipt",
+        )
         if not isinstance(receipt.get("kind"), str) or not isinstance(receipt.get("zero_for_one"), bool):
             raise RustInvocationError("cpmm-op: malformed receipt header")
         for key in (
@@ -543,6 +704,7 @@ def cpmm_op(
 def _validate_cpmm_pool_doc(value: Any) -> None:
     if not isinstance(value, dict):
         raise RustInvocationError("cpmm-op: post_pool must be an object")
+    _require_exact_fields(value, {"initialized", "reserve0", "reserve1", "fee_bps"}, "cpmm-op post_pool")
     if not isinstance(value.get("initialized"), bool):
         raise RustInvocationError("cpmm-op: post_pool.initialized must be a bool")
     for key in ("reserve0", "reserve1", "fee_bps"):
@@ -560,6 +722,7 @@ def perp_math_eval(
     out = invoke("perp-math", {"cases": [case]}, timeout_seconds=timeout_seconds)
     if not isinstance(out, dict) or out.get("version") != 1:
         raise RustInvocationError("perp-math: unsupported output header")
+    _require_exact_fields(out, {"version", "results"}, "perp-math output")
     results = out.get("results")
     if not isinstance(results, list) or len(results) != 1:
         raise RustInvocationError("perp-math: unexpected results shape")
@@ -689,6 +852,21 @@ def zusd_op(
     )
     if not isinstance(out, dict):
         raise RustInvocationError("zusd-op: output must be an object")
+    _require_exact_fields(
+        out,
+        {
+            "version",
+            "kernel",
+            "accept",
+            "reject_reason",
+            "receipt_hash",
+            "receipt",
+            "pre_state_root",
+            "post_state_root",
+            "post_state",
+        },
+        "zusd-op output",
+    )
     if out.get("version") != 1 or out.get("kernel") != "zusd":
         raise RustInvocationError("zusd-op: unsupported output header")
     if not isinstance(out.get("accept"), bool):
@@ -701,6 +879,7 @@ def zusd_op(
         receipt = out.get("receipt")
         if not isinstance(out.get("receipt_hash"), str) or not isinstance(receipt, dict):
             raise RustInvocationError("zusd-op: accepted output missing receipt")
+        _require_exact_fields(receipt, {"tag"}, "zusd-op receipt")
         if not isinstance(receipt.get("tag"), str):
             raise RustInvocationError("zusd-op: malformed receipt")
         if out.get("reject_reason") is not None:
@@ -716,6 +895,44 @@ def zusd_op(
 def _validate_zusd_state_doc(value: Any) -> None:
     if not isinstance(value, dict):
         raise RustInvocationError("zusd-op: post_state must be an object")
+    _require_exact_fields(
+        value,
+        {
+            "now_epoch",
+            "oracle_seen",
+            "oracle_last_update_epoch",
+            "price_e8",
+            "price_pending_e8",
+            "max_oracle_staleness_epochs",
+            "collateral_e8",
+            "debt_e8",
+            "free_debt_e8",
+            "sp_debt_e8",
+            "sp_coll_e8",
+            "protocol_collateral_e8",
+            "protocol_revenue_zusd_cum_e8",
+            "liquidator_compensation_collateral_cum_e8",
+            "mcr_bps",
+            "ccr_bps",
+            "min_debt_open_e8",
+            "max_debt_e8",
+            "max_debt_supply_e8",
+            "max_sp_coll_e8",
+            "max_protocol_coll_e8",
+            "base_rate_bps",
+            "base_rate_last_epoch",
+            "base_rate_decay_per_epoch_bps",
+            "base_rate_borrow_bump_bps",
+            "base_rate_redeem_bump_bps",
+            "borrow_fee_floor_bps",
+            "borrow_fee_max_bps",
+            "redemption_fee_floor_bps",
+            "redemption_fee_max_bps",
+            "liquidation_gas_comp_fixed_collateral_e8",
+            "liquidation_gas_comp_bps",
+        },
+        "zusd-op post_state",
+    )
     if not isinstance(value.get("oracle_seen"), bool):
         raise RustInvocationError("zusd-op: post_state.oracle_seen must be a bool")
     for key in (
