@@ -16,7 +16,9 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
-use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
+use crate::canonical::{
+    domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex,
+};
 
 /// Bound on any balance / amount (matches the fee-router u128 boundary).
 pub const MAX_BALANCE: u128 = (1u128 << 112) - 1;
@@ -97,8 +99,12 @@ pub fn canonical_asset(value: &str) -> Option<String> {
     canonical_hex(value, ASSET_NBYTES)
 }
 
-fn raw_bytes(canonical: &str) -> Vec<u8> {
-    hex::decode(&canonical[2..]).expect("validated canonical hex")
+fn raw_pubkey_bytes(canonical: &str) -> Vec<u8> {
+    hex_to_bytes_fixed(canonical, PUBKEY_NBYTES).expect("validated canonical pubkey hex")
+}
+
+fn raw_asset_bytes(canonical: &str) -> Vec<u8> {
+    hex_to_bytes_fixed(canonical, ASSET_NBYTES).expect("validated canonical asset hex")
 }
 
 /// Sparse `(pubkey, asset) -> amount` table (no zero entries).
@@ -165,8 +171,8 @@ impl BalanceState {
         let mut buf = domain_sep_bytes(STATE_LABEL, STATE_VERSION);
         buf.extend(encode_uvarint(self.balances.len() as u128));
         for ((pubkey, asset), amount) in &self.balances {
-            buf.extend(raw_bytes(pubkey));
-            buf.extend(raw_bytes(asset));
+            buf.extend(raw_pubkey_bytes(pubkey));
+            buf.extend(raw_asset_bytes(asset));
             buf.extend(encode_uvarint(*amount));
         }
         sha256_hex(&buf)
@@ -193,13 +199,13 @@ impl BalanceReceipt {
             None => buf.extend(encode_uvarint(0)),
             Some(s) => {
                 buf.extend(encode_uvarint(1));
-                buf.extend(raw_bytes(s));
+                buf.extend(raw_pubkey_bytes(s));
             }
         }
         buf.extend_from_slice(b"RCP");
-        buf.extend(raw_bytes(&self.recipient));
+        buf.extend(raw_pubkey_bytes(&self.recipient));
         buf.extend_from_slice(b"AST");
-        buf.extend(raw_bytes(&self.asset));
+        buf.extend(raw_asset_bytes(&self.asset));
         buf.extend_from_slice(b"AMT");
         buf.extend(encode_uvarint(self.amount));
         sha256_hex(&buf)
