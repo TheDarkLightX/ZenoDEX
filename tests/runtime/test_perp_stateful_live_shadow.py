@@ -607,6 +607,39 @@ def test_rust_shadow_deposit_request_carries_pre_state_balance_fact(rust_env, mo
     assert seen["operator_ok"] is False
 
 
+def test_rust_materialized_post_round_trips_to_market_state_for_deposit(rust_env, monkeypatch):
+    # Authority inversion needs this conversion: once Rust decides, the Python
+    # shell must be able to commit the full Rust post-market without losing fields.
+    from src.integration import perp_engine
+    from src.runtime import rust_invoker
+
+    market_id = "perp:shadow-deposit-post-roundtrip"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    captured: dict[str, object] = {}
+    original = rust_invoker.perp_isolated_op
+
+    def capture(request, **kwargs):
+        out = original(request, **kwargs)
+        captured["post"] = out["post"]
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", capture)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=50_000)],
+    )
+    assert res.ok is True, res.error
+    parsed = perp_engine._market_from_materialized_post(captured["post"])
+    assert parsed == res.state.perps.markets[market_id]
+    duplicated = dict(captured["post"])
+    duplicated["accounts"] = list(captured["post"]["accounts"]) + [captured["post"]["accounts"][0]]
+    with pytest.raises(ValueError, match="duplicate account key"):
+        perp_engine._market_from_materialized_post(duplicated)
+
+
 def test_rust_shadow_deposit_new_account_parity(rust_env):
     # First deposit to a pubkey with no prior account: Python creates it, and the
     # materializer must create the same flat account from the request (which does not
