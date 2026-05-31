@@ -10,7 +10,9 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
-use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
+use crate::canonical::{
+    domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex,
+};
 
 /// Largest admissible nonce (u32 range, matching `src/state/nonces.py`).
 pub const U32_MAX: u64 = 0xFFFF_FFFF;
@@ -76,7 +78,7 @@ pub fn canonical_sender(sender: &str) -> Option<String> {
 
 fn sender_bytes(canonical: &str) -> Vec<u8> {
     // `canonical` is always a validated `0x` + 96 lowercase-hex string.
-    hex::decode(&canonical[2..]).expect("validated canonical sender hex")
+    hex_to_bytes_fixed(canonical, SENDER_NBYTES).expect("validated canonical sender hex")
 }
 
 /// Per-sender last-accepted-nonce table.

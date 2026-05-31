@@ -117,8 +117,10 @@ This campaign moved seven surfaces forward:
   bounded-length/final-byte terminator shape. `hex_to_bytes_fixed` now fails
   closed when an impossible requested width would overflow the expected length
   calculation and decodes validated fixed-width hex with the core's own checked
-  pair decoder instead of delegating to the external `hex` decoder. This pass
-  also added an independent canonical JSON escape grid over every ASCII control byte,
+  pair decoder instead of delegating to the external `hex` decoder. Balance
+  accounting and replay guard now use this canonical fixed-hex path for their
+  root/receipt raw-byte lowering instead of local `hex::decode(...).expect(...)`
+  calls. This pass also added an independent canonical JSON escape grid over every ASCII control byte,
   quote/backslash escapes, non-ASCII UTF-8, escaped object keys, key ordering,
   and nested values, comparing Python and Rust to a small reference encoder. It
   also added raw framing differential ops and an independent grid for unsigned

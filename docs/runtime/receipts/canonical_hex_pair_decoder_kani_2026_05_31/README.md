@@ -15,6 +15,10 @@ external `hex` crate. The new path keeps the same public behavior while moving
 the consensus-critical byte conversion into small runtime helpers that Kani can
 check directly.
 
+The balance-accounting and replay-guard root/receipt encoders now reuse this
+canonical fixed-hex path for raw pubkey/asset/sender bytes. That removes their
+local `hex::decode(...).expect(...)` duplicate conversion paths.
+
 ## Evidence
 
 ```bash
@@ -26,6 +30,21 @@ Result:
 
 ```text
 20 passed; 0 failed; 154 filtered out
+```
+
+Downstream full-CBC surfaces after reusing the canonical decoder:
+
+```bash
+cd rust-runtime
+cargo test -q -p zenodex-runtime-core balance_kernel
+cargo test -q -p zenodex-runtime-core replay_guard
+```
+
+Results:
+
+```text
+balance_kernel: 9 passed; 0 failed; 165 filtered out
+replay_guard: 8 passed; 0 failed; 166 filtered out
 ```
 
 ```bash
@@ -119,7 +138,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q \
 Result:
 
 ```text
-46 passed in 3.06s
+46 passed in 3.27s
 ```
 
 Final Rust and deployment hygiene:
