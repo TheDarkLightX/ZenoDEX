@@ -20,12 +20,48 @@ def test_canonical_hash_rejects_extra_result_field(monkeypatch):
         rust_invoker.canonical_domain_json_hash("label", {"x": 1}, version=1)
 
 
+def test_canonical_hash_rejects_non_bool_ok(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {"version": 1, "results": [{"index": 0, "ok": 1, "hash": ROOT}]}
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="canonical-hash: result.ok must be a bool"):
+        rust_invoker.canonical_domain_json_hash("label", {"x": 1}, version=1)
+
+
+def test_canonical_hash_rejects_index_mismatch(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {"version": 1, "results": [{"index": 1, "ok": True, "hash": ROOT}]}
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="canonical-hash: result index mismatch"):
+        rust_invoker.canonical_domain_json_hash("label", {"x": 1}, version=1)
+
+
 def test_state_root_rejects_extra_result_field(monkeypatch):
     def malformed_invoke(*_args, **_kwargs):
         return {"version": 1, "results": [{"index": 0, "ok": True, "state_root": ROOT, "extra": 1}]}
 
     monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
     with pytest.raises(RustInvocationError, match="verify-state-root result: unexpected fields"):
+        rust_invoker.state_root_hash({})
+
+
+def test_state_root_rejects_non_bool_ok(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {"version": 1, "results": [{"index": 0, "ok": 1, "state_root": ROOT}]}
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="verify-state-root: result.ok must be a bool"):
+        rust_invoker.state_root_hash({})
+
+
+def test_state_root_rejects_index_mismatch(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {"version": 1, "results": [{"index": 1, "ok": True, "state_root": ROOT}]}
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="verify-state-root: result index mismatch"):
         rust_invoker.state_root_hash({})
 
 

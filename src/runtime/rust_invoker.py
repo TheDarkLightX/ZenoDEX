@@ -237,6 +237,10 @@ def canonical_domain_json_hash(
         _require_exact_fields(result, {"index", "ok", "hash"}, "canonical-hash result")
     elif result.get("ok") is False:
         _require_exact_fields(result, {"index", "ok", "code"}, "canonical-hash result")
+    else:
+        raise RustInvocationError("canonical-hash: result.ok must be a bool")
+    if result.get("index") != 0:
+        raise RustInvocationError("canonical-hash: result index mismatch")
     if not result.get("ok") or "hash" not in result:
         code = result.get("code") if isinstance(result, dict) else "malformed"
         raise RustInvocationError(f"canonical-hash domain_json_hash rejected: {code}")
@@ -270,6 +274,10 @@ def state_root_hash(
         _require_exact_fields(result, {"index", "ok", "state_root"}, "verify-state-root result")
     elif result.get("ok") is False:
         _require_exact_fields(result, {"index", "ok", "code"}, "verify-state-root result")
+    else:
+        raise RustInvocationError("verify-state-root: result.ok must be a bool")
+    if result.get("index") != 0:
+        raise RustInvocationError("verify-state-root: result index mismatch")
     if not result.get("ok") or "state_root" not in result:
         code = result.get("code") if isinstance(result, dict) else "malformed"
         raise RustInvocationError(f"verify-state-root rejected: {code}")
