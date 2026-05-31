@@ -176,3 +176,65 @@ def test_shadow_replay_cli_exit_zero(rust_bin):
     )
     assert proc.returncode == 0, proc.stderr
     assert "SHADOW OK" in proc.stdout
+
+
+def _route(source: str, asset: str, amount: int, table: dict) -> dict:
+    return {
+        "kind": "route_fee",
+        "source": source,
+        "asset": asset,
+        "amount": amount,
+        "split_table": dict(table),
+    }
+
+
+_DEX_SPLIT = {"buyburn_bps": 6000, "stakers_bps": 0, "reserve_bps": 2000, "hosts_bps": 2000}
+_REDEEM_SPLIT = {"buyburn_bps": 0, "stakers_bps": 6000, "reserve_bps": 4000, "hosts_bps": 0}
+
+
+def test_preseeded_accumulator_and_boundary_dust(rust_bin, tmp_path):
+    """Deterministic differential over a dust-CARRYING stream + boundary amounts.
+
+    The randomized differential routes from a fresh accumulator; this pins the
+    pre-seeded path the round-1 review flagged as untested: routing repeated
+    small / boundary fees to the SAME ``(source, asset)`` stream accumulates
+    per-bucket rounding remainders across steps, so each later route reads a
+    NON-empty carried-dust state. A second stream is interleaved to exercise
+    per-stream dust isolation, and the sequence crosses whole-dust quanta and the
+    ``MAX_FEE_AMOUNT`` boundary on an already-seeded stream. Python and the Rust
+    CLI must agree on the full document (receipts, dust, accumulator roots) at
+    every step.
+    """
+    max_fee = (1 << 112) - 1
+    txs: list[dict] = []
+    # Build carried dust on (dex, zUSD): amount=1 leaves remainders
+    # (6000,0,2000,2000); repeated routes carry and periodically emit whole dust.
+    txs += [_route("dex", "zUSD", 1, _DEX_SPLIT) for _ in range(12)]
+    # Interleave a second stream — must not consume the dex stream's dust.
+    txs.append(_route("perps", "zUSD", 3, _DEX_SPLIT))
+    # Boundary-ish remainder on the seeded dex stream, then a different domain,
+    # then the MAX_FEE boundary on the seeded stream, then one more tiny route.
+    txs.append(_route("dex", "zUSD", 3333, _DEX_SPLIT))
+    txs.append(_route("redemption", "zUSD", 7, _REDEEM_SPLIT))
+    txs.append(_route("dex", "zUSD", max_fee, _DEX_SPLIT))
+    txs.append(_route("dex", "zUSD", 1, _DEX_SPLIT))
+
+    python_out = replay_txs([json.loads(json.dumps(tx)) for tx in txs])
+    rust_out = _run_rust_on_txs(rust_bin, txs, tmp_path)
+
+    if python_out != rust_out:
+        for i, (p, r) in enumerate(
+            zip(python_out["results"], rust_out["results"], strict=False)
+        ):
+            assert p == r, (
+                f"pre-seeded dust-carry stream diverged at step {i}:\n"
+                f"  tx     = {json.dumps(txs[i])}\n"
+                f"  python = {json.dumps(p)}\n"
+                f"  rust   = {json.dumps(r)}"
+            )
+        assert python_out["final_state_root"] == rust_out["final_state_root"]
+        raise AssertionError("documents differ but per-step results matched")
+
+    # Every canonical in-domain route accepts, so the dust-carry path (not just
+    # rejects) was actually exercised across the seeded stream.
+    assert all(r["accept"] for r in rust_out["results"])
