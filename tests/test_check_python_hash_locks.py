@@ -29,8 +29,16 @@ def test_repo_python_hash_lock_audit_passes() -> None:
     assert all(entry["hashes"] >= entry["packages"] for entry in report["lockfiles"])
     assert (
         report["pip_install_commands"]
-        == report["root_dependency_commands"] + report["allowlisted_unhashed_install_commands"]
+        == report["root_dependency_commands"]
+        + report["hash_locked_non_root_commands"]
+        + report["allowlisted_unhashed_install_commands"]
     )
+    hash_locked_non_root_paths = {
+        entry["path"]
+        for entry in report["install_surfaces"]
+        if entry["hash_locked_non_root_commands"]
+    }
+    assert hash_locked_non_root_paths == {"tools/install_python_hash_locked_deps.sh"}
     allowlisted_paths = {
         entry["path"]
         for entry in report["install_surfaces"]
@@ -159,6 +167,22 @@ def test_untracked_unhashed_non_root_install_is_rejected(tmp_path: Path) -> None
 
     assert not report["ok"]
     assert report["findings"][0]["code"] == "untracked_unhashed_python_install"
+
+
+def test_hash_locked_variable_install_is_counted_as_covered(tmp_path: Path) -> None:
+    script = tmp_path / "install.sh"
+    script.write_text(
+        'lock_file="requirements-dev.lock.txt"\n'
+        'python -m pip install --require-hashes -r "$ROOT_DIR/$lock_file"\n',
+        encoding="utf-8",
+    )
+
+    report = check_python_hash_locks.audit_install_surface(script, root=tmp_path)
+
+    assert report["ok"], report["findings"]
+    assert report["pip_install_commands"] == 1
+    assert report["root_dependency_commands"] == 0
+    assert report["hash_locked_non_root_commands"] == 1
 
 
 def test_missing_supported_root_lock_install_command_is_rejected(tmp_path: Path) -> None:
