@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 59 successfully verified harnesses, 0 failures, 59 total.
+Complete - 63 successfully verified harnesses, 0 failures, 63 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -98,6 +98,13 @@ Perp stateful global ops:
 - `perp_publish_clearing_price::kani_contracts::publish_clearing_price_covers_are_reachable`
 - `perp_publish_clearing_price::kani_contracts::publish_clearing_price_is_total_for_any_i128_input`
 
+Perp stateful account-op tractable slice:
+
+- `perp_account_ops::kani_contracts::account_op_covers_are_reachable`
+- `perp_account_ops::kani_contracts::clear_breaker_total_and_accept_shape`
+- `perp_account_ops::kani_contracts::deposit_collateral_total_and_accept_shape`
+- `perp_account_ops::kani_contracts::domain_predicate_is_total_for_any_i128_input`
+
 Perp funding-auto bounded-sink arithmetic:
 
 - `perp_funding_auto::kani_contracts::account_collateral_delta_is_negative_payment`
@@ -154,6 +161,8 @@ running Rust crate:
 - stateful perps global-op totality, exact accept-shape contracts, phase
   classifiers, and reject/accept non-vacuity covers for `advance_epoch` and
   `publish_clearing_price`;
+- stateful perps account-op domain totality, deposit accept shape, clear-breaker
+  accept shape, and account-op accept/reject non-vacuity covers;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
 - state-root scalar guards for pool fee bps, nonce bounds, LP duration metadata
@@ -174,4 +183,6 @@ Tau/ESSO/Lean model evidence. It also does not prove full-domain symbolic
 equivalence between the checked and plain perps math helpers, or full symbolic
 live-domain multiplication/division for notional, PnL, funding, margin, and
 liquidation arithmetic. Those remain covered by Rust proptests, Python/Rust
-differentials, disaster-state, and live-path tests.
+differentials, disaster-state, and live-path tests. For stateful account ops,
+withdraw and set-position margin paths also remain differential/live-shadow
+backed.
