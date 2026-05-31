@@ -11,8 +11,22 @@ from src.integration.perp_engine import (
     _perps_liquidate_account_runtime_oracle_action_id,
     apply_perp_ops,
 )
+from src.runtime.authority import (
+    AuthorityMode,
+    AuthorityPolicy,
+    reset_active_authority_policy,
+    set_active_authority_policy,
+)
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+
+
+def _perp_stateful_policy(mode: AuthorityMode) -> AuthorityPolicy:
+    return AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={"perp_stateful": mode},
+        promoted_surfaces=frozenset(),
+    )
 
 
 def _market_with_open_account(account_pubkey: str) -> PerpMarketState:
@@ -332,3 +346,69 @@ def test_apply_perp_ops_partial_liquidate_requires_sender_binding(monkeypatch) -
 
     assert res.ok is False
     assert res.error == "account_pubkey must match tx sender"
+
+
+def test_rust_shadow_unauthorized_partial_liquidate_does_not_run_oracle_bridge_verifier() -> None:
+    account_pubkey = "11" * 48
+    unauthorized_sender = "22" * 48
+    market_id = "perp:shadow-partial-liq-preauth"
+    market = _market_with_open_account(account_pubkey)
+    state = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(version=PERPS_STATE_VERSION, markets={market_id: market}),
+    )
+    expected_action_id = _perps_liquidate_account_runtime_oracle_action_id(
+        PerpEngineConfig(operator_pubkey="aa" * 48, allow_isolated_markets=True),
+        market_id=market_id,
+        market=market,
+        account_pubkey=account_pubkey,
+        fraction_bps=2_500,
+    )
+    verifier_calls = 0
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        nonlocal verifier_calls
+        verifier_calls += 1
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.perps",
+            "action_kind": "liquidate_account",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+            "action_id": expected_action_id,
+            "errors": [],
+        }
+
+    set_active_authority_policy(_perp_stateful_policy(AuthorityMode.RUST_SHADOW))
+    try:
+        res = apply_perp_ops(
+            config=PerpEngineConfig(
+                operator_pubkey="aa" * 48,
+                allow_isolated_markets=True,
+                oracle_adapter_bridge_verifier=verifier,
+            ),
+            state=state,
+            operations={
+                "5": [
+                    {
+                        "module": "TauPerp",
+                        "version": "0.1",
+                        "market_id": market_id,
+                        "action": "partial_liquidate",
+                        "account_pubkey": account_pubkey,
+                        "fraction_bps": 2_500,
+                        "oracle_adapter_bridge": {"schema": "test.bridge"},
+                    }
+                ]
+            },
+            tx_sender_pubkey=unauthorized_sender,
+            block_timestamp=0,
+        )
+    finally:
+        reset_active_authority_policy()
+
+    assert res.ok is False
+    assert res.error == "account_pubkey must match tx sender"
+    assert verifier_calls == 0
