@@ -1131,6 +1131,12 @@ def _require_canonical_committed_identifiers(intents: List[Intent]) -> Optional[
             return False
 
     for intent in intents:
+        # sender_pubkey is decoded case-insensitively by signature verification
+        # (_hex_to_bytes_allow_0x accepts raw and mixed-case), yet it becomes a
+        # committed balance/LP key — the swap default recipient and the create-pool
+        # creator's minted LP both key on the sender — so it must be canonical too.
+        if not _is_canonical(intent.sender_pubkey, 48):
+            return "non-canonical sender_pubkey"
         recipient = intent.get_field("recipient")
         if recipient is not None and not _is_canonical(recipient, 48):
             return "non-canonical recipient"
@@ -1378,11 +1384,6 @@ def apply_ops(
             return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_signature_verification")
 
-        if config.require_intent_signatures:
-            err = _require_canonical_committed_identifiers(intents)
-            if err is not None:
-                return DexTxResult(ok=False, error=err)
-
         err = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
         if err is not None:
             return DexTxResult(ok=False, error=err)
@@ -1407,6 +1408,15 @@ def apply_ops(
             if not ok:
                 return DexTxResult(ok=False, error=err or "nonce policy rejected")
         _fault_stage(config, "after_nonce_validation")
+
+        # Consensus posture (accept ⊆ committable): reject non-canonical committed
+        # identifiers AFTER nonce validation (so a nonce-replay still reports the
+        # nonce reject first — preserving pre-existing reject precedence) and before
+        # any settlement compute/apply (so a non-canonical tx never mutates state).
+        if config.require_intent_signatures:
+            err = _require_canonical_committed_identifiers(intents)
+            if err is not None:
+                return DexTxResult(ok=False, error=err)
 
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
