@@ -104,6 +104,9 @@ ESSO `codegen-rust-kernel` emits a Rust kernel crate that passes its generated
 Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
+The broader runtime-core CBC Kani receipt is tracked at
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 19 harnesses on the actual
+runtime crate passed (balance, replay, fee-router, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
@@ -258,7 +261,9 @@ funding arithmetic now has exact Kani receipts on heap-free
 helpers called by the running `perp_funding_auto` transition: sink mirror deltas,
 per-account collateral/payment delta, two-account conservation, replay-predicate
 parity, and non-vacuity. The Vec/String sorting wrapper remains covered by
-differential/live-shadow tests rather than Kani. No profile flips in this change.
+differential/live-shadow tests rather than Kani. The same runtime-core Kani
+receipt also covers balance and replay arithmetic contracts. No profile flips in
+this change.
 
 ## Findings / blockers
 
