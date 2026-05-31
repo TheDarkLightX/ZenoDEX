@@ -1100,11 +1100,23 @@ def validate_block_state_transition_v0(
     body via ``apply_body_transactions_v0`` (deterministic functional core) and
     recomputes ``compute_state_root`` on the result, rejecting a mismatch. An
     un-rootable post-state (e.g. a non-canonical identifier ``compute_state_root``
-    cannot encode) is rejected fail-closed rather than crashing the validator. This
-    is the core state-transition consensus check for a ZenoLedger v0 block: it makes
-    a block whose claimed post-state is wrong, or whose accepted body yields an
-    un-committable state, a deterministic REJECT instead of an unchecked commit or a
-    producer stall.
+    cannot encode) is rejected fail-closed rather than crashing the validator. It
+    makes a block whose claimed pre/post state is wrong, or whose accepted body
+    yields an un-committable state, a deterministic REJECT instead of an unchecked
+    commit or a producer stall.
+
+    SCOPE — this binds ONLY the pre/post committed STATE ROOTS to the supplied
+    pre-state and the re-executed body. It is one piece of full block validation, not
+    the whole. It deliberately does NOT verify: the body's ``evidence`` /
+    ``rejection_receipts`` against re-execution (``apply_body_transactions_v0``
+    deep-copies the body and APPENDS to its existing rejection receipts, so a naive
+    re-executed-vs-supplied comparison would double-count — a correct evidence
+    binding must re-run from cleared evidence and is tracked separately), the proof
+    metadata / proof verification, the ``config_digest``->config binding, or the
+    validator set / signatures. Those are enforced by their own validators
+    (``validate_proof_metadata_header_binding_v0``, signature/validator-set checks).
+    Compose this with those for full block acceptance; on its own it closes the
+    state-root forgery / un-rootable-state class only.
     """
     if not isinstance(pre_state, DexState):
         raise TypeError("pre_state must be a DexState")
