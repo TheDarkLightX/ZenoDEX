@@ -788,8 +788,16 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             default=False,
         ),
+        require_oracle_adapter_for_isolated_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            default=False,
+        ),
         require_oracle_adapter_for_isolated_partial_liquidate=_bool_env(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            default=False,
+        ),
+        require_oracle_authorization_for_isolated_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
             default=False,
         ),
     )

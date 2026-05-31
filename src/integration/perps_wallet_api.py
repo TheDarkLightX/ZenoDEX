@@ -1177,8 +1177,16 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             False,
         ),
+        require_oracle_adapter_for_isolated_settle_epoch=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            False,
+        ),
         require_oracle_adapter_for_isolated_partial_liquidate=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        require_oracle_authorization_for_isolated_settle_epoch=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
             False,
         ),
     )
@@ -1843,9 +1851,17 @@ def _status_payload() -> Dict[str, Any]:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             False,
         ),
+        "require_oracle_adapter_for_isolated_settle_epoch": _env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            False,
+        ),
         "allow_isolated_markets": _env_bool("TAU_DEX_ALLOW_ISOLATED_PERPS", False),
         "require_oracle_adapter_for_isolated_partial_liquidate": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            False,
+        ),
+        "require_oracle_authorization_for_isolated_settle_epoch": _env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
             False,
         ),
         "proof_profile": _perps_proof_profile(),

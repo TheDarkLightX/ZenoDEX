@@ -12,6 +12,10 @@ from src.integration.zeno_oracle_fail_closed_config import (
 def test_fail_closed_env_requires_api_oracle_gates() -> None:
     assert zeno_oracle_fail_closed_env() == {
         "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED": "1",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "1",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE": "1",
+        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH": "1",
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH": "1",
         "ZUSD_ORACLE_ADAPTER_REQUIRED": "1",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED": "1",
     }
@@ -36,9 +40,11 @@ def test_fail_closed_perp_config_forces_oracle_adapter_and_authorization() -> No
         require_oracle_adapter_for_isolated_partial_liquidate=False,
         require_oracle_adapter_for_clearinghouse_settle_epoch=False,
         require_oracle_authorization_for_isolated_settle=False,
+        require_oracle_authorization_for_isolated_settle_epoch=False,
     )
 
     assert cfg.require_oracle_adapter_for_isolated_settle_epoch is True
     assert cfg.require_oracle_adapter_for_isolated_partial_liquidate is True
     assert cfg.require_oracle_adapter_for_clearinghouse_settle_epoch is True
     assert cfg.require_oracle_authorization_for_isolated_settle is True
+    assert cfg.require_oracle_authorization_for_isolated_settle_epoch is True

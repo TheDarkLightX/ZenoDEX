@@ -151,6 +151,9 @@ def _check_fail_closed_config(runtime_surfaces: list[dict[str, Any]]) -> dict[st
         "require_oracle_authorization_for_isolated_settle": bool(
             perp_config.require_oracle_authorization_for_isolated_settle
         ),
+        "require_oracle_authorization_for_isolated_settle_epoch": bool(
+            perp_config.require_oracle_authorization_for_isolated_settle_epoch
+        ),
         "check_trigger_execute_oracle_adapter_bridge(required=True)": True,
         "check_trigger_execute_oracle_authorization": True,
     }
@@ -196,6 +199,8 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
         "expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(",
         "required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch",
         "required=config.require_oracle_adapter_for_clearinghouse_settle_epoch",
+        "_check_isolated_settle_oracle_authorization(",
+        "check_critical_consumer_authorization(",
     ):
         _expect(needle in source, errors, f"perps_settle_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -208,6 +213,7 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
             "required_controls": [
                 "require_oracle_adapter_for_isolated_settle_epoch",
                 "require_oracle_adapter_for_clearinghouse_settle_epoch",
+                "require_oracle_authorization_for_isolated_settle_epoch",
             ],
             "covered_runtime_actions": [
                 "isolated_settle_epoch",

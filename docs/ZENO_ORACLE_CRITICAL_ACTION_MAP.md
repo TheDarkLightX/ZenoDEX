@@ -24,7 +24,7 @@ status = accepted
 
 | Consumer | Action | Runtime path | Required control |
 | --- | --- | --- | --- |
-| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch` |
+| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch`, `require_oracle_authorization_for_isolated_settle_epoch` |
 | `zenodex.perps` | `liquidate_account` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_partial_liquidate` |
 | `zenodex.zusd` | `mint` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
 | `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
