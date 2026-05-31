@@ -295,3 +295,76 @@ mod tests {
         }
     }
 }
+
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn any_input() -> AdvanceEpochInput {
+        AdvanceEpochInput {
+            now_epoch: kani::any(),
+            epoch_phase: kani::any(),
+            oracle_last_update_epoch: kani::any(),
+            delta: kani::any(),
+        }
+    }
+
+    fn input(
+        now_epoch: i128,
+        phase: i128,
+        oracle_last_update_epoch: i128,
+        delta: i128,
+    ) -> AdvanceEpochInput {
+        AdvanceEpochInput {
+            now_epoch,
+            epoch_phase: phase,
+            oracle_last_update_epoch,
+            delta,
+        }
+    }
+
+    #[kani::proof]
+    fn phase_classifier_is_exact() {
+        let phase: i128 = kani::any();
+        assert_eq!(
+            valid_phase(phase),
+            phase == PHASE_OPEN || phase == PHASE_PRICE_PUBLISHED || phase == PHASE_SETTLED
+        );
+    }
+
+    #[kani::proof]
+    fn advance_epoch_is_total_for_any_i128_input() {
+        let _ = advance_epoch(&any_input());
+    }
+
+    #[kani::proof]
+    fn advance_epoch_accept_shape_is_exact() {
+        let inp = any_input();
+
+        if let Ok(out) = advance_epoch(&inp) {
+            assert_eq!(inp.oracle_last_update_epoch, inp.now_epoch);
+            assert!((1..=MAX_DELTA).contains(&inp.delta));
+            assert!(state_consistent(
+                inp.epoch_phase,
+                inp.now_epoch,
+                inp.oracle_last_update_epoch
+            ));
+            assert!(inp.now_epoch + inp.delta <= MAX_EPOCH);
+            assert_eq!(out.now_epoch, inp.now_epoch + inp.delta);
+            assert_eq!(out.epoch_phase, PHASE_OPEN);
+            assert_eq!(out.oracle_last_update_epoch, inp.oracle_last_update_epoch);
+        }
+    }
+
+    #[kani::proof]
+    fn advance_epoch_covers_are_reachable() {
+        kani::cover!(advance_epoch(&input(0, PHASE_OPEN, 0, 1)).is_ok());
+        kani::cover!(advance_epoch(&input(-1, PHASE_OPEN, 0, 1)) == Err(REJ_OUT_OF_DOMAIN));
+        kani::cover!(advance_epoch(&input(1, PHASE_OPEN, 1, 1)) == Err(REJ_INCONSISTENT_STATE));
+        kani::cover!(advance_epoch(&input(5, PHASE_OPEN, 4, 1)) == Err(REJ_EPOCH_NOT_SETTLED));
+        kani::cover!(advance_epoch(&input(5, PHASE_SETTLED, 5, 0)) == Err(REJ_PARAM_DELTA));
+        kani::cover!(
+            advance_epoch(&input(MAX_EPOCH - 1, PHASE_SETTLED, MAX_EPOCH - 1, 2)) == Err(REJ_GUARD)
+        );
+    }
+}

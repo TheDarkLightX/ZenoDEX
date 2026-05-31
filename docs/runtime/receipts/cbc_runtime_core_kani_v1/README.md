@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 51 successfully verified harnesses, 0 failures, 51 total.
+Complete - 59 successfully verified harnesses, 0 failures, 59 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -87,6 +87,17 @@ Perp stateless math checked-effect helpers and bridge-domain guards:
 - `perp_math::kani_contracts::oracle_helpers_are_total_on_bridge_domain`
 - `perp_math::kani_contracts::sign_classifiers_are_exact_on_bridge_domain`
 
+Perp stateful global ops:
+
+- `perp_advance_epoch::kani_contracts::advance_epoch_accept_shape_is_exact`
+- `perp_advance_epoch::kani_contracts::advance_epoch_covers_are_reachable`
+- `perp_advance_epoch::kani_contracts::advance_epoch_is_total_for_any_i128_input`
+- `perp_advance_epoch::kani_contracts::phase_classifier_is_exact`
+- `perp_publish_clearing_price::kani_contracts::phase_classifier_is_exact`
+- `perp_publish_clearing_price::kani_contracts::publish_clearing_price_accept_shape_is_exact`
+- `perp_publish_clearing_price::kani_contracts::publish_clearing_price_covers_are_reachable`
+- `perp_publish_clearing_price::kani_contracts::publish_clearing_price_is_total_for_any_i128_input`
+
 Perp funding-auto bounded-sink arithmetic:
 
 - `perp_funding_auto::kani_contracts::account_collateral_delta_is_negative_payment`
@@ -140,6 +151,9 @@ running Rust crate:
   bridge-domain classifiers, `abs_val` safety under the bridge domain, oracle
   helper totality, exact sign classifiers, flat-position liquidation rejection,
   and non-vacuity covers for success and overflow paths;
+- stateful perps global-op totality, exact accept-shape contracts, phase
+  classifiers, and reject/accept non-vacuity covers for `advance_epoch` and
+  `publish_clearing_price`;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
 - state-root scalar guards for pool fee bps, nonce bounds, LP duration metadata
