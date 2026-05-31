@@ -105,8 +105,9 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 19 harnesses on the actual
-runtime crate passed (balance, replay, fee-router, and funding-auto arithmetic).
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 21 harnesses on the actual
+runtime crate passed (balance, replay, fee-router, stateless perps checked-effect
+helpers, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt

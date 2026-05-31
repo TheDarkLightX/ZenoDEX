@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 19 successfully verified harnesses, 0 failures, 19 total.
+Complete - 21 successfully verified harnesses, 0 failures, 21 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -47,6 +47,11 @@ Fee router:
 - `fee_router::kani_contracts::covers_are_reachable`
 - `fee_router::kani_contracts::dust_from_remainders_total_and_exact`
 - `fee_router::kani_contracts::split_is_total`
+
+Perp stateless math checked-effect helpers:
+
+- `perp_math::kani_contracts::checked_margin_helpers_are_total_for_any_i128`
+- `perp_math::kani_contracts::covers_are_reachable`
 
 Perp funding-auto bounded-sink arithmetic:
 
@@ -73,9 +78,12 @@ running Rust crate:
 - replay nonce classifier totality, exact accept/reject semantics, and non-vacuity
   covers;
 - fee-router dust-core totality/exactness and split totality;
+- stateless perps checked-effect helper totality over arbitrary `i128` inputs,
+  plus non-vacuity covers for success and overflow paths;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
 
 It does not prove the heap-heavy JSON/CLI bridge, `BTreeMap` state-root hashing,
-or Python integration shell. Those remain covered by differential, disaster-state,
-and live-path tests.
+or Python integration shell. It also does not prove full-domain symbolic
+equivalence between the checked and plain perps math helpers; that remains covered
+by Rust proptests, Python/Rust differentials, disaster-state, and live-path tests.
