@@ -327,3 +327,86 @@ mod tests {
         assert_eq!(partial_liquidate(&inp).unwrap_err(), REJ_OUT_OF_DOMAIN);
     }
 }
+
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn liquidatable_input() -> PartialLiquidateInput {
+        PartialLiquidateInput {
+            now_epoch: 4,
+            epoch_phase: PHASE_OPEN,
+            oracle_last_update_epoch: 3,
+            max_oracle_staleness_epochs: 5,
+            oracle_seen: true,
+            index_price_e8: 80_000_000,
+            position_base: 1_000_000,
+            collateral_quote: 40_000,
+            entry_price_e8: 100_000_000,
+            maintenance_margin_bps: 500,
+            depeg_buffer_bps: 100,
+            liquidation_penalty_bps: 50,
+            min_notional_for_bounty: 0,
+            fee_pool_quote: 0,
+            fee_income: 0,
+            initial_insurance: 0,
+            claims_paid: 0,
+            fraction_bps: BPS_SCALE,
+        }
+    }
+
+    #[kani::proof]
+    fn negative_fraction_rejects_as_param_domain() {
+        let mut inp = liquidatable_input();
+        inp.fraction_bps = -1;
+
+        assert_eq!(partial_liquidate(&inp), Err(REJ_PARAM_FRACTION));
+    }
+
+    #[kani::proof]
+    fn above_max_fraction_rejects_as_param_domain() {
+        let mut inp = liquidatable_input();
+        inp.fraction_bps = FRACTION_BPS_MAX + 1;
+
+        assert_eq!(partial_liquidate(&inp), Err(REJ_PARAM_FRACTION));
+    }
+
+    #[kani::proof]
+    fn full_close_accept_shape_is_exact() {
+        let inp = liquidatable_input();
+        let out = partial_liquidate(&inp).unwrap();
+
+        assert_eq!(out.position_base, 0);
+        assert_eq!(out.entry_price_e8, 0);
+        assert!(out.liquidated_this_step);
+        assert_eq!(out.fee_pool_quote, out.fee_income);
+        assert_eq!(out.insurance_balance, out.fee_income);
+        assert!(out.collateral_quote <= inp.collateral_quote);
+    }
+
+    #[kani::proof]
+    fn non_open_phase_rejects_as_guard() {
+        let mut inp = liquidatable_input();
+        inp.epoch_phase = PHASE_SETTLED;
+
+        assert_eq!(partial_liquidate(&inp), Err(REJ_GUARD));
+    }
+
+    #[kani::proof]
+    fn partial_liquidate_covers_are_reachable() {
+        let ok = liquidatable_input();
+        kani::cover!(partial_liquidate(&ok).is_ok());
+
+        let mut param = liquidatable_input();
+        param.fraction_bps = FRACTION_BPS_MAX + 1;
+        kani::cover!(partial_liquidate(&param) == Err(REJ_PARAM_FRACTION));
+
+        let mut guard = liquidatable_input();
+        guard.position_base = 0;
+        kani::cover!(partial_liquidate(&guard) == Err(REJ_GUARD));
+
+        let mut domain = liquidatable_input();
+        domain.epoch_phase = 99;
+        kani::cover!(partial_liquidate(&domain) == Err(REJ_OUT_OF_DOMAIN));
+    }
+}
