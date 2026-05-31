@@ -1,0 +1,509 @@
+{
+  "environment_model": {
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "advance_epoch",
+      "apply_funding",
+      "apply_insurance_claim",
+      "clear_breaker",
+      "deposit_collateral",
+      "deposit_insurance",
+      "publish_clearing_price",
+      "set_position",
+      "settle_epoch",
+      "withdraw_collateral"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ],
+    "scheduler": "sequential"
+  },
+  "proofs": {},
+  "query_hashes": {
+    "inductive_advance_epoch": "e94e881690f896ed163bc337d686786451d70044d89309677f9e096c30b613ee",
+    "inductive_apply_funding": "feccb1942ebcdac49b4781c14c7afa3ba0b8343499502983de1e839dba408fb2",
+    "inductive_apply_insurance_claim": "d5ebe962e5d88a2173addfd2f4c5d529303d8894e7ddaf6e69946bb41024b1c6",
+    "inductive_clear_breaker": "7f96e1f3b0abeb053ba36aab3e7b768803ef2efe71a38e1ca74fa2e1b4381f29",
+    "inductive_deposit_collateral": "685a5faded224f3056c23ea193441ef4a452821026981224796c79b53893aa34",
+    "inductive_deposit_insurance": "478a2a34d9aef336e8dfa114ef557b4f49c1647bae4832170613cecf5a85adeb",
+    "inductive_publish_clearing_price": "7248b03e34f2cd9c48c4e1700a15306e744860da6b75d05fccd260de3a2b613b",
+    "inductive_set_position": "6e35e98140810b541d7170700b37209e463b1369dc10bf17cd79a90816042e67",
+    "inductive_settle_epoch": "c57585c97b231665bfaa9c30f68bcf0941c4deb5da6c016728c5e2cf0cbe9cfa",
+    "inductive_withdraw_collateral": "591d702420ca3f8bb49dd78076cbea3136cb5c1a66d1cb7fdac2eaac09adef7f",
+    "init_implies_inv": "81591b84d2eda9513958471421fb27ab56ea65f052548dffb6ae3806d116cb97"
+  },
+  "results": {
+    "inductive_advance_epoch": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_advance_epoch",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_advance_epoch",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_advance_epoch",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_apply_funding": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_funding",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_apply_funding",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_funding",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_apply_insurance_claim": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_insurance_claim",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_apply_insurance_claim",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_insurance_claim",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_clear_breaker": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_clear_breaker",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_clear_breaker",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_clear_breaker",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_deposit_collateral": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_collateral",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_deposit_collateral",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_collateral",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_deposit_insurance": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_insurance",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_deposit_insurance",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_insurance",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_publish_clearing_price": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_publish_clearing_price",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_publish_clearing_price",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_publish_clearing_price",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_set_position": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_set_position",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_set_position",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_set_position",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_settle_epoch": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_settle_epoch",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_settle_epoch",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_settle_epoch",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_withdraw_collateral": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_withdraw_collateral",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_withdraw_collateral",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_withdraw_collateral",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "init_implies_inv": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "init_implies_inv",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    }
+  },
+  "scope": {
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "log2_state_space_upper_bound": 766.7224793563021,
+      "params": {
+        "advance_epoch": {
+          "delta": {
+            "kind": "int",
+            "max": 10000,
+            "min": 1
+          }
+        },
+        "apply_funding": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "new_rate_bps": {
+            "kind": "int",
+            "max": 10000,
+            "min": -10000
+          }
+        },
+        "apply_insurance_claim": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "claim_amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          }
+        },
+        "clear_breaker": {
+          "auth_ok": {
+            "kind": "bool"
+          }
+        },
+        "deposit_collateral": {
+          "amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          },
+          "auth_ok": {
+            "kind": "bool"
+          }
+        },
+        "deposit_insurance": {
+          "amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          }
+        },
+        "publish_clearing_price": {
+          "price_e8": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          }
+        },
+        "set_position": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "new_position_base": {
+            "kind": "int",
+            "max": 1000000,
+            "min": -1000000
+          }
+        },
+        "settle_epoch": {},
+        "withdraw_collateral": {
+          "amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          },
+          "auth_ok": {
+            "kind": "bool"
+          }
+        }
+      },
+      "state_vars": {
+        "breaker_active": {
+          "kind": "bool"
+        },
+        "breaker_last_trigger_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "claims_paid": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "clearing_price_e8": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "clearing_price_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "clearing_price_seen": {
+          "kind": "bool"
+        },
+        "collateral_quote": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "depeg_buffer_bps": {
+          "kind": "int",
+          "max": 5000,
+          "min": 0
+        },
+        "entry_price_e8": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "fee_income": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "fee_pool_quote": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "funding_cap_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 1
+        },
+        "funding_last_applied_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "funding_paid_cumulative": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": -1000000000000000
+        },
+        "funding_rate_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": -10000
+        },
+        "index_price_e8": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "initial_insurance": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "initial_margin_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "insurance_balance": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "liquidated_this_step": {
+          "kind": "bool"
+        },
+        "liquidation_penalty_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "maintenance_margin_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "max_oracle_move_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "max_oracle_staleness_epochs": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 1
+        },
+        "max_position_abs": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 1
+        },
+        "min_notional_for_bounty": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "now_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "oracle_last_update_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "oracle_seen": {
+          "kind": "bool"
+        },
+        "position_base": {
+          "kind": "int",
+          "max": 1000000,
+          "min": -1000000
+        }
+      }
+    },
+    "fail_closed": true,
+    "k": 1,
+    "kind": "inductive",
+    "solver_seed": 0,
+    "solver_timeout_ms": 30000,
+    "time": "unbounded"
+  },
+  "solvers": [
+    "z3",
+    "cvc5"
+  ],
+  "timeout_ms": 30000,
+  "tool_versions": {
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "platform": "Linux-6.17.0-29-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)",
+    "solvers": {
+      "cvc5": "This is cvc5 version 1.1.2",
+      "z3": "4.15.4"
+    }
+  }
+}

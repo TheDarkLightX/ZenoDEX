@@ -1,0 +1,61 @@
+# perp_epoch_isolated SMT verify-multi receipts (G-1 evidence)
+
+Capture-only ESSO `verify-multi` receipts for the isolated-perp epoch risk kernels,
+recorded to resolve audit finding **G-1** (claim/evidence drift). No overclaim.
+
+## Why (G-1)
+
+The claims registry entry `smt:perp_epoch_isolated_v2:inductive_z3_cvc5`
+(`docs/claims_registry.yaml`) names **`perp_epoch_isolated_v2.yaml`** and cites
+`bash tools/run_perps_evidence.sh` as its evidence — but that gate's
+`verify-multi` step runs only **`v3`** (plus the 2p/3p clearinghouse and
+game-theory kernels), never `v2`. So the public "default epoch-perp kernel is
+inductive, Z3+CVC5 cross-verified" claim had **no reproducible receipt for the
+artifact it names**, and `check_claims_registry.py` only checks file existence,
+not that the cmd exercises the file.
+
+## What this records
+
+Ran `verify-multi` against **both** kernels in this worktree (ESSO tool imported
+from the primary checkout's `external/ESSO`; models + receipts in the clean
+`claude/runtime-disaster-hardening-iso` worktree):
+
+| Kernel | ir_hash | Result |
+|--------|---------|--------|
+| `perp_epoch_isolated_v2` | `fda07ba1e3a9d0fe` | **VERIFIED** — 11/11 inductive queries `unsat`, Z3 & CVC5 agree, 0 failed / 0 inconclusive, fail-closed, `Inductive(k=1)` |
+| `perp_epoch_isolated_v3` | `23a9b8ec0233f351` | **VERIFIED** — 11/11, Z3 & CVC5 agree (adds the `epoch_phase` phase-gating state var) |
+
+Queries (both): `init_implies_inv` + `inductive_{advance_epoch, apply_funding,
+apply_insurance_claim, clear_breaker, deposit_collateral, deposit_insurance,
+publish_clearing_price, set_position, settle_epoch, withdraw_collateral}`.
+
+## Command
+
+```bash
+# tool from primary external/ESSO; run from the iso worktree
+PYTHONPATH='${USER}/Downloads/Autonomous Tau DEX' python3 -m ESSO verify-multi \
+  src/kernels/dex/perp_epoch_isolated_v2.yaml --solvers z3,cvc5 --timeout-ms 30000 \
+  --output docs/runtime/receipts/perp_epoch_isolated_smt_iso_v1/esso_v2 --write-report
+# (same for v3)
+```
+
+Tooling: `z3 4.15.4`, `cvc5 1.1.2`, ESSO code hash `1145cf77`. Determinism trials = 2
+(fingerprints stable). Full reports: `esso_v2/verification_report.{json,md}`,
+`esso_v3/verification_report.{json,md}`; combined stdout: `verify_multi_summary.txt`.
+
+## G-1 status after this capture
+
+The `v2` claim is **substantively true** — `v2` is inductive and Z3+CVC5
+cross-verified — it simply lacked a reproducible receipt because the standing gate
+omits it. This receipt supplies that evidence. **Recommended follow-up** (a gate
+change, left to the assurance owner, not done here): add a `v2` `verify-multi`
+line to `tools/run_perps_evidence.sh` (or repoint the claim to `v3`, the current
+phase-gated default), and harden `check_claims_registry.py` to assert an `smt:`
+claim's evidence cmd references the artifact it names.
+
+## Scope / non-claims
+
+This is an ESSO **model**-level inductive proof (single-account kernel semantics,
+bounded domain caps as recorded in the reports). It is **not** a runtime guarantee
+for the multi-account `perp_engine` — that linkage (audit G-2) requires a
+spec↔engine differential and is not asserted here.
