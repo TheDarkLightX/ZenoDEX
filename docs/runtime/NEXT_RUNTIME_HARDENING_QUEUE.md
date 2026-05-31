@@ -66,3 +66,75 @@ Both committed (not dirty), outside the audited surfaces:
 - Golden-trace differential replay (`test_golden_trace_replay.py`, `rust_shadow_replay.py`) — only partially run (collection-time import issues in some ESSO/lint modules).
 - Multi-hop/multi-pool batch proofs and large-batch state/support-root computations — not stress-tested.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.
+
+---
+
+# 2026-05-31 campaign additions
+
+Ranked remaining work from the 2026-05-31 disaster-hardening campaign
+(branch `claude/runtime-disaster-hardening-iso`, base `917d7b1e`). Full context:
+`docs/runtime/RUNTIME_DISASTER_HARDENING_CAMPAIGN_2026-05-31.md`. Fixed this
+campaign: **D-1** (floor_div_i128 totality), **F-2** (deploy-profile unknown-key
+rejection); **E-1** refuted + locked.
+
+## P0(new) — pre-existing red posture-gate tests in `deployment_profiles.py`
+Three tests fail at the clean baseline `d1f9d493`:
+`test_public_testnet_profile_rejects_unsafe_boundary_switches`,
+`test_production_strict_profile_requires_upba_and_oracle_posture`,
+`test_profile_rejects_proof_required_without_enabled_verifier`.
+They assert `deployment_profile_violations()` / `validate_deployment_profile()`
+flag unsafe `DexEngineConfig` postures (legacy settlement + unsigned intents on
+public-testnet; missing UPBA certificate / oracle-authorization on
+production-strict; `require_proof_when_present` without an enabled verifier). The
+validator does not flag them. **Likely latent profile-gate weakness** — or the
+tests are ahead of the impl. Triage source-of-truth (tighten
+`deployment_profiles.py` to flag the postures, or correct/justify the tests). NOT
+the `deploy_profile.py` YAML loader (F-2, fixed). Left isolated this campaign.
+
+## P1(new) — canonical-identifier domain split (accept ⊄ committable) [C-1 high-class, C-2 medium]
+`recipient` and pool `asset0/asset1` (and snapshot identifiers) flow through the
+accept path as raw strings (`operations.py:531` validates `recipient` only as a
+non-empty ≤512-char string), but `compute_state_root` requires 0x-prefixed
+fixed-length lowercase hex and dedups by decoded bytes. A signed swap with a
+non-canonical `recipient`, or a snapshot with case-variant keys, is accepted/loaded
+but **un-rootable** (case-variants double-count one logical pubkey). Latent today:
+`dex_state_root_v0` has no `src/` callers (no wired block-producer roots the
+post-state); proof-carrying / snapshot lanes that do compute roots fail closed.
+- **Fix:** enforce canonical identifiers in the **consensus/ledger lane** — gate
+  `recipient`/pool-asset canonicalization on the same posture that already requires
+  hex senders (`require_intent_signatures=True`), OR validate per-tx rootability
+  when the block-producer is wired. Do **not** enforce hex globally (breaks the
+  permissive friendly-name test/dev regime). Canonicalize snapshot identifiers on
+  the root's key; add an `accept ⊆ committable` property test. Both reproduced.
+
+## P2(new) — medium documented
+- **F-1:** runtime deploy-profile gate never enforces `allowed_routes`. Add an
+  enforcement arm to `evaluate_deploy_profile_consistency` taking enabled-surface
+  facts + a profile→surface map; refuse any enabled privileged surface absent from
+  `allowed_routes`. Append as the last check (preserve existing reject precedence).
+- **G-1:** claim `smt:perp_epoch_isolated_v2` is verified only as v3 by its evidence
+  cmd. Repoint the claim to `…v3.yaml` (or add a v2 `verify-multi` line), and harden
+  `check_claims_registry.py` to assert an smt:/shell: claim's evidence cmd actually
+  references the named artifact. Do in an assurance-reviewed change.
+
+## P3(new) — low / latent documented
+- **A-3:** make `perp_isolated_op.rs` `as_bool` reject `Value::Number` and
+  `req_balance_available` reject unparseable values (no `i128::MAX` saturation).
+  **First verify** `_build_isolated_op_request` never serializes a bool-ish field as
+  an int (else it breaks the live `rust_shadow` comparison).
+- **B-1:** define a shared explicit `AMOUNT_MAX` enforced identically in Python
+  `compute_state_root` and the Rust bridge (fail-closed via disagreement today).
+- **A-2:** only if a future canonical caller consumes the reject code — make
+  `diff_results` compare codes on dual-reject AND have `_py_case` emit a
+  Rust-identical canonical reject code (else it breaks the live canonical shadow).
+- **G-3:** require `rc==0` in `run_tau_spec_steps_spec_mode_with_trace` (confirm
+  tau's clean-EOF exit code first). **F-3:** optional trusted-proxy XFF mode.
+  **G-4:** commit a hash-pinned disaster-coverage summary. **A-1:** soften the
+  "blocked regardless of mode" doc wording (gate+convention, not an in-code block)
+  without obstructing the sign-off-gated promotion path.
+
+## P4(new) — close negative-receipt boundaries
+Strongest single guard for the D-surface reject-order/code parity (verified by
+reading): a **committed randomized differential pytest** running representative txs
+under both `python_authority` and a forced `rust_authority_with_python_shadow`,
+asserting accept/reject + reject-code parity. Not yet committed.
