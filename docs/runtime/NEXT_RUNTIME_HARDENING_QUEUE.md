@@ -94,6 +94,9 @@ Both committed (not dirty), outside the audited surfaces:
 - zUSD monetary wrapper state now rejects unknown top-level and
   stability-pool-entry fields instead of silently dropping them during
   app-state load.
+- Proof-mining runtime wrapper state now rejects unknown top-level and
+  claimed-slot row fields, and canonicalizes/rejects the reward-pool pubkey at
+  load/initialization.
 - Large mixed-batch support-root computation now has a deterministic stress
   regression in `tests/core/test_support_root.py`: many pools, balances, LP
   duration metadata, nonces, derived support sorting, tracked deltas, and

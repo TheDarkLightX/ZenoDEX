@@ -11,6 +11,7 @@ from ..core.proof_mining_manager import (
     snapshot_to_kernel_state,
 )
 from ..core.proof_mining_claims import validate_proof_mining_claim_artifact
+from ..state.canonical import canonical_hex_fixed_allow_0x
 from .proof_mining_context import (
     ProofMiningContext,
     derive_proof_mining_verification_flags,
@@ -41,8 +42,34 @@ def _require_int(value: Any, *, name: str) -> int:
     return int(value)
 
 
+def _require_pubkey(value: Any, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a 48-byte hex pubkey string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=48, name=name)
+
+
+def _reject_unknown_fields(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> None:
+    extra = sorted(set(obj.keys()) - set(allowed))
+    if extra:
+        raise ValueError(f"{name} unknown fields: {extra}")
+
+
 def proof_mining_runtime_state_from_obj(obj: Mapping[str, Any]) -> ProofMiningRuntimeState:
     body = _require_mapping(obj, name="proof_mining")
+    _reject_unknown_fields(
+        body,
+        allowed={
+            "schema",
+            "reward_pool_pubkey",
+            "epoch",
+            "base_reward",
+            "initial_pool",
+            "reward_pool_balance",
+            "total_paid",
+            "claimed_slots",
+        },
+        name="proof_mining",
+    )
     schema = _require_str(body.get("schema"), name="proof_mining.schema")
     if schema != "zenodex/proof_mining_runtime_state/v1":
         raise ValueError("unsupported proof mining runtime schema")
@@ -54,6 +81,7 @@ def proof_mining_runtime_state_from_obj(obj: Mapping[str, Any]) -> ProofMiningRu
     claimed_slots: dict[int, str] = {}
     for idx, entry in enumerate(claimed_entries):
         row = _require_mapping(entry, name=f"proof_mining.claimed_slots[{idx}]")
+        _reject_unknown_fields(row, allowed={"slot", "proposal_hash"}, name=f"proof_mining.claimed_slots[{idx}]")
         slot = _require_int(row.get("slot"), name=f"proof_mining.claimed_slots[{idx}].slot")
         proposal_hash = _require_str(row.get("proposal_hash"), name=f"proof_mining.claimed_slots[{idx}].proposal_hash")
         if slot in claimed_slots:
@@ -69,7 +97,7 @@ def proof_mining_runtime_state_from_obj(obj: Mapping[str, Any]) -> ProofMiningRu
     )
     snapshot_to_kernel_state(snapshot)
     return ProofMiningRuntimeState(
-        reward_pool_pubkey=_require_str(body.get("reward_pool_pubkey"), name="proof_mining.reward_pool_pubkey"),
+        reward_pool_pubkey=_require_pubkey(body.get("reward_pool_pubkey"), name="proof_mining.reward_pool_pubkey"),
         snapshot=snapshot,
     )
 
@@ -111,7 +139,7 @@ def initialize_proof_mining_runtime_state(
     )
     snapshot_to_kernel_state(snapshot)
     return ProofMiningRuntimeState(
-        reward_pool_pubkey=_require_str(reward_pool_pubkey, name="reward_pool_pubkey"),
+        reward_pool_pubkey=_require_pubkey(reward_pool_pubkey, name="reward_pool_pubkey"),
         snapshot=snapshot,
     )
 

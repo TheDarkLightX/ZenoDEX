@@ -100,18 +100,33 @@ def test_proof_mining_runtime_rejects_bad_shapes_and_handles_fail_closed_result(
     with pytest.raises(ValueError, match="unsupported proof mining runtime schema"):
         proof_mining_runtime_state_from_obj(bad_schema_obj)
 
+    unknown_top_level = dict(base_obj)
+    unknown_top_level["future_extension"] = {"drop": "me"}
+    with pytest.raises(ValueError, match="proof_mining unknown fields"):
+        proof_mining_runtime_state_from_obj(unknown_top_level)
+
     none_claimed = dict(base_obj)
     none_claimed["claimed_slots"] = None
     parsed = proof_mining_runtime_state_from_obj(none_claimed)
     assert dict(parsed.snapshot.claimed_slots) == {}
+
+    bad_reward_pool = dict(base_obj)
+    bad_reward_pool["reward_pool_pubkey"] = "not-a-pubkey"
+    with pytest.raises(ValueError, match="proof_mining.reward_pool_pubkey"):
+        proof_mining_runtime_state_from_obj(bad_reward_pool)
 
     bad_claimed = dict(base_obj)
     bad_claimed["claimed_slots"] = "not-a-list"
     with pytest.raises(TypeError, match="proof_mining.claimed_slots must be a list"):
         proof_mining_runtime_state_from_obj(bad_claimed)
 
+    unknown_claimed_field = dict(base_obj)
+    unknown_claimed_field["claimed_slots"] = [{"slot": 0, "proposal_hash": "sha256:p", "note": "ignored before hardening"}]
+    with pytest.raises(ValueError, match=r"proof_mining.claimed_slots\[0\] unknown fields"):
+        proof_mining_runtime_state_from_obj(unknown_claimed_field)
+
     claim = _claim(miner_id="0x" + "11" * 48, reward_pool_before=20)
-    with pytest.raises(TypeError, match="reward_pool_pubkey must be a non-empty string"):
+    with pytest.raises(ValueError, match="reward_pool_pubkey must be 48 bytes"):
         initialize_proof_mining_runtime_state(
             reward_pool_pubkey="",
             reward_pool_balance=20,

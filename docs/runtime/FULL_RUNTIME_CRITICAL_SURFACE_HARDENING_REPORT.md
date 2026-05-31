@@ -108,6 +108,10 @@ API routes"). **Regression:** `tests/runtime/test_api_surface_profile_enforced_a
   local-only fixture flags, public-auth posture, and strict-profile Oracle
   adapter/authorization posture. Regression:
   `tests/runtime/test_deploy_profile_enforced_at_startup.py`.
+- **FIXED — S5-PROOF-MINING-STATE-001:** proof-mining runtime state now rejects
+  unknown top-level fields, unknown `claimed_slots` row fields, and non-canonical
+  reward-pool pubkeys during app-state load. Regression:
+  `tests/integration/test_proof_mining_context_edges.py`.
 
 ## Evidence (commands + results)
 
