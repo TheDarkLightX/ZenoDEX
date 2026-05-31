@@ -71,7 +71,11 @@ Both committed (not dirty), outside the audited surfaces:
   require `TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH=1`
   before startup. A typed clearinghouse-specific oracle-authorization path is
   still future work; current hardening is aggregate-adapter enforcement.
-- OCaml runtime conformance (needs `opam`/`dune`) and SPARK/Ada formal verification (needs `gnatprove`) — not run here; advisory.
+- OCaml runtime conformance is now pytest-backed:
+  `tests/runtime/test_ocaml_spec_oracle.py` checks that Python-derived vectors
+  are current and runs `opam exec -- dune test` when the local opam switch has
+  dune. SPARK/Ada formal verification still needs `gnatprove`; without it the
+  SPARK kernels remain advisory/vector-checked only.
 - Golden-trace differential replay for the committed kernels supported by
   `tools/runtime/rust_shadow_replay.py` is now a regression gate:
   `tests/runtime/test_rust_shadow_golden_trace_replay.py` rebuilds the Rust CLI
