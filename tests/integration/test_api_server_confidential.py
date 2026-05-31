@@ -103,7 +103,7 @@ def _post_json(host: str, port: int, path: str, body: dict[str, object]) -> tupl
     return int(resp.status), payload
 
 
-def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capsys) -> None:
+def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capfd) -> None:
     from src.integration import api_server
 
     for name in (
@@ -123,8 +123,8 @@ def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capsy
     monkeypatch.setenv("ZENODEX_ENV", "production")
 
     assert api_server.main([]) == 2
-    out = capsys.readouterr().out
-    assert "confidential_attestation_api=True" in out
+    out = capfd.readouterr().out
+    assert "protected APIs enabled without external auth" in out
 
 
 def test_api_server_confidential_status_endpoint(monkeypatch) -> None:
