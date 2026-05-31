@@ -24,6 +24,23 @@ DEFAULT_PROFILE_DIR = ROOT / "config" / "deploy"
 SCHEMA = "zenodex/deployment_profile/v1"
 REPORT_SCHEMA = "zenodex/deployment_profiles_report/v1"
 REQUIRED_PROFILES = ("local-dev", "public-testnet", "production-strict")
+ALLOWED_PROFILE_KEYS = frozenset(
+    {
+        "schema",
+        "profile_id",
+        "threat_model",
+        "allowed_routes",
+        "required_auth",
+        "key_policy",
+        "proof_policy",
+        "upba_policy",
+        "peer_policy",
+        "gossip_policy",
+        "observability_policy",
+        "runtime_policy",
+        "runtime_authority_policy",
+    }
+)
 KNOWN_ALLOWED_ROUTES = frozenset({"health", "local_demo", "signed_intents", "public_bundle", "peer_check"})
 
 
@@ -45,6 +62,9 @@ def _require_bool(obj: Mapping[str, Any], key: str, errors: list[str], prefix: s
 def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     errors: list[str] = []
     obj = _mapping(profile, "profile", errors)
+    unknown_keys = sorted(set(obj.keys()) - ALLOWED_PROFILE_KEYS)
+    if unknown_keys:
+        errors.append(f"profile has unknown top-level keys: {unknown_keys}")
     if obj.get("schema") != SCHEMA:
         errors.append("schema mismatch")
     profile_id = obj.get("profile_id")

@@ -17,6 +17,23 @@ from src.runtime.authority import AuthorityError, load_authority_policy, validat
 
 DEPLOY_PROFILE_SCHEMA = "zenodex/deployment_profile/v1"
 _DEPLOY_DIR = Path(__file__).resolve().parents[2] / "config" / "deploy"
+ALLOWED_PROFILE_KEYS = frozenset(
+    {
+        "schema",
+        "profile_id",
+        "threat_model",
+        "allowed_routes",
+        "required_auth",
+        "key_policy",
+        "proof_policy",
+        "upba_policy",
+        "peer_policy",
+        "gossip_policy",
+        "observability_policy",
+        "runtime_policy",
+        "runtime_authority_policy",
+    }
+)
 
 RUNTIME_FACT_KEYS = (
     "sensitive_api_enabled",
@@ -56,6 +73,9 @@ def load_deploy_profile(profile: str) -> dict[str, Any]:
     obj = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
         raise ValueError("deploy profile must be a mapping")
+    unknown_keys = sorted(set(obj.keys()) - ALLOWED_PROFILE_KEYS)
+    if unknown_keys:
+        raise ValueError(f"deploy profile has unknown top-level keys: {unknown_keys}")
     if obj.get("schema") != DEPLOY_PROFILE_SCHEMA:
         raise ValueError(f"unexpected deploy profile schema: {obj.get('schema')!r}")
     profile_id = obj.get("profile_id")
