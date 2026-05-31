@@ -1430,7 +1430,10 @@ class _PerpApplyCtx:
     block_timestamp: int
 
 
-def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error: str) -> Optional[str]:
+_CLEAR_BREAKER_OP_FIELDS: frozenset[str] = frozenset({"module", "version", "market_id", "action"})
+
+
+def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str] | frozenset[str], *, error: str) -> Optional[str]:
     if set(data.keys()) - allowed:
         return error
     return None
@@ -2642,12 +2645,11 @@ def _apply_isolated_clear_breaker(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mar
     market_id = op.market_id
     data = op.data
 
-    allowed = {"module", "version", "market_id", "action"}
     gate_error = _operator_gate_error(
         action_kind=RUNTIME_ACTION_CLEAR_BREAKER,
         action=action,
         operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
-        unknown_fields_ok=not (set(data.keys()) - allowed),
+        unknown_fields_ok=not (set(data.keys()) - _CLEAR_BREAKER_OP_FIELDS),
         positions_flat_ok=not any(int(acct.position_base) != 0 for acct in market.accounts.values()),
     )
     if gate_error is not None:
@@ -3711,6 +3713,13 @@ def _build_isolated_op_request(
         )
     elif op.action == "apply_funding_auto":
         pass
+    elif op.action == "clear_breaker":
+        # DbC precondition: do not let the bridge sanitize privileged no-param ops.
+        unknown = _reject_unknown_fields(
+            op.data, _CLEAR_BREAKER_OP_FIELDS, error="clear_breaker has unknown fields"
+        )
+        if unknown is not None:
+            raise ValueError(unknown)
     elif op.action == "set_market_params":
         params = op.data.get("params")
         if not isinstance(params, Mapping):
