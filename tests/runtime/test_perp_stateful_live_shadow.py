@@ -310,12 +310,10 @@ def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
     assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
 
 
-def test_rust_authority_blocks_all_perp_stateful_ops(rust_env):
-    # No perp_stateful op has a true Rust-authority path: Rust post-checks Python's
-    # transition, it does not decide from the pre-state nor commit its materialized
-    # result. So authority modes fail closed for advance_epoch and
-    # apply_funding_auto (both materialized) alike, rather than letting Python decide.
-    # Build the pre-states first under the default python_authority policy.
+def test_rust_authority_commits_advance_and_blocks_other_perp_stateful_ops(rust_env):
+    # advance_epoch is the first true Rust-authority slice: Rust decides from the
+    # pre-state and the Python shell commits the parsed Rust post-market. Other
+    # perps stateful ops remain blocked until promoted one by one.
     advance_state = _settled("perp:auth-block-advance")
     funded = fa.build_market(
         market_id="perp:auth-block-funding",
@@ -331,8 +329,8 @@ def test_rust_authority_blocks_all_perp_stateful_ops(rust_env):
         operator_pubkey=OPERATOR,
         ops=[fa._op("perp:auth-block-advance", "advance_epoch", delta=1)],
     )
-    assert res_adv.ok is False
-    assert "not live-wired" in (res_adv.error or "")
+    assert res_adv.ok is True, res_adv.error
+    assert int(res_adv.state.perps.markets["perp:auth-block-advance"].global_state["epoch_phase"]) == 0
 
     res_fund = fa._apply_result(
         state=funded,
@@ -342,6 +340,56 @@ def test_rust_authority_blocks_all_perp_stateful_ops(rust_env):
     )
     assert res_fund.ok is False
     assert "not live-wired" in (res_fund.error or "")
+
+
+def test_rust_authority_advance_does_not_call_python_handler(rust_env, monkeypatch):
+    # Pure rust_authority must not let the Python handler decide and then call Rust
+    # as a post-check. It should call the materializer directly and commit Rust's
+    # post-state.
+    from src.integration import perp_engine
+
+    state = _settled("perp:auth-rust-only-advance")
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python advance handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "advance_epoch",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:auth-rust-only-advance", "advance_epoch", delta=1)],
+    )
+    assert res.ok is True, res.error
+    assert int(res.state.perps.markets["perp:auth-rust-only-advance"].global_state["epoch_phase"]) == 0
+
+
+def test_rust_authority_with_python_shadow_fails_closed_on_advance_disagreement(rust_env, monkeypatch):
+    from src.runtime import rust_invoker
+
+    state = _settled("perp:auth-shadow-disagree-advance")
+    original = rust_invoker.perp_isolated_op
+
+    def tampered(request, **kwargs):
+        out = original(request, **kwargs)
+        out["post"]["global_state"]["now_epoch"] = "999999"
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:auth-shadow-disagree-advance", "advance_epoch", delta=1)],
+    )
+    assert res.ok is False
+    assert "disagreement" in (res.error or "")
 
 
 def _settled(market_id: str):
