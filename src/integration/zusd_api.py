@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import threading
 import time
@@ -106,56 +107,55 @@ _ZUSD_ORACLE_CONSUMER_PROFILE_IDS: Dict[str, str] = {
 
 def _bool_env(name: str, *, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if raw is None or not raw.strip():
         return bool(default)
     v = raw.strip().lower()
     if v in {"1", "true", "yes", "on"}:
         return True
     if v in {"0", "false", "no", "off"}:
         return False
-    return bool(default)
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _strict_bool_env(name: str, *, default: bool) -> Tuple[bool, Optional[str]]:
-    raw = os.environ.get(name)
-    if raw is None:
-        return bool(default), None
-    v = raw.strip().lower()
-    if v in {"1", "true", "yes", "on"}:
-        return True, None
-    if v in {"0", "false", "no", "off"}:
-        return False, None
-    return bool(default), f"invalid boolean config for {name}"
+    try:
+        return _bool_env(name, default=default), None
+    except ValueError as exc:
+        return bool(default), f"invalid boolean config for {name}: {exc}"
 
 
 def _float_env(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return float(default)
-    try:
-        v = float(raw.strip())
-    except Exception:
-        return float(default)
-    if v < lo:
-        return float(lo)
-    if v > hi:
-        return float(hi)
-    return float(v)
+        value = float(default)
+    else:
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if not math.isfinite(value) or value < lo or value > hi:
+        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
+    return float(value)
 
 
 def _int_env(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        v = int(raw.strip())
-    except Exception:
-        return int(default)
-    if v < lo:
-        return int(lo)
-    if v > hi:
-        return int(hi)
-    return int(v)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
 
 
 def _tau_gate_config_from_env() -> ZUSDTauGateConfig:
@@ -395,7 +395,10 @@ def _check_zusd_oracle_adapter_bridge(
     if action_kind is None:
         return None
 
-    required = _bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    try:
+        required = _bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    except ValueError as exc:
+        return f"oracle_adapter_config_error: {exc}"
     if "oracle_adapter_bridge" not in body:
         if required:
             return f"{action_kind} requires oracle_adapter_bridge"
@@ -435,24 +438,31 @@ def _check_zusd_oracle_adapter_bridge(
 
 def _check_perp_oracle_sync(*, price_e8: int, epoch: int) -> Optional[str]:
     """Optional cross-module zUSD/perp oracle synchronization gate."""
-    if not _bool_env("ZUSD_PERP_ORACLE_SYNC_ENABLED", default=False):
+    try:
+        sync_enabled = _bool_env("ZUSD_PERP_ORACLE_SYNC_ENABLED", default=False)
+    except ValueError as exc:
+        return f"oracle_sync_config_error: {exc}"
+    if not sync_enabled:
         return None
     market_id = (os.environ.get("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD") or "").strip()
     if not market_id:
         return "oracle_sync_config_error: missing ZUSD_PERP_ORACLE_SYNC_MARKET_ID"
 
-    max_div_bps = _int_env(
-        "ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS",
-        500,
-        lo=0,
-        hi=10_000,
-    )
-    max_epoch_lag = _int_env(
-        "ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG",
-        10,
-        lo=0,
-        hi=1_000_000,
-    )
+    try:
+        max_div_bps = _int_env(
+            "ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS",
+            500,
+            lo=0,
+            hi=10_000,
+        )
+        max_epoch_lag = _int_env(
+            "ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG",
+            10,
+            lo=0,
+            hi=1_000_000,
+        )
+    except ValueError as exc:
+        return f"oracle_sync_config_error: {exc}"
 
     try:
         from .perps_api import get_oracle_sync_snapshot
@@ -776,7 +786,17 @@ def _handle_post(
     if tag is None or args is None:
         return single, multi, history, (400, {"ok": False, "error": "invalid_command"})
 
-    tau_cfg = _tau_gate_config_from_env()
+    try:
+        tau_cfg = _tau_gate_config_from_env()
+    except ValueError as exc:
+        return single, multi, history, (
+            400,
+            {
+                "ok": False,
+                "error": "config_error",
+                "detail": str(exc),
+            },
+        )
 
     if rest == ["step"]:
         bridge_err = _check_zusd_oracle_adapter_bridge(
@@ -804,10 +824,26 @@ def _handle_post(
                 },
             )
         auth_value = _planned_single_oracle_authorization_value(state=single, tag=tag, args=args)
-        auth_present_or_required = isinstance(args.get("oracle_authorization"), Mapping) or _bool_env(
-            "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
-            default=False,
-        )
+        auth_required, auth_config_err = _strict_bool_env("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", default=False)
+        if auth_config_err is not None:
+            auth_err = "oracle_authorization_config_error:" + auth_config_err
+            new_history = _history_with_entry(
+                history,
+                mode="single",
+                tag=tag,
+                args=args,
+                ok=False,
+                error=auth_err,
+            )
+            return single, multi, new_history, (
+                400,
+                {
+                    "ok": False,
+                    "error": "rejected",
+                    "detail": auth_err,
+                },
+            )
+        auth_present_or_required = isinstance(args.get("oracle_authorization"), Mapping) or auth_required
         auth_err = _check_zusd_oracle_authorization(
             mode="single",
             state=single,
@@ -906,10 +942,26 @@ def _handle_post(
             },
         )
     auth_value_multi = _planned_multi_oracle_authorization_value(state=multi, tag=tag, args=args)
-    auth_present_or_required_multi = isinstance(args.get("oracle_authorization"), Mapping) or _bool_env(
-        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
-        default=False,
-    )
+    auth_required_multi, auth_config_err_multi = _strict_bool_env("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", default=False)
+    if auth_config_err_multi is not None:
+        auth_err_multi = "oracle_authorization_config_error:" + auth_config_err_multi
+        new_history = _history_with_entry(
+            history,
+            mode="multi",
+            tag=tag,
+            args=args,
+            ok=False,
+            error=auth_err_multi,
+        )
+        return single, multi, new_history, (
+            400,
+            {
+                "ok": False,
+                "error": "rejected",
+                "detail": auth_err_multi,
+            },
+        )
+    auth_present_or_required_multi = isinstance(args.get("oracle_authorization"), Mapping) or auth_required_multi
     auth_err_multi = _check_zusd_oracle_authorization(
         mode="multi",
         state=multi,
