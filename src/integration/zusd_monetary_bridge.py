@@ -138,6 +138,11 @@ def zusd_monetary_state_to_obj(state: ZUSDMonetaryState) -> dict[str, Any]:
 def zusd_monetary_state_from_obj(obj: Mapping[str, Any]) -> ZUSDMonetaryState:
     if not isinstance(obj, Mapping):
         raise TypeError("zusd_monetary must be an object")
+    _reject_unknown_fields(
+        obj,
+        allowed={"schema", "version", "core", "vault_owner_pubkey", "sp_deposits", "sp_collateral_claims"},
+        name="zusd_monetary",
+    )
     schema = _require_str(obj.get("schema"), name="zusd_monetary.schema")
     if schema != ZUSD_MONETARY_SCHEMA:
         raise ValueError(f"unsupported zusd_monetary schema: {schema!r}")
@@ -603,6 +608,7 @@ def _parse_account_amount_entries(value: Any, *, name: str) -> dict[str, int]:
     for i, entry in enumerate(value):
         if not isinstance(entry, Mapping):
             raise TypeError(f"{name}[{i}] must be an object")
+        _reject_unknown_fields(entry, allowed={"pubkey", "amount_e8"}, name=f"{name}[{i}]")
         pk = _canonical_pubkey(entry.get("pubkey"), name=f"{name}[{i}].pubkey")
         amount = _require_nonnegative_int(entry.get("amount_e8"), name=f"{name}[{i}].amount_e8")
         if amount == 0:
@@ -611,6 +617,12 @@ def _parse_account_amount_entries(value: Any, *, name: str) -> dict[str, int]:
             raise ValueError(f"{name}[{i}] duplicate pubkey")
         out[pk] = int(amount)
     return out
+
+
+def _reject_unknown_fields(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> None:
+    extra = sorted(set(obj.keys()) - set(allowed))
+    if extra:
+        raise ValueError(f"{name} unknown fields: {extra}")
 
 
 def _deadline_error(*, op: Mapping[str, Any], block_timestamp: int, index: int) -> str | None:

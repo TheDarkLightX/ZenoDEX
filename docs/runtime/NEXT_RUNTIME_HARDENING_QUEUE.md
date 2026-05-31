@@ -91,6 +91,9 @@ Both committed (not dirty), outside the audited surfaces:
 - Tau app-bridge stream selection now fails closed on unsupported reserved
   stream `5`, ambiguous DEX aliases (`2`+`5`, `3`+`6`, `4`+`7`), and
   list-wrapped JSON custom stream entries are decoded before engine selection.
+- zUSD monetary wrapper state now rejects unknown top-level and
+  stability-pool-entry fields instead of silently dropping them during
+  app-state load.
 - Large mixed-batch support-root computation now has a deterministic stress
   regression in `tests/core/test_support_root.py`: many pools, balances, LP
   duration metadata, nonces, derived support sorting, tracked deltas, and

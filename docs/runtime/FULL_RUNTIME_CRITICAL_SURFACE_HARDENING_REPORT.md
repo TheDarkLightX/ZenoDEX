@@ -56,7 +56,7 @@ decompression boundary (not a broad `except Exception`, which would mask real
 bugs). Repro: byte-flip mid-stream → was `zlib.error`, now `ValueError`.
 **Regression:** `tests/runtime/test_recompute_witness_zlib_fail_closed_regression.py` (12 tests). Negative receipts confirm baseline invariants intact: v3/v4 reject unbound fee/vault/oracle; v1/v2 fee binding; engine-level pre-commit binding before subprocess; no-mutation-on-reject; scheme cross-dispatch rejected; tampered settlement rejected.
 
-### S3 — zUSD (core + monetary bridge + tau wallet) — conservation holds, no code bug
+### S3 — zUSD (core + monetary bridge + tau wallet) — conservation holds, strict wrapper parsing
 **Conservation fully holds** across mint/repay/redeem/liquidate (8 negative
 receipts): `free_debt + sp_debt == debt`; liquidation splits exactly; redemption
 exact; rounding is round-**up** so value creation is impossible; oracle freshness
@@ -64,10 +64,11 @@ gate on mint works; liquidation eligibility enforced; SP conservation exact; no
 staking-reward accumulator (no double-count). Findings are known-design (H-RG-004
 base-rate coupling — costly + bounded), intentional (recovery-mode redemption is
 Liquity-style + post-MCR-gated), config-risk (protocol-collateral cap), or
-**debatable**: F-004 (strict snapshot rejection of unknown fields) — for a
-*consensus* state, strict fail-closed rejection is the **safer** behavior; the
-"filter unknown fields" suggestion would risk silent cross-version divergence, so
-it was **not** applied (would weaken determinism).
+**FIXED — S3-ZUSD-SNAPSHOT-001:** the zUSD monetary wrapper now rejects unknown
+top-level fields and unknown stability-pool account-entry fields during app-state
+load instead of silently dropping them. This keeps consensus state evolution
+explicit across versions. Regression:
+`tests/integration/test_zusd_monetary_wallet_api.py`.
 
 ### S4 — perps + oracle — 1 fix + 2 documented + safe-idempotency receipts
 - Negative receipts: double-settle, re-settle-after-advance, split-brain oracle packets — all correctly rejected (idempotency marker `oracle_last_update_epoch=now_epoch`; `OracleRegistry` enforces one-commit-per-epoch + strict monotone sequence). Insurance/margin non-negativity enforced.
