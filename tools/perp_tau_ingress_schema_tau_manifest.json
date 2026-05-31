@@ -1,0 +1,35 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the perps Tau ingress schema guard. Update only alongside a successful run of tools/run_perp_tau_ingress_schema_tau_gate.sh and tools/check_perp_tau_ingress_schema_tau_manifest.py.",
+  "toolchain": {
+    "tau_lang_code_hash": "401d756bdc290fdd26af73f56a588bc7a036295e",
+    "tau_lang_tree_sha256": "98554bca1133d5675ffb2c7b110478ce167366a24bc8cc02cee2c864ec991615",
+    "tau_version": "Tau Language Framework version 0.7.0-alpha (401d756b)"
+  },
+  "source_files": [
+    {
+      "path": "src/tau_specs/recommended/perp_tau_ingress_schema_guard_v1.tau",
+      "sha256": "4dd0aa1ca0ec02fc8974f3fc4ecb45d3b14f40103227d18e7dc5495cc4d03f95"
+    },
+    {
+      "path": "src/integration/tau_runner.py",
+      "sha256": "d90c003c3b66da3b6e96376af29212929534ab75ed17247a9bc6188d0d540db5"
+    },
+    {
+      "path": "tests/tau/test_perps_tau_specs.py",
+      "sha256": "9c79d1585fced58001e497dbb60ac9e533fe19ee4bab7e4b6960b406ed1e0725"
+    },
+    {
+      "path": "tools/run_perp_tau_ingress_schema_tau_gate.sh",
+      "sha256": "595112c9f06f5927c8072a75a54a6055197bb612b4d4c6ec3f7c68740a00b8c5"
+    },
+    {
+      "path": "tools/check_perp_tau_ingress_schema_tau_manifest.py",
+      "sha256": "043529136d4eeddb9ccd1a9430427e65ae3553bfdcdeee07bdcbb618c5f68a8c"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "b30546ff0926428c076576a96df307efe412e029d6085d7e10097ff96f3871e9"
+    }
+  ]
+}

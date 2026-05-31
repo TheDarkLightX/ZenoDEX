@@ -1,0 +1,133 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the isolated perps shell-side runtime admission micro-kernel. Update only alongside a successful run of tools/run_perp_runtime_risk_gate_assurance_gate.sh and tools/check_perp_runtime_risk_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_runtime_risk_gate.py",
+      "sha256": "3068cfceb88d325de6e22e03942d291083e7c7370fae2f3f09f285ab91a772a0"
+    },
+    {
+      "path": "src/integration/perp_engine.py",
+      "sha256": "151f7c075a20de42f29b2f412a2b475ef3aafd87de9ce87c6203ed25298f0eb8"
+    },
+    {
+      "path": "src/kernels/dex/perp_runtime_risk_gate_v1.yaml",
+      "sha256": "de77a36192e4fc3e2de4ddbc263f89e36e8f3825a812ff5775427971843340a8"
+    },
+    {
+      "path": "src/kernels/python/perp_runtime_risk_gate_v1_native_adapter.py",
+      "sha256": "9cafc9859edc4f194ab6cd6b051c1fd0e75742390c561ac81fe339b586d61aeb"
+    },
+    {
+      "path": "tests/core/test_perp_runtime_risk_gate.py",
+      "sha256": "a634a953ea7148e572c07de66863bc5f12597c477884cda89a0a296fdc011870"
+    },
+    {
+      "path": "tests/integration/test_perp_engine.py",
+      "sha256": "2b42b50be408ded3da70488cf9c4a7bf877c8eb785408c18187995c0d42e5924"
+    },
+    {
+      "path": "tests/integration/test_perp_engine_runtime_gate.py",
+      "sha256": "6baf3cac392bca864bd485c87baeab4cb09819e11d404b8cc02fa2ccab4c4e52"
+    },
+    {
+      "path": "tests/kernels/test_perp_runtime_risk_gate_v1_native_adapter.py",
+      "sha256": "1148bcb815f9694cba37c89111e9265024f7206269cf0a771fb06b0dd082d540"
+    },
+    {
+      "path": "tools/check_perp_runtime_risk_gate_assurance_manifest.py",
+      "sha256": "b62100b4baed8bb216f891fa75543bbfed93dd3179cdb9954f000b49dfbe2ca6"
+    },
+    {
+      "path": "tools/run_perp_runtime_risk_gate_assurance_gate.sh",
+      "sha256": "4a0303d6a1927bed96ef0dbaa3b1663f22481f63b0200e2b744ff02eb70d13bb"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "b30546ff0926428c076576a96df307efe412e029d6085d7e10097ff96f3871e9"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_runtime_risk_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_runtime_risk_gate_v1.yaml",
+    "ir_hash": "sha256:dca130b2c88064492fab7e8dbfd863e2402a3aa1855849eaf25a01325a2620b6"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_runtime_risk_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_runtime_risk_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:dca130b2c88064492fab7e8dbfd863e2402a3aa1855849eaf25a01325a2620b6",
+    "actions": [
+      "evaluate_runtime_risk_gate"
+    ],
+    "effects": [
+      "action_known",
+      "admission_ok",
+      "epoch_settled_ok",
+      "epoch_settled_required",
+      "operator_ok",
+      "operator_required",
+      "params_object_ok",
+      "params_object_required",
+      "positions_flat_ok",
+      "positions_flat_required",
+      "positive_price_ok",
+      "positive_price_required",
+      "reject_code",
+      "sender_binding_ok",
+      "sender_binding_required",
+      "unknown_fields_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_runtime_risk_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_runtime_risk_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_runtime_risk_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:dca130b2c88064492fab7e8dbfd863e2402a3aa1855849eaf25a01325a2620b6",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:f5ce84afde867f9590f5aa1e2cd3a60430c0973926f54a4716dc9608ee9afc05"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_runtime_risk_gate_v1/verification_report.json",
+    "model_id": "perp_runtime_risk_gate_v1",
+    "ir_hash_short": "dca130b2c8806449",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_perp_runtime_risk_gate.py",
+    "tests/integration/test_perp_engine.py",
+    "tests/integration/test_perp_engine_runtime_gate.py",
+    "tests/kernels/test_perp_runtime_risk_gate_v1_native_adapter.py"
+  ]
+}

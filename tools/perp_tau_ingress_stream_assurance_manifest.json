@@ -1,0 +1,119 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the Tau app-bridge perps stream-selector micro-kernel. Update only alongside a successful run of tools/run_perp_tau_ingress_stream_assurance_gate.sh and tools/check_perp_tau_ingress_stream_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_tau_ingress_stream.py",
+      "sha256": "302355960554bab063d329afbd3e9a15691acccd95ced820ebad82de42e0ca36"
+    },
+    {
+      "path": "src/integration/tau_testnet_dex_plugin.py",
+      "sha256": "c1a2a98afcac9390572a036d47ce880d199e5ccaf0e496bf341e2935af544a39"
+    },
+    {
+      "path": "src/kernels/dex/perp_tau_ingress_stream_v1.yaml",
+      "sha256": "b6ef0dfcb6749a4a1846c3ee54d54b22312c64b2ffb2899af470e5eb30ecdc6c"
+    },
+    {
+      "path": "src/kernels/python/perp_tau_ingress_stream_v1_native_adapter.py",
+      "sha256": "39aec5a3db3b36629e18e29856f146d1a02656b04ea7503ccf316e77d207c697"
+    },
+    {
+      "path": "tests/kernels/test_perp_tau_ingress_stream_v1_native_adapter.py",
+      "sha256": "f02b5fcb9fe33024d247108eb8f02ad1d982dc499a9096f2698dd161a7cafcd8"
+    },
+    {
+      "path": "tests/core/test_perp_tau_ingress_stream.py",
+      "sha256": "9e42b7434a77662a68991b9be310a3a8e803ca7c8eeb2385b4a130b9bcb7f015"
+    },
+    {
+      "path": "tests/integration/test_tau_testnet_dex_plugin.py",
+      "sha256": "1101124b495f15498e4edae06b227a33429c7eff4bc441f5d8019e865dc6841f"
+    },
+    {
+      "path": "tools/run_perp_tau_ingress_stream_assurance_gate.sh",
+      "sha256": "0f644eebebe666f332258dbc9348d7e1a3a5c2f72538f6c63b2bc3f3380aa812"
+    },
+    {
+      "path": "tools/check_perp_tau_ingress_stream_assurance_manifest.py",
+      "sha256": "9f6824aa74e356c57499df171caa062277f3d4862102daf1fe2523863866a5a6"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "b30546ff0926428c076576a96df307efe412e029d6085d7e10097ff96f3871e9"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_tau_ingress_stream_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_tau_ingress_stream_v1.yaml",
+    "ir_hash": "sha256:8854d38ea6cdeadbe58342b9bd1e4b564ff346762f3c45a34a7c9cf69d68ec3e"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_tau_ingress_stream_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_tau_ingress_stream_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8854d38ea6cdeadbe58342b9bd1e4b564ff346762f3c45a34a7c9cf69d68ec3e",
+    "actions": [
+      "select_perp_stream"
+    ],
+    "effects": [
+      "legacy_candidate_dex_like",
+      "legacy_candidate_perp_like",
+      "legacy_dex_conflict",
+      "legacy_fallback_used",
+      "reject_code",
+      "selected",
+      "upstream_stream_selected"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_tau_ingress_stream_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_tau_ingress_stream_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_tau_ingress_stream_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8854d38ea6cdeadbe58342b9bd1e4b564ff346762f3c45a34a7c9cf69d68ec3e",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:72ddf8bcd682d6ec36274d8aa53440f316ddba4f169f169e89b6b309f6c56190"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_tau_ingress_stream_v1/verification_report.json",
+    "model_id": "perp_tau_ingress_stream_v1",
+    "ir_hash_short": "8854d38ea6cdeadb",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_perp_tau_ingress_stream.py",
+    "tests/kernels/test_perp_tau_ingress_stream_v1_native_adapter.py",
+    "tests/integration/test_tau_testnet_dex_plugin.py"
+  ]
+}

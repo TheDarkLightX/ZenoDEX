@@ -1,0 +1,449 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "fire_lp_loss_cover_v1"
+  description: "FIRE reference kernel for a capped LP-loss cover object"
+  tags: ["fire", "zpl", "derivatives", "lp-loss", "collateral", "admission"]
+  notes: |
+    Scope:
+      - Models one FIRE object class: capped LP-loss cover against a declared
+        HODL benchmark and LP value witness.
+      - Separates compiler output (`artifact_lower`, `artifact_upper`) from
+        verifier/runtime acceptance (`writer_posted`, `holder_posted`).
+      - Verifies the public theorem:
+          FIRE-V accept -> bounded, zero-sum, no-default settlement.
+
+    LPLossCover payoff:
+      holder_delta = N * min(max(HODL_final - LPV_final - Deductible, 0), Cap)
+      writer_delta = -holder_delta
+
+    The compiled artifact is:
+      artifact_lower = 0
+      artifact_upper = N * min(max(HODL_upper - LPV_lower - Deductible, 0), Cap)
+
+    This kernel intentionally exercises a different proof shape from the burn
+    and fee notes: two sources, a deductible, and positive-part on a spread.
+
+observables:
+  state_vars:
+    [
+      "phase",
+      "artifact_lower",
+      "artifact_upper",
+      "holder_delta",
+      "writer_delta",
+      "holder_posted",
+      "writer_posted",
+    ]
+  effects: ["firev_accept", "payoff_out", "compiled_upper"]
+
+types:
+  - id: "t_phase"
+    type:
+      kind: "enum"
+      symbols: ["Idle", "Compiled", "Settled"]
+
+state_vars:
+  - id: "phase"
+    role: "control"
+    type: { kind: "enum", symbols: ["Idle", "Compiled", "Settled"] }
+
+  - id: "n_notional"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "deductible"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "cap_amount"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "hodl_lower"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "hodl_upper"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "lpv_lower"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "lpv_upper"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "artifact_lower"
+    role: "data"
+    type: { kind: "int", min: 0, max: 0 }
+
+  - id: "artifact_upper"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "witness_hodl_final"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "witness_lpv_final"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  - id: "holder_delta"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "writer_delta"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 0 }
+
+  - id: "holder_posted"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "writer_posted"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+init:
+  - var: "phase"
+    expr: { enum: "Idle" }
+  - var: "n_notional"
+    expr: { const: 0 }
+  - var: "deductible"
+    expr: { const: 0 }
+  - var: "cap_amount"
+    expr: { const: 0 }
+  - var: "hodl_lower"
+    expr: { const: 0 }
+  - var: "hodl_upper"
+    expr: { const: 0 }
+  - var: "lpv_lower"
+    expr: { const: 0 }
+  - var: "lpv_upper"
+    expr: { const: 0 }
+  - var: "artifact_lower"
+    expr: { const: 0 }
+  - var: "artifact_upper"
+    expr: { const: 0 }
+  - var: "witness_hodl_final"
+    expr: { const: 0 }
+  - var: "witness_lpv_final"
+    expr: { const: 0 }
+  - var: "holder_delta"
+    expr: { const: 0 }
+  - var: "writer_delta"
+    expr: { const: 0 }
+  - var: "holder_posted"
+    expr: { const: 0 }
+  - var: "writer_posted"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_hodl_interval_well_formed"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "hodl_lower" }, { var: "hodl_upper" }] }
+
+  - id: "inv_lpv_interval_well_formed"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "lpv_lower" }, { var: "lpv_upper" }] }
+
+  - id: "inv_compiled_lower_is_zero"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Idle" }] }
+      then: { bool: true }
+      else: { op: "=", args: [{ var: "artifact_lower" }, { const: 0 }] }
+
+  - id: "inv_compiled_upper_matches_bound"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Idle" }] }
+      then: { bool: true }
+      else:
+        op: "="
+        args:
+          - { var: "artifact_upper" }
+          - op: "*"
+            args:
+              - { var: "n_notional" }
+              - op: "ite"
+                cond:
+                  op: ">="
+                  args:
+                    - { var: "hodl_upper" }
+                    - op: "+"
+                      args: [{ var: "lpv_lower" }, { var: "deductible" }]
+                then:
+                  op: "ite"
+                  cond:
+                    op: ">="
+                    args:
+                      - op: "-"
+                        args:
+                          - op: "-"
+                            args: [{ var: "hodl_upper" }, { var: "lpv_lower" }]
+                          - { var: "deductible" }
+                      - { var: "cap_amount" }
+                  then: { var: "cap_amount" }
+                  else:
+                    op: "-"
+                    args:
+                      - op: "-"
+                        args: [{ var: "hodl_upper" }, { var: "lpv_lower" }]
+                      - { var: "deductible" }
+                else: { const: 0 }
+
+  - id: "inv_settled_holder_delta_nonnegative"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then: { op: ">=", args: [{ var: "holder_delta" }, { const: 0 }] }
+      else: { bool: true }
+
+  - id: "inv_settled_holder_delta_bounded"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then: { op: "<=", args: [{ var: "holder_delta" }, { var: "artifact_upper" }] }
+      else: { bool: true }
+
+  - id: "inv_settled_writer_is_neg_holder"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: "="
+        args:
+          - { var: "writer_delta" }
+          - op: "-"
+            args: [{ const: 0 }, { var: "holder_delta" }]
+      else: { bool: true }
+
+  - id: "inv_delta_conservation"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: "="
+        args:
+          - op: "+"
+            args: [{ var: "holder_delta" }, { var: "writer_delta" }]
+          - { const: 0 }
+      else: { bool: true }
+
+  - id: "inv_holder_solvent_after_accept"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: ">="
+        args:
+          - op: "+"
+            args: [{ var: "holder_posted" }, { var: "holder_delta" }]
+          - { const: 0 }
+      else: { bool: true }
+
+  - id: "inv_writer_solvent_after_accept"
+    kind: "safety"
+    expr:
+      op: "ite"
+      cond: { op: "=", args: [{ var: "phase" }, { enum: "Settled" }] }
+      then:
+        op: ">="
+        args:
+          - op: "+"
+            args: [{ var: "writer_posted" }, { var: "writer_delta" }]
+          - { const: 0 }
+      else: { bool: true }
+
+actions:
+  - id: "compile_lp_loss_cover"
+    description: "Compiler emits the FIRE interval artifact [0, N * min(max(HODL_upper - LPV_lower - D, 0), Cap)]"
+    params:
+      - id: "n_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "deductible_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "cap_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "hodl_lower_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "hodl_upper_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "lpv_lower_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "lpv_upper_in"
+        type: { kind: "int", min: 0, max: 1000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Idle" }] }
+        - { op: "<=", args: [{ param: "hodl_lower_in" }, { param: "hodl_upper_in" }] }
+        - { op: "<=", args: [{ param: "lpv_lower_in" }, { param: "lpv_upper_in" }] }
+    updates:
+      - var: "n_notional"
+        expr: { param: "n_in" }
+      - var: "deductible"
+        expr: { param: "deductible_in" }
+      - var: "cap_amount"
+        expr: { param: "cap_in" }
+      - var: "hodl_lower"
+        expr: { param: "hodl_lower_in" }
+      - var: "hodl_upper"
+        expr: { param: "hodl_upper_in" }
+      - var: "lpv_lower"
+        expr: { param: "lpv_lower_in" }
+      - var: "lpv_upper"
+        expr: { param: "lpv_upper_in" }
+      - var: "artifact_lower"
+        expr: { const: 0 }
+      - var: "artifact_upper"
+        expr:
+          op: "*"
+          args:
+            - { param: "n_in" }
+            - op: "ite"
+              cond:
+                op: ">="
+                args:
+                  - { param: "hodl_upper_in" }
+                  - op: "+"
+                    args: [{ param: "lpv_lower_in" }, { param: "deductible_in" }]
+              then:
+                op: "ite"
+                cond:
+                  op: ">="
+                  args:
+                    - op: "-"
+                      args:
+                        - op: "-"
+                          args: [{ param: "hodl_upper_in" }, { param: "lpv_lower_in" }]
+                        - { param: "deductible_in" }
+                    - { param: "cap_in" }
+                then: { param: "cap_in" }
+                else:
+                  op: "-"
+                  args:
+                    - op: "-"
+                      args: [{ param: "hodl_upper_in" }, { param: "lpv_lower_in" }]
+                    - { param: "deductible_in" }
+              else: { const: 0 }
+      - var: "phase"
+        expr: { enum: "Compiled" }
+    effects:
+      firev_accept: { bool: false }
+      payoff_out: { const: 0 }
+      compiled_upper: { var: "artifact_upper" }
+
+  - id: "firev_accept_and_settle"
+    description: "Small verifier accepts the certificate and settles the object"
+    params:
+      - id: "witness_hodl_final_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "witness_lpv_final_in"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "holder_posted_in"
+        type: { kind: "int", min: 0, max: 1000000 }
+      - id: "writer_posted_in"
+        type: { kind: "int", min: 0, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Compiled" }] }
+        - { op: "<=", args: [{ var: "hodl_lower" }, { param: "witness_hodl_final_in" }] }
+        - { op: "<=", args: [{ param: "witness_hodl_final_in" }, { var: "hodl_upper" }] }
+        - { op: "<=", args: [{ var: "lpv_lower" }, { param: "witness_lpv_final_in" }] }
+        - { op: "<=", args: [{ param: "witness_lpv_final_in" }, { var: "lpv_upper" }] }
+        - { op: ">=", args: [{ param: "holder_posted_in" }, { var: "artifact_lower" }] }
+        - { op: ">=", args: [{ param: "writer_posted_in" }, { var: "artifact_upper" }] }
+    updates:
+      - var: "witness_hodl_final"
+        expr: { param: "witness_hodl_final_in" }
+      - var: "witness_lpv_final"
+        expr: { param: "witness_lpv_final_in" }
+      - var: "holder_posted"
+        expr: { param: "holder_posted_in" }
+      - var: "writer_posted"
+        expr: { param: "writer_posted_in" }
+      - var: "holder_delta"
+        expr:
+          op: "*"
+          args:
+            - { var: "n_notional" }
+            - op: "ite"
+              cond:
+                op: ">="
+                args:
+                  - { param: "witness_hodl_final_in" }
+                  - op: "+"
+                    args: [{ param: "witness_lpv_final_in" }, { var: "deductible" }]
+              then:
+                op: "ite"
+                cond:
+                  op: ">="
+                  args:
+                    - op: "-"
+                      args:
+                        - op: "-"
+                          args: [{ param: "witness_hodl_final_in" }, { param: "witness_lpv_final_in" }]
+                        - { var: "deductible" }
+                    - { var: "cap_amount" }
+                then: { var: "cap_amount" }
+                else:
+                  op: "-"
+                  args:
+                    - op: "-"
+                      args: [{ param: "witness_hodl_final_in" }, { param: "witness_lpv_final_in" }]
+                    - { var: "deductible" }
+              else: { const: 0 }
+      - var: "writer_delta"
+        expr:
+          op: "-"
+          args:
+            - { const: 0 }
+            - op: "*"
+              args:
+                - { var: "n_notional" }
+                - op: "ite"
+                  cond:
+                    op: ">="
+                    args:
+                      - { param: "witness_hodl_final_in" }
+                      - op: "+"
+                        args: [{ param: "witness_lpv_final_in" }, { var: "deductible" }]
+                  then:
+                    op: "ite"
+                    cond:
+                      op: ">="
+                      args:
+                        - op: "-"
+                          args:
+                            - op: "-"
+                              args: [{ param: "witness_hodl_final_in" }, { param: "witness_lpv_final_in" }]
+                            - { var: "deductible" }
+                        - { var: "cap_amount" }
+                    then: { var: "cap_amount" }
+                    else:
+                      op: "-"
+                      args:
+                        - op: "-"
+                          args: [{ param: "witness_hodl_final_in" }, { param: "witness_lpv_final_in" }]
+                        - { var: "deductible" }
+                  else: { const: 0 }
+      - var: "phase"
+        expr: { enum: "Settled" }
+    effects:
+      firev_accept: { bool: true }
+      payoff_out: { var: "holder_delta" }
+      compiled_upper: { var: "artifact_upper" }

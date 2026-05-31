@@ -1,0 +1,24 @@
+object lp_loss_cover_v1;
+name LPLossCover;
+cli_help "Build an LPLossCover FIRE object";
+version v1;
+family capped_lp_loss_cover;
+settlement zUSD;
+summary "N * min(max(HODL_T - LPV_T - D, 0), Cap)";
+ir_hash sha256:bf1509a7c86dfd9cd2d353133de9abf879f2fdf2279c4bd3114636233e8e7be4;
+term n_notional "Notional amount" Scalar 0 1000;
+term deductible "Deductible amount" Amount[zUSD] 0 1000;
+term cap_amount "Payoff cap amount" Amount[zUSD] 0 1000;
+term hodl_lower "Lower HODL value bound" Amount[zUSD] 0 1000;
+term hodl_upper "Upper HODL value bound" Amount[zUSD] 0 1000;
+term lpv_lower "Lower LP value bound" Amount[zUSD] 0 1000;
+term lpv_upper "Upper LP value bound" Amount[zUSD] 0 1000;
+contract hodl_contract Amount[zUSD] term:hodl_lower term:hodl_upper;
+contract lpv_contract Amount[zUSD] term:lpv_lower term:lpv_upper;
+import hodl_final hodl_value_v1 hodl_final contract:hodl_contract;
+import lpv_final lp_value_v1 lpv_final contract:lpv_contract;
+witness HODLValuePacket "1 epoch" contract:hodl_contract;
+witness LPValuePacket "1 epoch" contract:lpv_contract;
+output settlement_payoff "Certified settlement payoff bound" Amount[zUSD] = mul(exact_param(n_notional), cap(positive_part(sub(sub(source_bound(hodl_final), source_bound(lpv_final)), exact_param(deductible))), exact_param(cap_amount)));
+expression = mul(exact_param(n_notional), cap(positive_part(sub(sub(source_bound(hodl_final), source_bound(lpv_final)), exact_param(deductible))), exact_param(cap_amount)));
+end

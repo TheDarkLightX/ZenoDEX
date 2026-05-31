@@ -1,0 +1,291 @@
+# [FORGE] Perp Submission Auth Gate v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_submission_auth_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: perps submission auth/replay admission witness.
+
+    Purpose:
+      - Make the perps shell's auth boundary explicit for both signed relayable
+        operations and direct sender-bound account operations.
+      - Cover the policy-ordering seam around deadline, nonce, signature, and
+        direct sender binding before value-moving logic executes.
+
+    Assume/guarantee split:
+      - Assumes unknown-field rejection, pubkey/signature decoding, and BLS
+        verification are handled by the outer imperative shell.
+      - Assumes market-role matching and oracle configuration are projected into
+        the boolean `signer_role_set_ok`.
+      - Guarantees only deterministic admission, relayability, nonce-consume
+        intent, and reject classification.
+
+    Non-goals:
+      - BLS cryptography
+      - market state transitions
+      - operator-only administration
+
+observables:
+  state_vars:
+    [
+      "mode_signed",
+      "mode_sender_bound",
+      "signed_surface_ok",
+      "signer_role_set_ok",
+      "deadline_ok",
+      "nonce_domain_ok",
+      "nonce_expected_ok",
+      "signature_ok",
+      "tx_sender_binding_ok",
+    ]
+  effects:
+    [
+      "mode_ok",
+      "relay_allowed",
+      "consume_nonce",
+      "admission_ok",
+      "reject_code",
+    ]
+
+types:
+  - id: "t_reject_code"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "Ok",
+          "InvalidMode",
+          "SignedSurfaceInvalid",
+          "SignerRoleInvalid",
+          "DeadlineExpired",
+          "NonceDomainInvalid",
+          "NonceExpectedInvalid",
+          "SignatureInvalid",
+          "SenderBindingInvalid",
+        ]
+
+state_vars:
+  - id: "mode_signed"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "mode_sender_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "signed_surface_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "signer_role_set_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "deadline_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "nonce_domain_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "nonce_expected_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "signature_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "tx_sender_binding_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "mode_signed"
+    expr: { const: 0 }
+  - var: "mode_sender_bound"
+    expr: { const: 0 }
+  - var: "signed_surface_ok"
+    expr: { const: 0 }
+  - var: "signer_role_set_ok"
+    expr: { const: 0 }
+  - var: "deadline_ok"
+    expr: { const: 0 }
+  - var: "nonce_domain_ok"
+    expr: { const: 0 }
+  - var: "nonce_expected_ok"
+    expr: { const: 0 }
+  - var: "signature_ok"
+    expr: { const: 0 }
+  - var: "tx_sender_binding_ok"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "mode_signed" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "signed_surface_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "signed_surface_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "signer_role_set_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "signer_role_set_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "deadline_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "deadline_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "nonce_domain_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "nonce_domain_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "nonce_expected_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "nonce_expected_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "signature_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "signature_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "tx_sender_binding_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "tx_sender_binding_ok" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_submission_auth_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      mode_ok:
+        op: "or"
+        args:
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "mode_signed" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 1 }] }
+      relay_allowed:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 0 }] }
+      consume_nonce:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "signed_surface_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "signer_role_set_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "deadline_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "nonce_domain_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "nonce_expected_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "signature_ok" }, { const: 1 }] }
+      admission_ok:
+        op: "ite"
+        cond:
+          op: "or"
+          args:
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 0 }] }
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "mode_signed" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 1 }] }
+        then:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "mode_sender_bound" }, { const: 1 }] }
+          then: { op: "=", args: [{ var: "tx_sender_binding_ok" }, { const: 1 }] }
+          else:
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "signed_surface_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "signer_role_set_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "deadline_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "nonce_domain_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "nonce_expected_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "signature_ok" }, { const: 1 }] }
+        else: { bool: false }
+      reject_code:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 1 }] }
+        then: { enum: "InvalidMode" }
+        else:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "mode_signed" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 0 }] }
+          then: { enum: "InvalidMode" }
+          else:
+            op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "mode_sender_bound" }, { const: 1 }] }
+                - { op: "=", args: [{ var: "tx_sender_binding_ok" }, { const: 0 }] }
+            then: { enum: "SenderBindingInvalid" }
+            else:
+              op: "ite"
+              cond:
+                op: "and"
+                args:
+                  - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "signed_surface_ok" }, { const: 0 }] }
+              then: { enum: "SignedSurfaceInvalid" }
+              else:
+                op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                    - { op: "=", args: [{ var: "signer_role_set_ok" }, { const: 0 }] }
+                then: { enum: "SignerRoleInvalid" }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "and"
+                    args:
+                      - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                      - { op: "=", args: [{ var: "deadline_ok" }, { const: 0 }] }
+                  then: { enum: "DeadlineExpired" }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "and"
+                      args:
+                        - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                        - { op: "=", args: [{ var: "nonce_domain_ok" }, { const: 0 }] }
+                    then: { enum: "NonceDomainInvalid" }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "and"
+                        args:
+                          - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                          - { op: "=", args: [{ var: "nonce_expected_ok" }, { const: 0 }] }
+                      then: { enum: "NonceExpectedInvalid" }
+                      else:
+                        op: "ite"
+                        cond:
+                          op: "and"
+                          args:
+                            - { op: "=", args: [{ var: "mode_signed" }, { const: 1 }] }
+                            - { op: "=", args: [{ var: "signature_ok" }, { const: 0 }] }
+                        then: { enum: "SignatureInvalid" }
+                        else: { enum: "Ok" }

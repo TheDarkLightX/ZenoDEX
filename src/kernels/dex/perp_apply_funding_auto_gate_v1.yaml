@@ -1,0 +1,231 @@
+# [FORGE] Perp Apply Funding Auto Gate v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_apply_funding_auto_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: isolated-perps funding-auto admission witness.
+
+    Purpose:
+      - Make the shell-side admission checks for `apply_funding_auto` explicit
+        and replayable before per-account funding application.
+      - Cover the runtime seam that verifies epoch/oracle/control readiness and
+        the budget-balance / no-double-apply guards for the aggregated update.
+
+    Assume/guarantee split:
+      - Assumes operator auth, tx shape, and unknown-field rejection are handled
+        by the outer imperative shell.
+      - Assumes per-account funding application is handled by the existing
+        `apply_funding` kernel.
+      - Guarantees only the aggregated admission booleans for the funding-auto
+        path.
+
+    Non-goals:
+      - per-account collateral updates
+      - signature/auth identity
+      - market initialization
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "clearing_price_seen",
+      "clearing_price_epoch",
+      "oracle_last_update_epoch",
+      "oracle_seen",
+      "index_price_e8",
+      "max_oracle_staleness_epochs",
+      "clearing_price_e8",
+      "max_oracle_move_bps",
+      "funding_cap_bps",
+      "projected_net_funding_quote",
+      "any_funding_applied_this_epoch",
+    ]
+  effects:
+    [
+      "clearing_price_seen_ok",
+      "clearing_price_epoch_ok",
+      "pre_settlement_window_ok",
+      "oracle_seen_ok",
+      "index_price_ok",
+      "staleness_param_ok",
+      "oracle_fresh",
+      "clearing_price_ok",
+      "max_oracle_move_ok",
+      "funding_cap_ok",
+      "net_funding_balanced",
+      "funding_not_applied",
+      "funding_auto_allowed",
+    ]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "clearing_price_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "clearing_price_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "oracle_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_oracle_staleness_epochs"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "clearing_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_oracle_move_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "funding_cap_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "projected_net_funding_quote"
+    role: "data"
+    type: { kind: "int", min: -1000000000000000, max: 1000000000000000 }
+  - id: "any_funding_applied_this_epoch"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "clearing_price_seen"
+    expr: { const: 0 }
+  - var: "clearing_price_epoch"
+    expr: { const: 0 }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "oracle_seen"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "clearing_price_e8"
+    expr: { const: 0 }
+  - var: "max_oracle_move_bps"
+    expr: { const: 1000 }
+  - var: "funding_cap_bps"
+    expr: { const: 100 }
+  - var: "projected_net_funding_quote"
+    expr: { const: 0 }
+  - var: "any_funding_applied_this_epoch"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "clearing_price_seen" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "clearing_price_seen" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "any_funding_applied_this_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "any_funding_applied_this_epoch" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_apply_funding_auto_gate"
+    params: []
+    guard:
+      op: "="
+      args: [{ const: 0 }, { const: 0 }]
+    updates: []
+    effects:
+      clearing_price_seen_ok:
+        op: "="
+        args: [{ var: "clearing_price_seen" }, { const: 1 }]
+      clearing_price_epoch_ok:
+        op: "="
+        args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }]
+      pre_settlement_window_ok:
+        op: "<"
+        args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+      oracle_seen_ok:
+        op: "="
+        args: [{ var: "oracle_seen" }, { const: 1 }]
+      index_price_ok:
+        op: ">"
+        args: [{ var: "index_price_e8" }, { const: 0 }]
+      staleness_param_ok:
+        op: ">"
+        args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }]
+      oracle_fresh:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+          - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      clearing_price_ok:
+        op: ">"
+        args: [{ var: "clearing_price_e8" }, { const: 0 }]
+      max_oracle_move_ok:
+        op: "and"
+        args:
+          - { op: ">=", args: [{ var: "max_oracle_move_bps" }, { const: 0 }] }
+          - { op: "<=", args: [{ var: "max_oracle_move_bps" }, { const: 10000 }] }
+      funding_cap_ok:
+        op: "and"
+        args:
+          - { op: ">", args: [{ var: "funding_cap_bps" }, { const: 0 }] }
+          - { op: "<=", args: [{ var: "funding_cap_bps" }, { const: 10000 }] }
+      net_funding_balanced:
+        op: "="
+        args: [{ var: "projected_net_funding_quote" }, { const: 0 }]
+      funding_not_applied:
+        op: "="
+        args: [{ var: "any_funding_applied_this_epoch" }, { const: 0 }]
+      funding_auto_allowed:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "clearing_price_seen" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }] }
+          - { op: "<", args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }] }
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - { op: ">", args: [{ var: "index_price_e8" }, { const: 0 }] }
+          - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+              - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+              - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+          - { op: ">", args: [{ var: "clearing_price_e8" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: ">=", args: [{ var: "max_oracle_move_bps" }, { const: 0 }] }
+              - { op: "<=", args: [{ var: "max_oracle_move_bps" }, { const: 10000 }] }
+          - op: "and"
+            args:
+              - { op: ">", args: [{ var: "funding_cap_bps" }, { const: 0 }] }
+              - { op: "<=", args: [{ var: "funding_cap_bps" }, { const: 10000 }] }
+          - { op: "=", args: [{ var: "projected_net_funding_quote" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "any_funding_applied_this_epoch" }, { const: 0 }] }
