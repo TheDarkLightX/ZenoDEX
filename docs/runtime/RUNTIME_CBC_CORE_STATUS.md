@@ -81,7 +81,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain/deposit/clear-breaker tractable slice, settle-epoch helper classifiers, partial-liquidate boundary/full-close slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, fixed-width hex length arithmetic, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector, exhaustive control-character JSON escape grid with independent encoder oracle | partial |
-| State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector, LP duration-risk exhaustive field grid plus Z3 semantic injectivity | partial |
+| State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector, LP duration-risk exhaustive field grid plus Z3 semantic injectivity, one-hot section-framing grid with strict decoder and Rust parity | partial |
 | zUSD single-vault | yes | yes | Kani on BigInt-free scalar risk helpers: oracle freshness, base-rate decay, fee cap, and debt-floor guard. Full BigInt CDP ratio arithmetic and full `step` remain outside Kani | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector, independent CDP threshold arithmetic grid plus bounded Lean boundary formula checks | partial |
 
 ## Current Delta From This Pass
@@ -120,9 +120,12 @@ This campaign moved seven surfaces forward:
   LP duration-risk field grid: the sparse all-default metadata tuple is a no-op,
   the 80 present optional-field tuples produce distinct Python roots, Z3 proves
   semantic tuple injectivity for the optional-field shape, and Rust matches
-  Python for all 80 present tuples. Full section encoding, duplicate detection,
-  BigUint curve-param parsing, and SHA-256 remain vector/fuzz/differential
-  backed.
+  Python for all 80 present tuples. This pass also added a one-hot section
+  framing grid using the strict preimage decoder: each v5 section changes
+  exactly its own framed body relative to empty state, all one-hot roots are
+  distinct, and Rust matches Python on the same section cases. Full section
+  encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain
+  vector/fuzz/differential backed.
 - zUSD gained BigInt-free scalar helper decomposition. Kani now proves oracle
   freshness, base-rate decay, effective fee capping, and the debt-floor guard.
   This pass also added a non-Kani CDP threshold grid for the BigInt ratio
