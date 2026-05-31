@@ -42,6 +42,7 @@ REQUIRED_FILES = (
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
     "docker-compose.testnet-demo.yml",
+    ".github/workflows/native-launcher.yml",
     ".github/workflows/release-integrity.yml",
     ".github/workflows/release-publish.yml",
     "tools/check_release_publication_workflow.py",
@@ -50,7 +51,11 @@ REQUIRED_FILES = (
     "tools/dex-ui/public/zenodex-config.json",
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
+    "docs/NATIVE_INSTALLER_PLAN.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
+    "rust-runtime/Cargo.toml",
+    "rust-runtime/crates/zenodex-launcher/Cargo.toml",
+    "rust-runtime/crates/zenodex-launcher/src/main.rs",
 )
 
 
@@ -97,6 +102,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
             "single-command-local-testnet",
+            "native-launcher",
             "github-release-assets",
             "github-release-publication",
             "ghcr-container-publication",
@@ -405,6 +411,7 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
     for token in (
         "docker-compose.local-testnet.yml",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "rust-runtime",
         "packages/zeno-proof-client",
         "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
     ):
@@ -451,6 +458,7 @@ def _check_release_publication_workflow(root: Path, checks: list[dict[str, Any]]
         "docker/build-push-action@v6",
         "npm publish --access public --provenance",
         "tools/build_operator_release_bundle.py build",
+        "cargo build --manifest-path rust-runtime/Cargo.toml --release -p zenodex-launcher",
         "tools/build_release_sboms.py",
         "SHA256SUMS",
     ):

@@ -97,6 +97,19 @@ python3 tools/zenoctl.py testnet local down \
 The local stack exposes only a loopback nginx port by default. The browser uses
 relative `/api/*` calls; nginx injects backend tokens server-side.
 
+Native launcher track: release builds now include a Linux `zenodex` launcher,
+and CI builds Linux, macOS, and Windows launcher artifacts. The launcher is the
+future one-command path:
+
+```bash
+zenodex local-testnet up
+```
+
+It supplies a default local state directory, checks prerequisites, can fetch the
+Tau local-testnet dependency, and delegates to the existing checked
+`zenoctl.py` orchestration. See
+[docs/NATIVE_INSTALLER_PLAN.md](docs/NATIVE_INSTALLER_PLAN.md).
+
 Latest release page:
 [github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.15](https://github.com/TheDarkLightX/ZenoDEX/releases/tag/v0.1.15).
 Full local-testnet details:

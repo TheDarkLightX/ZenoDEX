@@ -17,6 +17,7 @@ def test_operator_packaging_check_passes_current_checkout() -> None:
     assert report["ok"] is True
     assert "light-client-checkpoint-verifier" in report["supported_operator_paths"]
     assert "single-command-local-testnet" in report["supported_operator_paths"]
+    assert "native-launcher" in report["supported_operator_paths"]
 
 
 def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> None:
@@ -39,6 +40,7 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
         "docker-compose.testnet-demo.yml",
+        ".github/workflows/native-launcher.yml",
         ".github/workflows/release-integrity.yml",
         ".github/workflows/release-publish.yml",
         "tools/check_release_publication_workflow.py",
@@ -47,7 +49,11 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "tools/dex-ui/public/zenodex-config.json",
         "docs/DEPLOYMENT_QUICKSTART.md",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "docs/NATIVE_INSTALLER_PLAN.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
+        "rust-runtime/Cargo.toml",
+        "rust-runtime/crates/zenodex-launcher/Cargo.toml",
+        "rust-runtime/crates/zenodex-launcher/src/main.rs",
     ):
         src = ROOT / relpath
         dst = tmp_path / relpath
