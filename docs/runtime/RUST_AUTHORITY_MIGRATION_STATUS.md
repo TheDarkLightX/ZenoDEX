@@ -185,14 +185,14 @@ Rust disagreement fails closed before the copied transaction state is committed.
 Unavailable Rust is skipped in `rust_shadow`, preserving deployability. This is
 still not a Rust-authority promotion because Python owns integration checks,
 balances, oracle bridge authorization, effects, and state materialization for
-this surface. `advance_epoch`, `publish_clearing_price`, and `clear_breaker`
-now have true Rust-authority paths for manual authority policies: Rust decides
-accept/reject from the pre-state, the Python shell commits the parsed Rust
-post-market and effect, and `rust_authority_with_python_shadow` reruns the
-Python handler as a shadow check. The other seven isolated ops remain explicitly
+this surface. `advance_epoch`, `publish_clearing_price`, `clear_breaker`, and
+`set_position` now have true Rust-authority paths for manual authority policies:
+Rust decides accept/reject from the pre-state, the Python shell commits the
+parsed Rust post-market and effect, and `rust_authority_with_python_shadow`
+reruns the Python handler as a shadow check. The other six isolated ops remain explicitly
 rejected under `rust_authority*` until each gets the same decide-and-commit path
 (full-state + effect materialization exists for all ten isolated ops, but those
-seven are still consumed as shadow checks only).
+six are still consumed as shadow checks only).
 
 **Shadow materialization (in progress).** The materializer
 `zenodex-runtime perp-isolated-op` emits the **full post-market
@@ -240,9 +240,9 @@ commit boundary used by the `advance_epoch` authority slice and by later per-op
 promotions.
 
 The first authority-inversion slices are live for `advance_epoch`,
-`publish_clearing_price`, and `clear_breaker` in manual authority policies.
-`rust_authority` commits Rust's materialized post-state without running the
-Python handler, and `rust_authority_with_python_shadow` fails closed on
+`publish_clearing_price`, `clear_breaker`, and `set_position` in manual authority
+policies. `rust_authority` commits Rust's materialized post-state without running
+the Python handler, and `rust_authority_with_python_shadow` fails closed on
 Python/Rust post-state disagreement. No deployment profile flips in this change;
 `public-testnet` remains `perp_stateful: rust_shadow`.
 
@@ -250,11 +250,12 @@ This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
 post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
 `_effects_agree`), failing closed on any state OR effect divergence. Except for
-the `advance_epoch` / `publish_clearing_price` / `clear_breaker` authority
-slices above, Rust post-checks Python's accepted transition and does not decide
-accept/reject from the pre-state or commit its materialized result. Accordingly
-**`perp_stateful` remains `rust_shadow` in every deployment profile**, and
-non-promoted stateful ops stay blocked under `rust_authority*`.
+the `advance_epoch` / `publish_clearing_price` / `clear_breaker` /
+`set_position` authority slices above, Rust post-checks Python's accepted
+transition and does not decide accept/reject from the pre-state or commit its
+materialized result. Accordingly **`perp_stateful` remains `rust_shadow` in every
+deployment profile**, and non-promoted stateful ops stay blocked under
+`rust_authority*`.
 
 Promotion requires (a) finishing the authority inversion for the remaining
 stateful ops so Rust **decides from the pre-state and commits** its materialized

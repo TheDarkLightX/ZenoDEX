@@ -459,6 +459,37 @@ def test_rust_authority_commits_clear_breaker_without_python_handler(rust_env, m
     assert res.effects[-1]["effects"]["event"] == "BreakerCleared"
 
 
+def test_rust_authority_commits_set_position_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-setpos"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python set_position handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "set_position",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "set_position", account_pubkey=PK_A, new_position_base=-200_000)],
+    )
+    assert res.ok is True, res.error
+    acct = res.state.perps.markets[market_id].accounts[PK_A]
+    assert int(acct.position_base) == -200_000
+    assert int(acct.entry_price_e8) == int(
+        res.state.perps.markets[market_id].global_state["index_price_e8"]
+    )
+    assert res.effects[-1]["account_pubkey"] == PK_A
+    assert res.effects[-1]["effects"]["event"] == "PositionSet"
+
+
 def _settled(market_id: str):
     state = fa.build_market(
         market_id=market_id, quote_asset=QUOTE, positions=[], clearing_price_e8=100_000_000, deposit=1_000_000
