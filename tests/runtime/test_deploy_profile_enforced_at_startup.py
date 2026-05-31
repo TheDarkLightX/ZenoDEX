@@ -167,13 +167,33 @@ def test_deploy_profile_rejects_non_trusted_core_authority_surface():
     assert any("non-trusted-core surfaces" in conflict for conflict in conflicts)
 
 
+def test_public_testnet_profile_rejects_missing_trusted_core_surface():
+    profile = load_deploy_profile("public-testnet")
+    del profile["runtime_authority_policy"]["per_surface"]["perp_stateful"]
+    profile["runtime_authority_policy"]["promoted_surfaces"].remove("perp_stateful")
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any("missing trusted-core authority surfaces" in conflict for conflict in conflicts)
+
+
+def test_public_testnet_profile_rejects_trusted_core_rust_shadow():
+    profile = load_deploy_profile("public-testnet")
+    profile["runtime_authority_policy"]["per_surface"]["perp_stateful"] = "rust_shadow"
+    profile["runtime_authority_policy"]["promoted_surfaces"].remove("perp_stateful")
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any("trusted-core surfaces must use" in conflict for conflict in conflicts)
+
+
 def test_deploy_profile_rejects_stale_promoted_surface_entry():
     profile = load_deploy_profile("public-testnet")
     profile["runtime_authority_policy"]["per_surface"]["fee_router"] = "rust_shadow"
 
     conflicts = evaluate_deploy_profile_consistency(profile, {})
 
-    assert any("not configured for Rust authority" in conflict for conflict in conflicts)
+    assert any("trusted-core surfaces must use" in conflict for conflict in conflicts)
 
 
 def test_deploy_profile_rejects_pure_rust_authority_in_strict_profile():

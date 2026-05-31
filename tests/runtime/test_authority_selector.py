@@ -26,6 +26,7 @@ from src.runtime.authority import (  # noqa: E402
     AuthorityError,
     AuthorityMode,
     AuthorityPolicy,
+    PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES,
     RustUnavailable,
     active_mode,
     decide,
@@ -329,6 +330,33 @@ def test_custom_compare_error_fails_closed_as_authority_error():
 # Deployment-profile policy loading + strict-profile validation
 # --------------------------------------------------------------------------
 
+
+def _complete_public_testnet_policy(
+    per_surface_overrides=None,
+    promoted_surfaces=None,
+):
+    per_surface = {
+        surface: AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+        for surface in PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES
+    }
+    if per_surface_overrides:
+        for surface, mode in per_surface_overrides.items():
+            if mode is None:
+                per_surface.pop(surface, None)
+            else:
+                per_surface[surface] = mode
+    promoted = (
+        frozenset(PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES)
+        if promoted_surfaces is None
+        else frozenset(promoted_surfaces)
+    )
+    return AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface=per_surface,
+        promoted_surfaces=promoted,
+    )
+
+
 def test_load_policy_defaults_when_absent():
     policy = load_authority_policy({"profile_id": "local-dev"})
     assert policy.default is AuthorityMode.PYTHON_AUTHORITY
@@ -448,6 +476,26 @@ def test_production_profile_allows_promoted_surface():
     validate_authority_policy(policy, profile_id="production-strict")
 
 
+def test_public_testnet_profile_requires_every_trusted_core_surface():
+    policy = _complete_public_testnet_policy(
+        per_surface_overrides={"perp_stateful": None},
+        promoted_surfaces=PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES - {"perp_stateful"},
+    )
+    with pytest.raises(AuthorityError, match="missing trusted-core authority surfaces"):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
+def test_public_testnet_profile_requires_shadow_checked_rust_authority():
+    policy = _complete_public_testnet_policy(
+        per_surface_overrides={"fee_router": AuthorityMode.RUST_SHADOW}
+    )
+    with pytest.raises(
+        AuthorityError,
+        match="trusted-core surfaces must use rust_authority_with_python_shadow",
+    ):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
 def test_public_testnet_profile_rejects_non_trusted_core_surface():
     policy = AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,
@@ -469,12 +517,13 @@ def test_public_testnet_profile_rejects_half_configured_rust_authority():
 
 
 def test_public_testnet_profile_rejects_stale_promoted_surface():
-    policy = AuthorityPolicy(
-        default=AuthorityMode.PYTHON_AUTHORITY,
-        per_surface={"fee_router": AuthorityMode.RUST_SHADOW},
-        promoted_surfaces=frozenset({"fee_router"}),
+    policy = _complete_public_testnet_policy(
+        per_surface_overrides={"fee_router": AuthorityMode.RUST_SHADOW}
     )
-    with pytest.raises(AuthorityError, match="not configured for Rust authority"):
+    with pytest.raises(
+        AuthorityError,
+        match="trusted-core surfaces must use rust_authority_with_python_shadow",
+    ):
         validate_authority_policy(policy, profile_id="public-testnet")
 
 
