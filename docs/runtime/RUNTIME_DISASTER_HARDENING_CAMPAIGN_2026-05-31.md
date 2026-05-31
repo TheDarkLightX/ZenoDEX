@@ -240,3 +240,21 @@ there and the only later commit is this documentation-correction commit.
 
 (Built on `917d7b1e`, which already carried the concurrent agent's parity-validated
 perp materializer dup-account + unknown-request-field rejects.)
+
+## Continuation — P0 resolved (same day)
+
+The campaign's top queue item (P0: the 3 pre-existing red tests in
+`tests/integration/test_deployment_profiles.py`) was then taken to closure. With
+the per-test root cause confirmed (above), each was resolved to its actual cause:
+
+| Item | Resolution | Commit |
+|------|-----------|--------|
+| proof-required-without-verifier (**likely-real gap**) | Added the coherence check to `production_config_violations`: `require_proof_when_present=True` with `proof_config.enabled=False` is now rejected at config validation (`"require_proof_when_present requires proof_config.enabled"`). Rationale: the runtime already fails closed (`_verify_proof_if_present` → "proof required but verification disabled" rejects every intent-bearing tx), so such a config would start a node that rejects all traffic — a liveness failure better caught at startup. | `3f8d8bd3` |
+| public-testnet boundary-switch test (**stale wording**) | Validator was correct; updated the assertion to the current message `"...must be strong_proof_carrying"`. | `467e5146` |
+| production-strict UPBA/oracle test (**stale fields**) | Test passed removed kwargs (TypeError before validation); the rename *expanded* the strict-UPBA check from 3 to 5. Updated the config + assertions to current fields/messages. | `467e5146` |
+
+`tests/integration/test_deployment_profiles.py` is now **11 passed** (was 3
+failed / 8 passed at `d1f9d493`). The campaign branch has **no remaining red
+tests**; the regenerated receipt (code-complete HEAD `467e5146`) records all gates
+green. The proof-verifier coherence check is shipped-profile-safe (shipped
+profiles leave `require_proof_when_present=False`).
