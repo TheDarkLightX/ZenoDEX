@@ -111,4 +111,13 @@ deploy-profile hardening change.
   balance/reserve/LP delta rows and rejects negative `delta_add`/`delta_sub`
   amounts before hashing. Residual: this is a boundary/commitment guard, not a
   proof that every settlement-producing path can only construct canonical rows.
+- Optimized-Python fail-closed hardening: central batch-clearing and
+  settlement end-to-end packet helpers no longer rely on bare `assert` for
+  consensus-path invariants. Missing CREATE_POOL generated state, missing
+  CREATE_POOL liquidity fields, missing AB-ordering context, missing greedy
+  ordering choice, and missing endogenous LP value packet now raise explicit
+  `RuntimeError`/`ValueError` under normal and `python -O` execution. Residual:
+  other lower-priority bare asserts remain in integration helpers and routing
+  search code; they should be converted as their surfaces enter the trusted
+  core.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.

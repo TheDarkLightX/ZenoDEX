@@ -1389,6 +1389,56 @@ def test_try_create_pool_success_and_apply_create_pool_to_locals() -> None:
     assert len(lp_deltas) == 2
 
 
+def test_apply_create_pool_to_locals_rejects_missing_liquidity_fields() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    _pool_id, created_pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    malformed_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(10120),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": asset0, "asset1": asset1, "fee_bps": 30, "amount0": 2_000_000},
+    )
+
+    try:
+        _apply_create_pool_to_locals(
+            malformed_intent,
+            created_pool.pool_id,
+            created_pool,
+            BalanceTable(),
+            LPTable(),
+            [],
+            [],
+            [],
+            [],
+        )
+    except ValueError as exc:
+        assert str(exc) == "CREATE_POOL intent missing required liquidity fields"
+    else:
+        assert False, "expected missing CREATE_POOL liquidity fields to reject"
+
+
+def test_ab_ordering_key_requires_full_context() -> None:
+    try:
+        _ab_ordering_key()
+    except ValueError as exc:
+        assert str(exc) == "_ab_ordering_key requires ordering, pool_state, and reserves"
+    else:
+        assert False, "expected missing AB ordering context to reject"
+
+
 def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() -> None:
     pk = "0x" + "11" * 48
     recipient = "0x" + "22" * 48
