@@ -76,7 +76,11 @@ adds deterministic valid-state and invalid-state fuzz. `compute_state_root`
 itself now routes through the active authority policy, using a private Python
 implementation for shadow comparison so the Python shadow cannot recurse through
 the selector. `config/deploy/public-testnet.yaml` lists `state_root` in
-`promoted_surfaces`; production remains `python_authority`.
+`promoted_surfaces`; production remains `python_authority`. Kani now covers the
+scalar root-admission guards for fee bps, nonce bounds, LP duration metadata
+presence, and pool-status code distinctness. Full section encoding, duplicate
+detection, BigUint curve-param parsing, and SHA-256 remain
+vector/fuzz/differential backed.
 
 ⁴ Replay/idempotency guard is now live-wired through
 `src/core/replay_guard.py::admit`. The Rust bridge evaluates one transition from
@@ -128,10 +132,11 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 38 harnesses on the actual
-runtime crate passed (arith, canonical helper predicates, balance, replay,
-fee-router, burn rails, the tractable CPMM initialization/fail-closed/helper
-slice, stateless perps checked-effect helpers, and funding-auto arithmetic).
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 42 harnesses on the actual
+runtime crate passed (arith, canonical helper predicates, state-root scalar
+guards, balance, replay, fee-router, burn rails, the tractable CPMM
+initialization/fail-closed/helper slice, stateless perps checked-effect helpers,
+and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
