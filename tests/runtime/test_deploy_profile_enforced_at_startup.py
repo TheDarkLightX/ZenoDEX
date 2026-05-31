@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import yaml
 
 from src.integration import api_server
 from src.integration import deploy_profile as deploy_profile_module
@@ -227,6 +228,17 @@ def test_load_deploy_profile_rejects_mismatched_named_profile(tmp_path, monkeypa
     monkeypatch.setattr(deploy_profile_module, "_DEPLOY_DIR", profile_dir)
     with pytest.raises(ValueError, match="deploy profile id mismatch"):
         load_deploy_profile("production-strict")
+
+
+def test_load_deploy_profile_rejects_unknown_top_level_keys(tmp_path):
+    profile = load_deploy_profile("production-strict")
+    profile["runtime_polciy"] = dict(profile["runtime_policy"])
+    del profile["runtime_policy"]
+    path = tmp_path / "production-strict-typo.yaml"
+    path.write_text(yaml.safe_dump(profile, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown top-level keys"):
+        load_deploy_profile(str(path))
 
 
 def test_local_dev_profile_allows_local_signing_facts():
