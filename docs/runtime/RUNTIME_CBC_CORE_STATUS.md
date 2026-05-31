@@ -80,7 +80,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence | partial |
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain/deposit/clear-breaker tractable slice, settle-epoch helper classifiers, partial-liquidate boundary/full-close slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
-| Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
+| Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, fixed-width hex length arithmetic, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
 | State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector | partial |
 | zUSD single-vault | yes | yes | Kani on BigInt-free scalar risk helpers: oracle freshness, base-rate decay, fee cap, and debt-floor guard. Full BigInt CDP ratio arithmetic and full `step` remain outside Kani | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector | partial |
 
@@ -99,9 +99,11 @@ This campaign moved seven surfaces forward:
   Full live-domain exact-in/out division remains property/differential backed;
   direct public-swap and exact-out helper Kani attempts timed out under CBMC.
 - Canonical primitives gained heap-free helper decomposition. Kani now proves
-  the domain-label byte classifier, hex-digit byte classifier, and selected
-  LEB128 length boundaries. Full canonical `Vec`/`String` encoders, SHA-256,
-  and canonical JSON remain vector/fuzz/differential backed.
+  the domain-label byte classifier, hex-digit byte classifier, fixed-width hex
+  length arithmetic, and selected LEB128 length boundaries. `hex_to_bytes_fixed`
+  now fails closed when an impossible requested width would overflow the expected
+  length calculation. Full canonical `Vec`/`String` encoders, SHA-256, and
+  canonical JSON remain vector/fuzz/differential backed.
 - State root gained hash-free scalar guard decomposition. Kani now proves the
   fee-bps guard, nonce guard, LP duration metadata presence predicate, and pool
   status code domain/distinctness. Full section encoding, duplicate detection,
@@ -183,7 +185,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 76 successfully verified harnesses, 0 failures, 76 total.
+Complete - 78 successfully verified harnesses, 0 failures, 78 total.
 ```
 
 Focused tests after integrating the security fixes:

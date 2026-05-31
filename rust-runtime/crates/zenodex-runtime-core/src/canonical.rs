@@ -75,6 +75,10 @@ fn is_ascii_hex_digit(byte: u8) -> bool {
     byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || (b'A'..=b'F').contains(&byte)
 }
 
+fn fixed_hex_expected_len(nbytes: usize) -> Option<usize> {
+    nbytes.checked_mul(2)?.checked_add(2)
+}
+
 /// Unsigned LEB128 encoding of `value`.
 pub fn encode_uvarint(mut value: u128) -> Vec<u8> {
     let mut out = Vec::with_capacity(uvarint_encoded_len(value));
@@ -142,7 +146,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
 /// `[0-9a-fA-F]` (mixed case accepted, like Python's `bytes.fromhex`). Anything
 /// else is a typed rejection — never a panic.
 pub fn hex_to_bytes_fixed(hex_str: &str, nbytes: usize) -> Result<Vec<u8>, CanonicalError> {
-    let expected_len = 2 + 2 * nbytes;
+    let expected_len = fixed_hex_expected_len(nbytes).ok_or(CanonicalError::BadHexFormat)?;
     let body = match hex_str.strip_prefix("0x") {
         Some(b) if hex_str.len() == expected_len => b,
         _ => return Err(CanonicalError::BadHexFormat),
@@ -364,6 +368,11 @@ mod tests {
             hex_to_bytes_fixed("0x", 1),
             Err(CanonicalError::BadHexFormat)
         );
+        // Width arithmetic must fail closed instead of overflowing.
+        assert_eq!(
+            hex_to_bytes_fixed("0x", usize::MAX),
+            Err(CanonicalError::BadHexFormat)
+        );
     }
 
     fn int(n: i64) -> JsonValue {
@@ -468,5 +477,25 @@ mod kani_contracts {
         assert_eq!(uvarint_encoded_len(0x3fff), 2);
         assert_eq!(uvarint_encoded_len(0x4000), 3);
         assert_eq!(uvarint_encoded_len(u128::MAX), UVARINT_U128_MAX_LEN);
+    }
+
+    #[kani::proof]
+    fn fixed_hex_expected_len_is_total_and_exact() {
+        let nbytes: usize = kani::any();
+        let max_ok = (usize::MAX - 2) / 2;
+        let actual = fixed_hex_expected_len(nbytes);
+
+        if nbytes <= max_ok {
+            assert_eq!(actual, Some(2 + 2 * nbytes));
+        } else {
+            assert_eq!(actual, None);
+        }
+    }
+
+    #[kani::proof]
+    fn fixed_hex_expected_len_covers_are_reachable() {
+        kani::cover!(fixed_hex_expected_len(0) == Some(2));
+        kani::cover!(fixed_hex_expected_len(32) == Some(66));
+        kani::cover!(fixed_hex_expected_len(usize::MAX) == None);
     }
 }
