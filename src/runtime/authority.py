@@ -235,7 +235,15 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
 
 def _agree(python_result: Any, rust_result: Any, compare: Optional[Callable[[Any, Any], bool]]) -> bool:
     if compare is not None:
-        return bool(compare(python_result, rust_result))
+        try:
+            agreed = compare(python_result, rust_result)
+        except Exception as exc:
+            raise AuthorityError(f"authority comparator errored: {exc}") from exc
+        if not isinstance(agreed, bool):
+            raise AuthorityError(
+                f"authority comparator must return bool, got {type(agreed).__name__}"
+            )
+        return agreed
     if python_result is None or rust_result is None:
         return False
     return python_result == rust_result

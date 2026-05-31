@@ -297,6 +297,34 @@ def test_custom_compare_is_used():
     assert d.agreed is True  # differ in 'note' but agree on the root
 
 
+def test_custom_compare_must_return_bool():
+    def truthy_non_bool(_py, _ru):
+        return "agree"
+
+    with pytest.raises(AuthorityError, match="comparator must return bool"):
+        decide(
+            "state_root",
+            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+            python_fn=_Counter(PY_RESULT),
+            rust_fn=_Counter(RUST_SAME),
+            compare=truthy_non_bool,
+        )
+
+
+def test_custom_compare_error_fails_closed_as_authority_error():
+    def compare_raises(_py, _ru):
+        raise ValueError("malformed comparator input")
+
+    with pytest.raises(AuthorityError, match="comparator errored"):
+        decide(
+            "state_root",
+            AuthorityMode.RUST_SHADOW,
+            python_fn=_Counter(PY_RESULT),
+            rust_fn=_Counter(RUST_SAME),
+            compare=compare_raises,
+        )
+
+
 # --------------------------------------------------------------------------
 # Deployment-profile policy loading + strict-profile validation
 # --------------------------------------------------------------------------
