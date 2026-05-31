@@ -383,6 +383,8 @@ def production_config_violations(
         reasons.append("consensus_mode must be true")
     if bool(config.enable_test_fault_injection) or config.fault_injection is not None:
         reasons.append("test fault injection must be disabled")
+    if bool(config.require_proof_when_present) and not bool(config.proof_config.enabled):
+        reasons.append("require_proof_when_present requires an enabled proof verifier")
 
     dex_config = config.dex_config
     if not bool(dex_config.require_all_nonces):

@@ -99,6 +99,18 @@ def test_profile_rejects_external_tools() -> None:
     assert "allow_external_tools must be false" in err
 
 
+def test_profile_rejects_required_proof_without_enabled_verifier() -> None:
+    cfg = replace(
+        make_dex_engine_config_for_deployment_profile(DEPLOYMENT_PROFILE_PUBLIC_TESTNET),
+        require_proof_when_present=True,
+    )
+
+    ok, err = validate_deployment_profile(DEPLOYMENT_PROFILE_PUBLIC_TESTNET, cfg)
+    assert ok is False
+    assert err is not None
+    assert "require_proof_when_present requires an enabled proof verifier" in err
+
+
 def test_local_profile_still_rejects_fault_injection() -> None:
     cfg = replace(
         make_dex_engine_config_for_deployment_profile(DEPLOYMENT_PROFILE_LOCAL),
