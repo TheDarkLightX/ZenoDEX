@@ -605,6 +605,39 @@ def test_rust_authority_commits_set_market_params_without_python_handler(rust_en
     assert res.effects[-1]["params"] == {"maintenance_margin_bps": 550, "funding_cap_bps": 500}
 
 
+def test_rust_authority_rejects_set_market_params_numeric_strings(rust_env):
+    market_id = "perp:auth-rust-only-params-string"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000)],
+        clearing_price_e8=100_000_000,
+        deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[
+            fa._op(
+                market_id,
+                "set_market_params",
+                params={"maintenance_margin_bps": "550"},
+            )
+        ],
+    )
+    assert res.ok is False
+    assert "params.maintenance_margin_bps must be an int" in (res.error or "")
+
+
 def test_rust_authority_commits_apply_funding_auto_without_python_handler(rust_env, monkeypatch):
     from src.integration import perp_engine
 
