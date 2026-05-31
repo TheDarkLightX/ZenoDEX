@@ -3265,6 +3265,27 @@ _ISOLATED_GLOBAL_BOOL_KEYS: frozenset[str] = frozenset(
     {"breaker_active", "clearing_price_seen", "oracle_seen"}
 )
 
+_ISOLATED_ACCOUNT_DOC_KEYS: frozenset[str] = frozenset(
+    {
+        "key",
+        "position_base",
+        "collateral_quote",
+        "entry_price_e8",
+        "funding_paid_cumulative",
+        "funding_last_applied_epoch",
+        "liquidated_this_step",
+    }
+)
+
+
+def _require_decimal_string_int(value: Any, *, name: str) -> int:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a decimal string")
+    digits = value[1:] if value.startswith("-") else value
+    if not digits or not digits.isdigit():
+        raise ValueError(f"{name} must be a decimal string")
+    return int(value)
+
 
 def _isolated_global_doc(global_state: Mapping[str, Any]) -> dict[str, Any]:
     """Full isolated global-state doc: int keys as decimal strings, bools as bools."""
@@ -3315,7 +3336,10 @@ def _market_from_materialized_post(post: Mapping[str, Any]) -> PerpMarketState:
                 raise ValueError(f"materialized post.global_state[{key}] must be bool")
             global_state[key] = value
         else:
-            global_state[key] = int(str(value))
+            global_state[key] = _require_decimal_string_int(
+                value,
+                name=f"materialized post.global_state[{key}]",
+            )
 
     accounts_doc = post.get("accounts")
     if not isinstance(accounts_doc, list):
@@ -3324,6 +3348,8 @@ def _market_from_materialized_post(post: Mapping[str, Any]) -> PerpMarketState:
     for raw_account in accounts_doc:
         if not isinstance(raw_account, Mapping):
             raise ValueError("materialized post account must be an object")
+        if set(raw_account.keys()) != _ISOLATED_ACCOUNT_DOC_KEYS:
+            raise ValueError("materialized post account keys mismatch")
         key = _require_str(raw_account.get("key"), name="account.key", non_empty=True, max_len=512)
         if key in accounts:
             raise ValueError("materialized post has duplicate account key")
@@ -3331,11 +3357,20 @@ def _market_from_materialized_post(post: Mapping[str, Any]) -> PerpMarketState:
         if not isinstance(liquidated, bool):
             raise ValueError("materialized post account liquidated_this_step must be bool")
         accounts[key] = PerpAccountState(
-            position_base=int(str(raw_account["position_base"])),
-            collateral_quote=int(str(raw_account["collateral_quote"])),
-            entry_price_e8=int(str(raw_account["entry_price_e8"])),
-            funding_paid_cumulative=int(str(raw_account["funding_paid_cumulative"])),
-            funding_last_applied_epoch=int(str(raw_account["funding_last_applied_epoch"])),
+            position_base=_require_decimal_string_int(raw_account["position_base"], name="account.position_base"),
+            collateral_quote=_require_decimal_string_int(
+                raw_account["collateral_quote"],
+                name="account.collateral_quote",
+            ),
+            entry_price_e8=_require_decimal_string_int(raw_account["entry_price_e8"], name="account.entry_price_e8"),
+            funding_paid_cumulative=_require_decimal_string_int(
+                raw_account["funding_paid_cumulative"],
+                name="account.funding_paid_cumulative",
+            ),
+            funding_last_applied_epoch=_require_decimal_string_int(
+                raw_account["funding_last_applied_epoch"],
+                name="account.funding_last_applied_epoch",
+            ),
             liquidated_this_step=liquidated,
         )
 
