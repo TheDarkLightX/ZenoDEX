@@ -73,6 +73,90 @@ def test_apply_app_tx_sync_only(monkeypatch):
     assert parsed.get("version") == DEX_SNAPSHOT_VERSION
 
 
+def test_apply_app_tx_rejects_malformed_consensus_boolean_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_REQUIRE_INTENT_SIGS" in str(err)
+
+
+def test_apply_app_tx_rejects_malformed_proof_verifier_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"5": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP" in str(err)
+
+
+def test_apply_app_tx_rejects_nonfinite_proof_verifier_timeout(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_TIMEOUT_S", "nan")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"5": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S" in str(err)
+
+
+def test_apply_app_tx_rejects_malformed_perps_boolean_env(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "maybe")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"8": []},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "TAU_DEX_ALLOW_ISOLATED_PERPS" in str(err)
+
+
 def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 

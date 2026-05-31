@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import math
 from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
@@ -95,14 +96,34 @@ def _canonical_state_and_hash(
 
 def _bool_env(name: str, *, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if raw is None or not raw.strip():
         return bool(default)
     v = raw.strip().lower()
     if v in {"1", "true", "yes", "on"}:
         return True
     if v in {"0", "false", "no", "off"}:
         return False
-    return bool(default)
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
+
+
+def _float_env(name: str, *, default: float, minimum: float, maximum: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        out = float(default)
+    else:
+        try:
+            out = float(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} must be a finite float") from exc
+    if not math.isfinite(out):
+        raise ValueError(f"{name} must be finite")
+    if out < minimum:
+        raise ValueError(f"{name} must be >= {minimum}")
+    if out > maximum:
+        raise ValueError(f"{name} must be <= {maximum}")
+    return float(out)
 
 
 def _int_env(name: str, *, default: int, minimum: int = 0, maximum: Optional[int] = None) -> int:
@@ -185,10 +206,12 @@ def _parse_cmd_json_env(name: str) -> Optional[list[str]]:
 
 def _build_proof_verifier_config() -> ProofVerifierConfig:
     cmd = _parse_cmd_json_env("TAU_DEX_PROOF_VERIFIER_CMD_JSON")
-    timeout_raw = os.environ.get("TAU_DEX_PROOF_VERIFIER_TIMEOUT_S", "").strip()
-    timeout_s = 10.0
-    if timeout_raw:
-        timeout_s = float(timeout_raw)
+    timeout_s = _float_env(
+        "TAU_DEX_PROOF_VERIFIER_TIMEOUT_S",
+        default=10.0,
+        minimum=0.1,
+        maximum=120.0,
+    )
     allow_path_lookup = _bool_env("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", default=False)
     return ProofVerifierConfig(
         enabled=bool(cmd),
@@ -815,11 +838,14 @@ def apply_app_tx(
             decoded_ops[key] = _maybe_decode_custom_stream_value(v)
     operations = decoded_ops
 
-    allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
-    allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
-    require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
-    allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
-    consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
+    try:
+        allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
+        allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
+        require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
+        allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
+        consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
+    except ValueError as exc:
+        return False, app_state_json, "", None, str(exc)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
 
     try:
@@ -871,7 +897,10 @@ def apply_app_tx(
             return False, app_state_json, "", None, token_err or "token op rejected"
 
     if zusd_monetary_ops:
-        zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        try:
+            zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        except Exception as exc:
+            return False, app_state_json, "", None, str(exc)
         zusd_res = apply_zusd_monetary_ops(
             config=zusd_cfg,
             state=next_state,
@@ -927,7 +956,10 @@ def apply_app_tx(
             return False, app_state_json, "", None, proof_err or "proof mining rejected"
 
     if perp_ops:
-        perp_cfg = _build_perp_engine_config(chain_id=chain_id)
+        try:
+            perp_cfg = _build_perp_engine_config(chain_id=chain_id)
+        except Exception as exc:
+            return False, app_state_json, "", None, str(exc)
         perp_res = apply_perp_ops(
             config=perp_cfg,
             state=next_state,
