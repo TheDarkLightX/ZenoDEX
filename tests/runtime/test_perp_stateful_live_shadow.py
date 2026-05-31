@@ -577,6 +577,36 @@ def test_rust_shadow_deposit_existing_account_parity(rust_env):
     assert int(res.state.perps.markets[market_id].accounts[PK_A].collateral_quote) == pre + 50_000
 
 
+def test_rust_shadow_deposit_request_carries_pre_state_balance_fact(rust_env, monkeypatch):
+    # Future Rust authority depends on the request facts being real pre-state
+    # integration facts, not hardcoded positives. In particular, deposit must carry
+    # the wallet balance that Python checks before mutating collateral.
+    from src.runtime import rust_invoker
+
+    market_id = "perp:shadow-deposit-facts"
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    pre_balance = int(state.balances.get(PK_A, QUOTE))
+    seen: dict[str, object] = {}
+    original = rust_invoker.perp_isolated_op
+
+    def capture(request, **kwargs):
+        seen.update(dict(request["facts"]))
+        return original(request, **kwargs)
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", capture)
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "deposit_collateral", account_pubkey=PK_A, amount=50_000)],
+    )
+    assert res.ok is True, res.error
+    assert seen["balance_available"] == str(pre_balance)
+    assert seen["sender_bound_ok"] is True
+    assert seen["operator_ok"] is False
+
+
 def test_rust_shadow_deposit_new_account_parity(rust_env):
     # First deposit to a pubkey with no prior account: Python creates it, and the
     # materializer must create the same flat account from the request (which does not

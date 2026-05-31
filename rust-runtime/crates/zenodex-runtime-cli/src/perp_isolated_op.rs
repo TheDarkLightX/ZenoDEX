@@ -126,6 +126,28 @@ fn req_fact_i128(facts: &Map<String, Value>, key: &str) -> Result<i128, &'static
     facts.get(key).ok_or(REJ_MISSING_FACTS).and_then(as_i128)
 }
 
+fn req_balance_available(facts: &Map<String, Value>) -> Result<i128, &'static str> {
+    let value = facts.get("balance_available").ok_or(REJ_MISSING_FACTS)?;
+    match value {
+        Value::String(s) => match s.parse::<i128>() {
+            Ok(v) if v >= 0 => Ok(v),
+            Ok(_) => Err(REJ_BAD_REQUEST),
+            Err(_) if !s.trim_start().starts_with('-') => Ok(i128::MAX),
+            Err(_) => Err(REJ_BAD_REQUEST),
+        },
+        Value::Number(n) => {
+            let s = n.to_string();
+            match s.parse::<i128>() {
+                Ok(v) if v >= 0 => Ok(v),
+                Ok(_) => Err(REJ_BAD_REQUEST),
+                Err(_) if !s.starts_with('-') => Ok(i128::MAX),
+                Err(_) => Err(REJ_BAD_REQUEST),
+            }
+        }
+        _ => Err(REJ_BAD_REQUEST),
+    }
+}
+
 impl Facts {
     /// Parse all required integration facts. Every key is mandatory; a missing
     /// fact rejects as `REJ_MISSING_FACTS` rather than defaulting to false/zero.
@@ -134,7 +156,7 @@ impl Facts {
             operator_ok: req_fact_bool(facts, "operator_ok")?,
             sender_bound_ok: req_fact_bool(facts, "sender_bound_ok")?,
             all_positions_flat: req_fact_bool(facts, "all_positions_flat")?,
-            balance_available: req_fact_i128(facts, "balance_available")?,
+            balance_available: req_balance_available(facts)?,
             oracle_adapter_ok: req_fact_bool(facts, "oracle_adapter_ok")?,
             oracle_authorization_ok: req_fact_bool(facts, "oracle_authorization_ok")?,
             min_collectible_liquidation_penalty_quote: req_fact_i128(
@@ -770,8 +792,9 @@ fn materialize_account_op(
 }
 
 /// `deposit_collateral`: sender-gated single-account op (the sender owns the
-/// account). Reuses `perp_account_ops::account_op`; the wallet-balance check is a
-/// Python-verified fact, never re-derived here.
+/// account). Reuses `perp_account_ops::account_op`; the wallet-balance check
+/// consumes the explicit `balance_available` integration fact so a future Rust
+/// authority path cannot accept a deposit the Python shell would reject.
 fn materialize_deposit_collateral(
     quote_asset: &str,
     global: Map<String, Value>,
@@ -795,6 +818,9 @@ fn materialize_deposit_collateral(
         Some(Ok(v)) => v,
         _ => return reject(REJ_BAD_REQUEST),
     };
+    if facts.balance_available < amount {
+        return reject("insufficient balance for deposit");
+    }
     match materialize_account_op(
         quote_asset,
         global,
@@ -1634,7 +1660,7 @@ mod tests {
             "quote_asset": "0x".to_string() + &"41".repeat(32),
             "global_state": global, "accounts": accounts, "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
-                      "all_positions_flat": false, "balance_available": "0",
+                      "all_positions_flat": false, "balance_available": "1000000000",
                       "oracle_adapter_ok": true, "oracle_authorization_ok": true,
                       "min_collectible_liquidation_penalty_quote": "0"}
         })
@@ -1652,7 +1678,7 @@ mod tests {
             "quote_asset": "0x".to_string() + &"41".repeat(32),
             "global_state": global, "accounts": accounts, "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
-                      "all_positions_flat": all_positions_flat, "balance_available": "0",
+                      "all_positions_flat": all_positions_flat, "balance_available": "1000000000",
                       "oracle_adapter_ok": true, "oracle_authorization_ok": true,
                       "min_collectible_liquidation_penalty_quote": "0"}
         })
@@ -2023,6 +2049,40 @@ mod tests {
         let out = materialize_isolated_op(&r);
         assert_eq!(out["reject_reason"], json!(REJ_SENDER_NOT_BOUND));
         assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn deposit_wallet_balance_fact_rejects_insufficient_balance() {
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        r["facts"]["balance_available"] = json!("49999");
+        let out = materialize_isolated_op(&r);
+        assert_eq!(
+            out["reject_reason"],
+            json!("insufficient balance for deposit")
+        );
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn deposit_wallet_balance_fact_allows_python_bignum_balance() {
+        let mut r = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        r["facts"]["balance_available"] = json!("999999999999999999999999999999999999999999");
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["accept"], json!(true), "{out}");
+        assert_eq!(
+            out["post"]["accounts"][0]["collateral_quote"],
+            json!("51000")
+        );
     }
 
     #[test]

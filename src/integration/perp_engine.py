@@ -3287,14 +3287,99 @@ def _materialized_shadow_response_bounded(python_doc: Mapping[str, Any]) -> bool
     return True
 
 
+def _isolated_op_integration_facts(
+    *, ctx: _PerpApplyCtx, pre_market: PerpMarketState, op: PerpOp
+) -> dict[str, Any]:
+    """Compute the explicit non-kernel facts consumed by the Rust materializer.
+
+    These facts are evaluated from the pre-state integration shell. Rust may
+    consume them, but it must not reimplement operator keys, sender binding,
+    wallet balances, or oracle bridge verification.
+    """
+    account_pubkey = op.data.get("account_pubkey")
+    account_key = account_pubkey if isinstance(account_pubkey, str) else ""
+    all_flat = all(int(acct.position_base) == 0 for acct in pre_market.accounts.values())
+
+    oracle_adapter_ok = True
+    oracle_authorization_ok = True
+    if op.action == "settle_epoch":
+        adapter_err = _require_oracle_adapter_bridge(
+            ctx.config,
+            data=op.data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_runtime_oracle_action_id(
+                ctx.config,
+                market_id=op.market_id,
+                action_kind="settle_epoch",
+                market=pre_market,
+            ),
+            required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
+        )
+        oracle_adapter_ok = adapter_err is None
+        oracle_authorization_ok = (
+            _check_isolated_settle_oracle_authorization(ctx=ctx, op=op, market=pre_market) is None
+        )
+    elif op.action == "partial_liquidate":
+        try:
+            fraction_bps = _require_int(
+                op.data.get("fraction_bps", 0),
+                name="fraction_bps",
+                non_negative=True,
+            )
+        except Exception:
+            fraction_bps = 0
+        adapter_err = _require_oracle_adapter_bridge(
+            ctx.config,
+            data=op.data,
+            consumer_module="zenodex.perps",
+            action_kind="liquidate_account",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+            expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
+                ctx.config,
+                market_id=op.market_id,
+                market=pre_market,
+                account_pubkey=account_key,
+                fraction_bps=int(fraction_bps),
+            ),
+            required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
+        )
+        oracle_adapter_ok = adapter_err is None
+
+    sender_bound_ok = False
+    if account_key:
+        sender_bound_ok = (
+            _require_sender_bound_account_pubkey(
+                account_pubkey=account_key,
+                tx_sender_pubkey=ctx.tx_sender_pubkey,
+            )
+            is None
+        )
+
+    return {
+        "operator_ok": _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey) is None,
+        "sender_bound_ok": bool(sender_bound_ok),
+        "all_positions_flat": bool(all_flat),
+        "balance_available": str(int(ctx.balances.get(account_key, pre_market.quote_asset))) if account_key else "0",
+        "oracle_adapter_ok": bool(oracle_adapter_ok),
+        "oracle_authorization_ok": bool(oracle_authorization_ok),
+        "min_collectible_liquidation_penalty_quote": str(
+            _min_collectible_liquidation_penalty_quote(ctx.config)
+        ),
+    }
+
+
 def _build_isolated_op_request(
-    *, config: PerpEngineConfig, pre_market: PerpMarketState, op: PerpOp
+    *, pre_market: PerpMarketState, op: PerpOp, integration_facts: Mapping[str, Any]
 ) -> dict[str, Any]:
     """Build the full `perp-isolated-op` request from the pre-market, op, and the
-    explicit integration facts. This runs only after the Python integration has
-    already accepted the op, so the upstream gate facts (operator, sender binding,
-    oracle adapter/authorization) are satisfied; Rust consumes them, never
-    re-deriving crypto."""
+    explicit integration facts. In the current live path this is used after
+    Python has accepted an op, but the facts are still computed from the pre-state
+    shell instead of being hardcoded. That keeps the request boundary ready for a
+    later Rust-authority inversion."""
     op_obj: dict[str, Any] = {"action": op.action}
     if op.action == "advance_epoch":
         op_obj["delta"] = str(_require_int(op.data.get("delta", 0), name="delta", non_negative=True))
@@ -3335,7 +3420,6 @@ def _build_isolated_op_request(
     # clear_breaker (and the global ops settle_epoch) carry no op params; the
     # materializer reads everything it needs from global_state + the all_positions_flat
     # fact, so the bare {"action": ...} op object above is complete.
-    all_flat = all(int(acct.position_base) == 0 for acct in pre_market.accounts.values())
     return {
         "schema": "zenodex/perp_isolated_op/v1",
         "version": 1,
@@ -3343,17 +3427,7 @@ def _build_isolated_op_request(
         "global_state": _isolated_global_doc(pre_market.global_state),
         "accounts": _isolated_accounts_doc(pre_market.accounts),
         "op": op_obj,
-        "facts": {
-            "operator_ok": True,
-            "sender_bound_ok": True,
-            "all_positions_flat": bool(all_flat),
-            "balance_available": "0",
-            "oracle_adapter_ok": True,
-            "oracle_authorization_ok": True,
-            "min_collectible_liquidation_penalty_quote": str(
-                _min_collectible_liquidation_penalty_quote(config)
-            ),
-        },
+        "facts": dict(integration_facts),
     }
 
 
@@ -3470,6 +3544,7 @@ def _shadow_accepted_isolated_op(
     pre_market: PerpMarketState,
     post_market: PerpMarketState,
     python_effect: Mapping[str, Any],
+    integration_facts: Mapping[str, Any] | None,
 ) -> Optional[str]:
     from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
     from src.runtime.rust_invoker import perp_isolated_op, perp_stateful_case
@@ -3491,7 +3566,13 @@ def _shadow_accepted_isolated_op(
             python_doc = _perp_stateful_full_doc(post_market, python_effect)
             if not _materialized_shadow_response_bounded(python_doc):
                 return None
-            request = _build_isolated_op_request(config=ctx.config, pre_market=pre_market, op=op)
+            if integration_facts is None:
+                return "perp_stateful rust shadow error: missing pre-state integration facts"
+            request = _build_isolated_op_request(
+                pre_market=pre_market,
+                op=op,
+                integration_facts=integration_facts,
+            )
             if not _materialized_shadow_request_bounded(request):
                 return None
             decide(
@@ -3553,6 +3634,11 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
     handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
     if handler is None:
         return f"unknown perps action: {op.action}"
+    integration_facts = (
+        _isolated_op_integration_facts(ctx=ctx, pre_market=market, op=op)
+        if mode is not AuthorityMode.PYTHON_AUTHORITY
+        else None
+    )
     err = handler(ctx, i=i, op=op, market=market)
     if err is not None:
         return err
@@ -3565,6 +3651,7 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
         pre_market=market,
         post_market=ctx.markets[op.market_id],
         python_effect=python_effect,
+        integration_facts=integration_facts,
     )
 
 
