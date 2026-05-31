@@ -65,7 +65,15 @@ def _random_nonce(rng: random.Random):
 
 def _random_sender(rng: random.Random):
     return rng.choice(
-        VALID_SENDERS + ["0xzz" + "11" * 47, "0x11", "", 12345, VALID_SENDERS[0].upper()]
+        VALID_SENDERS
+        + [
+            "0xzz" + "11" * 47,
+            "0x11",
+            "",
+            12345,
+            VALID_SENDERS[0].upper(),
+            f"\u001c0X{VALID_SENDERS[1][2:].upper()}\u001f",
+        ]
     )
 
 
@@ -130,6 +138,7 @@ def test_reject_code_parity(rust_bin, tmp_path):
         ([], _admit(a, 0), "invalid_nonce"),  # nonce below range
         ([], _admit(a, u32_max + 1), "invalid_nonce"),  # nonce above range
         ([], _admit(bad_sender, 0), "invalid_sender"),  # sender checked before nonce
+        ([], _admit(f"\u001c0X{a[2:].upper()}\u001f", 1), None),  # Python strip parity
     ]
     for setup, boundary, expected in cases:
         txs = setup + [boundary]

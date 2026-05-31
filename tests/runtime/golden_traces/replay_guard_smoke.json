@@ -1,5 +1,5 @@
 {
-  "final_state_root": "0x85c24cd9cd65d8a372b5805d87b3ad8ad141f7dde21f6fa203bab010714642e3",
+  "final_state_root": "0xf6df309e2fc4c4c85e35c415c5aca105f3cda628dc9ea0132f202d821200fa19",
   "initial_state_root": "0xc59839ff9bf212cf2370e41dd2e0df7c9ccab4456566b1bcb2a1ba7a02975530",
   "kernel": "replay_guard",
   "steps": [
@@ -188,6 +188,17 @@
         "kind": "admit",
         "nonce": 4,
         "sender": "0x111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "expected_accept": true,
+      "expected_reject_reason": null,
+      "post_state_root": "0xf6df309e2fc4c4c85e35c415c5aca105f3cda628dc9ea0132f202d821200fa19",
+      "receipt_hash": "0x9cf759a87394ffc581afa778f9bd3fdecf0f5ed994ad8e88d6481ff83f7d20f6",
+      "tx": {
+        "kind": "admit",
+        "nonce": 4,
+        "sender": "\u001c0X222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222\u001f"
       }
     }
   ],
