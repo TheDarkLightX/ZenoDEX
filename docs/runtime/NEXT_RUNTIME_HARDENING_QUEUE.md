@@ -59,10 +59,9 @@ Residual: the core guard still accepts by idempotency rather than staleness.
 Changing that requires a deliberate kernel/semantic decision, not a
 deploy-profile hardening change.
 
-## P4 — pre-existing baseline test failures to triage (not this campaign)
+## P4 — pre-existing baseline test failures to triage (fixed)
 
-Both committed (not dirty), outside the audited surfaces:
-- `tests/core/test_cpmm.py::test_compute_lp_mint_uses_integer_isqrt` — test uses `n = 1<<70` exceeding `DEX_LP_AMOUNT_MAX = 1_000_000_000` (domain tightened after the test). Decide: stale test vs. a domain regression.
+- `tests/core/test_cpmm.py::test_compute_lp_mint_uses_integer_isqrt` — fixed by replacing the out-of-domain `1<<70` fixture with an in-domain precision witness (`1_000_000_000 * 999_999_998`) where `int(sqrt(product))` would round the floor up by one.
 - (FIXED this campaign) `test_perp_epoch_isolated_v3_native_initial_state_keeps_epoch_phase` — asserted `"Open"` vs the v3 int ABI (`0`).
 
 ## P5 — coverage gaps left open by this campaign (negative-receipt boundaries)
@@ -86,8 +85,9 @@ Both committed (not dirty), outside the audited surfaces:
   `tests/runtime/test_rust_shadow_golden_trace_replay.py` rebuilds the Rust CLI
   and replays `smoke.json`, `replay_guard_smoke.json`, `balance_smoke.json`,
   `zusd_smoke.json`, `burn_smoke.json`, and `cpmm_smoke.json`. Residual:
-  perps isolated-op traces are still covered by their per-op materializer/live
-  shadow suites rather than the generic golden-trace replayer.
+  perps isolated-op traces are covered by their per-op conformance suites rather
+  than the generic golden-trace replayer; `test_perp_golden_trace_coverage.py`
+  now fails if a committed perps trace lacks an explicit conformance-test owner.
 - Tau app-bridge stream selection now fails closed on unsupported reserved
   stream `5`, ambiguous DEX aliases (`2`+`5`, `3`+`6`, `4`+`7`), and
   list-wrapped JSON custom stream entries are decoded before engine selection.
