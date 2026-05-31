@@ -3223,6 +3223,7 @@ _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
         "withdraw_collateral",
         "set_market_params",
         "apply_funding_auto",
+        "partial_liquidate",
     }
 )
 
