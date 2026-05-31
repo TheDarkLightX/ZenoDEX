@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 46 successfully verified harnesses, 0 failures, 46 total.
+Complete - 51 successfully verified harnesses, 0 failures, 51 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -77,10 +77,15 @@ CPMM settlement primitive, tractable Kani slice:
 - `cpmm_swap::kani_contracts::init_pool_is_total`
 - `cpmm_swap::kani_contracts::uninitialized_pool_rejects_all_swaps`
 
-Perp stateless math checked-effect helpers:
+Perp stateless math checked-effect helpers and bridge-domain guards:
 
+- `perp_math::kani_contracts::abs_val_is_total_on_bridge_domain`
 - `perp_math::kani_contracts::checked_margin_helpers_are_total_for_any_i128`
 - `perp_math::kani_contracts::covers_are_reachable`
+- `perp_math::kani_contracts::domain_classifiers_are_total_and_exact`
+- `perp_math::kani_contracts::flat_positions_are_never_liquidatable_on_bridge_domain`
+- `perp_math::kani_contracts::oracle_helpers_are_total_on_bridge_domain`
+- `perp_math::kani_contracts::sign_classifiers_are_exact_on_bridge_domain`
 
 Perp funding-auto bounded-sink arithmetic:
 
@@ -132,7 +137,9 @@ running Rust crate:
   symbolic fee-ceil boundedness, small-domain exact-in reserve-shape behavior,
   uninitialized swap fail-closed behavior, and non-vacuity covers;
 - stateless perps checked-effect helper totality over arbitrary `i128` inputs,
-  plus non-vacuity covers for success and overflow paths;
+  bridge-domain classifiers, `abs_val` safety under the bridge domain, oracle
+  helper totality, exact sign classifiers, flat-position liquidation rejection,
+  and non-vacuity covers for success and overflow paths;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
 - state-root scalar guards for pool fee bps, nonce bounds, LP duration metadata
@@ -150,6 +157,7 @@ tracked Kani obligations therefore stop at checked helper boundaries and a
 small-domain exact-in proof. The remaining CPMM arithmetic is still covered by
 Rust proptests, Python/Rust differentials, disaster-state, live-path tests, and
 Tau/ESSO/Lean model evidence. It also does not prove full-domain symbolic
-equivalence between the checked and plain perps math helpers; these remain
-covered by Rust proptests, Python/Rust differentials, disaster-state, and
-live-path tests.
+equivalence between the checked and plain perps math helpers, or full symbolic
+live-domain multiplication/division for notional, PnL, funding, margin, and
+liquidation arithmetic. Those remain covered by Rust proptests, Python/Rust
+differentials, disaster-state, and live-path tests.

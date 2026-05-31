@@ -132,11 +132,12 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 46 harnesses on the actual
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 51 harnesses on the actual
 runtime crate passed (arith, canonical helper predicates, state-root scalar
 guards, zUSD scalar risk helpers, balance, replay, fee-router, burn rails, the
 tractable CPMM initialization/fail-closed/helper slice, stateless perps
-checked-effect helpers, and funding-auto arithmetic).
+checked-effect helpers plus bridge-domain scalar guards, and funding-auto
+arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
@@ -207,7 +208,10 @@ out-of-domain values, stale deterministic stateless replay, deterministic fuzz,
 and selector fail-closed rows. `tests/runtime/test_perp_math_live_path.py`
 checks active-policy wiring for `rust_authority_with_python_shadow`,
 `rust_shadow`, unavailable Rust, and injected disagreement. Existing
-`test_perp_math_vectors.py` remains the cross-language vector suite.
+`test_perp_math_vectors.py` remains the cross-language vector suite. Kani now
+covers checked-effect helper totality, bridge-domain classifier exactness,
+`abs_val` safety, oracle helper totality, sign classifier exactness, and
+flat-position liquidation rejection.
 `public-testnet` lists `perp_math` in `promoted_surfaces`; production remains
 `python_authority`. The stateful perps engine is tracked as the separate E2
 surface below.
