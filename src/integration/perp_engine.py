@@ -3212,7 +3212,9 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
     }
 )
 
-_PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset({"advance_epoch"})
+_PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
+    {"advance_epoch", "publish_clearing_price"}
+)
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
     "perp_stateful Rust authority is not live-wired (shadow materialization only); "

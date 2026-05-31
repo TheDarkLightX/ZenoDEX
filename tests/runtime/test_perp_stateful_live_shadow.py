@@ -392,6 +392,34 @@ def test_rust_authority_with_python_shadow_fails_closed_on_advance_disagreement(
     assert "disagreement" in (res.error or "")
 
 
+def test_rust_authority_commits_publish_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-publish"
+    state = _open(market_id)
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python publish handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "publish_clearing_price",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "publish_clearing_price", price_e8=101_000_000)],
+    )
+    assert res.ok is True, res.error
+    market = res.state.perps.markets[market_id]
+    assert int(market.global_state["epoch_phase"]) == 1
+    assert int(market.global_state["clearing_price_e8"]) == 101_000_000
+    assert res.effects[-1]["effects"]["event"] == "ClearingPricePublished"
+
+
 def _settled(market_id: str):
     state = fa.build_market(
         market_id=market_id, quote_asset=QUOTE, positions=[], clearing_price_e8=100_000_000, deposit=1_000_000
