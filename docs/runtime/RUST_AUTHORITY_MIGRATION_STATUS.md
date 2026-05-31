@@ -6,7 +6,8 @@ Living status for the Python→Rust authority promotion. Pairs with
 
 **As of this writing: canonical primitives, state root v5, replay/idempotency
 guard, balance accounting, the fee router, zUSD single-vault, burn rails, CPMM
-per-pool settlement, and perp stateless math are promoted only in the `public-testnet` profile to
+per-pool settlement, perp stateless math, and the stateful isolated-perps engine
+are promoted only in the `public-testnet` profile to
 `rust_authority_with_python_shadow`.** The
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
@@ -48,7 +49,7 @@ human decision + profile entry.
 | CPMM per-pool settlement | Rust authority + Python shadow on public-testnet | `cpmm_swap.rs` | ✅ | ✅⁸ | ✅ | ✅⁸ |
 | zUSD single-vault | Rust authority + Python shadow on public-testnet | `zusd.rs` | ✅ | ✅¹⁰ | ✅ | ✅¹⁰ |
 | Perp stateless math (E1) | Rust authority + Python shadow on public-testnet | `perp_math.rs` | ✅ | ✅⁹ | ✅ | ✅⁹ |
-| Perp stateful (E2, all 10 ops) | Python authority + live Rust shadow on public-testnet | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
+| Perp stateful (E2, all 10 ops) | Rust authority + Python shadow on public-testnet | `perp_*` (7 modules) | ✅ | ✅³ | ✅ | ✅³ |
 
 ¹ Canonical primitives (stateless) have the applicable disaster-state rows
 (malformed bytes, overflow/underflow, determinism, purity) covered by
@@ -187,8 +188,8 @@ checks active-policy wiring for `rust_authority_with_python_shadow`,
 `rust_shadow`, unavailable Rust, and injected disagreement. Existing
 `test_perp_math_vectors.py` remains the cross-language vector suite.
 `public-testnet` lists `perp_math` in `promoted_surfaces`; production remains
-`python_authority`. The stateful perps engine remains a separate Python-owned
-surface.
+`python_authority`. The stateful perps engine is tracked as the separate E2
+surface below.
 
 ³ Perp stateful (E2): all 10 isolated handlers (`advance_epoch`,
 `publish_clearing_price`, `settle_epoch`, `apply_funding_auto`,
@@ -201,17 +202,11 @@ unit/proptests. `tests/runtime/test_perp_disaster_state.py` adds the **fuzz**
 evidence (≈1.7k randomized cases/run) and the **input-disaster** rows
 (malformed/out-of-domain, overflow/underflow at every parameter bound,
 reject-path parity). The live integration path now enables `perp_stateful:
-rust_shadow` in `public-testnet`: accepted isolated-perps transitions run the
-same Rust checker after Python materializes the transition, and any available
-Rust disagreement fails closed before the copied transaction state is committed.
-Unavailable Rust is skipped in `rust_shadow`, preserving deployability. This is
-still not a deployment-profile Rust-authority promotion because Python owns
-integration checks, balances, oracle bridge authorization, effects, and state
-materialization for this surface. All ten isolated ops now have true
-Rust-authority paths for manual authority policies. Rust decides accept/reject
-from the pre-state, the Python shell commits the parsed Rust post-market and
-effect, and `rust_authority_with_python_shadow` reruns the Python handler as a
-shadow check.
+rust_authority_with_python_shadow` in `public-testnet`: Rust decides
+accept/reject from the pre-state, the Python shell commits the parsed Rust
+post-market and effect, and the Python handler reruns as the shadow check.
+Any Python/Rust disagreement fails closed before the copied transaction state is
+committed. Unavailable Rust is fatal under this promoted public-testnet lane.
 
 **Shadow materialization.** The materializer
 `zenodex-runtime perp-isolated-op` emits the **full post-market
@@ -257,24 +252,22 @@ accounts). A live-shadow regression round-trips the actual Rust post-state for a
 deposit and compares it with the Python-committed market. This parser is the
 commit boundary used by the manual authority slices.
 
-The authority-inversion slices are live for all ten isolated ops in manual
-authority policies.
-`rust_authority` commits Rust's materialized post-state without running the
-Python handler, and `rust_authority_with_python_shadow` fails closed on
-Python/Rust post-state disagreement. The deposit/withdraw slices also commit the
-Python wallet-balance debit/credit after Rust accepts. No deployment profile
-flips in this change; `public-testnet` remains `perp_stateful: rust_shadow`.
+The authority-inversion slices are live for all ten isolated ops. The
+public-testnet profile now uses the shadow-checked Rust-authority lane:
+`rust_authority_with_python_shadow` fails closed on Python/Rust post-state
+disagreement. The deposit/withdraw slices also commit the Python wallet-balance
+debit/credit after Rust accepts.
 
 Under `rust_shadow`, this is consumed as a check only: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
 post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
 `_effects_agree`), failing closed on any state OR effect divergence. Manual
 `rust_authority*` policies use the same materializer as the decision source.
-Accordingly **`perp_stateful` remains `rust_shadow` in every deployment profile**
-until the promotion gates are reviewed and explicitly flipped.
-
-Promotion requires the gate + human sign-off before any profile switches from
-`rust_shadow` to `rust_authority_with_python_shadow`. Kani 0.60.0 is available.
+Accordingly **`perp_stateful` is promoted to
+`rust_authority_with_python_shadow` in `public-testnet` only**. Production-strict
+remains all-Python, and pure `rust_authority` remains blocked by the strict
+profile schema until soak evidence and a future sign-off update.
+Kani 0.60.0 is available.
 The bounded-sink
 funding arithmetic now has exact Kani receipts on heap-free
 helpers called by the running `perp_funding_auto` transition: sink mirror deltas,
@@ -314,14 +307,7 @@ verifies the selector receives an agreed rejection rather than a drift.
 - **Promoted to public-testnet shadow-checked Rust authority**: canonical
   primitives, state root v5, replay/idempotency guard, balance accounting, fee
   router, zUSD single-vault, burn rails, CPMM per-pool settlement, perp
-  stateless math.
-- **Live Rust shadow, awaiting authority-grade materialization**: the
-  **stateful isolated-perps engine (all 10 ops)**. Evidence 1–3 +
-  fuzz + input-disaster are green, and `public-testnet` runs
-  `perp_stateful: rust_shadow` on accepted isolated transitions. It stays Python
-  authority until Rust emits a full post-DexState/effects-equivalent document,
-  the profile flips to `rust_authority_with_python_shadow`, CI enforces it, and
-  human sign-off is recorded.
+  stateless math, and the stateful isolated-perps engine (all 10 ops).
 - **Intentionally Python-only**: batch-clearing orchestration, multi-vault zUSD,
   intent shape-gate, BLS verification (crypto is wrapped, never reimplemented).
 
@@ -350,8 +336,8 @@ Delivered:
 - **Deployment-facts wiring** — `runtime_authority_policy` section added to
   `config/deploy/{local-dev,public-testnet,production-strict}.yaml`. Public
   testnet now promotes `canonical`, `state_root`, `replay_guard`, `balances`,
-  `fee_router`, `zusd`, `burn_receipts`, `cpmm_settlement`, and `perp_math`;
-  production remains all-Python.
+  `fee_router`, `zusd`, `burn_receipts`, `cpmm_settlement`, `perp_math`, and
+  `perp_stateful`; production remains all-Python.
   `validate_authority_policy` rejects a half-configured Rust authority (and a
   blanket Rust default) under `public-testnet` and `production-strict`;
   `tools/check_deployment_profiles.py` enforces it in CI.

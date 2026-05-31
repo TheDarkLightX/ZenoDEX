@@ -169,7 +169,7 @@ def test_deploy_profile_rejects_non_trusted_core_authority_surface():
 
 def test_deploy_profile_rejects_stale_promoted_surface_entry():
     profile = load_deploy_profile("public-testnet")
-    profile["runtime_authority_policy"]["promoted_surfaces"].append("perp_stateful")
+    profile["runtime_authority_policy"]["per_surface"]["fee_router"] = "rust_shadow"
 
     conflicts = evaluate_deploy_profile_consistency(profile, {})
 

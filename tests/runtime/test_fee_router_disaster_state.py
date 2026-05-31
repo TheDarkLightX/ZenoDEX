@@ -102,6 +102,7 @@ def test_public_testnet_profile_promotes_fee_router():
         "canonical",
         "cpmm_settlement",
         "perp_math",
+        "perp_stateful",
         "replay_guard",
         "state_root",
         "zusd",
