@@ -41,6 +41,24 @@ def _policy(mode: AuthorityMode) -> AuthorityPolicy:
     )
 
 
+def test_materialized_reject_parity_requires_no_post_state():
+    from src.integration import perp_engine
+
+    py_reject = {"accept": False, "reject_reason": "same_reason"}
+    assert perp_engine._materialized_responses_agree(
+        py_reject,
+        {"accept": False, "reject_reason": "same_reason"},
+    )
+    assert not perp_engine._materialized_responses_agree(
+        py_reject,
+        {"accept": False, "reject_reason": "same_reason", "post": {}},
+    )
+    assert not perp_engine._materialized_responses_agree(
+        py_reject,
+        {"accept": False, "reject_reason": "same_reason", "effects": {}},
+    )
+
+
 @pytest.fixture(autouse=True)
 def _reset_policy_after():
     yield

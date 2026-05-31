@@ -3626,6 +3626,10 @@ def _materialized_responses_agree(python_response: Any, rust_response: Any) -> b
     if py_accept != rust_accept:
         return False
     if not py_accept:
+        if set(python_response.keys()) != {"accept", "reject_reason"}:
+            return False
+        if set(rust_response.keys()) != {"accept", "reject_reason"}:
+            return False
         return str(python_response.get("reject_reason")) == str(rust_response.get("reject_reason"))
     return _full_post_markets_agree(python_response, rust_response)
 
