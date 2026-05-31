@@ -8,6 +8,7 @@ is a demo/development API and does not verify caller authority.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from pathlib import Path
@@ -84,44 +85,75 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _env_float(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return float(default)
-    try:
-        value = float(raw.strip())
-    except Exception:
-        return float(default)
-    return min(max(value, lo), hi)
+        value = float(default)
+    else:
+        try:
+            value = float(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be a finite float in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if not math.isfinite(value) or value < lo or value > hi:
+        raise ValueError(f"{name} must be finite and in [{lo}, {hi}]; got {value!r}")
+    return float(value)
+
+
+def _env_float_alias(primary: str, fallback: str, default: float, *, lo: float, hi: float) -> float:
+    if os.environ.get(primary, "").strip():
+        return _env_float(primary, default, lo=lo, hi=hi)
+    return _env_float(fallback, default, lo=lo, hi=hi)
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
-        return int(default)
-    try:
-        value = int(raw.strip())
-    except Exception:
-        return int(default)
-    return min(max(value, lo), hi)
+        value = int(default)
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{name} must be an integer in [{lo}, {hi}]; got {raw!r}"
+            ) from exc
+    if value < lo or value > hi:
+        raise ValueError(f"{name} must be in [{lo}, {hi}]; got {value}")
+    return int(value)
+
+
+def _env_int_alias(primary: str, fallback: str, default: int, *, lo: int, hi: int) -> int:
+    if os.environ.get(primary, "").strip():
+        return _env_int(primary, default, lo=lo, hi=hi)
+    return _env_int(fallback, default, lo=lo, hi=hi)
 
 
 def _tau_client() -> TauNetTcpClient:
     return TauNetTcpClient(
         TauNetTcpConfig(
             host=_env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
-            port=_env_int(
+            port=_env_int_alias(
                 "PERPS_WALLET_TAU_PORT",
-                _env_int("ZUSD_MONETARY_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+                "ZUSD_MONETARY_WALLET_TAU_PORT",
+                65432,
                 lo=1,
                 hi=65535,
             ),
-            timeout_s=_env_float(
+            timeout_s=_env_float_alias(
                 "PERPS_WALLET_TAU_TIMEOUT_S",
-                _env_float("ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S", 3.0, lo=0.1, hi=60.0),
+                "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S",
+                3.0,
                 lo=0.1,
                 hi=60.0,
             ),
@@ -1609,9 +1641,10 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "fee_limit_native_balance_ok": fee_limit_posture["native_balance_covers_fee_limit"],
             "fee_limit_warning": fee_limit_posture["warning"],
             "tau_host": _env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
-            "tau_port": _env_int(
+            "tau_port": _env_int_alias(
                 "PERPS_WALLET_TAU_PORT",
-                _env_int("ZUSD_MONETARY_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+                "ZUSD_MONETARY_WALLET_TAU_PORT",
+                65432,
                 lo=1,
                 hi=65535,
             ),
@@ -1794,9 +1827,10 @@ def _status_payload() -> Dict[str, Any]:
         "enabled": True,
         "chain_id": chain_id,
         "tau_host": _env_str("PERPS_WALLET_TAU_HOST", _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", "127.0.0.1")),
-        "tau_port": _env_int(
+        "tau_port": _env_int_alias(
             "PERPS_WALLET_TAU_PORT",
-            _env_int("ZUSD_MONETARY_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
+            "ZUSD_MONETARY_WALLET_TAU_PORT",
+            65432,
             lo=1,
             hi=65535,
         ),

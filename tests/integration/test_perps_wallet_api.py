@@ -1222,6 +1222,60 @@ def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatc
     assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
 
 
+def test_prepare_init_market_rejects_nonfinite_perps_tau_timeout(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_TAU_TIMEOUT_S", "nan")
+
+    body = {
+        "action": "init_market_2p",
+        "market_id": MARKET_ID,
+        "quote_asset": quote_asset,
+        "account_a_privkey": str(ALICE_PRIVKEY),
+        "account_b_privkey": str(BOB_PRIVKEY),
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "PERPS_WALLET_TAU_TIMEOUT_S" in str(payload["error"])
+
+
+def test_prepare_init_market_rejects_malformed_local_signing_flag(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    _FakeClient.native_balances = {ALICE[2:]: 0}
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "maybe")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "init_market_2p",
+        "market_id": MARKET_ID,
+        "quote_asset": quote_asset,
+        "account_a_privkey": str(ALICE_PRIVKEY),
+        "account_b_privkey": str(BOB_PRIVKEY),
+        "deadline": 123456789,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "PERPS_WALLET_ALLOW_LOCAL_SIGNING" in str(payload["error"])
+
+
 def test_prepare_init_market_requires_zk_proof_when_enabled(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
@@ -2187,6 +2241,43 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
     assert market["position_base_a"] == 0
     assert market["position_base_b"] == 0
     assert market["net_deposited_e8"] == 20_000_000_000
+
+
+def test_status_rejects_malformed_perps_tau_port(monkeypatch) -> None:
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_TAU_PORT", "70000")
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "PERPS_WALLET_TAU_PORT" in str(payload["error"])
+
+
+def test_status_perps_tau_port_overrides_bad_monetary_fallback(monkeypatch) -> None:
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_TAU_PORT", "65434")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_TAU_PORT", "70000")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["tau_port"] == 65434
+
+
+def test_status_rejects_malformed_isolated_oracle_adapter_flag(monkeypatch) -> None:
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", "maybe")
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request("GET", "/api/perps/wallet/status", None)
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE" in str(payload["error"])
 
 
 def test_status_loads_ready_perps_wallet_authority_profile(monkeypatch) -> None:
