@@ -94,6 +94,42 @@ def test_apply_app_tx_rejects_malformed_consensus_boolean_env(monkeypatch):
     assert "TAU_DEX_REQUIRE_INTENT_SIGS" in str(err)
 
 
+def test_apply_app_tx_rejects_unknown_wrapper_state_fields(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.dex_snapshot import snapshot_from_state
+    from src.core.dex import DexState
+    from src.state.balances import BalanceTable
+    from src.state.lp import LPTable
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    app_state_json = json.dumps(
+        {
+            "schema": "zenodex/tau_app_state/v1",
+            "version": 1,
+            "dex_state": snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())).data,
+            "proof_mining": None,
+            "zusd_monetary": None,
+            "future_extension": {"drop": "me"},
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+    ok, state_out, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert state_out == app_state_json
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "app_state unknown fields" in str(err)
+
+
 def test_apply_app_tx_rejects_malformed_proof_verifier_env(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 

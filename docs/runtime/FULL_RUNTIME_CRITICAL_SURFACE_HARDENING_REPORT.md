@@ -45,6 +45,11 @@ list-wrapped JSON custom stream entries, rejects ambiguous DEX aliases (`2`+`5`,
 intents or legacy TauPerp ops. Regression:
 `tests/integration/test_tau_testnet_dex_plugin.py`.
 
+**FIXED — S1-APP-STATE-001:** the wrapped Tau app-state loader now rejects
+unknown top-level wrapper fields instead of silently dropping them before
+dispatching nested DEX, proof-mining, or zUSD state. Regression:
+`tests/integration/test_tau_testnet_dex_plugin.py`.
+
 ### S2 — dex_engine + proof verifiers — 1 fix + 8 negative receipts
 **FIXED — S2-CQ-001 (D-PROOF-COMPRESS, defense-in-depth):** a *corrupt* (vs
 truncated) zlib witness made `_zlib_decompress_limited` raise `zlib.error`, which

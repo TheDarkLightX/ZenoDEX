@@ -91,6 +91,8 @@ Both committed (not dirty), outside the audited surfaces:
 - Tau app-bridge stream selection now fails closed on unsupported reserved
   stream `5`, ambiguous DEX aliases (`2`+`5`, `3`+`6`, `4`+`7`), and
   list-wrapped JSON custom stream entries are decoded before engine selection.
+  The wrapped Tau app-state loader also rejects unknown top-level wrapper fields
+  before nested DEX/proof-mining/zUSD state dispatch.
 - zUSD monetary wrapper state now rejects unknown top-level and
   stability-pool-entry fields instead of silently dropping them during
   app-state load.
