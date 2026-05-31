@@ -79,7 +79,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Burn rails | yes | yes | Kani on `verify_rails`: totality, accepted budget/supply/batch conservation, non-vacuity | burn receipt differential, live path, disaster/fuzz | full |
 | CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence | partial |
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
-| Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain/deposit/clear-breaker tractable slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
+| Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain/deposit/clear-breaker tractable slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
 | State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector | partial |
 | zUSD single-vault | yes | yes | Kani on BigInt-free scalar risk helpers: oracle freshness, base-rate decay, fee cap, and debt-floor guard. Full BigInt CDP ratio arithmetic and full `step` remain outside Kani | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector | partial |
@@ -122,9 +122,11 @@ This campaign moved seven surfaces forward:
   `i128` input struct, phase classifier exactness, accept-state shapes, and
   non-vacuity of accept/reject outcomes. Kani also now proves the account-op
   domain predicate is total, deposit accept shape, clear-breaker accept shape,
-  and account-op accept/reject reachability. Withdraw and set-position margin
-  paths remain differential/live-shadow backed, as do the settlement ops except
-  for funding-auto's bounded-sink arithmetic.
+  and account-op accept/reject reachability. Set-market-params now has no-account
+  no-op shape, funding-rate cap clamp shape, and scalar reachability contracts.
+  Withdraw and set-position margin paths, set-market account-safety scans, and
+  settlement ops remain differential/live-shadow backed except for funding-auto's
+  bounded-sink arithmetic.
 
 This pass also integrated four open security PR fixes onto the branch:
 
@@ -154,8 +156,9 @@ includes the live-shadow regression.
    selection, liquidation arithmetic, and full `step` remain outside Kani. Keep
    full `step` equality under Python/Rust differential until the BigInt core is
    generated or separately verified.
-5. Extend perps Kani coverage from funding-auto sub-core to account ops,
-   publish/advance, set-market-params, partial-liquidate, and settle helper
+5. Extend perps Kani coverage from the current funding-auto, global-op,
+   account-op, and set-market scalar slices into withdraw/set-position margin
+   paths, set-market account scans, partial-liquidate, and settle helper
    contracts, using the same assume-guarantee decomposition pattern.
 6. Close or merge the original GitHub PRs after this integrated branch lands, so
    duplicate open PRs do not linger as misleading security debt.
@@ -173,7 +176,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 63 successfully verified harnesses, 0 failures, 63 total.
+Complete - 66 successfully verified harnesses, 0 failures, 66 total.
 ```
 
 Focused tests after integrating the security fixes:

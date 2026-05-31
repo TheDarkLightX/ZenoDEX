@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 63 successfully verified harnesses, 0 failures, 63 total.
+Complete - 66 successfully verified harnesses, 0 failures, 66 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -105,6 +105,12 @@ Perp stateful account-op tractable slice:
 - `perp_account_ops::kani_contracts::deposit_collateral_total_and_accept_shape`
 - `perp_account_ops::kani_contracts::domain_predicate_is_total_for_any_i128_input`
 
+Perp set-market-params scalar/no-account slice:
+
+- `perp_set_market_params::kani_contracts::empty_request_returns_current_params`
+- `perp_set_market_params::kani_contracts::funding_rate_clamps_to_requested_cap_without_accounts`
+- `perp_set_market_params::kani_contracts::set_market_params_covers_are_reachable`
+
 Perp funding-auto bounded-sink arithmetic:
 
 - `perp_funding_auto::kani_contracts::account_collateral_delta_is_negative_payment`
@@ -163,6 +169,8 @@ running Rust crate:
   `publish_clearing_price`;
 - stateful perps account-op domain totality, deposit accept shape, clear-breaker
   accept shape, and account-op accept/reject non-vacuity covers;
+- set-market-params no-account no-op shape, funding-rate cap clamp shape, and
+  scalar accept/reject non-vacuity covers;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
 - state-root scalar guards for pool fee bps, nonce bounds, LP duration metadata
@@ -185,4 +193,5 @@ live-domain multiplication/division for notional, PnL, funding, margin, and
 liquidation arithmetic. Those remain covered by Rust proptests, Python/Rust
 differentials, disaster-state, and live-path tests. For stateful account ops,
 withdraw and set-position margin paths also remain differential/live-shadow
-backed.
+backed. For set-market-params, account-safety scans and margin-heavy overlay
+paths remain differential/live-shadow backed.

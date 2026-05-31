@@ -441,3 +441,85 @@ mod tests {
         assert_eq!(set_market_params(&inp).unwrap_err(), REJ_OUT_OF_DOMAIN);
     }
 }
+
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn base_no_accounts() -> SetMarketParamsInput {
+        SetMarketParamsInput {
+            cur_max_oracle_staleness_epochs: 100,
+            cur_max_oracle_move_bps: 500,
+            cur_initial_margin_bps: 1000,
+            cur_maintenance_margin_bps: 500,
+            cur_depeg_buffer_bps: 100,
+            cur_liquidation_penalty_bps: 50,
+            cur_max_position_abs: 1_000_000,
+            cur_funding_cap_bps: 1000,
+            cur_min_notional_for_bounty: 100_000_000,
+            cur_funding_rate_bps: 0,
+            index_price_e8: 100_000_000,
+            min_collectible_liquidation_penalty_quote: 0,
+            upd_max_oracle_staleness_epochs: None,
+            upd_max_oracle_move_bps: None,
+            upd_initial_margin_bps: None,
+            upd_maintenance_margin_bps: None,
+            upd_depeg_buffer_bps: None,
+            upd_liquidation_penalty_bps: None,
+            upd_max_position_abs: None,
+            upd_funding_cap_bps: None,
+            upd_min_notional_for_bounty: None,
+            accounts: vec![],
+        }
+    }
+
+    #[kani::proof]
+    fn empty_request_returns_current_params() {
+        let mut inp = base_no_accounts();
+        inp.cur_funding_rate_bps = kani::any();
+
+        let out = set_market_params(&inp).unwrap();
+        assert_eq!(out, current_output(&inp));
+    }
+
+    #[kani::proof]
+    fn funding_rate_clamps_to_requested_cap_without_accounts() {
+        let rate_raw: i32 = kani::any();
+        let cap_raw: i32 = kani::any();
+        kani::assume((-20_000..=20_000).contains(&rate_raw));
+        kani::assume((1..=10_000).contains(&cap_raw));
+
+        let mut inp = base_no_accounts();
+        inp.cur_funding_rate_bps = rate_raw as i128;
+        inp.upd_funding_cap_bps = Some(cap_raw as i128);
+
+        let out = set_market_params(&inp).unwrap();
+        assert_eq!(out.funding_cap_bps, cap_raw as i128);
+        assert!(out.funding_rate_bps.checked_abs().unwrap() <= cap_raw as i128);
+    }
+
+    #[kani::proof]
+    fn set_market_params_covers_are_reachable() {
+        let base = base_no_accounts();
+        kani::cover!(set_market_params(&base).is_ok());
+
+        let mut param_domain = base_no_accounts();
+        param_domain.upd_depeg_buffer_bps = Some(BOUND_DEPEG_BUFFER_BPS.1 + 1);
+        kani::cover!(set_market_params(&param_domain) == Err(REJ_PARAM_DOMAIN));
+
+        let mut ordering = base_no_accounts();
+        ordering.upd_liquidation_penalty_bps = Some(0);
+        kani::cover!(set_market_params(&ordering) == Err(REJ_ORDERING));
+
+        let mut min_notional = base_no_accounts();
+        min_notional.upd_min_notional_for_bounty = Some(100);
+        kani::cover!(set_market_params(&min_notional) == Err(REJ_MIN_NOTIONAL));
+
+        let mut clamp = base_no_accounts();
+        clamp.cur_funding_rate_bps = 900;
+        clamp.upd_funding_cap_bps = Some(500);
+        kani::cover!(set_market_params(&clamp)
+            .map(|out| out.funding_rate_bps == 500)
+            .unwrap_or(false));
+    }
+}
