@@ -205,6 +205,10 @@ fn validate_nonce_value(last_nonce: u128) -> Result<u128, StateRootError> {
     Ok(last_nonce)
 }
 
+fn pool_assets_in_canonical_order(asset0: &[u8], asset1: &[u8]) -> bool {
+    asset0 < asset1
+}
+
 fn duration_metadata_is_present_flags(
     has_mint: bool,
     has_remove: bool,
@@ -371,7 +375,7 @@ fn encode_pools(entries: &[PoolEntry]) -> Result<Vec<u8>, StateRootError> {
         let asset0 = hex_to_bytes_fixed(&e.asset0, ASSET_NBYTES)?;
         let asset1 = hex_to_bytes_fixed(&e.asset1, ASSET_NBYTES)?;
         validate_pool_fee_bps(e.fee_bps)?;
-        if asset0 >= asset1 {
+        if !pool_assets_in_canonical_order(&asset0, &asset1) {
             return Err(StateRootError::NonCanonicalPoolAssets);
         }
         canonical_curve_config(&e.curve_tag, &e.curve_params)?;
@@ -850,6 +854,22 @@ mod kani_contracts {
     }
 
     #[kani::proof]
+    fn pool_asset_order_guard_matches_fixed_width_byte_order() {
+        let asset0: [u8; ASSET_NBYTES] = kani::any();
+        let asset1: [u8; ASSET_NBYTES] = kani::any();
+        assert_eq!(
+            pool_assets_in_canonical_order(&asset0, &asset1),
+            asset0 < asset1
+        );
+    }
+
+    #[kani::proof]
+    fn pool_asset_order_guard_rejects_equal_assets() {
+        let asset: [u8; ASSET_NBYTES] = kani::any();
+        assert!(!pool_assets_in_canonical_order(&asset, &asset));
+    }
+
+    #[kani::proof]
     fn pool_status_codes_are_in_domain_and_distinct() {
         let active = PoolStatus::Active.code();
         let frozen = PoolStatus::Frozen.code();
@@ -860,5 +880,15 @@ mod kani_contracts {
         assert!(active != frozen);
         assert!(active != disabled);
         assert!(frozen != disabled);
+    }
+
+    #[kani::proof]
+    fn state_root_guard_covers_are_reachable() {
+        let zero = [0_u8; ASSET_NBYTES];
+        let mut one = [0_u8; ASSET_NBYTES];
+        one[ASSET_NBYTES - 1] = 1;
+        kani::cover!(pool_assets_in_canonical_order(&zero, &one));
+        kani::cover!(!pool_assets_in_canonical_order(&one, &zero));
+        kani::cover!(!pool_assets_in_canonical_order(&zero, &zero));
     }
 }
