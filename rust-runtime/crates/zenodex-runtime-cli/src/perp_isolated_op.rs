@@ -25,7 +25,7 @@
 //! return `op_not_materialized` so the bridge keeps Python authoritative for them.
 
 use serde_json::{json, Map, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
@@ -51,7 +51,9 @@ pub const REJ_NOT_MATERIALIZED: &str = "op_not_materialized";
 pub const REJ_BAD_SCHEMA: &str = "perp_isolated_op_bad_schema";
 pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
+pub const REJ_UNKNOWN_REQUEST_FIELD: &str = "perp_isolated_op_unknown_request_field";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
+pub const REJ_DUPLICATE_ACCOUNT: &str = "perp_isolated_op_duplicate_account";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
 pub const REJ_SENDER_NOT_BOUND: &str = "sender_not_bound_to_account";
 pub const REJ_ORACLE_ADAPTER: &str = "oracle_adapter_not_accepted";
@@ -146,15 +148,14 @@ struct Facts {
     min_collectible_liquidation_penalty_quote: i128,
 }
 
-/// Read an i128 from a JSON value that is a decimal string or an integer number.
+/// Read an i128 from the canonical wire representation.
+///
+/// The materialized request format carries integers as decimal strings. JSON
+/// numbers are intentionally rejected so every consensus boundary has one exact
+/// encoding and cannot drift through float, exponent, or host-width parsing.
 fn as_i128(v: &Value) -> Result<i128, &'static str> {
     match v {
         Value::String(s) => s.parse::<i128>().map_err(|_| REJ_BAD_REQUEST),
-        Value::Number(n) => n
-            .as_i64()
-            .map(i128::from)
-            .ok_or(REJ_BAD_REQUEST)
-            .or_else(|_| n.to_string().parse::<i128>().map_err(|_| REJ_BAD_REQUEST)),
         _ => Err(REJ_BAD_REQUEST),
     }
 }
@@ -284,7 +285,7 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         None => return reject(REJ_BAD_REQUEST),
     };
     if has_unknown_key(obj, TOP_LEVEL_KEYS) {
-        return reject(REJ_BAD_REQUEST);
+        return reject(REJ_UNKNOWN_REQUEST_FIELD);
     }
     // Authority-grade wire format: pin the exact schema id and version.
     if obj.get("schema").and_then(Value::as_str) != Some(SCHEMA_ID) {
@@ -309,9 +310,15 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         None => return reject(REJ_BAD_REQUEST),
     };
     let mut accounts = Vec::with_capacity(accounts_val.len());
+    let mut account_keys = BTreeSet::new();
     for av in accounts_val {
         match parse_account(av) {
-            Ok(a) => accounts.push(a),
+            Ok(a) => {
+                if !account_keys.insert(a.key.clone()) {
+                    return reject(REJ_DUPLICATE_ACCOUNT);
+                }
+                accounts.push(a);
+            }
             Err(e) => return reject(e),
         }
     }
@@ -1463,11 +1470,24 @@ fn set_market_param_update(
     params.get(key).map(as_i128).transpose()
 }
 
+fn set_market_param_effect_params(
+    params: &Map<String, Value>,
+) -> Result<Map<String, Value>, &'static str> {
+    let mut out = Map::new();
+    for (key, value) in params {
+        let parsed = as_i128(value)?;
+        let number = i64::try_from(parsed).map_err(|_| REJ_BAD_REQUEST)?;
+        out.insert(key.clone(), Value::Number(number.into()));
+    }
+    Ok(out)
+}
+
 /// `set_market_params`: operator-gated market-control overlay. The request
 /// carries a `params` object with only the keys to update; the Rust core merges
 /// those over the current global params, validates ordering / anti-farming /
 /// account safety, and clamps the stored funding rate to the new cap. Accounts
-/// are carried verbatim and the effect payload records the requested params.
+/// are carried verbatim and the effect payload records the requested params in
+/// Python's numeric effect shape.
 fn materialize_set_market_params(
     quote_asset: &str,
     mut global: Map<String, Value>,
@@ -1626,7 +1646,11 @@ fn materialize_set_market_params(
     ] {
         global.insert(key.into(), Value::String(value.to_string()));
     }
-    let effects = json!({"params": Value::Object(params.clone())});
+    let effect_params = match set_market_param_effect_params(params) {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let effects = json!({"params": Value::Object(effect_params)});
     accept(quote_asset, &global, &accounts, effects)
 }
 
@@ -1844,6 +1868,58 @@ mod tests {
     }
 
     #[test]
+    fn integer_wire_fields_must_be_decimal_strings() {
+        let mut fact_number = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        fact_number["facts"]["balance_available"] = json!(0);
+        let out = materialize_isolated_op(&fact_number);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+
+        let mut global_number = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        global_number["global_state"]["now_epoch"] = json!(5);
+        let out = materialize_isolated_op(&global_number);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+
+        let op_number = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": 1}),
+            true,
+        );
+        let out = materialize_isolated_op(&op_number);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+
+        let mut account_number = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "1"}),
+            json!([acct_json("aa", 0, 1000, 0)]),
+            true,
+        );
+        account_number["accounts"][0]["collateral_quote"] = json!(1000);
+        let out = materialize_isolated_op(&account_number);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+
+        let params_number = req(
+            settled_global(5),
+            json!({"action": "set_market_params", "params": {"maintenance_margin_bps": 600}}),
+            true,
+        );
+        let out = materialize_isolated_op(&params_number);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
     fn unknown_top_level_request_field_rejects() {
         let mut r = req(
             settled_global(5),
@@ -1854,7 +1930,7 @@ mod tests {
             .unwrap()
             .insert("debug".to_string(), json!("metadata"));
         let out = materialize_isolated_op(&r);
-        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_REQUEST_FIELD));
         assert!(out.get("post").is_none());
     }
 
@@ -1928,6 +2004,23 @@ mod tests {
             false,
         ));
         assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn duplicate_account_keys_reject_before_semantic_execution() {
+        let accounts = json!([
+            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            acct_json("aa", -300_000, 1_000_000, 100_000_000),
+        ]);
+        let out = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_DUPLICATE_ACCOUNT));
         assert!(out.get("post").is_none());
     }
 
@@ -3100,7 +3193,7 @@ mod tests {
             settled_global(5),
             json!({
                 "action": "set_market_params",
-                "params": {"maintenance_margin_bps": 600, "funding_cap_bps": 500}
+                "params": {"maintenance_margin_bps": "600", "funding_cap_bps": "500"}
             }),
             accounts,
             true,
@@ -3215,7 +3308,7 @@ mod tests {
     #[test]
     fn malformed_after_schema_rejects() {
         // Valid schema/version but missing quote_asset -> bad request (not schema).
-        let r = json!({"schema": SCHEMA_ID, "version": SCHEMA_VERSION, "bad": 1});
+        let r = json!({"schema": SCHEMA_ID, "version": SCHEMA_VERSION});
         assert_eq!(
             materialize_isolated_op(&r)["reject_reason"],
             json!(REJ_BAD_REQUEST)

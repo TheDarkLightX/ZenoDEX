@@ -3689,7 +3689,7 @@ def _build_isolated_op_request(
         params = op.data.get("params")
         if not isinstance(params, Mapping):
             raise ValueError("params must be an object")
-        op_obj["params"] = dict(params)
+        op_obj["params"] = _isolated_set_market_params_wire_doc(params)
     # clear_breaker (and the global ops settle_epoch) carry no op params; the
     # materializer reads everything it needs from global_state + the all_positions_flat
     # fact, so the bare {"action": ...} op object above is complete.
@@ -3702,6 +3702,25 @@ def _build_isolated_op_request(
         "op": op_obj,
         "facts": dict(integration_facts),
     }
+
+
+def _isolated_set_market_params_wire_doc(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Serialize the set-market overlay into the Rust materializer wire shape.
+
+    Known control params keep Python's semantic input contract: callers must
+    provide ints, and the bridge converts them to decimal strings for Rust.
+    Unknown keys are left untouched so the materializer rejects them as unknown
+    before value parsing, matching the semantic handler's reject order.
+    """
+    out: dict[str, Any] = {}
+    for key, value in params.items():
+        if not isinstance(key, str):
+            raise ValueError("params keys must be strings")
+        if key not in _ISOLATED_CONTROL_PARAM_BOUNDS:
+            out[key] = value
+            continue
+        out[key] = str(_require_int(value, name=f"params.{key}", non_negative=True))
+    return out
 
 
 def _perp_stateful_full_doc(
