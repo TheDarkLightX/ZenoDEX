@@ -358,6 +358,21 @@ def test_load_policy_rejects_bad_schema():
         load_authority_policy({"runtime_authority_policy": {"default": "python_authority"}})
 
 
+def test_load_policy_rejects_unknown_section_keys():
+    with pytest.raises(ValueError, match="runtime_authority_policy has unknown keys"):
+        load_authority_policy(
+            {
+                "runtime_authority_policy": {
+                    "schema": "zenodex/runtime_authority_policy/v1",
+                    "default": "python_authority",
+                    "per_surface": {},
+                    "promoted_surfaces": [],
+                    "promoted_surface": ["fee_router"],
+                }
+            }
+        )
+
+
 def test_load_policy_rejects_bad_mode():
     with pytest.raises(ValueError):
         load_authority_policy(
