@@ -47,6 +47,7 @@ import Proofs.ConsensusGracePeriod
 import Proofs.ConstDenominatorSurrogateBounds
 import Proofs.ContinuousFunding
 import Proofs.CPMMConcavity
+import Proofs.CPMMExactOutFeeInverse
 import Proofs.CPMMEdgeRounding
 import Proofs.CPMMInvariants
 import Proofs.CPMMLiquidityDonationDefense

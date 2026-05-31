@@ -46,7 +46,7 @@ for:
 They also run a curated boundary subset through the Rust `cpmm-op` CLI and
 compare accepted receipt fields or stable rejection codes.
 
-## Z3 slice
+## Z3 and Lean slices
 
 The test includes a bounded Z3 check for the exact-out fee-inversion identity:
 
@@ -64,6 +64,30 @@ over:
 ```
 
 This is bounded SMT evidence, not a live-domain theorem.
+
+The same finite identity is mirrored in Lean:
+
+```text
+lean-mathlib/Proofs/CPMMExactOutFeeInverse.lean
+```
+
+Replay:
+
+```bash
+lean lean-mathlib/Proofs/CPMMExactOutFeeInverse.lean
+```
+
+Result:
+
+```text
+exit 0
+```
+
+Receipt:
+
+```text
+lean-mathlib/proof_receipts/cpmm_exact_out_fee_inverse_bounded.md
+```
 
 ## Commands
 
