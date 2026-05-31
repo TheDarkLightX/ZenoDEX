@@ -1043,6 +1043,36 @@ def test_rust_materialized_post_round_trips_to_market_state_for_deposit(rust_env
         perp_engine._market_from_materialized_post(duplicated)
 
 
+def test_isolated_global_shadow_doc_rejects_malformed_globals():
+    from src.integration import perp_engine
+
+    market_id = "perp:shadow-malformed-global-doc"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[],
+        clearing_price_e8=100_000_000,
+        deposit=1_000_000,
+    )
+    assert state.perps is not None
+    global_state = dict(state.perps.markets[market_id].global_state)
+
+    missing = dict(global_state)
+    del missing["now_epoch"]
+    with pytest.raises(ValueError, match="now_epoch missing"):
+        perp_engine._isolated_global_doc(missing)
+
+    bool_as_int = dict(global_state)
+    bool_as_int["now_epoch"] = True
+    with pytest.raises(ValueError, match="now_epoch must be an int"):
+        perp_engine._isolated_global_doc(bool_as_int)
+
+    string_bool = dict(global_state)
+    string_bool["oracle_seen"] = "false"
+    with pytest.raises(ValueError, match="oracle_seen must be a bool"):
+        perp_engine._isolated_global_doc(string_bool)
+
+
 def test_rust_shadow_deposit_new_account_parity(rust_env):
     # First deposit to a pubkey with no prior account: Python creates it, and the
     # materializer must create the same flat account from the request (which does not
