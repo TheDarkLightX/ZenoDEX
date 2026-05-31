@@ -65,6 +65,8 @@ pub const REJ_ORACLE_AUTHORIZATION: &str = "oracle_authorization_not_accepted";
 /// request boundary cannot silently accept a mis-shaped or future payload.
 const SCHEMA_ID: &str = "zenodex/perp_isolated_op/v1";
 const SCHEMA_VERSION: i64 = 1;
+const MAX_QUOTE_ASSET_LEN: usize = 256;
+const MAX_ACCOUNT_KEY_LEN: usize = 512;
 const REQUEST_KEYS: [&str; 7] = [
     "schema",
     "version",
@@ -167,6 +169,13 @@ fn as_bool(v: &Value) -> Result<bool, &'static str> {
     }
 }
 
+fn as_nonempty_bounded_str(v: &Value, max_len: usize) -> Result<&str, &'static str> {
+    match v.as_str() {
+        Some(s) if !s.is_empty() && s.len() <= max_len => Ok(s),
+        _ => Err(REJ_BAD_REQUEST),
+    }
+}
+
 fn gget(g: &Map<String, Value>, key: &str) -> Result<i128, &'static str> {
     g.get(key).ok_or(REJ_BAD_REQUEST).and_then(as_i128)
 }
@@ -233,12 +242,9 @@ fn parse_account(v: &Value) -> Result<Account, &'static str> {
             return Err(REJ_UNKNOWN_ACCOUNT_FIELD);
         }
     }
+    let key = as_nonempty_bounded_str(o.get("key").ok_or(REJ_BAD_REQUEST)?, MAX_ACCOUNT_KEY_LEN)?;
     Ok(Account {
-        key: o
-            .get("key")
-            .and_then(Value::as_str)
-            .ok_or(REJ_BAD_REQUEST)?
-            .to_string(),
+        key: key.to_string(),
         position_base: gget(o, "position_base")?,
         collateral_quote: gget(o, "collateral_quote")?,
         entry_price_e8: gget(o, "entry_price_e8")?,
@@ -250,6 +256,13 @@ fn parse_account(v: &Value) -> Result<Account, &'static str> {
             .transpose()?
             .unwrap_or(false),
     })
+}
+
+fn op_account_pubkey(op: &Map<String, Value>) -> Result<&str, &'static str> {
+    as_nonempty_bounded_str(
+        op.get("account_pubkey").ok_or(REJ_BAD_REQUEST)?,
+        MAX_ACCOUNT_KEY_LEN,
+    )
 }
 
 fn account_to_json(a: &Account) -> Value {
@@ -308,9 +321,13 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
             return reject(REJ_UNKNOWN_REQUEST_FIELD);
         }
     }
-    let quote_asset = match obj.get("quote_asset").and_then(Value::as_str) {
-        Some(s) => s.to_string(),
-        None => return reject(REJ_BAD_REQUEST),
+    let quote_asset = match obj
+        .get("quote_asset")
+        .ok_or(REJ_BAD_REQUEST)
+        .and_then(|v| as_nonempty_bounded_str(v, MAX_QUOTE_ASSET_LEN))
+    {
+        Ok(s) => s.to_string(),
+        Err(e) => return reject(e),
     };
     let global = match obj.get("global_state").and_then(Value::as_object) {
         Some(g) => g.clone(),
@@ -900,9 +917,9 @@ fn materialize_deposit_collateral(
     if !facts.sender_bound_ok {
         return reject(REJ_SENDER_NOT_BOUND);
     }
-    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
-        Some(s) => s,
-        None => return reject(REJ_BAD_REQUEST),
+    let account_pubkey = match op_account_pubkey(op) {
+        Ok(s) => s,
+        Err(e) => return reject(e),
     };
     let amount = match op.get("amount").map(as_i128) {
         Some(Ok(v)) => v,
@@ -947,9 +964,9 @@ fn materialize_withdraw_collateral(
     if !facts.sender_bound_ok {
         return reject(REJ_SENDER_NOT_BOUND);
     }
-    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
-        Some(s) => s,
-        None => return reject(REJ_BAD_REQUEST),
+    let account_pubkey = match op_account_pubkey(op) {
+        Ok(s) => s,
+        Err(e) => return reject(e),
     };
     let amount = match op.get("amount").map(as_i128) {
         Some(Ok(v)) => v,
@@ -995,9 +1012,9 @@ fn materialize_set_position(
     if !facts.sender_bound_ok {
         return reject(REJ_SENDER_NOT_BOUND);
     }
-    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
-        Some(s) => s,
-        None => return reject(REJ_BAD_REQUEST),
+    let account_pubkey = match op_account_pubkey(op) {
+        Ok(s) => s,
+        Err(e) => return reject(e),
     };
     let new_position_base = match op.get("new_position_base").map(as_i128) {
         Some(Ok(v)) => v,
@@ -1133,9 +1150,9 @@ fn materialize_partial_liquidate(
     if !facts.oracle_authorization_ok {
         return reject(REJ_ORACLE_AUTHORIZATION);
     }
-    let account_pubkey = match op.get("account_pubkey").and_then(Value::as_str) {
-        Some(s) => s,
-        None => return reject(REJ_BAD_REQUEST),
+    let account_pubkey = match op_account_pubkey(op) {
+        Ok(s) => s,
+        Err(e) => return reject(e),
     };
     let fraction_bps = match op.get("fraction_bps").map(as_i128) {
         Some(Ok(v)) => v,
@@ -1833,6 +1850,20 @@ mod tests {
     }
 
     #[test]
+    fn empty_quote_asset_rejects() {
+        let mut r = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        r["quote_asset"] = json!("");
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
     fn duplicate_account_keys_reject_before_semantic_execution() {
         let accounts = json!([
             acct_json("aa", 300_000, 1_000_000, 100_000_000),
@@ -1846,6 +1877,32 @@ mod tests {
         ));
         assert_eq!(out["accept"], json!(false));
         assert_eq!(out["reject_reason"], json!(REJ_DUPLICATE_ACCOUNT));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn empty_account_key_rejects() {
+        let out = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([acct_json("", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn empty_op_account_pubkey_rejects() {
+        let out = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "", "amount": "1"}),
+            json!([]),
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
         assert!(out.get("post").is_none());
     }
 
