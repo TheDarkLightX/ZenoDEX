@@ -39,7 +39,8 @@ runtime_policy:
 runtime_authority_policy:
   schema: zenodex/runtime_authority_policy/v1
   # Python authority by default. Promoted low-risk runtime surfaces run Rust
-  # authority with Python shadow on public testnet.
+  # authority with Python shadow on public testnet. `rust_shadow` is the
+  # opposite direction: Python remains authority and Rust checks after the fact.
   default: python_authority
   per_surface:
     balances: rust_authority_with_python_shadow
