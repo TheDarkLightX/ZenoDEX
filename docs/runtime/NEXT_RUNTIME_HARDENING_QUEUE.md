@@ -77,7 +77,11 @@ Ranked remaining work from the 2026-05-31 disaster-hardening campaign
 campaign: **D-1** (floor_div_i128 totality), **F-2** (deploy-profile unknown-key
 rejection); **E-1** refuted + locked.
 
-## P0(new) — pre-existing red posture-gate tests in `deployment_profiles.py`
+## P0(new) — pre-existing red posture-gate tests in `deployment_profiles.py` — ✅ RESOLVED
+**Resolved same day** (commits `3f8d8bd3` + `467e5146`): the 1 likely-real gap
+closed by a config-coherence check, the 2 stale tests modernized;
+`tests/integration/test_deployment_profiles.py` is now 11 passed. Detail below.
+
 Three tests fail at the clean baseline `d1f9d493` (in `DexEngineConfig` posture
 validation — NOT the `deploy_profile.py` YAML loader F-2 fixed). Root cause is
 **not uniform** (per-test, reproduced + corrected after Codex review):
