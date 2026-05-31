@@ -24,7 +24,7 @@
 //! return `op_not_materialized` so the bridge keeps Python authoritative for them.
 
 use serde_json::{json, Map, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
@@ -50,7 +50,9 @@ pub const REJ_NOT_MATERIALIZED: &str = "op_not_materialized";
 pub const REJ_BAD_SCHEMA: &str = "perp_isolated_op_bad_schema";
 pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
+pub const REJ_UNKNOWN_REQUEST_FIELD: &str = "perp_isolated_op_unknown_request_field";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
+pub const REJ_DUPLICATE_ACCOUNT: &str = "perp_isolated_op_duplicate_account";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
 pub const REJ_SENDER_NOT_BOUND: &str = "sender_not_bound_to_account";
 pub const REJ_ORACLE_ADAPTER: &str = "oracle_adapter_not_accepted";
@@ -60,6 +62,15 @@ pub const REJ_ORACLE_AUTHORIZATION: &str = "oracle_authorization_not_accepted";
 /// request boundary cannot silently accept a mis-shaped or future payload.
 const SCHEMA_ID: &str = "zenodex/perp_isolated_op/v1";
 const SCHEMA_VERSION: i64 = 1;
+const REQUEST_KEYS: [&str; 7] = [
+    "schema",
+    "version",
+    "quote_asset",
+    "global_state",
+    "accounts",
+    "op",
+    "facts",
+];
 
 #[derive(Clone, Debug)]
 struct Account {
@@ -239,6 +250,11 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
     if obj.get("version").and_then(Value::as_i64) != Some(SCHEMA_VERSION) {
         return reject(REJ_BAD_VERSION);
     }
+    for key in obj.keys() {
+        if !REQUEST_KEYS.contains(&key.as_str()) {
+            return reject(REJ_UNKNOWN_REQUEST_FIELD);
+        }
+    }
     let quote_asset = match obj.get("quote_asset").and_then(Value::as_str) {
         Some(s) => s.to_string(),
         None => return reject(REJ_BAD_REQUEST),
@@ -252,9 +268,15 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         None => return reject(REJ_BAD_REQUEST),
     };
     let mut accounts = Vec::with_capacity(accounts_val.len());
+    let mut account_keys = BTreeSet::new();
     for av in accounts_val {
         match parse_account(av) {
-            Ok(a) => accounts.push(a),
+            Ok(a) => {
+                if !account_keys.insert(a.key.clone()) {
+                    return reject(REJ_DUPLICATE_ACCOUNT);
+                }
+                accounts.push(a);
+            }
             Err(e) => return reject(e),
         }
     }
@@ -1743,6 +1765,23 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_account_keys_reject_before_semantic_execution() {
+        let accounts = json!([
+            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            acct_json("aa", -300_000, 1_000_000, 100_000_000),
+        ]);
+        let out = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_DUPLICATE_ACCOUNT));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
     fn missing_facts_rejects_as_bad_request_not_operator() {
         let mut r = req(
             settled_global(5),
@@ -1782,6 +1821,22 @@ mod tests {
         );
         let out = materialize_isolated_op(&r);
         assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn unknown_request_field_rejects() {
+        let mut r = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        r.as_object_mut()
+            .unwrap()
+            .insert("unexpected".to_string(), json!(true));
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_REQUEST_FIELD));
         assert!(out.get("post").is_none());
     }
 
@@ -3060,7 +3115,7 @@ mod tests {
     #[test]
     fn malformed_after_schema_rejects() {
         // Valid schema/version but missing quote_asset -> bad request (not schema).
-        let r = json!({"schema": SCHEMA_ID, "version": SCHEMA_VERSION, "bad": 1});
+        let r = json!({"schema": SCHEMA_ID, "version": SCHEMA_VERSION});
         assert_eq!(
             materialize_isolated_op(&r)["reject_reason"],
             json!(REJ_BAD_REQUEST)
