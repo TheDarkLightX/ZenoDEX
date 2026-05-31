@@ -229,6 +229,12 @@ new fail-closed drift on arbitrary-precision wallet balances. This closes a
 promotion blocker where a future Rust authority path could otherwise accept a
 deposit the Python shell would reject.
 
+A strict Python-side parser now converts an accepted Rust `post` object back
+into `PerpMarketState` and rejects malformed commit shapes (including duplicate
+accounts). A live-shadow regression round-trips the actual Rust post-state for a
+deposit and compares it with the Python-committed market. This is still a
+preparatory commit-boundary check; authority modes remain blocked.
+
 This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
 post-market **and the effect payload** vs Python (`_full_post_markets_agree` +

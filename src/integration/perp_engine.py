@@ -3256,6 +3256,56 @@ def _isolated_accounts_doc(accounts: Mapping[str, PerpAccountState]) -> list[dic
     ]
 
 
+def _market_from_materialized_post(post: Mapping[str, Any]) -> PerpMarketState:
+    """Convert Rust `perp-isolated-op` accepted post-state into a Python market.
+
+    This is intentionally strict because it is the future Rust-authority commit
+    boundary: missing, duplicate, or mis-typed fields must fail closed.
+    """
+    if not isinstance(post, Mapping):
+        raise ValueError("materialized post must be an object")
+    quote_asset = _require_str(post.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+    global_doc = post.get("global_state")
+    if not isinstance(global_doc, Mapping):
+        raise ValueError("materialized post.global_state must be an object")
+    if set(global_doc.keys()) != set(PERP_GLOBAL_KEYS):
+        raise ValueError("materialized post.global_state keys mismatch")
+
+    global_state: dict[str, Any] = {}
+    for key in sorted(PERP_GLOBAL_KEYS):
+        value = global_doc[key]
+        if key in _ISOLATED_GLOBAL_BOOL_KEYS:
+            if not isinstance(value, bool):
+                raise ValueError(f"materialized post.global_state[{key}] must be bool")
+            global_state[key] = value
+        else:
+            global_state[key] = int(str(value))
+
+    accounts_doc = post.get("accounts")
+    if not isinstance(accounts_doc, list):
+        raise ValueError("materialized post.accounts must be a list")
+    accounts: dict[str, PerpAccountState] = {}
+    for raw_account in accounts_doc:
+        if not isinstance(raw_account, Mapping):
+            raise ValueError("materialized post account must be an object")
+        key = _require_str(raw_account.get("key"), name="account.key", non_empty=True, max_len=512)
+        if key in accounts:
+            raise ValueError("materialized post has duplicate account key")
+        liquidated = raw_account.get("liquidated_this_step")
+        if not isinstance(liquidated, bool):
+            raise ValueError("materialized post account liquidated_this_step must be bool")
+        accounts[key] = PerpAccountState(
+            position_base=int(str(raw_account["position_base"])),
+            collateral_quote=int(str(raw_account["collateral_quote"])),
+            entry_price_e8=int(str(raw_account["entry_price_e8"])),
+            funding_paid_cumulative=int(str(raw_account["funding_paid_cumulative"])),
+            funding_last_applied_epoch=int(str(raw_account["funding_last_applied_epoch"])),
+            liquidated_this_step=liquidated,
+        )
+
+    return PerpMarketState(quote_asset=quote_asset, global_state=global_state, accounts=accounts)
+
+
 def _materialized_shadow_account_count_bounded(pre_market: PerpMarketState) -> bool:
     """Return whether full-state Rust shadow materialization is resource-bounded."""
     return len(pre_market.accounts) <= _PERP_STATEFUL_MATERIALIZED_ACCOUNT_LIMIT
