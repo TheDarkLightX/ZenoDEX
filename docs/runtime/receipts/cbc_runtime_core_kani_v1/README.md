@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 66 successfully verified harnesses, 0 failures, 66 total.
+Complete - 76 successfully verified harnesses, 0 failures, 76 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -105,6 +105,22 @@ Perp stateful account-op tractable slice:
 - `perp_account_ops::kani_contracts::deposit_collateral_total_and_accept_shape`
 - `perp_account_ops::kani_contracts::domain_predicate_is_total_for_any_i128_input`
 
+Perp settle-epoch helper slice:
+
+- `perp_settle_epoch::kani_contracts::account_domain_classifier_is_exact`
+- `perp_settle_epoch::kani_contracts::flat_fast_path_classifier_is_exact`
+- `perp_settle_epoch::kani_contracts::global_guard_classifier_is_exact`
+- `perp_settle_epoch::kani_contracts::phase_classifier_is_exact`
+- `perp_settle_epoch::kani_contracts::settle_helper_covers_are_reachable`
+
+Perp partial-liquidate boundary slice:
+
+- `perp_partial_liquidate::kani_contracts::above_max_fraction_rejects_as_param_domain`
+- `perp_partial_liquidate::kani_contracts::full_close_accept_shape_is_exact`
+- `perp_partial_liquidate::kani_contracts::negative_fraction_rejects_as_param_domain`
+- `perp_partial_liquidate::kani_contracts::non_open_phase_rejects_as_guard`
+- `perp_partial_liquidate::kani_contracts::partial_liquidate_covers_are_reachable`
+
 Perp set-market-params scalar/no-account slice:
 
 - `perp_set_market_params::kani_contracts::empty_request_returns_current_params`
@@ -169,6 +185,11 @@ running Rust crate:
   `publish_clearing_price`;
 - stateful perps account-op domain totality, deposit accept shape, clear-breaker
   accept shape, and account-op accept/reject non-vacuity covers;
+- settle-epoch helper classifier exactness for phase admission, account-domain
+  bounds, the flat-account fast path, and the global settle guard, plus
+  non-vacuity covers;
+- partial-liquidate parameter-bound rejects, non-open guard rejection, concrete
+  full-close accept shape, and accept/reject non-vacuity covers;
 - set-market-params no-account no-op shape, funding-rate cap clamp shape, and
   scalar accept/reject non-vacuity covers;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
@@ -193,5 +214,9 @@ live-domain multiplication/division for notional, PnL, funding, margin, and
 liquidation arithmetic. Those remain covered by Rust proptests, Python/Rust
 differentials, disaster-state, and live-path tests. For stateful account ops,
 withdraw and set-position margin paths also remain differential/live-shadow
-backed. For set-market-params, account-safety scans and margin-heavy overlay
-paths remain differential/live-shadow backed.
+backed. For settle-epoch, Kani covers the guard/classifier helper slice, while
+per-account PnL/liquidation accumulation remains differential/live-shadow backed.
+For partial-liquidate, Kani covers parameter/phase boundaries and concrete
+full-close shape, while auto-fraction search and symbolic liquidation arithmetic
+remain differential/live-shadow backed. For set-market-params, account-safety
+scans and margin-heavy overlay paths remain differential/live-shadow backed.

@@ -111,6 +111,45 @@ fn in_closed(x: i128, lo: i128, hi: i128) -> bool {
     lo <= x && x <= hi
 }
 
+#[inline]
+fn valid_phase(phase: i128) -> bool {
+    matches!(phase, PHASE_OPEN | PHASE_PRICE_PUBLISHED | PHASE_SETTLED)
+}
+
+#[inline]
+fn account_domain_ok(position_base: i128, collateral_quote: i128, entry_price_e8: i128) -> bool {
+    in_closed(position_base, -MAX_ABS, MAX_ABS)
+        && in_closed(collateral_quote, 0, MAX_COLLATERAL)
+        && in_closed(entry_price_e8, 0, MAX_ABS)
+}
+
+#[inline]
+fn flat_fast_path_ok(
+    position_base: i128,
+    entry_price_e8: i128,
+    liquidated_this_step: bool,
+    collateral_quote: i128,
+) -> bool {
+    position_base == 0
+        && entry_price_e8 == 0
+        && !liquidated_this_step
+        && in_closed(collateral_quote, 0, MAX_COLLATERAL)
+}
+
+#[inline]
+fn settle_global_guard_ok(
+    epoch_phase: i128,
+    clearing_price_seen: bool,
+    clearing_price_epoch: i128,
+    now_epoch: i128,
+    oracle_last_update_epoch: i128,
+) -> bool {
+    epoch_phase == PHASE_PRICE_PUBLISHED
+        && clearing_price_seen
+        && clearing_price_epoch == now_epoch
+        && oracle_last_update_epoch < now_epoch
+}
+
 /// Per-account settled result + the penalty added to the global fee/insurance.
 struct AccountSettlement {
     account: SettleAccount,
@@ -125,11 +164,12 @@ fn settle_one(
     sp: i128,
 ) -> Result<AccountSettlement, &'static str> {
     // Authority fast path: a strictly-flat, in-bounds, stable account is untouched.
-    if acct.position_base == 0
-        && acct.entry_price_e8 == 0
-        && !acct.liquidated_this_step
-        && in_closed(acct.collateral_quote, 0, MAX_COLLATERAL)
-    {
+    if flat_fast_path_ok(
+        acct.position_base,
+        acct.entry_price_e8,
+        acct.liquidated_this_step,
+        acct.collateral_quote,
+    ) {
         return Ok(AccountSettlement {
             account: acct.clone(),
             penalty: 0,
@@ -207,10 +247,7 @@ pub fn settle_epoch(input: &SettleEpochInput) -> Result<SettleEpochOutput, &'sta
     if !in_closed(input.now_epoch, 0, MAX_EPOCH)
         || !in_closed(input.clearing_price_epoch, 0, MAX_EPOCH)
         || !in_closed(input.oracle_last_update_epoch, 0, input.now_epoch)
-        || !matches!(
-            input.epoch_phase,
-            PHASE_OPEN | PHASE_PRICE_PUBLISHED | PHASE_SETTLED
-        )
+        || !valid_phase(input.epoch_phase)
         || !in_closed(input.index_price_e8, 0, MAX_ABS)
         || !in_closed(input.clearing_price_e8, 0, MAX_ABS)
         || !in_closed(input.max_oracle_move_bps, 0, MAX_BPS)
@@ -227,20 +264,23 @@ pub fn settle_epoch(input: &SettleEpochInput) -> Result<SettleEpochOutput, &'sta
         return Err(REJ_OUT_OF_DOMAIN);
     }
     for acct in &input.accounts {
-        if !in_closed(acct.position_base, -MAX_ABS, MAX_ABS)
-            || !in_closed(acct.collateral_quote, 0, MAX_COLLATERAL)
-            || !in_closed(acct.entry_price_e8, 0, MAX_ABS)
-        {
+        if !account_domain_ok(
+            acct.position_base,
+            acct.collateral_quote,
+            acct.entry_price_e8,
+        ) {
             return Err(REJ_OUT_OF_DOMAIN);
         }
     }
 
     // (2) Global guard (Phase 1, the flat-dummy guard): the settle preconditions.
-    if !(input.epoch_phase == PHASE_PRICE_PUBLISHED
-        && input.clearing_price_seen
-        && input.clearing_price_epoch == input.now_epoch
-        && input.oracle_last_update_epoch < input.now_epoch)
-    {
+    if !settle_global_guard_ok(
+        input.epoch_phase,
+        input.clearing_price_seen,
+        input.clearing_price_epoch,
+        input.now_epoch,
+        input.oracle_last_update_epoch,
+    ) {
         return Err(REJ_GUARD);
     }
 
@@ -453,5 +493,74 @@ mod tests {
         assert_eq!(out.breaker_last_trigger_epoch, 5);
         // sp clamped to index + 5% = 105_000_000.
         assert_eq!(out.index_price_e8, 105_000_000);
+    }
+}
+
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    #[kani::proof]
+    fn phase_classifier_is_exact() {
+        let phase: i128 = kani::any();
+        let expected =
+            phase == PHASE_OPEN || phase == PHASE_PRICE_PUBLISHED || phase == PHASE_SETTLED;
+
+        assert_eq!(valid_phase(phase), expected);
+    }
+
+    #[kani::proof]
+    fn account_domain_classifier_is_exact() {
+        let position: i128 = kani::any();
+        let collateral: i128 = kani::any();
+        let entry: i128 = kani::any();
+        let expected = in_closed(position, -MAX_ABS, MAX_ABS)
+            && in_closed(collateral, 0, MAX_COLLATERAL)
+            && in_closed(entry, 0, MAX_ABS);
+
+        assert_eq!(account_domain_ok(position, collateral, entry), expected);
+    }
+
+    #[kani::proof]
+    fn flat_fast_path_classifier_is_exact() {
+        let position: i128 = kani::any();
+        let entry: i128 = kani::any();
+        let liquidated: bool = kani::any();
+        let collateral: i128 = kani::any();
+        let expected =
+            position == 0 && entry == 0 && !liquidated && in_closed(collateral, 0, MAX_COLLATERAL);
+
+        assert_eq!(
+            flat_fast_path_ok(position, entry, liquidated, collateral),
+            expected
+        );
+    }
+
+    #[kani::proof]
+    fn global_guard_classifier_is_exact() {
+        let phase: i128 = kani::any();
+        let seen: bool = kani::any();
+        let clearing_epoch: i128 = kani::any();
+        let now: i128 = kani::any();
+        let oracle_last: i128 = kani::any();
+        let expected =
+            phase == PHASE_PRICE_PUBLISHED && seen && clearing_epoch == now && oracle_last < now;
+
+        assert_eq!(
+            settle_global_guard_ok(phase, seen, clearing_epoch, now, oracle_last),
+            expected
+        );
+    }
+
+    #[kani::proof]
+    fn settle_helper_covers_are_reachable() {
+        kani::cover!(valid_phase(PHASE_PRICE_PUBLISHED));
+        kani::cover!(!valid_phase(99));
+        kani::cover!(account_domain_ok(0, 0, 0));
+        kani::cover!(!account_domain_ok(MAX_ABS + 1, 0, 0));
+        kani::cover!(flat_fast_path_ok(0, 0, false, 1));
+        kani::cover!(!flat_fast_path_ok(1, 0, false, 1));
+        kani::cover!(settle_global_guard_ok(PHASE_PRICE_PUBLISHED, true, 5, 5, 4));
+        kani::cover!(!settle_global_guard_ok(PHASE_OPEN, true, 5, 5, 4));
     }
 }
