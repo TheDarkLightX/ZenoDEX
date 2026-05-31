@@ -566,6 +566,30 @@ mod tests {
                 Some(init_margin_req(position, price, init_bps))
             );
         }
+
+        #[test]
+        fn partial_close_remaining_preserves_bounds_on_bounded_domain(
+            position in -MAX_ABS..=MAX_ABS,
+            fraction_bps in 0i128..=BPS_SCALE,
+        ) {
+            let remaining = remaining_position_signed(position, fraction_bps);
+            let position_abs = abs_val(position);
+            let remaining_abs = abs_val(remaining);
+
+            prop_assert!(remaining_abs <= position_abs);
+            if fraction_bps == 0 {
+                prop_assert_eq!(remaining, position);
+            }
+            if fraction_bps == BPS_SCALE || position == 0 {
+                prop_assert_eq!(remaining, 0);
+            }
+            if position > 0 && fraction_bps < BPS_SCALE {
+                prop_assert!(remaining >= 0);
+            }
+            if position < 0 && fraction_bps < BPS_SCALE {
+                prop_assert!(remaining <= 0);
+            }
+        }
     }
 }
 
@@ -688,6 +712,16 @@ mod kani_contracts {
     }
 
     #[kani::proof]
+    fn remaining_position_signed_boundary_cases_are_exact() {
+        let position = any_abs_domain();
+
+        assert_eq!(remaining_position_signed(position, -1), position);
+        assert_eq!(remaining_position_signed(position, 0), position);
+        assert_eq!(remaining_position_signed(position, BPS_SCALE), 0);
+        assert_eq!(remaining_position_signed(position, BPS_SCALE + 1), 0);
+    }
+
+    #[kani::proof]
     fn checked_margin_helpers_are_total_for_any_i128() {
         let position: i128 = kani::any();
         let price: i128 = kani::any();
@@ -708,5 +742,7 @@ mod kani_contracts {
         kani::cover!(checked_notional_quote(i128::MIN, 1).is_none());
         kani::cover!(checked_margin_requirement(1_000, 500) == Some(50));
         kani::cover!(checked_maint_margin_req(1_000, PRICE_SCALE, 500, 100) == Some(60));
+        kani::cover!(partial_close_base(10_000, 2_500) == 2_500);
+        kani::cover!(remaining_position_signed(-10_000, 2_500) == -7_500);
     }
 }

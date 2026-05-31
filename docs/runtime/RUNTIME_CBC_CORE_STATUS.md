@@ -78,7 +78,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Fee router | yes | yes | Kani on split/dust core plus ESSO finite model and generated Rust receipt for the 4-way dust core | property tests, differential, live path, disaster/fuzz | full |
 | Burn rails | yes | yes | Kani on `verify_rails`: totality, accepted budget/supply/batch conservation, non-vacuity | burn receipt differential, live path, disaster/fuzz | full |
 | CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence, exhaustive small-domain exact-in/out arithmetic grid, bounded Z3 fee-inversion and Lean exact-swap safety checks, plus Julia BigInt boundary witnesses replayed against Python quote logic and Rust `cpmm-op` | partial |
-| Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
+| Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, partial-liquidation boundary cases, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz, partial-close bounded-domain property tests | partial |
 | Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain plus deposit/withdraw/set-position/clear-breaker accept shape and reachability, settle-epoch helper classifiers, partial-liquidate boundary/full-close slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, hex-nibble/pair decoding exactness, fixed-width hex length arithmetic, selected LEB128 length boundaries, and fixed-array uvarint helper totality/terminator shape. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector, exhaustive control-character JSON escape grid with independent encoder oracle, raw uvarint/encode-bytes framing grid with Rust parity | partial |
 | State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, decoded-byte pool-asset order, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector, LP duration-risk exhaustive field grid plus Z3 semantic injectivity, one-hot section-framing grid with strict decoder and Rust parity, curve-config normalization/BigUint parser grid | partial |
@@ -162,9 +162,13 @@ This campaign moved seven surfaces forward:
 - Perp stateless math gained explicit bridge-domain classifiers and scalar
   helper decomposition. Kani now proves classifier exactness, `abs_val` safety
   under the bridge domain, oracle helper totality, exact sign predicates,
-  flat-position liquidation rejection, checked-effect helper totality, and
-  non-vacuity. Full symbolic live-domain multiplication/division for notional,
-  PnL, funding, margin, and liquidation remains property/differential backed.
+  flat-position liquidation rejection, checked-effect helper totality,
+  partial-liquidation remaining-position boundary cases, and non-vacuity. A
+  Rust property test now covers the bounded runtime-domain invariant that a
+  partial close never increases position magnitude and preserves side direction
+  until full close. Full symbolic live-domain multiplication/division for
+  notional, PnL, funding, margin, and liquidation remains
+  property/differential backed.
 - Perp stateful gained Kani contracts on the two global-only ops:
   `advance_epoch` and `publish_clearing_price`. Kani now proves totality for any
   `i128` input struct, phase classifier exactness, accept-state shapes, and
@@ -222,7 +226,10 @@ includes the live-shadow regression.
    set-market scalar slices into deep withdraw/set-position margin arithmetic
    implications, set-market account scans, settle per-account PnL/liquidation
    accumulation, and partial-liquidate auto-fraction/liquidation arithmetic,
-   using the same assume-guarantee decomposition pattern.
+   using the same assume-guarantee decomposition pattern. The
+   remaining-position boundary cases are now Kani-checked, but the
+   division-heavy partial-close arithmetic still relies on the bounded-domain
+   property test and Python/Rust differential evidence.
 6. Close or merge the original GitHub PRs after this integrated branch lands, so
    duplicate open PRs do not linger as misleading security debt.
 
@@ -239,7 +246,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 88 successfully verified harnesses, 0 failures, 88 total.
+Complete - 89 successfully verified harnesses, 0 failures, 89 total.
 ```
 
 Focused tests after integrating the security fixes:
