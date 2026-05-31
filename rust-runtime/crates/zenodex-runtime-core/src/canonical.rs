@@ -55,9 +55,9 @@ impl std::fmt::Display for CanonicalError {
 
 impl std::error::Error for CanonicalError {}
 
-#[cfg(kani)]
 const UVARINT_U128_MAX_LEN: usize = 19;
 
+#[cfg(kani)]
 fn uvarint_encoded_len(mut value: u128) -> usize {
     let mut len = 1;
     while value >= 0x80 {
@@ -79,20 +79,25 @@ fn fixed_hex_expected_len(nbytes: usize) -> Option<usize> {
     nbytes.checked_mul(2)?.checked_add(2)
 }
 
-/// Unsigned LEB128 encoding of `value`.
-pub fn encode_uvarint(mut value: u128) -> Vec<u8> {
-    let mut out = Vec::with_capacity(uvarint_encoded_len(value));
-    loop {
+fn encode_uvarint_parts(mut value: u128) -> ([u8; UVARINT_U128_MAX_LEN], usize) {
+    let mut out = [0_u8; UVARINT_U128_MAX_LEN];
+    for index in 0..UVARINT_U128_MAX_LEN {
         let byte = (value & 0x7f) as u8;
         value >>= 7;
         if value != 0 {
-            out.push(byte | 0x80);
+            out[index] = byte | 0x80;
         } else {
-            out.push(byte);
-            break;
+            out[index] = byte;
+            return (out, index + 1);
         }
     }
-    out
+    (out, UVARINT_U128_MAX_LEN)
+}
+
+/// Unsigned LEB128 encoding of `value`.
+pub fn encode_uvarint(value: u128) -> Vec<u8> {
+    let (bytes, len) = encode_uvarint_parts(value);
+    bytes[..len].to_vec()
 }
 
 /// Length-prefixed byte string: `uvarint(len)` followed by `value`.
@@ -477,6 +482,15 @@ mod kani_contracts {
         assert_eq!(uvarint_encoded_len(0x3fff), 2);
         assert_eq!(uvarint_encoded_len(0x4000), 3);
         assert_eq!(uvarint_encoded_len(u128::MAX), UVARINT_U128_MAX_LEN);
+    }
+
+    #[kani::proof]
+    fn encode_uvarint_parts_total_and_len_bounded() {
+        let value: u128 = kani::any();
+        let (encoded, len) = encode_uvarint_parts(value);
+        assert!(len > 0);
+        assert!(len <= UVARINT_U128_MAX_LEN);
+        assert_eq!(encoded[len - 1] & 0x80, 0);
     }
 
     #[kani::proof]
