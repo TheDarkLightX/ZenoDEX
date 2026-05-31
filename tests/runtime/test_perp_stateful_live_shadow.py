@@ -986,6 +986,45 @@ def test_rust_shadow_fails_closed_on_effect_tamper(rust_env, monkeypatch):
     assert "disagreement" in (res.error or "")
 
 
+def test_rust_shadow_apply_funding_auto_clears_open_liquidation_flag(rust_env):
+    # DbC/security regression: Python apply_funding clears the liquidation flag
+    # for every funded open account. Rust shadow must materialize the same
+    # postcondition or a valid operator funding transaction fails closed after a
+    # partial liquidation leaves a nonzero flagged position.
+    market_id = "perp:shadow-funding-liq-flag"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000), (PK_B, -100_000)],
+        clearing_price_e8=101_000_000,
+        deposit=1_000_000,
+    )
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], liquidated_this_step=True)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=accts,
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "apply_funding_auto")],
+    )
+
+    assert res.ok is True, res.error
+    post = res.state.perps.markets[market_id].accounts[PK_A]
+    assert int(post.position_base) == 300_000
+    assert post.liquidated_this_step is False
+
+
 def test_rust_shadow_fails_closed_on_funding_effect_tamper(rust_env, monkeypatch):
     # apply_funding_auto has a custom funding-summary effect rather than a nested
     # _common_effects payload. Full materialized parity still checks it exactly.
