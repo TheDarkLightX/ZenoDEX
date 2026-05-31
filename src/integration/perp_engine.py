@@ -3213,7 +3213,13 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
 )
 
 _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
-    {"advance_epoch", "publish_clearing_price", "clear_breaker", "set_position"}
+    {
+        "advance_epoch",
+        "publish_clearing_price",
+        "clear_breaker",
+        "set_position",
+        "deposit_collateral",
+    }
 )
 
 _PERP_STATEFUL_ACCOUNT_EFFECT_ACTIONS: frozenset[str] = frozenset(
@@ -3660,6 +3666,12 @@ def _commit_materialized_rust_accept(
         except Exception as exc:
             return _safe_error_str(exc)
     effect_doc["effects"] = dict(effects)
+    if op.action == "deposit_collateral":
+        try:
+            amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
+            ctx.balances.subtract(str(effect_doc["account_pubkey"]), post_market.quote_asset, amount)
+        except Exception as exc:
+            return _safe_error_str(exc)
     ctx.effects.append(effect_doc)
     return None
 
