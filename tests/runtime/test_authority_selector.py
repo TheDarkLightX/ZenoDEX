@@ -448,6 +448,16 @@ def test_production_profile_allows_promoted_surface():
     validate_authority_policy(policy, profile_id="production-strict")
 
 
+def test_public_testnet_profile_rejects_non_trusted_core_surface():
+    policy = AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={"debug_dashboard": AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW},
+        promoted_surfaces=frozenset({"debug_dashboard"}),
+    )
+    with pytest.raises(AuthorityError, match="non-trusted-core surfaces"):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
 def test_public_testnet_profile_rejects_half_configured_rust_authority():
     policy = AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,
@@ -474,7 +484,7 @@ def test_production_profile_rejects_unknown_promoted_surface():
         per_surface={},
         promoted_surfaces=frozenset({"fee_routre"}),
     )
-    with pytest.raises(AuthorityError, match="not configured for Rust authority"):
+    with pytest.raises(AuthorityError, match="non-trusted-core surfaces"):
         validate_authority_policy(policy, profile_id="production-strict")
 
 
@@ -491,7 +501,7 @@ def test_production_profile_rejects_blanket_rust_default():
 def test_non_strict_profile_allows_experimentation():
     policy = AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,
-        per_surface={"fee_router": AuthorityMode.RUST_AUTHORITY},
+        per_surface={"debug_dashboard": AuthorityMode.RUST_AUTHORITY},
         promoted_surfaces=frozenset(),
     )
     # local-dev is not strict → advisory only, must not raise.

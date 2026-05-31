@@ -59,6 +59,25 @@ STRICT_PROFILE_IDS = frozenset({"public-testnet", "production-strict"})
 POLICY_SCHEMA_V1 = "zenodex/runtime_authority_policy/v1"
 AUTHORITY_POLICY_KEYS = frozenset({"schema", "default", "per_surface", "promoted_surfaces"})
 
+# Consensus-critical surfaces that may appear in strict deployment authority
+# policy. This keeps Rust-authority promotion focused on the trusted core; API
+# glue, dashboards, evidence tools, and other non-consensus paths stay outside
+# deployment authority metadata unless this list is deliberately extended.
+TRUSTED_CORE_AUTHORITY_SURFACES = frozenset(
+    {
+        "balances",
+        "burn_receipts",
+        "canonical",
+        "cpmm_settlement",
+        "fee_router",
+        "perp_math",
+        "perp_stateful",
+        "replay_guard",
+        "state_root",
+        "zusd",
+    }
+)
+
 
 class AuthorityError(RuntimeError):
     """Fail-closed marker: raised when a decision cannot be made safely.
@@ -229,6 +248,7 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
 
     Under a strict profile (``public-testnet`` or ``production-strict``):
 
+    * only trusted-core consensus surfaces may appear in the authority policy;
     * the blanket ``default`` may not be a Rust-authoritative mode (that would
       promote every surface at once, including unshadowed ones);
     * a per-surface Rust-authoritative mode is only allowed for a surface that
@@ -247,6 +267,16 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
         raise AuthorityError(
             f"profile {profile_id!r}: default mode {policy.default.value!r} would "
             "promote every surface to Rust authority; promote per-surface only"
+        )
+
+    unknown_policy_surfaces = sorted(
+        (frozenset(policy.per_surface) | policy.promoted_surfaces)
+        - TRUSTED_CORE_AUTHORITY_SURFACES
+    )
+    if unknown_policy_surfaces:
+        raise AuthorityError(
+            f"profile {profile_id!r}: authority policy contains non-trusted-core "
+            f"surfaces: {unknown_policy_surfaces}"
         )
 
     rust_authoritative_surfaces = frozenset(
