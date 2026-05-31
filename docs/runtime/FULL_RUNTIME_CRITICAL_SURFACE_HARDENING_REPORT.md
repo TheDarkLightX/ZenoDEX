@@ -37,6 +37,14 @@ native asset. `apply_app_tx` is atomic (any sub-stream rejection returns the
 original `app_state_json`); native balances are re-sourced from `chain_balances`
 each tx and only native diffs patch back. **Regression added:** `tests/runtime/test_tau_plugin_stream_faucet_regression.py` (8 tests, incl. the previously-untested both-like-ambiguous case + faucet gating).
 
+**FIXED — S1-STREAM-002 (reserved stream fail-open):** reserved stream `5` could
+carry an unsupported shape, select neither the DEX nor legacy-perps engine, and
+return a successful sync-only response. The plugin now recursively decodes
+list-wrapped JSON custom stream entries, rejects ambiguous DEX aliases (`2`+`5`,
+`3`+`6`, `4`+`7`), and rejects stream `5` unless it is recognized as TauSwap
+intents or legacy TauPerp ops. Regression:
+`tests/integration/test_tau_testnet_dex_plugin.py`.
+
 ### S2 — dex_engine + proof verifiers — 1 fix + 8 negative receipts
 **FIXED — S2-CQ-001 (D-PROOF-COMPRESS, defense-in-depth):** a *corrupt* (vs
 truncated) zlib witness made `_zlib_decompress_limited` raise `zlib.error`, which
