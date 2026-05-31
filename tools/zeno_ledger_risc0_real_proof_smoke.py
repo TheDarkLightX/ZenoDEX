@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -523,12 +524,22 @@ def _smoke_cases() -> dict[str, dict[str, Any]]:
     }
 
 
-def _run_cli(*, repo: Path, request: dict[str, Any], target_dir: Path, timeout: int) -> dict[str, Any]:
+def _run_cli(
+    *,
+    repo: Path,
+    request: dict[str, Any],
+    target_dir: Path,
+    timeout: int,
+    cli_bin: Path | None,
+    release: bool,
+) -> dict[str, Any]:
     env = os.environ.copy()
     env["RISC0_FORCE_BUILD"] = "1"
     env["CARGO_TARGET_DIR"] = str(target_dir)
-    proc = subprocess.run(
-        [
+    if cli_bin is not None:
+        command = [str(cli_bin)]
+    else:
+        command = [
             "cargo",
             "run",
             "--manifest-path",
@@ -536,7 +547,11 @@ def _run_cli(*, repo: Path, request: dict[str, Any], target_dir: Path, timeout: 
             "-q",
             "-p",
             "tau-state-proof-risc0-cli",
-        ],
+        ]
+        if release:
+            command.append("--release")
+    proc = subprocess.run(
+        command,
         input=json.dumps(request, separators=(",", ":")),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -549,6 +564,7 @@ def _run_cli(*, repo: Path, request: dict[str, Any], target_dir: Path, timeout: 
     if proc.returncode != 0:
         raise RuntimeError(
             "tau-state-proof-risc0-cli failed\n"
+            f"command={' '.join(command)}\n"
             f"exit={proc.returncode}\n"
             f"stdout={proc.stdout[-4000:]}\n"
             f"stderr={proc.stderr[-4000:]}"
@@ -568,6 +584,8 @@ def _run_case(
     target_dir: Path,
     timeout: int,
     height: int,
+    cli_bin: Path | None,
+    release: bool,
 ) -> dict[str, Any]:
     state_hash = "11" * 32
     app_state_pre = ""
@@ -586,7 +604,16 @@ def _run_case(
             "chain_balances_post": {},
         },
     }
-    proof = _run_cli(repo=repo, request=generate_request, target_dir=target_dir, timeout=timeout)
+    started_generate = time.monotonic()
+    proof = _run_cli(
+        repo=repo,
+        request=generate_request,
+        target_dir=target_dir,
+        timeout=timeout,
+        cli_bin=cli_bin,
+        release=release,
+    )
+    generate_seconds = round(time.monotonic() - started_generate, 3)
     proof_path = out_dir / f"{name}_tau_state_proof.json"
     proof_path.write_text(json.dumps(proof, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
@@ -602,7 +629,16 @@ def _run_case(
             "block_timestamp": 1,
         },
     }
-    verify = _run_cli(repo=repo, request=verify_request, target_dir=target_dir, timeout=timeout)
+    started_verify = time.monotonic()
+    verify = _run_cli(
+        repo=repo,
+        request=verify_request,
+        target_dir=target_dir,
+        timeout=timeout,
+        cli_bin=cli_bin,
+        release=release,
+    )
+    verify_seconds = round(time.monotonic() - started_verify, 3)
     if verify.get("ok") is not True:
         raise RuntimeError(f"receipt verification rejected: {verify}")
 
@@ -626,11 +662,24 @@ def _run_case(
         "risc0_image_id": meta.get("risc0_image_id"),
         "proof_base64_len": len(proof.get("proof", "")) if isinstance(proof.get("proof"), str) else 0,
         "proof_path": str(proof_path),
+        "generate_seconds": generate_seconds,
+        "verify_seconds": verify_seconds,
+        "total_seconds": round(generate_seconds + verify_seconds, 3),
+        "runner_mode": "cli_bin" if cli_bin is not None else ("cargo_run_release" if release else "cargo_run_debug"),
         "ledger_binding": ledger_binding,
     }
 
 
-def run_smoke(*, repo: Path, out_dir: Path, target_dir: Path, timeout: int, case_name: str) -> dict[str, Any]:
+def run_smoke(
+    *,
+    repo: Path,
+    out_dir: Path,
+    target_dir: Path,
+    timeout: int,
+    case_name: str,
+    cli_bin: Path | None = None,
+    release: bool = False,
+) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     cases = _smoke_cases()
     selected = list(cases) if case_name == "all" else [case_name]
@@ -647,6 +696,8 @@ def run_smoke(*, repo: Path, out_dir: Path, target_dir: Path, timeout: int, case
             target_dir=target_dir,
             timeout=timeout,
             height=index,
+            cli_bin=cli_bin,
+            release=release,
         )
         for index, name in enumerate(selected, start=1)
     ]
@@ -654,6 +705,7 @@ def run_smoke(*, repo: Path, out_dir: Path, target_dir: Path, timeout: int, case
     report = {
         "schema": "zenodex.risc0_real_proof_smoke.v0",
         "ok": True,
+        "runner_mode": "cli_bin" if cli_bin is not None else ("cargo_run_release" if release else "cargo_run_debug"),
         "case_count": len(case_reports),
         "cases": case_reports,
     }
@@ -668,6 +720,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", type=Path, default=Path("/tmp/zenodex_risc0_real_proof_smoke"))
     parser.add_argument("--target-dir", type=Path, default=Path("/tmp/zenodex_risc0_force_target"))
     parser.add_argument("--timeout", type=int, default=180)
+    parser.add_argument(
+        "--cli-bin",
+        type=Path,
+        help="Run a prebuilt tau-state-proof-risc0-cli binary instead of cargo run.",
+    )
+    parser.add_argument(
+        "--release",
+        action="store_true",
+        help="Use cargo run --release when --cli-bin is not supplied.",
+    )
     parser.add_argument(
         "--case",
         choices=(
@@ -690,6 +752,8 @@ def main(argv: list[str] | None = None) -> int:
         target_dir=args.target_dir.resolve(),
         timeout=int(args.timeout),
         case_name=args.case,
+        cli_bin=args.cli_bin.resolve() if args.cli_bin is not None else None,
+        release=bool(args.release),
     )
     print(json.dumps(report, sort_keys=True, indent=2))
     return 0

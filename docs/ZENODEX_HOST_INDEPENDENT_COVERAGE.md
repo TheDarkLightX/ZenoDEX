@@ -37,6 +37,7 @@ Run:
 
 ```bash
 python3 tools/check_zenodex_host_independent_coverage.py --pretty
+python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
 ```
 
 The checker rejects:
@@ -57,6 +58,12 @@ wrong current target for ordinary DEX latency. Deterministic replay is cheap
 enough for validators and full nodes. Proofs should be batched, cached,
 generated asynchronously, or required only for scoped kernels until prover
 latency and coverage support mandatory use.
+
+The 2026-05-31 local release-CLI smoke measured `swap_exact_in` at 76.913s to
+generate and 0.032s to verify on a private local developer workstation. The
+useful signal is that verification is cheap while proof generation is still a
+prover workload. See
+[`ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md`](ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md).
 
 The long-term target is stronger:
 
