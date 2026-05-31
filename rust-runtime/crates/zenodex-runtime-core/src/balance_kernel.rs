@@ -217,6 +217,45 @@ fn valid_amount(amount: u128) -> bool {
     (1..=MAX_BALANCE).contains(&amount)
 }
 
+/// Pure arithmetic core of [`transfer`].
+///
+/// Given the sender/recipient pre-balances for one `(pubkey, asset)` pair and a
+/// **validated** `amount` (`1 <= amount <= MAX_BALANCE`, enforced by the
+/// caller), compute the post-balances or the typed rejection. Reject order is
+/// insufficient-before-overflow, matching the Python authority. Total and
+/// panic-free for ANY `u128` inputs: the debit is guarded by the insufficient
+/// check (no underflow) and the credit is checked. Machine-proved by the Kani
+/// harnesses in `kani_contracts` — this is the consensus-critical arithmetic of
+/// the running `transfer`, isolated from the heap-heavy string/map layer so the
+/// proof runs on the actual code rather than a port.
+fn settle_transfer_amounts(
+    sender_balance: u128,
+    recipient_balance: u128,
+    amount: u128,
+) -> Result<(u128, u128), BalanceRejectedReason> {
+    if sender_balance < amount {
+        return Err(BalanceRejectedReason::InsufficientBalance);
+    }
+    let new_recipient = recipient_balance
+        .checked_add(amount)
+        .filter(|v| *v <= MAX_BALANCE)
+        .ok_or(BalanceRejectedReason::BalanceOverflow)?;
+    Ok((sender_balance - amount, new_recipient))
+}
+
+/// Pure arithmetic core of [`credit`]: the recipient's post-balance for a
+/// **validated** `amount`, or `BalanceOverflow`. Credit MINTS by design (supply
+/// grows by `amount`); only [`transfer`] conserves. Kani-proved.
+fn settle_credit_amount(
+    recipient_balance: u128,
+    amount: u128,
+) -> Result<u128, BalanceRejectedReason> {
+    recipient_balance
+        .checked_add(amount)
+        .filter(|v| *v <= MAX_BALANCE)
+        .ok_or(BalanceRejectedReason::BalanceOverflow)
+}
+
 /// Credit `amount` of `asset` to `recipient`.
 pub fn credit(
     state: &BalanceState,
@@ -229,11 +268,7 @@ pub fn credit(
     if !valid_amount(amount) {
         return Err(BalanceRejectedReason::InvalidAmount);
     }
-    let new_recipient = state
-        .balance_of(&rcp, &ast)
-        .checked_add(amount)
-        .filter(|v| *v <= MAX_BALANCE)
-        .ok_or(BalanceRejectedReason::BalanceOverflow)?;
+    let new_recipient = settle_credit_amount(state.balance_of(&rcp, &ast), amount)?;
     Ok(BalanceAccepted {
         receipt: BalanceReceipt {
             kind: KIND_CREDIT,
@@ -264,18 +299,13 @@ pub fn transfer(
         return Err(BalanceRejectedReason::SelfTransfer);
     }
     let sender_balance = state.balance_of(&snd, &ast);
-    if sender_balance < amount {
-        return Err(BalanceRejectedReason::InsufficientBalance);
-    }
-    let new_recipient = state
-        .balance_of(&rcp, &ast)
-        .checked_add(amount)
-        .filter(|v| *v <= MAX_BALANCE)
-        .ok_or(BalanceRejectedReason::BalanceOverflow)?;
+    let recipient_balance = state.balance_of(&rcp, &ast);
+    let (new_sender, new_recipient) =
+        settle_transfer_amounts(sender_balance, recipient_balance, amount)?;
 
     // Distinct keys (snd != rcp): debit then credit is order-independent.
     let next = state
-        .set(&snd, &ast, sender_balance - amount)
+        .set(&snd, &ast, new_sender)
         .set(&rcp, &ast, new_recipient);
     Ok(BalanceAccepted {
         receipt: BalanceReceipt {
@@ -453,5 +483,149 @@ mod tests {
                 prop_assert_eq!(acc.state.balance_of(&b, &y), before_y_b);
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on the ACTUAL runtime arithmetic core.
+//
+// `settle_transfer_amounts` / `settle_credit_amount` are the pure integer cores
+// the running `transfer` / `credit` call after canonicalizing keys and reading
+// balances. They carry the consensus-critical arithmetic (debit/credit,
+// insufficient, overflow) where value-creation / underflow / overflow bugs
+// live. Kani discharges them fast because they are heap-free (no String /
+// BTreeMap / sha2): TOTALITY holds over ALL u128 inputs, while the conservation
+// / mint / reject-precedence obligations hold under the caller-enforced domain
+// (balances in `[0, MAX_BALANCE]` — 0 models an absent sparse key — and amounts
+// in `[1, MAX_BALANCE]`, validated by the wrapper before the core is reached;
+// see `arb_balance` / `arb_amount`). The string-
+// canonicalization and map-plumbing layer of `transfer`/`credit` (which CBMC
+// cannot model in bounded time) stays covered by the proptest invariants above
+// and the Python<->Rust differential. Run: `cargo kani -p zenodex-runtime-core`.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    /// A symbolic in-domain balance: `0 ..= MAX_BALANCE` (0 models an absent
+    /// sparse key — `balance_of` returns 0 for it).
+    fn arb_balance() -> u128 {
+        let v: u128 = kani::any();
+        kani::assume(v <= MAX_BALANCE);
+        v
+    }
+    /// A symbolic validated amount: `1 ..= MAX_BALANCE` (the caller validates).
+    fn arb_amount() -> u128 {
+        let v: u128 = kani::any();
+        kani::assume(v >= 1 && v <= MAX_BALANCE);
+        v
+    }
+
+    /// TOTALITY (absence of runtime errors). For ANY `u128` pre-balances and
+    /// amount, the transfer core never panics / overflows / underflows. The
+    /// debit `sender_balance - amount` is reached only after the insufficient
+    /// guard, and the credit is `checked_add`.
+    #[kani::proof]
+    fn settle_transfer_is_total() {
+        let _ = settle_transfer_amounts(kani::any(), kani::any(), kani::any());
+    }
+
+    /// CONSERVATION + EXACT MOVE. On accept, the sender is debited and the
+    /// recipient credited by exactly `amount`, and the two-key total is
+    /// preserved: `new_sender + new_recipient == sender_balance + recipient_balance`.
+    /// `sb, rb <= MAX_BALANCE = 2^112-1` => `sb + rb <= 2^113 < 2^128`, so the
+    /// conservation sum cannot overflow.
+    #[kani::proof]
+    fn settle_transfer_conserves_and_moves_exact() {
+        let sb = arb_balance();
+        let rb = arb_balance();
+        let amt = arb_amount();
+        if let Ok((new_sender, new_recipient)) = settle_transfer_amounts(sb, rb, amt) {
+            assert_eq!(new_sender, sb - amt); // exact debit
+            assert_eq!(new_recipient, rb + amt); // exact credit
+            assert_eq!(new_sender + new_recipient, sb + rb); // conservation
+            assert!(new_recipient <= MAX_BALANCE); // in-domain
+        }
+    }
+
+    /// REJECT PRECEDENCE + REJECT => NO POST-STATE. The core emits exactly
+    /// `InsufficientBalance` (when `sb < amt`, checked first) or `BalanceOverflow`
+    /// (when sufficient but `rb + amt > MAX`), never any other code; on reject no
+    /// `(new_sender, new_recipient)` is produced. Mirrors the Python order
+    /// (`balance_kernel.py:385-389`): insufficient before overflow.
+    #[kani::proof]
+    fn settle_transfer_reject_precedence() {
+        let sb = arb_balance();
+        let rb = arb_balance();
+        let amt = arb_amount();
+        match settle_transfer_amounts(sb, rb, amt) {
+            Ok((new_sender, _)) => {
+                assert!(sb >= amt);
+                assert_eq!(new_sender, sb - amt);
+            }
+            Err(BalanceRejectedReason::InsufficientBalance) => assert!(sb < amt),
+            Err(BalanceRejectedReason::BalanceOverflow) => {
+                assert!(sb >= amt); // insufficient is checked strictly first
+                assert!(rb.checked_add(amt).map_or(true, |v| v > MAX_BALANCE));
+            }
+            // The core can only ever emit the two codes above; any other variant
+            // is dead (Kani proves this branch unreachable).
+            Err(_) => unreachable!("transfer core emits only insufficient/overflow"),
+        }
+    }
+
+    /// CREDIT TOTALITY: the credit core never panics / overflows for ANY input.
+    #[kani::proof]
+    fn settle_credit_is_total() {
+        let _ = settle_credit_amount(kani::any(), kani::any());
+    }
+
+    /// CREDIT MINTS BY DESIGN + ACCEPT-COMPLETENESS. Exhaustive `match` over the
+    /// core's result proves it accepts IFF `rb + amount <= MAX_BALANCE`: on
+    /// accept the recipient post-balance is exactly `rb + amount` (supply grows —
+    /// NOT conserved); the ONLY reject is `BalanceOverflow`, and it fires exactly
+    /// when `rb + amount > MAX_BALANCE`. (Both directions: the Ok arm forces
+    /// in-domain, the Overflow arm forces out-of-domain, and any other variant is
+    /// unreachable — so `rb + amount <= MAX` cannot reject.)
+    #[kani::proof]
+    fn settle_credit_mints_or_overflows() {
+        let rb = arb_balance();
+        let amt = arb_amount();
+        match settle_credit_amount(rb, amt) {
+            Ok(new_recipient) => {
+                assert!(rb + amt <= MAX_BALANCE); // accept => in-domain
+                assert_eq!(new_recipient, rb + amt); // exact mint
+            }
+            Err(BalanceRejectedReason::BalanceOverflow) => {
+                assert!(rb + amt > MAX_BALANCE); // overflow => out-of-domain
+            }
+            // The credit core can only ever emit overflow; any other variant is
+            // dead (Kani proves this branch unreachable).
+            Err(_) => unreachable!("credit core emits only overflow"),
+        }
+    }
+
+    /// NON-VACUITY (credit): both accept and overflow are reachable (Kani fails
+    /// an unsatisfiable cover), so the credit contract is not vacuous.
+    #[kani::proof]
+    fn credit_covers_are_reachable() {
+        let rb = arb_balance();
+        let amt = arb_amount();
+        let res = settle_credit_amount(rb, amt);
+        kani::cover!(res.is_ok());
+        kani::cover!(res == Err(BalanceRejectedReason::BalanceOverflow));
+    }
+
+    /// NON-VACUITY. Accept, insufficient, and overflow are each reachable (Kani
+    /// fails an unsatisfiable cover), so the contracts above are not vacuous.
+    #[kani::proof]
+    fn covers_are_reachable() {
+        let sb = arb_balance();
+        let rb = arb_balance();
+        let amt = arb_amount();
+        let res = settle_transfer_amounts(sb, rb, amt);
+        kani::cover!(res.is_ok());
+        kani::cover!(res == Err(BalanceRejectedReason::InsufficientBalance));
+        kani::cover!(res == Err(BalanceRejectedReason::BalanceOverflow));
     }
 }

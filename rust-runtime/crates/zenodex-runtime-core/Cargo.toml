@@ -15,3 +15,9 @@ num-bigint.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+
+# `cfg(kani)` gates the CBC verification harnesses (see balance_kernel.rs).
+# It is set by `cargo kani`; declare it so normal `cargo build`/`clippy` do not
+# emit `unexpected_cfgs` warnings for the gated modules.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

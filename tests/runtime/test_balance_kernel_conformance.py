@@ -130,3 +130,67 @@ def test_randomized_differential(rust_bin, tmp_path):
 
     accepts = sum(1 for r in rust_out["results"] if r["accept"])
     assert 0 < accepts < len(txs)
+
+
+def test_reject_precedence_parity(rust_bin, tmp_path):
+    """Deterministic reject-precedence parity — the differential complement to the
+    Kani ``transfer_reject_precedence`` proof on the Rust core.
+
+    Each boundary tx trips multiple reject conditions at once; Python and Rust
+    must agree on the full result, and the FIRST reject in the fixed order
+    (sender, recipient, asset, amount, self-transfer, insufficient, overflow)
+    must win — pinning reject-code parity, not just accept/reject parity.
+    """
+    a, b, x = PKS[0], PKS[1], ASSETS[0]
+    bad_pk, bad_ast = "0x11", "0xbb"
+    cases: list[tuple[list, dict, str]] = [
+        # invalid sender beats invalid recipient + invalid asset + amount=0
+        ([], _t(bad_pk, bad_pk, bad_ast, 0), "invalid_sender"),
+        # invalid recipient beats invalid asset + amount=0
+        ([], _t(a, bad_pk, bad_ast, 0), "invalid_recipient"),
+        # invalid asset beats amount=0 + self-transfer
+        ([], _t(a, b, bad_ast, 0), "invalid_asset"),
+        # invalid amount beats self-transfer (snd==rcp, amount=0)
+        ([], _t(a, a, x, 0), "invalid_amount"),
+        # self-transfer beats insufficient (valid amount, snd==rcp)
+        ([], _t(a, a, x, 5), "self_transfer"),
+        # insufficient beats overflow: sender balance 0 < amount, AND recipient
+        # is at MAX so overflow WOULD fire (5 + MAX > MAX) were insufficient not
+        # checked first — pinning the insufficient-before-overflow order.
+        ([_c(b, x, MAX)], _t(a, b, x, 5), "insufficient_balance"),
+        # overflow: sender sufficient, recipient at MAX -> r + amount > MAX
+        (
+            [_c(a, x, MAX), _c(b, x, MAX)],
+            _t(a, b, x, MAX),
+            "balance_overflow",
+        ),
+    ]
+    for setup, boundary, expected in cases:
+        txs = setup + [boundary]
+        py = balance_kernel_lib.replay_txs([json.loads(json.dumps(t)) for t in txs])
+        ru = _run_rust_on_txs(rust_bin, txs, tmp_path)
+        assert py == ru, (
+            f"python/rust diverged for {expected}:\n"
+            f"  python={json.dumps(py['results'][-1])}\n"
+            f"  rust  ={json.dumps(ru['results'][-1])}"
+        )
+        last = ru["results"][-1]
+        assert last["accept"] is False
+        assert last["reject_reason"] == expected, (
+            f"expected first-in-order {expected!r}, got "
+            f"{last['reject_reason']!r} for {json.dumps(boundary)}"
+        )
+
+
+def _c(recipient: str, asset: str, amount: int) -> dict:
+    return {"kind": "credit", "recipient": recipient, "asset": asset, "amount": amount}
+
+
+def _t(sender: str, recipient: str, asset: str, amount: int) -> dict:
+    return {
+        "kind": "transfer",
+        "sender": sender,
+        "recipient": recipient,
+        "asset": asset,
+        "amount": amount,
+    }
