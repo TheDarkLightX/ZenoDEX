@@ -454,3 +454,113 @@ mod tests {
         );
     }
 }
+
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn any_input() -> AccountOpInput {
+        AccountOpInput {
+            now_epoch: kani::any(),
+            epoch_phase: kani::any(),
+            oracle_last_update_epoch: kani::any(),
+            max_oracle_staleness_epochs: kani::any(),
+            oracle_seen: kani::any(),
+            index_price_e8: kani::any(),
+            position_base: kani::any(),
+            collateral_quote: kani::any(),
+            entry_price_e8: kani::any(),
+            maintenance_margin_bps: kani::any(),
+            depeg_buffer_bps: kani::any(),
+            initial_margin_bps: kani::any(),
+            max_position_abs: kani::any(),
+            breaker_active: kani::any(),
+            breaker_last_trigger_epoch: kani::any(),
+            amount: kani::any(),
+            new_position_base: kani::any(),
+            all_positions_flat: kani::any(),
+        }
+    }
+
+    fn open_flat_input(amount: i128) -> AccountOpInput {
+        AccountOpInput {
+            now_epoch: 4,
+            epoch_phase: PHASE_OPEN,
+            oracle_last_update_epoch: 3,
+            max_oracle_staleness_epochs: 100,
+            oracle_seen: true,
+            index_price_e8: 100_000_000,
+            position_base: 0,
+            collateral_quote: 200_000,
+            entry_price_e8: 0,
+            maintenance_margin_bps: 500,
+            depeg_buffer_bps: 100,
+            initial_margin_bps: 1000,
+            max_position_abs: 1_000_000,
+            breaker_active: false,
+            breaker_last_trigger_epoch: 0,
+            amount,
+            new_position_base: 0,
+            all_positions_flat: true,
+        }
+    }
+
+    #[kani::proof]
+    fn domain_predicate_is_total_for_any_i128_input() {
+        let _ = domain_ok(&any_input());
+    }
+
+    #[kani::proof]
+    fn deposit_collateral_total_and_accept_shape() {
+        let inp = any_input();
+
+        if let Ok(out) = account_op("deposit_collateral", &inp) {
+            assert!(domain_ok(&inp));
+            assert_eq!(inp.epoch_phase, PHASE_OPEN);
+            assert!((1..=AMOUNT_MAX).contains(&inp.amount));
+            assert!(inp.collateral_quote + inp.amount <= MAX_COLLATERAL);
+            assert_eq!(out.collateral_quote, inp.collateral_quote + inp.amount);
+            assert_eq!(out.position_base, inp.position_base);
+            assert_eq!(out.entry_price_e8, inp.entry_price_e8);
+            assert_eq!(out.breaker_active, inp.breaker_active);
+            assert_eq!(
+                out.breaker_last_trigger_epoch,
+                inp.breaker_last_trigger_epoch
+            );
+        }
+    }
+
+    #[kani::proof]
+    fn clear_breaker_total_and_accept_shape() {
+        let inp = any_input();
+
+        if let Ok(out) = account_op("clear_breaker", &inp) {
+            assert!(domain_ok(&inp));
+            assert!(inp.all_positions_flat);
+            assert!(inp.breaker_active);
+            assert!(!out.breaker_active);
+            assert_eq!(out.breaker_last_trigger_epoch, 0);
+            assert_eq!(out.position_base, inp.position_base);
+            assert_eq!(out.entry_price_e8, inp.entry_price_e8);
+            assert_eq!(out.collateral_quote, inp.collateral_quote);
+        }
+    }
+
+    #[kani::proof]
+    fn account_op_covers_are_reachable() {
+        let mut deposit = open_flat_input(50_000);
+        kani::cover!(account_op("deposit_collateral", &deposit).is_ok());
+        deposit.amount = 0;
+        kani::cover!(account_op("deposit_collateral", &deposit) == Err(REJ_PARAM_AMOUNT));
+
+        let mut clear = open_flat_input(1);
+        clear.breaker_active = true;
+        kani::cover!(account_op("clear_breaker", &clear).is_ok());
+        clear.breaker_active = false;
+        kani::cover!(account_op("clear_breaker", &clear) == Err(REJ_CLEAR_BREAKER_GUARD));
+        clear.all_positions_flat = false;
+        clear.breaker_active = true;
+        kani::cover!(account_op("clear_breaker", &clear) == Err(REJ_POSITIONS_OPEN));
+        kani::cover!(account_op("unknown", &clear) == Err(REJ_UNKNOWN_OP));
+    }
+}
