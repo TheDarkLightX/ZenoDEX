@@ -1169,11 +1169,11 @@ claims:
     evidence:
       kind: pytest
       check:
-        - cmd: python3 -m py_compile tools/check_zeno_ledger_light_client_checkpoint.py tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
-        - cmd: pytest -q tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+        - cmd: python3 -m py_compile tools/check_zeno_ledger_light_client_checkpoint.py tests/test_check_zeno_ledger_light_client_checkpoint.py
+        - cmd: pytest -q tests/test_check_zeno_ledger_light_client_checkpoint.py
       files:
         - tools/check_zeno_ledger_light_client_checkpoint.py
-        - tests/tools/test_check_zeno_ledger_light_client_checkpoint.py
+        - tests/test_check_zeno_ledger_light_client_checkpoint.py
         - tools/zeno_ledger_verify.py
         - src/integration/zeno_ledger_signer_registry.py
         - src/integration/zeno_ledger_signature.py
@@ -3104,3 +3104,55 @@ claims:
         - lean-mathlib/Proofs/PerpFundingRateSafety.lean
         - lean-mathlib/Proofs/PerpInsuranceSafety.lean
         - lean-mathlib/Proofs/PerpGameTheory.lean
+
+  - id: py:zenodex:host_independent_coverage_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The host-independent coverage manifest separates full-node host
+      independence from succinct proof coverage for every critical transition.
+      Covered full-node surfaces must use deterministic replay or valid zkVM
+      proof modes; metadata/report/checkpoint replay cannot count as transition
+      correctness; Docker cannot be used as a correctness boundary; and the
+      manifest must keep full-ZK execution for all value-moving surfaces open
+      while the proof matrix still lists real proof gaps. This is a scoped
+      coverage and claim-control gate. It does not add zkVM execution support
+      for the open proof-gap surfaces.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_host_independent_coverage.py
+        - cmd: pytest -q tests/tools/test_check_zenodex_host_independent_coverage.py
+      files:
+        - tools/check_zenodex_host_independent_coverage.py
+        - tests/tools/test_check_zenodex_host_independent_coverage.py
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE.md
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/claims_registry.yaml
+
+  - id: py:zenodex:zk_transition_coverage_performance_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The ZK transition coverage report counts the current real Risc0 spot v1
+      proof operation family, keeps uncovered operations explicit, counts
+      supported proof-matrix surfaces against proof gaps, and can consume
+      timed Risc0 smoke reports. The 2026-05-31 local snapshot records release
+      CLI samples on a private local developer workstation: proof generation
+      remains a prover workload, while proof verification is cheap in the sampled
+      release path. This is local performance evidence and coverage accounting;
+      it is not a production prover benchmark or a claim that all ZenoDEX
+      transitions have zkVM proof coverage.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/measure_zenodex_zk_transition_coverage.py
+        - cmd: pytest -q tests/tools/test_measure_zenodex_zk_transition_coverage.py
+      files:
+        - tools/measure_zenodex_zk_transition_coverage.py
+        - tests/tools/test_measure_zenodex_zk_transition_coverage.py
+        - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.json
+        - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
