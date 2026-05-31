@@ -58,6 +58,7 @@ __all__ = [
     "RouteAccepted",
     "RouteRejected",
     "RouteResult",
+    "FeeRouterConservationError",
     "canonical_split_table",
     "route_fee",
     "RECEIPT_DOMAIN_SEP_LABEL",
@@ -730,6 +731,17 @@ def _check_domain_constraints(
     return None
 
 
+class FeeRouterConservationError(RuntimeError):
+    """Fail-closed marker: an accepted fee split did not conserve value.
+
+    Raised when ``amount + dust_in != buyburn + stakers + reserve + hosts + dust_out``.
+    The split is conservation-exact by construction for every valid input (see
+    :func:`_conservation_holds`), so a violation indicates routing/accumulator
+    corruption and must hard-reject, never silently commit. Encoded as an explicit
+    raise rather than a bare ``assert`` (which ``python -O`` strips, failing open).
+    """
+
+
 def _route_fee_python(
     *,
     source: Domain,
@@ -832,6 +844,12 @@ def _route_fee_python(
         hosts=hosts,
         dust=dust_out,
     )
+    # Catastrophic invariant on the authority path. The accepted split must
+    # conserve value against the carried-in dust without relying on `assert`.
+    if not _conservation_holds(amount, accumulator.dust_for(source, asset), receipt):
+        raise FeeRouterConservationError(
+            f"fee split conservation violated: source={source!r} asset={asset!r} amount={amount}"
+        )
     return RouteAccepted(receipt=receipt, accumulator=new_acc)
 
 
@@ -924,8 +942,14 @@ def apply_step(
         split_table=split_table,
         accumulator=accumulator,
     )
-    if isinstance(result, RouteAccepted):
-        assert _conservation_holds(amount, accumulator.dust_for(source, asset), result.receipt)
+    if isinstance(result, RouteAccepted) and not _conservation_holds(
+        amount, accumulator.dust_for(source, asset), result.receipt
+    ):
+        # Fail closed (and `-O`-safe): a bare `assert` here would be stripped under
+        # `python -O`, silently disabling this conservation guard in optimized runs.
+        raise FeeRouterConservationError(
+            f"fee split conservation violated (apply_step): source={source!r} asset={asset!r}"
+        )
     return result
 
 

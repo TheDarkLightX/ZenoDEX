@@ -1,0 +1,25 @@
+# arith core Kani run @ current worktree  branch claude/finish-rust-runtime-authority  date 2026-05-31
+# command: cargo kani --output-format terse -Z unstable-options --harness-timeout 10m -j 4 --harness floor_div_i128_is_total --harness mul_div_floor_is_total --harness checked_add_total_and_exact
+Thread 3: Checking harness arith::kani_contracts::mul_div_floor_is_total...
+Thread 0: Checking harness arith::kani_contracts::floor_div_i128_is_total...
+Thread 2: Checking harness arith::kani_contracts::checked_add_total_and_exact...
+Thread 0:
+VERIFICATION RESULT:
+ ** 0 of 41 failed
+VERIFICATION:- SUCCESSFUL
+Thread 2:
+VERIFICATION RESULT:
+ ** 0 of 36 failed
+VERIFICATION:- SUCCESSFUL
+Thread 3:
+VERIFICATION RESULT:
+ ** 0 of 8 failed
+VERIFICATION:- SUCCESSFUL
+Manual Harness Summary:
+Complete - 3 successfully verified harnesses, 0 failures, 3 total.
+KANI_EXIT=0
+
+# Individual harness re-runs on the same branch disambiguated the check counts:
+# floor_div_i128_is_total: 0 of 41 failed
+# mul_div_floor_is_total: 0 of 8 failed
+# checked_add_total_and_exact: 0 of 36 failed

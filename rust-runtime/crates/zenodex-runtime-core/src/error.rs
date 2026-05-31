@@ -4,7 +4,7 @@
 //! reference (`src/core/fee_router.py`) and the strings recorded in golden
 //! traces. Structural rejections produced *before* a transition runs
 //! (`malformed_tx`, `unknown_tx_kind`, `unknown_field`, `negative_amount`) live
-//! in the CLI/trace layer, not here — this enum is the semantic-transition
+//! in the CLI/trace layer. This enum is the semantic-transition
 //! rejection surface only.
 
 use std::fmt;
@@ -60,6 +60,8 @@ pub enum RejectedReason {
     DomainConstraintViolated(DomainConstraint),
     #[error("arithmetic overflow")]
     ArithmeticOverflow,
+    #[error("fee route conservation violated")]
+    ConservationViolation,
 }
 
 impl RejectedReason {
@@ -72,6 +74,7 @@ impl RejectedReason {
             RejectedReason::UnknownDomain => "unknown_domain",
             RejectedReason::DomainConstraintViolated(_) => "domain_constraint_violated",
             RejectedReason::ArithmeticOverflow => "arithmetic_overflow",
+            RejectedReason::ConservationViolation => "conservation_violation",
         }
     }
 
@@ -94,6 +97,10 @@ mod tests {
     fn codes_are_stable() {
         assert_eq!(RejectedReason::AmountTooLarge.code(), "amount_too_large");
         assert_eq!(RejectedReason::UnknownDomain.reason_str(), "unknown_domain");
+        assert_eq!(
+            RejectedReason::ConservationViolation.reason_str(),
+            "conservation_violation"
+        );
         assert_eq!(
             RejectedReason::DomainConstraintViolated(DomainConstraint::RedemptionBuyburnMustBeZero)
                 .reason_str(),
