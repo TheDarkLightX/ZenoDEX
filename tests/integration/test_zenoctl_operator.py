@@ -136,6 +136,30 @@ def test_deployment_profiles_reject_raw_keys_in_production() -> None:
     assert "production-strict must reject raw private key flags" in report["errors"]
 
 
+def test_deployment_profiles_reject_unknown_allowed_route() -> None:
+    profile = {
+        "schema": "zenodex/deployment_profile/v1",
+        "profile_id": "public-testnet",
+        "threat_model": "bad",
+        "allowed_routes": ["health", "local_demo_typo"],
+        "required_auth": {"write_api": "signed"},
+        "key_policy": {
+            "raw_private_key_flags_allowed": False,
+            "production_key_receipts_required": False,
+        },
+        "proof_policy": {"proof_metadata_required": True},
+        "upba_policy": "balanced",
+        "peer_policy": {"dynamic_peer_cap_required": True},
+        "gossip_policy": {"transport_auth_required": True},
+        "observability_policy": {"metrics_required": True},
+    }
+
+    report = validate_deployment_profile(profile)
+
+    assert report["ok"] is False
+    assert "allowed_routes contains unknown routes: ['local_demo_typo']" in report["errors"]
+
+
 def test_zenoctl_testnet_init_dry_run(capsys) -> None:
     rc = zenoctl.main(
         [

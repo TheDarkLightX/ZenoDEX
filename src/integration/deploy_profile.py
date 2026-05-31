@@ -33,7 +33,10 @@ RUNTIME_FACT_KEYS = (
     "zusd_tau_wallet_return_signed_tau_tx_payload",
     "zusd_monetary_wallet_allow_local_signing",
     "autotrader_live_allow_local_signing",
+    "enabled_routes",
 )
+
+_KNOWN_ALLOWED_ROUTES = frozenset({"health", "local_demo", "signed_intents", "public_bundle", "peer_check"})
 
 
 def load_deploy_profile(profile: str) -> dict[str, Any]:
@@ -83,6 +86,7 @@ def evaluate_deploy_profile_consistency(
     key_policy = profile.get("key_policy") or {}
     runtime_policy = profile.get("runtime_policy") or {}
     required_auth = profile.get("required_auth") or {}
+    allowed_routes_raw = profile.get("allowed_routes") or ()
 
     conflicts: list[str] = []
 
@@ -97,6 +101,18 @@ def evaluate_deploy_profile_consistency(
     if not isinstance(required_auth, Mapping):
         conflicts.append(f"[{profile_id}] required_auth must be a mapping")
         required_auth = {}
+    if (
+        not isinstance(allowed_routes_raw, list)
+        or not allowed_routes_raw
+        or not all(isinstance(route, str) and route for route in allowed_routes_raw)
+    ):
+        conflicts.append(f"[{profile_id}] allowed_routes must be a non-empty string list")
+        allowed_routes: frozenset[str] = frozenset()
+    else:
+        allowed_routes = frozenset(allowed_routes_raw)
+        unknown_allowed = sorted(allowed_routes - _KNOWN_ALLOWED_ROUTES)
+        if unknown_allowed:
+            conflicts.append(f"[{profile_id}] allowed_routes contains unknown routes: {unknown_allowed}")
 
     def fact(name: str) -> bool:
         value = runtime_facts.get(name, False)
@@ -152,6 +168,16 @@ def evaluate_deploy_profile_consistency(
                 f"[{profile_id}] required_auth.public_api={public_auth} but sensitive APIs "
                 "are enabled without a bearer token or external auth boundary"
             )
+    enabled_routes_raw = runtime_facts.get("enabled_routes", ())
+    if enabled_routes_raw:
+        if (
+            not isinstance(enabled_routes_raw, (tuple, list, set, frozenset))
+            or not all(isinstance(route, str) and route for route in enabled_routes_raw)
+        ):
+            conflicts.append(f"[{profile_id}] runtime fact 'enabled_routes' must be a string collection")
+        else:
+            for route in sorted(frozenset(enabled_routes_raw) - allowed_routes):
+                conflicts.append(f"[{profile_id}] allowed_routes does not permit enabled route {route!r}")
     try:
         authority_policy = load_authority_policy(profile)
         validate_authority_policy(authority_policy, profile_id=profile_id)
@@ -164,6 +190,7 @@ def enforced_policy_fields() -> tuple[str, ...]:
     return (
         "key_policy.raw_private_key_flags_allowed",
         "runtime_policy.local_only_routes_allowed",
+        "allowed_routes",
         "required_auth.public_api",
         "runtime_authority_policy",
     )
