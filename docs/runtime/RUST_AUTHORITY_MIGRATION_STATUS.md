@@ -225,8 +225,11 @@ and unmaterialized ops alike) and **remains `rust_shadow` in every profile**.
 Promotion requires (a) inverting the authority path so Rust **decides from the
 pre-state and commits** its materialized result (Python becomes the shadow), then
 (b) the gate + human sign-off. Kani 0.60.0 is available; bounded-model-checking
-harnesses for the high-risk Rust kernels are a parallel next step. No profile flips
-in this change.
+The bounded-sink funding arithmetic now has exact Kani receipts on heap-free
+helpers called by the running `perp_funding_auto` transition: sink mirror deltas,
+per-account collateral/payment delta, two-account conservation, replay-predicate
+parity, and non-vacuity. The Vec/String sorting wrapper remains covered by
+differential/live-shadow tests rather than Kani. No profile flips in this change.
 
 ## Findings / blockers
 

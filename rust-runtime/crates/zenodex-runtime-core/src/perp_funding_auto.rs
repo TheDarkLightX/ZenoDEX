@@ -103,6 +103,62 @@ fn ck_sub(a: i128, b: i128) -> Result<i128, &'static str> {
     a.checked_sub(b).ok_or(REJ_OVERFLOW)
 }
 
+fn apply_sink_delta(
+    fee_pool_quote: i128,
+    fee_income: i128,
+    insurance_balance: i128,
+    projected_net: i128,
+) -> Result<(i128, i128, i128), &'static str> {
+    let fee_pool_after = ck_add(fee_pool_quote, projected_net)?;
+    let fee_income_after = ck_add(fee_income, projected_net)?;
+    let insurance_after = ck_add(insurance_balance, projected_net)?;
+    for s in [fee_pool_after, fee_income_after, insurance_after] {
+        if !in_closed(s, 0, MAX_COLLATERAL) {
+            return Err(REJ_SINK_OUT_OF_DOMAIN);
+        }
+    }
+    Ok((fee_pool_after, fee_income_after, insurance_after))
+}
+
+fn funding_already_applied(
+    position_base: i128,
+    funding_last_applied_epoch: i128,
+    now_epoch: i128,
+) -> bool {
+    position_base != 0 && funding_last_applied_epoch >= now_epoch
+}
+
+#[allow(clippy::too_many_arguments)]
+fn settle_open_account_values(
+    position_base: i128,
+    collateral_quote: i128,
+    funding_paid_cumulative: i128,
+    index_price_e8: i128,
+    rate_bps: i128,
+    maintenance_margin_bps: i128,
+    depeg_buffer_bps: i128,
+) -> Result<(i128, i128, i128), &'static str> {
+    let fp = funding_payment(position_base, index_price_e8, rate_bps);
+    let coll_after = ck_sub(collateral_quote, fp)?;
+    let cum_after = ck_add(funding_paid_cumulative, fp)?;
+    if !in_closed(coll_after, 0, MAX_COLLATERAL) {
+        return Err(REJ_COLLATERAL_BOUNDS);
+    }
+    let maint = maint_margin_req(
+        position_base,
+        index_price_e8,
+        maintenance_margin_bps,
+        depeg_buffer_bps,
+    );
+    if coll_after < maint {
+        return Err(REJ_MAINTENANCE_MARGIN);
+    }
+    if !in_closed(cum_after, -MAX_FUNDING_CUMULATIVE, MAX_FUNDING_CUMULATIVE) {
+        return Err(REJ_CUMULATIVE_BOUNDS);
+    }
+    Ok((fp, coll_after, cum_after))
+}
+
 /// Apply the funding-auto settlement. Fail-closed: returns `Err(code)` with NO
 /// state on any rejection.
 pub fn apply_funding_auto(input: &FundingAutoInput) -> Result<FundingAutoOutput, &'static str> {
@@ -156,19 +212,21 @@ pub fn apply_funding_auto(input: &FundingAutoInput) -> Result<FundingAutoOutput,
     }
 
     // (4) Post-sink domain (the auto gate's sink_bounds_ok — before mutation).
-    let fee_pool_after = ck_add(input.fee_pool_quote, projected_net)?;
-    let fee_income_after = ck_add(input.fee_income, projected_net)?;
-    let insurance_after = ck_add(input.insurance_balance, projected_net)?;
-    for s in [fee_pool_after, fee_income_after, insurance_after] {
-        if !in_closed(s, 0, MAX_COLLATERAL) {
-            return Err(REJ_SINK_OUT_OF_DOMAIN);
-        }
-    }
+    let (fee_pool_after, fee_income_after, insurance_after) = apply_sink_delta(
+        input.fee_pool_quote,
+        input.fee_income,
+        input.insurance_balance,
+        projected_net,
+    )?;
 
     // (5) funding_not_applied gate: no OPEN account may have already received
     // funding this epoch (same-epoch replay / double-apply protection).
     for a in &accts {
-        if a.position_base != 0 && a.funding_last_applied_epoch >= input.now_epoch {
+        if funding_already_applied(
+            a.position_base,
+            a.funding_last_applied_epoch,
+            input.now_epoch,
+        ) {
             return Err(REJ_FUNDING_ALREADY_APPLIED);
         }
     }
@@ -182,24 +240,15 @@ pub fn apply_funding_auto(input: &FundingAutoInput) -> Result<FundingAutoOutput,
             settled.push(a.clone());
             continue;
         }
-        let fp = funding_payment(a.position_base, input.index_price_e8, input.rate_bps);
-        let coll_after = ck_sub(a.collateral_quote, fp)?;
-        let cum_after = ck_add(a.funding_paid_cumulative, fp)?;
-        if !in_closed(coll_after, 0, MAX_COLLATERAL) {
-            return Err(REJ_COLLATERAL_BOUNDS);
-        }
-        let maint = maint_margin_req(
+        let (_fp, coll_after, cum_after) = settle_open_account_values(
             a.position_base,
+            a.collateral_quote,
+            a.funding_paid_cumulative,
             input.index_price_e8,
+            input.rate_bps,
             input.maintenance_margin_bps,
             input.depeg_buffer_bps,
-        );
-        if coll_after < maint {
-            return Err(REJ_MAINTENANCE_MARGIN);
-        }
-        if !in_closed(cum_after, -MAX_FUNDING_CUMULATIVE, MAX_FUNDING_CUMULATIVE) {
-            return Err(REJ_CUMULATIVE_BOUNDS);
-        }
+        )?;
         settled.push(FundingAccount {
             key: a.key.clone(),
             position_base: a.position_base,
@@ -453,5 +502,116 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+// CBC_CORE_V0 — Kani contracts on the ACTUAL bounded-sink funding arithmetic.
+//
+// The public transition uses Vec/String sorting, which is too expensive for CBMC.
+// These harnesses target heap-free helpers that the running transition calls:
+// per-account settlement, sink delta application, and the same-epoch replay
+// predicate. This proves the value-conservation arithmetic without treating the
+// heap/map wrapper as proven. The wrapper remains covered by differential tests.
+//
+// Run exact harnesses, for example:
+// `cargo kani -p zenodex-runtime-core --harness perp_funding_auto::kani_contracts::two_account_conservation`
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    const POS_BOUND: i128 = 1_000_000;
+    const MONEY_BOUND: i128 = 1_000_000_000_000;
+    const CUM_BOUND: i128 = 1_000_000_000_000;
+    const PRICE_E8: i128 = 100_000_000;
+
+    fn bounded_i128(lo: i128, hi: i128) -> i128 {
+        let value: i128 = kani::any();
+        kani::assume(lo <= value && value <= hi);
+        value
+    }
+
+    fn settled(
+        position: i128,
+        collateral: i128,
+        cumulative: i128,
+        rate_bps: i128,
+    ) -> Result<(i128, i128, i128), &'static str> {
+        settle_open_account_values(position, collateral, cumulative, PRICE_E8, rate_bps, 0, 0)
+    }
+
+    #[kani::proof]
+    fn sink_delta_moves_all_mirrors_exactly() {
+        let fee_pool = bounded_i128(0, MONEY_BOUND);
+        let fee_income = bounded_i128(0, MONEY_BOUND);
+        let insurance = bounded_i128(0, MONEY_BOUND);
+        let projected_net = bounded_i128(-MONEY_BOUND, MONEY_BOUND);
+        if let Ok((fee_pool_after, fee_income_after, insurance_after)) =
+            apply_sink_delta(fee_pool, fee_income, insurance, projected_net)
+        {
+            assert_eq!(fee_pool_after, fee_pool + projected_net);
+            assert_eq!(fee_income_after, fee_income + projected_net);
+            assert_eq!(insurance_after, insurance + projected_net);
+            assert!(0 <= fee_pool_after && fee_pool_after <= MAX_COLLATERAL);
+            assert!(0 <= fee_income_after && fee_income_after <= MAX_COLLATERAL);
+            assert!(0 <= insurance_after && insurance_after <= MAX_COLLATERAL);
+        }
+    }
+
+    #[kani::proof]
+    fn account_collateral_delta_is_negative_payment() {
+        let position = bounded_i128(-POS_BOUND, POS_BOUND);
+        kani::assume(position != 0);
+        let collateral = bounded_i128(0, MONEY_BOUND);
+        let cumulative = bounded_i128(-CUM_BOUND, CUM_BOUND);
+        let rate_bps = bounded_i128(-10_000, 10_000);
+        if let Ok((payment, collateral_after, cumulative_after)) =
+            settled(position, collateral, cumulative, rate_bps)
+        {
+            assert_eq!(collateral_after + payment, collateral);
+            assert_eq!(cumulative_after, cumulative + payment);
+        }
+    }
+
+    #[kani::proof]
+    fn two_account_conservation() {
+        let p0 = bounded_i128(-POS_BOUND, POS_BOUND);
+        let p1 = bounded_i128(-POS_BOUND, POS_BOUND);
+        kani::assume(p0 != 0 && p1 != 0);
+        let c0 = bounded_i128(0, MONEY_BOUND);
+        let c1 = bounded_i128(0, MONEY_BOUND);
+        let u0 = bounded_i128(-CUM_BOUND, CUM_BOUND);
+        let u1 = bounded_i128(-CUM_BOUND, CUM_BOUND);
+        let rate_bps = bounded_i128(-10_000, 10_000);
+        let fee_pool = bounded_i128(0, MONEY_BOUND);
+        let fee_income = bounded_i128(0, MONEY_BOUND);
+        let insurance = bounded_i128(0, MONEY_BOUND);
+
+        if let (Ok((fp0, c0_after, _)), Ok((fp1, c1_after, _))) =
+            (settled(p0, c0, u0, rate_bps), settled(p1, c1, u1, rate_bps))
+        {
+            let projected_net = fp0 + fp1;
+            if let Ok((fee_pool_after, _, _)) =
+                apply_sink_delta(fee_pool, fee_income, insurance, projected_net)
+            {
+                assert_eq!(c0_after + c1_after + fee_pool_after, c0 + c1 + fee_pool);
+            }
+        }
+    }
+
+    #[kani::proof]
+    fn replay_predicate_matches_open_same_epoch() {
+        let position = bounded_i128(-POS_BOUND, POS_BOUND);
+        let last = bounded_i128(0, 1_000_000);
+        let now = bounded_i128(0, 1_000_000);
+        let expected = position != 0 && last >= now;
+        assert_eq!(funding_already_applied(position, last, now), expected);
+    }
+
+    #[kani::proof]
+    fn covers_are_reachable() {
+        kani::cover!(settled(1_000, 1_000_000, 0, 10).is_ok());
+        kani::cover!(settled(1_000, 0, 0, 10) == Err(REJ_COLLATERAL_BOUNDS));
+        kani::cover!(apply_sink_delta(0, 0, 0, -1) == Err(REJ_SINK_OUT_OF_DOMAIN));
+        kani::cover!(funding_already_applied(1, 1, 1));
     }
 }
