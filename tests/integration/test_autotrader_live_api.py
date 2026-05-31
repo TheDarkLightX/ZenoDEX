@@ -91,6 +91,34 @@ def test_autotrader_live_status_reports_receipt_backed_prepare_surface(monkeypat
     assert "production_chain_submission" in payload["status"]["not_claimed"]
 
 
+def test_autotrader_live_status_rejects_malformed_tau_port(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_TAU_PORT", "70000")
+
+    status, payload = handle_autotrader_live_request(
+        "GET",
+        "/api/strategy/autotrader/status",
+        None,
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "AUTOTRADER_LIVE_TAU_PORT" in str(payload["error"])
+
+
+def test_autotrader_live_status_rejects_malformed_execute_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "maybe")
+
+    status, payload = handle_autotrader_live_request(
+        "GET",
+        "/api/strategy/autotrader/status",
+        None,
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED" in str(payload["error"])
+
+
 def test_autotrader_live_prepare_requires_risk_acknowledgement() -> None:
     status, payload = handle_autotrader_live_request(
         "POST",
@@ -126,6 +154,28 @@ def test_autotrader_live_prepare_requires_local_signing_enablement(
     assert payload["ok"] is False
     assert payload["error"] == "local_signing_disabled"
     assert payload["risk_disclosure"]["user_acknowledged"] is True
+
+
+def test_autotrader_live_prepare_rejects_malformed_local_signing_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "maybe")
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/prepare",
+        json.dumps(
+            {
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING" in str(payload["error"])
 
 
 def test_autotrader_live_prepare_fixture_builds_signed_receipt_backed_ops(
@@ -193,6 +243,29 @@ def test_autotrader_live_submit_requires_testnet_submission_enablement(
     assert payload["error"] == "testnet_submission_disabled"
     assert payload["risk_disclosure"]["user_acknowledged"] is True
     assert "production_chain_submission" in payload["not_claimed"]
+
+
+def test_autotrader_live_submit_rejects_nonfinite_tau_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_TAU_TIMEOUT_S", "nan")
+
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/submit",
+        json.dumps(
+            {
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert "AUTOTRADER_LIVE_TAU_TIMEOUT_S" in str(payload["error"])
 
 
 def test_autotrader_live_submit_sends_prepared_payload_and_mines(
