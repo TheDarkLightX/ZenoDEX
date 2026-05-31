@@ -155,6 +155,18 @@ def test_deploy_profile_rejects_unknown_runtime_authority_policy_key():
     assert any("runtime_authority_policy has unknown keys" in conflict for conflict in conflicts)
 
 
+def test_deploy_profile_rejects_non_trusted_core_authority_surface():
+    profile = load_deploy_profile("public-testnet")
+    profile["runtime_authority_policy"]["per_surface"]["debug_dashboard"] = (
+        "rust_authority_with_python_shadow"
+    )
+    profile["runtime_authority_policy"]["promoted_surfaces"].append("debug_dashboard")
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any("non-trusted-core surfaces" in conflict for conflict in conflicts)
+
+
 def test_deploy_profile_rejects_stale_promoted_surface_entry():
     profile = load_deploy_profile("public-testnet")
     profile["runtime_authority_policy"]["promoted_surfaces"].append("perp_stateful")
