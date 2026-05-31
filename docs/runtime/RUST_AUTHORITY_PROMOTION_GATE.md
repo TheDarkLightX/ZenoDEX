@@ -299,6 +299,8 @@ plus a future schema/sign-off update.
    `production-strict`. The current strict-profile schema admits
    `rust_authority_with_python_shadow` only; pure `rust_authority` needs a
    later schema/validator change after soak evidence and sign-off.
+   `public-testnet` also rejects missing or downgraded trusted-core surfaces,
+   so the current TCB set cannot regress back to `rust_shadow` silently.
 4. Prove no state-root drift (the selector + agreement guarantee it; assert it).
 5. Document residual risk in `RUST_AUTHORITY_MIGRATION_STATUS.md`.
 6. Get explicit human sign-off (criterion 12).

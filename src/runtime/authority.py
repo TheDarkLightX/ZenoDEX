@@ -78,6 +78,12 @@ TRUSTED_CORE_AUTHORITY_SURFACES = frozenset(
     }
 )
 
+# Public testnet is the shadow-checked Rust-authority soak lane for the trusted
+# core. Every current TCB surface must be present, promoted, and configured as
+# Rust authority with Python shadow. Production-strict intentionally remains
+# all-Python until a later release decision.
+PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES = TRUSTED_CORE_AUTHORITY_SURFACES
+
 
 class AuthorityError(RuntimeError):
     """Fail-closed marker: raised when a decision cannot be made safely.
@@ -249,6 +255,8 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
     Under a strict profile (``public-testnet`` or ``production-strict``):
 
     * only trusted-core consensus surfaces may appear in the authority policy;
+    * `public-testnet` must cover every current trusted-core surface with
+      ``rust_authority_with_python_shadow``;
     * the blanket ``default`` may not be a Rust-authoritative mode (that would
       promote every surface at once, including unshadowed ones);
     * pure ``rust_authority`` is not admitted by the current strict-profile
@@ -293,6 +301,28 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
             "current strict-profile schema; use rust_authority_with_python_shadow "
             f"for promoted trusted-core surfaces: {pure_rust_surfaces}"
         )
+
+    if profile_id == "public-testnet":
+        required_mode = AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+        missing_required = sorted(
+            PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES - frozenset(policy.per_surface)
+        )
+        if missing_required:
+            raise AuthorityError(
+                "profile 'public-testnet': missing trusted-core authority surfaces: "
+                f"{missing_required}"
+            )
+        wrong_required_mode = sorted(
+            surface
+            for surface in PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES
+            if policy.per_surface.get(surface) is not required_mode
+        )
+        if wrong_required_mode:
+            raise AuthorityError(
+                "profile 'public-testnet': trusted-core surfaces must use "
+                "rust_authority_with_python_shadow: "
+                f"{wrong_required_mode}"
+            )
 
     rust_authoritative_surfaces = frozenset(
         surface

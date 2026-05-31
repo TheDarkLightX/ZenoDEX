@@ -338,8 +338,10 @@ Delivered:
   testnet now promotes `canonical`, `state_root`, `replay_guard`, `balances`,
   `fee_router`, `zusd`, `burn_receipts`, `cpmm_settlement`, `perp_math`, and
   `perp_stateful`; production remains all-Python.
-  `validate_authority_policy` rejects a half-configured Rust authority (and a
-  blanket Rust default) under `public-testnet` and `production-strict`;
+  `validate_authority_policy` rejects non-trusted-core authority surfaces,
+  missing or downgraded public-testnet trusted-core surfaces, half-configured
+  Rust authority, pure `rust_authority` under the current strict schema, and a
+  blanket Rust default under `public-testnet` and `production-strict`;
   `tools/check_deployment_profiles.py` enforces it in CI.
 - **Tests** — `tests/runtime/test_authority_selector.py`: unsupported
   mode rejects; default is Python; each mode's semantics; disagreement fails
