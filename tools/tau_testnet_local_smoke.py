@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shlex
 import sqlite3
@@ -107,14 +108,16 @@ def _find_pool(state: Dict[str, Any], *, pool_id: str) -> Dict[str, Any]:
 
 def _bool_env(name: str, *, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if raw is None or not raw.strip():
         return bool(default)
     v = raw.strip().lower()
     if v in {"1", "true", "yes", "on"}:
         return True
     if v in {"0", "false", "no", "off"}:
         return False
-    return bool(default)
+    raise RuntimeError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _require_env(name: str, *, hint: str) -> str:
@@ -130,11 +133,26 @@ def _float_env(name: str, *, default: float) -> float:
         return float(default)
     try:
         value = float(str(raw).strip())
-    except Exception as exc:
+    except ValueError as exc:
         raise RuntimeError(f"{name} must be a float") from exc
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise RuntimeError(f"{name} must be positive")
     return value
+
+
+def _int_env(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return int(default)
+    try:
+        value = int(str(raw).strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+    if value < minimum:
+        raise RuntimeError(f"{name} must be >= {minimum}")
+    if value > maximum:
+        raise RuntimeError(f"{name} must be <= {maximum}")
+    return int(value)
 
 
 def _parse_cmd(cmd: str) -> list[str]:
@@ -171,8 +189,18 @@ class _VerifierSubprocessConfig:
 def _verifier_subprocess_config() -> _VerifierSubprocessConfig:
     return _VerifierSubprocessConfig(
         timeout_s=_float_env("TAU_STATE_PROOF_SUBPROCESS_TIMEOUT_S", default=10.0),
-        max_stdout_bytes=int(os.environ.get("TAU_STATE_PROOF_MAX_STDOUT_BYTES", "2000000")),
-        max_stderr_bytes=int(os.environ.get("TAU_STATE_PROOF_MAX_STDERR_BYTES", "16000")),
+        max_stdout_bytes=_int_env(
+            "TAU_STATE_PROOF_MAX_STDOUT_BYTES",
+            default=2_000_000,
+            minimum=1,
+            maximum=100_000_000,
+        ),
+        max_stderr_bytes=_int_env(
+            "TAU_STATE_PROOF_MAX_STDERR_BYTES",
+            default=16_000,
+            minimum=1,
+            maximum=10_000_000,
+        ),
     )
 
 
