@@ -1257,8 +1257,10 @@ fn funding_gate_preconditions(
 /// Python gate derives `rate_bps` from the current clearing/index prices, then
 /// the bounded-sink Rust core applies per-account funding and routes the net
 /// into fee_pool/fee_income/insurance. The materializer preserves account fields
-/// funding never touches (`entry_price_e8`, `liquidated_this_step`) and emits a
-/// normalized funding effect payload for full shadow parity.
+/// funding never touches for flat accounts, while open accounts mirror the
+/// authoritative `apply_funding` postcondition that clears
+/// `liquidated_this_step`. It emits a normalized funding effect payload for
+/// full shadow parity.
 fn materialize_apply_funding_auto(
     quote_asset: &str,
     mut global: Map<String, Value>,
@@ -1365,6 +1367,9 @@ fn materialize_apply_funding_auto(
                 None => return reject(REJ_ARITHMETIC_OVERFLOW),
             };
         }
+        // DbC postcondition: authoritative apply_funding clears the flag for
+        // every funded open account; flat accounts are not funded and carry
+        // their pre-state unchanged.
         post_accounts.push(Account {
             key: account.key.clone(),
             position_base: account.position_base,
@@ -1372,7 +1377,7 @@ fn materialize_apply_funding_auto(
             entry_price_e8: pre.entry_price_e8,
             funding_paid_cumulative: account.funding_paid_cumulative,
             funding_last_applied_epoch: account.funding_last_applied_epoch,
-            liquidated_this_step: pre.liquidated_this_step,
+            liquidated_this_step: pre.position_base == 0 && pre.liquidated_this_step,
         });
     }
 
@@ -2874,10 +2879,14 @@ mod tests {
 
     #[test]
     fn apply_funding_auto_materializes_accounts_sinks_and_effect() {
+        let mut flagged_open = acct_json("aa", 300_000, 1_000_000, 100_000_000);
+        flagged_open["liquidated_this_step"] = json!(true);
+        let mut flagged_flat = acct_json("cc", 0, 42, 0);
+        flagged_flat["liquidated_this_step"] = json!(true);
         let accounts = json!([
-            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            flagged_open,
             acct_json("bb", -100_000, 1_000_000, 100_000_000),
-            acct_json("cc", 0, 42, 0),
+            flagged_flat,
         ]);
         let r = materialize_isolated_op(&req_accts(
             price_published_global(5),
@@ -2898,6 +2907,7 @@ mod tests {
         assert_eq!(a["funding_paid_cumulative"], json!("3007"));
         assert_eq!(a["funding_last_applied_epoch"], json!("5"));
         assert_eq!(a["entry_price_e8"], json!("100000000"));
+        assert_eq!(a["liquidated_this_step"], json!(false));
         let b = accts.iter().find(|x| x["key"] == "bb").unwrap();
         assert_eq!(b["collateral_quote"], json!("1001000"));
         assert_eq!(b["funding_paid_cumulative"], json!("-993"));
@@ -2906,6 +2916,7 @@ mod tests {
         assert_eq!(c["collateral_quote"], json!("42"));
         assert_eq!(c["funding_paid_cumulative"], json!("7")); // flat account carried
         assert_eq!(c["funding_last_applied_epoch"], json!("2"));
+        assert_eq!(c["liquidated_this_step"], json!(true));
 
         let fx = &r["effects"];
         assert_eq!(fx["funding_rate_bps"], json!("100"));
