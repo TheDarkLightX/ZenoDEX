@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -16,11 +18,13 @@ from src.integration.deploy_profile import evaluate_deploy_profile_consistency, 
 from src.runtime.authority import AuthorityMode, load_authority_policy, validate_authority_policy  # noqa: E402
 from src.runtime.canonical_authority import (  # noqa: E402
     CANONICAL_SURFACE,
+    CanonicalAuthorityError,
     canonical_json_hash_with_authority,
     decide_canonical_cases,
     diff_results,
     locate_runtime_binary,
     py_eval_cases,
+    rust_eval_cases,
 )
 
 
@@ -46,6 +50,15 @@ def _cases() -> list[dict]:
         {"op": "domain_json_hash", "label": "", "version": 1, "value": {}},
         {"op": "hex_to_bytes", "hex": "0xzz", "nbytes": 1},
     ]
+
+
+def _patch_rust_stdout(monkeypatch, payload: dict) -> None:
+    def fake_run(*_args, **_kwargs):
+        return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+
+    from src.runtime import canonical_authority
+
+    monkeypatch.setattr(canonical_authority.subprocess, "run", fake_run)
 
 
 def test_public_testnet_profile_promotes_canonical():
@@ -118,3 +131,64 @@ def test_canonical_json_hash_helper_returns_authority_metadata(rust_bin):
         "shadow_checked": True,
         "shadow_agreed": True,
     }
+
+
+def test_canonical_rust_eval_rejects_extra_top_level_field(monkeypatch):
+    _patch_rust_stdout(
+        monkeypatch,
+        {
+            "version": 1,
+            "results": [{"index": 0, "ok": False, "code": "bad_json_number"}],
+            "extra": "metadata",
+        },
+    )
+
+    with pytest.raises(CanonicalAuthorityError, match="rust canonical output: unexpected fields"):
+        rust_eval_cases([{"op": "json_hash", "value": 1.25}], rust_bin=Path("/tmp/fake-runtime"))
+
+
+def test_canonical_rust_eval_rejects_extra_result_field(monkeypatch):
+    _patch_rust_stdout(
+        monkeypatch,
+        {
+            "version": 1,
+            "results": [
+                {"index": 0, "ok": True, "bytes": "0x7b7d", "hash": "0x00", "extra": "metadata"}
+            ],
+        },
+    )
+
+    with pytest.raises(CanonicalAuthorityError, match="rust canonical result 0: unexpected fields"):
+        rust_eval_cases([{"op": "json_hash", "value": {}}], rust_bin=Path("/tmp/fake-runtime"))
+
+
+def test_canonical_rust_eval_rejects_non_bool_ok(monkeypatch):
+    _patch_rust_stdout(
+        monkeypatch,
+        {"version": 1, "results": [{"index": 0, "ok": 1, "bytes": "0x7b7d", "hash": "0x00"}]},
+    )
+
+    with pytest.raises(CanonicalAuthorityError, match="rust canonical result 0 ok must be a bool"):
+        rust_eval_cases([{"op": "json_hash", "value": {}}], rust_bin=Path("/tmp/fake-runtime"))
+
+
+def test_canonical_rust_eval_rejects_index_mismatch(monkeypatch):
+    _patch_rust_stdout(
+        monkeypatch,
+        {"version": 1, "results": [{"index": 1, "ok": True, "hash": "0x00"}]},
+    )
+
+    with pytest.raises(CanonicalAuthorityError, match="rust canonical result 0 index mismatch"):
+        rust_eval_cases(
+            [{"op": "domain_json_hash", "label": "zenodex.test", "version": 1, "value": {}}],
+            rust_bin=Path("/tmp/fake-runtime"),
+        )
+
+
+def test_canonical_diff_results_rejects_malformed_ok_and_index():
+    assert diff_results([{"index": 0, "ok": True}], [{"index": 0, "ok": 1}]) == [
+        "case 0: malformed ok left=True right=1"
+    ]
+    assert diff_results([{"index": 0, "ok": True}], [{"index": 1, "ok": True}]) == [
+        "case 0: index left=0 right=1"
+    ]
