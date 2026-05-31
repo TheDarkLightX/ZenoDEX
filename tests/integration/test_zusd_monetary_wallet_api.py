@@ -111,6 +111,108 @@ def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) 
     assert status["liquidation_gas_comp_bps"] == 25
 
 
+def test_status_rejects_malformed_monetary_tau_port(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_TAU_PORT", "70000")
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        "/api/zusd/monetary/status",
+        None,
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "ZUSD_MONETARY_WALLET_TAU_PORT" in str(payload["error"])
+
+
+def test_status_monetary_tau_port_overrides_bad_legacy_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_TAU_PORT", "65433")
+    monkeypatch.setenv("ZUSD_TAU_WALLET_TAU_PORT", "70000")
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        "/api/zusd/monetary/status",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["status"]["tau_port"] == 65433
+
+
+def test_prepare_rejects_nonfinite_monetary_tau_timeout(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S", "nan")
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "ZUSD_MONETARY_WALLET_TAU_TIMEOUT_S" in str(payload["error"])
+
+
+def test_prepare_rejects_malformed_local_signing_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setenv("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", "maybe")
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING" in str(payload["error"])
+
+
+def test_prepare_rejects_malformed_liquidation_fee_config(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS", "10001")
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS" in str(payload["error"])
+
+
 def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) -> None:
     chain_id = "tau-test-zusd-monetary"
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
