@@ -37,6 +37,7 @@ Run:
 
 ```bash
 python3 tools/check_zenodex_host_independent_coverage.py --pretty
+python3 tools/check_zenodex_batch_proof_coverage.py --pretty
 python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
 ```
 
@@ -50,6 +51,28 @@ The checker rejects:
   replay evidence path.
 - Proof-surface ids that are absent from the ZenoLedger proof coverage matrix.
 - Any `full_zk_everywhere` style claim while known proof gaps remain.
+
+## Batch Proof Path
+
+Proof batching is now tracked as a separate coverage artifact:
+[`ZENODEX_BATCH_PROOF_COVERAGE_V0.json`](ZENODEX_BATCH_PROOF_COVERAGE_V0.json).
+It does not close the full-ZK frontier. It requires every open proof gap in the
+ZenoLedger proof matrix to have a governed batch lane with:
+
+- untrusted prover assumption;
+- public input fields for chain/profile/proof ids, pre/post roots, batch root,
+  transition count, and public-data root;
+- a fail-closed proof-required rule for missing, mismatched, or uncovered
+  proofs;
+- a deterministic replay, checkpoint replay, or metadata replay fallback until
+  the real proof is implemented;
+- warm batched p95/p99 benchmark requirements with private hardware details
+  kept out of public artifacts.
+
+This captures the Ethereum-style tradeoff: specialized provers may parallelize
+and aggregate work, while validators either verify public proof artifacts or
+replay public artifacts. Batching improves performance and amortizes proving
+cost; it is not itself a correctness boundary.
 
 ## Performance Reading
 

@@ -3156,3 +3156,28 @@ claims:
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+
+  - id: py:zenodex:batch_proof_gap_coverage_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The batch-proof coverage manifest assigns every current proof-gap surface
+      in the ZenoLedger proof matrix to a governed batch lane. Each lane must
+      preserve the untrusted-prover model, bind required public inputs, keep
+      proof-required profiles fail-closed for missing, mismatched, or uncovered
+      proofs, and require warm batched p95/p99 performance evidence before any
+      mandatory succinct-everything promotion. This is a proof-roadmap and
+      claim-control gate. It does not close any listed real-proof gap or claim
+      full-ZK execution for every ZenoDEX transition.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_batch_proof_coverage.py
+        - cmd: pytest -q tests/tools/test_check_zenodex_batch_proof_coverage.py
+      files:
+        - tools/check_zenodex_batch_proof_coverage.py
+        - tests/tools/test_check_zenodex_batch_proof_coverage.py
+        - docs/ZENODEX_BATCH_PROOF_COVERAGE_V0.json
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/claims_registry.yaml

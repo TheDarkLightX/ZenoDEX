@@ -15,6 +15,7 @@
   },
   "release_gates": [
     "python3 tools/check_zenodex_host_independent_coverage.py",
+    "python3 tools/check_zenodex_batch_proof_coverage.py",
     "python3 tools/check_production_boundary.py",
     "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
     "python3 tools/check_zeno_ledger_proof_profiles.py",

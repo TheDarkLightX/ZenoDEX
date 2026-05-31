@@ -5,25 +5,39 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import statistics
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.check_zenodex_batch_proof_coverage import validate_batch_proof_coverage_v0
+
 DEFAULT_MANIFEST = ROOT / "docs" / "ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json"
 DEFAULT_PROOF_MATRIX = ROOT / "docs" / "ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
+DEFAULT_BATCH_PROOF_MANIFEST = ROOT / "docs" / "ZENODEX_BATCH_PROOF_COVERAGE_V0.json"
 
 
 def build_zk_transition_coverage_report(
     *,
     manifest_path: Path = DEFAULT_MANIFEST,
     proof_matrix_path: Path = DEFAULT_PROOF_MATRIX,
+    batch_manifest_path: Path = DEFAULT_BATCH_PROOF_MANIFEST,
     smoke_report_path: Path | None = None,
     smoke_report_paths: Sequence[Path] | None = None,
 ) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     proof_matrix = json.loads(proof_matrix_path.read_text(encoding="utf-8"))
+    batch_manifest = json.loads(batch_manifest_path.read_text(encoding="utf-8"))
+    batch_report = validate_batch_proof_coverage_v0(
+        batch_manifest,
+        host_coverage_path=manifest_path,
+        proof_matrix_path=proof_matrix_path,
+    )
     spot_surface = _surface(manifest, "spot_v1_risc0_supported_transition_kernel")
     full_zk_surface = _surface(manifest, "full_zk_execution_for_all_value_moving_surfaces")
 
@@ -47,9 +61,10 @@ def build_zk_transition_coverage_report(
     if smoke_report_paths is not None:
         timing_paths.extend(smoke_report_paths)
     timing = _timing_report(timing_paths) if timing_paths else None
+    ok = (timing is None or timing["ok"]) and batch_report["ok"]
     return {
         "schema": "zenodex.zk_transition_coverage_report.v0",
-        "ok": timing is None or timing["ok"],
+        "ok": ok,
         "proof_operation_coverage": {
             "covered_count": covered_count,
             "total_count": universe_count,
@@ -64,10 +79,18 @@ def build_zk_transition_coverage_report(
             "supported_surface_ids": supported_proof_surfaces,
             "gap_surface_ids": proof_gap_surfaces,
         },
+        "batch_proof_coverage": {
+            "ok": batch_report["ok"],
+            "supported_lane_count": batch_report["supported_lane_count"],
+            "proof_gap_lane_count": batch_report["proof_gap_lane_count"],
+            "covered_gap_ids": batch_report["covered_gap_ids"],
+            "missing_gap_lanes": batch_report["missing_gap_lanes"],
+        },
         "succinct_everything_status": full_zk_surface.get("coverage_status"),
         "timing": timing,
         "interpretation": [
             "Current real zkVM coverage is scoped to the spot v1 Risc0 operation family listed in covered_operations.",
+            "Every open proof gap must have a governed batch-proof lane before full-ZK promotion can be claimed.",
             "Deterministic replay remains the performance baseline for ordinary full-node validation.",
             "A smoke timing report measures local prover performance only; production latency needs repeated warm runs on target hardware.",
         ],
@@ -174,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--proof-matrix", type=Path, default=DEFAULT_PROOF_MATRIX)
+    parser.add_argument("--batch-manifest", type=Path, default=DEFAULT_BATCH_PROOF_MANIFEST)
     parser.add_argument("--smoke-report", type=Path, action="append")
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args(argv)
@@ -181,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
     report = build_zk_transition_coverage_report(
         manifest_path=args.manifest,
         proof_matrix_path=args.proof_matrix,
+        batch_manifest_path=args.batch_manifest,
         smoke_report_paths=args.smoke_report,
     )
     print(json.dumps(report, indent=2 if args.pretty else None, sort_keys=True))

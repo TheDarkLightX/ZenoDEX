@@ -1,0 +1,308 @@
+{
+  "schema": "zenodex.batch_proof_coverage.v0",
+  "claim_boundary": {
+    "succinct_everything_host_independence": "frontier_open",
+    "batching_is_performance_mechanism_not_trust_boundary": true,
+    "provers_are_untrusted": true,
+    "verifier_accepts_only_public_inputs_and_valid_proofs": true,
+    "replay_fallback_required_until_full_zk_green": true,
+    "private_hardware_details_public": false
+  },
+  "batching_model": {
+    "batch_unit": "governed_epoch_or_block",
+    "parallelism_model": "untrusted_provers_may_parallelize_chunks_by_surface_batch_and_transition_family",
+    "aggregation_model": "chunk_proofs_may_be_recursively_or_batch-aggregated_into_one_epoch_receipt",
+    "validator_work_model": "validators_verify_public_inputs_and_aggregate_receipt_or_replay_public_artifacts",
+    "data_availability_model": "all accepted batch proofs require public transition inputs, pre/post roots, batch roots, profile ids, and proof metadata"
+  },
+  "required_public_input_fields": [
+    "chain_id",
+    "profile_id",
+    "proof_system_id",
+    "pre_state_root",
+    "post_state_root",
+    "transition_batch_root",
+    "transition_count",
+    "public_data_root"
+  ],
+  "fail_closed_policy": {
+    "proof_required_profile_rejects_missing_proof": true,
+    "proof_required_profile_rejects_wrong_profile_id": true,
+    "proof_required_profile_rejects_uncovered_transition_family": true,
+    "metadata_only_cannot_count_as_transition_proof": true,
+    "replay_fallback_profile_replays_public_artifacts": true
+  },
+  "promotion_requirements": [
+    "each proof_gap_id has a real proof lane or remains open",
+    "each value-moving proof lane binds pre/post state roots and transition batch root",
+    "each proof-required profile rejects missing, mismatched, or uncovered proofs",
+    "each mandatory proof lane has warm batched p95 and p99 benchmarks on target prover hardware",
+    "succinct_everything_host_independence remains frontier_open while any proof gap lane is open"
+  ],
+  "current_supported_proof_lanes": [
+    {
+      "proof_surface_id": "risc0_supported_transition_real_proof_smoke",
+      "host_surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "status": "covered_scoped",
+      "batch_unit": "spot_v1_block_or_liquidity_cycle",
+      "aggregation_plan": "none_currently_required_for_smoke_scope",
+      "covered_transition_families": [
+        "empty_transition",
+        "faucet_mint",
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block"
+      ],
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root"
+      ],
+      "limits": [
+        "spot v1 supported operation family only",
+        "not a recursive epoch proof",
+        "not full ZenoDEX proof coverage"
+      ]
+    }
+  ],
+  "proof_gap_batch_lanes": [
+    {
+      "proof_gap_id": "uniform_batch_upba_v2_v3_real_proof",
+      "host_surface_id": "upba_bounded_grid_and_exact_out_certificates",
+      "value_moving": true,
+      "status": "open_real_proof_gap",
+      "current_fallback": "deterministic_replay",
+      "batch_unit": "auction_epoch",
+      "parallelism": "partition_by_candidate_grid_price_vector_and_pool_family",
+      "aggregation_plan": "aggregate_candidate_witness_proofs_into_epoch_clearing_receipt",
+      "proof_required_fail_closed_rule": "reject proof-required UPBA profile unless the batch proof binds candidate_root, fill_vector_root, pre_state_root, post_state_root, and profile_id",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "candidate_root",
+        "fill_vector_root"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "real zkVM proof for UPBA v2/v3 batch clearing",
+        "bounded-grid certificate verification inside the proof",
+        "negative tests for mismatched candidate and fill roots"
+      ]
+    },
+    {
+      "proof_gap_id": "oracle_critical_action_real_proof",
+      "host_surface_id": "oracle_critical_action_authorization",
+      "value_moving": true,
+      "status": "open_real_proof_gap",
+      "current_fallback": "deterministic_replay",
+      "batch_unit": "oracle_authorized_action_batch",
+      "parallelism": "partition_by_consumer_module_action_kind_and_query_id",
+      "aggregation_plan": "aggregate_authorized_action_proofs_into_settlement_authorization_receipt",
+      "proof_required_fail_closed_rule": "reject proof-required oracle action unless the proof binds action_id, query_id, profile_id, pre_state_root, post_state_root, and public_data_root",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "action_id",
+        "query_id"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "real proof for critical-action packet verification",
+        "negative tests for wrong query id and stale action id",
+        "explicit non-claim for external oracle truth"
+      ]
+    },
+    {
+      "proof_gap_id": "zusd_lifecycle_real_proof",
+      "host_surface_id": "zusd_lifecycle_microgate_surface",
+      "value_moving": true,
+      "status": "open_real_proof_gap",
+      "current_fallback": "deterministic_replay",
+      "batch_unit": "zusd_lifecycle_epoch",
+      "parallelism": "partition_by_vault_id_and_lifecycle_action",
+      "aggregation_plan": "aggregate_mint_repay_redeem_withdraw_liquidation_and_oracle_commit_proofs",
+      "proof_required_fail_closed_rule": "reject proof-required zUSD lifecycle profile unless supply, collateral, vault, and oracle roots are bound to the proof",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "vault_root",
+        "supply_root"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "real proof for zUSD lifecycle transitions",
+        "negative tests for supply-conservation and collateral-root mismatch",
+        "proof-required profile wired to reject uncovered lifecycle actions"
+      ]
+    },
+    {
+      "proof_gap_id": "perps_settlement_real_proof",
+      "host_surface_id": "perps_bounded_production_candidate_surface",
+      "value_moving": true,
+      "status": "open_real_proof_gap",
+      "current_fallback": "deterministic_replay",
+      "batch_unit": "perps_market_epoch",
+      "parallelism": "partition_by_market_epoch_and_account_slice",
+      "aggregation_plan": "aggregate_funding_liquidation_adl_and_insurance_transition_proofs",
+      "proof_required_fail_closed_rule": "reject proof-required perps profile unless account, market, funding, insurance, and settlement roots are bound",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "market_root",
+        "account_root"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "real proof for perps settlement and liquidation transitions",
+        "negative tests for funding and insurance root mismatch",
+        "bounded market parameter profile fixed before mandatory proof use"
+      ]
+    },
+    {
+      "proof_gap_id": "proof_market_reward_real_proof",
+      "host_surface_id": "proof_mining_reward_and_claimability_surface",
+      "value_moving": true,
+      "status": "open_real_proof_gap",
+      "current_fallback": "deterministic_replay",
+      "batch_unit": "proof_market_reward_epoch",
+      "parallelism": "partition_by_claim_slot_and_reward_pool",
+      "aggregation_plan": "aggregate_claimability_and_reward_payout_proofs_into_reward_epoch_receipt",
+      "proof_required_fail_closed_rule": "reject proof-required reward profile unless claim, slot, verification-flag, and reward-pool roots are bound",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "claim_root",
+        "reward_pool_root"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "real proof for claimability and reward payout execution",
+        "negative tests for invalid claim root and reward-pool mismatch",
+        "proof-required profile rejects uncovered reward transitions"
+      ]
+    },
+    {
+      "proof_gap_id": "recursive_epoch_real_proof",
+      "host_surface_id": "proof_required_profile_metadata_and_report_replay",
+      "value_moving": false,
+      "status": "open_real_proof_gap",
+      "current_fallback": "proof_metadata_and_report_replay",
+      "batch_unit": "recursive_epoch",
+      "parallelism": "partition_by_chunk_proof_then_recursively_aggregate",
+      "aggregation_plan": "recursive_proof_of_chunk_proofs_bound_to_epoch_header",
+      "proof_required_fail_closed_rule": "reject recursive profile unless every child proof id, journal root, and epoch header root is bound",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "child_proof_root",
+        "epoch_header_root"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "real recursive receipt aggregation",
+        "negative tests for missing child proof and wrong epoch header",
+        "independent verifier for aggregate public inputs"
+      ]
+    },
+    {
+      "proof_gap_id": "light_client_production_finality",
+      "host_surface_id": "zenoledger_block_peer_and_checkpoint_replay",
+      "value_moving": false,
+      "status": "open_real_proof_gap",
+      "current_fallback": "checkpoint_quorum_replay",
+      "batch_unit": "finality_checkpoint_epoch",
+      "parallelism": "partition_by_header_range_then_aggregate_checkpoint_receipts",
+      "aggregation_plan": "aggregate_header_range_replay_and_quorum_receipts_into_finality_proof",
+      "proof_required_fail_closed_rule": "reject production-finality profile unless validator schedule, quorum, fork-choice, and checkpoint roots are bound",
+      "public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "checkpoint_root",
+        "validator_schedule_root"
+      ],
+      "performance_gate": {
+        "requires_warm_batched_benchmark": true,
+        "requires_p95_p99": true,
+        "allows_private_hardware_details_public": false
+      },
+      "promotion_requirements": [
+        "production validator rotation and fork-choice proof or replay gate",
+        "negative tests for stale signer registry and conflicting checkpoint",
+        "open-network peer and slashing assumptions recorded"
+      ]
+    }
+  ]
+}

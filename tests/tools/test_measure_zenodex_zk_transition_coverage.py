@@ -17,6 +17,8 @@ def test_zk_transition_coverage_reports_current_scope() -> None:
     assert report["proof_operation_coverage"]["total_count"] == 11
     assert report["proof_operation_coverage"]["coverage_pct"] == 63.64
     assert report["succinct_everything_status"] == "open"
+    assert report["batch_proof_coverage"]["proof_gap_lane_count"] == 7
+    assert report["batch_proof_coverage"]["missing_gap_lanes"] == []
     assert "swap_exact_out" in report["proof_operation_coverage"]["not_covered_operations"]
 
 
