@@ -615,6 +615,16 @@ def test_rust_authority_commits_apply_funding_auto_without_python_handler(rust_e
         clearing_price_e8=101_000_000,
         deposit=1_000_000,
     )
+    market = state.perps.markets[market_id]
+    accounts = dict(market.accounts)
+    accounts[PK_A] = replace(accounts[PK_A], liquidated_this_step=True)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=accounts,
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
 
     def python_handler_must_not_run(*args, **kwargs):
         raise AssertionError("Python apply_funding_auto handler ran under pure rust_authority")
@@ -637,6 +647,7 @@ def test_rust_authority_commits_apply_funding_auto_without_python_handler(rust_e
     assert int(market.global_state["funding_rate_bps"]) != 0
     assert int(market.accounts[PK_A].funding_last_applied_epoch) == int(market.global_state["now_epoch"])
     assert int(market.accounts[PK_B].funding_last_applied_epoch) == int(market.global_state["now_epoch"])
+    assert market.accounts[PK_A].liquidated_this_step is False
     assert int(effect["funding_sink_delta_quote"]) != 0
     assert "effects" not in effect
 
