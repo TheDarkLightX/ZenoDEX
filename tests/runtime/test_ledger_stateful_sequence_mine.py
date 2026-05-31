@@ -42,6 +42,8 @@ invariant checkers RAISE — proving the mine is non-vacuous.
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 hypothesis = pytest.importorskip("hypothesis")
@@ -292,6 +294,35 @@ def assert_peer_round_safe(
     )
 
 
+def assert_peer_admission_delta_safe(
+    *,
+    prev_final: list[str],
+    candidate_urls: list[str],
+    admitted: list[str],
+    new_final: list[str],
+    round_index: int,
+) -> None:
+    """The per-round provenance invariant.
+
+    Raises AssertionError on:
+      - a phantom admitted peer not present in the canonical candidate list,
+      - re-counting an already-current peer as newly admitted,
+      - a final set that is anything other than prior peers followed by the
+        canonical new candidate delta.
+    """
+    prev_set = set(prev_final)
+    expected_admitted = [url for url in candidate_urls if url not in prev_set]
+    assert admitted == expected_admitted, (
+        f"ADMISSION DELTA DRIFT: round {round_index} admitted {admitted} "
+        f"!= expected new candidate delta {expected_admitted}"
+    )
+    expected_final = peers.canonical_peer_urls_v0([*prev_final, *expected_admitted], name="expected_final")
+    assert new_final == expected_final, (
+        f"FINAL PEER PROVENANCE DRIFT: round {round_index} final {new_final} "
+        f"!= prior peers plus admitted delta {expected_final}"
+    )
+
+
 # =========================================================================== #
 # A. Bonded-slashing stateful machine.
 # =========================================================================== #
@@ -380,6 +411,15 @@ class BondedSlashingMachine(RuleBasedStateMachine):
         receipt = transition["receipt"]
         self.registry = transition["bond_registry"]
         slash_amount = int(receipt["slash_amount"])
+        assert slash_amount > 0, f"accepted zero/negative slash amount {slash_amount}"
+        assert before_slashed < self.bonded[subject_key], (
+            f"ACCEPTED AFTER DEPLETION: subject {subject_key} accepted evidence "
+            f"with slashed_amount already {before_slashed}"
+        )
+        assert before_slashed + slash_amount <= self.bonded[subject_key], (
+            f"OVER-SLASH: subject {subject_key} accepted slash {slash_amount} "
+            f"from {before_slashed}, exceeding bond {self.bonded[subject_key]}"
+        )
 
         # A replay of an ALREADY-ACCEPTED hash must NEVER be accepted again.
         assert not (is_replay and ev_hash in self.accepted_hashes[subject_key]), (
@@ -396,6 +436,11 @@ class BondedSlashingMachine(RuleBasedStateMachine):
         assert ev_hash in entry["processed_evidence_hashes"], (
             f"PROVENANCE: accepted evidence {ev_hash[:18]} not recorded in "
             f"subject {subject_key} processed_evidence_hashes"
+        )
+        assert set(entry["processed_evidence_hashes"]) == self.accepted_hashes[subject_key], (
+            f"PROCESSED-HASH DRIFT: subject {subject_key} registry hashes "
+            f"{entry['processed_evidence_hashes']} != accepted hashes "
+            f"{sorted(self.accepted_hashes[subject_key])}"
         )
         self._check_subject(subject_key)
 
@@ -534,9 +579,20 @@ class DynamicPeerMachine(RuleBasedStateMachine):
         assert_peer_round_safe(
             prev_final=prev_final, new_final=new_final, cap=PEER_CAP, round_index=self.round_index
         )
+        admitted = list(admission["admitted_peer_urls"])
+        candidate_urls = list(candidate["candidate_peer_urls"])
+        assert_peer_admission_delta_safe(
+            prev_final=prev_final,
+            candidate_urls=candidate_urls,
+            admitted=admitted,
+            new_final=new_final,
+            round_index=self.round_index,
+        )
         # COUNT INTEGRITY across the round.
         assert admission["final_peer_count"] == len(new_final), "final_peer_count mismatch"
+        assert admission["admitted_peer_count"] == len(admitted), "admitted_peer_count mismatch"
         assert admission["current_peer_count"] == len(prev_final), "current_peer_count mismatch"
+        assert admission["candidate_peer_count"] == len(candidate_urls), "candidate_peer_count mismatch"
         # Thread the new final set forward (the multi-round step).
         self.current = new_final
 
@@ -567,6 +623,37 @@ def test_bonded_slashing_sequence_has_no_double_slash_witness() -> None:
 
 def test_dynamic_peer_rounds_have_no_unbounded_accumulation_witness() -> None:
     run_state_machine_as_test(DynamicPeerMachine, settings=_STATEFUL_SETTINGS)
+
+
+def test_depleted_bond_rejects_fresh_evidence_without_state_change() -> None:
+    """A subject that has already reached the full bonded amount must reject even
+    fresh evidence. This pins the post-depletion fail-closed edge that a
+    cumulative-only checker could miss if an implementation accepted zero-effect
+    receipts after depletion."""
+    evidence = _checkpoint_evidence(vset_label="cp", height=7, variant=0)
+    registry = build_bond_registry_v0(
+        chain_id=CHAIN_ID,
+        asset_id=ASSET_ID,
+        entries=[
+            {
+                "subject_id": evidence["subject_id"],
+                "subject_kind": "validator_set",
+                "bonded_amount": BONDED_AMOUNT,
+                "slashed_amount": BONDED_AMOUNT,
+                "slashable_until_height": 100,
+                "status": "slashed",
+                "processed_evidence_hashes": [],
+            }
+        ],
+    )
+    before = copy.deepcopy(registry)
+    with pytest.raises(ValueError, match="not active"):
+        apply_bonded_slashing_v0(
+            evidence=evidence,
+            bond_registry=registry,
+            policy=_POLICIES[_CHECKPOINT_SUBJECT],
+        )
+    assert registry == before
 
 
 # --------------------------------------------------------------------------- #
@@ -660,4 +747,17 @@ def test_teeth_peer_silent_drop_raises() -> None:
             new_final=["http://peer1.example"],  # peer0 dropped
             cap=8,
             round_index=4,
+        )
+
+
+def test_teeth_peer_phantom_admission_delta_raises() -> None:
+    """Plant a forged round outcome that admits a peer outside the candidate
+    delta. The provenance checker must catch the phantom admission."""
+    with pytest.raises(AssertionError, match="ADMISSION DELTA DRIFT"):
+        assert_peer_admission_delta_safe(
+            prev_final=["http://peer0.example"],
+            candidate_urls=["http://peer0.example", "http://peer1.example"],
+            admitted=["http://evil.example"],
+            new_final=["http://peer0.example", "http://evil.example"],
+            round_index=5,
         )

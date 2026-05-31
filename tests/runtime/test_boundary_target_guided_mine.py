@@ -139,6 +139,69 @@ def test_quorum_teeth_catches_forged_certificate():
         _assert_no_forgery(forged_phantom, threshold=5, active_ids=active_ids, weight_by_id=weight_by_id)
 
 
+def test_quorum_exact_threshold_admit_is_reachable(_bls_oracle):
+    """Deterministic boundary reachability: an admit exactly at
+    accepted_weight == threshold must clear, while one weight unit below must
+    reject. This anchors the target-guided search to the actual knife edge."""
+    signers = [
+        {
+            "signer_id": "signer-0",
+            "key_id": "key-0",
+            "public_key": PK(1),
+            "weight": 2,
+            "status": "active",
+        },
+        {
+            "signer_id": "signer-1",
+            "key_id": "key-1",
+            "public_key": PK(2),
+            "weight": 3,
+            "status": "active",
+        },
+        {
+            "signer_id": "signer-2",
+            "key_id": "key-2",
+            "public_key": PK(3),
+            "weight": 5,
+            "status": "revoked",
+        },
+    ]
+    registry = reg.build_signer_registry_v0(
+        registry_id="rid-threshold",
+        payload_kind=PAYLOAD_KIND,
+        threshold=5,
+        signers=signers,
+    )
+    active_ids = {("signer-0", "key-0"), ("signer-1", "key-1")}
+    weight_by_id = {
+        ("signer-0", "key-0"): 2,
+        ("signer-1", "key-1"): 3,
+        ("signer-2", "key-2"): 5,
+    }
+
+    exact_threshold = [
+        {"signer_id": "signer-0", "key_id": "key-0", "algorithm": BLS_ALG, "envelope_hash": "0x" + "01" * 32},
+        {"signer_id": "signer-1", "key_id": "key-1", "algorithm": BLS_ALG, "envelope_hash": "0x" + "02" * 32},
+    ]
+    report = reg.verify_signature_quorum_v0(
+        registry=registry,
+        payload_kind=PAYLOAD_KIND,
+        payload_hash=PAYLOAD_HASH,
+        envelopes=exact_threshold,
+    )
+    assert report["accepted_weight"] == registry["threshold"] == 5
+    _assert_no_forgery(report, threshold=5, active_ids=active_ids, weight_by_id=weight_by_id)
+
+    below_threshold = [exact_threshold[1]]
+    with pytest.raises(ValueError, match="threshold not met"):
+        reg.verify_signature_quorum_v0(
+            registry=registry,
+            payload_kind=PAYLOAD_KIND,
+            payload_hash=PAYLOAD_HASH,
+            envelopes=below_threshold,
+        )
+
+
 # (active?, weight). Weights are boundary-shaped: 1 and 2 (the smallest steps
 # that can straddle a threshold) are over-sampled vs the uniform 1..5 fallback.
 _weight_strategy = _boundary_int(1, 5, [1, 2, 5], repeat=3)
