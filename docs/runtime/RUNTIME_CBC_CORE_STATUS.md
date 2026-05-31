@@ -82,7 +82,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain/deposit/clear-breaker tractable slice, settle-epoch helper classifiers, partial-liquidate boundary/full-close slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, fixed-width hex length arithmetic, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
 | State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector, LP duration-risk exhaustive field grid plus Z3 semantic injectivity | partial |
-| zUSD single-vault | yes | yes | Kani on BigInt-free scalar risk helpers: oracle freshness, base-rate decay, fee cap, and debt-floor guard. Full BigInt CDP ratio arithmetic and full `step` remain outside Kani | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector | partial |
+| zUSD single-vault | yes | yes | Kani on BigInt-free scalar risk helpers: oracle freshness, base-rate decay, fee cap, and debt-floor guard. Full BigInt CDP ratio arithmetic and full `step` remain outside Kani | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector, independent CDP threshold arithmetic grid plus bounded Lean boundary formula checks | partial |
 
 ## Current Delta From This Pass
 
@@ -122,7 +122,11 @@ This campaign moved seven surfaces forward:
   backed.
 - zUSD gained BigInt-free scalar helper decomposition. Kani now proves oracle
   freshness, base-rate decay, effective fee capping, and the debt-floor guard.
-  Full BigInt CDP ratio arithmetic and full `step` remain vector/property/
+  This pass also added a non-Kani CDP threshold grid for the BigInt ratio
+  boundary: mint, withdraw, redeem, and liquidation cases compare the Python
+  authority to an independent integer oracle, a curated threshold subset matches
+  Rust `zusd-op`, and Lean checks the finite boundary formula slice. Full
+  BigInt CDP ratio arithmetic and full `step` remain vector/property/
   differential backed.
 - Perp stateless math gained explicit bridge-domain classifiers and scalar
   helper decomposition. Kani now proves classifier exactness, `abs_val` safety
@@ -171,9 +175,10 @@ includes the live-shadow regression.
    and BTreeMap traversal should stay tested by vectors and differential checks
    unless a finite section encoder can be isolated.
 4. Continue zUSD proof decomposition: BigInt CDP ratio arithmetic, redemption
-   selection, liquidation arithmetic, and full `step` remain outside Kani. Keep
-   full `step` equality under Python/Rust differential until the BigInt core is
-   generated or separately verified.
+   selection, liquidation arithmetic, and full `step` remain outside Kani. The
+   CDP threshold grid and Lean boundary slice cover finite high-value edges, not
+   the live domain. Keep full `step` equality under Python/Rust differential
+   until the BigInt core is generated or separately verified.
 5. Extend perps Kani coverage from the current funding-auto, global-op,
    account-op, settle-helper, partial-liquidate boundary, and set-market scalar
    slices into withdraw/set-position margin paths, set-market account scans,

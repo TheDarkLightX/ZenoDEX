@@ -318,6 +318,7 @@ import Proofs.ZenoProofSybilBondBound
 import Proofs.ZenoProofSybilKAtom
 import Proofs.ZPLPayoffCombinators
 import Proofs.ZUSDCeilDivAlgebra
+import Proofs.ZUSDCDPThresholdGrid
 import Proofs.ZUSDCollateralFlowAlgebra
 import Proofs.ZUSDDebtHomomorphism
 import Proofs.ZUSDDualConservation
