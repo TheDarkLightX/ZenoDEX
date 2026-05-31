@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/zenodex-runtime-core",
     "crates/zenodex-runtime-cli",
+    "crates/zenodex-launcher",
 ]
 
 [workspace.package]

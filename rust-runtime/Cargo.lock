@@ -711,6 +711,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-launcher"
+version = "0.1.0"
+
+[[package]]
 name = "zenodex-runtime-cli"
 version = "0.1.0"
 dependencies = [

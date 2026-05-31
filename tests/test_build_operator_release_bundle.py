@@ -54,6 +54,9 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "generated/perp_python/perp_epoch_isolated_v3_ref.py",
         "packages/zeno-proof-client/package.json",
         "packages/zeno-proof-client/src/index.js",
+        "rust-runtime/Cargo.toml",
+        "rust-runtime/crates/zenodex-launcher/Cargo.toml",
+        "rust-runtime/crates/zenodex-launcher/src/main.rs",
         "requirements-core.lock.txt",
         "requirements-dev.lock.txt",
         "requirements-agents.lock.txt",
@@ -63,6 +66,7 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docs/DEPLOYMENT_QUICKSTART.md",
         "docs/DOCKER_HASHLOCKED_DEPLOYMENT.md",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
+        "docs/NATIVE_INSTALLER_PLAN.md",
         "docs/PERMISSIONLESS_HOSTING.md",
         "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
@@ -106,6 +110,8 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     assert "formal/property/production_key_management_v0.json" in paths
     assert "docker-compose.local-testnet.yml" in paths
     assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
+    assert "docs/NATIVE_INSTALLER_PLAN.md" in paths
+    assert "rust-runtime/crates/zenodex-launcher/src/main.rs" in paths
     assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
     assert "docs/claims_registry.yaml" in paths
     assert "packages/zeno-proof-client/package.json" in paths
