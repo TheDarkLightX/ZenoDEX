@@ -428,6 +428,7 @@ pub fn funding_payment(position_base: i128, index_price_e8: i128, rate_bps: i128
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn oracle_freshness_fail_closed() {
@@ -519,5 +520,72 @@ mod tests {
         assert_eq!(checked_notional_quote(i128::MAX, i128::MAX), None);
         // abs of i128::MIN must not panic -> None.
         assert_eq!(checked_notional_quote(i128::MIN, 1), None);
+    }
+
+    proptest! {
+        #[test]
+        fn checked_margin_helpers_match_plain_on_bounded_domain(
+            position in -MAX_ABS..=MAX_ABS,
+            price in -MAX_ABS..=MAX_ABS,
+            notional in -MAX_ABS..=MAX_ABS,
+            margin_bps in -MAX_BPS..=MAX_BPS,
+            maint_bps in -MAX_BPS..=MAX_BPS,
+            depeg_bps in -MAX_BPS..=MAX_BPS,
+            init_bps in -MAX_BPS..=MAX_BPS,
+        ) {
+            prop_assert_eq!(
+                checked_notional_quote(position, price),
+                Some(notional_quote(position, price))
+            );
+            prop_assert_eq!(
+                checked_margin_requirement(notional, margin_bps),
+                Some(margin_requirement(notional, margin_bps))
+            );
+            prop_assert_eq!(
+                checked_maint_margin_req(position, price, maint_bps, depeg_bps),
+                Some(maint_margin_req(position, price, maint_bps, depeg_bps))
+            );
+            prop_assert_eq!(
+                checked_init_margin_req(position, price, init_bps),
+                Some(init_margin_req(position, price, init_bps))
+            );
+        }
+    }
+}
+
+// CBC_CORE_V0 — Kani contracts on the stateless perps arithmetic boundary.
+//
+// The plain helpers are intentionally small and Python-parity shaped; kernel
+// callers pre-bound their operands before using them. The materializer effect
+// path uses the checked variants because it can observe globals that a specific
+// op did not validate. These harnesses pin that boundary: checked helpers are
+// total for any i128 input, and the success/overflow paths are reachable. Their
+// equivalence to the plain helpers over the bounded runtime domain is covered
+// by Rust proptests and Python/Rust differentials.
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    #[kani::proof]
+    fn checked_margin_helpers_are_total_for_any_i128() {
+        let position: i128 = kani::any();
+        let price: i128 = kani::any();
+        let notional: i128 = kani::any();
+        let maint_bps: i128 = kani::any();
+        let depeg_bps: i128 = kani::any();
+        let init_bps: i128 = kani::any();
+
+        let _ = checked_notional_quote(position, price);
+        let _ = checked_margin_requirement(notional, init_bps);
+        let _ = checked_maint_margin_req(position, price, maint_bps, depeg_bps);
+        let _ = checked_init_margin_req(position, price, init_bps);
+    }
+
+    #[kani::proof]
+    fn covers_are_reachable() {
+        kani::cover!(checked_notional_quote(1_000, PRICE_SCALE) == Some(1_000));
+        kani::cover!(checked_notional_quote(i128::MIN, 1).is_none());
+        kani::cover!(checked_margin_requirement(1_000, 500) == Some(50));
+        kani::cover!(checked_maint_margin_req(1_000, PRICE_SCALE, 500, 100) == Some(60));
     }
 }
