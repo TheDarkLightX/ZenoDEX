@@ -1,4 +1,4 @@
-//! Protocol fee router — 4-way split (`buyburn` / `stakers` / `reserve` /
+//! Protocol fee router: 4-way split (`buyburn` / `stakers` / `reserve` /
 //! `hosts`) with dust carry.
 //!
 //! This is the Rust shadow of the authoritative Python reference
@@ -250,6 +250,20 @@ fn dust_from_remainders(remainders: (u128, u128, u128, u128)) -> Result<u128, Re
         return Err(RejectedReason::ArithmeticOverflow);
     }
     Ok(total / BPS_DENOM)
+}
+
+fn receipt_conserves(
+    amount: u128,
+    dust_in: u128,
+    receipt: &FeeReceipt,
+) -> Result<bool, RejectedReason> {
+    let lhs = checked_add(amount, dust_in)?;
+    let bucket_sum = checked_add(
+        checked_add(receipt.buyburn, receipt.stakers)?,
+        checked_add(receipt.reserve, receipt.hosts)?,
+    )?;
+    let rhs = checked_add(bucket_sum, receipt.dust)?;
+    Ok(receipt.amount == amount && lhs == rhs)
 }
 
 fn set_asset_amount(entries: &[AssetAmount], asset: &str, amount: u128) -> Vec<AssetAmount> {
@@ -654,17 +668,22 @@ pub fn route_fee(
         }
     }
 
+    let receipt = FeeReceipt {
+        source: source.to_string(),
+        asset: asset.to_string(),
+        amount,
+        buyburn,
+        stakers,
+        reserve,
+        hosts,
+        dust: dust_out,
+    };
+    if !receipt_conserves(amount, acc.dust_for(source, asset), &receipt)? {
+        return Err(RejectedReason::ConservationViolation);
+    }
+
     Ok(Accepted {
-        receipt: FeeReceipt {
-            source: source.to_string(),
-            asset: asset.to_string(),
-            amount,
-            buyburn,
-            stakers,
-            reserve,
-            hosts,
-            dust: dust_out,
-        },
+        receipt,
         accumulator: FeeAccumulator {
             dust_by_stream: set_dust_amount(
                 &acc.dust_by_stream,
@@ -814,6 +833,21 @@ mod tests {
             dust_from_remainders((1, 0, 0, 0)),
             Err(RejectedReason::ArithmeticOverflow)
         );
+    }
+
+    #[test]
+    fn receipt_conservation_guard_detects_corruption() {
+        let receipt = FeeReceipt {
+            source: "dex".to_string(),
+            asset: "zUSD".to_string(),
+            amount: 100,
+            buyburn: 60,
+            stakers: 0,
+            reserve: 20,
+            hosts: 19,
+            dust: 0,
+        };
+        assert_eq!(receipt_conserves(100, 0, &receipt), Ok(false));
     }
 
     #[test]
