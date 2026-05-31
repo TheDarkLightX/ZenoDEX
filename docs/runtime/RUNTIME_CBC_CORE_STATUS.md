@@ -45,17 +45,18 @@ above: replay guard, balance accounting, fee router, burn rails.
 Partial CBC coverage:
 
 ```text
-3 / 10 promoted public-testnet surfaces have machine-checked sub-core evidence
+4 / 10 promoted public-testnet surfaces have machine-checked sub-core evidence
 but still rely on property/differential evidence for a larger wrapper or
-arithmetic slice: CPMM per-pool settlement, perp stateless math, perp stateful.
+arithmetic/encoder slice: canonical primitives, CPMM per-pool settlement, perp
+stateless math, perp stateful.
 ```
 
 Tested authority coverage:
 
 ```text
-3 / 10 promoted public-testnet surfaces are authority-wired and heavily tested,
+2 / 10 promoted public-testnet surfaces are authority-wired and heavily tested,
 but do not yet have Kani or generated-code evidence on the running Rust core:
-canonical primitives, state root v5, zUSD single-vault.
+state root v5, zUSD single-vault.
 ```
 
 Conservative completion estimate for the full CBC-core goal:
@@ -63,9 +64,10 @@ Conservative completion estimate for the full CBC-core goal:
 ```text
 Authority wiring: 100% for promoted public-testnet core surfaces.
 CBC-grade proof linkage: about 40% by surface count.
-Defensive hardening and fail-closed coverage: about 70% by promoted-surface
-count, lower if weighted by complexity because zUSD, state root, CPMM arithmetic,
-and perps wrappers remain large.
+Machine-checked sub-core linkage: about 80% by surface count.
+Defensive hardening and fail-closed coverage: about 75% by promoted-surface
+count, lower if weighted by complexity because zUSD, state root, canonical
+encoders, CPMM arithmetic, and perps wrappers remain large.
 ```
 
 ## Surface Matrix
@@ -79,13 +81,13 @@ and perps wrappers remain large.
 | CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence | partial |
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers and arith primitives. Full equivalence to plain helpers remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
-| Canonical primitives | yes | yes | no Kani receipt yet on running primitive encoders | vectors, fuzz, state-root/receipt differential, live selector | tested authority |
+| Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
 | State root v5 | yes | yes | no Kani receipt yet on running root encoder/hash wrapper | state-root differential, malformed/duplicate rejects, fuzz, live selector | tested authority |
 | zUSD single-vault | yes | yes | no Kani receipt yet on running BigInt-heavy `step` | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector | tested authority |
 
 ## Current Delta From This Pass
 
-This pass moved two surfaces forward:
+This campaign moved three surfaces forward:
 
 - Burn rails moved from tested authority to full CBC grade for the rail core.
   Evidence: `docs/runtime/receipts/cbc_runtime_core_kani_v1/` now records
@@ -97,6 +99,10 @@ This pass moved two surfaces forward:
   fee-ceil boundedness, small-domain exact-in reserve shape, and non-vacuity.
   Full live-domain exact-in/out division remains property/differential backed;
   direct public-swap and exact-out helper Kani attempts timed out under CBMC.
+- Canonical primitives gained heap-free helper decomposition. Kani now proves
+  the domain-label byte classifier, hex-digit byte classifier, and selected
+  LEB128 length boundaries. Full canonical `Vec`/`String` encoders, SHA-256,
+  and canonical JSON remain vector/fuzz/differential backed.
 
 This pass also integrated four open security PR fixes onto the branch:
 
@@ -114,9 +120,9 @@ includes the live-shadow regression.
 1. Continue CPMM proof decomposition: either split exact-out further or replace
    the division-heavy formula with a verified/generated arithmetic kernel. Keep
    public function parity locked by differential/property tests.
-2. Add Kani contracts for canonical primitive helpers that are tractable:
-   uvarint length/roundtrip properties over bounded domains, domain-separator
-   preconditions, and fixed-hex validation. Keep SHA-256 and heap-heavy JSON as
+2. Continue canonical proof decomposition: full `encode_uvarint`,
+   `encode_bytes`, domain-separator construction, fixed-hex decoding, SHA-256,
+   and canonical JSON remain outside Kani. Keep SHA-256 and heap-heavy JSON as
    vector/differential evidence unless a tractable helper boundary is added.
 3. Add Kani or codegen/refinement evidence for state-root section encoders.
    Hashing and BTreeMap traversal should stay tested by vectors and differential
@@ -143,7 +149,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 35 successfully verified harnesses, 0 failures, 35 total.
+Complete - 38 successfully verified harnesses, 0 failures, 38 total.
 ```
 
 Focused tests after integrating the security fixes:
