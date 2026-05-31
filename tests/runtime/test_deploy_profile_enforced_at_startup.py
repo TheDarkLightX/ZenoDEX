@@ -176,6 +176,15 @@ def test_deploy_profile_rejects_stale_promoted_surface_entry():
     assert any("not configured for Rust authority" in conflict for conflict in conflicts)
 
 
+def test_deploy_profile_rejects_pure_rust_authority_in_strict_profile():
+    profile = load_deploy_profile("public-testnet")
+    profile["runtime_authority_policy"]["per_surface"]["fee_router"] = "rust_authority"
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any("pure rust_authority is not admitted" in conflict for conflict in conflicts)
+
+
 def test_deploy_profile_rejects_non_bool_runtime_facts():
     profile = load_deploy_profile("production-strict")
     conflicts = evaluate_deploy_profile_consistency(

@@ -478,6 +478,16 @@ def test_public_testnet_profile_rejects_stale_promoted_surface():
         validate_authority_policy(policy, profile_id="public-testnet")
 
 
+def test_public_testnet_profile_rejects_pure_rust_authority():
+    policy = AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={"fee_router": AuthorityMode.RUST_AUTHORITY},
+        promoted_surfaces=frozenset({"fee_router"}),
+    )
+    with pytest.raises(AuthorityError, match="pure rust_authority is not admitted"):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
 def test_production_profile_rejects_unknown_promoted_surface():
     policy = AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,

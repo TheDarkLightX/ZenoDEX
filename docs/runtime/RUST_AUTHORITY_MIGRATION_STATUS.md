@@ -21,7 +21,9 @@ The mode names are directional:
   as the checker after Python materializes the transition; available Rust
   disagreement fails closed, but unavailable Rust is skipped for deployability.
 - `rust_authority`: Rust computes and commits without a Python shadow. No
-  deployment profile currently uses this mode.
+  deployment profile currently uses this mode; the current strict-profile
+  schema rejects it until a future schema/validator update records soak evidence
+  and sign-off.
 - `python_authority`: Python computes and commits without a Rust requirement.
 
 Accordingly, "Rust authority with Python shadow" and "Rust shadow" are opposite
