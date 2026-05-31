@@ -51,8 +51,8 @@ use zenodex_runtime_core::burn_receipts::{
     rail_receipt_hash, stateless_root, verify_rails, RailInputs,
 };
 use zenodex_runtime_core::canonical::{
-    canonical_json_bytes, hex_to_bytes_fixed, sha256_hex, try_domain_sep_bytes, CanonicalError,
-    JsonValue,
+    canonical_json_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex,
+    try_domain_sep_bytes, CanonicalError, JsonValue,
 };
 use zenodex_runtime_core::cpmm_swap::{
     init_pool, swap_exact_in, swap_exact_out_with_max_gap_bps, Pool, SwapReceipt, BPS_DENOM,
@@ -1462,6 +1462,29 @@ fn to_hex_0x(bytes: &[u8]) -> String {
     s
 }
 
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn decode_even_hex_body(body: &str) -> Result<Vec<u8>, CanonicalError> {
+    if body.len() % 2 != 0 {
+        return Err(CanonicalError::BadHexFormat);
+    }
+    let bytes = body.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() / 2);
+    for chunk in bytes.chunks_exact(2) {
+        let hi = hex_nibble(chunk[0]).ok_or(CanonicalError::BadHexChars)?;
+        let lo = hex_nibble(chunk[1]).ok_or(CanonicalError::BadHexChars)?;
+        out.push((hi << 4) | lo);
+    }
+    Ok(out)
+}
+
 #[derive(Serialize)]
 struct CanonicalCaseResult {
     index: usize,
@@ -1491,9 +1514,10 @@ fn err_case(index: usize, code: &str) -> CanonicalCaseResult {
 }
 
 /// Drive a `{ "cases": [ ... ] }` request through the canonical primitives.
-/// Each case is `{"op":"json_bytes"|"json_hash","value":<any>}` or
-/// `{"op":"hex_to_bytes","hex":"0x..","nbytes":N}`. Output mirrors per-case
-/// results so the Python authority can diff `bytes`/`hash`/`code` exactly.
+/// Each case is `{"op":"json_bytes"|"json_hash","value":<any>}`,
+/// `{"op":"hex_to_bytes","hex":"0x..","nbytes":N}`, `{"op":"uvarint","value":N}`,
+/// or `{"op":"encode_bytes","hex":"0x.."}`. Output mirrors per-case results so
+/// the Python authority can diff `bytes`/`hash`/`code` exactly.
 fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
     let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
@@ -1564,6 +1588,66 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
                         code: None,
                     }),
                     Err(e) => results.push(err_case(index, e.code())),
+                }
+            }
+            Some("uvarint") => {
+                if let Some(reason) =
+                    first_unknown_field(obj.keys().map(String::as_str), &["op", "value"])
+                {
+                    results.push(err_case(index, &reason));
+                    continue;
+                }
+                let value = match obj.get("value").and_then(classify_integer) {
+                    Some(s) => match s.parse::<u128>() {
+                        Ok(n) => n,
+                        Err(_) => {
+                            results.push(err_case(index, "uvarint_out_of_range"));
+                            continue;
+                        }
+                    },
+                    None => {
+                        results.push(err_case(index, "malformed_case"));
+                        continue;
+                    }
+                };
+                results.push(CanonicalCaseResult {
+                    index,
+                    ok: true,
+                    bytes: Some(to_hex_0x(&encode_uvarint(value))),
+                    hash: None,
+                    code: None,
+                });
+            }
+            Some("encode_bytes") => {
+                if let Some(reason) =
+                    first_unknown_field(obj.keys().map(String::as_str), &["op", "hex"])
+                {
+                    results.push(err_case(index, &reason));
+                    continue;
+                }
+                let hex_str = match obj.get("hex").and_then(Value::as_str) {
+                    Some(s) => s,
+                    None => {
+                        results.push(err_case(index, "malformed_case"));
+                        continue;
+                    }
+                };
+                let body = match hex_str.strip_prefix("0x") {
+                    Some(body) if body.len() % 2 == 0 => body,
+                    _ => {
+                        results.push(err_case(index, "bad_hex_format"));
+                        continue;
+                    }
+                };
+                match decode_even_hex_body(body) {
+                    Ok(bytes) => results.push(CanonicalCaseResult {
+                        index,
+                        ok: true,
+                        bytes: Some(to_hex_0x(&encode_bytes(&bytes))),
+                        hash: None,
+                        code: None,
+                    }),
+                    Err(_) => results.push(err_case(index, "bad_hex_chars")),
                 }
             }
             // sha256(domain_sep(label, version) + canonical_json_bytes(value)) —
