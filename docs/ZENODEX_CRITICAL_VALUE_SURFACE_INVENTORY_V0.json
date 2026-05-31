@@ -1,0 +1,418 @@
+{
+  "schema": "zenodex.critical_value_surface_inventory.v0",
+  "claim_boundary": {
+    "surface_inventory_scope": "critical_value_moving_runtime_and_proof_surfaces",
+    "full_node_host_independence": "supported_scoped",
+    "succinct_everything_host_independence": "frontier_open",
+    "source_inventory_is_claim_control": true,
+    "unmapped_source_symbols_fail_closed": true,
+    "ui_and_docs_do_not_authorize_transitions": true
+  },
+  "release_gates": [
+    "python3 tools/check_zenodex_critical_value_surface_inventory.py",
+    "pytest -q tests/tools/test_check_zenodex_critical_value_surface_inventory.py"
+  ],
+  "critical_source_surfaces": [
+    {
+      "id": "spot_runtime_settlement_replay",
+      "transition_closure_group_ids": [
+        "spot_intent_full_node_replay_v1"
+      ],
+      "authority_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "paths": [
+        "src/integration/dex_engine.py",
+        "src/core/settlement_strong_validator.py",
+        "src/core/batch_clearing.py"
+      ],
+      "required_symbols": [
+        "def apply_ops(",
+        "_validate_and_apply_nonce_batch",
+        "_validate_intent_against_quote_receipt",
+        "_validate_quote_receipt_witnesses",
+        "_validate_protected_swap_oracle_authorizations",
+        "_validate_critical_settlement_oracle_authorization",
+        "IntentKind.CREATE_POOL",
+        "IntentKind.SWAP_EXACT_IN",
+        "IntentKind.SWAP_EXACT_OUT",
+        "IntentKind.ADD_LIQUIDITY",
+        "IntentKind.REMOVE_LIQUIDITY"
+      ],
+      "families": [
+        "create_pool",
+        "swap_exact_in",
+        "swap_exact_out",
+        "add_liquidity",
+        "remove_liquidity",
+        "nonce_sequencing",
+        "accepted_receipts_root",
+        "rejected_receipt_execution"
+      ],
+      "limits": [
+        "runtime source inventory only",
+        "does not expand the supported candidate surface"
+      ]
+    },
+    {
+      "id": "spot_risc0_transition_proof_kernel",
+      "transition_closure_group_ids": [
+        "spot_v1_risc0_supported_transition_proof_v1"
+      ],
+      "authority_mode": "zkvm_proof",
+      "public_data_availability": "public_inputs_and_proof_artifacts",
+      "paths": [
+        "zk/state_proof_risc0/shared/src/lib.rs",
+        "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py"
+      ],
+      "required_symbols": [
+        "pub enum DexIntentV1",
+        "pub fn apply_faucet",
+        "fn apply_create_pool",
+        "fn apply_swap_exact_in",
+        "fn apply_add_liquidity",
+        "fn apply_remove_liquidity",
+        "spot_block_liquidity_cycle_matches_python_fixture",
+        "risc0_supported_transition_real_proof_smoke"
+      ],
+      "families": [
+        "empty_transition",
+        "faucet_mint",
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block"
+      ],
+      "limits": [
+        "spot v1 supported operation family only",
+        "does not cover exact-out, routes, native sync, or rejected receipts inside the guest"
+      ]
+    },
+    {
+      "id": "upba_exact_out_certificate_replay",
+      "transition_closure_group_ids": [
+        "upba_exact_out_full_node_replay_v1"
+      ],
+      "authority_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "paths": [
+        "src/integration/dex_engine.py",
+        "src/core/uniform_batch_clearing.py",
+        "src/core/uniform_batch_optimality.py",
+        "tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "required_symbols": [
+        "UNIFORM_BATCH_POLICY_V3_ID",
+        "SWAP_EXACT_OUT",
+        "uniform_batch_certificate",
+        "verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1",
+        "candidate_set_hash",
+        "fill_vector_hash",
+        "uniform_batch_v2_bounded_grid_optimality_table_root",
+        "test_engine_strict_upba_posture_accepts_exact_out_certificate_with_bound_optimality"
+      ],
+      "families": [
+        "upba_exact_out_batch_clearing",
+        "bounded_grid_certificate_verification",
+        "candidate_root_binding",
+        "fill_vector_root_binding"
+      ],
+      "limits": [
+        "bounded grid and certificate replay only",
+        "does not prove unbounded fair inclusion or real zkVM execution"
+      ]
+    },
+    {
+      "id": "oracle_critical_action_replay",
+      "transition_closure_group_ids": [
+        "oracle_critical_action_full_node_replay_v1"
+      ],
+      "authority_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "paths": [
+        "tools/check_zeno_oracle_critical_action_map.py",
+        "src/integration/dex_engine.py",
+        "src/integration/perp_engine.py",
+        "src/integration/zusd_api.py",
+        "src/integration/zeno_oracle_trigger_authorization.py",
+        "src/integration/zeno_oracle_settlement_authorization.py",
+        "docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md"
+      ],
+      "required_symbols": [
+        "_validate_critical_settlement_oracle_authorization",
+        "_validate_protected_swap_oracle_authorizations",
+        "_check_zusd_oracle_authorization",
+        "_check_zusd_oracle_adapter_bridge",
+        "_require_oracle_adapter_bridge",
+        "_perps_runtime_oracle_action_id",
+        "_perps_liquidate_account_runtime_oracle_action_id",
+        "check_trigger_execute_oracle_authorization",
+        "check_critical_settlement_oracle_authorization",
+        "require_oracle_authorization_for_critical_settlements"
+      ],
+      "families": [
+        "oracle_perps_settlement_authorization",
+        "oracle_zusd_lifecycle_authorization",
+        "oracle_guarded_routing_authorization",
+        "oracle_trigger_execution_authorization",
+        "oracle_typed_dex_settlement_authorization"
+      ],
+      "limits": [
+        "authorizes critical action binding only",
+        "does not prove live oracle truth"
+      ]
+    },
+    {
+      "id": "perps_bounded_runtime_replay",
+      "transition_closure_group_ids": [
+        "perps_bounded_full_node_replay_v1"
+      ],
+      "authority_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "paths": [
+        "src/integration/perp_engine.py",
+        "src/core/perp_epoch.py",
+        "src/core/perps.py",
+        "src/core/perp_funding_apply_gate.py",
+        "src/core/perp_apply_funding_auto_gate.py",
+        "tools/run_perps_evidence.sh",
+        "tools/runtime_shell_assurance_manifest.json"
+      ],
+      "required_symbols": [
+        "def apply_perp_ops(",
+        "_apply_isolated_apply_funding_auto",
+        "_apply_isolated_settle_epoch",
+        "_apply_isolated_partial_liquidate",
+        "perp_epoch_isolated_v3_apply",
+        "perp_epoch_isolated_v3_native_apply",
+        "evaluate_perp_funding_apply_gate",
+        "evaluate_perp_apply_funding_auto_gate",
+        "insurance_balance",
+        "partial_liquidate"
+      ],
+      "families": [
+        "perps_order_settlement",
+        "perps_funding_application",
+        "perps_liquidation",
+        "perps_insurance_fund_accounting",
+        "perps_oracle_bound_runtime_shell"
+      ],
+      "limits": [
+        "bounded production-candidate replay surface only",
+        "does not add perps zkVM execution coverage"
+      ]
+    },
+    {
+      "id": "zusd_lifecycle_replay",
+      "transition_closure_group_ids": [
+        "zusd_lifecycle_full_node_replay_v1"
+      ],
+      "authority_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "paths": [
+        "src/core/zusd.py",
+        "src/integration/zusd_api.py",
+        "src/integration/zusd_monetary_bridge.py",
+        "tests/core/test_zusd.py",
+        "tests/core/test_zusd_multi.py",
+        "tests/integration/test_zusd_api.py"
+      ],
+      "required_symbols": [
+        "def step(",
+        "def step_multi(",
+        "def check_invariants(",
+        "def check_multi_invariants(",
+        "mint_zusd",
+        "repay_zusd",
+        "redeem_zusd",
+        "liquidate",
+        "claim_sp_collateral",
+        "handle_zusd_request",
+        "apply_zusd_monetary_ops",
+        "_allocate_liquidation"
+      ],
+      "families": [
+        "zusd_mint",
+        "zusd_repay",
+        "zusd_redeem",
+        "zusd_liquidation",
+        "zusd_stability_pool_claim",
+        "zusd_oracle_authorized_lifecycle"
+      ],
+      "limits": [
+        "tracked zUSD lifecycle replay surface only",
+        "does not add zUSD zkVM execution coverage"
+      ]
+    },
+    {
+      "id": "proof_mining_reward_replay",
+      "transition_closure_group_ids": [
+        "proof_mining_reward_full_node_replay_v1"
+      ],
+      "authority_mode": "deterministic_replay",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "paths": [
+        "src/core/proof_mining_manager.py",
+        "src/core/proof_mining_claims.py",
+        "src/core/proof_mining_claimability_gate.py",
+        "src/integration/proof_mining_runtime.py",
+        "tests/core/test_proof_mining_manager.py",
+        "tests/integration/test_proof_mining_runtime.py"
+      ],
+      "required_symbols": [
+        "build_submit_proof_packet",
+        "apply_submit_proof_packet",
+        "_apply_submit_proof_native",
+        "build_proof_mining_claim",
+        "validate_proof_mining_claim_artifact",
+        "schedule_reward_amount",
+        "evaluate_proof_mining_claimability_gate",
+        "apply_proof_mining_claim",
+        "reward_pool_balance"
+      ],
+      "families": [
+        "proof_mining_claimability",
+        "proof_mining_reward_payout",
+        "proof_mining_manager_state_transition"
+      ],
+      "limits": [
+        "tracked reward replay surface only",
+        "does not add proof-market zkVM execution coverage"
+      ]
+    }
+  ],
+  "unsupported_source_surfaces": [
+    {
+      "id": "spot_v1_proof_required_fail_closed_inventory",
+      "unsupported_closure_entry_ids": [
+        "spot_v1_rejected_receipts_proof_rejected",
+        "spot_v1_swap_exact_out_proof_rejected",
+        "spot_v1_upba_batch_clearing_proof_rejected",
+        "spot_v1_multi_hop_proof_rejected",
+        "spot_v1_native_asset_sync_proof_rejected"
+      ],
+      "authority_mode": "fail_closed_non_admitted",
+      "public_data_availability": "fail_closed_non_admitted",
+      "paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "required_symbols": [
+        "not_covered",
+        "rejected_receipts",
+        "swap_exact_out",
+        "upba_batch_clearing",
+        "multi_hop",
+        "native_assets"
+      ],
+      "limits": [
+        "proof-required spot v1 unsupported families must reject fail-closed",
+        "deterministic replay may still cover some families through separate admitted groups"
+      ]
+    }
+  ],
+  "source_scan_queries": [
+    {
+      "id": "spot_exact_out_runtime_and_proof_gap",
+      "paths": [
+        "src/core/settlement_strong_validator.py",
+        "src/core/batch_clearing.py",
+        "src/core/uniform_batch_clearing.py",
+        "config/proof_profiles/zeno_ledger_profiles.json"
+      ],
+      "required_tokens": [
+        "SWAP_EXACT_OUT",
+        "swap_exact_out",
+        "UNIFORM_BATCH_POLICY_V3_ID"
+      ],
+      "mapped_inventory_ids": [
+        "spot_runtime_settlement_replay",
+        "upba_exact_out_certificate_replay",
+        "spot_v1_proof_required_fail_closed_inventory"
+      ]
+    },
+    {
+      "id": "spot_risc0_supported_transition_kernel",
+      "paths": [
+        "zk/state_proof_risc0/shared/src/lib.rs"
+      ],
+      "required_tokens": [
+        "DexIntentV1",
+        "apply_swap_exact_in",
+        "apply_remove_liquidity"
+      ],
+      "mapped_inventory_ids": [
+        "spot_risc0_transition_proof_kernel"
+      ]
+    },
+    {
+      "id": "oracle_action_authorization_runtime",
+      "paths": [
+        "src/integration/dex_engine.py",
+        "src/integration/perp_engine.py",
+        "src/integration/zusd_api.py",
+        "tools/check_zeno_oracle_critical_action_map.py"
+      ],
+      "required_tokens": [
+        "oracle_authorization_required",
+        "oracle_adapter_bridge",
+        "critical_settlement_oracle_authorization"
+      ],
+      "mapped_inventory_ids": [
+        "oracle_critical_action_replay"
+      ]
+    },
+    {
+      "id": "perps_value_moving_runtime",
+      "paths": [
+        "src/integration/perp_engine.py",
+        "src/core/perp_epoch.py",
+        "src/core/perps.py"
+      ],
+      "required_tokens": [
+        "apply_funding",
+        "settle_epoch",
+        "partial_liquidate",
+        "insurance_balance"
+      ],
+      "mapped_inventory_ids": [
+        "perps_bounded_runtime_replay"
+      ]
+    },
+    {
+      "id": "zusd_lifecycle_runtime",
+      "paths": [
+        "src/core/zusd.py",
+        "src/integration/zusd_monetary_bridge.py"
+      ],
+      "required_tokens": [
+        "mint_zusd",
+        "repay_zusd",
+        "redeem_zusd",
+        "liquidate",
+        "claim_sp_collateral"
+      ],
+      "mapped_inventory_ids": [
+        "zusd_lifecycle_replay"
+      ]
+    },
+    {
+      "id": "proof_mining_reward_runtime",
+      "paths": [
+        "src/core/proof_mining_manager.py",
+        "src/core/proof_mining_claims.py",
+        "src/integration/proof_mining_runtime.py"
+      ],
+      "required_tokens": [
+        "reward_pool_balance",
+        "reward_amount",
+        "TreasuryTransfer"
+      ],
+      "mapped_inventory_ids": [
+        "proof_mining_reward_replay"
+      ]
+    }
+  ]
+}

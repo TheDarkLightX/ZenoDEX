@@ -3128,6 +3128,7 @@ claims:
         - tests/tools/test_check_zenodex_host_independent_coverage.py
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE.md
+        - docs/ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - docs/claims_registry.yaml
 
@@ -3156,6 +3157,7 @@ claims:
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
+        - docs/ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
 
   - id: py:zenodex:batch_proof_gap_coverage_v0
@@ -3206,6 +3208,30 @@ claims:
         - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENODEX_BATCH_PROOF_COVERAGE_V0.json
+        - docs/ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - config/proof_profiles/zeno_ledger_profiles.json
+        - docs/claims_registry.yaml
+
+  - id: py:zenodex:critical_value_surface_inventory_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The critical value-surface inventory manifest binds every currently
+      admitted critical ZenoDEX transition-family group to live runtime, proof,
+      certificate, or reward-source files and required symbols. It also binds
+      every current proof-required fail-closed spot v1 non-admission to the
+      proof-profile registry. This is a source-inventory and claim-control gate.
+      It does not add zkVM proof coverage for the open real-proof gaps.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_critical_value_surface_inventory.py
+        - cmd: pytest -q tests/tools/test_check_zenodex_critical_value_surface_inventory.py
+      files:
+        - tools/check_zenodex_critical_value_surface_inventory.py
+        - tests/tools/test_check_zenodex_critical_value_surface_inventory.py
+        - docs/ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json
+        - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/claims_registry.yaml

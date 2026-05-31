@@ -22,6 +22,10 @@ def test_zk_transition_coverage_reports_current_scope() -> None:
     assert report["transition_profile_closure"]["ok"] is True
     assert report["transition_profile_closure"]["admitted_group_count"] == 7
     assert report["transition_profile_closure"]["unsupported_proof_required_count"] == 5
+    assert report["critical_value_surface_inventory"]["ok"] is True
+    assert report["critical_value_surface_inventory"]["critical_source_surface_count"] == 7
+    assert report["critical_value_surface_inventory"]["mapped_closure_group_count"] == 7
+    assert report["critical_value_surface_inventory"]["mapped_unsupported_closure_entry_count"] == 5
     assert "swap_exact_out" in report["proof_operation_coverage"]["not_covered_operations"]
 
 

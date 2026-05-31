@@ -66,8 +66,14 @@ def validate_host_independent_coverage_v0(
     _validate_claim_boundary(boundary, errors)
 
     release_gates = _str_list(obj.get("release_gates"), "release_gates", errors)
-    if "python3 tools/check_zenodex_host_independent_coverage.py" not in release_gates:
-        errors.append("release_gates must include the host-independent coverage checker")
+    for required_gate in (
+        "python3 tools/check_zenodex_host_independent_coverage.py",
+        "python3 tools/check_zenodex_batch_proof_coverage.py",
+        "python3 tools/check_zenodex_transition_profile_closure.py",
+        "python3 tools/check_zenodex_critical_value_surface_inventory.py",
+    ):
+        if required_gate not in release_gates:
+            errors.append(f"release_gates must include: {required_gate}")
 
     surfaces = _list(obj.get("critical_surfaces"), "critical_surfaces", errors)
     surface_reports: list[dict[str, Any]] = []

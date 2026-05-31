@@ -39,6 +39,7 @@ Run:
 python3 tools/check_zenodex_host_independent_coverage.py --pretty
 python3 tools/check_zenodex_batch_proof_coverage.py --pretty
 python3 tools/check_zenodex_transition_profile_closure.py --pretty
+python3 tools/check_zenodex_critical_value_surface_inventory.py --pretty
 python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
 ```
 
@@ -55,6 +56,8 @@ The checker rejects:
   public-data mode, evidence path, or checker command.
 - Proof-required profile operations that are marked `not_covered` but lack an
   explicit fail-closed unsupported-family entry.
+- Critical transition-family claims that are not tied to live source files and
+  required runtime/proof symbols.
 - Any `full_zk_everywhere` style claim while known proof gaps remain.
 
 ## Batch Proof Path
@@ -97,6 +100,18 @@ AdmittedCriticalFamily -> PublicDataAvailable and (ReplayAccepted or ProofAccept
 Unsupported proof-required families remain explicit non-admissions until a
 profile adds real proof coverage and the checker is updated with replayable
 evidence.
+
+## Critical Value-Surface Inventory
+
+The source inventory manifest is
+[`ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json`](ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json).
+It binds each admitted transition-family group to the runtime, proof, or
+certificate files and symbols that currently implement that surface. It also
+binds the current proof-required non-admissions to the proof-profile registry.
+
+This is claim-control evidence. If a critical source path disappears, a required
+symbol is renamed, a transition closure group loses its source mapping, or an
+unsupported proof-required entry is omitted, the checker rejects the release.
 
 ## Performance Reading
 

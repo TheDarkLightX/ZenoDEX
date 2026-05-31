@@ -16,12 +16,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.check_zenodex_batch_proof_coverage import validate_batch_proof_coverage_v0
+from tools.check_zenodex_critical_value_surface_inventory import validate_critical_value_surface_inventory_v0
 from tools.check_zenodex_transition_profile_closure import validate_transition_profile_closure_v0
 
 DEFAULT_MANIFEST = ROOT / "docs" / "ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json"
 DEFAULT_PROOF_MATRIX = ROOT / "docs" / "ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
 DEFAULT_BATCH_PROOF_MANIFEST = ROOT / "docs" / "ZENODEX_BATCH_PROOF_COVERAGE_V0.json"
 DEFAULT_TRANSITION_CLOSURE_MANIFEST = ROOT / "docs" / "ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json"
+DEFAULT_SURFACE_INVENTORY_MANIFEST = ROOT / "docs" / "ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json"
 
 
 def build_zk_transition_coverage_report(
@@ -30,6 +32,7 @@ def build_zk_transition_coverage_report(
     proof_matrix_path: Path = DEFAULT_PROOF_MATRIX,
     batch_manifest_path: Path = DEFAULT_BATCH_PROOF_MANIFEST,
     transition_closure_path: Path = DEFAULT_TRANSITION_CLOSURE_MANIFEST,
+    surface_inventory_path: Path = DEFAULT_SURFACE_INVENTORY_MANIFEST,
     smoke_report_path: Path | None = None,
     smoke_report_paths: Sequence[Path] | None = None,
 ) -> dict[str, Any]:
@@ -37,6 +40,7 @@ def build_zk_transition_coverage_report(
     proof_matrix = json.loads(proof_matrix_path.read_text(encoding="utf-8"))
     batch_manifest = json.loads(batch_manifest_path.read_text(encoding="utf-8"))
     transition_closure = json.loads(transition_closure_path.read_text(encoding="utf-8"))
+    surface_inventory = json.loads(surface_inventory_path.read_text(encoding="utf-8"))
     batch_report = validate_batch_proof_coverage_v0(
         batch_manifest,
         host_coverage_path=manifest_path,
@@ -47,6 +51,11 @@ def build_zk_transition_coverage_report(
         host_coverage_path=manifest_path,
         batch_proof_path=batch_manifest_path,
         proof_matrix_path=proof_matrix_path,
+    )
+    surface_inventory_report = validate_critical_value_surface_inventory_v0(
+        surface_inventory,
+        transition_closure_path=transition_closure_path,
+        host_coverage_path=manifest_path,
     )
     spot_surface = _surface(manifest, "spot_v1_risc0_supported_transition_kernel")
     full_zk_surface = _surface(manifest, "full_zk_execution_for_all_value_moving_surfaces")
@@ -71,7 +80,12 @@ def build_zk_transition_coverage_report(
     if smoke_report_paths is not None:
         timing_paths.extend(smoke_report_paths)
     timing = _timing_report(timing_paths) if timing_paths else None
-    ok = (timing is None or timing["ok"]) and batch_report["ok"] and transition_closure_report["ok"]
+    ok = (
+        (timing is None or timing["ok"])
+        and batch_report["ok"]
+        and transition_closure_report["ok"]
+        and surface_inventory_report["ok"]
+    )
     return {
         "schema": "zenodex.zk_transition_coverage_report.v0",
         "ok": ok,
@@ -105,12 +119,25 @@ def build_zk_transition_coverage_report(
             "mapped_transition_surface_count": transition_closure_report["mapped_transition_surface_count"],
             "transition_surface_count": transition_closure_report["transition_surface_count"],
         },
+        "critical_value_surface_inventory": {
+            "ok": surface_inventory_report["ok"],
+            "critical_source_surface_count": surface_inventory_report["critical_source_surface_count"],
+            "unsupported_source_surface_count": surface_inventory_report["unsupported_source_surface_count"],
+            "mapped_closure_group_count": surface_inventory_report["mapped_closure_group_count"],
+            "closure_group_count": surface_inventory_report["closure_group_count"],
+            "mapped_unsupported_closure_entry_count": surface_inventory_report[
+                "mapped_unsupported_closure_entry_count"
+            ],
+            "unsupported_closure_entry_count": surface_inventory_report["unsupported_closure_entry_count"],
+            "source_scan_query_count": surface_inventory_report["source_scan_query_count"],
+        },
         "succinct_everything_status": full_zk_surface.get("coverage_status"),
         "timing": timing,
         "interpretation": [
             "Current real zkVM coverage is scoped to the spot v1 Risc0 operation family listed in covered_operations.",
             "Every open proof gap must have a governed batch-proof lane before full-ZK promotion can be claimed.",
             "Every admitted critical transition family must map to deterministic replay or a governed zkVM proof profile.",
+            "Every admitted critical transition family must also map to live runtime/proof source inventory.",
             "Deterministic replay remains the performance baseline for ordinary full-node validation.",
             "A smoke timing report measures local prover performance only; production latency needs repeated warm runs on target hardware.",
         ],
@@ -219,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--proof-matrix", type=Path, default=DEFAULT_PROOF_MATRIX)
     parser.add_argument("--batch-manifest", type=Path, default=DEFAULT_BATCH_PROOF_MANIFEST)
     parser.add_argument("--transition-closure", type=Path, default=DEFAULT_TRANSITION_CLOSURE_MANIFEST)
+    parser.add_argument("--surface-inventory", type=Path, default=DEFAULT_SURFACE_INVENTORY_MANIFEST)
     parser.add_argument("--smoke-report", type=Path, action="append")
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args(argv)
@@ -228,6 +256,7 @@ def main(argv: list[str] | None = None) -> int:
         proof_matrix_path=args.proof_matrix,
         batch_manifest_path=args.batch_manifest,
         transition_closure_path=args.transition_closure,
+        surface_inventory_path=args.surface_inventory,
         smoke_report_paths=args.smoke_report,
     )
     print(json.dumps(report, indent=2 if args.pretty else None, sort_keys=True))
