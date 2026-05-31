@@ -153,6 +153,8 @@ def _maybe_decode_custom_stream_value(value: Any) -> Any:
     `str|int` (or lists thereof). Our client encodes structured ops as canonical
     JSON strings; this helper decodes those strings back to objects.
     """
+    if isinstance(value, list):
+        return [_maybe_decode_custom_stream_value(entry) for entry in value]
     if not isinstance(value, str):
         return value
     raw = value.strip()
@@ -661,6 +663,27 @@ def _select_zusd_monetary_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _reserved_stream_selection_error(operations: Mapping[str, Any]) -> Optional[str]:
+    if _LEGACY_DEX_INTENTS_KEY in operations and _DEX_INTENTS_KEY in operations:
+        if _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
+            return "ambiguous DEX intent streams: both 2 and 5 are present"
+    if _LEGACY_DEX_SETTLEMENT_KEY in operations and _DEX_SETTLEMENT_KEY in operations:
+        return "ambiguous DEX settlement streams: both 3 and 6 are present"
+    if _LEGACY_DEX_FAUCET_KEY in operations and _DEX_FAUCET_KEY in operations:
+        return "ambiguous faucet streams: both 4 and 7 are present"
+
+    if _DEX_INTENTS_KEY not in operations:
+        return None
+    stream5 = operations.get(_DEX_INTENTS_KEY)
+    if _looks_like_dex_intents(stream5):
+        return None
+    if _looks_like_perp_ops(stream5):
+        if _LEGACY_DEX_INTENTS_KEY in operations and _PERP_OPS_KEY not in operations:
+            return "legacy stream 5 perps conflict with legacy DEX stream 2"
+        return None
+    return "stream 5 must contain TauSwap intents or legacy TauPerp ops"
+
+
 def _apply_proof_mining_op(
     *,
     state: DexState,
@@ -859,6 +882,10 @@ def apply_app_tx(
     except ValueError as exc:
         return False, app_state_json, "", None, str(exc)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
+
+    stream_selection_error = _reserved_stream_selection_error(operations)
+    if stream_selection_error is not None:
+        return False, app_state_json, "", None, stream_selection_error
 
     try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
