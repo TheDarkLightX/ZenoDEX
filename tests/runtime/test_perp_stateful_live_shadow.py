@@ -313,8 +313,8 @@ def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
 def test_rust_authority_blocks_all_perp_stateful_ops(rust_env):
     # No perp_stateful op has a true Rust-authority path: Rust post-checks Python's
     # transition, it does not decide from the pre-state nor commit its materialized
-    # result. So authority modes fail closed for advance_epoch (materialized) and
-    # apply_funding_auto (unmaterialized) alike, rather than letting Python decide.
+    # result. So authority modes fail closed for advance_epoch and
+    # apply_funding_auto (both materialized) alike, rather than letting Python decide.
     # Build the pre-states first under the default python_authority policy.
     advance_state = _settled("perp:auth-block-advance")
     funded = fa.build_market(
@@ -473,6 +473,36 @@ def test_rust_shadow_fails_closed_on_effect_tamper(rust_env, monkeypatch):
     res = fa._apply_result(
         state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
         ops=[fa._op("perp:shadow-effect-tamper", "advance_epoch", delta=1)],
+    )
+    assert res.ok is False
+    assert "disagreement" in (res.error or "")
+
+
+def test_rust_shadow_fails_closed_on_funding_effect_tamper(rust_env, monkeypatch):
+    # apply_funding_auto has a custom funding-summary effect rather than a nested
+    # _common_effects payload. Full materialized parity still checks it exactly.
+    from src.runtime import rust_invoker
+
+    def tampered(request, **kwargs):
+        out = rust_invoker.invoke("perp-isolated-op", request)
+        out["effects"]["funding_sink_delta_quote"] = "99999"
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
+    market_id = "perp:shadow-funding-effect-tamper"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000), (PK_B, -100_000)],
+        clearing_price_e8=101_000_000,
+        deposit=1_000_000,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "apply_funding_auto")],
     )
     assert res.ok is False
     assert "disagreement" in (res.error or "")

@@ -20,15 +20,20 @@
 //! * A reject never carries a post-state. Reject reasons are stable strings
 //!   matching the Python authority.
 //!
-//! Coverage is incremental (foundation first): actions not yet materialized
-//! return `op_not_materialized` so the bridge keeps Python authoritative for them.
+//! Coverage is incremental: actions not yet materialized return
+//! `op_not_materialized` so the bridge keeps Python authoritative for them.
 
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
+use zenodex_runtime_core::perp_funding_auto::{
+    apply_funding_auto, FundingAccount, FundingAutoInput,
+};
 use zenodex_runtime_core::perp_math::{
     checked_init_margin_req, checked_maint_margin_req, checked_notional_quote, is_oracle_fresh,
+    BPS_SCALE,
 };
 use zenodex_runtime_core::perp_partial_liquidate::{partial_liquidate, PartialLiquidateInput};
 use zenodex_runtime_core::perp_publish_clearing_price::{
@@ -253,6 +258,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         "clear_breaker" => materialize_clear_breaker(&quote_asset, global, accounts, op, &facts),
         "partial_liquidate" => {
             materialize_partial_liquidate(&quote_asset, global, accounts, op, &facts)
+        }
+        "apply_funding_auto" => {
+            materialize_apply_funding_auto(&quote_asset, global, accounts, op, &facts)
         }
         _ => reject(REJ_NOT_MATERIALIZED),
     }
@@ -1083,6 +1091,259 @@ fn build_partial_liquidate_input(
         claims_paid: gget(global, "claims_paid")?,
         fraction_bps,
     })
+}
+
+fn checked_abs_i128(value: i128) -> Result<i128, &'static str> {
+    value.checked_abs().ok_or(REJ_ARITHMETIC_OVERFLOW)
+}
+
+fn checked_settle_price(
+    clearing_price_e8: i128,
+    index_price_e8: i128,
+    max_oracle_move_bps: i128,
+    oracle_seen: bool,
+) -> Result<i128, &'static str> {
+    if !oracle_seen {
+        return Ok(clearing_price_e8);
+    }
+    let diff = checked_abs_i128(
+        clearing_price_e8
+            .checked_sub(index_price_e8)
+            .ok_or(REJ_ARITHMETIC_OVERFLOW)?,
+    )?;
+    let lhs = diff.checked_mul(BPS_SCALE).ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let rhs = max_oracle_move_bps
+        .checked_mul(index_price_e8)
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    if lhs <= rhs {
+        return Ok(clearing_price_e8);
+    }
+    let max_delta_num = index_price_e8
+        .checked_mul(max_oracle_move_bps)
+        .and_then(|v| v.checked_add(BPS_SCALE - 1))
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let max_delta = zenodex_runtime_core::arith::floor_div_i128(max_delta_num, BPS_SCALE)
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    if clearing_price_e8 >= index_price_e8 {
+        index_price_e8
+            .checked_add(max_delta)
+            .ok_or(REJ_ARITHMETIC_OVERFLOW)
+    } else {
+        index_price_e8
+            .checked_sub(max_delta)
+            .ok_or(REJ_ARITHMETIC_OVERFLOW)
+    }
+}
+
+fn checked_compute_funding_rate_bps(
+    index_price_e8: i128,
+    mark_price_e8: i128,
+    funding_cap_bps: i128,
+) -> Result<i128, &'static str> {
+    if index_price_e8 <= 0 || funding_cap_bps < 0 {
+        return Err(REJ_BAD_REQUEST);
+    }
+    let diff = mark_price_e8
+        .checked_sub(index_price_e8)
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let mag_num = checked_abs_i128(diff)?
+        .checked_mul(BPS_SCALE)
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?;
+    let mag = zenodex_runtime_core::arith::floor_div_i128(mag_num, index_price_e8)
+        .ok_or(REJ_ARITHMETIC_OVERFLOW)?
+        .min(funding_cap_bps);
+    if diff >= 0 {
+        Ok(mag)
+    } else {
+        mag.checked_neg().ok_or(REJ_ARITHMETIC_OVERFLOW)
+    }
+}
+
+fn funding_gate_preconditions(
+    global: &Map<String, Value>,
+) -> Result<(i128, i128, i128), &'static str> {
+    let now = gget(global, "now_epoch")?;
+    let clearing_seen = global
+        .get("clearing_price_seen")
+        .ok_or(REJ_BAD_REQUEST)
+        .and_then(as_bool)?;
+    let clearing_epoch = gget(global, "clearing_price_epoch")?;
+    let oracle_last = gget(global, "oracle_last_update_epoch")?;
+    let oracle_seen = bget(global, "oracle_seen")?;
+    let index_price = gget(global, "index_price_e8")?;
+    let max_stale = gget(global, "max_oracle_staleness_epochs")?;
+    let clearing_price = gget(global, "clearing_price_e8")?;
+    let max_move = gget(global, "max_oracle_move_bps")?;
+    let funding_cap = gget(global, "funding_cap_bps")?;
+
+    if !clearing_seen {
+        return Err("cannot apply funding before clearing price is published");
+    }
+    if clearing_epoch != now {
+        return Err("cannot apply funding: clearing price is not for current epoch");
+    }
+    if oracle_last >= now {
+        return Err("cannot apply funding after settlement");
+    }
+    if !oracle_seen {
+        return Err("cannot apply funding before oracle is established");
+    }
+    if index_price <= 0 {
+        return Err("cannot apply funding: index_price_e8 must be positive");
+    }
+    if max_stale <= 0 {
+        return Err("cannot apply funding: invalid max_oracle_staleness_epochs");
+    }
+    if !is_oracle_fresh(now, oracle_last, max_stale, oracle_seen) {
+        return Err("cannot apply funding: oracle is stale");
+    }
+    if clearing_price <= 0 {
+        return Err("cannot apply funding: clearing_price_e8 must be positive");
+    }
+    if !(0..=BPS_SCALE).contains(&max_move) {
+        return Err("cannot apply funding: invalid max_oracle_move_bps");
+    }
+    if !(1..=BPS_SCALE).contains(&funding_cap) {
+        return Err("cannot apply funding: invalid funding_cap_bps");
+    }
+
+    let mark_price = checked_settle_price(clearing_price, index_price, max_move, oracle_seen)?;
+    let rate = checked_compute_funding_rate_bps(index_price, mark_price, funding_cap)?;
+    Ok((now, mark_price, rate))
+}
+
+/// `apply_funding_auto`: operator-gated whole-market funding settlement. The
+/// Python gate derives `rate_bps` from the current clearing/index prices, then
+/// the bounded-sink Rust core applies per-account funding and routes the net
+/// into fee_pool/fee_income/insurance. The materializer preserves account fields
+/// funding never touches (`entry_price_e8`, `liquidated_this_step`) and emits a
+/// normalized funding effect payload for full shadow parity.
+fn materialize_apply_funding_auto(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    for k in op.keys() {
+        if k != "action" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.operator_ok {
+        return reject(REJ_OPERATOR);
+    }
+    let (now_epoch, mark_price_e8, rate_bps) = match funding_gate_preconditions(&global) {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+
+    let mut pre_by_key: BTreeMap<String, &Account> = BTreeMap::new();
+    for account in &accounts {
+        if pre_by_key.insert(account.key.clone(), account).is_some() {
+            return reject(REJ_BAD_REQUEST);
+        }
+    }
+
+    let input = FundingAutoInput {
+        accounts: accounts
+            .iter()
+            .map(|a| FundingAccount {
+                key: a.key.clone(),
+                position_base: a.position_base,
+                collateral_quote: a.collateral_quote,
+                funding_paid_cumulative: a.funding_paid_cumulative,
+                funding_last_applied_epoch: a.funding_last_applied_epoch,
+            })
+            .collect(),
+        now_epoch,
+        rate_bps,
+        index_price_e8: match gget(&global, "index_price_e8") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        maintenance_margin_bps: match gget(&global, "maintenance_margin_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        depeg_buffer_bps: match gget(&global, "depeg_buffer_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        fee_pool_quote: match gget(&global, "fee_pool_quote") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        fee_income: match gget(&global, "fee_income") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        insurance_balance: match gget(&global, "insurance_balance") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+    };
+
+    let out = match apply_funding_auto(&input) {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+
+    global.insert(
+        "funding_rate_bps".into(),
+        Value::String(out.funding_rate_bps.to_string()),
+    );
+    global.insert(
+        "fee_pool_quote".into(),
+        Value::String(out.fee_pool_quote.to_string()),
+    );
+    global.insert(
+        "fee_income".into(),
+        Value::String(out.fee_income.to_string()),
+    );
+    global.insert(
+        "insurance_balance".into(),
+        Value::String(out.insurance_balance.to_string()),
+    );
+
+    let mut post_accounts = Vec::with_capacity(out.accounts.len());
+    let mut accounts_applied = 0i128;
+    let mut net_position_base = 0i128;
+    for account in &out.accounts {
+        let pre = match pre_by_key.get(&account.key) {
+            Some(v) => *v,
+            None => return reject(REJ_BAD_REQUEST),
+        };
+        if pre.position_base != 0 {
+            accounts_applied = match accounts_applied.checked_add(1) {
+                Some(v) => v,
+                None => return reject(REJ_ARITHMETIC_OVERFLOW),
+            };
+            net_position_base = match net_position_base.checked_add(pre.position_base) {
+                Some(v) => v,
+                None => return reject(REJ_ARITHMETIC_OVERFLOW),
+            };
+        }
+        post_accounts.push(Account {
+            key: account.key.clone(),
+            position_base: account.position_base,
+            collateral_quote: account.collateral_quote,
+            entry_price_e8: pre.entry_price_e8,
+            funding_paid_cumulative: account.funding_paid_cumulative,
+            funding_last_applied_epoch: account.funding_last_applied_epoch,
+            liquidated_this_step: pre.liquidated_this_step,
+        });
+    }
+
+    let effects = json!({
+        "funding_rate_bps": out.funding_rate_bps.to_string(),
+        "mark_price_e8": mark_price_e8.to_string(),
+        "accounts_applied": accounts_applied.to_string(),
+        "raw_projected_net_funding_quote": out.projected_net.to_string(),
+        "net_position_base": net_position_base.to_string(),
+        "funding_sink_delta_quote": out.projected_net.to_string(),
+    });
+    accept(quote_asset, &global, &post_accounts, effects)
 }
 
 #[cfg(test)]
@@ -2348,6 +2609,72 @@ mod tests {
     }
 
     #[test]
+    fn apply_funding_auto_materializes_accounts_sinks_and_effect() {
+        let accounts = json!([
+            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            acct_json("bb", -100_000, 1_000_000, 100_000_000),
+            acct_json("cc", 0, 42, 0),
+        ]);
+        let r = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "apply_funding_auto"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let pg = &r["post"]["global_state"];
+        assert_eq!(pg["funding_rate_bps"], json!("100"));
+        assert_eq!(pg["fee_pool_quote"], json!("2000"));
+        assert_eq!(pg["fee_income"], json!("2000"));
+        assert_eq!(pg["insurance_balance"], json!("2000"));
+
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        let a = accts.iter().find(|x| x["key"] == "aa").unwrap();
+        assert_eq!(a["collateral_quote"], json!("997000"));
+        assert_eq!(a["funding_paid_cumulative"], json!("3007"));
+        assert_eq!(a["funding_last_applied_epoch"], json!("5"));
+        assert_eq!(a["entry_price_e8"], json!("100000000"));
+        let b = accts.iter().find(|x| x["key"] == "bb").unwrap();
+        assert_eq!(b["collateral_quote"], json!("1001000"));
+        assert_eq!(b["funding_paid_cumulative"], json!("-993"));
+        assert_eq!(b["funding_last_applied_epoch"], json!("5"));
+        let c = accts.iter().find(|x| x["key"] == "cc").unwrap();
+        assert_eq!(c["collateral_quote"], json!("42"));
+        assert_eq!(c["funding_paid_cumulative"], json!("7")); // flat account carried
+        assert_eq!(c["funding_last_applied_epoch"], json!("2"));
+
+        let fx = &r["effects"];
+        assert_eq!(fx["funding_rate_bps"], json!("100"));
+        assert_eq!(fx["mark_price_e8"], json!("101000000"));
+        assert_eq!(fx["accounts_applied"], json!("2"));
+        assert_eq!(fx["raw_projected_net_funding_quote"], json!("2000"));
+        assert_eq!(fx["net_position_base"], json!("200000"));
+        assert_eq!(fx["funding_sink_delta_quote"], json!("2000"));
+    }
+
+    #[test]
+    fn apply_funding_auto_operator_gate_and_unknown_field_reject() {
+        let accounts = json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]);
+        let no_operator = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "apply_funding_auto"}),
+            accounts.clone(),
+            false,
+        ));
+        assert_eq!(no_operator["reject_reason"], json!(REJ_OPERATOR));
+        assert!(no_operator.get("post").is_none());
+
+        let unknown = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "apply_funding_auto", "delta": "1"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(unknown["reject_reason"], json!(REJ_UNKNOWN_OP_FIELD));
+        assert!(unknown.get("post").is_none());
+    }
+
+    #[test]
     fn advance_operator_gate_rejects() {
         let r = materialize_isolated_op(&req(
             settled_global(5),
@@ -2387,10 +2714,10 @@ mod tests {
 
     #[test]
     fn unmaterialized_action_signals_not_materialized() {
-        // apply_funding_auto is not yet materialized -> the bridge keeps Python authoritative.
+        // set_market_params is not yet materialized -> the bridge keeps Python authoritative.
         let r = materialize_isolated_op(&req(
             settled_global(5),
-            json!({"action": "apply_funding_auto"}),
+            json!({"action": "set_market_params"}),
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_NOT_MATERIALIZED));

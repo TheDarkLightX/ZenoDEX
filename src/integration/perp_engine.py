@@ -3202,6 +3202,7 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
         "advance_epoch",
         "publish_clearing_price",
         "settle_epoch",
+        "apply_funding_auto",
         "deposit_collateral",
         "withdraw_collateral",
         "set_position",
@@ -3321,6 +3322,8 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
         op_obj["fraction_bps"] = str(
             _require_int(op.data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
         )
+    elif op.action == "apply_funding_auto":
+        pass
     # clear_breaker (and the global ops settle_epoch) carry no op params; the
     # materializer reads everything it needs from global_state + the all_positions_flat
     # fact, so the bare {"action": ...} op object above is complete.
@@ -3354,6 +3357,18 @@ def _perp_stateful_full_doc(
         "global_state": _isolated_global_doc(post_market.global_state),
         "accounts": _isolated_accounts_doc(post_market.accounts),
         "effects": dict(python_effect),
+    }
+
+
+def _materialized_effect_payload(effect: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the semantic effect payload Rust materialization must reproduce."""
+    nested = effect.get("effects")
+    if isinstance(nested, Mapping):
+        return dict(nested)
+    return {
+        key: value
+        for key, value in effect.items()
+        if key not in {"i", "market_id", "action"}
     }
 
 
@@ -3522,8 +3537,9 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
     err = handler(ctx, i=i, op=op, market=market)
     if err is not None:
         return err
-    # The accepted op appended exactly one effect; capture it for effect parity.
-    python_effect = ctx.effects[-1].get("effects", {}) if ctx.effects else {}
+    # The accepted op appended exactly one effect; capture its semantic payload
+    # for effect parity.
+    python_effect = _materialized_effect_payload(ctx.effects[-1]) if ctx.effects else {}
     return _shadow_accepted_isolated_op(
         ctx=ctx,
         op=op,
