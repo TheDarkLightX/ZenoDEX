@@ -99,11 +99,6 @@ fn as_i128(v: &Value) -> Result<i128, &'static str> {
 fn as_bool(v: &Value) -> Result<bool, &'static str> {
     match v {
         Value::Bool(b) => Ok(*b),
-        Value::Number(n) => match n.as_i64() {
-            Some(0) => Ok(false),
-            Some(1) => Ok(true),
-            _ => Err(REJ_BAD_REQUEST),
-        },
         _ => Err(REJ_BAD_REQUEST),
     }
 }
@@ -128,23 +123,11 @@ fn req_fact_i128(facts: &Map<String, Value>, key: &str) -> Result<i128, &'static
 
 fn req_balance_available(facts: &Map<String, Value>) -> Result<i128, &'static str> {
     let value = facts.get("balance_available").ok_or(REJ_MISSING_FACTS)?;
-    match value {
-        Value::String(s) => match s.parse::<i128>() {
-            Ok(v) if v >= 0 => Ok(v),
-            Ok(_) => Err(REJ_BAD_REQUEST),
-            Err(_) if !s.trim_start().starts_with('-') => Ok(i128::MAX),
-            Err(_) => Err(REJ_BAD_REQUEST),
-        },
-        Value::Number(n) => {
-            let s = n.to_string();
-            match s.parse::<i128>() {
-                Ok(v) if v >= 0 => Ok(v),
-                Ok(_) => Err(REJ_BAD_REQUEST),
-                Err(_) if !s.starts_with('-') => Ok(i128::MAX),
-                Err(_) => Err(REJ_BAD_REQUEST),
-            }
-        }
-        _ => Err(REJ_BAD_REQUEST),
+    let parsed = as_i128(value)?;
+    if parsed < 0 {
+        Err(REJ_BAD_REQUEST)
+    } else {
+        Ok(parsed)
     }
 }
 
@@ -1774,6 +1757,19 @@ mod tests {
     }
 
     #[test]
+    fn numeric_bool_fact_rejects_as_bad_request() {
+        let mut r = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        r["facts"]["operator_ok"] = json!(1);
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
     fn unknown_op_field_rejects() {
         let r = req(
             settled_global(5),
@@ -2069,7 +2065,7 @@ mod tests {
     }
 
     #[test]
-    fn deposit_wallet_balance_fact_allows_python_bignum_balance() {
+    fn deposit_wallet_balance_fact_rejects_overlarge_balance() {
         let mut r = req_accts(
             open_global(5),
             json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "50000"}),
@@ -2078,11 +2074,8 @@ mod tests {
         );
         r["facts"]["balance_available"] = json!("999999999999999999999999999999999999999999");
         let out = materialize_isolated_op(&r);
-        assert_eq!(out["accept"], json!(true), "{out}");
-        assert_eq!(
-            out["post"]["accounts"][0]["collateral_quote"],
-            json!("51000")
-        );
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
     }
 
     #[test]
