@@ -75,7 +75,14 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
         return bool(default)
-    return raw.strip().lower() in ("1", "true", "yes", "on")
+    value = raw.strip().lower()
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(
+        f"{name} must be one of 1,true,yes,on,0,false,no,off; got {raw!r}"
+    )
 
 
 def _safe_http_header_value(value: object) -> Optional[str]:
@@ -6810,18 +6817,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rpm = _env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
     max_buckets = _env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000)
 
-    perps_enabled = _env_str("PERPS_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    perps_wallet_enabled = _env_str("PERPS_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_tau_wallet_enabled = _env_str("ZUSD_TAU_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    zusd_monetary_wallet_enabled = _env_str("ZUSD_MONETARY_WALLET_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    autotrader_live_enabled = _env_str("AUTOTRADER_LIVE_API_ENABLED", "false").lower() in ("1", "true", "yes")
-    confidential_attestation_enabled = _env_str("CONFIDENTIAL_ATTESTATION_API_ENABLED", "false").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
+    try:
+        perps_enabled = _env_bool("PERPS_API_ENABLED", False)
+        perps_wallet_enabled = _env_bool("PERPS_WALLET_API_ENABLED", False)
+        zusd_enabled = _env_bool("ZUSD_API_ENABLED", False)
+        zusd_tau_wallet_enabled = _env_bool("ZUSD_TAU_WALLET_API_ENABLED", False)
+        zusd_monetary_wallet_enabled = _env_bool("ZUSD_MONETARY_WALLET_API_ENABLED", False)
+        autotrader_live_enabled = _env_bool("AUTOTRADER_LIVE_API_ENABLED", False)
+        confidential_attestation_enabled = _env_bool(
+            "CONFIDENTIAL_ATTESTATION_API_ENABLED", False
+        )
+        dex_enabled = _env_bool("DEX_API_ENABLED", False)
+        external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
+        allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
+    except ValueError as exc:
+        print(f"Refusing to start: invalid boolean environment variable: {exc}")
+        return 2
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
     from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
@@ -6838,9 +6849,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
     production_mode = runtime_env not in ("dev", "development", "test", "local")
-    external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
-    allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
-
     auth_error_code = _api_auth_posture_error_code(
         protected_api_enabled=sensitive_api_enabled,
         external_auth_enforced=external_auth_enforced,

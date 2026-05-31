@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 
 def test_api_server_refuses_demo_routes_without_token_on_public_host(monkeypatch) -> None:
     from src.integration import api_server
@@ -69,3 +71,22 @@ def test_api_server_allows_sensitive_routes_when_external_auth_declared(monkeypa
 
     rc = api_server.main([])
     assert rc == 0
+
+
+def test_api_server_refuses_malformed_boolean_env(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("API_PORT", "8000")
+    monkeypatch.setenv("DEX_API_ENABLED", "maybe")
+
+    assert api_server.main([]) == 2
+
+
+def test_env_bool_rejects_malformed_runtime_control(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "maybe")
+
+    with pytest.raises(ValueError, match="DEX_ROUTING_ORACLE_ADAPTER_REQUIRED"):
+        api_server._env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", False)
