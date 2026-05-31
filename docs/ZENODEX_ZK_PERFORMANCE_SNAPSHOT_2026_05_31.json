@@ -1,0 +1,85 @@
+{
+  "schema": "zenodex.zk_performance_snapshot.v0",
+  "date": "2026-05-31",
+  "host": {
+    "environment_class": "local developer workstation",
+    "hardware_details_public": false,
+    "representativeness": "private local smoke host; not a production prover benchmark"
+  },
+  "coverage": {
+    "proof_operation_coverage": {
+      "covered_count": 7,
+      "total_count": 11,
+      "coverage_pct": 63.64,
+      "covered_operations": [
+        "empty_transition",
+        "faucet_mint",
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block"
+      ],
+      "not_covered_operations": [
+        "swap_exact_out",
+        "multi_hop",
+        "rejected_receipt_execution",
+        "native_asset_sync"
+      ]
+    },
+    "proof_surface_coverage": {
+      "supported_count": 7,
+      "gap_count": 7,
+      "coverage_pct": 50.0
+    }
+  },
+  "timing_samples": [
+    {
+      "case": "empty",
+      "runner_mode": "cargo_run_debug",
+      "profile": "cold target debug smoke",
+      "generate_seconds": 96.573,
+      "verify_seconds": 4.346,
+      "total_seconds": 100.919,
+      "proof_base64_len": 358612,
+      "report_path": "/tmp/zenodex_risc0_timing_empty/real_proof_smoke_report.json"
+    },
+    {
+      "case": "swap_exact_in",
+      "runner_mode": "cargo_run_debug",
+      "profile": "warm target debug smoke",
+      "generate_seconds": 73.783,
+      "verify_seconds": 6.159,
+      "total_seconds": 79.942,
+      "proof_base64_len": 376276,
+      "report_path": "/tmp/zenodex_risc0_timing_swap_exact_in/real_proof_smoke_report.json"
+    },
+    {
+      "case": "empty",
+      "runner_mode": "cli_bin",
+      "profile": "prebuilt release CLI; concurrent sample",
+      "generate_seconds": 46.101,
+      "verify_seconds": 0.066,
+      "total_seconds": 46.167,
+      "proof_base64_len": 358612,
+      "report_path": "/tmp/zenodex_risc0_release_empty/real_proof_smoke_report.json"
+    },
+    {
+      "case": "swap_exact_in",
+      "runner_mode": "cli_bin",
+      "profile": "prebuilt release CLI; concurrent sample",
+      "generate_seconds": 76.913,
+      "verify_seconds": 0.032,
+      "total_seconds": 76.945,
+      "proof_base64_len": 376276,
+      "report_path": "/tmp/zenodex_risc0_release_swap_exact_in/real_proof_smoke_report.json"
+    }
+  ],
+  "conclusion": {
+    "synchronous_proving_default": "not_yet_justified_for_low_latency_user_admission",
+    "verifier_cost": "cheap_in_release_cli_samples",
+    "recommended_fast_path": "deterministic_replay_for_admission_and_full_nodes",
+    "recommended_proof_path": "async_batch_audit_or_light_client_compression_for_scoped_supported_kernels",
+    "next_performance_gate": "repeat warm all-case benchmark on target prover hardware and require p95/p99 latency before mandatory proof-backed admission"
+  }
+}

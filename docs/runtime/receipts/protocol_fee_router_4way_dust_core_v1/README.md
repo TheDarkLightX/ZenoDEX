@@ -25,11 +25,11 @@ amount + dust_in == buyburn + stakers + reserve + hosts + dust_out
 ## Commands
 
 ```bash
-PYTHONPATH='${USER}/Downloads/Autonomous Tau DEX' \
+PYTHONPATH="$PWD" \
   python3 -m ESSO validate \
   src/kernels/dex/protocol_fee_router_4way_dust_core_v1.yaml
 
-PYTHONPATH='${USER}/Downloads/Autonomous Tau DEX' \
+PYTHONPATH="$PWD" \
   python3 -m ESSO verify-multi \
   src/kernels/dex/protocol_fee_router_4way_dust_core_v1.yaml \
   --solvers z3,cvc5 \
@@ -38,7 +38,7 @@ PYTHONPATH='${USER}/Downloads/Autonomous Tau DEX' \
   --write-report \
   --export-smtlib
 
-PYTHONPATH='${USER}/Downloads/Autonomous Tau DEX' \
+PYTHONPATH="$PWD" \
   python3 -m ESSO codegen-rust-kernel \
   src/kernels/dex/protocol_fee_router_4way_dust_core_v1.yaml \
   --output-root generated/rust

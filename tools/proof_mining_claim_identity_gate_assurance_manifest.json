@@ -1,0 +1,102 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the bounded proof-mining claim-identity resolution micro-kernel. Update only alongside a successful run of tools/run_proof_mining_claim_identity_gate_assurance_gate.sh and tools/check_proof_mining_claim_identity_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/proof_mining_claim_identity_gate.py",
+      "sha256": "356f97844e745618d4edcd670a9c4fa4858203efe6776680e2654be435ec0c33"
+    },
+    {
+      "path": "src/kernels/dex/proof_mining_claim_identity_gate_v1.yaml",
+      "sha256": "f7ced67f9e6767883485cfd95b6a398bb7bac2ac0db464a8ddf170aa2ceb4aa3"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_claim_identity_gate_v1_native_adapter.py",
+      "sha256": "5008d7e9f8886cc6d728b5227d85d0f54947d766a44fb9ad75ec3ad06fd1b2ae"
+    },
+    {
+      "path": "tests/core/test_proof_mining_claim_identity_gate.py",
+      "sha256": "407c5f4c8de9b0f3391226e98e7e22ecc56060185c33fef678ca3634ea1e9403"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_claim_identity_gate_v1_native_adapter.py",
+      "sha256": "547079adbee71a001ec3268e38072a85abf4c15d0fa8991c8d139ce342f387cb"
+    },
+    {
+      "path": "tools/check_proof_mining_claim_identity_gate_assurance_manifest.py",
+      "sha256": "9b718fdbf86b8ccacf8bf00f0495fc754474cbae624dd376f1c4e76d4c375888"
+    },
+    {
+      "path": "tools/run_proof_mining_claim_identity_gate_assurance_gate.sh",
+      "sha256": "2cac561391ecb9540c78302af2badab98d53c6359d369506ec7d2a6096d2be57"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/proof_mining_claim_identity_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/proof_mining_claim_identity_gate_v1.yaml",
+    "ir_hash": "sha256:d4dfb991e699a221093106e170f1a1d08bb016de40215d866f0ef39290329120"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/proof_mining_claim_identity_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.proof_mining_claim_identity_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:d4dfb991e699a221093106e170f1a1d08bb016de40215d866f0ef39290329120",
+    "actions": [
+      "evaluate_claim_identity"
+    ],
+    "effects": [
+      "already_claimed",
+      "assigned_slot",
+      "assigned_slot_free",
+      "free_found"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/proof_mining_claim_identity_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/proof_mining_claim_identity_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.proof_mining_claim_identity_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:d4dfb991e699a221093106e170f1a1d08bb016de40215d866f0ef39290329120",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:7912e64eae72d20e1d4768ad74b10aded246f092a69daeb93e2d69ee7942f7cf"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/proof_mining_claim_identity_gate_v1/verification_report.json",
+    "model_id": "proof_mining_claim_identity_gate_v1",
+    "ir_hash_short": "d4dfb991e699a221",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_proof_mining_claim_identity_gate_v1_native_adapter.py"
+  ]
+}

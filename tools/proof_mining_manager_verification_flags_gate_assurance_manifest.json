@@ -1,0 +1,111 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the normalized proof-mining manager verification-flags micro-kernel. Update only alongside a successful run of tools/run_proof_mining_manager_verification_flags_gate_assurance_gate.sh and tools/check_proof_mining_manager_verification_flags_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/proof_mining_manager_verification_flags_gate_v1.yaml",
+      "sha256": "be893dc915c5ea741e048cb3f03ee840fe1138d15f467aaef4482907ece7d386"
+    },
+    {
+      "path": "src/core/proof_mining_manager_verification_flags_gate.py",
+      "sha256": "fd8a3fae331f4736a8699c7ae4d7d6cd9e66cf6812130fb81e0dbe3b52989e3f"
+    },
+    {
+      "path": "src/core/proof_mining_manager.py",
+      "sha256": "d0b2594465fe1b8eb47e1724dff0791221d61f31121d9559f2d5286ac58f6b3e"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_manager_verification_flags_gate_v1_native_adapter.py",
+      "sha256": "60234d3a9940ea9084ae6912efe9496f5b504a6c8ffeda79b8d87bf3c796b709"
+    },
+    {
+      "path": "tests/core/test_proof_mining_manager_verification_flags_gate.py",
+      "sha256": "a19670ce42a279ec9a6248586f70ae49056a02a52c37dca534ebb7fd662a427b"
+    },
+    {
+      "path": "tests/core/test_proof_mining_manager.py",
+      "sha256": "9ed472c9d0a5eb2ede0590cc55c4d08c0984c3bb7535390d2293fab0bbc251f2"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_manager_verification_flags_gate_v1_native_adapter.py",
+      "sha256": "b709e2b6f63b0f1862db3e2b419fe6f68cf6d7210e34fb419f415ea3b1b1797a"
+    },
+    {
+      "path": "tools/check_proof_mining_manager_verification_flags_gate_assurance_manifest.py",
+      "sha256": "f5326370e6e94aade85affe44f8725d579a6ac8d76150c43bede0e06d299339c"
+    },
+    {
+      "path": "tools/run_proof_mining_manager_verification_flags_gate_assurance_gate.sh",
+      "sha256": "0c1fa457e4c17a932caf1cae869446cee1eb57b876787650594cc468156e9814"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/proof_mining_manager_verification_flags_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/proof_mining_manager_verification_flags_gate_v1.yaml",
+    "ir_hash": "sha256:0653fd1d168ed0077af6431483205bd2f3075f27913f052ae58c86b6c1533479"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/proof_mining_manager_verification_flags_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.proof_mining_manager_verification_flags_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:0653fd1d168ed0077af6431483205bd2f3075f27913f052ae58c86b6c1533479",
+    "actions": [
+      "evaluate_verification_flags"
+    ],
+    "effects": [
+      "all_true",
+      "binding_ok_norm",
+      "nonce_ok_norm",
+      "policy_ok_norm",
+      "proof_ok_norm"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/proof_mining_manager_verification_flags_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/proof_mining_manager_verification_flags_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.proof_mining_manager_verification_flags_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:0653fd1d168ed0077af6431483205bd2f3075f27913f052ae58c86b6c1533479",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:d76cafd3e6f7648f4ddd843f7007dafd40f1690b5c9f8e648249fc40f17fffc4"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/proof_mining_manager_verification_flags_gate_v1/verification_report.json",
+    "model_id": "proof_mining_manager_verification_flags_gate_v1",
+    "ir_hash_short": "0653fd1d168ed007",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_proof_mining_manager_verification_flags_gate_v1_native_adapter.py"
+  ]
+}
