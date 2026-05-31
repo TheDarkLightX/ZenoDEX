@@ -76,7 +76,7 @@ and perps wrappers remain large.
 | Balance accounting | yes | yes | Kani on transfer/credit arithmetic: totality, exact move, conservation, overflow, non-vacuity | golden, Python/Rust differential, disaster/fuzz, selector tests | full |
 | Fee router | yes | yes | Kani on split/dust core plus ESSO finite model and generated Rust receipt for the 4-way dust core | property tests, differential, live path, disaster/fuzz | full |
 | Burn rails | yes | yes | Kani on `verify_rails`: totality, accepted budget/supply/batch conservation, non-vacuity | burn receipt differential, live path, disaster/fuzz | full |
-| CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity only. Full symbolic exact-in/out arithmetic timed out and needs helper decomposition | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence | partial |
+| CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence | partial |
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers and arith primitives. Full equivalence to plain helpers remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | no Kani receipt yet on running primitive encoders | vectors, fuzz, state-root/receipt differential, live selector | tested authority |
@@ -90,10 +90,13 @@ This pass moved two surfaces forward:
 - Burn rails moved from tested authority to full CBC grade for the rail core.
   Evidence: `docs/runtime/receipts/cbc_runtime_core_kani_v1/` now records
   `burn_receipts::kani_contracts::*`.
-- CPMM gained a Kani-backed tractable slice for initialization, uninitialized
-  swap fail-closed behavior, and non-vacuity. The exact-in/out arithmetic proof
-  attempted directly over public functions timed out under CBMC; the next CBC
-  step is helper decomposition.
+- CPMM gained helper decomposition for exact-in/exact-out arithmetic, explicit
+  malformed-fee validation before swap math, and checked multiply/divide helper
+  boundaries. Kani now proves initialization, uninitialized swap fail-closed
+  behavior, invalid-fee and zero-denominator helper behavior, small-domain
+  fee-ceil boundedness, small-domain exact-in reserve shape, and non-vacuity.
+  Full live-domain exact-in/out division remains property/differential backed;
+  direct public-swap and exact-out helper Kani attempts timed out under CBMC.
 
 This pass also integrated four open security PR fixes onto the branch:
 
@@ -108,10 +111,9 @@ includes the live-shadow regression.
 
 ## Remaining Work To Reach 100 Percent CBC Grade
 
-1. Decompose CPMM exact-in/out into checked helper functions:
-   validation, fee computation, quote computation, reserve delta application,
-   and receipt construction. Prove helper contracts with Kani and keep public
-   function parity locked by differential/property tests.
+1. Continue CPMM proof decomposition: either split exact-out further or replace
+   the division-heavy formula with a verified/generated arithmetic kernel. Keep
+   public function parity locked by differential/property tests.
 2. Add Kani contracts for canonical primitive helpers that are tractable:
    uvarint length/roundtrip properties over bounded domains, domain-separator
    preconditions, and fixed-hex validation. Keep SHA-256 and heap-heavy JSON as
@@ -141,7 +143,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 31 successfully verified harnesses, 0 failures, 31 total.
+Complete - 35 successfully verified harnesses, 0 failures, 35 total.
 ```
 
 Focused tests after integrating the security fixes:

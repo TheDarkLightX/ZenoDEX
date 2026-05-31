@@ -204,6 +204,157 @@ fn pool_after(pool: &Pool, zero_for_one: bool, new_in: u128, new_out: u128) -> P
     }
 }
 
+fn validate_reachable_pool_fee_bps(pool: &Pool) -> Result<u128, &'static str> {
+    if pool.fee_bps > BPS_DENOM {
+        return Err(REJ_INVALID_FEE_BPS);
+    }
+    Ok(pool.fee_bps)
+}
+
+fn checked_ceil_mul_div(
+    lhs: u128,
+    rhs: u128,
+    denominator: u128,
+    overflow_reason: &'static str,
+) -> Result<u128, &'static str> {
+    if denominator == 0 {
+        return Err(overflow_reason);
+    }
+    let product = lhs.checked_mul(rhs).ok_or(overflow_reason)?;
+    Ok(ceil_div(product, denominator))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExactInCalc {
+    fee_total: u128,
+    amount_out: u128,
+    new_in: u128,
+    new_out: u128,
+}
+
+fn compute_exact_in_calc(
+    reserve_in: u128,
+    reserve_out: u128,
+    fee_bps: u128,
+    amount_in: u128,
+    min_amount_out: u128,
+) -> Result<ExactInCalc, &'static str> {
+    let new_in = reserve_in
+        .checked_add(amount_in)
+        .filter(|v| *v <= DEX_POOL_RESERVE_MAX)
+        .ok_or(REJ_RESERVE_DOMAIN_EXCEEDED)?;
+    let fee_total = checked_ceil_mul_div(amount_in, fee_bps, BPS_DENOM, REJ_INVALID_FEE_BPS)?;
+    if fee_total >= amount_in {
+        // net_in <= 0
+        return Err(REJ_TRADE_TOO_SMALL);
+    }
+    let net_in = amount_in - fee_total;
+    let denominator = reserve_in
+        .checked_add(net_in)
+        .ok_or(REJ_RESERVE_DOMAIN_EXCEEDED)?;
+    let numerator = reserve_out
+        .checked_mul(net_in)
+        .ok_or(REJ_RESERVE_DOMAIN_EXCEEDED)?;
+    let amount_out = numerator / denominator;
+    if amount_out == 0 {
+        return Err(REJ_TRADE_TOO_SMALL);
+    }
+    if amount_out < min_amount_out {
+        return Err(REJ_SLIPPAGE);
+    }
+    let new_out = reserve_out
+        .checked_sub(amount_out)
+        .ok_or(REJ_TRADE_TOO_SMALL)?;
+    Ok(ExactInCalc {
+        fee_total,
+        amount_out,
+        new_in,
+        new_out,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExactOutCalc {
+    gross_in: u128,
+    fee_total: u128,
+    amount_out_quote: u128,
+    overdelivery_gap: u128,
+    gap_bps: u128,
+    new_in: u128,
+    new_out: u128,
+}
+
+fn compute_exact_out_calc(
+    reserve_in: u128,
+    reserve_out: u128,
+    fee_bps: u128,
+    amount_out: u128,
+    max_amount_in: u128,
+    max_overdelivery_gap_bps: u128,
+) -> Result<ExactOutCalc, &'static str> {
+    if max_overdelivery_gap_bps > BPS_DENOM {
+        return Err(REJ_OVERDELIVERY_GAP);
+    }
+    if amount_out >= reserve_out {
+        return Err(REJ_AMOUNT_OUT_GE_RESERVE);
+    }
+    if fee_bps > BPS_DENOM {
+        return Err(REJ_INVALID_FEE_BPS);
+    }
+    if fee_bps == BPS_DENOM {
+        return Err(REJ_FEE_FULL);
+    }
+    let reserve_delta = reserve_out - amount_out;
+    let net_in = checked_ceil_mul_div(
+        reserve_in,
+        amount_out,
+        reserve_delta,
+        REJ_RESERVE_DOMAIN_EXCEEDED,
+    )?;
+    let gross_in = checked_ceil_mul_div(
+        net_in,
+        BPS_DENOM,
+        BPS_DENOM - fee_bps,
+        REJ_RESERVE_DOMAIN_EXCEEDED,
+    )?;
+    let fee_total = gross_in - net_in;
+    let net_in_actual = gross_in - fee_total;
+    let quote_denominator = reserve_in
+        .checked_add(net_in_actual)
+        .ok_or(REJ_RESERVE_DOMAIN_EXCEEDED)?;
+    let quote_numerator = reserve_out
+        .checked_mul(net_in_actual)
+        .ok_or(REJ_RESERVE_DOMAIN_EXCEEDED)?;
+    let amount_out_quote = quote_numerator / quote_denominator;
+    let new_in = reserve_in
+        .checked_add(gross_in)
+        .filter(|v| *v <= DEX_POOL_RESERVE_MAX)
+        .ok_or(REJ_RESERVE_DOMAIN_EXCEEDED)?;
+    let overdelivery_gap = amount_out_quote.saturating_sub(amount_out);
+    let gap_bps = checked_ceil_mul_div(
+        overdelivery_gap,
+        BPS_DENOM,
+        amount_out,
+        REJ_OVERDELIVERY_GAP,
+    )?;
+    if gap_bps > max_overdelivery_gap_bps {
+        return Err(REJ_OVERDELIVERY_GAP);
+    }
+    if gross_in > max_amount_in {
+        return Err(REJ_SLIPPAGE);
+    }
+    let new_out = reserve_out - amount_out;
+    Ok(ExactOutCalc {
+        gross_in,
+        fee_total,
+        amount_out_quote,
+        overdelivery_gap,
+        gap_bps,
+        new_in,
+        new_out,
+    })
+}
+
 /// Exact-in settlement swap. `min_amount_out` is the slippage floor.
 pub fn swap_exact_in(
     pool: &Pool,
@@ -218,38 +369,30 @@ pub fn swap_exact_in(
     if !in_range(amount_in, 1, DEX_SWAP_AMOUNT_MAX) {
         return Err(REJ_INVALID_AMOUNT);
     }
-    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX {
-        return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
-    }
-    let fee_total = ceil_div(amount_in * pool.fee_bps, BPS_DENOM);
-    if fee_total >= amount_in {
-        // net_in <= 0
-        return Err(REJ_TRADE_TOO_SMALL);
-    }
-    let net_in = amount_in - fee_total;
-    let amount_out = (reserve_out * net_in) / (reserve_in + net_in);
-    if amount_out == 0 {
-        return Err(REJ_TRADE_TOO_SMALL);
-    }
-    if amount_out < min_amount_out {
-        return Err(REJ_SLIPPAGE);
-    }
-    let new_in = reserve_in + amount_in; // protocol_fee == 0 in settlement runtime
-    let new_out = reserve_out - amount_out;
+    let fee_bps = validate_reachable_pool_fee_bps(pool)?;
+    let calc = compute_exact_in_calc(reserve_in, reserve_out, fee_bps, amount_in, min_amount_out)?;
     Ok(Accepted {
         receipt: SwapReceipt {
             kind: SwapKind::ExactIn,
             zero_for_one,
             amount_in,
-            amount_out,
-            fee_total,
-            amount_out_quote: amount_out,
+            amount_out: calc.amount_out,
+            fee_total: calc.fee_total,
+            amount_out_quote: calc.amount_out,
             overdelivery_gap: 0,
             gap_bps: 0,
-            new_reserve0: if zero_for_one { new_in } else { new_out },
-            new_reserve1: if zero_for_one { new_out } else { new_in },
+            new_reserve0: if zero_for_one {
+                calc.new_in
+            } else {
+                calc.new_out
+            },
+            new_reserve1: if zero_for_one {
+                calc.new_out
+            } else {
+                calc.new_in
+            },
         },
-        pool: pool_after(pool, zero_for_one, new_in, new_out),
+        pool: pool_after(pool, zero_for_one, calc.new_in, calc.new_out),
     })
 }
 
@@ -283,47 +426,36 @@ pub fn swap_exact_out_with_max_gap_bps(
     if !in_range(amount_out, 1, DEX_SWAP_AMOUNT_MAX) {
         return Err(REJ_INVALID_AMOUNT);
     }
-    if max_overdelivery_gap_bps > BPS_DENOM {
-        return Err(REJ_OVERDELIVERY_GAP);
-    }
-    if amount_out >= reserve_out {
-        return Err(REJ_AMOUNT_OUT_GE_RESERVE);
-    }
-    if pool.fee_bps == BPS_DENOM {
-        return Err(REJ_FEE_FULL);
-    }
-    let net_in = ceil_div(reserve_in * amount_out, reserve_out - amount_out);
-    let gross_in = ceil_div(net_in * BPS_DENOM, BPS_DENOM - pool.fee_bps);
-    let fee_total = gross_in - net_in;
-    let net_in_actual = gross_in - fee_total;
-    let amount_out_quote = (reserve_out * net_in_actual) / (reserve_in + net_in_actual);
-    let new_in = reserve_in + gross_in;
-    if new_in > DEX_POOL_RESERVE_MAX {
-        return Err(REJ_RESERVE_DOMAIN_EXCEEDED);
-    }
-    let overdelivery_gap = amount_out_quote.saturating_sub(amount_out);
-    let gap_bps = ceil_div(overdelivery_gap * BPS_DENOM, amount_out);
-    if gap_bps > max_overdelivery_gap_bps {
-        return Err(REJ_OVERDELIVERY_GAP);
-    }
-    if gross_in > max_amount_in {
-        return Err(REJ_SLIPPAGE);
-    }
-    let new_out = reserve_out - amount_out;
+    let calc = compute_exact_out_calc(
+        reserve_in,
+        reserve_out,
+        pool.fee_bps,
+        amount_out,
+        max_amount_in,
+        max_overdelivery_gap_bps,
+    )?;
     Ok(Accepted {
         receipt: SwapReceipt {
             kind: SwapKind::ExactOut,
             zero_for_one,
-            amount_in: gross_in,
+            amount_in: calc.gross_in,
             amount_out,
-            fee_total,
-            amount_out_quote,
-            overdelivery_gap,
-            gap_bps,
-            new_reserve0: if zero_for_one { new_in } else { new_out },
-            new_reserve1: if zero_for_one { new_out } else { new_in },
+            fee_total: calc.fee_total,
+            amount_out_quote: calc.amount_out_quote,
+            overdelivery_gap: calc.overdelivery_gap,
+            gap_bps: calc.gap_bps,
+            new_reserve0: if zero_for_one {
+                calc.new_in
+            } else {
+                calc.new_out
+            },
+            new_reserve1: if zero_for_one {
+                calc.new_out
+            } else {
+                calc.new_in
+            },
         },
-        pool: pool_after(pool, zero_for_one, new_in, new_out),
+        pool: pool_after(pool, zero_for_one, calc.new_in, calc.new_out),
     })
 }
 
@@ -424,6 +556,29 @@ mod tests {
         // reserve_out == 1, a swap yields amount_out == 0 -> trade_too_small.
         assert_eq!(swap_exact_in(&p, true, 1, 0), Err(REJ_TRADE_TOO_SMALL));
     }
+
+    #[test]
+    fn initialized_swaps_reject_invalid_fee_without_panic() {
+        let p = Pool {
+            initialized: true,
+            reserve0: 1_000_000,
+            reserve1: 1_000_000,
+            fee_bps: BPS_DENOM + 1,
+        };
+        assert_eq!(swap_exact_in(&p, true, 10_000, 0), Err(REJ_INVALID_FEE_BPS));
+        assert_eq!(
+            swap_exact_out(&p, true, 5_000, u128::MAX),
+            Err(REJ_INVALID_FEE_BPS)
+        );
+    }
+
+    #[test]
+    fn checked_ceil_mul_div_rejects_zero_denominator() {
+        assert_eq!(
+            checked_ceil_mul_div(1, 1, 0, REJ_RESERVE_DOMAIN_EXCEEDED),
+            Err(REJ_RESERVE_DOMAIN_EXCEEDED)
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +653,93 @@ mod kani_contracts {
             swap_exact_out(&pool, zfo, amt, bound),
             Err(REJ_POOL_NOT_INITIALIZED)
         );
+    }
+
+    /// CONTRACT. Fee validation handles the live boundary and malformed
+    /// impossible-pool cases without entering swap arithmetic.
+    #[kani::proof]
+    fn fee_validation_boundary_cases() {
+        let mut pool = Pool {
+            initialized: true,
+            reserve0: 1,
+            reserve1: 1,
+            fee_bps: 0,
+        };
+        pool.fee_bps = 0;
+        assert_eq!(validate_reachable_pool_fee_bps(&pool), Ok(0));
+        pool.fee_bps = BPS_DENOM;
+        assert_eq!(validate_reachable_pool_fee_bps(&pool), Ok(BPS_DENOM));
+        pool.fee_bps = BPS_DENOM + 1;
+        assert_eq!(
+            validate_reachable_pool_fee_bps(&pool),
+            Err(REJ_INVALID_FEE_BPS)
+        );
+        pool.fee_bps = u128::MAX;
+        assert_eq!(
+            validate_reachable_pool_fee_bps(&pool),
+            Err(REJ_INVALID_FEE_BPS)
+        );
+    }
+
+    /// CONTRACT. Fee ceil-multiply/divide is total on a small symbolic domain,
+    /// and it cannot charge more than the input amount. The full live `u128`
+    /// division proof is currently CBMC-intractable and remains covered by
+    /// differential/property tests.
+    #[kani::proof]
+    fn fee_ceil_mul_div_small_domain_is_total_and_bounded() {
+        let amount = kani::any::<u8>() as u128;
+        let fee_bps = kani::any::<u8>() as u128;
+
+        let fee = checked_ceil_mul_div(amount, fee_bps, BPS_DENOM, REJ_INVALID_FEE_BPS).unwrap();
+        assert!(fee <= amount);
+        if amount == 0 || fee_bps == 0 {
+            assert_eq!(fee, 0);
+        }
+        if fee_bps == BPS_DENOM {
+            assert_eq!(fee, amount);
+        }
+    }
+
+    /// CONTRACT. A zero denominator rejects before multiplication, even for
+    /// arbitrary operands.
+    #[kani::proof]
+    fn checked_ceil_mul_div_zero_denominator_is_total() {
+        let lhs: u128 = kani::any();
+        let rhs: u128 = kani::any();
+        assert_eq!(
+            checked_ceil_mul_div(lhs, rhs, 0, REJ_RESERVE_DOMAIN_EXCEEDED),
+            Err(REJ_RESERVE_DOMAIN_EXCEEDED)
+        );
+    }
+
+    /// CONTRACT. Exact-in arithmetic is total on a small symbolic domain and
+    /// every accepted result has the expected reserve shape.
+    #[kani::proof]
+    fn exact_in_calc_small_domain_total_and_accept_shape() {
+        let reserve_in = kani::any::<u8>() as u128;
+        let reserve_out = kani::any::<u8>() as u128;
+        let fee_bps = kani::any::<u8>() as u128;
+        let amount_in = kani::any::<u8>() as u128;
+        let min_amount_out = kani::any::<u8>() as u128;
+
+        kani::assume((1..=DEX_POOL_RESERVE_MAX).contains(&reserve_in));
+        kani::assume((1..=DEX_POOL_RESERVE_MAX).contains(&reserve_out));
+        kani::assume(fee_bps <= BPS_DENOM);
+        kani::assume((1..=DEX_SWAP_AMOUNT_MAX).contains(&amount_in));
+        kani::assume(reserve_in + amount_in <= DEX_POOL_RESERVE_MAX);
+
+        if let Ok(calc) =
+            compute_exact_in_calc(reserve_in, reserve_out, fee_bps, amount_in, min_amount_out)
+        {
+            assert!(calc.fee_total < amount_in);
+            assert!(calc.amount_out > 0);
+            assert!(calc.amount_out >= min_amount_out);
+            assert_eq!(calc.new_in, reserve_in + amount_in);
+            assert_eq!(calc.new_out, reserve_out - calc.amount_out);
+            assert!(calc.amount_out <= reserve_out);
+            assert!(calc.new_in <= DEX_POOL_RESERVE_MAX);
+            assert!(calc.new_out < reserve_out);
+        }
     }
 
     /// NON-VACUITY. Accepted exact-in/exact-out paths and representative
