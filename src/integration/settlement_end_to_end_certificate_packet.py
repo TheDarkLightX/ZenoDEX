@@ -458,7 +458,8 @@ def _assemble_packet(
         value_conservation_ok = bool(value_packet.value_conservation_ok)
         value_packet_ok = bool(value_packet.packet_ok)
     else:
-        assert endogenous_lp_value_packet is not None
+        if endogenous_lp_value_packet is None:
+            raise ValueError("endogenous_lp_value mode requires endogenous_lp_value_packet")
         price_provenance_ok = bool(endogenous_lp_value_packet.price_provenance_ok)
         attestation_ok = bool(endogenous_lp_value_packet.attestation_ok)
         asset_conservation_ok = bool(endogenous_lp_value_packet.asset_conservation_ok)
