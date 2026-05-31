@@ -101,9 +101,15 @@ def test_rejects_post_state_root_not_matching_reexecuted_body():
         validate_block_state_transition_v0(pre_state=pre, header=header, body=body, config=DexEngineConfig())
 
 
-def test_fails_closed_on_unrootable_post_state():
+def test_fails_closed_on_unrootable_state():
     # pre-state carries a non-canonical balance key (e.g. accepted via a permissive
     # path): compute_state_root cannot encode it. The binding must REJECT, not crash.
+    # NOTE: with an empty body (pre == post) this exercises the PRE-state root guard,
+    # which fails before re-execution. The POST-state guard at validate_block_state_
+    # transition_v0 is the symmetric `try: dex_state_root_v0(working_state) except ->
+    # ValueError("not computable")`; covering it directly needs a body whose accepted
+    # tx mutates state to a non-canonical key (executable-tx fixture) — tracked as a
+    # follow-up. The C-1 accept guard prevents that under require_intent_signatures.
     bal = BalanceTable()
     bal.set("not_hex_recipient", _ASSET, 100)
     pre = DexState(balances=bal, pools={}, lp_balances=LPTable())
