@@ -97,7 +97,13 @@ CBC evidence now includes Kani on the running split arithmetic for totality,
 typed overflow rejection, dust exactness, and non-vacuity, plus a deterministic
 one-quantum conservation test over all canonical domains and carried-dust
 patterns. Full-range conservation remains covered by proptest and Python/Rust
-parity while the exact 4-way fee router is not yet ESSO-generated.
+parity. The exact 4-way dust-core model is now also captured in
+`src/kernels/dex/protocol_fee_router_4way_dust_core_v1.yaml`: Z3+CVC5
+`verify-multi` proves the cumulative conservation invariant inductive, and
+ESSO `codegen-rust-kernel` emits a Rust kernel crate that passes its generated
+Cargo tests. The generated crate itself remains reproducible output under the
+ignored `generated/` tree; the tracked evidence is the model plus receipts under
+`docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
@@ -224,8 +230,8 @@ and unmaterialized ops alike) and **remains `rust_shadow` in every profile**.
 
 Promotion requires (a) inverting the authority path so Rust **decides from the
 pre-state and commits** its materialized result (Python becomes the shadow), then
-(b) the gate + human sign-off. Kani 0.60.0 is available; bounded-model-checking
-The bounded-sink funding arithmetic now has exact Kani receipts on heap-free
+(b) the gate + human sign-off. Kani 0.60.0 is available. The bounded-sink
+funding arithmetic now has exact Kani receipts on heap-free
 helpers called by the running `perp_funding_auto` transition: sink mirror deltas,
 per-account collateral/payment delta, two-account conservation, replay-predicate
 parity, and non-vacuity. The Vec/String sorting wrapper remains covered by

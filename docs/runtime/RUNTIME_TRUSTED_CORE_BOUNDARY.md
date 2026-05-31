@@ -52,7 +52,7 @@ surface can be promoted to Rust authority.
 
 | Module | Current language | RC? | Target | Evidence required |
 |--------|------------------|-----|--------|-------------------|
-| Protocol fee routing — `src/core/fee_router.py` | Rust+Python shadow on public-testnet | yes | **Rust (public-testnet promoted)** | ✅ golden traces, ✅ Python/Rust differential, ✅ property tests, ✅ live authority wiring, ✅ disaster-state rows and deterministic fuzz, ✅ Kani on the running split core for totality/dust exactness/non-vacuity. Production remains Python authority |
+| Protocol fee routing — `src/core/fee_router.py` | Rust+Python shadow on public-testnet | yes | **Rust (public-testnet promoted)** | ✅ golden traces, ✅ Python/Rust differential, ✅ property tests, ✅ live authority wiring, ✅ disaster-state rows and deterministic fuzz, ✅ Kani on the running split core for totality/dust exactness/non-vacuity, ✅ ESSO finite model + Rust codegen receipt for exact 4-way dust-core conservation. Production remains Python authority |
 | Canonical serialization — `src/state/canonical.py` | Python (+ Rust `canonical`) | yes | Rust | cross-language primitive vectors (✅ uvarint/bytes/domain-sep/sha256), full state-encoder parity (Phase 4/6) |
 | State-root generation — `src/state/state_root.py` (+ Rust `state_root`) | Python (+ Rust shadow) | yes | **Rust (Phase C, done)** | ✅ v5 shadow (`zenodex-runtime-core::state_root`) over six sections incl. LP duration-risk and fee-accumulator dust; ✅ same-root/different-root/order-independence fixtures; ✅ Python/Rust differential (static + 4×250 randomized) feeding the *normalized* built state; ✅ malformed-encoding + duplicate-key + fee-bps rejection. Amounts use `u128` (covers the live domain; ≥2^128 rejected at the bridge). fuzz (Phase 9) |
 | Replay / idempotency guards — `src/core/replay_guard.py` (+ Rust shadow), policy from `src/state/nonces.py` | Rust+Python shadow on public-testnet | yes | **Rust (public-testnet promoted)** | ✅ golden traces incl. duplicate/stale/gap rejection + cross-sender case, ✅ Python/Rust differential, ✅ semantic invariants (per-sender isolation), ✅ live authority wiring, ✅ disaster-state rows and deterministic fuzz. Production remains Python authority |
@@ -90,3 +90,13 @@ weaken** any of them. In particular, the new 4-way protocol `fee_router` is a
 the latter's Tau spec (`tokenomics_fee_split_32_v1.tau`) and ESSO kernels
 (`fee_split_dust_carry_*`) are left intact. Each Rust-owned surface must keep
 its corresponding Tau/ESSO/Lean obligations green as a promotion gate (Phase 9).
+
+The 4-way protocol-fee split core now has its own finite ESSO model:
+`src/kernels/dex/protocol_fee_router_4way_dust_core_v1.yaml`. It models
+`buyburn/stakers/reserve/hosts` per-bucket remainders and folded dust, proves
+the cumulative conservation invariant inductive with Z3+CVC5, and records
+reproducible Rust codegen receipts under
+`docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`. The generated
+crate is reproducible output under the ignored `generated/` tree; the live
+runtime still calls the hand-written `fee_router.rs` and checks it with
+Kani/proptest/Python-Rust differential evidence.
