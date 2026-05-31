@@ -69,8 +69,13 @@ Both committed (not dirty), outside the audited surfaces:
 
 - Clearinghouse (CH2P/CH3P) settlement oracle path: strict deploy profiles now
   require `TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH=1`
-  before startup. A typed clearinghouse-specific oracle-authorization path is
-  still future work; current hardening is aggregate-adapter enforcement.
+  and `TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH=1`
+  before startup. CH2P/CH3P `settle_epoch` now accepts `oracle_authorization`
+  and checks the typed bundle against the clearinghouse runtime action id,
+  pre-state hash, facts hash, query id, profile id, observed epoch, and published
+  clearing price. Regressions cover missing, matching, and mismatched bundles.
+  Residual: this is a runtime authorization binding, not a proof of the
+  clearinghouse kernel transition itself.
 - OCaml runtime conformance is now pytest-backed:
   `tests/runtime/test_ocaml_spec_oracle.py` checks that Python-derived vectors
   are current and runs `opam exec -- dune test` when the local opam switch has

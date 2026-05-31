@@ -31,6 +31,7 @@ oracle_policy:
   zusd_oracle_adapter_required: false
   zusd_oracle_authorization_required: false
   perps_clearinghouse_settle_oracle_adapter_required: false
+  perps_clearinghouse_settle_oracle_authorization_required: false
   perps_isolated_settle_oracle_adapter_required: false
   perps_isolated_partial_liquidate_oracle_adapter_required: false
   perps_isolated_settle_oracle_authorization_required: false

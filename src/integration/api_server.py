@@ -6921,6 +6921,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "perps_clearinghouse_settle_oracle_adapter_required": _env_bool(
                         "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", False
                     ),
+                    "perps_clearinghouse_settle_oracle_authorization_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH", False
+                    ),
                     "perps_isolated_settle_oracle_adapter_required": _env_bool(
                         "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH", False
                     ),

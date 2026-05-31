@@ -1177,6 +1177,10 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             False,
         ),
+        require_oracle_authorization_for_clearinghouse_settle_epoch=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            False,
+        ),
         require_oracle_adapter_for_isolated_settle_epoch=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
             False,
@@ -1849,6 +1853,10 @@ def _status_payload() -> Dict[str, Any]:
         "oracle_pubkey": os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
         "require_oracle_adapter_for_clearinghouse_settle_epoch": _env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            False,
+        ),
+        "require_oracle_authorization_for_clearinghouse_settle_epoch": _env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             False,
         ),
         "require_oracle_adapter_for_isolated_settle_epoch": _env_bool(
