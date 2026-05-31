@@ -2,7 +2,8 @@
 
 Living status for the Python→Rust authority promotion. Pairs with
 `RUST_AUTHORITY_PROMOTION_GATE.md` (the gate) and
-`RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan).
+`RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan). The proof-grade view is
+tracked separately in `RUNTIME_CBC_CORE_STATUS.md`.
 
 **As of this writing: canonical primitives, state root v5, replay/idempotency
 guard, balance accounting, the fee router, zUSD single-vault, burn rails, CPMM
