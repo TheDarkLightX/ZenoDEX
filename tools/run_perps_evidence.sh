@@ -80,6 +80,12 @@ echo "== perps: live cross-stream stateful replay =="
 
 echo "== perps: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/perp_epoch_isolated_v2.yaml" \
+  --solvers z3,cvc5 \
+  --timeout-ms 60000 \
+  --determinism-trials 2
+
+"$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/perp_epoch_isolated_v3.yaml" \
   --solvers z3,cvc5 \
   --timeout-ms 60000 \

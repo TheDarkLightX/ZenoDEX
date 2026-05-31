@@ -11,6 +11,7 @@ This is intentionally lightweight and CI-friendly:
 from __future__ import annotations
 
 import sys
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -70,6 +71,31 @@ def _iter_cmds(evidence: dict[str, Any]) -> Iterable[str]:
         yield _require_str(cmd, name=f"evidence.check[{i}].cmd")
 
 
+def _repo_script_paths_from_cmd(cmd: str) -> list[Path]:
+    try:
+        parts = shlex.split(cmd)
+    except ValueError as exc:
+        raise CheckError(f"invalid evidence command shell syntax: {exc}") from exc
+    out: list[Path] = []
+    for part in parts:
+        if part.endswith(".sh"):
+            p = (REPO_ROOT / part).resolve()
+            if REPO_ROOT not in p.parents and p != REPO_ROOT:
+                raise CheckError(f"evidence command references script outside repo: {part}")
+            if p.exists():
+                out.append(p)
+    return out
+
+
+def _cmd_or_script_mentions_file(cmd: str, rel_file: str) -> bool:
+    if rel_file in cmd:
+        return True
+    for script_path in _repo_script_paths_from_cmd(cmd):
+        if rel_file in script_path.read_text(encoding="utf-8"):
+            return True
+    return False
+
+
 def validate_registry(path: Path) -> None:
     raw = path.read_text(encoding="utf-8")
     root = _require_mapping(yaml.safe_load(raw), name="registry")
@@ -94,11 +120,10 @@ def validate_registry(path: Path) -> None:
         _require_str(claim.get("statement"), name=f"claims[{idx}].statement")
 
         evidence = _require_mapping(claim.get("evidence"), name=f"claims[{idx}].evidence")
-        _require_str(evidence.get("kind"), name=f"claims[{idx}].evidence.kind")
+        evidence_kind = _require_str(evidence.get("kind"), name=f"claims[{idx}].evidence.kind")
 
         # Commands (informational but must be non-empty when present).
-        for _cmd in _iter_cmds(evidence):
-            pass
+        cmds = list(_iter_cmds(evidence))
 
         # Referenced files must exist (fail-closed).
         files = _require_optional_str_list(evidence.get("files"), name=f"claims[{idx}].evidence.files")
@@ -108,6 +133,16 @@ def validate_registry(path: Path) -> None:
                 raise CheckError(f"claims[{idx}].evidence.files contains path outside repo: {f}")
             if not p.exists():
                 raise CheckError(f"claims[{idx}].evidence.files missing: {f}")
+
+        if evidence_kind == "smt":
+            smt_files = [f for f in files if f.endswith((".yaml", ".yml"))]
+            if smt_files and not cmds:
+                raise CheckError(f"claims[{idx}] smt evidence must include at least one command")
+            for f in smt_files:
+                if not any(_cmd_or_script_mentions_file(cmd, f) for cmd in cmds):
+                    raise CheckError(
+                        f"claims[{idx}] smt evidence command does not reference evidence file: {f}"
+                    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -126,4 +161,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
