@@ -331,3 +331,108 @@ mod tests {
         }
     }
 }
+
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    fn any_input() -> PublishClearingPriceInput {
+        PublishClearingPriceInput {
+            now_epoch: kani::any(),
+            epoch_phase: kani::any(),
+            clearing_price_seen: kani::any(),
+            clearing_price_epoch: kani::any(),
+            clearing_price_e8: kani::any(),
+            oracle_last_update_epoch: kani::any(),
+            price_e8: kani::any(),
+        }
+    }
+
+    fn input(
+        now_epoch: i128,
+        phase: i128,
+        clearing_price_seen: bool,
+        clearing_price_epoch: i128,
+        clearing_price_e8: i128,
+        oracle_last_update_epoch: i128,
+        price_e8: i128,
+    ) -> PublishClearingPriceInput {
+        PublishClearingPriceInput {
+            now_epoch,
+            epoch_phase: phase,
+            clearing_price_seen,
+            clearing_price_epoch,
+            clearing_price_e8,
+            oracle_last_update_epoch,
+            price_e8,
+        }
+    }
+
+    #[kani::proof]
+    fn phase_classifier_is_exact() {
+        let phase: i128 = kani::any();
+        assert_eq!(
+            valid_phase(phase),
+            phase == PHASE_OPEN || phase == PHASE_PRICE_PUBLISHED || phase == PHASE_SETTLED
+        );
+    }
+
+    #[kani::proof]
+    fn publish_clearing_price_is_total_for_any_i128_input() {
+        let _ = publish_clearing_price(&any_input());
+    }
+
+    #[kani::proof]
+    fn publish_clearing_price_accept_shape_is_exact() {
+        let inp = any_input();
+
+        if let Ok(out) = publish_clearing_price(&inp) {
+            assert!(state_consistent(
+                inp.epoch_phase,
+                inp.now_epoch,
+                inp.clearing_price_seen,
+                inp.clearing_price_epoch,
+                inp.clearing_price_e8,
+                inp.oracle_last_update_epoch
+            ));
+            assert_eq!(inp.epoch_phase, PHASE_OPEN);
+            assert!(inp.clearing_price_epoch < inp.now_epoch);
+            assert!((1..=PRICE_MAX).contains(&inp.price_e8));
+            assert_eq!(out.now_epoch, inp.now_epoch);
+            assert_eq!(out.epoch_phase, PHASE_PRICE_PUBLISHED);
+            assert!(out.clearing_price_seen);
+            assert_eq!(out.clearing_price_epoch, inp.now_epoch);
+            assert_eq!(out.clearing_price_e8, inp.price_e8);
+        }
+    }
+
+    #[kani::proof]
+    fn publish_clearing_price_covers_are_reachable() {
+        kani::cover!(
+            publish_clearing_price(&input(5, PHASE_OPEN, false, 0, 0, 4, 100_000_000)).is_ok()
+        );
+        kani::cover!(
+            publish_clearing_price(&input(-1, PHASE_OPEN, false, 0, 0, 0, 100_000_000))
+                == Err(REJ_OUT_OF_DOMAIN)
+        );
+        kani::cover!(
+            publish_clearing_price(&input(5, PHASE_PRICE_PUBLISHED, false, 0, 0, 4, 1))
+                == Err(REJ_INCONSISTENT_STATE)
+        );
+        kani::cover!(
+            publish_clearing_price(&input(5, PHASE_OPEN, false, 0, 0, 4, -1))
+                == Err(REJ_PRICE_NEGATIVE)
+        );
+        kani::cover!(
+            publish_clearing_price(&input(5, PHASE_OPEN, false, 0, 0, 4, 0))
+                == Err(REJ_PRICE_NOT_POSITIVE)
+        );
+        kani::cover!(
+            publish_clearing_price(&input(5, PHASE_OPEN, false, 0, 0, 4, PRICE_MAX + 1))
+                == Err(REJ_PARAM_PRICE)
+        );
+        kani::cover!(
+            publish_clearing_price(&input(0, PHASE_OPEN, false, 0, 0, 0, 1)) == Err(REJ_GUARD)
+        );
+    }
+}

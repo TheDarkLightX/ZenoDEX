@@ -132,12 +132,12 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 51 harnesses on the actual
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 59 harnesses on the actual
 runtime crate passed (arith, canonical helper predicates, state-root scalar
 guards, zUSD scalar risk helpers, balance, replay, fee-router, burn rails, the
 tractable CPMM initialization/fail-closed/helper slice, stateless perps
-checked-effect helpers plus bridge-domain scalar guards, and funding-auto
-arithmetic).
+checked-effect helpers plus bridge-domain scalar guards, stateful perps
+`advance_epoch`/`publish_clearing_price` contracts, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
@@ -232,6 +232,9 @@ accept/reject from the pre-state, the Python shell commits the parsed Rust
 post-market and effect, and the Python handler reruns as the shadow check.
 Any Python/Rust disagreement fails closed before the copied transaction state is
 committed. Unavailable Rust is fatal under this promoted public-testnet lane.
+Kani now covers the global-only `advance_epoch` and `publish_clearing_price`
+transition cores for totality, phase classifier exactness, accept shapes, and
+reject/accept reachability.
 
 **Shadow materialization.** The materializer
 `zenodex-runtime perp-isolated-op` emits the **full post-market
