@@ -90,3 +90,13 @@ def test_env_bool_rejects_malformed_runtime_control(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="DEX_ROUTING_ORACLE_ADAPTER_REQUIRED"):
         api_server._env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", False)
+
+
+def test_api_server_refuses_malformed_routing_oracle_control(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("API_PORT", "8000")
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "maybe")
+
+    assert api_server.main([]) == 2

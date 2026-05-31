@@ -6830,6 +6830,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         dex_enabled = _env_bool("DEX_API_ENABLED", False)
         external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
         allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
+        _routing_oracle_adapter_required = _env_bool(
+            "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", False
+        )
     except ValueError as exc:
         print(f"Refusing to start: invalid boolean environment variable: {exc}")
         return 2
