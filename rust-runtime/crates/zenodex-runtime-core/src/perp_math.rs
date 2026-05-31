@@ -31,6 +31,22 @@ pub const MAX_ABS: i128 = 1_000_000_000_000_000_000; // 1e18
 /// Bound for basis-point inputs. Real rates/margins are ≤ a few ×1e4; this
 /// keeps `notional·bps` (≤ 1e28·1e7 = 1e35) safely inside `i128`.
 pub const MAX_BPS: i128 = 10_000_000; // 1e7
+/// Largest absolute notional from the public bridge domain.
+pub const MAX_NOTIONAL_QUOTE: i128 = (MAX_ABS * MAX_ABS) / PRICE_SCALE;
+/// Largest absolute PnL from the public bridge domain.
+pub const MAX_PNL_QUOTE: i128 = (MAX_ABS * (2 * MAX_ABS)) / PRICE_SCALE;
+/// Largest absolute margin/funding value from the public bridge domain.
+pub const MAX_MARGIN_QUOTE: i128 = (MAX_NOTIONAL_QUOTE * (2 * MAX_BPS)) / BPS_SCALE;
+
+#[inline]
+pub fn in_abs_domain(value: i128) -> bool {
+    matches!(value.checked_abs(), Some(abs) if abs <= MAX_ABS)
+}
+
+#[inline]
+pub fn in_bps_domain(value: i128) -> bool {
+    matches!(value.checked_abs(), Some(abs) if abs <= MAX_BPS)
+}
 
 #[inline]
 fn floor_div_const(numerator: i128, denominator: i128) -> i128 {
@@ -565,6 +581,111 @@ mod tests {
 #[cfg(kani)]
 mod kani_contracts {
     use super::*;
+
+    fn any_abs_domain() -> i128 {
+        let value: i128 = kani::any();
+        kani::assume(in_abs_domain(value));
+        value
+    }
+
+    fn any_bps_domain() -> i128 {
+        let value: i128 = kani::any();
+        kani::assume(in_bps_domain(value));
+        value
+    }
+
+    #[kani::proof]
+    fn domain_classifiers_are_total_and_exact() {
+        let value: i128 = kani::any();
+
+        assert_eq!(
+            in_abs_domain(value),
+            matches!(value.checked_abs(), Some(abs) if abs <= MAX_ABS)
+        );
+        assert_eq!(
+            in_bps_domain(value),
+            matches!(value.checked_abs(), Some(abs) if abs <= MAX_BPS)
+        );
+        assert!(!in_abs_domain(i128::MIN));
+        assert!(!in_bps_domain(i128::MIN));
+    }
+
+    #[kani::proof]
+    fn abs_val_is_total_on_bridge_domain() {
+        let value = any_abs_domain();
+
+        let abs = abs_val(value);
+        assert!(abs >= 0);
+        assert!(abs <= MAX_ABS);
+        if value >= 0 {
+            assert_eq!(abs, value);
+        } else {
+            assert_eq!(abs, -value);
+        }
+    }
+
+    #[kani::proof]
+    fn oracle_helpers_are_total_on_bridge_domain() {
+        let now_epoch = any_abs_domain();
+        let oracle_last_update_epoch = any_abs_domain();
+        let max_oracle_staleness_epochs = any_abs_domain();
+        let clearing_price_e8 = any_abs_domain();
+        let index_price_e8 = any_abs_domain();
+        let max_oracle_move_bps = any_bps_domain();
+        let oracle_seen: bool = kani::any();
+
+        let _ = is_oracle_fresh(
+            now_epoch,
+            oracle_last_update_epoch,
+            max_oracle_staleness_epochs,
+            oracle_seen,
+        );
+        let _ = oracle_move_violated(
+            clearing_price_e8,
+            index_price_e8,
+            max_oracle_move_bps,
+            oracle_seen,
+        );
+        let _ = settle_price(
+            clearing_price_e8,
+            index_price_e8,
+            max_oracle_move_bps,
+            oracle_seen,
+        );
+    }
+
+    #[kani::proof]
+    fn sign_classifiers_are_exact_on_bridge_domain() {
+        let position = any_abs_domain();
+        let settle = any_abs_domain();
+        let index = any_abs_domain();
+        let rate_bps = any_bps_domain();
+
+        assert_eq!(
+            pnl_same_sign(position, settle, index),
+            (position >= 0) == (settle >= index)
+        );
+        assert_eq!(
+            funding_same_sign(position, rate_bps),
+            (position >= 0) == (rate_bps >= 0)
+        );
+    }
+
+    #[kani::proof]
+    fn flat_positions_are_never_liquidatable_on_bridge_domain() {
+        let collateral_after_pnl = any_abs_domain();
+        let settle = any_abs_domain();
+        let maint_bps = any_bps_domain();
+        let depeg_bps = any_bps_domain();
+
+        assert!(!is_liquidatable(
+            0,
+            collateral_after_pnl,
+            settle,
+            maint_bps,
+            depeg_bps
+        ));
+    }
 
     #[kani::proof]
     fn checked_margin_helpers_are_total_for_any_i128() {

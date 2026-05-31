@@ -78,7 +78,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Fee router | yes | yes | Kani on split/dust core plus ESSO finite model and generated Rust receipt for the 4-way dust core | property tests, differential, live path, disaster/fuzz | full |
 | Burn rails | yes | yes | Kani on `verify_rails`: totality, accepted budget/supply/batch conservation, non-vacuity | burn receipt differential, live path, disaster/fuzz | full |
 | CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence | partial |
-| Perp stateless math | yes | yes | Kani on checked materializer-effect helpers and arith primitives. Full equivalence to plain helpers remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
+| Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
 | State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector | partial |
@@ -86,7 +86,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 
 ## Current Delta From This Pass
 
-This campaign moved five surfaces forward:
+This campaign moved six surfaces forward:
 
 - Burn rails moved from tested authority to full CBC grade for the rail core.
   Evidence: `docs/runtime/receipts/cbc_runtime_core_kani_v1/` now records
@@ -111,6 +111,12 @@ This campaign moved five surfaces forward:
   freshness, base-rate decay, effective fee capping, and the debt-floor guard.
   Full BigInt CDP ratio arithmetic and full `step` remain vector/property/
   differential backed.
+- Perp stateless math gained explicit bridge-domain classifiers and scalar
+  helper decomposition. Kani now proves classifier exactness, `abs_val` safety
+  under the bridge domain, oracle helper totality, exact sign predicates,
+  flat-position liquidation rejection, checked-effect helper totality, and
+  non-vacuity. Full symbolic live-domain multiplication/division for notional,
+  PnL, funding, margin, and liquidation remains property/differential backed.
 
 This pass also integrated four open security PR fixes onto the branch:
 
@@ -159,7 +165,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 46 successfully verified harnesses, 0 failures, 46 total.
+Complete - 51 successfully verified harnesses, 0 failures, 51 total.
 ```
 
 Focused tests after integrating the security fixes:
