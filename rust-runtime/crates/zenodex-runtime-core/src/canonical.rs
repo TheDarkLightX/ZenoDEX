@@ -9,7 +9,7 @@
 //! * `encode_bytes` — `uvarint(len)` length prefix, then the raw bytes.
 //! * `domain_sep_bytes` — `b"zenodex:" + label + b":v" + version + b"\x00"`,
 //!   an ASCII, NUL-terminated domain-separation prefix.
-//! * `sha256_hex` — lowercase SHA-256, `0x`-prefixed.
+//! * `sha256_bytes` / `sha256_hex` — raw or lowercase `0x`-prefixed SHA-256.
 //! * `hex_to_bytes_fixed` — `0x`-prefixed fixed-width hex → bytes.
 //! * `canonical_json_bytes` — `sort_keys`, compact, `ensure_ascii=False`,
 //!   floats rejected (over the core-owned [`JsonValue`] tree).
@@ -103,11 +103,16 @@ pub fn domain_sep_bytes(label: &str, version: u32) -> Vec<u8> {
     try_domain_sep_bytes(label, version).expect("static domain separator is valid")
 }
 
-/// Lowercase SHA-256 of `data`, `0x`-prefixed.
-pub fn sha256_hex(data: &[u8]) -> String {
+/// Raw SHA-256 digest of `data`.
+pub fn sha256_bytes(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    format!("0x{}", hex::encode(hasher.finalize()))
+    hasher.finalize().into()
+}
+
+/// Lowercase SHA-256 of `data`, `0x`-prefixed.
+pub fn sha256_hex(data: &[u8]) -> String {
+    format!("0x{}", hex::encode(sha256_bytes(data)))
 }
 
 /// Decode a `0x`-prefixed, fixed-width hex string into exactly `nbytes` bytes.
@@ -287,6 +292,14 @@ mod tests {
     #[test]
     fn sha256_hex_empty_vector() {
         // Matches hashlib.sha256(b"").hexdigest() with the 0x prefix.
+        assert_eq!(
+            sha256_bytes(b""),
+            [
+                0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f,
+                0xb9, 0x24, 0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c, 0xa4, 0x95, 0x99, 0x1b,
+                0x78, 0x52, 0xb8, 0x55,
+            ]
+        );
         assert_eq!(
             sha256_hex(b""),
             "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"

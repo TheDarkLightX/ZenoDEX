@@ -14,7 +14,7 @@
 
 use num_bigint::BigUint;
 
-use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
+use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_bytes, sha256_hex};
 
 pub const E8: u128 = 100_000_000;
 pub const BPS_SCALE: u128 = 10_000;
@@ -196,11 +196,15 @@ impl ZusdState {
     /// Canonical state root: `domain_sep("zusd_state", v1)` + every field as a
     /// uvarint, in declaration order.
     pub fn state_root(&self) -> String {
+        format!("0x{}", hex::encode(self.state_root_bytes()))
+    }
+
+    fn state_root_bytes(&self) -> [u8; 32] {
         let mut buf = domain_sep_bytes(STATE_LABEL, STATE_VERSION);
         for f in self.fields() {
             buf.extend(encode_uvarint(f));
         }
-        sha256_hex(&buf)
+        sha256_bytes(&buf)
     }
 }
 
@@ -213,14 +217,12 @@ pub struct ZusdAccepted {
     pub receipt_hash: String,
 }
 
-fn receipt_hash(tag: &str, post_root: &str) -> String {
-    // post_root is "0x" + 64 hex; commit to its raw 32 bytes.
-    let root_bytes = hex::decode(&post_root[2..]).expect("state root is valid hex");
+fn receipt_hash(tag: &str, post_root: &[u8; 32]) -> String {
     let mut buf = domain_sep_bytes(RECEIPT_LABEL, RECEIPT_VERSION);
     buf.extend_from_slice(b"TAG");
     buf.extend(encode_bytes(tag.as_bytes()));
     buf.extend_from_slice(b"RT");
-    buf.extend(encode_bytes(&root_bytes));
+    buf.extend(encode_bytes(post_root));
     sha256_hex(&buf)
 }
 
@@ -436,8 +438,8 @@ fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, &'static str
     if !check_invariants(&ns).is_empty() {
         return Err(REJ_INVARIANT_VIOLATION);
     }
-    let root = ns.state_root();
-    let rh = receipt_hash(tag, &root);
+    let root_bytes = ns.state_root_bytes();
+    let rh = receipt_hash(tag, &root_bytes);
     Ok(ZusdAccepted {
         tag,
         state: ns,
@@ -778,6 +780,16 @@ mod tests {
 
     fn amt(v: &str) -> Option<String> {
         Some(v.to_string())
+    }
+
+    #[test]
+    fn state_root_bytes_match_hex_root_without_reparse() {
+        let state = ZusdState::default();
+        let root = state.state_root();
+        assert_eq!(root, format!("0x{}", hex::encode(state.state_root_bytes())));
+        let receipt = receipt_hash("advance_epoch", &state.state_root_bytes());
+        assert!(receipt.starts_with("0x"));
+        assert_eq!(receipt.len(), 66);
     }
 
     fn bootstrap(state: &ZusdState, price: &str) -> ZusdState {
