@@ -40,6 +40,8 @@ def normalize_settlement_op_for_commitment(op3: Mapping[str, Any]) -> Dict[str, 
             return 0
         if isinstance(value, bool) or not isinstance(value, int):
             raise TypeError(f"{name} must be an int")
+        if value < 0:
+            raise ValueError(f"{name} must be non-negative")
         return int(value)
 
     def _canonical_json_key(value: object) -> str:
@@ -99,10 +101,14 @@ def normalize_settlement_op_for_commitment(op3: Mapping[str, Any]) -> Dict[str, 
         if not isinstance(raw, list):
             raise TypeError(f"settlement.{name} must be a list")
         acc: dict[tuple[str, ...], tuple[int, int]] = {}
+        allowed_fields = set(key_fields) | {"delta_add", "delta_sub"}
         for entry in raw:
             if not isinstance(entry, Mapping):
                 raise TypeError(f"{name} entries must be objects")
             entry_d = dict(entry)
+            extra_fields = sorted(set(entry_d) - allowed_fields)
+            if extra_fields:
+                raise TypeError(f"{name} entries have unknown fields: {', '.join(extra_fields)}")
             key = tuple(_require_str(entry_d.get(f), name=f"{name}.{f}", non_empty=True) for f in key_fields)
             delta_add = _int_or_0(entry_d.get("delta_add", 0), name=f"{name}.delta_add")
             delta_sub = _int_or_0(entry_d.get("delta_sub", 0), name=f"{name}.delta_sub")
