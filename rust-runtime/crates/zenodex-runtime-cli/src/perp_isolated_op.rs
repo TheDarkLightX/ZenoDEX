@@ -51,6 +51,7 @@ pub const REJ_BAD_SCHEMA: &str = "perp_isolated_op_bad_schema";
 pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_REQUEST_FIELD: &str = "perp_isolated_op_unknown_request_field";
+pub const REJ_UNKNOWN_FACT_FIELD: &str = "perp_isolated_op_unknown_fact_field";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
 pub const REJ_DUPLICATE_ACCOUNT: &str = "perp_isolated_op_duplicate_account";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
@@ -70,6 +71,15 @@ const REQUEST_KEYS: [&str; 7] = [
     "accounts",
     "op",
     "facts",
+];
+const FACT_KEYS: [&str; 7] = [
+    "operator_ok",
+    "sender_bound_ok",
+    "all_positions_flat",
+    "balance_available",
+    "oracle_adapter_ok",
+    "oracle_authorization_ok",
+    "min_collectible_liquidation_penalty_quote",
 ];
 
 #[derive(Clone, Debug)]
@@ -293,6 +303,11 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         Some(f) => f,
         None => return reject(REJ_MISSING_FACTS),
     };
+    for key in facts_obj.keys() {
+        if !FACT_KEYS.contains(&key.as_str()) {
+            return reject(REJ_UNKNOWN_FACT_FIELD);
+        }
+    }
     let facts = match Facts::parse(facts_obj) {
         Ok(f) => f,
         Err(e) => return reject(e),
@@ -1810,6 +1825,23 @@ mod tests {
             materialize_isolated_op(&r)["reject_reason"],
             json!(REJ_MISSING_FACTS)
         );
+    }
+
+    #[test]
+    fn unknown_fact_field_rejects() {
+        let mut r = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        r["facts"]
+            .as_object_mut()
+            .unwrap()
+            .insert("extra_fact".to_string(), json!(true));
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_FACT_FIELD));
+        assert!(out.get("post").is_none());
     }
 
     #[test]
