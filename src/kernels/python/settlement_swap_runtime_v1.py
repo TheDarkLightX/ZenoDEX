@@ -159,13 +159,19 @@ def _reject_doc(exc: Exception) -> dict[str, Any]:
 
 
 def _docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    if bool(left.get("accept")) != bool(right.get("accept")):
+    if set(left) != set(right):
         return False
-    if left.get("reason") != right.get("reason"):
-        return False
-    if not left.get("accept"):
-        return True
-    return left.get("quote") == right.get("quote")
+    if set(left) == {"accept", "reason"}:
+        if left["accept"] is not False or right["accept"] is not False:
+            return False
+        return left["reason"] == right["reason"]
+    if set(left) == {"accept", "reason", "quote"}:
+        if left["accept"] is not True or right["accept"] is not True:
+            return False
+        if left["reason"] != "ok" or right["reason"] != "ok":
+            return False
+        return left["quote"] == right["quote"]
+    return False
 
 
 def _rust_exact_in_doc(*, reserve_in: int, reserve_out: int, amount_in: int, fee_bps: int) -> dict[str, Any]:

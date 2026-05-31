@@ -35,13 +35,21 @@ def abs_val(x: int) -> int:
 
 
 def _perp_math_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    if bool(left.get("ok")) != bool(right.get("ok")):
+    if set(left) != set(right):
         return False
-    if not left.get("ok"):
-        return left.get("code") == right.get("code")
-    if "flag" in left or "flag" in right:
-        return left.get("flag") == right.get("flag")
-    return left.get("value") == right.get("value")
+    if set(left) == {"ok", "code"}:
+        if left["ok"] is not False or right["ok"] is not False:
+            return False
+        return left["code"] == right["code"]
+    if set(left) == {"ok", "flag"}:
+        if left["ok"] is not True or right["ok"] is not True:
+            return False
+        return left["flag"] == right["flag"]
+    if set(left) == {"ok", "value"}:
+        if left["ok"] is not True or right["ok"] is not True:
+            return False
+        return left["value"] == right["value"]
+    return False
 
 
 def _python_doc(fn, *args: Any) -> dict[str, Any]:

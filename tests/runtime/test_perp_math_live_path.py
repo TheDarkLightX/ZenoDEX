@@ -66,6 +66,20 @@ def test_default_python_authority_is_byte_identical():
     )
 
 
+def test_perp_math_doc_parity_rejects_non_exact_shapes():
+    value_doc = {"ok": True, "value": "10"}
+    flag_doc = {"ok": True, "flag": True}
+    reject_doc = {"ok": False, "code": "amount_out_of_domain"}
+    assert m._perp_math_docs_agree(value_doc, dict(value_doc))
+    assert m._perp_math_docs_agree(flag_doc, dict(flag_doc))
+    assert m._perp_math_docs_agree(reject_doc, dict(reject_doc))
+
+    assert not m._perp_math_docs_agree(value_doc, {**value_doc, "extra": "metadata"})
+    assert not m._perp_math_docs_agree(flag_doc, {**flag_doc, "value": "1"})
+    assert not m._perp_math_docs_agree(reject_doc, {**reject_doc, "value": "0"})
+    assert not m._perp_math_docs_agree({"ok": 1, "value": "10"}, value_doc)
+
+
 def test_rust_authority_with_python_shadow_agrees_live(rust_env):
     set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
     assert m.is_oracle_fresh(5, 0, 10, True) is True

@@ -411,21 +411,38 @@ def _result_to_authority_doc(state: ZUSDState, cmd: ZUSDCommand, result: ZUSDSte
 
 
 def _authority_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    keys = (
+    keys = {
         "version",
         "kernel",
         "accept",
         "reject_reason",
         "receipt_hash",
+        "receipt",
         "pre_state_root",
         "post_state_root",
         "post_state",
-    )
-    if any(left.get(k) != right.get(k) for k in keys):
+    }
+    if set(left) != keys or set(right) != keys:
         return False
-    if bool(left.get("accept")):
-        return left.get("receipt") == right.get("receipt")
-    return True
+    if not isinstance(left["accept"], bool) or not isinstance(right["accept"], bool):
+        return False
+    if left["accept"] != right["accept"]:
+        return False
+    if left["accept"]:
+        if left["reject_reason"] is not None or right["reject_reason"] is not None:
+            return False
+        if not isinstance(left["receipt_hash"], str) or not isinstance(right["receipt_hash"], str):
+            return False
+        if not isinstance(left["receipt"], Mapping) or not isinstance(right["receipt"], Mapping):
+            return False
+    else:
+        if not isinstance(left["reject_reason"], str) or not isinstance(right["reject_reason"], str):
+            return False
+        if left["receipt_hash"] is not None or right["receipt_hash"] is not None:
+            return False
+        if left["receipt"] is not None or right["receipt"] is not None:
+            return False
+    return all(left[k] == right[k] for k in keys)
 
 
 def _authority_doc_to_result(doc: dict[str, Any], *, python_shadow: ZUSDStepResult | None = None) -> ZUSDStepResult:

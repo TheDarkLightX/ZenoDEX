@@ -84,6 +84,24 @@ def test_default_python_authority_is_byte_identical():
     )
 
 
+def test_cpmm_doc_parity_rejects_non_exact_shapes():
+    exact_in_doc = cpmm_runtime._exact_in_quote_doc(
+        cpmm_runtime._quote_cpmm_swap_exact_in_python(
+            reserve_in=1_000_000,
+            reserve_out=1_000_000,
+            amount_in=10_000,
+            fee_bps=30,
+        )
+    )
+    reject_doc = cpmm_runtime._reject_doc(ValueError("amount_out must be >= 1"))
+    assert cpmm_runtime._docs_agree(exact_in_doc, dict(exact_in_doc))
+    assert cpmm_runtime._docs_agree(reject_doc, dict(reject_doc))
+
+    assert not cpmm_runtime._docs_agree(exact_in_doc, {**exact_in_doc, "extra": "metadata"})
+    assert not cpmm_runtime._docs_agree(reject_doc, {**reject_doc, "quote": {}})
+    assert not cpmm_runtime._docs_agree({"accept": 1, "reason": "ok", "quote": {}}, exact_in_doc)
+
+
 def test_rust_authority_with_python_shadow_agrees_live(rust_env):
     set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
 

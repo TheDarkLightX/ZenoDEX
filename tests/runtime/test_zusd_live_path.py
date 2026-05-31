@@ -65,6 +65,24 @@ def test_default_python_authority_is_byte_identical():
     assert zusd.step(s, cmd) == zusd._step_python(s, cmd)
 
 
+def test_authority_doc_parity_rejects_non_exact_shapes():
+    state = zusd.init_state()
+    accept_cmd = _cmd("bootstrap_oracle", auth_ok=True, price_e8=zusd.E8)
+    accept_doc = zusd._result_to_authority_doc(state, accept_cmd, zusd._step_python(state, accept_cmd))
+    assert zusd._authority_docs_agree(accept_doc, dict(accept_doc))
+    assert not zusd._authority_docs_agree(accept_doc, {**accept_doc, "extra": "metadata"})
+
+    missing_receipt = dict(accept_doc)
+    missing_receipt.pop("receipt")
+    assert not zusd._authority_docs_agree(accept_doc, missing_receipt)
+
+    reject_cmd = _cmd("deposit_collateral", amount_e8=-1)
+    reject_doc = zusd._result_to_authority_doc(state, reject_cmd, zusd._step_python(state, reject_cmd))
+    assert zusd._authority_docs_agree(reject_doc, dict(reject_doc))
+    assert not zusd._authority_docs_agree(reject_doc, {**reject_doc, "receipt": {"tag": "reject"}})
+    assert not zusd._authority_docs_agree(reject_doc, {**reject_doc, "extra": "metadata"})
+
+
 def test_rust_authority_with_python_shadow_agrees_live(rust_env):
     set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
     rust_state = zusd.init_state()
