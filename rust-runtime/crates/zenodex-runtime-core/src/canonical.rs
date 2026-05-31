@@ -75,6 +75,21 @@ fn is_ascii_hex_digit(byte: u8) -> bool {
     byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) || (b'A'..=b'F').contains(&byte)
 }
 
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn decode_hex_pair(high: u8, low: u8) -> Result<u8, CanonicalError> {
+    let high = hex_nibble(high).ok_or(CanonicalError::BadHexChars)?;
+    let low = hex_nibble(low).ok_or(CanonicalError::BadHexChars)?;
+    Ok((high << 4) | low)
+}
+
 fn fixed_hex_expected_len(nbytes: usize) -> Option<usize> {
     nbytes.checked_mul(2)?.checked_add(2)
 }
@@ -159,9 +174,12 @@ pub fn hex_to_bytes_fixed(hex_str: &str, nbytes: usize) -> Result<Vec<u8>, Canon
     if !body.bytes().all(is_ascii_hex_digit) {
         return Err(CanonicalError::BadHexChars);
     }
-    // Length already pins this to exactly `nbytes` bytes; `hex::decode` cannot fail
-    // here, but propagate defensively rather than unwrap.
-    hex::decode(body).map_err(|_| CanonicalError::BadHexChars)
+    let bytes = body.as_bytes();
+    let mut out = Vec::with_capacity(nbytes);
+    for chunk in bytes.chunks_exact(2) {
+        out.push(decode_hex_pair(chunk[0], chunk[1])?);
+    }
+    Ok(out)
 }
 
 /// A canonical-JSON value tree.
@@ -475,6 +493,37 @@ mod kani_contracts {
     }
 
     #[kani::proof]
+    fn hex_nibble_is_exact() {
+        let byte: u8 = kani::any();
+        let expected = match byte {
+            b'0'..=b'9' => Some(byte - b'0'),
+            b'a'..=b'f' => Some(byte - b'a' + 10),
+            b'A'..=b'F' => Some(byte - b'A' + 10),
+            _ => None,
+        };
+        assert_eq!(hex_nibble(byte), expected);
+    }
+
+    #[kani::proof]
+    fn decode_hex_pair_is_exact() {
+        let high: u8 = kani::any();
+        let low: u8 = kani::any();
+        match decode_hex_pair(high, low) {
+            Ok(value) => {
+                let high_nibble = hex_nibble(high).expect("accepted high nibble");
+                let low_nibble = hex_nibble(low).expect("accepted low nibble");
+                assert!(high_nibble <= 15);
+                assert!(low_nibble <= 15);
+                assert_eq!(value, (high_nibble << 4) | low_nibble);
+            }
+            Err(e) => {
+                assert_eq!(e, CanonicalError::BadHexChars);
+                assert!(hex_nibble(high).is_none() || hex_nibble(low).is_none());
+            }
+        }
+    }
+
+    #[kani::proof]
     fn uvarint_encoded_len_boundary_cases() {
         assert_eq!(uvarint_encoded_len(0), 1);
         assert_eq!(uvarint_encoded_len(0x7f), 1);
@@ -511,5 +560,7 @@ mod kani_contracts {
         kani::cover!(fixed_hex_expected_len(0) == Some(2));
         kani::cover!(fixed_hex_expected_len(32) == Some(66));
         kani::cover!(fixed_hex_expected_len(usize::MAX) == None);
+        kani::cover!(decode_hex_pair(b'D', b'e') == Ok(0xde));
+        kani::cover!(decode_hex_pair(b'z', b'0') == Err(CanonicalError::BadHexChars));
     }
 }
