@@ -278,3 +278,26 @@ def test_perp_stateful_case_rejects_extra_funding_account_field(monkeypatch):
     monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
     with pytest.raises(RustInvocationError, match="funding-auto account: unexpected fields"):
         rust_invoker.perp_stateful_case("funding-auto", {})
+
+
+def test_perp_isolated_op_rejects_extra_accept_field(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {
+            "accept": True,
+            "post": {"quote_asset": "zUSD", "global_state": {}, "accounts": []},
+            "effects": {},
+            "extra": "metadata",
+        }
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="perp-isolated-op accepted output: unexpected fields"):
+        rust_invoker.perp_isolated_op({})
+
+
+def test_perp_isolated_op_rejects_extra_reject_field(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {"accept": False, "reject_reason": "op_not_materialized", "effects": {}}
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="perp-isolated-op rejected output: unexpected fields"):
+        rust_invoker.perp_isolated_op({})

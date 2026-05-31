@@ -933,6 +933,7 @@ def perp_isolated_op(
     if not isinstance(out, dict) or not isinstance(out.get("accept"), bool):
         raise RustInvocationError("perp-isolated-op: malformed output (missing bool accept)")
     if out["accept"]:
+        _require_exact_fields(out, {"accept", "post", "effects"}, "perp-isolated-op accepted output")
         post = out.get("post")
         if (
             not isinstance(post, dict)
@@ -944,10 +945,9 @@ def perp_isolated_op(
         if not isinstance(out.get("effects"), dict):
             raise RustInvocationError("perp-isolated-op: accepted result missing effects payload")
     else:
+        _require_exact_fields(out, {"accept", "reject_reason"}, "perp-isolated-op rejected output")
         if not isinstance(out.get("reject_reason"), str):
             raise RustInvocationError("perp-isolated-op: rejected result missing reject_reason")
-        if "post" in out:
-            raise RustInvocationError("perp-isolated-op: reject carried a post-state")
     return out
 
 
