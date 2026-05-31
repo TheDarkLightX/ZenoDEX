@@ -43,6 +43,12 @@ pub fn floor_div_i128(numerator: i128, denominator: i128) -> Option<i128> {
     if denominator == 0 {
         return None;
     }
+    // i128::MIN / -1 overflows (panic in debug, trap in release). Division by -1
+    // is exact, so flooring equals negation; checked_neg saturates MIN to None and
+    // keeps this helper total on the consensus path. Must precede the `/` below.
+    if denominator == -1 {
+        return numerator.checked_neg();
+    }
     let q = numerator / denominator;
     let r = numerator % denominator;
     if r != 0 && ((r < 0) != (denominator < 0)) {
@@ -55,6 +61,19 @@ pub fn floor_div_i128(numerator: i128, denominator: i128) -> Option<i128> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn floor_div_i128_min_over_neg_one_is_total() {
+        // Regression (D-1): i128::MIN / -1 mathematically equals i128::MAX + 1,
+        // which overflows i128 — Rust's `/` (and `%`) panic in debug and trap in
+        // release. The function must stay TOTAL on a consensus path and report the
+        // saturation as None, never abort. All other (numerator, -1) pairs floor to
+        // -numerator, which checked_neg yields exactly.
+        assert_eq!(floor_div_i128(i128::MIN, -1), None);
+        assert_eq!(floor_div_i128(i128::MIN + 1, -1), Some(i128::MAX));
+        assert_eq!(floor_div_i128(-7, -1), Some(7));
+        assert_eq!(floor_div_i128(7, -1), Some(-7));
+    }
 
     #[test]
     fn add_and_mul_ok() {
