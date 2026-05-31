@@ -36,6 +36,7 @@ from ..core.uniform_batch_optimality import (
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
+    canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
     domain_sep_bytes,
     sha256_hex,
@@ -1096,6 +1097,50 @@ def _validate_critical_settlement_oracle_authorization(
     return None
 
 
+def _require_canonical_committed_identifiers(intents: List[Intent]) -> Optional[str]:
+    """Consensus-posture check: every identifier that becomes a committed state key
+    must be canonical fixed-length hex (accept ⊆ committable).
+
+    ``compute_state_root`` decodes balance pubkeys (48 bytes), assets/pool-ids (32
+    bytes) via ``hex_to_bytes_fixed`` and raises on any non-canonical value, so an
+    accepted transition whose post-state carries a raw/non-hex identifier is
+    un-committable (it would stall a block-producer that roots the post-state, and
+    splits snapshot-vs-root identity). Sender pubkeys are already constrained by
+    signature verification; the remaining ingress gaps are swap ``recipient`` (a
+    48-byte pubkey, validated as a non-empty string only) and create-pool
+    ``asset0``/``asset1`` (32-byte assets, validated for ordering/non-emptiness
+    only). Returns a stable reject string, or None when all identifiers are
+    canonical. Callers gate this on ``require_intent_signatures`` so the permissive
+    friendly-name dev/test regime is untouched.
+
+    The identifier must already EQUAL its canonical (``0x``-prefixed, lowercase)
+    form, not merely be decodable. ``hex_to_bytes_fixed`` decodes case-insensitively
+    and the root dedups on the decoded bytes, so a mixed-case or raw-form variant is
+    individually rootable yet collides with its lowercase twin — a per-pubkey
+    double-count and a "duplicate decoded" root failure (audit C-1b/C-2). Requiring
+    the exact canonical form closes both the non-hex (un-rootable) and case/format
+    variant (collision) gaps at once.
+    """
+
+    def _is_canonical(value: object, nbytes: int) -> bool:
+        if not isinstance(value, str):
+            return False
+        try:
+            return canonical_hex_fixed_allow_0x(value, nbytes=nbytes, name="id") == value
+        except (ValueError, TypeError):
+            return False
+
+    for intent in intents:
+        recipient = intent.get_field("recipient")
+        if recipient is not None and not _is_canonical(recipient, 48):
+            return "non-canonical recipient"
+        if intent.kind == IntentKind.CREATE_POOL:
+            for field_name in ("asset0", "asset1"):
+                if not _is_canonical(intent.get_field(field_name), 32):
+                    return "non-canonical pool asset"
+    return None
+
+
 def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> List[Intent]:
     """
     Strip transport-only quote receipt witness fields after engine-side witness
@@ -1332,6 +1377,11 @@ def apply_ops(
         if not ok:
             return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_signature_verification")
+
+        if config.require_intent_signatures:
+            err = _require_canonical_committed_identifiers(intents)
+            if err is not None:
+                return DexTxResult(ok=False, error=err)
 
         err = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
         if err is not None:
