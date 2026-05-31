@@ -155,6 +155,15 @@ def test_deploy_profile_rejects_unknown_runtime_authority_policy_key():
     assert any("runtime_authority_policy has unknown keys" in conflict for conflict in conflicts)
 
 
+def test_deploy_profile_rejects_stale_promoted_surface_entry():
+    profile = load_deploy_profile("public-testnet")
+    profile["runtime_authority_policy"]["promoted_surfaces"].append("perp_stateful")
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any("not configured for Rust authority" in conflict for conflict in conflicts)
+
+
 def test_deploy_profile_rejects_non_bool_runtime_facts():
     profile = load_deploy_profile("production-strict")
     conflicts = evaluate_deploy_profile_consistency(
