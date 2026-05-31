@@ -111,3 +111,37 @@ def test_fails_closed_on_unrootable_post_state():
     header = _header_for(body=body, post_state_root=_root("any"), pre_state_root=_root("any"))
     with pytest.raises(ValueError, match="not computable"):
         validate_block_state_transition_v0(pre_state=pre, header=header, body=body, config=DexEngineConfig())
+
+
+def test_rejects_pre_state_root_not_matching_supplied_pre_state():
+    # Header claims a pre_state_root that is NOT the supplied pre-state's root: the
+    # transition must be anchored at the pre end too, so this is rejected.
+    pre = _canonical_pre_state()
+    body = _body(txs=[])
+    correct = dex_state_root_v0(pre)
+    header = _header_for(body=body, post_state_root=correct, pre_state_root=_root("wrong-pre-state"))
+    with pytest.raises(ValueError, match="pre_state_root does not match supplied pre_state"):
+        validate_block_state_transition_v0(pre_state=pre, header=header, body=body, config=DexEngineConfig())
+
+
+# ---- (b) chain state continuity: child.pre_state_root == parent.post_state_root ----
+
+from src.integration.zeno_ledger_v0 import validate_header_chain_state_continuity_v0  # noqa: E402
+
+
+def test_chain_state_continuity_accepts_continuous_chain():
+    body = _body(txs=[])
+    r0, r1, r2 = _root("s0"), _root("s1"), _root("s2")
+    h1 = _header_for(body=body, post_state_root=r1, pre_state_root=r0)
+    h2 = _header_for(body=body, post_state_root=r2, pre_state_root=r1)  # h2.pre == h1.post
+    validate_header_chain_state_continuity_v0([h1, h2])  # must not raise
+
+
+def test_chain_state_continuity_rejects_state_discontinuity():
+    body = _body(txs=[])
+    r0, r1, r2 = _root("s0"), _root("s1"), _root("s2")
+    h1 = _header_for(body=body, post_state_root=r1, pre_state_root=r0)
+    # h2 is hash-linkable but claims a pre_state_root that is NOT h1's post_state_root.
+    h2_disc = _header_for(body=body, post_state_root=r2, pre_state_root=_root("forged-pre"))
+    with pytest.raises(ValueError, match="does not match parent post_state_root"):
+        validate_header_chain_state_continuity_v0([h1, h2_disc])
