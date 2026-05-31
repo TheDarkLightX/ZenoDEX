@@ -188,7 +188,7 @@
     },
     {
       "id": "zusd_lifecycle_microgate_surface",
-      "description": "zUSD mint, redeem, repay, withdraw, liquidation, oracle-commit, and risky-operation assurance manifests.",
+      "description": "Tracked zUSD core, API, Tau, and oracle-authorization replay tests for the current lifecycle surface.",
       "required_for": [
         "full_node_host_independence"
       ],
@@ -200,31 +200,24 @@
         "py:zeno_oracle:first_shell_critical_action_map"
       ],
       "evidence_paths": [
-        "tools/zusd_mint_assurance_manifest.json",
-        "tools/zusd_redeem_assurance_manifest.json",
-        "tools/zusd_repay_assurance_manifest.json",
-        "tools/zusd_withdraw_collateral_assurance_manifest.json",
-        "tools/zusd_liquidation_assurance_manifest.json",
-        "tools/zusd_oracle_commit_assurance_manifest.json",
-        "tools/zusd_risky_ops_assurance_manifest.json"
+        "src/core/zusd.py",
+        "src/integration/zusd_api.py",
+        "tests/core/test_zusd.py",
+        "tests/core/test_zusd_multi.py",
+        "tests/integration/test_zusd_api.py",
+        "tests/tau/test_zusd_tau_specs.py"
       ],
       "checker_commands": [
-        "bash tools/run_zusd_mint_assurance_gate.sh",
-        "bash tools/run_zusd_redeem_assurance_gate.sh",
-        "bash tools/run_zusd_repay_assurance_gate.sh",
-        "bash tools/run_zusd_withdraw_collateral_assurance_gate.sh",
-        "bash tools/run_zusd_liquidation_assurance_gate.sh",
-        "bash tools/run_zusd_oracle_commit_assurance_gate.sh",
-        "bash tools/run_zusd_risky_ops_assurance_gate.sh"
+        "pytest -q tests/core/test_zusd.py tests/core/test_zusd_multi.py tests/integration/test_zusd_api.py tests/tau/test_zusd_tau_specs.py"
       ],
       "limits": [
-        "microgate surface only",
+        "tracked replay test surface only",
         "no zk proof-of-execution for zUSD lifecycle transitions"
       ]
     },
     {
       "id": "proof_mining_reward_and_claimability_surface",
-      "description": "Proof-mining manager, claimability, slot assignment, packet envelope, identity, and verification flag gates.",
+      "description": "Tracked proof-mining manager, runtime, solver-claim, status, and Tau reward replay tests.",
       "required_for": [
         "full_node_host_independence"
       ],
@@ -232,27 +225,22 @@
       "verifier_mode": "deterministic_replay",
       "public_data_availability": "public_inputs_and_replay_artifacts",
       "counts_as_transition_coverage": true,
-      "claim_ids": [
-        "shell:zeno_oracle:runtime_shell_oracle_bound_perps_settlement_v1"
-      ],
       "evidence_paths": [
-        "tools/proof_mining_claimability_assurance_manifest.json",
-        "tools/proof_mining_manager_assurance_manifest.json",
-        "tools/proof_mining_claim_gate_assurance_manifest.json",
-        "tools/proof_mining_claim_identity_gate_assurance_manifest.json",
-        "tools/proof_mining_slot_assignment_gate_assurance_manifest.json",
-        "tools/proof_mining_manager_verification_flags_gate_assurance_manifest.json"
+        "src/core/proof_mining_manager.py",
+        "src/core/proof_mining_claims.py",
+        "src/core/proof_mining_claimability_gate.py",
+        "src/integration/proof_mining_runtime.py",
+        "tests/core/test_proof_mining_manager.py",
+        "tests/integration/test_proof_mining_runtime.py",
+        "tests/tau/test_proof_mining_reward_gate.py",
+        "tests/tools/test_permissionless_solver_proof_mining_claim.py",
+        "tests/tools/test_permissionless_proof_mining_status.py"
       ],
       "checker_commands": [
-        "bash tools/run_proof_mining_claimability_assurance_gate.sh",
-        "bash tools/run_proof_mining_manager_assurance_gate.sh",
-        "bash tools/run_proof_mining_claim_gate_assurance_gate.sh",
-        "bash tools/run_proof_mining_claim_identity_gate_assurance_gate.sh",
-        "bash tools/run_proof_mining_slot_assignment_gate_assurance_gate.sh",
-        "bash tools/run_proof_mining_manager_verification_flags_gate_assurance_gate.sh"
+        "pytest -q tests/core/test_proof_mining_manager.py tests/integration/test_proof_mining_runtime.py tests/tau/test_proof_mining_reward_gate.py tests/tools/test_permissionless_solver_proof_mining_claim.py tests/tools/test_permissionless_proof_mining_status.py"
       ],
       "limits": [
-        "assurance manifests and runtime-shell replay only",
+        "tracked replay test surface only",
         "no zk proof-of-execution for proof-market reward bridge execution"
       ]
     },
