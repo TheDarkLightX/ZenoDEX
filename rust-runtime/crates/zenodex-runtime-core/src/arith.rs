@@ -43,6 +43,12 @@ pub fn floor_div_i128(numerator: i128, denominator: i128) -> Option<i128> {
     if denominator == 0 {
         return None;
     }
+    // i128::MIN / -1 overflows (panic in debug, trap in release). Division by -1
+    // is exact, so flooring equals negation; checked_neg saturates MIN to None and
+    // keeps this helper total on the consensus path. Must precede the `/` below.
+    if denominator == -1 {
+        return numerator.checked_neg();
+    }
     let q = numerator / denominator;
     let r = numerator % denominator;
     if r != 0 && ((r < 0) != (denominator < 0)) {
@@ -52,9 +58,71 @@ pub fn floor_div_i128(numerator: i128, denominator: i128) -> Option<i128> {
     }
 }
 
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    /// TOTALITY (D-1, proved over the full i128 x i128 domain): `floor_div_i128`
+    /// never panics, overflows, or traps for ANY (numerator, denominator). The
+    /// only Rust overflow case is `i128::MIN / -1`; the `denominator == -1` guard
+    /// (returning `checked_neg`) and the `denominator == 0` guard precede the `/`
+    /// and `%`, so neither can trap. This is the no-panic-on-consensus-path CBC
+    /// contract as a machine proof, not a unit test.
+    #[kani::proof]
+    fn floor_div_i128_is_total() {
+        let n: i128 = kani::any();
+        let d: i128 = kani::any();
+        let _ = floor_div_i128(n, d);
+        // The corner that motivated the guard, and the div-by-zero guard.
+        assert_eq!(floor_div_i128(i128::MIN, -1), None);
+        assert_eq!(floor_div_i128(n, 0), None);
+    }
+
+    // NOTE on floor *correctness* (vs the totality proof above): asserting the
+    // floor relationship `n == q*d + r, sign(r)==sign(d), |r|<|d|` requires relating
+    // a SYMBOLIC 128-bit quotient back to the dividend via multiplication. That is
+    // intractable for Kani's bit-blasting SAT backend even for concrete divisors
+    // (the quotient stays a symbolic 128-bit value), so it is NOT machine-proved
+    // here. The floor semantics (incl. negative operands and the MIN/-1 edge) are
+    // covered by the unit tests in `mod tests`; Kani contributes the property unit
+    // tests cannot — TOTALITY over the entire i128 x i128 domain.
+
+    /// TOTALITY: `mul_div_floor` never panics for ANY inputs — the `denominator
+    /// == 0` guard and `checked_mul` make overflow/div-by-zero typed rejects.
+    #[kani::proof]
+    fn mul_div_floor_is_total() {
+        let _ = mul_div_floor(kani::any(), kani::any(), kani::any());
+    }
+
+    /// TOTALITY + EXACTNESS: `checked_add` is total and returns `Ok` iff the native
+    /// checked op is `Some` (fail-closed on overflow, never wrap/panic). (Only the
+    /// addition is asserted symbolically; `checked_mul`'s 128-bit multiply is left
+    /// to `mul_div_floor_is_total` totality + unit tests, as symbolic 128-bit
+    /// multiplication is not tractable for the bit-blasting SAT backend.)
+    #[kani::proof]
+    fn checked_add_total_and_exact() {
+        let a: u128 = kani::any();
+        let b: u128 = kani::any();
+        assert_eq!(checked_add(a, b).ok(), a.checked_add(b));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn floor_div_i128_min_over_neg_one_is_total() {
+        // Regression (D-1): i128::MIN / -1 mathematically equals i128::MAX + 1,
+        // which overflows i128 — Rust's `/` (and `%`) panic in debug and trap in
+        // release. The function must stay TOTAL on a consensus path and report the
+        // saturation as None, never abort. All other (numerator, -1) pairs floor to
+        // -numerator, which checked_neg yields exactly.
+        assert_eq!(floor_div_i128(i128::MIN, -1), None);
+        assert_eq!(floor_div_i128(i128::MIN + 1, -1), Some(i128::MAX));
+        assert_eq!(floor_div_i128(-7, -1), Some(7));
+        assert_eq!(floor_div_i128(7, -1), Some(-7));
+    }
 
     #[test]
     fn add_and_mul_ok() {

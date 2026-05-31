@@ -895,6 +895,33 @@ def validate_header_chain_linkage_v0(
             raise ValueError("header prev_header_hash mismatch")
 
 
+def validate_header_chain_state_continuity_v0(
+    headers: Sequence[Mapping[str, Any]],
+) -> None:
+    """Fail closed unless each header's ``pre_state_root`` equals its parent's
+    ``post_state_root`` (committed-state continuity across the chain).
+
+    ``validate_header_chain_linkage_v0`` binds ``prev_header_hash`` + consecutive
+    heights, but NOT the STATE: a chain can be hash-linked yet have a state
+    discontinuity — block N+1 claiming a ``pre_state_root`` that is not block N's
+    ``post_state_root``. Validating that continuity makes the per-block
+    ``validate_block_state_transition_v0`` binding compose into an end-to-end
+    state-transition chain (parent.post == child.pre == child.post(re-executed)).
+    Kept as a separate opt-in validator so callers can compose it with the header
+    linkage / fork-choice checks.
+    """
+    if not isinstance(headers, Sequence) or isinstance(headers, (str, bytes, bytearray)):
+        raise TypeError("headers must be a sequence")
+    if not headers:
+        raise ValueError("header chain must be non-empty")
+    chain = [dict(_require_mapping(header, name=f"headers[{index}]")) for index, header in enumerate(headers)]
+    for header in chain:
+        validate_header_v0(header)
+    for index in range(1, len(chain)):
+        if chain[index]["pre_state_root"] != chain[index - 1]["post_state_root"]:
+            raise ValueError("header pre_state_root does not match parent post_state_root")
+
+
 def detect_header_equivocations_v0(
     headers: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
@@ -1053,6 +1080,79 @@ def validate_header_body_roots_v0(header: dict[str, Any], body: dict[str, Any]) 
     )
     if header["app_hash"] != expected_app_hash:
         raise ValueError("header app_hash mismatch")
+
+
+def validate_block_state_transition_v0(
+    *,
+    pre_state: DexState,
+    header: dict[str, Any],
+    body: dict[str, Any],
+    config: DexEngineConfig,
+    default_block_timestamp: int | None = None,
+) -> None:
+    """Fail closed unless ``header.post_state_root`` equals the committed state root
+    obtained by deterministically re-executing ``body.transactions`` against
+    ``pre_state``.
+
+    ``validate_header_body_roots_v0`` binds the header to the body's
+    tx/ingress/evidence/body roots and ``app_hash``, but NOT to the resulting STATE:
+    a header could carry any ``post_state_root`` and still pass. This re-executes the
+    body via ``apply_body_transactions_v0`` (deterministic functional core) and
+    recomputes ``compute_state_root`` on the result, rejecting a mismatch. An
+    un-rootable post-state (e.g. a non-canonical identifier ``compute_state_root``
+    cannot encode) is rejected fail-closed rather than crashing the validator. It
+    makes a block whose claimed pre/post state is wrong, or whose accepted body
+    yields an un-committable state, a deterministic REJECT instead of an unchecked
+    commit or a producer stall.
+
+    SCOPE — this binds ONLY the pre/post committed STATE ROOTS to the supplied
+    pre-state and the re-executed body. It is one piece of full block validation, not
+    the whole. It deliberately does NOT verify: the body's ``evidence`` /
+    ``rejection_receipts`` against re-execution (``apply_body_transactions_v0``
+    deep-copies the body and APPENDS to its existing rejection receipts, so a naive
+    re-executed-vs-supplied comparison would double-count — a correct evidence
+    binding must re-run from cleared evidence and is tracked separately), the proof
+    metadata / proof verification, the ``config_digest``->config binding, or the
+    validator set / signatures. Those are enforced by their own validators
+    (``validate_proof_metadata_header_binding_v0``, signature/validator-set checks).
+    Compose this with those for full block acceptance; on its own it closes the
+    state-root forgery / un-rootable-state class only.
+    """
+    if not isinstance(pre_state, DexState):
+        raise TypeError("pre_state must be a DexState")
+    if not isinstance(config, DexEngineConfig):
+        raise TypeError("config must be a DexEngineConfig")
+    # Structural header<->body binding first (tx/ingress/evidence/body roots + app_hash).
+    validate_header_body_roots_v0(header, body)
+    # Anchor the supplied pre-state to the header's claimed pre_state_root, so the
+    # transition is bound at BOTH ends (a caller cannot smuggle in a pre-state that
+    # does not match what the header commits to). An un-rootable pre-state fails
+    # closed rather than crashing.
+    try:
+        actual_pre_state_root = dex_state_root_v0(pre_state)
+    except Exception as exc:  # un-rootable pre-state -> fail closed
+        raise ValueError(
+            f"pre_state_root not computable (un-rootable pre-state): {exc}"
+        ) from exc
+    if header["pre_state_root"] != actual_pre_state_root:
+        raise ValueError("header pre_state_root does not match supplied pre_state")
+    # Re-execute the body deterministically; rejected txs become rejection receipts
+    # and do not advance the state, exactly as a producer would have committed it.
+    working_state, _executed_body, _receipts = apply_body_transactions_v0(
+        state=pre_state,
+        body=body,
+        config=config,
+        default_block_timestamp=default_block_timestamp,
+    )
+    try:
+        recomputed_post_state_root = dex_state_root_v0(working_state)
+    except Exception as exc:  # un-rootable post-state -> fail closed, never crash
+        raise ValueError(
+            f"post_state_root not computable from re-executed body "
+            f"(un-rootable post-state): {exc}"
+        ) from exc
+    if header["post_state_root"] != recomputed_post_state_root:
+        raise ValueError("header post_state_root does not match re-executed body state")
 
 
 def validate_proof_metadata_header_binding_v0(
