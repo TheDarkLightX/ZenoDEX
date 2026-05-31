@@ -258,3 +258,37 @@ failed / 8 passed at `d1f9d493`). The campaign branch has **no remaining red
 tests**; the regenerated receipt (code-complete HEAD `467e5146`) records all gates
 green. The proof-verifier coherence check is shipped-profile-safe (shipped
 profiles leave `require_proof_when_present=False`).
+
+## Continuation 2 — runtime invariants + C-1/C-2 (Codex A−)
+
+Two further hardening fixes, Codex-reviewed (final grade A−, no must-fix):
+
+- **Runtime invariant — fee-split conservation fail-closed** (`71457b5c`). The
+  conservation invariant (`amount + dust_in == buyburn + stakers + reserve +
+  hosts + dust_out`) was guarded only by a bare `assert` in the `apply_step`
+  golden-trace wrapper — stripped under `python -O` (fail-open), and absent from
+  the production authority path. Added a typed `FeeRouterConservationError` raised
+  fail-closed at the end of `_route_fee_python` (the authority path, and the
+  python shadow inside rust-authority modes) and in `apply_step`. Conservation is
+  exact by construction for every valid input (Codex verified the algebra), so the
+  check never falsely rejects. Regression includes a `python -O` subprocess proving
+  the guard fires under optimization.
+
+- **C-1 (and the sender/recipient half of C-2) — canonical committed identifiers
+  on consensus accept** (`af4067c7` + `484d607b`). `apply_ops`, gated on
+  `require_intent_signatures` and placed after nonce validation (preserving nonce
+  reject precedence) and before settlement compute, now rejects any
+  `sender_pubkey` / swap `recipient` (48-byte) or create-pool `asset0`/`asset1`
+  (32-byte) that does not already equal its canonical `0x`-lowercase form
+  (`canonical_hex_fixed_allow_0x(x) == x`). This closes both the non-hex
+  (un-rootable) gap and the mixed-case/raw-form collision (per-pubkey double-count
+  / "duplicate decoded") on the live transition path — sender (the default
+  recipient and create-pool creator LP both key on it), explicit recipient, and
+  pool assets. The friendly-name dev/test regime (signatures off) is untouched.
+  No blast radius: signature suites 39, dex/settlement/ledger integration 104,
+  `tests/runtime` 618, canonical-identifier regression 9 — all green.
+
+**Still open (queued):** the snapshot-codec half of C-2 (`state_from_snapshot`
+dedups by raw string vs the root's decoded bytes) — the *consensus accept* path is
+now closed, but the snapshot loader is a separate surface. P2 (F-1 allowed_routes,
+G-1 claim drift) and P3 remain.
