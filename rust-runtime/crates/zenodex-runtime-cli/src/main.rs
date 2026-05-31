@@ -347,6 +347,18 @@ fn first_unknown_field<'a>(
     Some(format!("unknown_field:{}", extras[0]))
 }
 
+fn cases_array(req: &Value) -> Result<&Vec<Value>, String> {
+    let obj = req
+        .as_object()
+        .ok_or_else(|| "request must be an object".to_string())?;
+    if let Some(reason) = first_unknown_field(obj.keys().map(String::as_str), &["cases"]) {
+        return Err(reason);
+    }
+    obj.get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "request has no \"cases\" array".to_string())
+}
+
 // --- fee_router kernel --------------------------------------------------------
 
 struct FeeRouteParts {
@@ -1483,10 +1495,7 @@ fn err_case(index: usize, code: &str) -> CanonicalCaseResult {
 /// `{"op":"hex_to_bytes","hex":"0x..","nbytes":N}`. Output mirrors per-case
 /// results so the Python authority can diff `bytes`/`hash`/`code` exactly.
 fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let obj = match case.as_object() {
@@ -1498,6 +1507,12 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
         };
         match obj.get("op").and_then(Value::as_str) {
             Some("json_bytes") | Some("json_hash") => {
+                if let Some(reason) =
+                    first_unknown_field(obj.keys().map(String::as_str), &["op", "value"])
+                {
+                    results.push(err_case(index, &reason));
+                    continue;
+                }
                 let value = obj.get("value").unwrap_or(&Value::Null);
                 match lower_value(value) {
                     Ok(jv) => {
@@ -1514,6 +1529,12 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
                 }
             }
             Some("hex_to_bytes") => {
+                if let Some(reason) =
+                    first_unknown_field(obj.keys().map(String::as_str), &["op", "hex", "nbytes"])
+                {
+                    results.push(err_case(index, &reason));
+                    continue;
+                }
                 let hex_str = match obj.get("hex").and_then(Value::as_str) {
                     Some(s) => s,
                     None => {
@@ -1549,6 +1570,13 @@ fn run_canonical_cases(req: &Value) -> Result<CanonicalOutput, String> {
             // the shape shared by the DEX intent auth message hash and the burn
             // receipt body hash (Phase F).
             Some("domain_json_hash") => {
+                if let Some(reason) = first_unknown_field(
+                    obj.keys().map(String::as_str),
+                    &["op", "label", "version", "value"],
+                ) {
+                    results.push(err_case(index, &reason));
+                    continue;
+                }
                 let label = match obj.get("label").and_then(Value::as_str) {
                     Some(s) => s,
                     None => {
@@ -1990,10 +2018,7 @@ struct StateRootOutput {
 
 /// Drive a `{ "cases": [ <state>, ... ] }` request through `compute_state_root`.
 fn run_state_root_cases(req: &Value) -> Result<StateRootOutput, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match parse_state(case) {
@@ -2206,10 +2231,7 @@ fn eval_perp_case(obj: &serde_json::Map<String, Value>) -> Result<PerpMathCaseRe
 }
 
 fn run_perp_math_cases(req: &Value) -> Result<PerpMathOutput, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -2286,10 +2308,7 @@ fn eval_advance_epoch_case(
 }
 
 fn run_advance_epoch_cases(req: &Value) -> Result<AdvanceEpochOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -2377,10 +2396,7 @@ fn eval_publish_clearing_price_case(
 }
 
 fn run_publish_clearing_price_cases(req: &Value) -> Result<PublishClearingPriceOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -2543,10 +2559,7 @@ fn eval_settle_epoch_case(
 }
 
 fn run_settle_epoch_cases(req: &Value) -> Result<SettleEpochOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -2653,10 +2666,7 @@ fn eval_partial_liquidate_case(
 }
 
 fn run_partial_liquidate_cases(req: &Value) -> Result<PartialLiquidateOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -2760,10 +2770,7 @@ fn eval_account_op_case(
 }
 
 fn run_account_op_cases(req: &Value) -> Result<AccountOpOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -2901,10 +2908,7 @@ fn eval_set_market_params_case(
 }
 
 fn run_set_market_params_cases(req: &Value) -> Result<SetMarketParamsOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -3049,10 +3053,7 @@ fn eval_funding_auto_case(
 }
 
 fn run_funding_auto_cases(req: &Value) -> Result<FundingAutoOutputDoc, String> {
-    let cases = req
-        .get("cases")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "request has no \"cases\" array".to_string())?;
+    let cases = cases_array(req)?;
     let mut results = Vec::with_capacity(cases.len());
     for (index, case) in cases.iter().enumerate() {
         let result = match case.as_object() {
@@ -3559,5 +3560,59 @@ fn main() -> ExitCode {
             eprintln!("error: {e}");
             ExitCode::from(2)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn request_with_extra_top_level_field() -> Value {
+        json!({"cases": [], "debug": true})
+    }
+
+    fn assert_unknown_debug<T>(result: Result<T, String>) {
+        match result {
+            Ok(_) => panic!("request with unknown field unexpectedly accepted"),
+            Err(err) => assert_eq!(err, "unknown_field:debug"),
+        }
+    }
+
+    #[test]
+    fn case_based_subcommands_reject_unknown_top_level_fields() {
+        let req = request_with_extra_top_level_field();
+        assert_unknown_debug(run_canonical_cases(&req));
+        assert_unknown_debug(run_state_root_cases(&req));
+        assert_unknown_debug(run_perp_math_cases(&req));
+        assert_unknown_debug(run_advance_epoch_cases(&req));
+        assert_unknown_debug(run_publish_clearing_price_cases(&req));
+        assert_unknown_debug(run_settle_epoch_cases(&req));
+        assert_unknown_debug(run_partial_liquidate_cases(&req));
+        assert_unknown_debug(run_account_op_cases(&req));
+        assert_unknown_debug(run_set_market_params_cases(&req));
+        assert_unknown_debug(run_funding_auto_cases(&req));
+    }
+
+    #[test]
+    fn canonical_case_rejects_unknown_operation_field() {
+        let out = run_canonical_cases(&json!({
+            "cases": [
+                {
+                    "op": "domain_json_hash",
+                    "label": "dex_intent_sig:test",
+                    "version": 1,
+                    "value": {},
+                    "debug": true
+                }
+            ]
+        }))
+        .unwrap();
+
+        assert_eq!(out.version, 1);
+        assert_eq!(out.results.len(), 1);
+        assert!(!out.results[0].ok);
+        assert_eq!(out.results[0].code.as_deref(), Some("unknown_field:debug"));
+        assert!(out.results[0].hash.is_none());
     }
 }
