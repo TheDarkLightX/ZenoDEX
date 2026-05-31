@@ -508,6 +508,43 @@ def test_rust_shadow_fails_closed_on_funding_effect_tamper(rust_env, monkeypatch
     assert "disagreement" in (res.error or "")
 
 
+def test_rust_shadow_set_market_params_materialized_parity(rust_env):
+    # set_market_params is full-state materialized: Rust must reproduce the
+    # merged globals, carried accounts, and params effect payload.
+    market_id = "perp:shadow-set-market-params"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000)],
+        clearing_price_e8=100_000_000,
+        deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[
+            fa._op(
+                market_id,
+                "set_market_params",
+                params={"maintenance_margin_bps": 550, "funding_cap_bps": 500},
+            )
+        ],
+    )
+    assert res.ok is True, res.error
+    market = res.state.perps.markets[market_id]
+    assert int(market.global_state["maintenance_margin_bps"]) == 550
+    assert int(market.global_state["funding_cap_bps"]) == 500
+    assert int(market.accounts[PK_A].position_base) == 300_000
+
+
 def _open_market(market_id: str, positions):
     # Bootstrap to an Open epoch with `positions`, so account ops are accepted.
     state = fa.build_market(

@@ -20,8 +20,8 @@
 //! * A reject never carries a post-state. Reject reasons are stable strings
 //!   matching the Python authority.
 //!
-//! Coverage is incremental: actions not yet materialized return
-//! `op_not_materialized` so the bridge keeps Python authoritative for them.
+//! All current isolated-perps actions are materialized. Unknown or future actions
+//! return `op_not_materialized` so the bridge keeps Python authoritative for them.
 
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
@@ -38,6 +38,9 @@ use zenodex_runtime_core::perp_math::{
 use zenodex_runtime_core::perp_partial_liquidate::{partial_liquidate, PartialLiquidateInput};
 use zenodex_runtime_core::perp_publish_clearing_price::{
     publish_clearing_price, PublishClearingPriceInput,
+};
+use zenodex_runtime_core::perp_set_market_params::{
+    set_market_params, MarketParamsAccount, SetMarketParamsInput,
 };
 use zenodex_runtime_core::perp_settle_epoch::{settle_epoch, SettleAccount, SettleEpochInput};
 
@@ -77,6 +80,7 @@ struct Facts {
     balance_available: i128,
     oracle_adapter_ok: bool,
     oracle_authorization_ok: bool,
+    min_collectible_liquidation_penalty_quote: i128,
 }
 
 /// Read an i128 from a JSON value that is a decimal string or an integer number.
@@ -133,6 +137,10 @@ impl Facts {
             balance_available: req_fact_i128(facts, "balance_available")?,
             oracle_adapter_ok: req_fact_bool(facts, "oracle_adapter_ok")?,
             oracle_authorization_ok: req_fact_bool(facts, "oracle_authorization_ok")?,
+            min_collectible_liquidation_penalty_quote: req_fact_i128(
+                facts,
+                "min_collectible_liquidation_penalty_quote",
+            )?,
         })
     }
 }
@@ -171,6 +179,10 @@ fn account_to_json(a: &Account) -> Value {
 }
 
 fn reject(reason: &str) -> Value {
+    json!({"accept": false, "reject_reason": reason})
+}
+
+fn reject_owned(reason: String) -> Value {
     json!({"accept": false, "reject_reason": reason})
 }
 
@@ -261,6 +273,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         }
         "apply_funding_auto" => {
             materialize_apply_funding_auto(&quote_asset, global, accounts, op, &facts)
+        }
+        "set_market_params" => {
+            materialize_set_market_params(&quote_asset, global, accounts, op, &facts)
         }
         _ => reject(REJ_NOT_MATERIALIZED),
     }
@@ -1346,6 +1361,192 @@ fn materialize_apply_funding_auto(
     accept(quote_asset, &global, &post_accounts, effects)
 }
 
+const SET_MARKET_PARAM_KEYS: [&str; 9] = [
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "funding_cap_bps",
+    "min_notional_for_bounty",
+];
+
+fn set_market_param_update(
+    params: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<i128>, &'static str> {
+    params.get(key).map(as_i128).transpose()
+}
+
+/// `set_market_params`: operator-gated market-control overlay. The request
+/// carries a `params` object with only the keys to update; the Rust core merges
+/// those over the current global params, validates ordering / anti-farming /
+/// account safety, and clamps the stored funding rate to the new cap. Accounts
+/// are carried verbatim and the effect payload records the requested params.
+fn materialize_set_market_params(
+    quote_asset: &str,
+    mut global: Map<String, Value>,
+    accounts: Vec<Account>,
+    op: &Map<String, Value>,
+    facts: &Facts,
+) -> Value {
+    for k in op.keys() {
+        if k != "action" && k != "params" {
+            return reject(REJ_UNKNOWN_OP_FIELD);
+        }
+    }
+    if !facts.operator_ok {
+        return reject(REJ_OPERATOR);
+    }
+    let now_epoch = match gget(&global, "now_epoch") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    let oracle_last = match gget(&global, "oracle_last_update_epoch") {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    if oracle_last != now_epoch {
+        return reject("cannot update market params mid-epoch");
+    }
+    let params = match op.get("params").and_then(Value::as_object) {
+        Some(v) => v,
+        None => return reject("params must be an object"),
+    };
+    for key in params.keys() {
+        if !SET_MARKET_PARAM_KEYS.contains(&key.as_str()) {
+            return reject_owned(format!("unknown params key: {key}"));
+        }
+    }
+
+    let input = SetMarketParamsInput {
+        cur_max_oracle_staleness_epochs: match gget(&global, "max_oracle_staleness_epochs") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_max_oracle_move_bps: match gget(&global, "max_oracle_move_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_initial_margin_bps: match gget(&global, "initial_margin_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_maintenance_margin_bps: match gget(&global, "maintenance_margin_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_depeg_buffer_bps: match gget(&global, "depeg_buffer_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_liquidation_penalty_bps: match gget(&global, "liquidation_penalty_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_max_position_abs: match gget(&global, "max_position_abs") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_funding_cap_bps: match gget(&global, "funding_cap_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_min_notional_for_bounty: match gget(&global, "min_notional_for_bounty") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        cur_funding_rate_bps: match gget(&global, "funding_rate_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        index_price_e8: match gget(&global, "index_price_e8") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        min_collectible_liquidation_penalty_quote: facts.min_collectible_liquidation_penalty_quote,
+        upd_max_oracle_staleness_epochs: match set_market_param_update(
+            params,
+            "max_oracle_staleness_epochs",
+        ) {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_max_oracle_move_bps: match set_market_param_update(params, "max_oracle_move_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_initial_margin_bps: match set_market_param_update(params, "initial_margin_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_maintenance_margin_bps: match set_market_param_update(params, "maintenance_margin_bps")
+        {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_depeg_buffer_bps: match set_market_param_update(params, "depeg_buffer_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_liquidation_penalty_bps: match set_market_param_update(
+            params,
+            "liquidation_penalty_bps",
+        ) {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_max_position_abs: match set_market_param_update(params, "max_position_abs") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_funding_cap_bps: match set_market_param_update(params, "funding_cap_bps") {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        upd_min_notional_for_bounty: match set_market_param_update(
+            params,
+            "min_notional_for_bounty",
+        ) {
+            Ok(v) => v,
+            Err(e) => return reject(e),
+        },
+        accounts: accounts
+            .iter()
+            .map(|a| MarketParamsAccount {
+                position_base: a.position_base,
+                collateral_quote: a.collateral_quote,
+            })
+            .collect(),
+    };
+
+    let out = match set_market_params(&input) {
+        Ok(v) => v,
+        Err(e) => return reject(e),
+    };
+    for (key, value) in [
+        (
+            "max_oracle_staleness_epochs",
+            out.max_oracle_staleness_epochs,
+        ),
+        ("max_oracle_move_bps", out.max_oracle_move_bps),
+        ("initial_margin_bps", out.initial_margin_bps),
+        ("maintenance_margin_bps", out.maintenance_margin_bps),
+        ("depeg_buffer_bps", out.depeg_buffer_bps),
+        ("liquidation_penalty_bps", out.liquidation_penalty_bps),
+        ("max_position_abs", out.max_position_abs),
+        ("funding_cap_bps", out.funding_cap_bps),
+        ("min_notional_for_bounty", out.min_notional_for_bounty),
+        ("funding_rate_bps", out.funding_rate_bps),
+    ] {
+        global.insert(key.into(), Value::String(value.to_string()));
+    }
+    let effects = json!({"params": Value::Object(params.clone())});
+    accept(quote_asset, &global, &accounts, effects)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1395,7 +1596,8 @@ mod tests {
             "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
                       "all_positions_flat": true, "balance_available": "0",
-                      "oracle_adapter_ok": true, "oracle_authorization_ok": true}
+                      "oracle_adapter_ok": true, "oracle_authorization_ok": true,
+                      "min_collectible_liquidation_penalty_quote": "0"}
         })
     }
 
@@ -1433,7 +1635,8 @@ mod tests {
             "global_state": global, "accounts": accounts, "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
                       "all_positions_flat": false, "balance_available": "0",
-                      "oracle_adapter_ok": true, "oracle_authorization_ok": true}
+                      "oracle_adapter_ok": true, "oracle_authorization_ok": true,
+                      "min_collectible_liquidation_penalty_quote": "0"}
         })
     }
 
@@ -1450,7 +1653,8 @@ mod tests {
             "global_state": global, "accounts": accounts, "op": op,
             "facts": {"operator_ok": operator_ok, "sender_bound_ok": true,
                       "all_positions_flat": all_positions_flat, "balance_available": "0",
-                      "oracle_adapter_ok": true, "oracle_authorization_ok": true}
+                      "oracle_adapter_ok": true, "oracle_authorization_ok": true,
+                      "min_collectible_liquidation_penalty_quote": "0"}
         })
     }
 
@@ -2675,6 +2879,68 @@ mod tests {
     }
 
     #[test]
+    fn set_market_params_materializes_global_params_accounts_and_effect() {
+        let accounts = json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]);
+        let r = materialize_isolated_op(&req_accts(
+            settled_global(5),
+            json!({
+                "action": "set_market_params",
+                "params": {"maintenance_margin_bps": 600, "funding_cap_bps": 500}
+            }),
+            accounts,
+            true,
+        ));
+        assert_eq!(r["accept"], json!(true), "{r}");
+        let pg = &r["post"]["global_state"];
+        assert_eq!(pg["maintenance_margin_bps"], json!("600"));
+        assert_eq!(pg["funding_cap_bps"], json!("500"));
+        assert_eq!(pg["max_oracle_move_bps"], json!("500")); // carried
+        let accts = r["post"]["accounts"].as_array().unwrap();
+        assert_eq!(accts.len(), 1);
+        assert_eq!(accts[0]["position_base"], json!("300000"));
+        assert_eq!(accts[0]["collateral_quote"], json!("1000000"));
+        assert_eq!(r["effects"]["params"]["maintenance_margin_bps"], json!(600));
+        assert_eq!(r["effects"]["params"]["funding_cap_bps"], json!(500));
+    }
+
+    #[test]
+    fn set_market_params_mid_epoch_operator_and_unknown_param_reject() {
+        let accounts = json!([acct_json("aa", 0, 1_000_000, 0)]);
+        let no_operator = materialize_isolated_op(&req_accts(
+            settled_global(5),
+            json!({"action": "set_market_params", "params": {}}),
+            accounts.clone(),
+            false,
+        ));
+        assert_eq!(no_operator["reject_reason"], json!(REJ_OPERATOR));
+        assert!(no_operator.get("post").is_none());
+
+        let mid_epoch = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "set_market_params", "params": {}}),
+            accounts.clone(),
+            true,
+        ));
+        assert_eq!(
+            mid_epoch["reject_reason"],
+            json!("cannot update market params mid-epoch")
+        );
+        assert!(mid_epoch.get("post").is_none());
+
+        let unknown = materialize_isolated_op(&req_accts(
+            settled_global(5),
+            json!({"action": "set_market_params", "params": {"unknown": 1}}),
+            accounts,
+            true,
+        ));
+        assert_eq!(
+            unknown["reject_reason"],
+            json!("unknown params key: unknown")
+        );
+        assert!(unknown.get("post").is_none());
+    }
+
+    #[test]
     fn advance_operator_gate_rejects() {
         let r = materialize_isolated_op(&req(
             settled_global(5),
@@ -2714,10 +2980,10 @@ mod tests {
 
     #[test]
     fn unmaterialized_action_signals_not_materialized() {
-        // set_market_params is not yet materialized -> the bridge keeps Python authoritative.
+        // Unknown actions stay unmaterialized -> the bridge keeps Python authoritative.
         let r = materialize_isolated_op(&req(
             settled_global(5),
-            json!({"action": "set_market_params"}),
+            json!({"action": "not_a_real_action"}),
             true,
         ));
         assert_eq!(r["reject_reason"], json!(REJ_NOT_MATERIALIZED));

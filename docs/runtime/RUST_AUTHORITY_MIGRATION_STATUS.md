@@ -195,7 +195,7 @@ never carries a post-state. The request boundary is authority-grade: it requires
 the exact `schema` (`zenodex/perp_isolated_op/v1`) and `version` (1), requires the
 `facts` object with every required key (a missing fact rejects as
 `perp_isolated_op_missing_facts`, *not* as a semantic operator failure), and
-rejects unknown op fields. Nine of the ten isolated ops are materialized: the
+rejects unknown op fields. All ten isolated ops are materialized: the
 global ops **`advance_epoch`**, **`publish_clearing_price`**, and **`settle_epoch`**
 (the first account-mutating op — per-account realized P&L / liquidation + global
 fee/insurance accumulation); the four `account_op`-family ops
@@ -203,14 +203,15 @@ fee/insurance accumulation); the four `account_op`-family ops
 **`clear_breaker`**; and **`partial_liquidate`** (penalty accumulation into
 fee_pool/fee_income/insurance, `liquidated_this_step=true`); plus
 **`apply_funding_auto`** (bounded-sink funding settlement, preserving untouched
-account fields and emitting the normalized funding-summary effect). Each emits its full
+account fields and emitting the normalized funding-summary effect); and
+**`set_market_params`** (operator-only control-param overlay, funding-rate cap
+clamp, account-safety checks, and params effect). Each emits its full
 post-state and exact kernel effect (`EpochAdvanced` / `ClearingPricePublished` /
 `EpochSettled` / `CollateralDeposited` / `CollateralWithdrawn` / `PositionSet` /
 `BreakerCleared` / `PartialLiquidationApplied` / funding-summary effect).
 `settle_epoch` and
 `partial_liquidate` additionally fail closed on the oracle-adapter / authorization
-facts, matching their Python handlers. The remaining op — **`set_market_params`**
-— is not yet materialized (its bridge keeps Python authoritative).
+facts, matching their Python handlers.
 
 This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
@@ -221,11 +222,9 @@ accept/reject from the pre-state nor commit its materialized result. Accordingly
 **`perp_stateful` stays blocked under every `rust_authority*` mode** (for materialized
 and unmaterialized ops alike) and **remains `rust_shadow` in every profile**.
 
-Promotion requires (a) materializing the remaining isolated op
-(`set_market_params`) with full post-state + exact effect parity, (b) inverting
-the authority path so Rust **decides from the
+Promotion requires (a) inverting the authority path so Rust **decides from the
 pre-state and commits** its materialized result (Python becomes the shadow), then
-(c) the gate + human sign-off. Kani 0.60.0 is available; bounded-model-checking
+(b) the gate + human sign-off. Kani 0.60.0 is available; bounded-model-checking
 harnesses for the high-risk Rust kernels are a parallel next step. No profile flips
 in this change.
 
