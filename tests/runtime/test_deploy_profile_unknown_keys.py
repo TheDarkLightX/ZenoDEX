@@ -40,3 +40,19 @@ def test_extra_unknown_key_rejected(tmp_path):
     path.write_text(yaml.safe_dump(base), encoding="utf-8")
     with pytest.raises(ValueError, match="bogus_extra_policy"):
         load_deploy_profile(str(path))
+
+
+def test_static_validator_also_rejects_unknown_keys():
+    # The CI gate (tools/check_deployment_profiles.validate_deployment_profile)
+    # must share the runtime loader's fail-closed contract so it cannot pass a
+    # profile the runtime would refuse.
+    from tools.check_deployment_profiles import validate_deployment_profile
+
+    good = load_deploy_profile("production-strict")
+    assert validate_deployment_profile(dict(good))["ok"] is True
+
+    typo = dict(good)
+    typo["runtime_polciy"] = typo.pop("runtime_policy")
+    report = validate_deployment_profile(typo)
+    assert report["ok"] is False
+    assert any("unknown top-level keys" in e for e in report["errors"])
