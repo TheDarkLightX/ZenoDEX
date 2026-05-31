@@ -1,0 +1,17 @@
+# arith core Kani run @ 2657315f  branch claude/runtime-disaster-hardening-iso  date 2026-05-31
+# command: cargo kani --output-format terse -Z unstable-options --harness-timeout 10m -j 4 --harness <3 arith harnesses>
+Thread 0: Checking harness arith::kani_contracts::checked_add_total_and_exact...
+Thread 1: Checking harness arith::kani_contracts::mul_div_floor_is_total...
+Thread 2: Checking harness arith::kani_contracts::floor_div_i128_is_total...
+VERIFICATION RESULT:
+ ** 0 of 44 failed
+VERIFICATION:- SUCCESSFUL
+VERIFICATION RESULT:
+ ** 0 of 36 failed
+VERIFICATION:- SUCCESSFUL
+VERIFICATION RESULT:
+ ** 0 of 8 failed
+VERIFICATION:- SUCCESSFUL
+Manual Harness Summary:
+Complete - 3 successfully verified harnesses, 0 failures, 3 total.
+KANI_EXIT=0
