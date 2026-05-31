@@ -16,6 +16,7 @@ from typing import Any, Iterable
 
 from ..core.confidential_extension_receipts import is_canonical_confidential_measurement
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from .confidential_crypto_readiness import build_confidential_crypto_readiness_v1
 
 
 _ALLOWED_STAGES = {"disabled", "experimental", "beta", "ga"}
@@ -267,6 +268,12 @@ class ConfidentialFeatureStatus:
                 "docs/SEALED_BID_DISASTER_STATE_CATALOG.md",
             ],
         }
+        body["crypto_readiness"] = build_confidential_crypto_readiness_v1(
+            confidential_status=body,
+            attestation_status=None,
+            encrypted_sss_backup_status=None,
+            key_backend_descriptors=(),
+        )
         return {**body, "status_hash": _feature_status_hash(body)}
 
 

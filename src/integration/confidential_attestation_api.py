@@ -20,6 +20,7 @@ from .confidential_attestation_verifier import (
     make_confidential_attestation_verifier,
     verify_and_make_confidential_extension_receipt,
 )
+from .confidential_crypto_readiness import build_confidential_crypto_readiness_v1
 from .confidential_feature_status import load_confidential_feature_status_from_env
 from .confidential_runtime_receipts import build_confidential_runtime_execution_receipt_v1
 
@@ -191,7 +192,7 @@ def _status_payload() -> dict[str, Any]:
     status = load_confidential_feature_status_from_env()
     public_status = status.to_public_dict()
     verifier_cfg = _verifier_config_from_env()
-    return {
+    payload = {
         "enabled": True,
         "external_verifier_enabled": bool(verifier_cfg.enabled),
         "external_verifier_configured": bool(verifier_cfg.verifier_cmd),
@@ -208,6 +209,13 @@ def _status_payload() -> dict[str, Any]:
             "POST /api/confidential/attestation/execute",
         ],
     }
+    payload["crypto_readiness"] = build_confidential_crypto_readiness_v1(
+        confidential_status=public_status,
+        attestation_status=payload,
+        encrypted_sss_backup_status=None,
+        key_backend_descriptors=(),
+    )
+    return payload
 
 
 def _make_receipt_from_body(body: Mapping[str, Any]) -> tuple[dict[str, Any] | None, str | None]:

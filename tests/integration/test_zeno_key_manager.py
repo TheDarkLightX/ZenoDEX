@@ -25,6 +25,7 @@ from src.integration.zeno_key_manager import (
     ZenoKeyManager,
     import_tau_net_key_ref,
     import_tau_net_key_ref_with_evidence,
+    is_secret_field_name,
     validate_tau_bls_public_key,
 )
 
@@ -53,6 +54,9 @@ def test_key_ref_public_json_roundtrips_without_private_key_material() -> None:
 
 
 def test_key_ref_rejects_secret_fields_in_metadata_and_payload_shape() -> None:
+    assert is_secret_field_name("mnemonic") is True
+    assert is_secret_field_name("label") is False
+
     with pytest.raises(ValueError, match="private key material"):
         KeyRef(key_id="bad", public_key=PUBKEY_A, metadata={"nested": {"private_key_hex": "0x" + "01" * 32}})
 

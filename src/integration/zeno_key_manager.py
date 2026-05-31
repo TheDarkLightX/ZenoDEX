@@ -61,8 +61,13 @@ SECRET_FIELD_NAMES = frozenset(
         "secret",
         "secret_hex",
         "seed",
+        "mnemonic",
     }
 )
+
+
+def is_secret_field_name(value: object) -> bool:
+    return str(value).lower() in SECRET_FIELD_NAMES
 
 
 def _require_str(value: object, *, name: str) -> str:
@@ -103,7 +108,7 @@ def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
 def _reject_secret_fields(value: object, *, name: str = "metadata") -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if str(key).lower() in SECRET_FIELD_NAMES:
+            if is_secret_field_name(key):
                 raise ValueError(f"{name} must not contain private key material")
             _reject_secret_fields(item, name=f"{name}.{key}")
         return
