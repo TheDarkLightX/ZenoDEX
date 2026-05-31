@@ -3213,7 +3213,11 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
 )
 
 _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
-    {"advance_epoch", "publish_clearing_price", "clear_breaker"}
+    {"advance_epoch", "publish_clearing_price", "clear_breaker", "set_position"}
+)
+
+_PERP_STATEFUL_ACCOUNT_EFFECT_ACTIONS: frozenset[str] = frozenset(
+    {"deposit_collateral", "withdraw_collateral", "set_position", "partial_liquidate"}
 )
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
@@ -3644,7 +3648,19 @@ def _commit_materialized_rust_accept(
     except Exception as exc:
         return f"perp_stateful rust authority malformed post: {_safe_error_str(exc)}"
     ctx.markets[op.market_id] = post_market
-    ctx.effects.append({"i": i, "market_id": op.market_id, "action": op.action, "effects": dict(effects)})
+    effect_doc: dict[str, Any] = {"i": i, "market_id": op.market_id, "action": op.action}
+    if op.action in _PERP_STATEFUL_ACCOUNT_EFFECT_ACTIONS:
+        try:
+            effect_doc["account_pubkey"] = _require_str(
+                op.data.get("account_pubkey"),
+                name="account_pubkey",
+                non_empty=True,
+                max_len=512,
+            )
+        except Exception as exc:
+            return _safe_error_str(exc)
+    effect_doc["effects"] = dict(effects)
+    ctx.effects.append(effect_doc)
     return None
 
 
