@@ -58,6 +58,34 @@ non-conflicting pair (false-equivocation) and a buggy detector (missed/false
 positive). Verifiers additionally mutated a live assertion in each mine and
 confirmed the mine then **fails**, then reverted.
 
+## Generation-creativity tier (rung 2–3 — beyond uniform-random PBT)
+
+The mines above are honest but **rung-1**: uniform random single-draws, which
+confirm the easy center of the input space and rarely reach multi-transition
+sequences, structural boundaries, or the threshold knife-edge. Three follow-up
+mines climb the generation ladder against the **same real code** (no
+re-implementation), each independently verified to be *genuinely* more creative
+(the verifier cited the actual `itertools.product` / `RuleBasedStateMachine` /
+`target()` code, not relabeled randomness):
+
+| Technique | Surface | What it reaches that rung-1 cannot | Coverage | Result |
+|---|---|---|---|---|
+| **Exhaustive bounded enumeration** (`itertools.product`, *complete* not sampled) + adversarial structural seeds | `state_root` / `canonical` / `support_root` | LEB128 carry edges (127/128, 2³²±1) **deterministically**; a *certificate* over a whole ≤3-entry lattice; field-boundary-shift / split-aliasing / BAL-vs-LPB shapes uniform sampling never builds | **33,045,246 state pairs** checked complete-over-bound | no collision |
+| **Stateful multi-transition machines** (`RuleBasedStateMachine`, registry threaded forward) | `bonded_slashing`, `dynamic_peers` | **multi-slash accumulation** (10+ distinct-hash evidence packets on one subject), evidence **replay**, cumulative-slash-over-a-run, multi-round peer accumulation — structurally unreachable single-shot | 2 machines × 250 runs × 20 steps | no double-slash |
+| **Target-guided boundary pushing** (`hypothesis.target()` + distribution shaping) | quorum / slash-split / schedule | the exact knife-edge — `target()` reached **fitness 0 = `accepted_weight == threshold` exactly**, and `slash == available` — instead of the uniform center | 3000+ examples concentrated at boundaries | no witness |
+
+Cross-run invariants (e.g. `cumulative_slashed <= bonded` across the whole
+sequence, `entry_slashed == externally_tracked_cumulative` for ledger-drift) are
+the genuinely new safety statements. The exhaustive mine passed an internal
+Codex review (B−→A after honest per-sweep bound docstrings + exact `C(N,2)`
+assertions + teeth rewired through the real helper).
+
+**Honest limits:** "exhaustive" = complete only over the *deliberately tiny*
+declared bounds (2-pubkey/2-asset sub-alphabets, ≤3 entries, single-nonce), not a
+maximal-domain proof; the pool section is seed-covered, not enumerated. Stateful
+and target-guided remain bounded sampling, just steered far better. SHA-256
+preimage resistance is assumed throughout.
+
 ## Refuted at read time
 
 `conflict_graph._shared_conflict_cells_v0`'s docstring claims a global-cell tx
@@ -69,8 +97,15 @@ does. Hypothesized under-conflict **refuted**; the conflict mine now guards it.
 
 ```bash
 # from the claude/runtime-disaster-hardening-iso worktree
+# rung-1 (uniform-random) mines:
 PYTHONPATH="$PWD" python3 -m pytest tests/runtime/test_*_witness_mine.py -q
 # 45 passed  (10 mines + teeth/boundary tests; ~20,500 generated cases)
+# rung 2-3 (exhaustive / stateful / target-guided):
+PYTHONPATH="$PWD" python3 -m pytest \
+  tests/runtime/test_state_collision_exhaustive_mine.py \
+  tests/runtime/test_ledger_stateful_sequence_mine.py \
+  tests/runtime/test_boundary_target_guided_mine.py -q
+# 27 passed  (33M exhaustive pairs + stateful sequences + boundary-steered)
 ```
 
 ## Scope / non-claims
