@@ -2,10 +2,23 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 
-
 from src.core.dex import DexState
+from src.runtime.authority import (
+    AuthorityMode,
+    AuthorityPolicy,
+    reset_active_authority_policy,
+    set_active_authority_policy,
+)
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+
+
+def _perp_stateful_policy(mode: AuthorityMode) -> AuthorityPolicy:
+    return AuthorityPolicy(
+        default=AuthorityMode.PYTHON_AUTHORITY,
+        per_surface={"perp_stateful": mode},
+        promoted_surfaces=frozenset(),
+    )
 
 
 def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:
@@ -1880,3 +1893,41 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     )
     assert res_mid.ok is False
     assert res_mid.error == "cannot update market params mid-epoch"
+
+
+def test_rust_shadow_unauthorized_settle_epoch_does_not_run_oracle_bridge_verifier() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:shadow-settle-preauth"
+    quote_asset = "0x" + "61" * 32
+    operator = "00" * 48
+    unauthorized_sender = "11" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    verifier_calls = 0
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        nonlocal verifier_calls
+        verifier_calls += 1
+        return {"status": "accepted", "errors": []}
+
+    set_active_authority_policy(_perp_stateful_policy(AuthorityMode.RUST_SHADOW))
+    try:
+        res = apply_perp_ops(
+            config=PerpEngineConfig(
+                operator_pubkey=operator,
+                allow_isolated_markets=True,
+                oracle_adapter_bridge_verifier=verifier,
+            ),
+            state=state,
+            operations={
+                "5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]
+            },
+            tx_sender_pubkey=unauthorized_sender,
+            block_timestamp=0,
+        )
+    finally:
+        reset_active_authority_policy()
+
+    assert res.ok is False
+    assert res.error == "operator only"
+    assert verifier_calls == 0

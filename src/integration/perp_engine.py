@@ -3566,13 +3566,22 @@ def _materialized_shadow_response_bounded(python_doc: Mapping[str, Any]) -> bool
 
 
 def _isolated_op_integration_facts(
-    *, ctx: _PerpApplyCtx, pre_market: PerpMarketState, op: PerpOp
+    *,
+    ctx: _PerpApplyCtx,
+    pre_market: PerpMarketState,
+    op: PerpOp,
+    trust_authoritative_acceptance: bool = False,
 ) -> dict[str, Any]:
     """Compute the explicit non-kernel facts consumed by the Rust materializer.
 
     These facts are evaluated from the pre-state integration shell. Rust may
     consume them, but it must not reimplement operator keys, sender binding,
     wallet balances, or oracle bridge verification.
+
+    DbC precondition: ``trust_authoritative_acceptance`` may only be true
+    after the authoritative Python handler has accepted this operation. In
+    that mode, oracle facts are derived from the accepted handler result rather
+    than re-running side-effectful bridge verification.
     """
     account_pubkey = op.data.get("account_pubkey")
     account_key = account_pubkey if isinstance(account_pubkey, str) else ""
@@ -3580,7 +3589,10 @@ def _isolated_op_integration_facts(
 
     oracle_adapter_ok = True
     oracle_authorization_ok = True
-    if op.action == "settle_epoch":
+    if trust_authoritative_acceptance:
+        oracle_adapter_ok = True
+        oracle_authorization_ok = True
+    elif op.action == "settle_epoch":
         adapter_err = _require_oracle_adapter_bridge(
             ctx.config,
             data=op.data,
@@ -4154,14 +4166,30 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
     handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
     if handler is None:
         return f"unknown perps action: {op.action}"
-    integration_facts = (
-        _isolated_op_integration_facts(ctx=ctx, pre_market=market, op=op)
-        if mode is not AuthorityMode.PYTHON_AUTHORITY
-        else None
-    )
+    pre_fact_ctx = None
+    if mode is not AuthorityMode.PYTHON_AUTHORITY:
+        pre_fact_ctx = _PerpApplyCtx(
+            config=ctx.config,
+            balances=_copy_balance_table(ctx.balances),
+            nonces=_copy_nonce_table(ctx.nonces),
+            markets=dict(ctx.markets),
+            effects=[],
+            tx_sender_pubkey=ctx.tx_sender_pubkey,
+            block_timestamp=ctx.block_timestamp,
+        )
+
     err = handler(ctx, i=i, op=op, market=market)
     if err is not None:
         return err
+
+    integration_facts = None
+    if pre_fact_ctx is not None:
+        integration_facts = _isolated_op_integration_facts(
+            ctx=pre_fact_ctx,
+            pre_market=market,
+            op=op,
+            trust_authoritative_acceptance=True,
+        )
     # The accepted op appended exactly one effect; capture its semantic payload
     # for effect parity.
     python_effect = _materialized_effect_payload(ctx.effects[-1]) if ctx.effects else {}
