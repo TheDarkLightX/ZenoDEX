@@ -3,9 +3,10 @@
 Hardening campaign (not a feature campaign) to reduce defect rate per LOC and
 minimize disaster states across the consensus-critical runtime. Bounded-evidence
 language throughout: **Confirmed** = reproduced locally; **Refuted** = the
-hypothesized failure provably cannot occur; **Documented** = verified but not
-patched, by scope/risk/design; **Negative receipt** = a disaster hypothesis
-checked and found safe with the guard cited.
+hypothesized failure could not be reproduced and is rejected by an existing
+invariant cited in the finding; **Documented** = verified but not patched, by
+scope/risk/design; **Negative receipt** = a disaster hypothesis checked against
+the cited guard and not reproduced (bounded by what was read/run, not a proof).
 
 No deployment profile was flipped and no authority mode was promoted. No test,
 formal gate, authority check, parser strictness, profile gate, or fail-closed
@@ -35,17 +36,30 @@ at the clean baseline (verified by reverting all campaign changes):
 - `test_production_strict_profile_requires_upba_and_oracle_posture`
 - `test_profile_rejects_proof_required_without_enabled_verifier`
 
-These assert that `src/integration/deployment_profiles.py`'s
+These live in `src/integration/deployment_profiles.py`'s
 `deployment_profile_violations()` / `validate_deployment_profile()` (the
 **`DexEngineConfig`** posture validator — a *different* module from the
-`deploy_profile.py` YAML loader touched by fix F-2) flags unsafe postures
-(legacy settlement validation + unsigned intents on public-testnet; missing UPBA
-certificate / oracle-authorization on production-strict; `require_proof_when_present`
-without an enabled verifier). The validator does **not** flag these at baseline,
-so the tests are red on `d1f9d493`. This is a genuine **pre-existing latent
-profile-gate signal**, left isolated per campaign rules (separate module,
-non-trivial fix, source-of-truth between test and impl unverified). Queued P0 —
-see `NEXT_RUNTIME_HARDENING_QUEUE.md`.
+`deploy_profile.py` YAML loader touched by fix F-2). Per-test root cause
+(reproduced this campaign; corrected after Codex review — they are **not** a
+single uniform gate weakness):
+
+- `test_public_testnet_profile_rejects_unsafe_boundary_switches` — **stale test
+  (wording drift), NOT a gap.** The validator DOES flag legacy settlement, but as
+  `"dex_config.settlement_validation must be strong_proof_carrying"`; the test
+  asserts the old phrasing `"dex_config.settlement_validation must not be legacy"`.
+- `test_production_strict_profile_requires_upba_and_oracle_posture` — **stale test
+  (removed field), NOT a gap.** It errors with
+  `TypeError: DexEngineConfig.__init__() got an unexpected keyword argument
+  'require_uniform_batch_certificate'` at the `replace(...)` call, before the
+  validator runs — it references a removed/renamed dataclass field.
+- `test_profile_rejects_proof_required_without_enabled_verifier` — **the one
+  likely-real gap.** `validate_deployment_profile(...)` returns `ok=True` where
+  the test expects `ok=False` (a profile with `require_proof_when_present=True`
+  and no enabled verifier should be rejected).
+
+So 2 of 3 are stale tests (wording / removed field) and 1 is a likely-real
+posture-gate gap. Left isolated per campaign rules. Queued P0 — see
+`NEXT_RUNTIME_HARDENING_QUEUE.md`.
 
 ## Methodology
 
@@ -77,7 +91,9 @@ see `NEXT_RUNTIME_HARDENING_QUEUE.md`.
 | F | API server, deploy profiles, confidential/sealed-bid flags, profile gates |
 | G | formal artifact ↔ running-code linkage (ESSO, Lean, Tau, TLA, Kani receipts) |
 
-**Headline:** the runtime is fundamentally fail-closed and well-built. The
+**Headline:** across the audited surfaces and the hypotheses listed below, the
+runtime behaved fail-closed in every path examined (this is bounded by what was
+read and reproduced, not a proof of total fail-closedness). The
 authority bridge converts every Rust subprocess timeout / nonzero-exit /
 malformed-output / disagreement into `AuthorityError` (hard reject) in every
 Rust-authoritative mode; `RustUnavailable` is benign only in `rust_shadow`;
@@ -102,7 +118,8 @@ hypotheses were checked and found safe (see *Negative receipts*).
 - **Surface/file:** F — `src/integration/deploy_profile.py:load_deploy_profile`
 - **Repro (red):** a copy of `production-strict.yaml` with `runtime_policy` mistyped as `runtime_polciy` loaded cleanly (only `schema` was validated); `evaluate_deploy_profile_consistency` then resolved the block to `{}` and silently skipped the `local_only_routes_allowed` conflict check — well-formed profile yields 2 `local_only` conflicts, typo'd profile yields `()`. An operator who believed they had forbidden demo-token auth would have an unenforced policy. Confirmed neither the runtime gate nor the static validator caught the block-name typo.
 - **Fix:** explicit `ALLOWED_PROFILE_KEYS` allowlist (the 13 documented top-level blocks); reject any unknown top-level key at load with a stable `ValueError`. Shipped profiles use only allowlisted keys → load behavior unchanged.
-- **Regression:** `tests/runtime/test_deploy_profile_unknown_keys.py` (typo'd block + extra key rejected; shipped profiles still load). Full `tests/runtime` 613 passed.
+- **Regression:** `tests/runtime/test_deploy_profile_unknown_keys.py` (typo'd block + extra key rejected; shipped profiles still load). Full `tests/runtime` 614 passed.
+- **Follow-up (commit `00a445e2`, Codex finding #4):** the static CI validator `tools/check_deployment_profiles.py` now reuses the same `ALLOWED_PROFILE_KEYS` allowlist and also rejects unknown top-level keys, so the CI gate cannot pass a profile the runtime loader would refuse.
 - **Residual:** within-block key typos (e.g. `local_only_routes_alowed`) are not yet caught — see queue.
 
 ## Refutations / false positives
@@ -180,7 +197,7 @@ Selected (full list in the Phase 1 audit transcript):
 | B state/canonical | B-1 (amount domain band `[2^128,2^256)`, fail-closed via disagreement, unreachable) | root coverage closed (D-CANON-002 refuted) |
 | C ledger/replay | **C-1 / C-2** (accept ⊄ committable for non-canonical identifiers; latent until a block-producer roots post-state) | **P1** |
 | D econ kernels | 3 known unreachable residuals (cpmm gap_bps>10000 code, zusd mcr/ccr>1e30 bound, +D-1 now fixed) | parity strong; D-1 fixed |
-| E orchestration | none new (E-1 refuted; double-settle/atomicity/sequence all safe) | safe |
+| E orchestration | no new defect found (E-1 refuted; double-settle / atomicity / sequence / advance-without-oracle hypotheses each reproduced as fail-closed — see negative receipts) | no new defect |
 | F API/config | **F-1** (allowed_routes unenforced, P2), F-2 fixed, within-block typos (P3), F-3 (rate limiter, defense-in-depth) | partly fixed |
 | G formal linkage | G-1 (claim/evidence drift, P2), G-2 (kernel not engine-linked), G-3 (Tau spec-mode rc), G-4 (receipt reproducibility) | honest posture; documented |
 | pre-existing | **3 red posture-gate tests** in `deployment_profiles.py` (P0) | recorded, isolated |
@@ -194,25 +211,32 @@ Selected (full list in the Phase 1 audit transcript):
 
 ## Evidence gates (final)
 
-Receipt: `docs/runtime/receipts/runtime_disaster_hardening_2026_05_31/evidence_gates.txt`
+Receipt (captured at code-complete HEAD `00a445e2`):
+`docs/runtime/receipts/runtime_disaster_hardening_2026_05_31/evidence_gates.txt`
 
 | Gate | Result |
 |------|--------|
 | `tools/check_deployment_profiles.py` | ok (all 3 profiles) |
-| `pytest -q tests/runtime` | 613 passed |
+| `pytest -q tests/runtime` | 614 passed (610 baseline + 4 new regression/lock tests) |
 | `pytest -q tests/core/test_batch_clearing.py` | 44 passed |
-| `pytest -q tests/integration/test_deployment_profiles.py` | 3 **pre-existing** failures, 8 passed (recorded above) |
+| `pytest -q tests/integration/test_deployment_profiles.py` | 3 **pre-existing** failures (2 stale tests + 1 likely-real gap), 8 passed |
 | `cargo fmt --check` | clean |
 | `cargo test -q` | 244 passed (73 core + 170 cli + 1 new) |
 | `cargo clippy --all-targets -D warnings` | clean |
 
 ## Commits
 
-| Commit | Summary |
-|--------|---------|
-| `c1cb1e2b` | D-1: make `floor_div_i128` total on `(i128::MIN, -1)` |
-| `451e5e18` | F-2: reject unknown top-level keys in deploy profiles (fail closed) |
-| `5dce013e` | E-1: lock fail-closed behavior on duplicate intent_ids (audit refuted) |
+| Commit | Kind | Summary |
+|--------|------|---------|
+| `c1cb1e2b` | code | D-1: make `floor_div_i128` total on `(i128::MIN, -1)` |
+| `451e5e18` | code | F-2: reject unknown top-level keys in deploy profiles (fail closed) |
+| `5dce013e` | test | E-1: lock fail-closed behavior on duplicate intent_ids (audit refuted) |
+| `5e4ea9b4` | docs | this campaign report + queue additions + evidence receipt |
+| `00a445e2` | code | mirror F-2 unknown-key rejection into the CI validator (Codex finding #4) |
+| *(this commit)* | docs | Codex-review corrections: per-test characterization of the 3 pre-existing failures, receipt-scoped language, regenerated receipt @ `00a445e2` |
+
+`00a445e2` is the **code-complete** HEAD; the evidence-gate receipt is captured
+there and the only later commit is this documentation-correction commit.
 
 (Built on `917d7b1e`, which already carried the concurrent agent's parity-validated
 perp materializer dup-account + unknown-request-field rejects.)

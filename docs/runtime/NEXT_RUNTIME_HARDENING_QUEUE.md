@@ -78,18 +78,22 @@ campaign: **D-1** (floor_div_i128 totality), **F-2** (deploy-profile unknown-key
 rejection); **E-1** refuted + locked.
 
 ## P0(new) — pre-existing red posture-gate tests in `deployment_profiles.py`
-Three tests fail at the clean baseline `d1f9d493`:
-`test_public_testnet_profile_rejects_unsafe_boundary_switches`,
-`test_production_strict_profile_requires_upba_and_oracle_posture`,
-`test_profile_rejects_proof_required_without_enabled_verifier`.
-They assert `deployment_profile_violations()` / `validate_deployment_profile()`
-flag unsafe `DexEngineConfig` postures (legacy settlement + unsigned intents on
-public-testnet; missing UPBA certificate / oracle-authorization on
-production-strict; `require_proof_when_present` without an enabled verifier). The
-validator does not flag them. **Likely latent profile-gate weakness** — or the
-tests are ahead of the impl. Triage source-of-truth (tighten
-`deployment_profiles.py` to flag the postures, or correct/justify the tests). NOT
-the `deploy_profile.py` YAML loader (F-2, fixed). Left isolated this campaign.
+Three tests fail at the clean baseline `d1f9d493` (in `DexEngineConfig` posture
+validation — NOT the `deploy_profile.py` YAML loader F-2 fixed). Root cause is
+**not uniform** (per-test, reproduced + corrected after Codex review):
+- `test_public_testnet_profile_rejects_unsafe_boundary_switches` — **stale test
+  wording**: validator flags legacy settlement as
+  `"...must be strong_proof_carrying"`; test asserts old `"...must not be legacy"`.
+  Fix: update the test assertion. (Not a gate gap.)
+- `test_production_strict_profile_requires_upba_and_oracle_posture` — **stale test
+  field**: `TypeError` on a removed/renamed kwarg `require_uniform_batch_certificate`
+  in `replace(...)`. Fix: update the test to current `DexEngineConfig` fields.
+  (Not a gate gap.)
+- `test_profile_rejects_proof_required_without_enabled_verifier` — **likely-real
+  gap**: `validate_deployment_profile` returns `ok=True` where `False` expected
+  (`require_proof_when_present=True` without an enabled verifier should reject).
+  Decide source-of-truth and, if a gap, add the check to `deployment_profiles.py`.
+Left isolated this campaign.
 
 ## P1(new) — canonical-identifier domain split (accept ⊄ committable) [C-1 high-class, C-2 medium]
 `recipient` and pool `asset0/asset1` (and snapshot identifiers) flow through the

@@ -1,6 +1,8 @@
 # Runtime Disaster Hardening Campaign — Evidence Gates
-# branch: claude/runtime-disaster-hardening-iso  HEAD: 5dce013e  baseline: 917d7b1e (origin/main d1f9d493 + 2 concurrent-agent commits)
-# date: 2026-05-31
+# Captured at the CODE-COMPLETE HEAD: 00a445e2 on branch claude/runtime-disaster-hardening-iso.
+# Base: 917d7b1e (= origin/main d1f9d493 + 2 concurrent-agent commits). Date: 2026-05-31.
+# NOTE: any commit after this HEAD in the campaign is DOCUMENTATION-ONLY
+#       (campaign report / queue / this receipt) and does not affect these gate results.
 
 ## tools/check_deployment_profiles.py
 local-dev: ok
@@ -10,25 +12,26 @@ public-testnet: ok
 
 ## pytest -q tests/runtime
 ........................................................................ [ 93%]
-.....................................                                    [100%]
-613 passed in 26.12s
+......................................                                   [100%]
+614 passed in 26.41s
 
 ## pytest -q tests/core/test_batch_clearing.py (touched by E-1 lock test)
 ............................................                             [100%]
-44 passed in 0.31s
+44 passed in 0.32s
 
-## pytest -q tests/integration/test_deployment_profiles.py (PRE-EXISTING 3 failures, unrelated module deployment_profiles.py)
+## pytest -q tests/integration/test_deployment_profiles.py (PRE-EXISTING failures)
+## 2 stale tests (wording drift; removed dataclass field) + 1 likely-real gap (proof-without-verifier); see report.
 tests/integration/test_deployment_profiles.py:93: AssertionError
 =========================== short test summary info ============================
 FAILED tests/integration/test_deployment_profiles.py::test_public_testnet_profile_rejects_unsafe_boundary_switches
 FAILED tests/integration/test_deployment_profiles.py::test_production_strict_profile_requires_upba_and_oracle_posture
 FAILED tests/integration/test_deployment_profiles.py::test_profile_rejects_proof_required_without_enabled_verifier
-3 failed, 8 passed in 0.81s
+3 failed, 8 passed in 0.83s
 
 ## rust: cargo fmt --check / test / clippy -D warnings
 [fmt exit 0]
 test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-test result: ok. 170 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+test result: ok. 170 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 [test exit 0]
 [clippy exit 0]
