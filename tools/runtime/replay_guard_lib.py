@@ -10,7 +10,8 @@ surface 1). The trace schema is identical (version / kernel / steps with
 
 Sender canonicalization mirrors ``canonical_hex_fixed_allow_0x``: raw hex,
 ``0x`` / ``0X`` prefixes, mixed case, and surrounding whitespace collapse to
-lowercase ``0x`` form.
+lowercase ``0x`` form, including Python ``str.strip()`` control separators
+U+001C through U+001F.
 
 Callers must ensure the repo root is on ``sys.path``.
 """
@@ -114,6 +115,7 @@ def smoke_tx_sequence() -> list[dict]:
         {"kind": "admit", "sender": _A},  # malformed_tx (missing nonce)
         _admit_tx(_B, 3),  # accept (B independent, last B = 2)
         _admit_tx(_A, 4),  # accept (A last = 3)
+        _admit_tx(f"\u001c0X{_B[2:].upper()}\u001f", 4),  # accept: Python strip parity
     ]
 
 
