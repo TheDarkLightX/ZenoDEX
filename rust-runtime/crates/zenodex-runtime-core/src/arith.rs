@@ -40,11 +40,8 @@ pub fn mul_div_floor(
 /// infinity, so negative, non-even divisions need one extra step down.
 #[inline]
 pub fn floor_div_i128(numerator: i128, denominator: i128) -> Option<i128> {
-    if denominator == 0 {
-        return None;
-    }
-    let q = numerator / denominator;
-    let r = numerator % denominator;
+    let q = numerator.checked_div(denominator)?;
+    let r = numerator.checked_rem(denominator)?;
     if r != 0 && ((r < 0) != (denominator < 0)) {
         q.checked_sub(1)
     } else {
@@ -96,5 +93,6 @@ mod tests {
         assert_eq!(floor_div_i128(-7, -3), Some(2));
         assert_eq!(floor_div_i128(-6, 3), Some(-2));
         assert_eq!(floor_div_i128(1, 0), None);
+        assert_eq!(floor_div_i128(i128::MIN, -1), None);
     }
 }
