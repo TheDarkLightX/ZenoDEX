@@ -544,7 +544,7 @@ def test_real_deploy_profiles_load_and_validate():
             assert policy.mode_for("cpmm_settlement") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("fee_router") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("perp_math") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("perp_stateful") is AuthorityMode.RUST_SHADOW
+            assert policy.mode_for("perp_stateful") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("zusd") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
@@ -556,6 +556,7 @@ def test_real_deploy_profiles_load_and_validate():
                     "cpmm_settlement",
                     "fee_router",
                     "perp_math",
+                    "perp_stateful",
                     "replay_guard",
                     "state_root",
                     "zusd",

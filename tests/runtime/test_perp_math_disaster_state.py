@@ -73,6 +73,7 @@ def test_public_testnet_profile_promotes_perp_math():
         "canonical",
         "cpmm_settlement",
         "fee_router",
+        "perp_stateful",
         "replay_guard",
         "state_root",
         "zusd",

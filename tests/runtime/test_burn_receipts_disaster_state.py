@@ -107,6 +107,7 @@ def test_public_testnet_profile_promotes_burn_receipts():
         "cpmm_settlement",
         "fee_router",
         "perp_math",
+        "perp_stateful",
         "replay_guard",
         "state_root",
         "zusd",
