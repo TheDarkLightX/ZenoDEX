@@ -547,11 +547,77 @@ mod kani_contracts {
     }
 
     #[kani::proof]
+    fn withdraw_collateral_total_and_accept_shape() {
+        let inp = any_input();
+
+        if let Ok(out) = account_op("withdraw_collateral", &inp) {
+            assert!(domain_ok(&inp));
+            assert_eq!(inp.epoch_phase, PHASE_OPEN);
+            assert!((1..=AMOUNT_MAX).contains(&inp.amount));
+            assert!(inp.amount <= inp.collateral_quote);
+            assert_eq!(out.collateral_quote, inp.collateral_quote - inp.amount);
+            assert_eq!(out.position_base, inp.position_base);
+            assert_eq!(out.entry_price_e8, inp.entry_price_e8);
+            assert_eq!(out.breaker_active, inp.breaker_active);
+            assert_eq!(
+                out.breaker_last_trigger_epoch,
+                inp.breaker_last_trigger_epoch
+            );
+        }
+    }
+
+    #[kani::proof]
+    fn set_position_total_and_accept_shape() {
+        let inp = any_input();
+
+        if let Ok(out) = account_op("set_position", &inp) {
+            assert!(domain_ok(&inp));
+            assert_eq!(inp.epoch_phase, PHASE_OPEN);
+            assert!(inp.oracle_seen);
+            assert!((-POSITION_PARAM_MAX..=POSITION_PARAM_MAX).contains(&inp.new_position_base));
+            assert!(abs_val(inp.new_position_base) <= inp.max_position_abs);
+            assert_eq!(out.position_base, inp.new_position_base);
+            assert_eq!(
+                out.entry_price_e8,
+                if inp.new_position_base == 0 {
+                    0
+                } else {
+                    inp.index_price_e8
+                }
+            );
+            assert_eq!(out.collateral_quote, inp.collateral_quote);
+            assert_eq!(out.breaker_active, inp.breaker_active);
+            assert_eq!(
+                out.breaker_last_trigger_epoch,
+                inp.breaker_last_trigger_epoch
+            );
+        }
+    }
+
+    #[kani::proof]
     fn account_op_covers_are_reachable() {
         let mut deposit = open_flat_input(50_000);
         kani::cover!(account_op("deposit_collateral", &deposit).is_ok());
         deposit.amount = 0;
         kani::cover!(account_op("deposit_collateral", &deposit) == Err(REJ_PARAM_AMOUNT));
+
+        let mut withdraw = open_flat_input(50_000);
+        withdraw.position_base = 500_000;
+        withdraw.entry_price_e8 = 100_000_000;
+        withdraw.index_price_e8 = 100_000_000;
+        withdraw.collateral_quote = 200_000;
+        kani::cover!(account_op("withdraw_collateral", &withdraw).is_ok());
+        withdraw.amount = 180_000;
+        kani::cover!(account_op("withdraw_collateral", &withdraw) == Err(REJ_WITHDRAW_GUARD));
+
+        let mut set_position = open_flat_input(1);
+        set_position.new_position_base = 800_000;
+        set_position.index_price_e8 = 100_000_000;
+        set_position.collateral_quote = 200_000;
+        kani::cover!(account_op("set_position", &set_position).is_ok());
+        set_position.collateral_quote = 10_000;
+        set_position.new_position_base = 1_000_000;
+        kani::cover!(account_op("set_position", &set_position) == Err(REJ_SET_POSITION_GUARD));
 
         let mut clear = open_flat_input(1);
         clear.breaker_active = true;
