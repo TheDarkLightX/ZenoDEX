@@ -2762,16 +2762,7 @@ def _apply_isolated_partial_liquidate(
     market_id = op.market_id
     data = op.data
 
-    allowed = {
-        "module",
-        "version",
-        "market_id",
-        "action",
-        "account_pubkey",
-        "fraction_bps",
-        "oracle_adapter_bridge",
-    }
-    unknown_fields_ok = not (set(data.keys()) - allowed)
+    unknown_fields_ok = not (set(data.keys()) - _PARTIAL_LIQUIDATE_ALLOWED_FIELDS)
     gate_error = _sender_gate_error(
         action_kind=RUNTIME_ACTION_PARTIAL_LIQUIDATE,
         action=action,
@@ -3235,6 +3226,18 @@ _PERP_STATEFUL_TOP_LEVEL_EFFECT_ACTIONS: frozenset[str] = frozenset(
     {"apply_funding_auto", "set_market_params"}
 )
 
+_PARTIAL_LIQUIDATE_ALLOWED_FIELDS: frozenset[str] = frozenset(
+    {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "account_pubkey",
+        "fraction_bps",
+        "oracle_adapter_bridge",
+    }
+)
+
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
     "perp_stateful Rust authority is not live-wired (shadow materialization only); "
     "configure rust_shadow"
@@ -3445,6 +3448,25 @@ def _isolated_op_integration_facts(
     }
 
 
+def _reject_unknown_materialized_op_fields(op: PerpOp) -> Optional[str]:
+    """Reject raw fields that would be stripped before Rust validation.
+
+    Design by Contract:
+    - Precondition: ``op.data`` is the original operation payload.
+    - Invariant: promoted Rust-authority ops fail closed on Python-equivalent
+      unknown-field boundaries before sanitized Rust request shaping.
+    - Postcondition: a partial liquidation with any non-allowlisted raw field is
+      never committed by pure Rust authority.
+    """
+    if op.action != "partial_liquidate":
+        return None
+    return _reject_unknown_fields(
+        op.data,
+        set(_PARTIAL_LIQUIDATE_ALLOWED_FIELDS),
+        error="partial_liquidate has unknown fields",
+    )
+
+
 def _build_isolated_op_request(
     *, pre_market: PerpMarketState, op: PerpOp, integration_facts: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -3453,6 +3475,10 @@ def _build_isolated_op_request(
     Python has accepted an op, but the facts are still computed from the pre-state
     shell instead of being hardcoded. That keeps the request boundary ready for a
     later Rust-authority inversion."""
+    unknown_fields_error = _reject_unknown_materialized_op_fields(op)
+    if unknown_fields_error is not None:
+        raise ValueError(unknown_fields_error)
+
     op_obj: dict[str, Any] = {"action": op.action}
     if op.action == "advance_epoch":
         op_obj["delta"] = str(_require_int(op.data.get("delta", 0), name="delta", non_negative=True))

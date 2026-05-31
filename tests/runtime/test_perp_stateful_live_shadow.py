@@ -738,6 +738,50 @@ def test_rust_authority_commits_partial_liquidate_without_python_handler(rust_en
     assert effect["effects"]["event"] == "PartialLiquidationApplied"
 
 
+def test_rust_authority_rejects_partial_liquidate_unknown_fields(rust_env):
+    market_id = "perp:auth-rust-only-partial-liquidate-unknown"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 500_000)],
+        clearing_price_e8=100_000_000,
+        deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch"), fa._op(market_id, "advance_epoch", delta=1)],
+    )
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = 500
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=accts)
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[
+            fa._op(
+                market_id,
+                "partial_liquidate",
+                account_pubkey=PK_A,
+                fraction_bps=0,
+                attacker_extra="must-fail-closed",
+            )
+        ],
+    )
+    assert res.ok is False
+    assert res.error == "partial_liquidate has unknown fields"
+
+
 def test_all_materialized_isolated_ops_have_manual_rust_authority_slice():
     from src.integration import perp_engine
 
