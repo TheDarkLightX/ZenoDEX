@@ -188,7 +188,7 @@ def load_authority_policy(profile: Mapping[str, Any] | None) -> AuthorityPolicy:
         raise TypeError("runtime_authority_policy must be a mapping")
 
     schema = section.get("schema")
-    if schema is not None and schema != POLICY_SCHEMA_V1:
+    if schema != POLICY_SCHEMA_V1:
         raise ValueError(
             f"runtime_authority_policy schema must be {POLICY_SCHEMA_V1!r}, got {schema!r}"
         )

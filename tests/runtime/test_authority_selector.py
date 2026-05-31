@@ -354,34 +354,61 @@ def test_load_policy_parses_section():
 def test_load_policy_rejects_bad_schema():
     with pytest.raises(ValueError):
         load_authority_policy({"runtime_authority_policy": {"schema": "wrong/schema"}})
+    with pytest.raises(ValueError, match="runtime_authority_policy schema"):
+        load_authority_policy({"runtime_authority_policy": {"default": "python_authority"}})
 
 
 def test_load_policy_rejects_bad_mode():
     with pytest.raises(ValueError):
         load_authority_policy(
-            {"runtime_authority_policy": {"per_surface": {"x": "rust_maybe"}}}
+            {
+                "runtime_authority_policy": {
+                    "schema": "zenodex/runtime_authority_policy/v1",
+                    "per_surface": {"x": "rust_maybe"},
+                }
+            }
         )
 
 
 def test_load_policy_rejects_non_string_surface_ids():
     with pytest.raises(TypeError, match="per_surface surface id must be a string"):
         load_authority_policy(
-            {"runtime_authority_policy": {"per_surface": {123: "python_authority"}}}
+            {
+                "runtime_authority_policy": {
+                    "schema": "zenodex/runtime_authority_policy/v1",
+                    "per_surface": {123: "python_authority"},
+                }
+            }
         )
     with pytest.raises(TypeError, match="promoted_surfaces surface id must be a string"):
         load_authority_policy(
-            {"runtime_authority_policy": {"promoted_surfaces": ["fee_router", 123]}}
+            {
+                "runtime_authority_policy": {
+                    "schema": "zenodex/runtime_authority_policy/v1",
+                    "promoted_surfaces": ["fee_router", 123],
+                }
+            }
         )
 
 
 def test_load_policy_rejects_blank_or_duplicate_surface_ids():
     with pytest.raises(ValueError, match="surface id must be non-empty"):
         load_authority_policy(
-            {"runtime_authority_policy": {"per_surface": {" fee_router": "python_authority"}}}
+            {
+                "runtime_authority_policy": {
+                    "schema": "zenodex/runtime_authority_policy/v1",
+                    "per_surface": {" fee_router": "python_authority"},
+                }
+            }
         )
     with pytest.raises(ValueError, match="promoted_surfaces must not contain duplicates"):
         load_authority_policy(
-            {"runtime_authority_policy": {"promoted_surfaces": ["fee_router", "fee_router"]}}
+            {
+                "runtime_authority_policy": {
+                    "schema": "zenodex/runtime_authority_policy/v1",
+                    "promoted_surfaces": ["fee_router", "fee_router"],
+                }
+            }
         )
 
 
