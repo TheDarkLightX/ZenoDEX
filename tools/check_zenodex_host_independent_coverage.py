@@ -69,6 +69,7 @@ def validate_host_independent_coverage_v0(
     for required_gate in (
         "python3 tools/check_zenodex_host_independent_coverage.py",
         "python3 tools/check_zenodex_batch_proof_coverage.py",
+        "python3 tools/check_zenodex_proof_substrate_obligations.py",
         "python3 tools/check_zenodex_transition_profile_closure.py",
         "python3 tools/check_zenodex_critical_value_surface_inventory.py",
     ):

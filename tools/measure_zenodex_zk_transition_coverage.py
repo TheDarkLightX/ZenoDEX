@@ -17,11 +17,13 @@ if str(ROOT) not in sys.path:
 
 from tools.check_zenodex_batch_proof_coverage import validate_batch_proof_coverage_v0
 from tools.check_zenodex_critical_value_surface_inventory import validate_critical_value_surface_inventory_v0
+from tools.check_zenodex_proof_substrate_obligations import validate_proof_substrate_obligations_v0
 from tools.check_zenodex_transition_profile_closure import validate_transition_profile_closure_v0
 
 DEFAULT_MANIFEST = ROOT / "docs" / "ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json"
 DEFAULT_PROOF_MATRIX = ROOT / "docs" / "ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
 DEFAULT_BATCH_PROOF_MANIFEST = ROOT / "docs" / "ZENODEX_BATCH_PROOF_COVERAGE_V0.json"
+DEFAULT_PROOF_SUBSTRATE_MANIFEST = ROOT / "docs" / "ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json"
 DEFAULT_TRANSITION_CLOSURE_MANIFEST = ROOT / "docs" / "ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json"
 DEFAULT_SURFACE_INVENTORY_MANIFEST = ROOT / "docs" / "ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json"
 
@@ -31,6 +33,7 @@ def build_zk_transition_coverage_report(
     manifest_path: Path = DEFAULT_MANIFEST,
     proof_matrix_path: Path = DEFAULT_PROOF_MATRIX,
     batch_manifest_path: Path = DEFAULT_BATCH_PROOF_MANIFEST,
+    proof_substrate_path: Path = DEFAULT_PROOF_SUBSTRATE_MANIFEST,
     transition_closure_path: Path = DEFAULT_TRANSITION_CLOSURE_MANIFEST,
     surface_inventory_path: Path = DEFAULT_SURFACE_INVENTORY_MANIFEST,
     smoke_report_path: Path | None = None,
@@ -39,12 +42,20 @@ def build_zk_transition_coverage_report(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     proof_matrix = json.loads(proof_matrix_path.read_text(encoding="utf-8"))
     batch_manifest = json.loads(batch_manifest_path.read_text(encoding="utf-8"))
+    proof_substrate = json.loads(proof_substrate_path.read_text(encoding="utf-8"))
     transition_closure = json.loads(transition_closure_path.read_text(encoding="utf-8"))
     surface_inventory = json.loads(surface_inventory_path.read_text(encoding="utf-8"))
     batch_report = validate_batch_proof_coverage_v0(
         batch_manifest,
         host_coverage_path=manifest_path,
         proof_matrix_path=proof_matrix_path,
+    )
+    proof_substrate_report = validate_proof_substrate_obligations_v0(
+        proof_substrate,
+        proof_matrix_path=proof_matrix_path,
+        batch_proof_path=batch_manifest_path,
+        transition_closure_path=transition_closure_path,
+        host_coverage_path=manifest_path,
     )
     transition_closure_report = validate_transition_profile_closure_v0(
         transition_closure,
@@ -83,6 +94,7 @@ def build_zk_transition_coverage_report(
     ok = (
         (timing is None or timing["ok"])
         and batch_report["ok"]
+        and proof_substrate_report["ok"]
         and transition_closure_report["ok"]
         and surface_inventory_report["ok"]
     )
@@ -110,6 +122,14 @@ def build_zk_transition_coverage_report(
             "covered_gap_ids": batch_report["covered_gap_ids"],
             "missing_gap_lanes": batch_report["missing_gap_lanes"],
         },
+        "proof_substrate_obligations": {
+            "ok": proof_substrate_report["ok"],
+            "proof_gap_obligation_count": proof_substrate_report["proof_gap_obligation_count"],
+            "tau_guard_gap_count": proof_substrate_report["tau_guard_gap_count"],
+            "zkvm_required_gap_count": proof_substrate_report["zkvm_required_gap_count"],
+            "tau_closed_real_proof_gap_count": proof_substrate_report["tau_closed_real_proof_gap_count"],
+            "unsupported_family_obligation_count": proof_substrate_report["unsupported_family_obligation_count"],
+        },
         "transition_profile_closure": {
             "ok": transition_closure_report["ok"],
             "admitted_group_count": transition_closure_report["admitted_group_count"],
@@ -136,6 +156,7 @@ def build_zk_transition_coverage_report(
         "interpretation": [
             "Current real zkVM coverage is scoped to the spot v1 Risc0 operation family listed in covered_operations.",
             "Every open proof gap must have a governed batch-proof lane before full-ZK promotion can be claimed.",
+            "Tau guard evidence is counted only as policy/admission evidence, not as execution-proof coverage.",
             "Every admitted critical transition family must map to deterministic replay or a governed zkVM proof profile.",
             "Every admitted critical transition family must also map to live runtime/proof source inventory.",
             "Deterministic replay remains the performance baseline for ordinary full-node validation.",
@@ -245,6 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--proof-matrix", type=Path, default=DEFAULT_PROOF_MATRIX)
     parser.add_argument("--batch-manifest", type=Path, default=DEFAULT_BATCH_PROOF_MANIFEST)
+    parser.add_argument("--proof-substrate", type=Path, default=DEFAULT_PROOF_SUBSTRATE_MANIFEST)
     parser.add_argument("--transition-closure", type=Path, default=DEFAULT_TRANSITION_CLOSURE_MANIFEST)
     parser.add_argument("--surface-inventory", type=Path, default=DEFAULT_SURFACE_INVENTORY_MANIFEST)
     parser.add_argument("--smoke-report", type=Path, action="append")
@@ -255,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest_path=args.manifest,
         proof_matrix_path=args.proof_matrix,
         batch_manifest_path=args.batch_manifest,
+        proof_substrate_path=args.proof_substrate,
         transition_closure_path=args.transition_closure,
         surface_inventory_path=args.surface_inventory,
         smoke_report_paths=args.smoke_report,

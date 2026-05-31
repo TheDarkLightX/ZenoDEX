@@ -3126,8 +3126,11 @@ claims:
       files:
         - tools/check_zenodex_host_independent_coverage.py
         - tests/tools/test_check_zenodex_host_independent_coverage.py
+        - tools/check_zenodex_proof_substrate_obligations.py
+        - tests/tools/test_check_zenodex_proof_substrate_obligations.py
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE.md
+        - docs/ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json
         - docs/ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - docs/claims_registry.yaml
@@ -3153,8 +3156,11 @@ claims:
       files:
         - tools/measure_zenodex_zk_transition_coverage.py
         - tests/tools/test_measure_zenodex_zk_transition_coverage.py
+        - tools/check_zenodex_proof_substrate_obligations.py
+        - tests/tools/test_check_zenodex_proof_substrate_obligations.py
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.json
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
+        - docs/ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
         - docs/ZENODEX_CRITICAL_VALUE_SURFACE_INVENTORY_V0.json
@@ -3182,6 +3188,35 @@ claims:
         - tests/tools/test_check_zenodex_batch_proof_coverage.py
         - docs/ZENODEX_BATCH_PROOF_COVERAGE_V0.json
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/claims_registry.yaml
+
+  - id: py:zenodex:proof_substrate_obligation_partition_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The proof-substrate obligation manifest partitions the remaining
+      succinct-proof backlog into Tau guard obligations, deterministic replay
+      fallbacks, zkVM execution requirements, fail-closed profile gates, and
+      external consensus or oracle assumptions. Tau evidence may support scoped
+      policy, guard, and admission facts. It cannot close current real zkVM
+      execution gaps, prove value-moving state-root transitions, prove external
+      oracle truth, or admit unsupported proof-required spot v1 operations.
+      This is a substrate-boundary and over-claim guard; it does not add real
+      zkVM proof coverage for the open proof-gap families.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_proof_substrate_obligations.py
+        - cmd: pytest -q tests/tools/test_check_zenodex_proof_substrate_obligations.py
+      files:
+        - tools/check_zenodex_proof_substrate_obligations.py
+        - tests/tools/test_check_zenodex_proof_substrate_obligations.py
+        - docs/ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE.md
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENODEX_BATCH_PROOF_COVERAGE_V0.json
+        - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - docs/claims_registry.yaml
 

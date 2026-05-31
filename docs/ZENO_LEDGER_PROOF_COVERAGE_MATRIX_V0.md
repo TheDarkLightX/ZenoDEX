@@ -38,5 +38,12 @@ epoch proof aggregation. The light-client gap is now specifically production
 validator rotation, fork-choice, slashing, peer discovery, and adversarial
 network finality.
 
+The proof-substrate obligation manifest
+[`ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json`](ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json)
+classifies these gaps by the remaining required substrate. Tau can cover scoped
+guard and admission checks for some lanes. Current real execution-proof gaps
+stay open until replay, zkVM execution, or external finality evidence closes
+the relevant obligation.
+
 This matrix is a scope-control artifact. It does not add zkVM execution support
 for the listed gaps.

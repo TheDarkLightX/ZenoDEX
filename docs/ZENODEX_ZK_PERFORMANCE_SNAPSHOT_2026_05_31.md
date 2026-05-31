@@ -34,6 +34,8 @@ Coverage from `tools/measure_zenodex_zk_transition_coverage.py`:
 - Not covered by that proof scope: `swap_exact_out`, `multi_hop`,
   `rejected_receipt_execution`, `native_asset_sync`.
 - Proof matrix scope: 7 supported surfaces and 7 explicit gap surfaces, 50%.
+- Proof-substrate partition: 7 open proof gaps classified, 5 have scoped Tau
+  guard evidence, and 0 real execution-proof gaps are closed by Tau.
 
 Conclusion: the current proof path is promising for async receipts, batch proof
 publication, audit proofs, and light-client compression. Mandatory proof

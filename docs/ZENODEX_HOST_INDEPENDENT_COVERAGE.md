@@ -38,6 +38,7 @@ Run:
 ```bash
 python3 tools/check_zenodex_host_independent_coverage.py --pretty
 python3 tools/check_zenodex_batch_proof_coverage.py --pretty
+python3 tools/check_zenodex_proof_substrate_obligations.py --pretty
 python3 tools/check_zenodex_transition_profile_closure.py --pretty
 python3 tools/check_zenodex_critical_value_surface_inventory.py --pretty
 python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
@@ -52,6 +53,7 @@ The checker rejects:
 - Covered surfaces without a supported/proved claim, proof-surface binding, or
   replay evidence path.
 - Proof-surface ids that are absent from the ZenoLedger proof coverage matrix.
+- Tau guard evidence counted as full execution-proof coverage.
 - Admitted critical transition families missing a governed replay/proof profile,
   public-data mode, evidence path, or checker command.
 - Proof-required profile operations that are marked `not_covered` but lack an
@@ -59,6 +61,31 @@ The checker rejects:
 - Critical transition-family claims that are not tied to live source files and
   required runtime/proof symbols.
 - Any `full_zk_everywhere` style claim while known proof gaps remain.
+
+## Tau And Proof Substrates
+
+Tau is useful for bounded guard, policy, and admission obligations over
+host-projected facts. It can reduce the non-zk backlog only where the remaining
+obligation is a boolean guard or finite policy composition check, and only when
+the fact producers are separately bound and fail-closed.
+
+The machine-readable partition is
+[`ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json`](ZENODEX_PROOF_SUBSTRATE_OBLIGATIONS_V0.json).
+The checker requires every open proof gap and every unsupported proof-required
+spot family to say which substrate is still required. Current result:
+
+- `tau_guard_gap_count = 5`, covering scoped guard/admission evidence for
+  oracle, zUSD, perps, proof-market, and finality-admission policy.
+- `tau_closed_real_proof_gap_count = 0`.
+- Value-moving open proof gaps still require `zkvm_execution` or deterministic
+  replay for full-node validation.
+- Light-client production finality still needs external consensus/finality
+  evidence beyond a Tau dispute-window guard.
+
+This is the answer to the Tau boundary question: use Tau for the parts that are
+really policy guards; keep execution proofs, state-root transitions, oracle
+truth, recursive aggregation, and production finality in replay, zkVM, or
+external-consensus lanes.
 
 ## Batch Proof Path
 

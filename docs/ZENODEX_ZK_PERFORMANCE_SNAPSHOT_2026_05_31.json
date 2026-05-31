@@ -31,6 +31,12 @@
       "supported_count": 7,
       "gap_count": 7,
       "coverage_pct": 50.0
+    },
+    "proof_substrate_obligations": {
+      "proof_gap_obligation_count": 7,
+      "tau_guard_gap_count": 5,
+      "tau_closed_real_proof_gap_count": 0,
+      "unsupported_family_obligation_count": 5
     }
   },
   "timing_samples": [

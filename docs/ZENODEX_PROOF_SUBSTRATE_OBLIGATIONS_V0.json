@@ -1,0 +1,427 @@
+{
+  "schema": "zenodex.proof_substrate_obligations.v0",
+  "claim_boundary": {
+    "succinct_everything_host_independence": "frontier_open",
+    "tau_is_guard_or_policy_substrate": true,
+    "tau_inputs_are_host_projected_facts": true,
+    "tau_guard_evidence_cannot_close_execution_proof_gaps": true,
+    "value_moving_transitions_require_replay_or_zkvm_execution": true,
+    "external_truth_requires_external_evidence": true,
+    "docker_is_correctness_boundary": false
+  },
+  "release_gates": [
+    "python3 tools/check_zenodex_proof_substrate_obligations.py",
+    "pytest -q tests/tools/test_check_zenodex_proof_substrate_obligations.py"
+  ],
+  "substrate_classes": [
+    {
+      "id": "tau_guard",
+      "counts_as_execution_proof": false,
+      "description": "Tau checks bounded policy, admission, and host-fact composition rules after the runtime supplies and binds the facts."
+    },
+    {
+      "id": "deterministic_replay",
+      "counts_as_execution_proof": true,
+      "description": "A full node can recompute the transition from public inputs and replay artifacts."
+    },
+    {
+      "id": "zkvm_execution",
+      "counts_as_execution_proof": true,
+      "description": "A verifier can check a proof whose public inputs bind the pre-state root, post-state root, transition batch root, profile id, and public data root."
+    },
+    {
+      "id": "checkpoint_quorum_replay",
+      "counts_as_execution_proof": false,
+      "description": "A light-client checkpoint replay or quorum lane binds headers and signatures, but does not prove every value-moving transition."
+    },
+    {
+      "id": "proof_metadata_replay",
+      "counts_as_execution_proof": false,
+      "description": "Proof metadata and report replay can enforce fail-closed proof profiles, but cannot by itself prove zkVM execution."
+    },
+    {
+      "id": "fail_closed_profile_gate",
+      "counts_as_execution_proof": false,
+      "description": "A proof-required profile rejects unsupported, missing, or mismatched proofs before admission."
+    },
+    {
+      "id": "external_consensus_or_oracle",
+      "counts_as_execution_proof": false,
+      "description": "Oracle truth, validator rotation, fork choice, and open-network finality require evidence outside a Tau policy check."
+    }
+  ],
+  "proof_gap_obligations": [
+    {
+      "proof_gap_id": "uniform_batch_upba_v2_v3_real_proof",
+      "host_surface_id": "upba_bounded_grid_and_exact_out_certificates",
+      "value_moving": true,
+      "current_fallback": "deterministic_replay",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "not_applicable",
+      "tau_scope": "UPBA bounded-grid clearing and exact-out optimality are arithmetic certificate and state-transition obligations, not Tau guard obligations in the current surface.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [],
+      "non_tau_evidence_paths": [
+        "src/core/uniform_batch_clearing.py",
+        "src/core/uniform_batch_optimality.py",
+        "tests/core/test_uniform_batch_optimality.py",
+        "tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "candidate_root",
+        "fill_vector_root"
+      ],
+      "missing_proof": "Real zkVM execution proof for UPBA v2/v3 batch clearing, exact-out, candidate-root binding, and fill-vector-root binding.",
+      "limits": [
+        "Tau does not prove candidate-grid optimality or state-root transition execution.",
+        "The current authority is deterministic replay until the zkVM lane exists."
+      ]
+    },
+    {
+      "proof_gap_id": "oracle_critical_action_real_proof",
+      "host_surface_id": "oracle_critical_action_authorization",
+      "value_moving": true,
+      "current_fallback": "deterministic_replay",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "covered_scoped_guard_only",
+      "tau_scope": "Tau can check freshness and guard composition over host-projected oracle facts. It cannot prove live oracle truth, quorum honesty, governance, or the state transition authorized by the oracle packet.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [
+        "src/tau_specs/recommended/oracle_freshness_v2.tau",
+        "formal/tau/contracts/oracle_freshness_v2.contract.json",
+        "tests/tau/test_oracle_freshness_semantic_lane.py"
+      ],
+      "non_tau_evidence_paths": [
+        "tools/check_zeno_oracle_critical_action_map.py",
+        "tests/test_zeno_oracle_critical_action_map.py",
+        "docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "action_id",
+        "query_id"
+      ],
+      "missing_proof": "Real proof for critical-action packet verification and the value-moving transition authorized by the packet; external oracle truth remains a separate assumption or proof lane.",
+      "limits": [
+        "Tau guard coverage is useful admission evidence only.",
+        "Oracle truth and governance remain outside Tau unless reduced to separately bound facts."
+      ]
+    },
+    {
+      "proof_gap_id": "zusd_lifecycle_real_proof",
+      "host_surface_id": "zusd_lifecycle_microgate_surface",
+      "value_moving": true,
+      "current_fallback": "deterministic_replay",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "covered_scoped_guard_only",
+      "tau_scope": "Tau covers selected zUSD lifecycle and oracle-recovery guards over projected facts. It does not prove mint, repay, redeem, liquidation, stability-pool, or supply-root transitions.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [
+        "tests/tau/test_zusd_tau_specs.py",
+        "tests/tau/test_tau_zusd_oracle_recovery_lifecycle.py",
+        "src/tau_specs/recommended/zusd_oracle_recovery_lifecycle_v1.tau"
+      ],
+      "non_tau_evidence_paths": [
+        "src/core/zusd.py",
+        "src/integration/zusd_api.py",
+        "tests/core/test_zusd.py",
+        "tests/core/test_zusd_multi.py",
+        "tests/integration/test_zusd_api.py"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "vault_root",
+        "supply_root"
+      ],
+      "missing_proof": "Real zkVM execution proof for zUSD mint, repay, redeem, liquidation, recovery, stability-pool claim, and supply-conservation state transitions.",
+      "limits": [
+        "Tau guard checks do not prove supply conservation by themselves.",
+        "The current zUSD authority remains deterministic replay for scoped full-node validation."
+      ]
+    },
+    {
+      "proof_gap_id": "perps_settlement_real_proof",
+      "host_surface_id": "perps_bounded_production_candidate_surface",
+      "value_moving": true,
+      "current_fallback": "deterministic_replay",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "covered_scoped_guard_only",
+      "tau_scope": "Tau covers perps ingress schema and stream guards over projected authorization facts. It does not prove funding, liquidation, ADL, insurance, or settlement account transitions.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [
+        "tools/perp_tau_ingress_schema_tau_manifest.json",
+        "tools/perp_tau_ingress_stream_assurance_manifest.json",
+        "tests/tau/test_perps_tau_specs.py",
+        "src/tau_specs/recommended/perp_tau_ingress_schema_guard_v1.tau"
+      ],
+      "non_tau_evidence_paths": [
+        "tools/run_perps_evidence.sh",
+        "tools/runtime_shell_assurance_manifest.json",
+        "src/integration/perp_engine.py",
+        "src/core/perp_epoch.py",
+        "src/core/perps.py"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "market_root",
+        "account_root"
+      ],
+      "missing_proof": "Real zkVM execution proof for perps settlement, liquidation, ADL, funding, insurance, account-root, and market-root transitions.",
+      "limits": [
+        "Tau ingress evidence can block malformed requests before execution.",
+        "Perps value movement still requires replay or a zkVM execution proof."
+      ]
+    },
+    {
+      "proof_gap_id": "proof_market_reward_real_proof",
+      "host_surface_id": "proof_mining_reward_and_claimability_surface",
+      "value_moving": true,
+      "current_fallback": "deterministic_replay",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "covered_scoped_guard_only",
+      "tau_scope": "Tau can cover reward claimability and payout-template guard facts. It does not prove reward-pool debits, payout bridge execution, or manager state-root transitions.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [
+        "tests/tau/test_proof_mining_reward_gate.py",
+        "src/tau_specs/recommended/payout_template_age_replay_envelope_v1.tau"
+      ],
+      "non_tau_evidence_paths": [
+        "src/core/proof_mining_manager.py",
+        "src/core/proof_mining_claims.py",
+        "src/core/proof_mining_claimability_gate.py",
+        "src/integration/proof_mining_runtime.py",
+        "tests/core/test_proof_mining_manager.py",
+        "tests/integration/test_proof_mining_runtime.py"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "claim_root",
+        "reward_pool_root"
+      ],
+      "missing_proof": "Real zkVM execution proof for proof-mining claimability, reward payout execution, reward-pool accounting, and manager state transitions.",
+      "limits": [
+        "Tau reward guards are admission evidence only.",
+        "Reward balances and transfer effects still need replay or zkVM execution proof."
+      ]
+    },
+    {
+      "proof_gap_id": "recursive_epoch_real_proof",
+      "host_surface_id": "proof_required_profile_metadata_and_report_replay",
+      "value_moving": false,
+      "current_fallback": "proof_metadata_and_report_replay",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "not_applicable",
+      "tau_scope": "Recursive receipt aggregation is proof-system evidence. Tau can gate metadata policy. It cannot produce or verify the recursive proof soundness claim by itself.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [],
+      "non_tau_evidence_paths": [
+        "tools/zeno_ledger_verify.py",
+        "tests/integration/test_zeno_ledger_verify_cli.py",
+        "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "child_proof_root",
+        "epoch_header_root"
+      ],
+      "missing_proof": "Real recursive receipt aggregation proof with child-proof, journal-root, and epoch-header binding.",
+      "limits": [
+        "Metadata replay can reject missing or mismatched proof reports.",
+        "Metadata replay does not prove recursive aggregation soundness."
+      ]
+    },
+    {
+      "proof_gap_id": "light_client_production_finality",
+      "host_surface_id": "zenoledger_block_peer_and_checkpoint_replay",
+      "value_moving": false,
+      "current_fallback": "checkpoint_quorum_replay",
+      "required_non_tau_substrate": "external_consensus_or_oracle",
+      "tau_status": "covered_scoped_guard_only",
+      "tau_scope": "Tau can express dispute-window and finality-admission guards over projected epoch and challenge facts. It cannot prove BLS soundness, fork choice, validator rotation, slashing, peer discovery, or open-network finality.",
+      "tau_can_close_gap": false,
+      "tau_evidence_paths": [
+        "src/tau_specs/recommended/dispute_window_finality_guard_v1.tau",
+        "tests/tau/test_gemini_promoted_composition_specs.py"
+      ],
+      "non_tau_evidence_paths": [
+        "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/check_zeno_ledger_two_machine_evidence.py",
+        "tests/test_check_zeno_ledger_light_client_checkpoint.py"
+      ],
+      "required_public_input_fields": [
+        "chain_id",
+        "profile_id",
+        "proof_system_id",
+        "pre_state_root",
+        "post_state_root",
+        "transition_batch_root",
+        "transition_count",
+        "public_data_root",
+        "checkpoint_root",
+        "validator_schedule_root"
+      ],
+      "missing_proof": "Production validator rotation, fork-choice, slashing, peer-discovery, and adversarial-network finality evidence beyond the current local checkpoint replay.",
+      "limits": [
+        "Tau finality guards can help admission policy.",
+        "Open-network finality remains an external consensus obligation."
+      ]
+    }
+  ],
+  "unsupported_proof_required_family_obligations": [
+    {
+      "unsupported_family_id": "spot_v1_rejected_receipts_proof_rejected",
+      "transition_family": "rejected_receipt_execution",
+      "profile_operation": "rejected_receipts",
+      "value_moving": false,
+      "current_authority": "fail_closed_profile_gate",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "guard_only_if_bound_to_runtime_rejection_facts",
+      "tau_can_admit_proof_required_profile": false,
+      "tau_evidence_paths": [],
+      "fail_closed_evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "missing_proof": "Spot v1 zkVM rejected-receipt execution and non-mutation proof.",
+      "limits": [
+        "The current proof-required profile rejects this family fail-closed.",
+        "Tau rejection predicates would still need runtime fact binding and state non-mutation evidence."
+      ]
+    },
+    {
+      "unsupported_family_id": "spot_v1_swap_exact_out_proof_rejected",
+      "transition_family": "swap_exact_out",
+      "profile_operation": "swap_exact_out",
+      "value_moving": true,
+      "current_authority": "fail_closed_profile_gate",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "not_applicable",
+      "tau_can_admit_proof_required_profile": false,
+      "tau_evidence_paths": [],
+      "fail_closed_evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "missing_proof": "Spot v1 zkVM exact-out execution proof.",
+      "limits": [
+        "Exact-out remains admitted through deterministic replay and UPBA certificate lanes.",
+        "The current spot v1 proof profile must reject exact-out proof admission."
+      ]
+    },
+    {
+      "unsupported_family_id": "spot_v1_upba_batch_clearing_proof_rejected",
+      "transition_family": "upba_exact_out_batch_clearing",
+      "profile_operation": "upba_batch_clearing",
+      "value_moving": true,
+      "current_authority": "fail_closed_profile_gate",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "not_applicable",
+      "tau_can_admit_proof_required_profile": false,
+      "tau_evidence_paths": [],
+      "fail_closed_evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "missing_proof": "Spot v1 zkVM UPBA batch-clearing execution proof.",
+      "limits": [
+        "UPBA remains deterministic certificate replay plus an open real-proof gap.",
+        "The current spot v1 proof profile must reject UPBA proof admission."
+      ]
+    },
+    {
+      "unsupported_family_id": "spot_v1_multi_hop_proof_rejected",
+      "transition_family": "multi_hop",
+      "profile_operation": "multi_hop",
+      "value_moving": true,
+      "current_authority": "fail_closed_profile_gate",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "not_applicable",
+      "tau_can_admit_proof_required_profile": false,
+      "tau_evidence_paths": [],
+      "fail_closed_evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "missing_proof": "Spot v1 zkVM multi-hop execution proof.",
+      "limits": [
+        "Multi-hop proof execution is not admitted under the current spot v1 proof profile.",
+        "Tau route guards cannot prove hop-by-hop state-root transitions."
+      ]
+    },
+    {
+      "unsupported_family_id": "spot_v1_native_asset_sync_proof_rejected",
+      "transition_family": "native_asset_sync",
+      "profile_operation": "native_assets",
+      "value_moving": true,
+      "current_authority": "fail_closed_profile_gate",
+      "required_non_tau_substrate": "zkvm_execution",
+      "tau_status": "not_applicable",
+      "tau_can_admit_proof_required_profile": false,
+      "tau_evidence_paths": [],
+      "fail_closed_evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "missing_proof": "Spot v1 zkVM native-asset synchronization proof with external asset-root binding.",
+      "limits": [
+        "Native asset sync remains outside the current spot proof profile.",
+        "Tau cannot prove external asset custody or synchronization state by itself."
+      ]
+    }
+  ],
+  "non_claims": [
+    "does_not_claim_tau_closes_real_zkvm_execution_gaps",
+    "does_not_claim_tau_proves_external_oracle_truth",
+    "does_not_claim_tau_proves_light_client_finality",
+    "does_not_claim_tau_proves_value_moving_state_roots",
+    "does_not_claim_unsupported_spot_v1_operations_are_proof_admitted"
+  ]
+}
