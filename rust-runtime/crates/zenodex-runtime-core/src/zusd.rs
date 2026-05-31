@@ -280,7 +280,7 @@ fn decayed_base_rate_bps(
 }
 
 fn effective_fee_bps(decayed: u128, floor_bps: u128, max_bps: u128) -> u128 {
-    let mut fee = floor_bps + decayed;
+    let mut fee = floor_bps.saturating_add(decayed);
     if fee > max_bps {
         fee = max_bps;
     }
@@ -938,5 +938,71 @@ mod tests {
         .unwrap()
         .state;
         assert_ne!(before, after.state_root());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on BigInt-free zUSD risk helpers.
+//
+// The full zUSD transition intentionally uses BigUint for CDP ratio arithmetic
+// and remains differential/vector backed. These contracts prove scalar helper
+// behavior used by the running step before or around that BigUint boundary.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    #[kani::proof]
+    fn oracle_freshness_is_exact_and_total() {
+        let now_epoch: u128 = kani::any();
+        let last_update_epoch: u128 = kani::any();
+        let max_staleness: u128 = kani::any();
+        let seen: bool = kani::any();
+
+        let actual = is_oracle_fresh(now_epoch, last_update_epoch, max_staleness, seen);
+        if !seen || now_epoch < last_update_epoch {
+            assert!(!actual);
+        } else {
+            assert_eq!(actual, now_epoch - last_update_epoch <= max_staleness);
+        }
+    }
+
+    #[kani::proof]
+    fn decayed_base_rate_never_increases() {
+        let base_rate_bps: u128 = kani::any();
+        let now_epoch: u128 = kani::any();
+        let last_epoch: u128 = kani::any();
+        let decay_per_epoch_bps: u128 = kani::any();
+
+        let decayed =
+            decayed_base_rate_bps(base_rate_bps, now_epoch, last_epoch, decay_per_epoch_bps);
+        assert!(decayed <= base_rate_bps);
+        if now_epoch <= last_epoch || decay_per_epoch_bps == 0 {
+            assert_eq!(decayed, base_rate_bps);
+        }
+    }
+
+    #[kani::proof]
+    fn effective_fee_is_capped_and_respects_floor_when_ordered() {
+        let decayed: u128 = kani::any();
+        let floor_bps: u128 = kani::any();
+        let max_bps: u128 = kani::any();
+
+        let fee = effective_fee_bps(decayed, floor_bps, max_bps);
+        assert!(fee <= BPS_SCALE);
+        assert!(fee <= max_bps || max_bps > BPS_SCALE);
+        if floor_bps <= max_bps && max_bps <= BPS_SCALE {
+            assert!(fee >= floor_bps);
+        }
+    }
+
+    #[kani::proof]
+    fn debt_floor_guard_is_exact() {
+        let debt_e8: u128 = kani::any();
+        let min_debt_open_e8: u128 = kani::any();
+        assert_eq!(
+            debt_floor_ok(debt_e8, min_debt_open_e8),
+            debt_e8 == 0 || debt_e8 >= min_debt_open_e8
+        );
     }
 }

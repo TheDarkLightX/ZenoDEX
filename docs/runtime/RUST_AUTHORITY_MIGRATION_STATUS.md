@@ -132,11 +132,11 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 42 harnesses on the actual
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 46 harnesses on the actual
 runtime crate passed (arith, canonical helper predicates, state-root scalar
-guards, balance, replay, fee-router, burn rails, the tractable CPMM
-initialization/fail-closed/helper slice, stateless perps checked-effect helpers,
-and funding-auto arithmetic).
+guards, zUSD scalar risk helpers, balance, replay, fee-router, burn rails, the
+tractable CPMM initialization/fail-closed/helper slice, stateless perps
+checked-effect helpers, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
@@ -188,7 +188,10 @@ malformed Rust output, malformed rejected-output payloads, and deterministic
 fuzz. `tests/runtime/test_zusd_live_path.py` checks active-policy wiring for
 `rust_authority_with_python_shadow`, `rust_shadow`, unavailable Rust, and
 injected disagreement. `public-testnet` lists `zusd` in `promoted_surfaces`;
-production remains `python_authority`. Multi-vault zUSD remains Python-owned.
+production remains `python_authority`. Kani now covers BigInt-free scalar risk
+helpers for oracle freshness, base-rate decay, fee capping, and debt-floor
+admission. Full BigInt CDP ratio arithmetic and full single-vault `step` remain
+property/differential backed. Multi-vault zUSD remains Python-owned.
 
 ⁹ Perp stateless math is now live-wired through `src/core/perp_v2/math.py` for
 the nine pure E1 operations: oracle freshness, oracle move, settle-price clamp,
