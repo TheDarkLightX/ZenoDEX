@@ -10,6 +10,7 @@ from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_si
 from src.integration.zusd_monetary_bridge import (
     ZUSDMonetaryState,
     zusd_monetary_sender_nonce_key,
+    zusd_monetary_state_from_obj,
     zusd_monetary_state_to_obj,
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
@@ -109,6 +110,31 @@ def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) 
     assert status["liquidation_fee_comp_bps"] == 25
     assert status["liquidation_gas_comp_fixed_collateral_e8"] == E8 // 20
     assert status["liquidation_gas_comp_bps"] == 25
+
+
+def test_zusd_monetary_state_rejects_unknown_top_level_fields() -> None:
+    obj = dict(_wrapped_app_state()["zusd_monetary"])
+    obj["future_extension"] = {"drop": "me"}
+
+    try:
+        zusd_monetary_state_from_obj(obj)
+    except ValueError as exc:
+        assert "zusd_monetary unknown fields" in str(exc)
+    else:
+        raise AssertionError("unknown zUSD monetary fields must fail closed")
+
+
+def test_zusd_monetary_state_rejects_unknown_stability_pool_entry_fields() -> None:
+    obj = dict(_wrapped_app_state()["zusd_monetary"])
+    obj["core"] = {**obj["core"], "sp_debt_e8": E8}
+    obj["sp_deposits"] = [{"pubkey": ALICE, "amount_e8": E8, "note": "ignored before hardening"}]
+
+    try:
+        zusd_monetary_state_from_obj(obj)
+    except ValueError as exc:
+        assert "zusd_monetary.sp_deposits[0] unknown fields" in str(exc)
+    else:
+        raise AssertionError("unknown stability-pool entry fields must fail closed")
 
 
 def test_status_rejects_malformed_monetary_tau_port(monkeypatch) -> None:
