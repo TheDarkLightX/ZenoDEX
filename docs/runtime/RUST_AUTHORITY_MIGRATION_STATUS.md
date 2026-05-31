@@ -188,7 +188,7 @@ balances, oracle bridge authorization, effects, and state materialization for
 this surface. `rust_authority*` modes are explicitly rejected for `perp_stateful`
 until Rust **decides accept/reject from the pre-state and commits** the
 materialized post-state + effects for every op (full-state + effect *materialization*
-now exists for eight of the ten isolated ops, but it is consumed as a shadow check,
+now exists for all ten isolated ops, but it is consumed as a shadow check,
 not as the deciding authority — see the shadow-materialization foundation note below).
 
 **Shadow materialization (in progress).** The materializer
