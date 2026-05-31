@@ -85,19 +85,18 @@ closed by a config-coherence check, the 2 stale tests modernized;
 Three tests fail at the clean baseline `d1f9d493` (in `DexEngineConfig` posture
 validation — NOT the `deploy_profile.py` YAML loader F-2 fixed). Root cause is
 **not uniform** (per-test, reproduced + corrected after Codex review):
-- `test_public_testnet_profile_rejects_unsafe_boundary_switches` — **stale test
-  wording**: validator flags legacy settlement as
-  `"...must be strong_proof_carrying"`; test asserts old `"...must not be legacy"`.
-  Fix: update the test assertion. (Not a gate gap.)
-- `test_production_strict_profile_requires_upba_and_oracle_posture` — **stale test
-  field**: `TypeError` on a removed/renamed kwarg `require_uniform_batch_certificate`
-  in `replace(...)`. Fix: update the test to current `DexEngineConfig` fields.
-  (Not a gate gap.)
-- `test_profile_rejects_proof_required_without_enabled_verifier` — **likely-real
-  gap**: `validate_deployment_profile` returns `ok=True` where `False` expected
-  (`require_proof_when_present=True` without an enabled verifier should reject).
-  Decide source-of-truth and, if a gap, add the check to `deployment_profiles.py`.
-Left isolated this campaign.
+- `test_public_testnet_profile_rejects_unsafe_boundary_switches` — was **stale test
+  wording** (validator flags legacy settlement as `"...must be strong_proof_carrying"`;
+  test asserted old `"...must not be legacy"`). RESOLVED: assertion updated (`467e5146`).
+- `test_production_strict_profile_requires_upba_and_oracle_posture` — was **stale test
+  field** (`TypeError` on removed kwarg `require_uniform_batch_certificate` in
+  `replace(...)`; rename expanded the strict-UPBA check 3→5). RESOLVED: config +
+  assertions updated to current fields (`467e5146`).
+- `test_profile_rejects_proof_required_without_enabled_verifier` — was a **real
+  config-coherence gap** (`validate_deployment_profile` returned `ok=True` for
+  `require_proof_when_present=True` without an enabled verifier; that config would
+  start a node that rejects all intent-bearing traffic). RESOLVED: coherence check
+  added to `production_config_violations` (`3f8d8bd3`).
 
 ## P1(new) — canonical-identifier domain split (accept ⊄ committable) [C-1 high-class, C-2 medium]
 `recipient` and pool `asset0/asset1` (and snapshot identifiers) flow through the
