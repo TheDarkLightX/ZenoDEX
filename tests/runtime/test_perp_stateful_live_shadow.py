@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import sys
 from dataclasses import replace
@@ -962,6 +963,83 @@ def _open_market(market_id: str, positions):
         state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
         ops=[fa._op(market_id, "advance_epoch", delta=1)],
     )
+
+
+def _materialized_accept_pair(market_id: str = "perp:materialized-schema"):
+    from src.integration import perp_engine
+
+    state = _open_market(market_id, [(PK_A, 300_000)])
+    market = state.perps.markets[market_id]
+    python_doc = perp_engine._perp_stateful_full_doc(
+        market,
+        {"event": "SchemaProbe", "notional_quote": 300_000},
+    )
+    rust_response = {
+        "accept": True,
+        "post": {
+            "quote_asset": python_doc["quote_asset"],
+            "global_state": dict(python_doc["global_state"]),
+            "accounts": [dict(account) for account in python_doc["accounts"]],
+        },
+        "effects": dict(python_doc["effects"]),
+    }
+    return perp_engine, python_doc, rust_response
+
+
+def test_materialized_full_post_compare_rejects_schema_drift():
+    perp_engine, python_doc, rust_response = _materialized_accept_pair()
+
+    assert perp_engine._full_post_markets_agree(python_doc, rust_response) is True
+
+    cases = []
+    extra_top = copy.deepcopy(rust_response)
+    extra_top["debug"] = "metadata"
+    cases.append(extra_top)
+
+    extra_post = copy.deepcopy(rust_response)
+    extra_post["post"]["debug"] = "metadata"
+    cases.append(extra_post)
+
+    extra_global = copy.deepcopy(rust_response)
+    extra_global["post"]["global_state"]["debug"] = "1"
+    cases.append(extra_global)
+
+    missing_global = copy.deepcopy(rust_response)
+    del missing_global["post"]["global_state"]["now_epoch"]
+    cases.append(missing_global)
+
+    extra_account = copy.deepcopy(rust_response)
+    extra_account["post"]["accounts"][0]["debug"] = "metadata"
+    cases.append(extra_account)
+
+    missing_account = copy.deepcopy(rust_response)
+    del missing_account["post"]["accounts"][0]["position_base"]
+    cases.append(missing_account)
+
+    for candidate in cases:
+        assert perp_engine._full_post_markets_agree(python_doc, candidate) is False
+
+
+def test_perp_isolated_op_invoker_rejects_unexpected_output_fields(monkeypatch):
+    from src.runtime import rust_invoker
+
+    _, _, accepted = _materialized_accept_pair("perp:invoker-schema")
+
+    def rejects(output, message: str) -> None:
+        monkeypatch.setattr(rust_invoker, "invoke", lambda *args, **kwargs: output)
+        with pytest.raises(rust_invoker.RustInvocationError, match=message):
+            rust_invoker.perp_isolated_op({"schema": "unused"})
+
+    accepted_extra = copy.deepcopy(accepted)
+    accepted_extra["debug"] = "metadata"
+    rejects(accepted_extra, "accepted result has unexpected fields")
+
+    post_extra = copy.deepcopy(accepted)
+    post_extra["post"]["debug"] = "metadata"
+    rejects(post_extra, "accepted post-state has unexpected fields")
+
+    rejected_extra = {"accept": False, "reject_reason": "guard", "post": {}}
+    rejects(rejected_extra, "rejected result has unexpected fields")
 
 
 def test_rust_shadow_deposit_existing_account_parity(rust_env):

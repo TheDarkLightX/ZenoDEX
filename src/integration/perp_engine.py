@@ -3160,9 +3160,13 @@ def _perp_stateful_python_doc(
 def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
     if not isinstance(python_doc, Mapping) or not isinstance(rust_doc, Mapping):
         return False
-    if bool(python_doc.get("ok")) != bool(rust_doc.get("ok")):
+    py_ok = python_doc.get("ok")
+    rust_ok = rust_doc.get("ok")
+    if not isinstance(py_ok, bool) or not isinstance(rust_ok, bool):
         return False
-    if not bool(python_doc.get("ok")):
+    if py_ok != rust_ok:
+        return False
+    if not py_ok:
         return str(python_doc.get("code")) == str(rust_doc.get("code"))
 
     def same_int(field: str) -> bool:
@@ -3207,9 +3211,8 @@ def _perp_stateful_docs_agree(python_doc: Any, rust_doc: Any) -> bool:
 
 # Ops with a full materialized Rust transition (emits the complete post-market
 # state + the exact kernel effect payload). For these, the `rust_shadow` check
-# compares the full post-state + effects; other ops use the per-op field checkers.
-# This set does NOT grant authority: Rust post-checks Python in every mode, and
-# every `rust_authority*` mode stays blocked for `perp_stateful` regardless.
+# compares the full post-state + effects. The Rust-authority dispatcher below
+# also uses this set as the eligibility list for isolated-op authority.
 _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
     {
         "advance_epoch",
@@ -3249,8 +3252,8 @@ _PERP_STATEFUL_TOP_LEVEL_EFFECT_ACTIONS: frozenset[str] = frozenset(
 )
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
-    "perp_stateful Rust authority is not live-wired (shadow materialization only); "
-    "configure rust_shadow"
+    "perp_stateful action is not eligible for Rust authority; configure rust_shadow "
+    "or promote the action"
 )
 
 # Design by Contract:
@@ -3616,17 +3619,26 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
     and the exact kernel effect payload."""
     if not isinstance(python_doc, Mapping) or not isinstance(rust_response, Mapping):
         return False
-    if not bool(rust_response.get("accept")):
+    if set(rust_response.keys()) != {"accept", "post", "effects"}:
+        return False
+    if rust_response.get("accept") is not True:
         return False
     post = rust_response.get("post")
     if not isinstance(post, Mapping):
+        return False
+    if set(post.keys()) != {"quote_asset", "global_state", "accounts"}:
         return False
     if str(python_doc.get("quote_asset")) != str(post.get("quote_asset")):
         return False
     rust_gs = post.get("global_state")
     if not isinstance(rust_gs, Mapping):
         return False
-    for key, value in python_doc["global_state"].items():
+    python_gs = python_doc.get("global_state")
+    if not isinstance(python_gs, Mapping):
+        return False
+    if set(rust_gs.keys()) != set(python_gs.keys()):
+        return False
+    for key, value in python_gs.items():
         rust_value = rust_gs.get(key)
         if isinstance(value, bool):
             if not isinstance(rust_value, bool) or value != rust_value:
@@ -3634,8 +3646,10 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
         elif str(value) != str(rust_value):
             return False
     rust_accounts = post.get("accounts")
-    python_accounts = python_doc["accounts"]
-    if not isinstance(rust_accounts, list) or len(rust_accounts) != len(python_accounts):
+    python_accounts = python_doc.get("accounts")
+    if not isinstance(python_accounts, list) or not isinstance(rust_accounts, list):
+        return False
+    if len(rust_accounts) != len(python_accounts):
         return False
     rust_by_key = {a.get("key"): a for a in rust_accounts if isinstance(a, Mapping)}
     if len(rust_by_key) != len(rust_accounts):
@@ -3643,6 +3657,8 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
     for py_acct in python_accounts:
         rust_acct = rust_by_key.get(py_acct["key"])
         if not isinstance(rust_acct, Mapping):
+            return False
+        if set(rust_acct.keys()) != set(py_acct.keys()):
             return False
         for field, value in py_acct.items():
             if field == "key":
@@ -3661,8 +3677,10 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
 def _materialized_responses_agree(python_response: Any, rust_response: Any) -> bool:
     if not isinstance(python_response, Mapping) or not isinstance(rust_response, Mapping):
         return False
-    py_accept = bool(python_response.get("accept"))
-    rust_accept = bool(rust_response.get("accept"))
+    py_accept = python_response.get("accept")
+    rust_accept = rust_response.get("accept")
+    if not isinstance(py_accept, bool) or not isinstance(rust_accept, bool):
+        return False
     if py_accept != rust_accept:
         return False
     if not py_accept:
@@ -3856,9 +3874,8 @@ def _shadow_accepted_isolated_op(
     if mode is AuthorityMode.PYTHON_AUTHORITY:
         return None
     if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
-        # Shadow materialization only: Rust post-checks Python's accepted transition,
-        # it does not drive accept/reject from the pre-state nor commit its result.
-        # Authority therefore stays blocked until Rust decides + commits.
+        # Defensive guard only. `_apply_isolated_op` routes authority modes to the
+        # pre-state Rust materializer before the Python handler can run.
         return _PERP_STATEFUL_AUTHORITY_BLOCK_MSG
     materialized = op.action in _PERP_STATEFUL_MATERIALIZED_ACTIONS
     if materialized and not _materialized_shadow_account_count_bounded(pre_market):
