@@ -1,0 +1,131 @@
+{
+  "schema": "zenodex.trust_minimization_target.v0",
+  "target_id": "host_adversarial_lower_than_uniswap_frontier_v0",
+  "target_status": "frontier_open",
+  "lower_than_uniswap_claim": false,
+  "baseline": {
+    "baseline_id": "ethereum_uniswap_style_smart_contract",
+    "comparison_scope": "application execution trust for settlement transitions",
+    "baseline_summary": "A smart-contract AMM relies on Ethereum-style consensus and EVM execution for deterministic replay. The target for ZenoDEX is to make every settlement transition independently rejectable by full-node replay or succinct proof verification, with unsupported surfaces failing closed."
+  },
+  "host_adversary_model": {
+    "host_is_adversary": true,
+    "docker_is_correctness_boundary": false,
+    "host_may_lie_about_execution": true,
+    "host_may_omit_data": true,
+    "host_may_emit_malformed_metadata": true,
+    "required_response": "Verifiers reject unless a transition is replay-valid or proof-valid under a governed profile."
+  },
+  "acceptance_rule": [
+    "deterministic_replay_or_valid_zk_receipt",
+    "allowed_guest_image_or_replay_profile",
+    "journal_binds_pre_state_post_state_and_tx_commitment",
+    "proof_metadata_and_verification_report_replay",
+    "unsupported_surfaces_fail_closed"
+  ],
+  "required_surfaces": [
+    {
+      "id": "spot_v1_success_path",
+      "current_status": "zk_supported_scoped",
+      "supported_surface_id": "risc0_supported_transition_real_proof_smoke",
+      "profile_id": "spot_v1_single_pool_success",
+      "trust_effect": "Host execution trust is removed for the covered successful spot v1 guest path when the verifier checks the allowed image and journal bindings.",
+      "residual_limits": [
+        "rejected receipts out of scope",
+        "native assets out of scope",
+        "multi-hop out of scope",
+        "not a complete spot block proof"
+      ]
+    },
+    {
+      "id": "proof_metadata_admission",
+      "current_status": "replay_supported",
+      "supported_surface_id": "risc0_spot_transition_metadata_adapter",
+      "trust_effect": "Malformed or unsupported proof metadata fails closed before ledger admission.",
+      "residual_limits": [
+        "metadata binding is not proof cryptography"
+      ]
+    },
+    {
+      "id": "proof_verification_report_replay",
+      "current_status": "replay_supported",
+      "supported_surface_id": "proof_verification_report_replay",
+      "trust_effect": "Proof-required replay can require verifier-backed reports instead of accepting metadata alone.",
+      "residual_limits": [
+        "verifier binary soundness remains in the trusted base"
+      ]
+    },
+    {
+      "id": "light_client_checkpoint_quorum",
+      "current_status": "replay_supported_with_gap",
+      "supported_surface_id": "light_client_checkpoint_quorum",
+      "gap_surface_id": "light_client_production_finality",
+      "trust_effect": "Local checkpoint replay binds a checked segment to signer quorum evidence.",
+      "residual_limits": [
+        "production validator rotation remains open",
+        "adversarial network finality remains open"
+      ]
+    },
+    {
+      "id": "upba_batch_clearing",
+      "current_status": "open_gap",
+      "gap_surface_id": "uniform_batch_upba_v2_v3_real_proof",
+      "non_claim": "does_not_claim_upba_zk_execution",
+      "required_to_close": "Move UPBA v2/v3 batch clearing, exact-out, and candidate-grid optimality into a real zkVM guest or require full deterministic replay for every admitting validator."
+    },
+    {
+      "id": "oracle_critical_actions",
+      "current_status": "open_gap",
+      "gap_surface_id": "oracle_critical_action_real_proof",
+      "non_claim": "does_not_claim_oracle_truth_or_governance",
+      "required_to_close": "Proof-bind critical action packets and separate transition validity from oracle truth and governance assumptions."
+    },
+    {
+      "id": "zusd_lifecycle",
+      "current_status": "open_gap",
+      "gap_surface_id": "zusd_lifecycle_real_proof",
+      "non_claim": "does_not_claim_zusd_or_perps_zk_execution",
+      "required_to_close": "Cover zUSD mint, liquidation, recovery, and supply-conservation transitions by zkVM proof or mandatory replay."
+    },
+    {
+      "id": "perps_settlement",
+      "current_status": "open_gap",
+      "gap_surface_id": "perps_settlement_real_proof",
+      "non_claim": "does_not_claim_zusd_or_perps_zk_execution",
+      "required_to_close": "Cover perps settlement, liquidation, ADL, funding, and insurance transitions by zkVM proof or mandatory replay."
+    },
+    {
+      "id": "proof_market_rewards",
+      "current_status": "open_gap",
+      "gap_surface_id": "proof_market_reward_real_proof",
+      "non_claim": "does_not_claim_proof_market_zk_execution",
+      "required_to_close": "Cover proof-mining manager rewards, claimability, and reward payout bridge execution."
+    },
+    {
+      "id": "recursive_epoch_aggregation",
+      "current_status": "open_gap",
+      "gap_surface_id": "recursive_epoch_real_proof",
+      "non_claim": "does_not_claim_recursive_epoch_proof_soundness",
+      "required_to_close": "Implement real recursive epoch receipt aggregation with metadata and verifier-profile admission."
+    }
+  ],
+  "promotion_gates": [
+    "No profile may claim lower-than-Uniswap trust while any required surface is open_gap or replay_supported_with_gap.",
+    "Every proof-required profile must name an allowed proof kind, verifier id, guest image id, and toolchain lock hash.",
+    "Every proof-required block must carry proof metadata and a verifier-backed report, or be rejected.",
+    "Every unsupported operation under a proof-required profile must fail closed before settlement.",
+    "Full nodes must retain deterministic replay for audit and fallback until recursive block proofs cover the full admitted surface."
+  ],
+  "non_claims": [
+    "does_not_claim_lower_than_uniswap_trust_until_required_surfaces_closed",
+    "does_not_claim_host_independence_for_uncovered_surfaces",
+    "does_not_claim_docker_is_a_correctness_boundary",
+    "does_not_claim_complete_spot_block_zk_proof",
+    "does_not_claim_upba_zk_execution",
+    "does_not_claim_oracle_truth_or_governance",
+    "does_not_claim_zusd_or_perps_zk_execution",
+    "does_not_claim_proof_market_zk_execution",
+    "does_not_claim_light_client_finality",
+    "does_not_claim_recursive_epoch_proof_soundness"
+  ]
+}

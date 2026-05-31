@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 MATRIX_SCHEMA = "zenodex.zeno_ledger.proof_coverage_matrix.v0"
 REPORT_SCHEMA = "zenodex.zeno_ledger.proof_coverage_matrix_report.v0"
 DEFAULT_MATRIX = ROOT / "docs" / "ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
+MATRIX_PATH = DEFAULT_MATRIX
 CLAIMS_REGISTRY = ROOT / "docs" / "claims_registry.yaml"
 
 REQUIRED_SUPPORTED_IDS = frozenset(

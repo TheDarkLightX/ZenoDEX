@@ -65,6 +65,8 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docs/LOCAL_TESTNET_QUICKSTART.md",
         "docs/PERMISSIONLESS_HOSTING.md",
         "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+        "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md",
+        "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json",
         "docs/ZENO_LEDGER_TWO_MACHINE_TESTNET.md",
         "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
         "docs/assurance/README.md",
@@ -107,6 +109,8 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     assert "docker-compose.local-testnet.yml" in paths
     assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
     assert "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json" in paths
+    assert "docs/ZENODEX_TRUST_MINIMIZATION_TARGET.md" in paths
+    assert "docs/ZENODEX_TRUST_MINIMIZATION_TARGET_V0.json" in paths
     assert "docs/claims_registry.yaml" in paths
     assert "packages/zeno-proof-client/package.json" in paths
     assert "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py" in paths
