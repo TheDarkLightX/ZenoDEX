@@ -77,7 +77,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Balance accounting | yes | yes | Kani on transfer/credit arithmetic: totality, exact move, conservation, overflow, non-vacuity | golden, Python/Rust differential, disaster/fuzz, selector tests | full |
 | Fee router | yes | yes | Kani on split/dust core plus ESSO finite model and generated Rust receipt for the 4-way dust core | property tests, differential, live path, disaster/fuzz | full |
 | Burn rails | yes | yes | Kani on `verify_rails`: totality, accepted budget/supply/batch conservation, non-vacuity | burn receipt differential, live path, disaster/fuzz | full |
-| CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence, exhaustive small-domain exact-in/out arithmetic grid plus bounded Z3 fee-inversion and Lean exact-swap safety checks | partial |
+| CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence, exhaustive small-domain exact-in/out arithmetic grid, bounded Z3 fee-inversion and Lean exact-swap safety checks, plus Julia BigInt boundary witnesses replayed against Python quote logic and Rust `cpmm-op` | partial |
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain plus deposit/withdraw/set-position/clear-breaker accept shape and reachability, settle-epoch helper classifiers, partial-liquidate boundary/full-close slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, fixed-width hex length arithmetic, selected LEB128 length boundaries, and fixed-array uvarint helper totality/terminator shape. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector, exhaustive control-character JSON escape grid with independent encoder oracle, raw uvarint/encode-bytes framing grid with Rust parity | partial |
@@ -102,7 +102,12 @@ This campaign moved seven surfaces forward:
   Rust `cpmm-op`, Z3 checks the bounded exact-out fee-inversion identity for
   `1 <= net_in <= 200` and `0 <= fee_bps < 10000`, and Lean checks that same
   fee-inversion slice plus the bounded exact-in/exact-out accepted-case safety
-  grids over the small runtime-test domain.
+  grids over the small runtime-test domain. It also adds a dependency-free
+  Julia generator for 14 BigInt boundary witnesses across exact-in and
+  exact-out: near-reserve max accept/reject, full-fee rejects, high-fee
+  one-unit-net acceptance, overdelivery-gap accept/reject, amount-out-at-reserve
+  rejection, slippage, and reserve-domain ordering. The witnesses replay
+  through Python quote logic and Rust `cpmm-op`.
   Full live-domain exact-in/out division remains property/differential backed;
   direct public-swap and exact-out helper Kani attempts timed out under CBMC.
 - Canonical primitives gained heap-free helper decomposition. Kani now proves
@@ -180,8 +185,9 @@ includes the live-shadow regression.
 ## Remaining Work To Reach 100 Percent CBC Grade
 
 1. Continue CPMM proof decomposition: either split exact-out further or replace
-   the division-heavy formula with a verified/generated arithmetic kernel. Keep
-   public function parity locked by differential/property tests.
+   the division-heavy formula with a verified/generated arithmetic kernel. The
+   Julia witnesses are replayable high-precision boundary evidence, not a proof
+   layer. Keep public function parity locked by differential/property tests.
 2. Continue canonical proof decomposition: public `Vec`/`String` wrapper
    allocation, `encode_bytes`, domain-separator construction, fixed-hex
    decoding, SHA-256, and canonical JSON remain outside Kani. Keep SHA-256 and
