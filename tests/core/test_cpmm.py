@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from math import isqrt
+
 from src.core.cpmm import MIN_LP_LOCK, compute_lp_mint
 from src.core.cpmm import swap_exact_in, swap_exact_out
 
 
 def test_compute_lp_mint_uses_integer_isqrt() -> None:
-    # Pick values where float sqrt would be wrong due to precision loss.
-    n = (1 << 70) + 12345
-    lp = compute_lp_mint(reserve0=0, reserve1=0, amount0=n, amount1=n, lp_supply=0)
-    assert lp == n - MIN_LP_LOCK
+    # In-domain values where float sqrt would round the floor up by one.
+    amount0 = 1_000_000_000
+    amount1 = 999_999_998
+    lp = compute_lp_mint(reserve0=0, reserve1=0, amount0=amount0, amount1=amount1, lp_supply=0)
+    assert lp == isqrt(amount0 * amount1) - MIN_LP_LOCK
 
 
 def test_compute_lp_mint_initial_liquidity_boundary_matches_min_lock() -> None:
