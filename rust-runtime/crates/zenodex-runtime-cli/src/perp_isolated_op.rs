@@ -24,7 +24,7 @@
 //! return `op_not_materialized` so the bridge keeps Python authoritative for them.
 
 use serde_json::{json, Map, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use zenodex_runtime_core::perp_account_ops::{account_op, AccountOpInput};
 use zenodex_runtime_core::perp_advance_epoch::{advance_epoch, AdvanceEpochInput};
@@ -51,6 +51,7 @@ pub const REJ_BAD_SCHEMA: &str = "perp_isolated_op_bad_schema";
 pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
+pub const REJ_DUPLICATE_ACCOUNT: &str = "perp_isolated_op_duplicate_account";
 pub const REJ_ARITHMETIC_OVERFLOW: &str = "perp_isolated_op_arithmetic_overflow";
 pub const REJ_SENDER_NOT_BOUND: &str = "sender_not_bound_to_account";
 pub const REJ_ORACLE_ADAPTER: &str = "oracle_adapter_not_accepted";
@@ -252,9 +253,15 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         None => return reject(REJ_BAD_REQUEST),
     };
     let mut accounts = Vec::with_capacity(accounts_val.len());
+    let mut account_keys = BTreeSet::new();
     for av in accounts_val {
         match parse_account(av) {
-            Ok(a) => accounts.push(a),
+            Ok(a) => {
+                if !account_keys.insert(a.key.clone()) {
+                    return reject(REJ_DUPLICATE_ACCOUNT);
+                }
+                accounts.push(a);
+            }
             Err(e) => return reject(e),
         }
     }
@@ -1740,6 +1747,23 @@ mod tests {
             materialize_isolated_op(&r)["reject_reason"],
             json!(REJ_BAD_VERSION)
         );
+    }
+
+    #[test]
+    fn duplicate_account_keys_reject_before_semantic_execution() {
+        let accounts = json!([
+            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            acct_json("aa", -300_000, 1_000_000, 100_000_000),
+        ]);
+        let out = materialize_isolated_op(&req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            accounts,
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_DUPLICATE_ACCOUNT));
+        assert!(out.get("post").is_none());
     }
 
     #[test]
