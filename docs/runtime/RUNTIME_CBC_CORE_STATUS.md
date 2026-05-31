@@ -45,18 +45,18 @@ above: replay guard, balance accounting, fee router, burn rails.
 Partial CBC coverage:
 
 ```text
-4 / 10 promoted public-testnet surfaces have machine-checked sub-core evidence
+5 / 10 promoted public-testnet surfaces have machine-checked sub-core evidence
 but still rely on property/differential evidence for a larger wrapper or
 arithmetic/encoder slice: canonical primitives, CPMM per-pool settlement, perp
-stateless math, perp stateful.
+stateless math, perp stateful, state root v5.
 ```
 
 Tested authority coverage:
 
 ```text
-2 / 10 promoted public-testnet surfaces are authority-wired and heavily tested,
+1 / 10 promoted public-testnet surfaces are authority-wired and heavily tested,
 but do not yet have Kani or generated-code evidence on the running Rust core:
-state root v5, zUSD single-vault.
+zUSD single-vault.
 ```
 
 Conservative completion estimate for the full CBC-core goal:
@@ -64,8 +64,8 @@ Conservative completion estimate for the full CBC-core goal:
 ```text
 Authority wiring: 100% for promoted public-testnet core surfaces.
 CBC-grade proof linkage: about 40% by surface count.
-Machine-checked sub-core linkage: about 80% by surface count.
-Defensive hardening and fail-closed coverage: about 75% by promoted-surface
+Machine-checked sub-core linkage: about 90% by surface count.
+Defensive hardening and fail-closed coverage: about 80% by promoted-surface
 count, lower if weighted by complexity because zUSD, state root, canonical
 encoders, CPMM arithmetic, and perps wrappers remain large.
 ```
@@ -82,12 +82,12 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers and arith primitives. Full equivalence to plain helpers remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
 | Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, and selected LEB128 length boundaries. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector | partial |
-| State root v5 | yes | yes | no Kani receipt yet on running root encoder/hash wrapper | state-root differential, malformed/duplicate rejects, fuzz, live selector | tested authority |
+| State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector | partial |
 | zUSD single-vault | yes | yes | no Kani receipt yet on running BigInt-heavy `step` | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector | tested authority |
 
 ## Current Delta From This Pass
 
-This campaign moved three surfaces forward:
+This campaign moved four surfaces forward:
 
 - Burn rails moved from tested authority to full CBC grade for the rail core.
   Evidence: `docs/runtime/receipts/cbc_runtime_core_kani_v1/` now records
@@ -103,6 +103,11 @@ This campaign moved three surfaces forward:
   the domain-label byte classifier, hex-digit byte classifier, and selected
   LEB128 length boundaries. Full canonical `Vec`/`String` encoders, SHA-256,
   and canonical JSON remain vector/fuzz/differential backed.
+- State root gained hash-free scalar guard decomposition. Kani now proves the
+  fee-bps guard, nonce guard, LP duration metadata presence predicate, and pool
+  status code domain/distinctness. Full section encoding, duplicate detection,
+  BigUint curve-param parsing, and SHA-256 remain vector/fuzz/differential
+  backed.
 
 This pass also integrated four open security PR fixes onto the branch:
 
@@ -124,9 +129,10 @@ includes the live-shadow regression.
    `encode_bytes`, domain-separator construction, fixed-hex decoding, SHA-256,
    and canonical JSON remain outside Kani. Keep SHA-256 and heap-heavy JSON as
    vector/differential evidence unless a tractable helper boundary is added.
-3. Add Kani or codegen/refinement evidence for state-root section encoders.
-   Hashing and BTreeMap traversal should stay tested by vectors and differential
-   checks unless a finite section encoder can be isolated.
+3. Continue state-root proof decomposition: finite section encoder helpers,
+   duplicate-key guards, and curve-config parsers remain outside Kani. Hashing
+   and BTreeMap traversal should stay tested by vectors and differential checks
+   unless a finite section encoder can be isolated.
 4. Split zUSD into Kani-checkable scalar guards and BigInt policy helpers. Keep
    full `step` equality under Python/Rust differential until the BigInt core is
    generated or separately verified.
@@ -149,7 +155,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 38 successfully verified harnesses, 0 failures, 38 total.
+Complete - 42 successfully verified harnesses, 0 failures, 42 total.
 ```
 
 Focused tests after integrating the security fixes:

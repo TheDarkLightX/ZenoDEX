@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 38 successfully verified harnesses, 0 failures, 38 total.
+Complete - 42 successfully verified harnesses, 0 failures, 42 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -97,6 +97,13 @@ Replay guard:
 - `replay_guard::kani_contracts::classify_reject_codes_exact`
 - `replay_guard::kani_contracts::covers_are_reachable`
 
+State-root scalar guards:
+
+- `state_root::kani_contracts::duration_metadata_presence_is_exact`
+- `state_root::kani_contracts::nonce_guard_is_exact`
+- `state_root::kani_contracts::pool_fee_bps_guard_is_exact`
+- `state_root::kani_contracts::pool_status_codes_are_in_domain_and_distinct`
+
 ## Scope
 
 This proves bounded, heap-free arithmetic and decision contracts inside the
@@ -121,15 +128,18 @@ running Rust crate:
   plus non-vacuity covers for success and overflow paths;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
+- state-root scalar guards for pool fee bps, nonce bounds, LP duration metadata
+  presence, and pool-status code distinctness.
 
 It does not prove the heap-heavy JSON/CLI bridge, full canonical `Vec`/`String`
-encoders, SHA-256, `BTreeMap` state-root hashing, or Python integration shell.
-It also does not prove the full CPMM exact-in/out swap arithmetic over symbolic
-live-domain `u128` multiplication/division. Direct public-swap harnesses and an
-exact-out helper harness timed out under CBMC; the tracked Kani obligations
-therefore stop at checked helper boundaries and a small-domain exact-in proof.
-The remaining CPMM arithmetic is still covered by Rust proptests, Python/Rust
-differentials, disaster-state, live-path tests, and Tau/ESSO/Lean model
-evidence. It also does not prove full-domain symbolic equivalence between the
-checked and plain perps math helpers; these remain covered by Rust proptests,
-Python/Rust differentials, disaster-state, and live-path tests.
+encoders, SHA-256, `BTreeMap` state-root section ordering/duplicate detection,
+BigUint curve-parameter parsing, or Python integration shell. It also does not
+prove the full CPMM exact-in/out swap arithmetic over symbolic live-domain
+`u128` multiplication/division. Direct public-swap harnesses and an exact-out
+helper harness timed out under CBMC; the tracked Kani obligations therefore stop
+at checked helper boundaries and a small-domain exact-in proof. The remaining
+CPMM arithmetic is still covered by Rust proptests, Python/Rust differentials,
+disaster-state, live-path tests, and Tau/ESSO/Lean model evidence. It also does
+not prove full-domain symbolic equivalence between the checked and plain perps
+math helpers; these remain covered by Rust proptests, Python/Rust differentials,
+disaster-state, and live-path tests.

@@ -191,6 +191,29 @@ fn push_optional_ts(out: &mut Vec<u8>, ts: Option<u128>) {
     }
 }
 
+fn validate_pool_fee_bps(fee_bps: u128) -> Result<u128, StateRootError> {
+    if fee_bps > MAX_FEE_BPS {
+        return Err(StateRootError::FeeBpsTooLarge);
+    }
+    Ok(fee_bps)
+}
+
+fn validate_nonce_value(last_nonce: u128) -> Result<u128, StateRootError> {
+    if last_nonce > MAX_NONCE {
+        return Err(StateRootError::NonceTooLarge);
+    }
+    Ok(last_nonce)
+}
+
+fn duration_metadata_is_present_flags(
+    has_mint: bool,
+    has_remove: bool,
+    churn_tier: u128,
+    has_churn_update: bool,
+) -> bool {
+    has_mint || has_remove || churn_tier > 0 || has_churn_update
+}
+
 fn canonical_curve_config(tag: &str, params: &str) -> Result<(), StateRootError> {
     // DbC precondition: the caller supplies raw pool curve fields from an
     // untrusted state boundary. Postcondition: accepted fields are already the
@@ -289,10 +312,12 @@ fn gcd(mut a: BigUint, mut b: BigUint) -> BigUint {
 }
 
 fn duration_entry_is_present(entry: &LpDurationEntry) -> bool {
-    entry.last_mint_timestamp.is_some()
-        || entry.last_remove_timestamp.is_some()
-        || entry.churn_tier > 0
-        || entry.last_churn_update_timestamp.is_some()
+    duration_metadata_is_present_flags(
+        entry.last_mint_timestamp.is_some(),
+        entry.last_remove_timestamp.is_some(),
+        entry.churn_tier,
+        entry.last_churn_update_timestamp.is_some(),
+    )
 }
 
 fn collect_lp_balance_keys(entries: &[LpEntry]) -> Result<BTreeSet<DecodedLpKey>, StateRootError> {
@@ -345,9 +370,7 @@ fn encode_pools(entries: &[PoolEntry]) -> Result<Vec<u8>, StateRootError> {
         let pool = hex_to_bytes_fixed(&e.pool_id, POOL_NBYTES)?;
         let asset0 = hex_to_bytes_fixed(&e.asset0, ASSET_NBYTES)?;
         let asset1 = hex_to_bytes_fixed(&e.asset1, ASSET_NBYTES)?;
-        if e.fee_bps > MAX_FEE_BPS {
-            return Err(StateRootError::FeeBpsTooLarge);
-        }
+        validate_pool_fee_bps(e.fee_bps)?;
         if asset0 >= asset1 {
             return Err(StateRootError::NonCanonicalPoolAssets);
         }
@@ -444,9 +467,7 @@ fn encode_nonces(entries: &[NonceEntry]) -> Result<Vec<u8>, StateRootError> {
         if !seen.insert(pk.clone()) {
             return Err(StateRootError::DuplicateKey("nonces"));
         }
-        if e.last_nonce > MAX_NONCE {
-            return Err(StateRootError::NonceTooLarge);
-        }
+        validate_nonce_value(e.last_nonce)?;
         decoded.push((pk, e.last_nonce));
     }
     decoded.sort_by(|a, b| a.0.cmp(&b.0));
@@ -771,5 +792,73 @@ mod tests {
             compute_state_root(&s),
             Err(StateRootError::MissingLpBalanceForMintMetadata)
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on hash-free state-root guard predicates.
+//
+// The complete state root includes heap-backed section encoders, BTreeSet
+// duplicate detection, BigUint curve-param parsing, and SHA-256. Those remain
+// vector/fuzz/differential backed. These contracts prove the scalar guards that
+// decide whether a root preimage is admissible before those heavier encoders run.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    #[kani::proof]
+    fn pool_fee_bps_guard_is_exact() {
+        let fee_bps: u128 = kani::any();
+        match validate_pool_fee_bps(fee_bps) {
+            Ok(v) => {
+                assert_eq!(v, fee_bps);
+                assert!(fee_bps <= MAX_FEE_BPS);
+            }
+            Err(e) => {
+                assert_eq!(e, StateRootError::FeeBpsTooLarge);
+                assert!(fee_bps > MAX_FEE_BPS);
+            }
+        }
+    }
+
+    #[kani::proof]
+    fn nonce_guard_is_exact() {
+        let last_nonce: u128 = kani::any();
+        match validate_nonce_value(last_nonce) {
+            Ok(v) => {
+                assert_eq!(v, last_nonce);
+                assert!(last_nonce <= MAX_NONCE);
+            }
+            Err(e) => {
+                assert_eq!(e, StateRootError::NonceTooLarge);
+                assert!(last_nonce > MAX_NONCE);
+            }
+        }
+    }
+
+    #[kani::proof]
+    fn duration_metadata_presence_is_exact() {
+        let has_mint: bool = kani::any();
+        let has_remove: bool = kani::any();
+        let churn_tier: u128 = kani::any();
+        let has_churn_update: bool = kani::any();
+        assert_eq!(
+            duration_metadata_is_present_flags(has_mint, has_remove, churn_tier, has_churn_update,),
+            has_mint || has_remove || churn_tier > 0 || has_churn_update
+        );
+    }
+
+    #[kani::proof]
+    fn pool_status_codes_are_in_domain_and_distinct() {
+        let active = PoolStatus::Active.code();
+        let frozen = PoolStatus::Frozen.code();
+        let disabled = PoolStatus::Disabled.code();
+        assert_eq!(active, 1);
+        assert_eq!(frozen, 2);
+        assert_eq!(disabled, 3);
+        assert!(active != frozen);
+        assert!(active != disabled);
+        assert!(frozen != disabled);
     }
 }
