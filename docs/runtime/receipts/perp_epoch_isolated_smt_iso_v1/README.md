@@ -32,8 +32,8 @@ publish_clearing_price, set_position, settle_epoch, withdraw_collateral}`.
 ## Command
 
 ```bash
-# tool from primary external/ESSO; run from the iso worktree
-PYTHONPATH='/home/trevormoc/Downloads/Autonomous Tau DEX' python3 -m ESSO verify-multi \
+# tool from primary external/ESSO; run from the repo root
+PYTHONPATH="$PWD" python3 -m ESSO verify-multi \
   src/kernels/dex/perp_epoch_isolated_v2.yaml --solvers z3,cvc5 --timeout-ms 30000 \
   --output docs/runtime/receipts/perp_epoch_isolated_smt_iso_v1/esso_v2 --write-report
 # (same for v3)

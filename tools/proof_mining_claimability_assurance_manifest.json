@@ -1,0 +1,125 @@
+{
+  "manifest_version": 1,
+  "notes": [
+    "Pinned proof-mining claimability gate assurance bundle.",
+    "Covers the normalized claimability/context-binding seam that sits in front of proof_mining_manager_v1."
+  ],
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/proof_mining_claimability_gate_v1.yaml",
+      "sha256": "b26beb7bc8073f6306ad5bca9805a75dd46634982e4700486cc81e2f1a6fe2b8"
+    },
+    {
+      "path": "src/core/proof_mining_claimability_gate.py",
+      "sha256": "565545b056554348410d1ed87b41bc2c48d91fd010d819daefbc62acee44c366"
+    },
+    {
+      "path": "src/integration/proof_mining_claimability.py",
+      "sha256": "880070a8fb11ef3a35b1fb7ff92e599193408a9a224412488d3dae75beb51c20"
+    },
+    {
+      "path": "src/kernels/python/proof_mining_claimability_gate_v1_native_adapter.py",
+      "sha256": "b3a59c8accc13f6b9c5c40c5af64f7aa81ac0b02f3938427304b6b3a45810697"
+    },
+    {
+      "path": "tests/integration/test_proof_mining_claimability.py",
+      "sha256": "2d0994591521e1b40cb1cbd8d7b87a90f2bd0c450a59177f2337eef2f6609ef7"
+    },
+    {
+      "path": "tests/core/test_proof_mining_claimability_gate.py",
+      "sha256": "fbe8bcaf9cdb110768c9c2bec32f6a89ec1ec3577a5e44a0f6a690bbefc29b6c"
+    },
+    {
+      "path": "tests/kernels/test_proof_mining_claimability_gate_v1_native_adapter.py",
+      "sha256": "0abcda5f0e085d6f5c61fcc0410db6ddfdffe7e0852c2289665dff35ebdddb50"
+    },
+    {
+      "path": "tools/check_proof_mining_claimability_assurance_manifest.py",
+      "sha256": "616737164d4342b23a0de3c022ed34040328d540962da12eaa767b4f998e7de8"
+    },
+    {
+      "path": "tools/run_proof_mining_claimability_assurance_gate.sh",
+      "sha256": "37d3c10f0dac3079b62e1808609160d446610e853f63f51fba784bbff0879b19"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/proof_mining_claimability_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/proof_mining_claimability_gate_v1.yaml",
+    "ir_hash": "sha256:292aec3a76b84005bb9f3c8841dfcedb834f1521f02d5ae023614d59505299dc"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/proof_mining_claimability_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.proof_mining_claimability_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:292aec3a76b84005bb9f3c8841dfcedb834f1521f02d5ae023614d59505299dc",
+    "actions": [
+      "check_claimability"
+    ],
+    "effects": [
+      "claimable",
+      "enabled",
+      "proposal_hash_matches_context",
+      "reject_code",
+      "reward_amount",
+      "reward_pool_after",
+      "reward_pool_balance_matches_state",
+      "reward_pool_balance_non_negative",
+      "reward_pool_before",
+      "reward_pool_pubkey_matches_state",
+      "runtime_apply_ok",
+      "runtime_state_consistent",
+      "runtime_state_present",
+      "winner_matches_sender"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/proof_mining_claimability_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/proof_mining_claimability_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.proof_mining_claimability_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:292aec3a76b84005bb9f3c8841dfcedb834f1521f02d5ae023614d59505299dc",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:7ed356d9d19f333fab352afbf79efdc0bdf6da1512f5b7d914654ad4ff3dfff5"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/proof_mining_claimability_gate_v1/verification_report.json",
+    "model_id": "proof_mining_claimability_gate_v1",
+    "ir_hash_short": "292aec3a76b84005",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_proof_mining_claimability_gate.py",
+    "tests/integration/test_proof_mining_claimability.py",
+    "tests/kernels/test_proof_mining_claimability_gate_v1_native_adapter.py"
+  ]
+}

@@ -42,13 +42,20 @@ jobs:
           python tools/check_disaster_proof_schema_map.py \
             --output internal/disaster_proof_schema_map.json
 
+      - name: Enforce host-independent coverage boundary
+        run: |
+          python tools/check_zenodex_host_independent_coverage.py --pretty
+          python tools/measure_zenodex_zk_transition_coverage.py --pretty
+
       - name: Run ratchet and deployment posture unit tests
         run: |
           pytest -q \
             tests/integration/test_disaster_assurance_ratchets.py \
             tests/test_security_posture_files.py \
             tests/test_public_text_hygiene.py \
-            tests/integration/test_api_server_main.py
+            tests/integration/test_api_server_main.py \
+            tests/tools/test_check_zenodex_host_independent_coverage.py \
+            tests/tools/test_measure_zenodex_zk_transition_coverage.py
 
       - name: Enforce closed disaster-state receipt
         run: |

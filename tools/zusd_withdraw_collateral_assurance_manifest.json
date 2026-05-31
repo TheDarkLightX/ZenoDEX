@@ -1,0 +1,86 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD collateral-withdraw apply micro-kernel. Update only alongside a successful run of tools/run_zusd_withdraw_collateral_assurance_gate.sh and tools/check_zusd_withdraw_collateral_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/zusd_withdraw_collateral_apply_v1.yaml",
+      "sha256": "3ae92f8575a7db5be4cffecb67ad780ada691e9f56c712c6fb81fed04bacf7f3"
+    },
+    {
+      "path": "src/kernels/python/zusd_withdraw_collateral_apply_v1_native_adapter.py",
+      "sha256": "e00d87207a91fefdcd909959bb52141d82ee93e259abac2199622a0d00b29770"
+    },
+    {
+      "path": "tests/kernels/test_zusd_withdraw_collateral_apply_v1_native_adapter.py",
+      "sha256": "0604dfa5ee30b60f3b5ce6b1d3d4bc1e83842dd96cb783173b164ae9378cc03d"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_withdraw_collateral_apply_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_withdraw_collateral_apply_v1.yaml",
+    "ir_hash": "sha256:250e3f6bdbbd4eff1f556da1cfceb68556d2ec768d9ea3db4d75b8ef6213cc62"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_withdraw_collateral_apply_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_withdraw_collateral_apply_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:250e3f6bdbbd4eff1f556da1cfceb68556d2ec768d9ea3db4d75b8ef6213cc62",
+    "actions": [
+      "apply_withdraw_collateral"
+    ],
+    "effects": [
+      "collateral_after_e8",
+      "mcr_post_ok",
+      "risk_gate_ok",
+      "withdrawn_collateral_e8"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_withdraw_collateral_apply_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_withdraw_collateral_apply_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_withdraw_collateral_apply_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:250e3f6bdbbd4eff1f556da1cfceb68556d2ec768d9ea3db4d75b8ef6213cc62",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:a567ce562145fafb69cc1491f4bd34ce30015f94f5b5a2d5821278e4d29ac0ea"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_withdraw_collateral_apply_v1/verification_report.json",
+    "model_id": "zusd_withdraw_collateral_apply_v1",
+    "ir_hash_short": "250e3f6bdbbd4eff",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_zusd_withdraw_collateral_apply_v1_native_adapter.py"
+  ]
+}
