@@ -3568,15 +3568,21 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
     and the exact kernel effect payload."""
     if not isinstance(python_doc, Mapping) or not isinstance(rust_response, Mapping):
         return False
+    if set(rust_response.keys()) != {"accept", "post", "effects"}:
+        return False
     if not bool(rust_response.get("accept")):
         return False
     post = rust_response.get("post")
     if not isinstance(post, Mapping):
         return False
+    if set(post.keys()) != {"quote_asset", "global_state", "accounts"}:
+        return False
     if str(python_doc.get("quote_asset")) != str(post.get("quote_asset")):
         return False
     rust_gs = post.get("global_state")
     if not isinstance(rust_gs, Mapping):
+        return False
+    if set(rust_gs.keys()) != set(python_doc["global_state"].keys()):
         return False
     for key, value in python_doc["global_state"].items():
         rust_value = rust_gs.get(key)
@@ -3595,6 +3601,8 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
     for py_acct in python_accounts:
         rust_acct = rust_by_key.get(py_acct["key"])
         if not isinstance(rust_acct, Mapping):
+            return False
+        if set(rust_acct.keys()) != set(py_acct.keys()):
             return False
         for field, value in py_acct.items():
             if field == "key":

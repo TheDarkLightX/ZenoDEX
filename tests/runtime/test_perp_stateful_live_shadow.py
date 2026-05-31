@@ -860,6 +860,27 @@ def test_rust_shadow_fails_closed_on_state_tamper(rust_env, monkeypatch):
     assert "disagreement" in (res.error or "")
 
 
+def test_rust_shadow_fails_closed_on_extra_post_field(rust_env, monkeypatch):
+    # Full materialized parity is exact. An unexpected Rust-only post field must
+    # fail closed even when every expected value still matches Python.
+    from src.runtime import rust_invoker
+
+    def tampered(request, **kwargs):
+        out = rust_invoker.invoke("perp-isolated-op", request)
+        out["post"]["global_state"]["unexpected"] = "hidden"
+        return out
+
+    monkeypatch.setattr(rust_invoker, "perp_isolated_op", tampered)
+    state = _settled("perp:shadow-extra-post-field")
+    set_active_authority_policy(_policy(AuthorityMode.RUST_SHADOW))
+    res = fa._apply_result(
+        state=state, tx_sender_pubkey=OPERATOR, operator_pubkey=OPERATOR,
+        ops=[fa._op("perp:shadow-extra-post-field", "advance_epoch", delta=1)],
+    )
+    assert res.ok is False
+    assert "disagreement" in (res.error or "")
+
+
 def test_rust_shadow_fails_closed_on_effect_tamper(rust_env, monkeypatch):
     # The receipt-drift regression: post-STATE matches but the effect payload differs.
     # Effect parity must catch it (state-only comparison would have passed).
