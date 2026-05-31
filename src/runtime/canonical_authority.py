@@ -33,6 +33,15 @@ class CanonicalAuthorityError(RuntimeError):
     """Raised for malformed canonical authority bridge output."""
 
 
+def _require_exact_fields(value: Mapping[str, Any], expected: set[str], label: str) -> None:
+    actual = set(value)
+    if actual == expected:
+        return
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    raise CanonicalAuthorityError(f"{label}: unexpected fields missing={missing!r} extra={extra!r}")
+
+
 def _py_case(index: int, case: Mapping[str, Any]) -> dict[str, Any]:
     op = case.get("op")
     if op in ("json_bytes", "json_hash"):
@@ -76,7 +85,13 @@ def diff_results(left: list[dict[str, Any]], right: list[dict[str, Any]]) -> lis
         return [f"length mismatch: left {len(left)} vs right {len(right)}"]
     problems: list[str] = []
     for index, (a, b) in enumerate(zip(left, right)):
-        if bool(a.get("ok")) != bool(b.get("ok")):
+        if a.get("index") != index or b.get("index") != index:
+            problems.append(f"case {index}: index left={a.get('index')} right={b.get('index')}")
+            continue
+        if not isinstance(a.get("ok"), bool) or not isinstance(b.get("ok"), bool):
+            problems.append(f"case {index}: malformed ok left={a.get('ok')} right={b.get('ok')}")
+            continue
+        if a.get("ok") != b.get("ok"):
             problems.append(f"case {index}: ok left={a.get('ok')} right={b.get('ok')}")
             continue
         if a.get("ok"):
@@ -85,6 +100,39 @@ def diff_results(left: list[dict[str, Any]], right: list[dict[str, Any]]) -> lis
             if a.get("hash") != b.get("hash"):
                 problems.append(f"case {index}: hash left={a.get('hash')} right={b.get('hash')}")
     return problems
+
+
+def _expected_rust_success_fields(case: Mapping[str, Any]) -> set[str]:
+    op = case.get("op")
+    if op in {"json_bytes", "json_hash"}:
+        return {"index", "ok", "bytes", "hash"}
+    if op == "domain_json_hash":
+        return {"index", "ok", "hash"}
+    if op == "hex_to_bytes":
+        return {"index", "ok", "bytes"}
+    raise CanonicalAuthorityError(f"rust canonical success for unsupported op {op!r}")
+
+
+def _validate_rust_results(cases: list[dict[str, Any]], results: list[Any]) -> list[dict[str, Any]]:
+    if len(results) != len(cases):
+        raise CanonicalAuthorityError(
+            f"rust canonical-hash result length mismatch: {len(results)} vs {len(cases)}"
+        )
+    out: list[dict[str, Any]] = []
+    for index, (case, result) in enumerate(zip(cases, results, strict=True)):
+        if not isinstance(result, dict):
+            raise CanonicalAuthorityError(f"rust canonical-hash result {index} must be an object")
+        ok = result.get("ok")
+        if ok is True:
+            _require_exact_fields(result, _expected_rust_success_fields(case), f"rust canonical result {index}")
+        elif ok is False:
+            _require_exact_fields(result, {"index", "ok", "code"}, f"rust canonical result {index}")
+        else:
+            raise CanonicalAuthorityError(f"rust canonical result {index} ok must be a bool")
+        if result.get("index") != index:
+            raise CanonicalAuthorityError(f"rust canonical result {index} index mismatch")
+        out.append(result)
+    return out
 
 
 def locate_runtime_binary(*, allow_build: bool = False) -> Path:
@@ -147,12 +195,15 @@ def rust_eval_cases(
         payload = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise CanonicalAuthorityError("rust canonical-hash emitted malformed JSON") from exc
+    if not isinstance(payload, dict):
+        raise CanonicalAuthorityError("rust canonical-hash output must be an object")
+    _require_exact_fields(payload, {"version", "results"}, "rust canonical output")
     if payload.get("version") != RUNTIME_REQUEST_SCHEMA_VERSION:
         raise CanonicalAuthorityError("rust canonical-hash emitted unsupported schema version")
     results = payload.get("results")
     if not isinstance(results, list):
         raise CanonicalAuthorityError("rust canonical-hash output missing results list")
-    return results
+    return _validate_rust_results(cases, results)
 
 
 def decide_canonical_cases(
