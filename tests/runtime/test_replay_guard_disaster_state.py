@@ -254,6 +254,8 @@ def test_replay_guard_bridge_rejects_oversized_output_state(monkeypatch):
             "kernel": "replay_guard",
             "accept": False,
             "reject_reason": "duplicate_nonce",
+            "receipt": None,
+            "receipt_hash": None,
             "pre_state_root": "0x00",
             "post_state_root": "0x00",
             "post_state_entries": oversized_entries,
