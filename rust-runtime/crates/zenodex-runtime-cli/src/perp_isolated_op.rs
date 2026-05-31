@@ -51,6 +51,7 @@ pub const REJ_BAD_SCHEMA: &str = "perp_isolated_op_bad_schema";
 pub const REJ_BAD_VERSION: &str = "perp_isolated_op_bad_version";
 pub const REJ_MISSING_FACTS: &str = "perp_isolated_op_missing_facts";
 pub const REJ_UNKNOWN_REQUEST_FIELD: &str = "perp_isolated_op_unknown_request_field";
+pub const REJ_UNKNOWN_GLOBAL_FIELD: &str = "perp_isolated_op_unknown_global_field";
 pub const REJ_UNKNOWN_FACT_FIELD: &str = "perp_isolated_op_unknown_fact_field";
 pub const REJ_UNKNOWN_ACCOUNT_FIELD: &str = "perp_isolated_op_unknown_account_field";
 pub const REJ_UNKNOWN_OP_FIELD: &str = "perp_isolated_op_unknown_op_field";
@@ -90,6 +91,33 @@ const ACCOUNT_KEYS: [&str; 7] = [
     "funding_paid_cumulative",
     "funding_last_applied_epoch",
     "liquidated_this_step",
+];
+const GLOBAL_KEYS: [&str; 25] = [
+    "now_epoch",
+    "epoch_phase",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "fee_pool_quote",
+    "funding_rate_bps",
+    "funding_cap_bps",
+    "insurance_balance",
+    "initial_insurance",
+    "fee_income",
+    "claims_paid",
+    "min_notional_for_bounty",
 ];
 
 #[derive(Clone, Debug)]
@@ -288,6 +316,16 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         Some(g) => g.clone(),
         None => return reject(REJ_BAD_REQUEST),
     };
+    for key in global.keys() {
+        if !GLOBAL_KEYS.contains(&key.as_str()) {
+            return reject(REJ_UNKNOWN_GLOBAL_FIELD);
+        }
+    }
+    for key in GLOBAL_KEYS {
+        if !global.contains_key(key) {
+            return reject(REJ_BAD_REQUEST);
+        }
+    }
     let accounts_val = match obj.get("accounts").and_then(Value::as_array) {
         Some(a) => a,
         None => return reject(REJ_BAD_REQUEST),
@@ -1808,6 +1846,21 @@ mod tests {
         ));
         assert_eq!(out["accept"], json!(false));
         assert_eq!(out["reject_reason"], json!(REJ_DUPLICATE_ACCOUNT));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn unknown_global_field_rejects() {
+        let mut global = price_published_global(5);
+        global["unexpected"] = json!("hidden");
+        let out = materialize_isolated_op(&req_accts(
+            global,
+            json!({"action": "settle_epoch"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        ));
+        assert_eq!(out["accept"], json!(false));
+        assert_eq!(out["reject_reason"], json!(REJ_UNKNOWN_GLOBAL_FIELD));
         assert!(out.get("post").is_none());
     }
 
