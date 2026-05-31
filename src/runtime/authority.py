@@ -251,6 +251,9 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
     * only trusted-core consensus surfaces may appear in the authority policy;
     * the blanket ``default`` may not be a Rust-authoritative mode (that would
       promote every surface at once, including unshadowed ones);
+    * pure ``rust_authority`` is not admitted by the current strict-profile
+      schema; strict profiles use ``rust_authority_with_python_shadow`` until a
+      future schema/version records the sustained soak evidence and sign-off;
     * a per-surface Rust-authoritative mode is only allowed for a surface that
       is explicitly listed in ``promoted_surfaces`` (i.e. has passed the gate).
     * every listed ``promoted_surfaces`` entry must actually be configured as a
@@ -277,6 +280,18 @@ def validate_authority_policy(policy: AuthorityPolicy, *, profile_id: str) -> No
         raise AuthorityError(
             f"profile {profile_id!r}: authority policy contains non-trusted-core "
             f"surfaces: {unknown_policy_surfaces}"
+        )
+
+    pure_rust_surfaces = sorted(
+        surface
+        for surface, mode in policy.per_surface.items()
+        if mode is AuthorityMode.RUST_AUTHORITY
+    )
+    if pure_rust_surfaces:
+        raise AuthorityError(
+            f"profile {profile_id!r}: pure rust_authority is not admitted by the "
+            "current strict-profile schema; use rust_authority_with_python_shadow "
+            f"for promoted trusted-core surfaces: {pure_rust_surfaces}"
         )
 
     rust_authoritative_surfaces = frozenset(

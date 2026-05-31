@@ -28,7 +28,7 @@ python_authority ──▶ rust_shadow ──▶ rust_authority_with_python_shad
 |---|---|
 | → `rust_shadow` | Evidence 1–5 below green; surface shadowed in `rust-runtime`; CI runs the differential. |
 | → `rust_authority_with_python_shadow` | All evidence 1–7 green **including disaster-state (E4) and fuzz**; surface listed in profile `promoted_surfaces`; rollback rehearsed. |
-| → `rust_authority` | Sustained green `rust_authority_with_python_shadow` across ≥1 release lane with zero disagreements; explicit human sign-off; docs updated to stop calling Rust a shadow for the surface. |
+| → `rust_authority` | Sustained green `rust_authority_with_python_shadow` across ≥1 release lane with zero disagreements; explicit human sign-off; future profile schema/validator update that explicitly admits pure Rust authority; docs updated to stop calling Rust a shadow for the surface. |
 
 `rust_authority_with_python_shadow` is the **load-bearing** production mode for
 a first promotion: Rust decides, Python verifies every transition, and any
@@ -294,7 +294,9 @@ materialization, CI enforcement for that materialized path, and human sign-off.
    deployment profile **and** add it to that profile's `promoted_surfaces`.
    `check_deployment_profiles.py` rejects the half-configured case (rust
    authority without the `promoted_surfaces` entry) under `public-testnet` and
-   `production-strict`.
+   `production-strict`. The current strict-profile schema admits
+   `rust_authority_with_python_shadow` only; pure `rust_authority` needs a
+   later schema/validator change after soak evidence and sign-off.
 4. Prove no state-root drift (the selector + agreement guarantee it; assert it).
 5. Document residual risk in `RUST_AUTHORITY_MIGRATION_STATUS.md`.
 6. Get explicit human sign-off (criterion 12).

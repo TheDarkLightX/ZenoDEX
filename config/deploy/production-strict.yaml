@@ -39,9 +39,10 @@ runtime_authority_policy:
   schema: zenodex/runtime_authority_policy/v1
   # Python is the sole authority for every surface. No surface is promoted to
   # Rust authority. Under this strict profile a per-surface
-  # rust_authority(_with_python_shadow) entry is rejected unless the surface is
-  # also listed in promoted_surfaces (the half-configured-authority guard), and
-  # a blanket rust default is rejected outright. See
+  # rust_authority_with_python_shadow entry is rejected unless the surface is
+  # also listed in promoted_surfaces (the half-configured-authority guard), pure
+  # rust_authority is rejected by the current schema, and a blanket rust default
+  # is rejected outright. See
   # docs/runtime/RUST_AUTHORITY_PROMOTION_GATE.md.
   default: python_authority
   per_surface: {}
