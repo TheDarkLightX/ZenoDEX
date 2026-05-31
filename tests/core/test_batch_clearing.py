@@ -5,6 +5,8 @@ from __future__ import annotations
 import inspect
 from dataclasses import replace
 
+import pytest
+
 import src.core.batch_clearing as batch_clearing_module
 from src.core.batch_clearing import (
     _ab_ordering_key,
@@ -47,6 +49,71 @@ from src.state.pools import PoolState, PoolStatus
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def test_compute_settlement_rejects_duplicate_intent_ids() -> None:
+    # Characterization / lock (audit finding E-1, refuted): the apply loop
+    # re-resolves each fill's intent by id, so duplicate ids would bind every
+    # duplicate fill to the FIRST match. The audit hypothesized this yields a
+    # silently self-inconsistent settlement with divergent deltas. It does NOT:
+    # the Settlement dataclass invariant (src/core/settlement.py:166) rejects
+    # duplicate included_intents at construction, so compute_settlement fails
+    # CLOSED (raises) rather than emitting a mis-bound settlement. This test pins
+    # that fail-closed property so a future change to the Settlement invariant
+    # cannot silently re-open the mis-binding. (Substring "duplicate intent_id"
+    # matches both the Settlement guard and validate_settlement_strong's reject.)
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    pools = {pool_id: pool}
+    balances = BalanceTable()
+    balances.set(pk, asset0, 1_000_000)
+    balances.set(pk, asset1, 1_000_000)
+    dup_id = _iid(7)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=dup_id,
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 1000,
+                "min_amount_out": 1,
+            },
+        ),
+        # Same intent_id, OPPOSITE direction: the dangerous mis-binding case.
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=dup_id,
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset1,
+                "asset_out": asset0,
+                "amount_in": 1000,
+                "min_amount_out": 1,
+            },
+        ),
+    ]
+    with pytest.raises(ValueError, match="duplicate intent_id"):
+        compute_settlement(intents, pools, balances, LPTable())
 
 
 def test_compute_settlement_does_not_mutate_input_pools() -> None:
