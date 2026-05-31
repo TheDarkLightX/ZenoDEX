@@ -3212,6 +3212,8 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
     }
 )
 
+_PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset({"advance_epoch"})
+
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
     "perp_stateful Rust authority is not live-wired (shadow materialization only); "
     "configure rust_shadow"
@@ -3587,6 +3589,126 @@ def _full_post_markets_agree(python_doc: Any, rust_response: Any) -> bool:
     return True
 
 
+def _materialized_responses_agree(python_response: Any, rust_response: Any) -> bool:
+    if not isinstance(python_response, Mapping) or not isinstance(rust_response, Mapping):
+        return False
+    py_accept = bool(python_response.get("accept"))
+    rust_accept = bool(rust_response.get("accept"))
+    if py_accept != rust_accept:
+        return False
+    if not py_accept:
+        return str(python_response.get("reject_reason")) == str(rust_response.get("reject_reason"))
+    return _full_post_markets_agree(python_response, rust_response)
+
+
+def _python_shadow_materialized_isolated_op(
+    *, ctx: _PerpApplyCtx, i: int, op: PerpOp, pre_market: PerpMarketState
+) -> dict[str, Any]:
+    handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
+    if handler is None:
+        return {"accept": False, "reject_reason": f"unknown perps action: {op.action}"}
+    shadow_ctx = _PerpApplyCtx(
+        config=ctx.config,
+        balances=_copy_balance_table(ctx.balances),
+        nonces=_copy_nonce_table(ctx.nonces),
+        markets=dict(ctx.markets),
+        effects=[],
+        tx_sender_pubkey=ctx.tx_sender_pubkey,
+        block_timestamp=ctx.block_timestamp,
+    )
+    err = handler(shadow_ctx, i=i, op=op, market=pre_market)
+    if err is not None:
+        return {"accept": False, "reject_reason": err}
+    python_effect = _materialized_effect_payload(shadow_ctx.effects[-1]) if shadow_ctx.effects else {}
+    return _perp_stateful_full_doc(
+        shadow_ctx.markets[op.market_id],
+        python_effect,
+    )
+
+
+def _commit_materialized_rust_accept(
+    *, ctx: _PerpApplyCtx, i: int, op: PerpOp, rust_response: Mapping[str, Any]
+) -> Optional[str]:
+    if not bool(rust_response.get("accept")):
+        return str(rust_response.get("reject_reason") or "perp_stateful rust authority rejected")
+    post = rust_response.get("post")
+    if not isinstance(post, Mapping):
+        return "perp_stateful rust authority malformed accepted post"
+    effects = rust_response.get("effects")
+    if not isinstance(effects, Mapping):
+        return "perp_stateful rust authority malformed accepted effects"
+    try:
+        post_market = _market_from_materialized_post(post)
+    except Exception as exc:
+        return f"perp_stateful rust authority malformed post: {_safe_error_str(exc)}"
+    ctx.markets[op.market_id] = post_market
+    ctx.effects.append({"i": i, "market_id": op.market_id, "action": op.action, "effects": dict(effects)})
+    return None
+
+
+def _apply_materialized_isolated_op_rust_authority(
+    *, ctx: _PerpApplyCtx, i: int, op: PerpOp, market: PerpMarketState
+) -> Optional[str]:
+    from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
+    from src.runtime.rust_invoker import perp_isolated_op
+
+    if op.action not in _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS:
+        return _PERP_STATEFUL_AUTHORITY_BLOCK_MSG
+    if not _materialized_shadow_account_count_bounded(market):
+        return "perp_stateful rust authority account table too large"
+
+    mode = active_mode(PERP_STATEFUL_SURFACE)
+    integration_facts = _isolated_op_integration_facts(ctx=ctx, pre_market=market, op=op)
+    try:
+        request = _build_isolated_op_request(
+            pre_market=market,
+            op=op,
+            integration_facts=integration_facts,
+        )
+    except Exception as exc:
+        return _safe_error_str(exc)
+    if not _materialized_shadow_request_bounded(request):
+        return "perp_stateful rust authority request too large"
+
+    try:
+        decision = decide(
+            PERP_STATEFUL_SURFACE,
+            mode,
+            python_fn=lambda: _python_shadow_materialized_isolated_op(
+                ctx=ctx,
+                i=i,
+                op=op,
+                pre_market=market,
+            ),
+            rust_fn=lambda: perp_isolated_op(request),
+            compare=_materialized_responses_agree,
+        )
+    except AuthorityError as exc:
+        return f"perp_stateful rust authority disagreement: {exc}"
+    except Exception as exc:
+        return f"perp_stateful rust authority error: {_safe_error_str(exc)}"
+
+    if decision.authority != "rust":
+        return "perp_stateful rust authority internal error: Rust did not decide"
+    if isinstance(decision.result, Mapping) and bool(decision.result.get("accept")):
+        post = decision.result.get("post")
+        python_doc = {
+            "accept": True,
+            "quote_asset": post.get("quote_asset") if isinstance(post, Mapping) else None,
+            "global_state": post.get("global_state") if isinstance(post, Mapping) else None,
+            "accounts": post.get("accounts") if isinstance(post, Mapping) else None,
+            "effects": decision.result.get("effects"),
+        }
+        if not _materialized_shadow_response_bounded(python_doc):
+            return "perp_stateful rust authority response too large"
+    return _commit_materialized_rust_accept(
+        ctx=ctx,
+        i=i,
+        op=op,
+        rust_response=decision.result,
+    )
+
+
 def _shadow_accepted_isolated_op(
     *,
     ctx: _PerpApplyCtx,
@@ -3676,10 +3798,7 @@ def _apply_isolated_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMa
 
     mode = active_mode(PERP_STATEFUL_SURFACE)
     if mode in (AuthorityMode.RUST_AUTHORITY, AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW):
-        # No perp_stateful op has a true Rust-authority path yet (Rust would have to
-        # decide from the pre-state and commit its materialized result). Until then,
-        # authority modes fail closed rather than letting Python silently decide.
-        return _PERP_STATEFUL_AUTHORITY_BLOCK_MSG
+        return _apply_materialized_isolated_op_rust_authority(ctx=ctx, i=i, op=op, market=market)
 
     handler = _ISOLATED_ACTION_HANDLERS.get(op.action)
     if handler is None:
