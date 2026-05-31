@@ -6911,6 +6911,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "autotrader_live_allow_local_signing": _env_bool(
                         "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", False
                     ),
+                    "enabled_routes": tuple(
+                        route
+                        for route, enabled in (
+                            ("local_demo", bool(perps_enabled or perps_wallet_enabled)),
+                            (
+                                "local_demo",
+                                bool(zusd_enabled or zusd_tau_wallet_enabled or zusd_monetary_wallet_enabled),
+                            ),
+                            ("local_demo", bool(autotrader_live_enabled)),
+                            ("local_demo", bool(confidential_attestation_enabled)),
+                            ("signed_intents", bool(dex_enabled)),
+                        )
+                        if enabled
+                    ),
                 },
             )
         except (OSError, ValueError, TypeError) as exc:

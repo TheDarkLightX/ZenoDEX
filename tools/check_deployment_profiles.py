@@ -24,6 +24,7 @@ DEFAULT_PROFILE_DIR = ROOT / "config" / "deploy"
 SCHEMA = "zenodex/deployment_profile/v1"
 REPORT_SCHEMA = "zenodex/deployment_profiles_report/v1"
 REQUIRED_PROFILES = ("local-dev", "public-testnet", "production-strict")
+KNOWN_ALLOWED_ROUTES = frozenset({"health", "local_demo", "signed_intents", "public_bundle", "peer_check"})
 
 
 def _mapping(value: Any, name: str, errors: list[str]) -> Mapping[str, Any]:
@@ -55,6 +56,10 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     routes = obj.get("allowed_routes")
     if not isinstance(routes, list) or not routes or not all(isinstance(item, str) and item for item in routes):
         errors.append("allowed_routes must be a non-empty string list")
+    else:
+        unknown_routes = sorted(set(routes) - KNOWN_ALLOWED_ROUTES)
+        if unknown_routes:
+            errors.append(f"allowed_routes contains unknown routes: {unknown_routes}")
 
     for key in ("required_auth", "key_policy", "proof_policy", "peer_policy", "gossip_policy", "observability_policy"):
         _mapping(obj.get(key), key, errors)

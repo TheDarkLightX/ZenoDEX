@@ -80,6 +80,59 @@ def test_public_testnet_startup_rejects_autotrader_local_signing(clean_env):
     assert api_server.main([]) == 2
 
 
+def test_public_testnet_deploy_profile_rejects_enabled_local_demo_route():
+    profile = load_deploy_profile("public-testnet")
+    conflicts = evaluate_deploy_profile_consistency(
+        profile,
+        {
+            "enabled_routes": ("local_demo",),
+            "sensitive_api_enabled": True,
+            "auth_bearer_token_set": True,
+        },
+    )
+
+    assert any("allowed_routes does not permit enabled route 'local_demo'" in c for c in conflicts)
+
+
+def test_deploy_profile_rejects_malformed_enabled_routes_fact():
+    profile = load_deploy_profile("public-testnet")
+    conflicts = evaluate_deploy_profile_consistency(profile, {"enabled_routes": "local_demo"})
+
+    assert any("runtime fact 'enabled_routes' must be a string collection" in c for c in conflicts)
+
+
+def test_public_testnet_deploy_profile_allows_signed_intents_route():
+    profile = load_deploy_profile("public-testnet")
+    conflicts = evaluate_deploy_profile_consistency(
+        profile,
+        {
+            "enabled_routes": ("signed_intents",),
+            "sensitive_api_enabled": True,
+            "auth_bearer_token_set": True,
+        },
+    )
+
+    assert conflicts == ()
+
+
+def test_production_strict_startup_rejects_perps_api_even_with_auth(clean_env, monkeypatch):
+    class FakeServer:
+        def __init__(self, address, handler_cls):
+            self.address = address
+            self.handler_cls = handler_cls
+
+        def serve_forever(self, poll_interval=0.25):  # noqa: ANN001
+            return None
+
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", FakeServer)
+    clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "production-strict")
+    clean_env.setenv("PERPS_API_ENABLED", "1")
+    clean_env.setenv("DEMO_API_TOKEN", "token")
+    clean_env.setenv("ZENODEX_EXTERNAL_AUTH_ENFORCED", "1")
+
+    assert api_server.main([]) == 2
+
+
 def test_public_testnet_deploy_profile_rejects_half_configured_rust_authority():
     profile = load_deploy_profile("public-testnet")
     profile["runtime_authority_policy"]["promoted_surfaces"] = []
