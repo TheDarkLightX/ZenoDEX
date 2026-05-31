@@ -2015,6 +2015,133 @@ mod tests {
     }
 
     #[test]
+    fn boundary_reject_atlas_has_stable_reasons_and_no_post_state() {
+        let seed = req_accts(
+            price_published_global(5),
+            json!({"action": "settle_epoch"}),
+            json!([acct_json("aa", 300_000, 1_000_000, 100_000_000)]),
+            true,
+        );
+        let mut cases: Vec<(&str, Value, &'static str)> =
+            vec![("non_object_request", json!(42), REJ_BAD_REQUEST)];
+
+        let mut bad_schema = seed.clone();
+        bad_schema["schema"] = json!("zenodex/perp_isolated_op/v2");
+        cases.push(("bad_schema", bad_schema, REJ_BAD_SCHEMA));
+
+        let mut bad_version = seed.clone();
+        bad_version["version"] = json!(2);
+        cases.push(("bad_version", bad_version, REJ_BAD_VERSION));
+
+        let mut unknown_request = seed.clone();
+        unknown_request
+            .as_object_mut()
+            .unwrap()
+            .insert("unexpected".to_string(), json!(true));
+        cases.push((
+            "unknown_request_field",
+            unknown_request,
+            REJ_UNKNOWN_REQUEST_FIELD,
+        ));
+
+        let mut missing_global = seed.clone();
+        missing_global["global_state"]
+            .as_object_mut()
+            .unwrap()
+            .remove("now_epoch");
+        cases.push(("missing_global_key", missing_global, REJ_BAD_REQUEST));
+
+        let mut unknown_global = seed.clone();
+        unknown_global["global_state"]["unexpected"] = json!("hidden");
+        cases.push((
+            "unknown_global_field",
+            unknown_global,
+            REJ_UNKNOWN_GLOBAL_FIELD,
+        ));
+
+        let mut account_not_object = seed.clone();
+        account_not_object["accounts"] = json!([42]);
+        cases.push(("account_not_object", account_not_object, REJ_BAD_REQUEST));
+
+        let mut unknown_account = seed.clone();
+        unknown_account["accounts"][0]["unexpected"] = json!("hidden");
+        cases.push((
+            "unknown_account_field",
+            unknown_account,
+            REJ_UNKNOWN_ACCOUNT_FIELD,
+        ));
+
+        let mut duplicate_account = seed.clone();
+        duplicate_account["accounts"] = json!([
+            acct_json("aa", 300_000, 1_000_000, 100_000_000),
+            acct_json("aa", -300_000, 1_000_000, 100_000_000),
+        ]);
+        cases.push((
+            "duplicate_account",
+            duplicate_account,
+            REJ_DUPLICATE_ACCOUNT,
+        ));
+
+        let mut op_not_object = seed.clone();
+        op_not_object["op"] = json!(42);
+        cases.push(("op_not_object", op_not_object, REJ_BAD_REQUEST));
+
+        let mut unknown_op = seed.clone();
+        unknown_op["op"]["amount"] = json!("1");
+        cases.push(("unknown_op_field", unknown_op, REJ_UNKNOWN_OP_FIELD));
+
+        let mut future_action = seed.clone();
+        future_action["op"] = json!({"action": "future_action"});
+        cases.push(("future_action", future_action, REJ_NOT_MATERIALIZED));
+
+        let mut missing_facts = seed.clone();
+        missing_facts.as_object_mut().unwrap().remove("facts");
+        cases.push(("missing_facts", missing_facts, REJ_MISSING_FACTS));
+
+        let mut missing_fact_key = seed.clone();
+        missing_fact_key["facts"]
+            .as_object_mut()
+            .unwrap()
+            .remove("operator_ok");
+        cases.push(("missing_fact_key", missing_fact_key, REJ_MISSING_FACTS));
+
+        let mut unknown_fact = seed.clone();
+        unknown_fact["facts"]
+            .as_object_mut()
+            .unwrap()
+            .insert("extra_fact".to_string(), json!(true));
+        cases.push(("unknown_fact", unknown_fact, REJ_UNKNOWN_FACT_FIELD));
+
+        let mut empty_op_account = req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "", "amount": "1"}),
+            json!([]),
+            true,
+        );
+        empty_op_account["facts"]["balance_available"] = json!("100");
+        cases.push(("empty_op_account", empty_op_account, REJ_BAD_REQUEST));
+
+        let mut reasons = std::collections::BTreeSet::new();
+        for (name, request, expected_reason) in cases {
+            let out = materialize_isolated_op(&request);
+            assert_eq!(
+                out["reject_reason"],
+                json!(expected_reason),
+                "case {name} rejected with unexpected reason"
+            );
+            assert!(
+                out.get("post").is_none(),
+                "case {name} returned a post-state"
+            );
+            reasons.insert(expected_reason);
+        }
+        assert!(
+            reasons.len() >= 10,
+            "boundary atlas collapsed to too few distinct reject classes"
+        );
+    }
+
+    #[test]
     fn effect_arithmetic_overflow_rejects_without_panic() {
         // maintenance_margin_bps + depeg_buffer_bps must not panic (debug) or wrap
         // (release) on a degenerate global; it fails closed instead.
