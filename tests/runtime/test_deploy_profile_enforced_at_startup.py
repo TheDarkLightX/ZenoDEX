@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from src.integration import api_server
+from src.integration import deploy_profile as deploy_profile_module
 from src.integration.deploy_profile import evaluate_deploy_profile_consistency, load_deploy_profile
 from src.runtime.authority import reset_active_authority_policy
 
@@ -139,6 +140,40 @@ def test_unknown_deploy_profile_rejects_at_startup(clean_env):
     clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "not-a-real-profile")
 
     assert api_server.main([]) == 2
+
+
+def test_load_deploy_profile_rejects_malformed_profile_request():
+    with pytest.raises(ValueError, match="profile must be a non-empty string"):
+        load_deploy_profile(" production-strict")
+    with pytest.raises(ValueError, match="profile must be a non-empty string"):
+        load_deploy_profile("")
+
+
+def test_load_deploy_profile_rejects_mismatched_named_profile(tmp_path, monkeypatch):
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    path = profile_dir / "production-strict.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "schema: zenodex/deployment_profile/v1",
+                "profile_id: local-dev",
+                "runtime_authority_policy:",
+                "  schema: zenodex/runtime_authority_policy/v1",
+                "  default: python_authority",
+                "  per_surface: {}",
+                "  promoted_surfaces: []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    # Exact paths are allowed for custom profiles and are validated by their
+    # declared profile_id; named profile loads must match the requested id.
+    assert load_deploy_profile(str(path))["profile_id"] == "local-dev"
+
+    monkeypatch.setattr(deploy_profile_module, "_DEPLOY_DIR", profile_dir)
+    with pytest.raises(ValueError, match="deploy profile id mismatch"):
+        load_deploy_profile("production-strict")
 
 
 def test_local_dev_profile_allows_local_signing_facts():

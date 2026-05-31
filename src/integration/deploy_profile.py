@@ -39,13 +39,15 @@ RUNTIME_FACT_KEYS = (
 def load_deploy_profile(profile: str) -> dict[str, Any]:
     """Load a deploy profile by id (`config/deploy/<id>.yaml`) or path."""
 
-    if not isinstance(profile, str) or not profile.strip():
+    if not isinstance(profile, str) or profile != profile.strip() or not profile:
         raise ValueError("profile must be a non-empty string")
     candidate = Path(profile)
     if candidate.suffix in (".yaml", ".yml") and candidate.is_file():
         path = candidate
+        requested_profile_id = None
     else:
         path = _DEPLOY_DIR / f"{profile}.yaml"
+        requested_profile_id = profile
     if not path.is_file():
         raise FileNotFoundError(f"deploy profile not found: {profile!r} (looked at {path})")
     obj = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -53,6 +55,13 @@ def load_deploy_profile(profile: str) -> dict[str, Any]:
         raise ValueError("deploy profile must be a mapping")
     if obj.get("schema") != DEPLOY_PROFILE_SCHEMA:
         raise ValueError(f"unexpected deploy profile schema: {obj.get('schema')!r}")
+    profile_id = obj.get("profile_id")
+    if not isinstance(profile_id, str) or profile_id != profile_id.strip() or not profile_id:
+        raise ValueError("deploy profile_id must be a non-empty whitespace-trimmed string")
+    if requested_profile_id is not None and profile_id != requested_profile_id:
+        raise ValueError(
+            f"deploy profile id mismatch: requested {requested_profile_id!r}, file declares {profile_id!r}"
+        )
     return dict(obj)
 
 
