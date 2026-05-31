@@ -125,10 +125,10 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 31 harnesses on the actual
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 35 harnesses on the actual
 runtime crate passed (arith, balance, replay, fee-router, burn rails, the
-tractable CPMM initialization/fail-closed slice, stateless perps checked-effect
-helpers, and funding-auto arithmetic).
+tractable CPMM initialization/fail-closed/helper slice, stateless perps
+checked-effect helpers, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
@@ -160,9 +160,10 @@ fuzz. `test_cpmm_settlement_live_path.py` checks active-policy wiring for
 disagreement, and the allowed-overdelivery witness. `public-testnet` lists
 `cpmm_settlement` in `promoted_surfaces`; production remains
 `python_authority`. Kani now covers pool initialization, uninitialized-swap
-fail-closed behavior, and non-vacuity on the running Rust module. Full symbolic
-exact-in/out `u128` swap arithmetic remains outside the current Kani receipt
-until the swap formulas are decomposed into smaller checked helpers; it remains
+fail-closed behavior, invalid-fee and zero-denominator helper behavior,
+small-domain fee-ceil boundedness, small-domain exact-in reserve shape, and
+non-vacuity on the running Rust module. Full live-domain symbolic exact-in/out
+`u128` swap arithmetic remains outside the current Kani receipt; it remains
 covered by Tau/ESSO/Lean plus property and Python/Rust differential evidence.
 Batch-clearing orchestration remains Python-owned.
 

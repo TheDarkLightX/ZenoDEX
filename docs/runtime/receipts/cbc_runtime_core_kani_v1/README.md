@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 31 successfully verified harnesses, 0 failures, 31 total.
+Complete - 35 successfully verified harnesses, 0 failures, 35 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -63,6 +63,10 @@ Burn accounting rails:
 CPMM settlement primitive, tractable Kani slice:
 
 - `cpmm_swap::kani_contracts::covers_are_reachable`
+- `cpmm_swap::kani_contracts::checked_ceil_mul_div_zero_denominator_is_total`
+- `cpmm_swap::kani_contracts::exact_in_calc_small_domain_total_and_accept_shape`
+- `cpmm_swap::kani_contracts::fee_ceil_mul_div_small_domain_is_total_and_bounded`
+- `cpmm_swap::kani_contracts::fee_validation_boundary_cases`
 - `cpmm_swap::kani_contracts::init_pool_accept_shape`
 - `cpmm_swap::kani_contracts::init_pool_is_total`
 - `cpmm_swap::kani_contracts::uninitialized_pool_rejects_all_swaps`
@@ -101,8 +105,10 @@ running Rust crate:
 - fee-router dust-core totality/exactness and split totality;
 - burn rail totality, accept-implies exact supply/budget/batch conservation, and
   non-vacuity covers;
-- CPMM initialization totality, accepted initialization shape, uninitialized
-  swap fail-closed behavior, and non-vacuity covers;
+- CPMM initialization totality, accepted initialization shape, invalid-fee
+  boundary handling, zero-denominator fail-closed helper behavior, small-domain
+  symbolic fee-ceil boundedness, small-domain exact-in reserve-shape behavior,
+  uninitialized swap fail-closed behavior, and non-vacuity covers;
 - stateless perps checked-effect helper totality over arbitrary `i128` inputs,
   plus non-vacuity covers for success and overflow paths;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
@@ -110,9 +116,12 @@ running Rust crate:
 
 It does not prove the heap-heavy JSON/CLI bridge, `BTreeMap` state-root hashing,
 or Python integration shell. It also does not prove the full CPMM exact-in/out
-swap arithmetic over symbolic `u128` multiplication/division; direct public-swap
-harnesses timed out under CBMC and need a smaller helper decomposition before
-they can become Kani obligations. It also does not prove full-domain symbolic
+swap arithmetic over symbolic live-domain `u128` multiplication/division. Direct
+public-swap harnesses and an exact-out helper harness timed out under CBMC; the
+tracked Kani obligations therefore stop at checked helper boundaries and a
+small-domain exact-in proof. The remaining CPMM arithmetic is still covered by
+Rust proptests, Python/Rust differentials, disaster-state, live-path tests, and
+Tau/ESSO/Lean model evidence. It also does not prove full-domain symbolic
 equivalence between the checked and plain perps math helpers; these remain
 covered by Rust proptests, Python/Rust differentials, disaster-state, and
 live-path tests.
