@@ -27,6 +27,12 @@ This repo now includes a deterministic receipt format for that boundary:
 - `src/core/confidential_extension_receipts.py`
 - `src/kernels/dex/confidential_extension_tee_gate_v1.yaml`
 
+Crypto readiness is tracked separately in
+`docs/CONFIDENTIAL_CRYPTO_READINESS.md` and
+`src/integration/confidential_crypto_readiness.py`. A configured external
+verifier binding is evidence for operator wiring; it is not an in-repo proof of
+vendor attestation soundness.
+
 ## Current sealed-bid experiment
 
 A bounded sealed-bid private-state experiment now exists in the repo:

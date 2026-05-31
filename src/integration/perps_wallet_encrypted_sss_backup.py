@@ -785,6 +785,18 @@ def _status(
     replay_hostile_tests_ready: bool = False,
 ) -> dict[str, Any]:
     ready = not errors
+    production_readiness_gaps = _sss_production_readiness_gaps(
+        ready=ready,
+        live_provider_delivery_ready=live_provider_delivery_ready,
+        recovery_drill_ready=recovery_drill_ready,
+        replay_recovery_ready=replay_recovery_ready,
+        subject_public_key_matches=subject_public_key_matches,
+        hostile_share_tests_ready=hostile_share_tests_ready,
+        replay_hostile_tests_ready=replay_hostile_tests_ready,
+        raw_material_absent=raw_material_absent,
+        external_audit_ready=external_audit_ready,
+    )
+    production_custody_ready = not production_readiness_gaps
     body: dict[str, Any] = {
         "schema": PERPS_WALLET_ENCRYPTED_SSS_BACKUP_STATUS_SCHEMA_V1,
         "ok": ready,
@@ -819,10 +831,51 @@ def _status(
         "external_audit_ready": external_audit_ready,
         "audit_required_for_production": True,
         "production_security_claim": False,
+        "production_custody_ready": production_custody_ready,
+        "production_readiness_gaps": production_readiness_gaps,
+        "cryptography_posture": (
+            "audit-bound-production-candidate"
+            if production_custody_ready
+            else "local-fixture-or-beta-only"
+        ),
         "audit_status": audit_status,
     }
     body["status_hash"] = hash_v0("perps_wallet_encrypted_sss_backup_status_v1", body)
     return body
+
+
+def _sss_production_readiness_gaps(
+    *,
+    ready: bool,
+    live_provider_delivery_ready: bool,
+    recovery_drill_ready: bool,
+    replay_recovery_ready: bool,
+    subject_public_key_matches: bool,
+    hostile_share_tests_ready: bool,
+    replay_hostile_tests_ready: bool,
+    raw_material_absent: bool,
+    external_audit_ready: bool,
+) -> list[str]:
+    gaps: list[str] = []
+    if not ready:
+        gaps.append("encrypted SSS backup evaluator is blocked")
+    if not live_provider_delivery_ready:
+        gaps.append("live encrypted SSS provider delivery evidence is not ready")
+    if not recovery_drill_ready:
+        gaps.append("encrypted SSS recovery drill is not ready")
+    if not replay_recovery_ready:
+        gaps.append("encrypted SSS recovery drill replay is not ready")
+    if not subject_public_key_matches:
+        gaps.append("encrypted SSS recovered key does not match subject public key")
+    if not hostile_share_tests_ready:
+        gaps.append("encrypted SSS hostile-share tests are not ready")
+    if not replay_hostile_tests_ready:
+        gaps.append("encrypted SSS hostile replay tests are not ready")
+    if not raw_material_absent:
+        gaps.append("encrypted SSS raw key/share material absence is not established")
+    if not external_audit_ready:
+        gaps.append("external encrypted SSS audit evidence is not ready")
+    return gaps
 
 
 def _replay_recovery_drill(
