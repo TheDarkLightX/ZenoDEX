@@ -1041,6 +1041,22 @@ def test_rust_materialized_post_round_trips_to_market_state_for_deposit(rust_env
     duplicated["accounts"] = list(captured["post"]["accounts"]) + [captured["post"]["accounts"][0]]
     with pytest.raises(ValueError, match="duplicate account key"):
         perp_engine._market_from_materialized_post(duplicated)
+    extra_field = dict(captured["post"])
+    extra_field["accounts"] = [dict(captured["post"]["accounts"][0], unexpected="1")]
+    with pytest.raises(ValueError, match="account keys mismatch"):
+        perp_engine._market_from_materialized_post(extra_field)
+    missing_field = dict(captured["post"])
+    missing_account = dict(captured["post"]["accounts"][0])
+    del missing_account["funding_paid_cumulative"]
+    missing_field["accounts"] = [missing_account]
+    with pytest.raises(ValueError, match="account keys mismatch"):
+        perp_engine._market_from_materialized_post(missing_field)
+    bool_numeric = dict(captured["post"])
+    bad_account = dict(captured["post"]["accounts"][0])
+    bad_account["position_base"] = True
+    bool_numeric["accounts"] = [bad_account]
+    with pytest.raises(ValueError, match="account.position_base must be a decimal string"):
+        perp_engine._market_from_materialized_post(bool_numeric)
 
 
 def test_isolated_global_shadow_doc_rejects_malformed_globals():
