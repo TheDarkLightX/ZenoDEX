@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 21 successfully verified harnesses, 0 failures, 21 total.
+Complete - 31 successfully verified harnesses, 0 failures, 31 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -31,6 +31,12 @@ The harness run still completed successfully. Those constructs were not reachabl
 from the verified harnesses.
 
 ## Harnesses Verified
+
+Arithmetic core:
+
+- `arith::kani_contracts::checked_add_total_and_exact`
+- `arith::kani_contracts::floor_div_i128_is_total`
+- `arith::kani_contracts::mul_div_floor_is_total`
 
 Balance kernel:
 
@@ -47,6 +53,19 @@ Fee router:
 - `fee_router::kani_contracts::covers_are_reachable`
 - `fee_router::kani_contracts::dust_from_remainders_total_and_exact`
 - `fee_router::kani_contracts::split_is_total`
+
+Burn accounting rails:
+
+- `burn_receipts::kani_contracts::accepted_rails_enforce_conservation`
+- `burn_receipts::kani_contracts::covers_are_reachable`
+- `burn_receipts::kani_contracts::verify_rails_is_total`
+
+CPMM settlement primitive, tractable Kani slice:
+
+- `cpmm_swap::kani_contracts::covers_are_reachable`
+- `cpmm_swap::kani_contracts::init_pool_accept_shape`
+- `cpmm_swap::kani_contracts::init_pool_is_total`
+- `cpmm_swap::kani_contracts::uninitialized_pool_rejects_all_swaps`
 
 Perp stateless math checked-effect helpers:
 
@@ -77,13 +96,23 @@ running Rust crate:
   reject precedence, and non-vacuity covers;
 - replay nonce classifier totality, exact accept/reject semantics, and non-vacuity
   covers;
+- arithmetic helper totality for checked addition, floor division, and
+  multiply-divide floor;
 - fee-router dust-core totality/exactness and split totality;
+- burn rail totality, accept-implies exact supply/budget/batch conservation, and
+  non-vacuity covers;
+- CPMM initialization totality, accepted initialization shape, uninitialized
+  swap fail-closed behavior, and non-vacuity covers;
 - stateless perps checked-effect helper totality over arbitrary `i128` inputs,
   plus non-vacuity covers for success and overflow paths;
 - funding-auto sink mirror movement, per-account collateral/payment relation,
   replay predicate, two-account conservation, and non-vacuity covers.
 
 It does not prove the heap-heavy JSON/CLI bridge, `BTreeMap` state-root hashing,
-or Python integration shell. It also does not prove full-domain symbolic
-equivalence between the checked and plain perps math helpers; that remains covered
-by Rust proptests, Python/Rust differentials, disaster-state, and live-path tests.
+or Python integration shell. It also does not prove the full CPMM exact-in/out
+swap arithmetic over symbolic `u128` multiplication/division; direct public-swap
+harnesses timed out under CBMC and need a smaller helper decomposition before
+they can become Kani obligations. It also does not prove full-domain symbolic
+equivalence between the checked and plain perps math helpers; these remain
+covered by Rust proptests, Python/Rust differentials, disaster-state, and
+live-path tests.
