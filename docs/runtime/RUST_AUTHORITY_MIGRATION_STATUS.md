@@ -11,6 +11,22 @@ per-pool settlement, and perp stateless math are promoted only in the `public-te
 default mode remains `python_authority`, `production-strict` remains all-Python,
 and no surface runs pure `rust_authority`.
 
+## Authority mode glossary
+
+The mode names are directional:
+
+- `rust_authority_with_python_shadow`: Rust computes the canonical decision and
+  result. Python reruns as the shadow checker, and disagreement fails closed.
+- `rust_shadow`: Python computes and commits the canonical result. Rust reruns
+  as the checker after Python materializes the transition; available Rust
+  disagreement fails closed, but unavailable Rust is skipped for deployability.
+- `rust_authority`: Rust computes and commits without a Python shadow. No
+  deployment profile currently uses this mode.
+- `python_authority`: Python computes and commits without a Rust requirement.
+
+Accordingly, "Rust authority with Python shadow" and "Rust shadow" are opposite
+authority directions.
+
 ## Phase 0 inventory — promotion map
 
 `Authority` = who computes the canonical result today. Promoted public-testnet
@@ -21,16 +37,16 @@ human decision + profile entry.
 
 | Surface | Authority | Rust shadow | 1–8,10–11 | DS (4) | Fuzz (9) | Promoted (12) |
 |---|---|---|---|---|---|---|
-| Canonical primitives | Rust+Python shadow on public-testnet | `canonical.rs` | ✅ | ✅¹ | ✅ | ✅¹ |
-| State root v5 | Rust+Python shadow on public-testnet | `state_root.rs` | ✅ | ✅² | ✅ | ✅² |
-| Replay / idempotency guard | Rust+Python shadow on public-testnet | `replay_guard.rs` | ✅ | ✅⁴ | ✅ | ✅⁴ |
-| Balance accounting | Rust+Python shadow on public-testnet | `balance_kernel.rs` | ✅ | ✅⁵ | ✅ | ✅⁵ |
-| Fee router (4-way + dust) | Rust+Python shadow on public-testnet | `fee_router.rs` | ✅ | ✅⁶ | ✅ | ✅⁶ |
-| Burn rails | Rust+Python shadow on public-testnet | `burn_receipts.rs` | ✅ | ✅⁷ | ✅ | ✅⁷ |
-| CPMM per-pool settlement | Rust+Python shadow on public-testnet | `cpmm_swap.rs` | ✅ | ✅⁸ | ✅ | ✅⁸ |
-| zUSD single-vault | Rust+Python shadow on public-testnet | `zusd.rs` | ✅ | ✅¹⁰ | ✅ | ✅¹⁰ |
-| Perp stateless math (E1) | Rust+Python shadow on public-testnet | `perp_math.rs` | ✅ | ✅⁹ | ✅ | ✅⁹ |
-| Perp stateful (E2, all 10 ops) | Python + live Rust shadow on public-testnet | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
+| Canonical primitives | Rust authority + Python shadow on public-testnet | `canonical.rs` | ✅ | ✅¹ | ✅ | ✅¹ |
+| State root v5 | Rust authority + Python shadow on public-testnet | `state_root.rs` | ✅ | ✅² | ✅ | ✅² |
+| Replay / idempotency guard | Rust authority + Python shadow on public-testnet | `replay_guard.rs` | ✅ | ✅⁴ | ✅ | ✅⁴ |
+| Balance accounting | Rust authority + Python shadow on public-testnet | `balance_kernel.rs` | ✅ | ✅⁵ | ✅ | ✅⁵ |
+| Fee router (4-way + dust) | Rust authority + Python shadow on public-testnet | `fee_router.rs` | ✅ | ✅⁶ | ✅ | ✅⁶ |
+| Burn rails | Rust authority + Python shadow on public-testnet | `burn_receipts.rs` | ✅ | ✅⁷ | ✅ | ✅⁷ |
+| CPMM per-pool settlement | Rust authority + Python shadow on public-testnet | `cpmm_swap.rs` | ✅ | ✅⁸ | ✅ | ✅⁸ |
+| zUSD single-vault | Rust authority + Python shadow on public-testnet | `zusd.rs` | ✅ | ✅¹⁰ | ✅ | ✅¹⁰ |
+| Perp stateless math (E1) | Rust authority + Python shadow on public-testnet | `perp_math.rs` | ✅ | ✅⁹ | ✅ | ✅⁹ |
+| Perp stateful (E2, all 10 ops) | Python authority + live Rust shadow on public-testnet | `perp_*` (7 modules) | ✅ | ⚠️³ | ✅ | ☐ |
 
 ¹ Canonical primitives (stateless) have the applicable disaster-state rows
 (malformed bytes, overflow/underflow, determinism, purity) covered by
