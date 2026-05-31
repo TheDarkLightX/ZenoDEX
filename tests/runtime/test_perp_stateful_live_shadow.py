@@ -310,18 +310,10 @@ def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
     assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
 
 
-def test_rust_authority_commits_advance_and_blocks_unpromoted_perp_stateful_ops(rust_env):
+def test_rust_authority_commits_advance_epoch(rust_env):
     # Manual Rust-authority slices decide from the pre-state and the Python shell
-    # commits the parsed Rust post-market. Unpromoted perps stateful ops remain
-    # blocked until promoted one by one.
+    # commits the parsed Rust post-market.
     advance_state = _settled("perp:auth-block-advance")
-    liquidation_state = fa.build_market(
-        market_id="perp:auth-block-liquidate",
-        quote_asset=QUOTE,
-        positions=[(PK_A, 300_000), (PK_B, -300_000)],
-        clearing_price_e8=101_000_000,
-        deposit=1_000_000,
-    )
     set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
     res_adv = fa._apply_result(
         state=advance_state,
@@ -331,15 +323,6 @@ def test_rust_authority_commits_advance_and_blocks_unpromoted_perp_stateful_ops(
     )
     assert res_adv.ok is True, res_adv.error
     assert int(res_adv.state.perps.markets["perp:auth-block-advance"].global_state["epoch_phase"]) == 0
-
-    res_liquidate = fa._apply_result(
-        state=liquidation_state,
-        tx_sender_pubkey=PK_A,
-        operator_pubkey=OPERATOR,
-        ops=[fa._op("perp:auth-block-liquidate", "partial_liquidate", account_pubkey=PK_A, fraction_bps=0)],
-    )
-    assert res_liquidate.ok is False
-    assert "not live-wired" in (res_liquidate.error or "")
 
 
 def test_rust_authority_advance_does_not_call_python_handler(rust_env, monkeypatch):
@@ -702,6 +685,66 @@ def test_rust_authority_commits_settle_epoch_liquidation_without_python_handler(
     assert market.accounts[PK_A].liquidated_this_step is True
     assert int(effect["fee_pool_delta"]) > 0
     assert effect["effects"]["event"] == "EpochSettled"
+
+
+def test_rust_authority_commits_partial_liquidate_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-partial-liquidate"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 500_000)],
+        clearing_price_e8=100_000_000,
+        deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch"), fa._op(market_id, "advance_epoch", delta=1)],
+    )
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = 500
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=25_000)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=accts)
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python partial_liquidate handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "partial_liquidate",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=PK_A,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "partial_liquidate", account_pubkey=PK_A, fraction_bps=0)],
+    )
+    assert res.ok is True, res.error
+    post = res.state.perps.markets[market_id]
+    effect = res.effects[-1]
+    assert post.accounts[PK_A].liquidated_this_step is True
+    assert int(post.global_state["fee_pool_quote"]) > 1
+    assert int(effect["effects"]["fee_pool_after"]) == int(post.global_state["fee_pool_quote"])
+    assert effect["effects"]["event"] == "PartialLiquidationApplied"
+
+
+def test_all_materialized_isolated_ops_have_manual_rust_authority_slice():
+    from src.integration import perp_engine
+
+    assert (
+        perp_engine._PERP_STATEFUL_RUST_AUTHORITY_ACTIONS
+        == perp_engine._PERP_STATEFUL_MATERIALIZED_ACTIONS
+    )
 
 
 def _settled(market_id: str):
