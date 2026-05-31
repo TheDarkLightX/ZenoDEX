@@ -241,6 +241,22 @@ def _agree(python_result: Any, rust_result: Any, compare: Optional[Callable[[Any
     return python_result == rust_result
 
 
+def _checked_agree(
+    *,
+    surface: str,
+    context: str,
+    python_result: Any,
+    rust_result: Any,
+    compare: Optional[Callable[[Any, Any], bool]],
+) -> bool:
+    try:
+        return _agree(python_result, rust_result, compare)
+    except Exception as exc:
+        raise AuthorityError(
+            f"surface {surface!r}: python/rust comparison errored in {context}: {exc}"
+        ) from exc
+
+
 def decide(
     surface: str,
     mode: AuthorityMode | str,
@@ -279,7 +295,13 @@ def decide(
             raise AuthorityError(
                 f"surface {surface!r}: rust shadow errored: {exc}"
             ) from exc
-        if not _agree(py, ru, compare):
+        if not _checked_agree(
+            surface=surface,
+            context="rust_shadow mode",
+            python_result=py,
+            rust_result=ru,
+            compare=compare,
+        ):
             raise AuthorityError(
                 f"surface {surface!r}: python/rust disagreement in rust_shadow mode"
             )
@@ -306,7 +328,13 @@ def decide(
             raise AuthorityError(
                 f"surface {surface!r}: python shadow errored: {exc}"
             ) from exc
-        if not _agree(py, ru, compare):
+        if not _checked_agree(
+            surface=surface,
+            context="rust_authority_with_python_shadow mode",
+            python_result=py,
+            rust_result=ru,
+            compare=compare,
+        ):
             raise AuthorityError(
                 f"surface {surface!r}: python/rust disagreement (python shadow)"
             )

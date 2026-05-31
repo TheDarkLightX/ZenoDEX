@@ -133,6 +133,20 @@ def test_rust_shadow_disagreement_fails_closed():
         decide("fee_router", AuthorityMode.RUST_SHADOW, python_fn=py, rust_fn=ru)
 
 
+def test_rust_shadow_comparator_error_is_authority_error():
+    def broken_compare(_py, _ru):
+        raise ValueError("malformed comparison")
+
+    with pytest.raises(AuthorityError, match="comparison errored"):
+        decide(
+            "fee_router",
+            AuthorityMode.RUST_SHADOW,
+            python_fn=_Counter(PY_RESULT),
+            rust_fn=_Counter(RUST_SAME),
+            compare=broken_compare,
+        )
+
+
 def test_rust_shadow_rejects_none_none_default_agreement():
     with pytest.raises(AuthorityError):
         decide(
@@ -196,6 +210,20 @@ def test_rust_authority_with_shadow_disagreement_fails_closed():
             AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
             python_fn=py,
             rust_fn=ru,
+        )
+
+
+def test_rust_authority_with_shadow_comparator_error_is_authority_error():
+    def broken_compare(_py, _ru):
+        raise ValueError("malformed comparison")
+
+    with pytest.raises(AuthorityError, match="comparison errored"):
+        decide(
+            "fee_router",
+            AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW,
+            python_fn=_Counter(PY_RESULT),
+            rust_fn=_Counter(RUST_SAME),
+            compare=broken_compare,
         )
 
 
