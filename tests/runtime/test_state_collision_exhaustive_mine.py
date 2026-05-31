@@ -46,6 +46,14 @@ against the real encoders:
       Sweep 3 (`test_exhaustive_nonce_and_dust_boundaries_injective`): the empty
         state PLUS every single-nonce state over (pk x nonce in {1,2,255,256,
         2^32-1}) crossed with dust in {0,1,256}. Exact N=33, pairs=528.
+      Sweep 4 (`test_exhaustive_single_pool_field_boundaries_injective`): one
+        fixed pool id and asset pair, with reserves, fee, LP supply, status,
+        created_at, and curve config varied over a boundary-rich field lattice.
+        Exact N=1458, pairs=1,062,153.
+      Sweep 5 (`test_exhaustive_lp_duration_risk_field_boundaries_injective`):
+        one fixed LP key with a fixed positive LP balance and all duration-risk
+        metadata fields varied over None/zero/carry-edge alphabets. Exact N=192,
+        pairs=18,336.
     These are exhaustive over THESE bounds (sub-alphabets / single-nonce /
     <=3 entries), NOT over a hypothetical maximal domain — the claim is precisely
     the bound each sweep enumerates.
@@ -514,6 +522,104 @@ def test_exhaustive_single_pool_field_boundaries_injective():
     assert n == expected == 1458
     assert pairs == 1458 * 1457 // 2 == 1_062_153
     print(f"[exhaustive single-pool] N={n} states, checked C(N,2)={pairs} pairs")
+
+
+def _lp_duration_risk_root_identity(
+    *,
+    pubkey: str,
+    pool_id: str,
+    amount: int,
+    last_mint_timestamp: int | None,
+    last_remove_timestamp: int | None,
+    churn_tier: int,
+    last_churn_update_timestamp: int | None,
+) -> tuple:
+    """Decoded logical identity for the bounded LP duration-risk enumeration."""
+    return (
+        _pk_bytes(pubkey),
+        _asset_bytes(pool_id),
+        int(amount),
+        last_mint_timestamp,
+        last_remove_timestamp,
+        int(churn_tier),
+        last_churn_update_timestamp,
+    )
+
+
+def _lp_duration_risk_table_from_identity(identity: tuple) -> LPTable:
+    pk_b, pool_b, amount, last_mint, last_remove, churn_tier, last_churn_update = identity
+    pubkey = "0x" + pk_b.hex()
+    pool_id = "0x" + pool_b.hex()
+    lp = LPTable()
+    lp.set(pubkey, pool_id, amount)
+    if last_mint is not None:
+        lp.set_last_mint_timestamp(pubkey, pool_id, last_mint)
+    if last_remove is not None:
+        lp.set_last_remove_timestamp(pubkey, pool_id, last_remove)
+    if churn_tier:
+        lp.set_churn_tier(pubkey, pool_id, churn_tier)
+    if last_churn_update is not None:
+        lp.set_last_churn_update_timestamp(pubkey, pool_id, last_churn_update)
+    return lp
+
+
+def test_exhaustive_lp_duration_risk_field_boundaries_injective():
+    """Sweep 5 (single-LP duration-risk field lattice).
+
+    Domain: one fixed (pubkey, pool_id) LP key with a fixed positive LP balance,
+    while every committed duration-risk metadata field varies over small
+    boundary alphabets:
+      last_mint_timestamp in {None, 0, 1, 128}
+      last_remove_timestamp in {None, 0, 1, 128}
+      churn_tier in {0, 1, 2}
+      last_churn_update_timestamp in {None, 0, 1, 128}
+
+    The LP amount is fixed at 1 so the sweep isolates LPA metadata framing. Every
+    distinct decoded metadata identity must produce a distinct spot-DEX state
+    root."""
+    pubkey = PK[0]
+    pool_id = "0x" + "42" * 32
+    amount = 1
+    timestamps = (None, 0, 1, 128)
+    churn_tiers = (0, 1, 2)
+
+    root_by_identity: dict[tuple, str] = {}
+    identity_by_root: dict[str, tuple] = {}
+    for last_mint, last_remove, churn_tier, last_churn_update in itertools.product(
+        timestamps,
+        timestamps,
+        churn_tiers,
+        timestamps,
+    ):
+        identity = _lp_duration_risk_root_identity(
+            pubkey=pubkey,
+            pool_id=pool_id,
+            amount=amount,
+            last_mint_timestamp=last_mint,
+            last_remove_timestamp=last_remove,
+            churn_tier=churn_tier,
+            last_churn_update_timestamp=last_churn_update,
+        )
+        assert identity not in root_by_identity, f"duplicate LP metadata identity: {identity}"
+        lp = _lp_duration_risk_table_from_identity(identity)
+        root = _root(BalanceTable(), {}, lp, NonceTable())
+        assert root == _root(BalanceTable(), {}, lp, NonceTable()), (
+            f"LP duration-risk root not deterministic for {identity!r}"
+        )
+        if root in identity_by_root and identity_by_root[root] != identity:
+            raise AssertionError(
+                f"LP DURATION-RISK STATE-ROOT COLLISION: distinct identities "
+                f"{identity_by_root[root]!r} and {identity!r} share root {root}"
+            )
+        root_by_identity[identity] = root
+        identity_by_root[root] = identity
+
+    n = len(root_by_identity)
+    pairs = n * (n - 1) // 2
+    expected = len(timestamps) * len(timestamps) * len(churn_tiers) * len(timestamps)
+    assert n == expected == 192
+    assert pairs == 192 * 191 // 2 == 18_336
+    print(f"[exhaustive LP duration-risk] N={n} states, checked C(N,2)={pairs} pairs")
 
 
 # ===========================================================================
