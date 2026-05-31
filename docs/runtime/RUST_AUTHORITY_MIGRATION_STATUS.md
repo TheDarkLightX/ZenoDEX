@@ -124,8 +124,9 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 21 harnesses on the actual
-runtime crate passed (balance, replay, fee-router, stateless perps checked-effect
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 31 harnesses on the actual
+runtime crate passed (arith, balance, replay, fee-router, burn rails, the
+tractable CPMM initialization/fail-closed slice, stateless perps checked-effect
 helpers, and funding-auto arithmetic).
 
 ⁷ Burn rails are now live-wired through
@@ -140,6 +141,8 @@ fuzz, and selector fail-closed rows. `test_burn_receipts_live_path.py` checks
 active-policy wiring for `rust_authority_with_python_shadow`, `rust_shadow`,
 unavailable Rust, and injected disagreement. `public-testnet` lists
 `burn_receipts` in `promoted_surfaces`; production remains `python_authority`.
+Kani now covers the running Rust rail core for totality, accepted
+supply/budget/batch conservation, and non-vacuity.
 
 ⁸ CPMM per-pool settlement is now live-wired through
 `src/kernels/python/settlement_swap_runtime_v1.py` for exact-in and exact-out
@@ -155,7 +158,12 @@ fuzz. `test_cpmm_settlement_live_path.py` checks active-policy wiring for
 `rust_authority_with_python_shadow`, `rust_shadow`, unavailable Rust, injected
 disagreement, and the allowed-overdelivery witness. `public-testnet` lists
 `cpmm_settlement` in `promoted_surfaces`; production remains
-`python_authority`. Batch-clearing orchestration remains Python-owned.
+`python_authority`. Kani now covers pool initialization, uninitialized-swap
+fail-closed behavior, and non-vacuity on the running Rust module. Full symbolic
+exact-in/out `u128` swap arithmetic remains outside the current Kani receipt
+until the swap formulas are decomposed into smaller checked helpers; it remains
+covered by Tau/ESSO/Lean plus property and Python/Rust differential evidence.
+Batch-clearing orchestration remains Python-owned.
 
 ¹⁰ zUSD single-vault is now live-wired through `src/core/zusd.py::step` using
 the `zusd-op` Rust bridge from an explicit 32-field state object. The promoted

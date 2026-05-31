@@ -425,3 +425,94 @@ mod tests {
         assert_eq!(swap_exact_in(&p, true, 1, 0), Err(REJ_TRADE_TOO_SMALL));
     }
 }
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0 — Kani contracts on the ACTUAL CPMM settlement-swap transitions.
+//
+// These harnesses target the tractable part of the running public transitions:
+// pool initialization, uninitialized-pool fail-closed behavior, and concrete
+// non-vacuity witnesses through exact-in/exact-out. Full symbolic exact-in/out
+// arithmetic over `u128` multiplication/division timed out under CBMC. That
+// contract stays covered by ESSO/Lean plus property/differential tests until the
+// swap formulas are decomposed into smaller checked helpers.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    /// TOTALITY. `init_pool` has no multiplication or division, so it is total
+    /// for arbitrary reserves, fees, and prior pool state.
+    #[kani::proof]
+    fn init_pool_is_total() {
+        let pool = Pool {
+            initialized: kani::any(),
+            reserve0: kani::any(),
+            reserve1: kani::any(),
+            fee_bps: kani::any(),
+        };
+        let _ = init_pool(&pool, kani::any(), kani::any(), kani::any());
+    }
+
+    /// ACCEPT SHAPE. A successful initialization echoes validated inputs into
+    /// both the new pool and the receipt.
+    #[kani::proof]
+    fn init_pool_accept_shape() {
+        let reserve0: u128 = kani::any();
+        let reserve1: u128 = kani::any();
+        let fee_bps: u128 = kani::any();
+        if let Ok(acc) = init_pool(&Pool::default(), reserve0, reserve1, fee_bps) {
+            assert!(acc.pool.initialized);
+            assert_eq!(acc.pool.reserve0, reserve0);
+            assert_eq!(acc.pool.reserve1, reserve1);
+            assert_eq!(acc.pool.fee_bps, fee_bps);
+            assert!(acc.receipt.kind == SwapKind::InitPool);
+            assert_eq!(acc.receipt.amount_in, 0);
+            assert_eq!(acc.receipt.amount_out, 0);
+            assert_eq!(acc.receipt.fee_total, 0);
+            assert_eq!(acc.receipt.new_reserve0, reserve0);
+            assert_eq!(acc.receipt.new_reserve1, reserve1);
+            assert!((1..=DEX_POOL_RESERVE_MAX).contains(&reserve0));
+            assert!((1..=DEX_POOL_RESERVE_MAX).contains(&reserve1));
+            assert!(fee_bps <= BPS_DENOM);
+        }
+    }
+
+    /// FAIL-CLOSED. An uninitialized pool rejects every swap with the stable
+    /// `pool_not_initialized` code.
+    #[kani::proof]
+    fn uninitialized_pool_rejects_all_swaps() {
+        let pool = Pool {
+            initialized: false,
+            reserve0: kani::any(),
+            reserve1: kani::any(),
+            fee_bps: kani::any(),
+        };
+        let zfo: bool = kani::any();
+        let amt: u128 = kani::any();
+        let bound: u128 = kani::any();
+        assert_eq!(
+            swap_exact_in(&pool, zfo, amt, bound),
+            Err(REJ_POOL_NOT_INITIALIZED)
+        );
+        assert_eq!(
+            swap_exact_out(&pool, zfo, amt, bound),
+            Err(REJ_POOL_NOT_INITIALIZED)
+        );
+    }
+
+    /// NON-VACUITY. Accepted exact-in/exact-out paths and representative
+    /// rejects are reachable.
+    #[kani::proof]
+    fn covers_are_reachable() {
+        let p = init_pool(&Pool::default(), 1_000_000, 1_000_000, 30)
+            .unwrap()
+            .pool;
+        kani::cover!(swap_exact_in(&p, true, 10_000, 0).is_ok());
+        kani::cover!(swap_exact_in(&p, true, 10_000, 1_000_000_000) == Err(REJ_SLIPPAGE));
+        kani::cover!(swap_exact_out(&p, true, 5_000, u128::MAX).is_ok());
+        kani::cover!(
+            swap_exact_out(&p, true, 1_000_000, u128::MAX) == Err(REJ_AMOUNT_OUT_GE_RESERVE)
+        );
+        kani::cover!(init_pool(&p, 1, 1, 1) == Err(REJ_ALREADY_INITIALIZED));
+    }
+}
