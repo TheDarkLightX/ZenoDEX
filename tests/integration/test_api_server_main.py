@@ -83,6 +83,37 @@ def test_api_server_refuses_malformed_boolean_env(monkeypatch) -> None:
     assert api_server.main([]) == 2
 
 
+def test_env_int_rejects_malformed_or_out_of_range_runtime_control(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("RATE_LIMIT_RPM", "abc")
+    with pytest.raises(ValueError, match="RATE_LIMIT_RPM"):
+        api_server._env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
+
+    monkeypatch.setenv("RATE_LIMIT_RPM", "-1")
+    with pytest.raises(ValueError, match="RATE_LIMIT_RPM"):
+        api_server._env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000)
+
+
+def test_api_server_refuses_invalid_rate_limit_integer(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("API_PORT", "8000")
+    monkeypatch.setenv("RATE_LIMIT_RPM", "-1")
+
+    assert api_server.main([]) == 2
+
+
+def test_api_server_refuses_invalid_port_integer(monkeypatch) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv("API_HOST", "127.0.0.1")
+    monkeypatch.setenv("API_PORT", "70000")
+
+    assert api_server.main([]) == 2
+
+
 def test_env_bool_rejects_malformed_runtime_control(monkeypatch) -> None:
     from src.integration import api_server
 
