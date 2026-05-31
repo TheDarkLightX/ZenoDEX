@@ -61,7 +61,7 @@ def test_public_testnet_profile_rejects_unsafe_boundary_switches() -> None:
     assert "require_intent_signatures must be true" in reasons
     assert "dex_config.require_all_nonces must be true" in reasons
     assert "dex_config.allow_legacy_nonce_free_steps must be false" in reasons
-    assert "dex_config.settlement_validation must not be legacy" in reasons
+    assert "dex_config.settlement_validation must be strong_proof_carrying" in reasons
     assert "allow_unsigned_intents_if_tx_sender_matches must be false" in reasons
 
 
@@ -69,30 +69,34 @@ def test_production_strict_profile_requires_upba_and_oracle_posture() -> None:
     cfg = replace(
         make_dex_engine_config_for_deployment_profile(DEPLOYMENT_PROFILE_PRODUCTION_STRICT),
         allow_uniform_batch_certificate=False,
-        require_uniform_batch_certificate=False,
-        require_uniform_batch_price_grid_evidence=False,
+        require_uniform_batch_certificate_for_supported_swaps=False,
+        require_uniform_batch_optimality_certificate=False,
+        require_uniform_batch_v2_bounded_grid_optimality=False,
+        require_uniform_batch_v3_exact_out_grid_optimality=False,
         require_oracle_authorization_for_protected_swaps=False,
         require_oracle_authorization_for_critical_settlements=False,
     )
 
     reasons = deployment_profile_violations(DEPLOYMENT_PROFILE_PRODUCTION_STRICT, cfg)
-    assert "strict UPBA production requires allow_uniform_batch_certificate" in reasons
-    assert "strict UPBA production requires require_uniform_batch_certificate" in reasons
-    assert "strict UPBA production requires require_uniform_batch_price_grid_evidence" in reasons
+    assert "allow_uniform_batch_certificate must be true" in reasons
+    assert "require_uniform_batch_certificate_for_supported_swaps must be true" in reasons
+    assert "require_uniform_batch_optimality_certificate must be true" in reasons
+    assert "require_uniform_batch_v2_bounded_grid_optimality must be true" in reasons
+    assert "require_uniform_batch_v3_exact_out_grid_optimality must be true" in reasons
     assert "protected swaps require oracle authorization" in reasons
     assert "critical settlements require oracle authorization" in reasons
 
 
-def test_profile_rejects_proof_required_without_enabled_verifier() -> None:
+def test_profile_rejects_external_tools() -> None:
     cfg = replace(
         make_dex_engine_config_for_deployment_profile(DEPLOYMENT_PROFILE_PUBLIC_TESTNET),
-        require_proof_when_present=True,
+        allow_external_tools=True,
     )
 
     ok, err = validate_deployment_profile(DEPLOYMENT_PROFILE_PUBLIC_TESTNET, cfg)
     assert ok is False
     assert err is not None
-    assert "require_proof_when_present requires proof_config.enabled" in err
+    assert "allow_external_tools must be false" in err
 
 
 def test_local_profile_still_rejects_fault_injection() -> None:
@@ -121,6 +125,13 @@ def test_profile_rejects_wrong_chain_id() -> None:
 def test_unknown_profile_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown deployment profile"):
         make_dex_engine_config_for_deployment_profile("unknown")  # type: ignore[arg-type]
+
+
+def test_malformed_profile_ids_are_rejected() -> None:
+    with pytest.raises(TypeError, match="deployment profile id must be a string"):
+        make_dex_engine_config_for_deployment_profile(123)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="deployment profile id must be non-empty"):
+        make_dex_engine_config_for_deployment_profile(" public-testnet")  # type: ignore[arg-type]
 
 
 def test_profile_factory_sanitizes_unsafe_base() -> None:
