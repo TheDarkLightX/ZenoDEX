@@ -2856,12 +2856,25 @@ _PERP_STATEFUL_CONTROL_PARAMS = (
 )
 
 
-def _int_field(mapping: Mapping[str, Any], key: str, default: int = 0) -> int:
-    return int(mapping.get(key, default))
+_MISSING_FIELD = object()
 
 
-def _bool_field(mapping: Mapping[str, Any], key: str, default: bool = False) -> bool:
-    return bool(mapping.get(key, default))
+def _int_field(mapping: Mapping[str, Any], key: str, default: object = _MISSING_FIELD) -> int:
+    value = mapping.get(key, default)
+    if value is _MISSING_FIELD:
+        raise ValueError(f"{key} missing")
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{key} must be an int")
+    return int(value)
+
+
+def _bool_field(mapping: Mapping[str, Any], key: str, default: object = _MISSING_FIELD) -> bool:
+    value = mapping.get(key, default)
+    if value is _MISSING_FIELD:
+        raise ValueError(f"{key} missing")
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} must be a bool")
+    return bool(value)
 
 
 def _account_for_shadow(market: PerpMarketState, account_pubkey: object) -> PerpAccountState:
