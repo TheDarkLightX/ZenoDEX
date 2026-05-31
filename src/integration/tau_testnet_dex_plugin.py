@@ -191,6 +191,12 @@ def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
     return value
 
 
+def _reject_unknown_fields(obj: Mapping[str, Any], *, allowed: set[str], name: str) -> None:
+    extra = sorted(set(obj.keys()) - set(allowed))
+    if extra:
+        raise ValueError(f"{name} unknown fields: {extra}")
+
+
 def _parse_cmd_json_env(name: str) -> Optional[list[str]]:
     raw = os.environ.get(name, "").strip()
     if not raw:
@@ -235,6 +241,11 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     try:
         if isinstance(obj, Mapping) and any(key in obj for key in ("schema", "dex_state", "proof_mining")):
+            _reject_unknown_fields(
+                obj,
+                allowed={"schema", "version", "dex_state", "proof_mining", "zusd_monetary"},
+                name="app_state",
+            )
             schema = obj.get("schema")
             if schema != _APP_STATE_SCHEMA:
                 raise ValueError(f"unsupported app_state schema: {schema!r}")
