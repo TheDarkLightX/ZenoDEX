@@ -442,6 +442,33 @@ def test_rust_authority_commits_clear_breaker_without_python_handler(rust_env, m
     assert res.effects[-1]["effects"]["event"] == "BreakerCleared"
 
 
+def test_rust_authority_clear_breaker_rejects_unknown_fields(rust_env):
+    market_id = "perp:auth-rust-clear-unknown"
+    state = _open_market(market_id, [])
+    market = state.perps.markets[market_id]
+    global_state = dict(market.global_state)
+    global_state["breaker_active"] = True
+    global_state["breaker_last_trigger_epoch"] = int(global_state["now_epoch"])
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=global_state,
+        accounts=dict(market.accounts),
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "clear_breaker", unexpected_field=True)],
+    )
+
+    assert res.ok is False
+    assert res.error == "clear_breaker has unknown fields"
+
+
 def test_rust_authority_commits_set_position_without_python_handler(rust_env, monkeypatch):
     from src.integration import perp_engine
 
