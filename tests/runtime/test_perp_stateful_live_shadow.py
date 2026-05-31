@@ -575,6 +575,52 @@ def test_rust_authority_commits_withdraw_and_credits_wallet_without_python_handl
     assert res.effects[-1]["effects"]["event"] == "CollateralWithdrawn"
 
 
+def test_rust_authority_commits_set_market_params_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-params"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000)],
+        clearing_price_e8=100_000_000,
+        deposit=1_000_000,
+    )
+    state = fa._apply(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python set_market_params handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "set_market_params",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[
+            fa._op(
+                market_id,
+                "set_market_params",
+                params={"maintenance_margin_bps": 550, "funding_cap_bps": 500},
+            )
+        ],
+    )
+    assert res.ok is True, res.error
+    market = res.state.perps.markets[market_id]
+    assert int(market.global_state["maintenance_margin_bps"]) == 550
+    assert int(market.global_state["funding_cap_bps"]) == 500
+    assert res.effects[-1]["params"] == {"maintenance_margin_bps": 550, "funding_cap_bps": 500}
+
+
 def _settled(market_id: str):
     state = fa.build_market(
         market_id=market_id, quote_asset=QUOTE, positions=[], clearing_price_e8=100_000_000, deposit=1_000_000
