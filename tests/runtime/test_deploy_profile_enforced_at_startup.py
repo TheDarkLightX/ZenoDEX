@@ -88,6 +88,21 @@ def test_public_testnet_deploy_profile_rejects_half_configured_rust_authority():
     assert any("half-configured Rust authority" in conflict for conflict in conflicts)
 
 
+def test_deploy_profile_rejects_non_bool_runtime_facts():
+    profile = load_deploy_profile("production-strict")
+    conflicts = evaluate_deploy_profile_consistency(
+        profile,
+        {
+            "sensitive_api_enabled": True,
+            "auth_bearer_token_set": "false",
+            "external_auth_enforced": False,
+        },
+    )
+
+    assert any("runtime fact 'auth_bearer_token_set' must be a bool" in c for c in conflicts)
+    assert any("sensitive APIs are enabled without a bearer token" in c for c in conflicts)
+
+
 def test_public_testnet_startup_rejects_missing_rust_authority_binary(clean_env):
     clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "public-testnet")
     clean_env.setenv("ZENODEX_RUNTIME_BIN", "/tmp/zenodex-runtime-missing")

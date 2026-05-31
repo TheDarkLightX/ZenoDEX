@@ -66,9 +66,6 @@ def evaluate_deploy_profile_consistency(
     if not isinstance(runtime_facts, Mapping):
         raise TypeError("runtime_facts must be a mapping")
 
-    def fact(name: str) -> bool:
-        return bool(runtime_facts.get(name))
-
     profile_id = str(profile.get("profile_id", "?"))
     key_policy = profile.get("key_policy") or {}
     runtime_policy = profile.get("runtime_policy") or {}
@@ -81,6 +78,15 @@ def evaluate_deploy_profile_consistency(
         required_auth = {}
 
     conflicts: list[str] = []
+
+    def fact(name: str) -> bool:
+        value = runtime_facts.get(name, False)
+        if isinstance(value, bool):
+            return value
+        conflicts.append(
+            f"[{profile_id}] runtime fact {name!r} must be a bool, got {type(value).__name__}"
+        )
+        return False
 
     if key_policy.get("raw_private_key_flags_allowed") is False:
         raw_key_flags = {
