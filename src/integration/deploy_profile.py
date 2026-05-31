@@ -66,18 +66,28 @@ def evaluate_deploy_profile_consistency(
     if not isinstance(runtime_facts, Mapping):
         raise TypeError("runtime_facts must be a mapping")
 
-    profile_id = str(profile.get("profile_id", "?"))
+    raw_profile_id = profile.get("profile_id", "?")
+    if isinstance(raw_profile_id, str) and raw_profile_id == raw_profile_id.strip() and raw_profile_id:
+        profile_id = raw_profile_id
+    else:
+        profile_id = "?"
     key_policy = profile.get("key_policy") or {}
     runtime_policy = profile.get("runtime_policy") or {}
     required_auth = profile.get("required_auth") or {}
-    if not isinstance(key_policy, Mapping):
-        key_policy = {}
-    if not isinstance(runtime_policy, Mapping):
-        runtime_policy = {}
-    if not isinstance(required_auth, Mapping):
-        required_auth = {}
 
     conflicts: list[str] = []
+
+    if profile_id == "?":
+        conflicts.append("[?] profile_id must be a non-empty whitespace-trimmed string")
+    if not isinstance(key_policy, Mapping):
+        conflicts.append(f"[{profile_id}] key_policy must be a mapping")
+        key_policy = {}
+    if not isinstance(runtime_policy, Mapping):
+        conflicts.append(f"[{profile_id}] runtime_policy must be a mapping")
+        runtime_policy = {}
+    if not isinstance(required_auth, Mapping):
+        conflicts.append(f"[{profile_id}] required_auth must be a mapping")
+        required_auth = {}
 
     def fact(name: str) -> bool:
         value = runtime_facts.get(name, False)

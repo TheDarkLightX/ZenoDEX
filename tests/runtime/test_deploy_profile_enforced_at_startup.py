@@ -103,6 +103,24 @@ def test_deploy_profile_rejects_non_bool_runtime_facts():
     assert any("sensitive APIs are enabled without a bearer token" in c for c in conflicts)
 
 
+@pytest.mark.parametrize(
+    ("field", "bad_value", "expected"),
+    (
+        ("profile_id", " production-strict", "profile_id must be a non-empty"),
+        ("key_policy", "disabled", "key_policy must be a mapping"),
+        ("runtime_policy", "disabled", "runtime_policy must be a mapping"),
+        ("required_auth", "disabled", "required_auth must be a mapping"),
+    ),
+)
+def test_deploy_profile_rejects_malformed_policy_sections(field, bad_value, expected):
+    profile = load_deploy_profile("production-strict")
+    profile[field] = bad_value
+
+    conflicts = evaluate_deploy_profile_consistency(profile, {})
+
+    assert any(expected in c for c in conflicts)
+
+
 def test_public_testnet_startup_rejects_missing_rust_authority_binary(clean_env):
     clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "public-testnet")
     clean_env.setenv("ZENODEX_RUNTIME_BIN", "/tmp/zenodex-runtime-missing")
