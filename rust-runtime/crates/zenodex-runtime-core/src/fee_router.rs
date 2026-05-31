@@ -21,7 +21,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::arith::checked_add;
+use crate::arith::{checked_add, checked_mul};
 use crate::canonical::{domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex};
 use crate::error::{DomainConstraint, RejectedReason};
 
@@ -522,6 +522,81 @@ fn check_domain_constraints(domain: Domain, t: &FeeSplitTable) -> Result<(), Rej
     Ok(())
 }
 
+fn check_split_components(split: &FeeSplitTable) -> Result<(), RejectedReason> {
+    for component in split.components() {
+        if !(0..=BPS_DENOM as i64).contains(&component) {
+            return Err(RejectedReason::SplitComponentOutOfRange);
+        }
+    }
+    Ok(())
+}
+
+fn check_split_sum(split: &FeeSplitTable) -> Result<(), RejectedReason> {
+    // Safe after `check_split_components`: four values in [0, 10000] cannot
+    // overflow i64.
+    let sum: i64 = split.components().iter().sum();
+    if sum != BPS_DENOM as i64 {
+        return Err(RejectedReason::SplitDoesNotSumTo10000);
+    }
+    Ok(())
+}
+
+/// Outcome of the pure split-with-dust-carry core: the four bucket allocations,
+/// the carried-out dust, and the new per-bucket remainders.
+struct SplitOutcome {
+    buyburn: u128,
+    stakers: u128,
+    reserve: u128,
+    hosts: u128,
+    dust_out: u128,
+    remainders: (u128, u128, u128, u128),
+}
+
+/// Pure split-with-dust-carry core of [`route_fee`]: the consensus arithmetic.
+///
+/// Given a fee `amount`, a `split` (each bps in `[0, BPS_DENOM]`, summing to
+/// `BPS_DENOM`), and the carried-in per-bucket remainders `prev` (each
+/// `< BPS_DENOM`, summing to a multiple of `BPS_DENOM`), allocate each bucket as
+/// `floor((amount*bps + prev_bucket) / BPS_DENOM)`, carry the new remainders, and
+/// fold the four remainders into `dust_out = Σremainders / BPS_DENOM`.
+///
+/// **Conservation** (covered by unit/proptest/differential tests): with
+/// `dust_in = Σprev / BPS_DENOM`,
+/// `amount + dust_in == buyburn + stakers + reserve + hosts + dust_out`.
+///
+/// The helper validates the split before casting signed bps to `u128`. It is
+/// total and overflow-safe via [`checked_mul`] / [`checked_add`]: a product or
+/// sum past `u128` fails closed with [`RejectedReason::ArithmeticOverflow`].
+/// Heap-free, so Kani discharges it directly on this running code.
+fn split_with_dust(
+    amount: u128,
+    split: &FeeSplitTable,
+    prev: (u128, u128, u128, u128),
+) -> Result<SplitOutcome, RejectedReason> {
+    check_split_components(split)?;
+    check_split_sum(split)?;
+
+    let buyburn_num = checked_add(checked_mul(amount, split.buyburn_bps as u128)?, prev.0)?;
+    let stakers_num = checked_add(checked_mul(amount, split.stakers_bps as u128)?, prev.1)?;
+    let reserve_num = checked_add(checked_mul(amount, split.reserve_bps as u128)?, prev.2)?;
+    let hosts_num = checked_add(checked_mul(amount, split.hosts_bps as u128)?, prev.3)?;
+    let remainders = (
+        buyburn_num % BPS_DENOM,
+        stakers_num % BPS_DENOM,
+        reserve_num % BPS_DENOM,
+        hosts_num % BPS_DENOM,
+    );
+    let dust_out = dust_from_remainders(remainders)?;
+    Ok(SplitOutcome {
+        buyburn: buyburn_num / BPS_DENOM,
+        stakers: stakers_num / BPS_DENOM,
+        reserve: reserve_num / BPS_DENOM,
+        hosts: hosts_num / BPS_DENOM,
+        dust_out,
+        remainders,
+    })
+}
+
 /// Route `amount` of protocol fees (in `asset`) for `source` through `split`,
 /// carrying dust from / into `acc`.
 ///
@@ -543,18 +618,11 @@ pub fn route_fee(
     }
 
     // 2) Split-component range.
-    for v in split.components() {
-        if !(0..=BPS_DENOM as i64).contains(&v) {
-            return Err(RejectedReason::SplitComponentOutOfRange);
-        }
-    }
+    check_split_components(split)?;
 
     // 3) Split must sum to exactly 10000. (Components are in [0, 10000], so the
     //    sum of four fits i64 with no overflow.)
-    let sum: i64 = split.components().iter().sum();
-    if sum != BPS_DENOM as i64 {
-        return Err(RejectedReason::SplitDoesNotSumTo10000);
-    }
+    check_split_sum(split)?;
 
     // 4) Domain must be known.
     let domain = Domain::from_label(source).ok_or(RejectedReason::UnknownDomain)?;
@@ -566,21 +634,14 @@ pub fn route_fee(
     // own scaled fractional entitlement, so small-fee granularity cannot move
     // reserve/host/staker value into a dominant bucket.
     let prev = entry_remainders(dust_entry(&acc.dust_by_stream, source, asset), split);
-    let buyburn_num = checked_add(amount * split.buyburn_bps as u128, prev.0)?;
-    let stakers_num = checked_add(amount * split.stakers_bps as u128, prev.1)?;
-    let reserve_num = checked_add(amount * split.reserve_bps as u128, prev.2)?;
-    let hosts_num = checked_add(amount * split.hosts_bps as u128, prev.3)?;
-    let buyburn = buyburn_num / BPS_DENOM;
-    let stakers = stakers_num / BPS_DENOM;
-    let reserve = reserve_num / BPS_DENOM;
-    let hosts = hosts_num / BPS_DENOM;
-    let dust_remainders = (
-        buyburn_num % BPS_DENOM,
-        stakers_num % BPS_DENOM,
-        reserve_num % BPS_DENOM,
-        hosts_num % BPS_DENOM,
-    );
-    let dust_out = dust_from_remainders(dust_remainders)?;
+    let SplitOutcome {
+        buyburn,
+        stakers,
+        reserve,
+        hosts,
+        dust_out,
+        remainders: dust_remainders,
+    } = split_with_dust(amount, split, prev)?;
 
     // 7) Accumulate, with a MAX guard that keeps parity with the Python reference.
     let cum_buyburn = checked_add(acc.buyburn_for(asset), buyburn)?;
@@ -890,6 +951,41 @@ mod tests {
         assert_eq!(res, Err(RejectedReason::ArithmeticOverflow));
     }
 
+    #[test]
+    fn canonical_split_core_exhausts_one_bps_quantum_and_dust_patterns() {
+        let prev_patterns = [
+            (0, 0, 0, 0),
+            (2_500, 2_500, 2_500, 2_500),
+            (5_000, 5_000, 5_000, 5_000),
+            (7_500, 7_500, 7_500, 7_500),
+            (9_999, 1, 0, 0),
+            (0, 9_999, 1, 0),
+            (0, 0, 9_999, 1),
+            (9_999, 9_999, 9_999, 3),
+        ];
+        for domain in [
+            Domain::Dex,
+            Domain::Perps,
+            Domain::Borrow,
+            Domain::Redemption,
+        ] {
+            let split = canonical_split_table(domain);
+            for amount in 0..=BPS_DENOM {
+                for prev in prev_patterns {
+                    let sum_prev = prev.0 + prev.1 + prev.2 + prev.3;
+                    assert_eq!(sum_prev % BPS_DENOM, 0);
+                    let dust_in = sum_prev / BPS_DENOM;
+                    let out = split_with_dust(amount, &split, prev)
+                        .expect("canonical split with valid carried dust accepts");
+                    assert_eq!(
+                        amount + dust_in,
+                        out.buyburn + out.stakers + out.reserve + out.hosts + out.dust_out
+                    );
+                }
+            }
+        }
+    }
+
     proptest! {
         // route_fee never panics and, when it accepts, conserves value and
         // produces non-negative buckets with bounded dust.
@@ -939,5 +1035,102 @@ mod tests {
                 prop_assert_eq!(recv.hosts, 0);
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CBC_CORE_V0: Kani contracts on the runtime split arithmetic.
+//
+// `split_with_dust` is the pure split-with-dust-carry core the running
+// `route_fee` calls: the consensus arithmetic where value-creation / dust-loss
+// bugs would live. Kani discharges it directly (heap-free: no String/Vec/sha2).
+// `dust_from_remainders` is the release-mode fractional-aggregate guard (a real
+// `Result` error, not a debug_assert). The string-canonicalization, per-stream
+// dust map, and accumulation/MAX guards of `route_fee` (kani-intractable) stay
+// covered by the deterministic one-quantum conservation test above, the
+// proptest invariants above, and the Python<->Rust differential (including the
+// pre-seeded-accumulator + boundary-dust cases). Run:
+// `cargo kani -p zenodex-runtime-core --harness fee_router::kani_contracts`.
+// ---------------------------------------------------------------------------
+#[cfg(kani)]
+mod kani_contracts {
+    use super::*;
+
+    /// A symbolic per-bucket remainder: `< BPS_DENOM` (the in-domain shape,
+    /// where each stored remainder is `some_num % BPS_DENOM`).
+    fn arb_remainder() -> u128 {
+        let r = u128::from(kani::any::<u16>());
+        kani::assume(r < BPS_DENOM);
+        r
+    }
+
+    /// `dust_from_remainders` TOTALITY + EXACTNESS. Total for ANY u128 inputs
+    /// (checked_add guards overflow; `% / BPS_DENOM` is a nonzero constant so no
+    /// div-by-zero). In-domain (each remainder `< BPS_DENOM`, so their sum cannot
+    /// overflow) it returns `Ok(sum / BPS_DENOM)` iff `sum % BPS_DENOM == 0`,
+    /// else `ArithmeticOverflow`, with no debug_assert or panic (the
+    /// release-mode fractional-aggregate guard is a real Result error).
+    #[kani::proof]
+    fn dust_from_remainders_total_and_exact() {
+        // Totality over the full domain.
+        let _ = dust_from_remainders((kani::any(), kani::any(), kani::any(), kani::any()));
+        // Exactness in-domain.
+        let r = (
+            arb_remainder(),
+            arb_remainder(),
+            arb_remainder(),
+            arb_remainder(),
+        );
+        let sum = r.0 + r.1 + r.2 + r.3; // < 4*BPS_DENOM, no overflow
+        match dust_from_remainders(r) {
+            Ok(d) => {
+                assert_eq!(sum % BPS_DENOM, 0);
+                assert_eq!(d, sum / BPS_DENOM);
+            }
+            Err(reason) => {
+                assert_eq!(reason, RejectedReason::ArithmeticOverflow);
+                assert_ne!(sum % BPS_DENOM, 0);
+            }
+        }
+    }
+
+    /// TOTALITY: `split_with_dust` never panics / overflows / wraps for ANY
+    /// `amount`, ANY split components, ANY carried-in remainders. Split validation,
+    /// `checked_mul`, and `checked_add` fail closed for out-of-domain values.
+    #[kani::proof]
+    fn split_is_total() {
+        let split = FeeSplitTable {
+            buyburn_bps: kani::any(),
+            stakers_bps: kani::any(),
+            reserve_bps: kani::any(),
+            hosts_bps: kani::any(),
+        };
+        let _ = split_with_dust(
+            kani::any(),
+            &split,
+            (kani::any(), kani::any(), kani::any(), kani::any()),
+        );
+    }
+
+    /// NON-VACUITY. An in-domain DEX split accepts and can emit nonzero dust;
+    /// the fractional-aggregate guard can reject. (Kani fails an unsatisfiable
+    /// cover, so these are not vacuous.)
+    #[kani::proof]
+    fn covers_are_reachable() {
+        let split = canonical_split_table(Domain::Dex);
+        let amount = u128::from(kani::any::<u16>());
+        kani::assume(amount <= BPS_DENOM);
+        let prev = (
+            arb_remainder(),
+            arb_remainder(),
+            arb_remainder(),
+            arb_remainder(),
+        );
+        let sum_prev = prev.0 + prev.1 + prev.2 + prev.3;
+        kani::assume(sum_prev % BPS_DENOM == 0);
+        let res = split_with_dust(amount, &split, prev);
+        kani::cover!(res.is_ok());
+        kani::cover!(matches!(&res, Ok(o) if o.dust_out > 0));
+        kani::cover!(dust_from_remainders((1, 0, 0, 0)).is_err());
     }
 }

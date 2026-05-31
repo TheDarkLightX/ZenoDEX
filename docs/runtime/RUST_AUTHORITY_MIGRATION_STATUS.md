@@ -93,6 +93,11 @@ exercises that composed boundary. `test_fee_router_live_path.py` checks
 active-policy wiring for `rust_authority_with_python_shadow`, `rust_shadow`,
 unavailable Rust, and injected disagreement. `public-testnet` lists
 `fee_router` in `promoted_surfaces`; production remains `python_authority`.
+CBC evidence now includes Kani on the running split arithmetic for totality,
+typed overflow rejection, dust exactness, and non-vacuity, plus a deterministic
+one-quantum conservation test over all canonical domains and carried-dust
+patterns. Full-range conservation remains covered by proptest and Python/Rust
+parity while the exact 4-way fee router is not yet ESSO-generated.
 
 ⁷ Burn rails are now live-wired through
 `src/core/burn_receipts.py::verify_burn_receipt` after the Python receipt
