@@ -3219,6 +3219,7 @@ _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
         "clear_breaker",
         "set_position",
         "deposit_collateral",
+        "withdraw_collateral",
     }
 )
 
@@ -3670,6 +3671,12 @@ def _commit_materialized_rust_accept(
         try:
             amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
             ctx.balances.subtract(str(effect_doc["account_pubkey"]), post_market.quote_asset, amount)
+        except Exception as exc:
+            return _safe_error_str(exc)
+    elif op.action == "withdraw_collateral":
+        try:
+            amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
+            ctx.balances.add(str(effect_doc["account_pubkey"]), post_market.quote_asset, amount)
         except Exception as exc:
             return _safe_error_str(exc)
     ctx.effects.append(effect_doc)
