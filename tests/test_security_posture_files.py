@@ -50,6 +50,8 @@ def test_python_install_surfaces_use_hash_locked_requirements() -> None:
     assert "tools/check_proof_toolchain_lock.py" in release_gate
     assert "tools/check_zeno_ledger_proof_coverage_matrix.py" in release_gate
     assert "tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py" in release_gate
+    assert "tools/check_zenodex_transition_profile_closure.py" in release_gate
+    assert "tests/tools/test_check_zenodex_transition_profile_closure.py" in release_gate
     assert "tools/build_zeno_ledger_two_machine_evidence.py" in release_gate
     assert "tools/check_zeno_ledger_two_machine_evidence.py" in release_gate
     assert "tests/tools/test_build_zeno_ledger_two_machine_evidence.py" in release_gate

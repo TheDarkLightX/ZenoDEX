@@ -82,10 +82,12 @@ echo "== release: ZenoLedger proof coverage matrix =="
 echo "== release: ZenoDEX host-independent coverage =="
 "$PY" "$ROOT_DIR/tools/check_zenodex_host_independent_coverage.py"
 "$PY" "$ROOT_DIR/tools/check_zenodex_batch_proof_coverage.py"
+"$PY" "$ROOT_DIR/tools/check_zenodex_transition_profile_closure.py"
 "$PY" "$ROOT_DIR/tools/measure_zenodex_zk_transition_coverage.py"
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/tools/test_check_zenodex_host_independent_coverage.py" \
   "$ROOT_DIR/tests/tools/test_check_zenodex_batch_proof_coverage.py" \
+  "$ROOT_DIR/tests/tools/test_check_zenodex_transition_profile_closure.py" \
   "$ROOT_DIR/tests/tools/test_measure_zenodex_zk_transition_coverage.py"
 
 echo "== release: ZenoLedger two-machine evidence archive tooling =="

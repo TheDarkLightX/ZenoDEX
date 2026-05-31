@@ -3155,6 +3155,7 @@ claims:
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.json
         - docs/ZENODEX_ZK_PERFORMANCE_SNAPSHOT_2026_05_31.md
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
 
   - id: py:zenodex:batch_proof_gap_coverage_v0
@@ -3180,4 +3181,31 @@ claims:
         - docs/ZENODEX_BATCH_PROOF_COVERAGE_V0.json
         - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - docs/claims_registry.yaml
+
+  - id: py:zenodex:transition_profile_closure_v0
+    status: supported
+    layer: assurance
+    statement: >
+      The transition-profile closure manifest maps every currently covered
+      critical ZenoDEX transition surface to concrete admitted families under a
+      governed deterministic replay or zkVM proof profile. It requires public
+      replay/proof data, evidence paths, and checker commands for each admitted
+      family group, and it records current proof-required spot v1 operations
+      that must reject fail-closed because they are listed as not covered by the
+      governed proof profile. This is a closure and over-claim guard. It does
+      not add real zkVM proof coverage for the open proof-gap families.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_zenodex_transition_profile_closure.py
+        - cmd: pytest -q tests/tools/test_check_zenodex_transition_profile_closure.py
+      files:
+        - tools/check_zenodex_transition_profile_closure.py
+        - tests/tools/test_check_zenodex_transition_profile_closure.py
+        - docs/ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json
+        - docs/ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json
+        - docs/ZENODEX_BATCH_PROOF_COVERAGE_V0.json
+        - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
+        - config/proof_profiles/zeno_ledger_profiles.json
         - docs/claims_registry.yaml

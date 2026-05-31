@@ -38,6 +38,7 @@ Run:
 ```bash
 python3 tools/check_zenodex_host_independent_coverage.py --pretty
 python3 tools/check_zenodex_batch_proof_coverage.py --pretty
+python3 tools/check_zenodex_transition_profile_closure.py --pretty
 python3 tools/measure_zenodex_zk_transition_coverage.py --pretty
 ```
 
@@ -50,6 +51,10 @@ The checker rejects:
 - Covered surfaces without a supported/proved claim, proof-surface binding, or
   replay evidence path.
 - Proof-surface ids that are absent from the ZenoLedger proof coverage matrix.
+- Admitted critical transition families missing a governed replay/proof profile,
+  public-data mode, evidence path, or checker command.
+- Proof-required profile operations that are marked `not_covered` but lack an
+  explicit fail-closed unsupported-family entry.
 - Any `full_zk_everywhere` style claim while known proof gaps remain.
 
 ## Batch Proof Path
@@ -73,6 +78,25 @@ This captures the Ethereum-style tradeoff: specialized provers may parallelize
 and aggregate work, while validators either verify public proof artifacts or
 replay public artifacts. Batching improves performance and amortizes proving
 cost; it is not itself a correctness boundary.
+
+## Transition-Family Closure
+
+The transition-family closure manifest is
+[`ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json`](ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json).
+It maps each covered value-moving surface to concrete admitted families and
+records whether admission is by deterministic replay or by a governed zkVM proof
+profile. It also records proof-required families that must reject fail-closed
+because the current spot v1 Risc0 profile does not cover them, including
+`swap_exact_out`, `upba_batch_clearing`, `multi_hop`, rejected receipt
+execution, and native asset sync.
+
+```text
+AdmittedCriticalFamily -> PublicDataAvailable and (ReplayAccepted or ProofAccepted)
+```
+
+Unsupported proof-required families remain explicit non-admissions until a
+profile adds real proof coverage and the checker is updated with replayable
+evidence.
 
 ## Performance Reading
 

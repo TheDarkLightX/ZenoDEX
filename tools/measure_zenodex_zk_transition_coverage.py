@@ -16,10 +16,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.check_zenodex_batch_proof_coverage import validate_batch_proof_coverage_v0
+from tools.check_zenodex_transition_profile_closure import validate_transition_profile_closure_v0
 
 DEFAULT_MANIFEST = ROOT / "docs" / "ZENODEX_HOST_INDEPENDENT_COVERAGE_V0.json"
 DEFAULT_PROOF_MATRIX = ROOT / "docs" / "ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json"
 DEFAULT_BATCH_PROOF_MANIFEST = ROOT / "docs" / "ZENODEX_BATCH_PROOF_COVERAGE_V0.json"
+DEFAULT_TRANSITION_CLOSURE_MANIFEST = ROOT / "docs" / "ZENODEX_TRANSITION_PROFILE_CLOSURE_V0.json"
 
 
 def build_zk_transition_coverage_report(
@@ -27,15 +29,23 @@ def build_zk_transition_coverage_report(
     manifest_path: Path = DEFAULT_MANIFEST,
     proof_matrix_path: Path = DEFAULT_PROOF_MATRIX,
     batch_manifest_path: Path = DEFAULT_BATCH_PROOF_MANIFEST,
+    transition_closure_path: Path = DEFAULT_TRANSITION_CLOSURE_MANIFEST,
     smoke_report_path: Path | None = None,
     smoke_report_paths: Sequence[Path] | None = None,
 ) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     proof_matrix = json.loads(proof_matrix_path.read_text(encoding="utf-8"))
     batch_manifest = json.loads(batch_manifest_path.read_text(encoding="utf-8"))
+    transition_closure = json.loads(transition_closure_path.read_text(encoding="utf-8"))
     batch_report = validate_batch_proof_coverage_v0(
         batch_manifest,
         host_coverage_path=manifest_path,
+        proof_matrix_path=proof_matrix_path,
+    )
+    transition_closure_report = validate_transition_profile_closure_v0(
+        transition_closure,
+        host_coverage_path=manifest_path,
+        batch_proof_path=batch_manifest_path,
         proof_matrix_path=proof_matrix_path,
     )
     spot_surface = _surface(manifest, "spot_v1_risc0_supported_transition_kernel")
@@ -61,7 +71,7 @@ def build_zk_transition_coverage_report(
     if smoke_report_paths is not None:
         timing_paths.extend(smoke_report_paths)
     timing = _timing_report(timing_paths) if timing_paths else None
-    ok = (timing is None or timing["ok"]) and batch_report["ok"]
+    ok = (timing is None or timing["ok"]) and batch_report["ok"] and transition_closure_report["ok"]
     return {
         "schema": "zenodex.zk_transition_coverage_report.v0",
         "ok": ok,
@@ -86,11 +96,21 @@ def build_zk_transition_coverage_report(
             "covered_gap_ids": batch_report["covered_gap_ids"],
             "missing_gap_lanes": batch_report["missing_gap_lanes"],
         },
+        "transition_profile_closure": {
+            "ok": transition_closure_report["ok"],
+            "admitted_group_count": transition_closure_report["admitted_group_count"],
+            "admitted_family_count": transition_closure_report["admitted_family_count"],
+            "value_moving_family_count": transition_closure_report["value_moving_family_count"],
+            "unsupported_proof_required_count": transition_closure_report["unsupported_proof_required_count"],
+            "mapped_transition_surface_count": transition_closure_report["mapped_transition_surface_count"],
+            "transition_surface_count": transition_closure_report["transition_surface_count"],
+        },
         "succinct_everything_status": full_zk_surface.get("coverage_status"),
         "timing": timing,
         "interpretation": [
             "Current real zkVM coverage is scoped to the spot v1 Risc0 operation family listed in covered_operations.",
             "Every open proof gap must have a governed batch-proof lane before full-ZK promotion can be claimed.",
+            "Every admitted critical transition family must map to deterministic replay or a governed zkVM proof profile.",
             "Deterministic replay remains the performance baseline for ordinary full-node validation.",
             "A smoke timing report measures local prover performance only; production latency needs repeated warm runs on target hardware.",
         ],
@@ -198,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--proof-matrix", type=Path, default=DEFAULT_PROOF_MATRIX)
     parser.add_argument("--batch-manifest", type=Path, default=DEFAULT_BATCH_PROOF_MANIFEST)
+    parser.add_argument("--transition-closure", type=Path, default=DEFAULT_TRANSITION_CLOSURE_MANIFEST)
     parser.add_argument("--smoke-report", type=Path, action="append")
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args(argv)
@@ -206,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest_path=args.manifest,
         proof_matrix_path=args.proof_matrix,
         batch_manifest_path=args.batch_manifest,
+        transition_closure_path=args.transition_closure,
         smoke_report_paths=args.smoke_report,
     )
     print(json.dumps(report, indent=2 if args.pretty else None, sort_keys=True))

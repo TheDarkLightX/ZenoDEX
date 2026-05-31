@@ -46,6 +46,11 @@ def test_stage_scope_includes_cli_when_modified() -> None:
     assert paths == ["tools/permissionless_assurance.py"]
 
 
+def test_stage_scope_includes_claims_registry_when_modified() -> None:
+    paths = assurance_cli._public_scope_paths(["docs/claims_registry.yaml"])
+    assert paths == ["docs/claims_registry.yaml"]
+
+
 def test_leak_check_blocks_internal_markers() -> None:
     proc = _run("leak-check", "AGENTS.md", "internal/example.json", "--format", "json")
     assert proc.returncode == 1

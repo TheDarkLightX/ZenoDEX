@@ -1,0 +1,394 @@
+{
+  "schema": "zenodex.transition_profile_closure.v0",
+  "claim_boundary": {
+    "full_node_host_independence": "supported_scoped",
+    "succinct_everything_host_independence": "frontier_open",
+    "host_may_be_byzantine": true,
+    "transition_acceptance_rule": "Every admitted critical family must name a governed replay or proof profile, public data mode, replay/proof evidence paths, and checker commands.",
+    "unsupported_proof_required_paths_are_fail_closed": true,
+    "metadata_only_cannot_authorize_value_moving_transition": true
+  },
+  "release_gates": [
+    "python3 tools/check_zenodex_transition_profile_closure.py",
+    "pytest -q tests/tools/test_check_zenodex_transition_profile_closure.py"
+  ],
+  "proof_required_behavior": {
+    "rejects_missing_proof": true,
+    "rejects_wrong_profile_id": true,
+    "rejects_unsupported_transition_family": true,
+    "metadata_only_cannot_authorize_transition": true
+  },
+  "admitted_transition_families": [
+    {
+      "id": "spot_intent_full_node_replay_v1",
+      "surface_id": "spot_intent_admission_and_settlement",
+      "admission_mode": "deterministic_replay",
+      "governed_profile_id": "full_node_replay:spot_intent_v1",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "families": [
+        "create_pool",
+        "swap_exact_in",
+        "swap_exact_out",
+        "add_liquidity",
+        "remove_liquidity",
+        "nonce_sequencing",
+        "accepted_receipts_root",
+        "rejected_receipt_execution"
+      ],
+      "value_moving_families": [
+        "create_pool",
+        "swap_exact_in",
+        "swap_exact_out",
+        "add_liquidity",
+        "remove_liquidity"
+      ],
+      "evidence_paths": [
+        "tools/check_production_boundary.py",
+        "tests/test_check_production_boundary.py",
+        "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
+        "docs/RC1_VERIFIED_SURFACE_MATRIX.md"
+      ],
+      "checker_commands": [
+        "python3 tools/check_production_boundary.py",
+        "python3 tools/permissionless_assurance.py replay public"
+      ],
+      "limits": [
+        "bounded candidate surface only",
+        "broader API server surface remains excluded"
+      ]
+    },
+    {
+      "id": "spot_v1_risc0_supported_transition_proof_v1",
+      "surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "admission_mode": "zkvm_proof",
+      "governed_profile_id": "spot_v1_single_pool_success",
+      "proof_surface_id": "risc0_supported_transition_real_proof_smoke",
+      "public_data_availability": "public_inputs_and_proof_artifacts",
+      "families": [
+        "empty_transition",
+        "faucet_mint",
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block"
+      ],
+      "value_moving_families": [
+        "faucet_mint",
+        "create_pool",
+        "swap_exact_in",
+        "add_liquidity",
+        "remove_liquidity",
+        "liquidity_cycle_block"
+      ],
+      "evidence_paths": [
+        "docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json",
+        "tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "tools/zeno_ledger_risc0_real_proof_smoke.py",
+        "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_coverage_matrix.py",
+        "python3 tools/check_zeno_ledger_proof_profiles.py"
+      ],
+      "limits": [
+        "spot v1 supported operation family only",
+        "not a recursive epoch proof",
+        "not full ZenoDEX proof coverage"
+      ]
+    },
+    {
+      "id": "upba_exact_out_full_node_replay_v1",
+      "surface_id": "upba_bounded_grid_and_exact_out_certificates",
+      "admission_mode": "deterministic_replay",
+      "governed_profile_id": "upba_policy:balanced",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "families": [
+        "upba_exact_out_batch_clearing",
+        "bounded_grid_certificate_verification",
+        "candidate_root_binding",
+        "fill_vector_root_binding"
+      ],
+      "value_moving_families": [
+        "upba_exact_out_batch_clearing"
+      ],
+      "evidence_paths": [
+        "src/core/uniform_batch_clearing.py",
+        "src/core/uniform_batch_optimality.py",
+        "tests/core/test_uniform_batch_optimality.py",
+        "tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "checker_commands": [
+        "pytest -q tests/core/test_uniform_batch_optimality.py tests/integration/test_dex_engine_uniform_batch_certificate.py"
+      ],
+      "limits": [
+        "bounded grid only",
+        "no unbounded rational-price optimality",
+        "no fair inclusion claim"
+      ]
+    },
+    {
+      "id": "oracle_critical_action_full_node_replay_v1",
+      "surface_id": "oracle_critical_action_authorization",
+      "admission_mode": "deterministic_replay",
+      "governed_profile_id": "oracle_critical_action:first_shell_v1",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "families": [
+        "oracle_perps_settlement_authorization",
+        "oracle_zusd_lifecycle_authorization",
+        "oracle_guarded_routing_authorization",
+        "oracle_trigger_execution_authorization",
+        "oracle_typed_dex_settlement_authorization"
+      ],
+      "value_moving_families": [
+        "oracle_perps_settlement_authorization",
+        "oracle_zusd_lifecycle_authorization",
+        "oracle_guarded_routing_authorization",
+        "oracle_trigger_execution_authorization",
+        "oracle_typed_dex_settlement_authorization"
+      ],
+      "evidence_paths": [
+        "tools/check_zeno_oracle_critical_action_map.py",
+        "tests/test_zeno_oracle_critical_action_map.py",
+        "docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_oracle_critical_action_map.py"
+      ],
+      "limits": [
+        "does not prove live oracle truth",
+        "future critical consumers require their own mapped profiles"
+      ]
+    },
+    {
+      "id": "perps_bounded_full_node_replay_v1",
+      "surface_id": "perps_bounded_production_candidate_surface",
+      "admission_mode": "deterministic_replay",
+      "governed_profile_id": "perps_bounded:production_candidate_v1",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "families": [
+        "perps_order_settlement",
+        "perps_funding_application",
+        "perps_liquidation",
+        "perps_insurance_fund_accounting",
+        "perps_oracle_bound_runtime_shell"
+      ],
+      "value_moving_families": [
+        "perps_order_settlement",
+        "perps_funding_application",
+        "perps_liquidation",
+        "perps_insurance_fund_accounting"
+      ],
+      "evidence_paths": [
+        "tools/run_perps_evidence.sh",
+        "tools/runtime_shell_assurance_manifest.json",
+        "tools/check_runtime_shell_assurance_manifest.py"
+      ],
+      "checker_commands": [
+        "bash tools/run_perps_evidence.sh",
+        "bash tools/run_runtime_shell_assurance_gate.sh"
+      ],
+      "limits": [
+        "bounded production-candidate surface only",
+        "does not certify live oracle truth or governance"
+      ]
+    },
+    {
+      "id": "zusd_lifecycle_full_node_replay_v1",
+      "surface_id": "zusd_lifecycle_microgate_surface",
+      "admission_mode": "deterministic_replay",
+      "governed_profile_id": "zusd_lifecycle:microgate_v1",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "families": [
+        "zusd_mint",
+        "zusd_repay",
+        "zusd_redeem",
+        "zusd_liquidation",
+        "zusd_stability_pool_claim",
+        "zusd_oracle_authorized_lifecycle"
+      ],
+      "value_moving_families": [
+        "zusd_mint",
+        "zusd_repay",
+        "zusd_redeem",
+        "zusd_liquidation",
+        "zusd_stability_pool_claim"
+      ],
+      "evidence_paths": [
+        "src/core/zusd.py",
+        "src/integration/zusd_api.py",
+        "tests/core/test_zusd.py",
+        "tests/core/test_zusd_multi.py",
+        "tests/integration/test_zusd_api.py",
+        "tests/tau/test_zusd_tau_specs.py"
+      ],
+      "checker_commands": [
+        "pytest -q tests/core/test_zusd.py tests/core/test_zusd_multi.py tests/integration/test_zusd_api.py tests/tau/test_zusd_tau_specs.py"
+      ],
+      "limits": [
+        "tracked replay test surface only",
+        "no zk proof-of-execution for zUSD lifecycle transitions"
+      ]
+    },
+    {
+      "id": "proof_mining_reward_full_node_replay_v1",
+      "surface_id": "proof_mining_reward_and_claimability_surface",
+      "admission_mode": "deterministic_replay",
+      "governed_profile_id": "proof_mining:reward_claimability_v1",
+      "public_data_availability": "public_inputs_and_replay_artifacts",
+      "families": [
+        "proof_mining_claimability",
+        "proof_mining_reward_payout",
+        "proof_mining_manager_state_transition"
+      ],
+      "value_moving_families": [
+        "proof_mining_reward_payout"
+      ],
+      "evidence_paths": [
+        "src/core/proof_mining_manager.py",
+        "src/core/proof_mining_claims.py",
+        "src/core/proof_mining_claimability_gate.py",
+        "src/integration/proof_mining_runtime.py",
+        "tests/core/test_proof_mining_manager.py",
+        "tests/integration/test_proof_mining_runtime.py",
+        "tests/tau/test_proof_mining_reward_gate.py",
+        "tests/tools/test_permissionless_solver_proof_mining_claim.py",
+        "tests/tools/test_permissionless_proof_mining_status.py"
+      ],
+      "checker_commands": [
+        "pytest -q tests/core/test_proof_mining_manager.py tests/integration/test_proof_mining_runtime.py tests/tau/test_proof_mining_reward_gate.py tests/tools/test_permissionless_solver_proof_mining_claim.py tests/tools/test_permissionless_proof_mining_status.py"
+      ],
+      "limits": [
+        "tracked replay test surface only",
+        "no zk proof-of-execution for proof-market reward bridge execution"
+      ]
+    }
+  ],
+  "unsupported_proof_required_families": [
+    {
+      "id": "spot_v1_rejected_receipts_proof_rejected",
+      "surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "proof_required_profile_id": "spot_v1_single_pool_success",
+      "profile_operation": "rejected_receipts",
+      "transition_family": "rejected_receipt_execution",
+      "public_data_availability": "fail_closed_non_admitted",
+      "fail_closed_checks": [
+        "reject_missing_proof",
+        "reject_wrong_profile_id",
+        "reject_unsupported_transition_family"
+      ],
+      "evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_profiles.py",
+        "pytest -q tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "limits": [
+        "rejected receipt execution is replay-covered through ingress profile, not spot v1 Risc0 proof-covered"
+      ]
+    },
+    {
+      "id": "spot_v1_swap_exact_out_proof_rejected",
+      "surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "proof_required_profile_id": "spot_v1_single_pool_success",
+      "profile_operation": "swap_exact_out",
+      "transition_family": "swap_exact_out",
+      "public_data_availability": "fail_closed_non_admitted",
+      "fail_closed_checks": [
+        "reject_missing_proof",
+        "reject_wrong_profile_id",
+        "reject_unsupported_transition_family"
+      ],
+      "evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_profiles.py",
+        "pytest -q tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "limits": [
+        "swap_exact_out remains admitted only through deterministic replay and UPBA certificate lanes"
+      ]
+    },
+    {
+      "id": "spot_v1_upba_batch_clearing_proof_rejected",
+      "surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "proof_required_profile_id": "spot_v1_single_pool_success",
+      "profile_operation": "upba_batch_clearing",
+      "transition_family": "upba_exact_out_batch_clearing",
+      "public_data_availability": "fail_closed_non_admitted",
+      "fail_closed_checks": [
+        "reject_missing_proof",
+        "reject_wrong_profile_id",
+        "reject_unsupported_transition_family"
+      ],
+      "evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_profiles.py",
+        "pytest -q tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "limits": [
+        "UPBA has deterministic certificate replay and an open real-proof gap"
+      ]
+    },
+    {
+      "id": "spot_v1_multi_hop_proof_rejected",
+      "surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "proof_required_profile_id": "spot_v1_single_pool_success",
+      "profile_operation": "multi_hop",
+      "transition_family": "multi_hop",
+      "public_data_availability": "fail_closed_non_admitted",
+      "fail_closed_checks": [
+        "reject_missing_proof",
+        "reject_wrong_profile_id",
+        "reject_unsupported_transition_family"
+      ],
+      "evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_profiles.py",
+        "pytest -q tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "limits": [
+        "multi-hop proof execution is not admitted under spot v1 Risc0"
+      ]
+    },
+    {
+      "id": "spot_v1_native_asset_sync_proof_rejected",
+      "surface_id": "spot_v1_risc0_supported_transition_kernel",
+      "proof_required_profile_id": "spot_v1_single_pool_success",
+      "profile_operation": "native_assets",
+      "transition_family": "native_asset_sync",
+      "public_data_availability": "fail_closed_non_admitted",
+      "fail_closed_checks": [
+        "reject_missing_proof",
+        "reject_wrong_profile_id",
+        "reject_unsupported_transition_family"
+      ],
+      "evidence_paths": [
+        "config/proof_profiles/zeno_ledger_profiles.json",
+        "tools/check_zeno_ledger_proof_profiles.py",
+        "tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "checker_commands": [
+        "python3 tools/check_zeno_ledger_proof_profiles.py",
+        "pytest -q tests/integration/test_proof_and_upba_profiles.py"
+      ],
+      "limits": [
+        "native asset sync remains outside the current spot proof profile"
+      ]
+    }
+  ]
+}
