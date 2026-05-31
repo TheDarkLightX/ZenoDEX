@@ -67,6 +67,16 @@ surface can be promoted to Rust authority.
 | Transaction validation — `src/integration/validation.py`, `tau_gate.py`, `zusd_tau_gate.py` | Python | yes | Rust verification interface (Phase 6+) | golden traces incl. invalid-signature/insufficient-balance rejection; Tau-gate parity; differential. **Hashing slice done**: DEX intent auth message hash (`dex_intent_auth_message.py`) + burn-receipt body hash (`burn_receipts.py`) shadowed via the `domain_json_hash` op (`sha256(domain_sep(label,version)+canonical_json_bytes)`); cross-language vectors (static + 3×300 randomized) + chain-id/field sensitivity. The intent **shape-gate** and **BLS signature verification** remain Python-only (crypto is wrapped, never reimplemented) |
 | Crypto (BLS12-381 verify) — `py-ecc` via integration | Python | yes | **wrapped, not rewritten** | established library behind a deterministic verification interface; *do not migrate crypto first* |
 
+## Strict Deployment Oracle Posture
+
+The `public-testnet` and `production-strict` deploy profiles now include an
+explicit `oracle_policy`. Startup refuses to bind unless the corresponding
+routing, zUSD, isolated-perps, and clearinghouse-perps Oracle adapter /
+authorization environment flags are enabled. This is a deployment gate around
+the trusted core: local-dev can keep replay/debug liveness, while strict
+profiles fail closed before serving if critical Oracle evidence paths are not
+active.
+
 ## Non-critical modules (stay Python)
 
 These never decide network state and are not in the trusted core:

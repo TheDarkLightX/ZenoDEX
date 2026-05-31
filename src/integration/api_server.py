@@ -6911,6 +6911,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     "autotrader_live_allow_local_signing": _env_bool(
                         "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", False
                     ),
+                    "dex_routing_oracle_adapter_required": _env_bool(
+                        "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", False
+                    ),
+                    "zusd_oracle_adapter_required": _env_bool("ZUSD_ORACLE_ADAPTER_REQUIRED", False),
+                    "zusd_oracle_authorization_required": _env_bool(
+                        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED", False
+                    ),
+                    "perps_clearinghouse_settle_oracle_adapter_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", False
+                    ),
+                    "perps_isolated_settle_oracle_adapter_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH", False
+                    ),
+                    "perps_isolated_partial_liquidate_oracle_adapter_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", False
+                    ),
+                    "perps_isolated_settle_oracle_authorization_required": _env_bool(
+                        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH", False
+                    ),
                     "enabled_routes": tuple(
                         route
                         for route, enabled in (

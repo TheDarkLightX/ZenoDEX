@@ -17,6 +17,13 @@ _RELEVANT_ENV = (
     "ZUSD_TAU_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD",
     "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
     "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING",
+    "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+    "ZUSD_ORACLE_ADAPTER_REQUIRED",
+    "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+    "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+    "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+    "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+    "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
     "CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE",
     "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT",
     "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD",
@@ -33,6 +40,18 @@ _RELEVANT_ENV = (
     "DEX_API_ENABLED",
     "ZENODEX_RUNTIME_BIN",
 )
+
+
+def _required_oracle_runtime_facts() -> dict[str, bool]:
+    return {
+        "dex_routing_oracle_adapter_required": True,
+        "zusd_oracle_adapter_required": True,
+        "zusd_oracle_authorization_required": True,
+        "perps_clearinghouse_settle_oracle_adapter_required": True,
+        "perps_isolated_settle_oracle_adapter_required": True,
+        "perps_isolated_partial_liquidate_oracle_adapter_required": True,
+        "perps_isolated_settle_oracle_authorization_required": True,
+    }
 
 
 @pytest.fixture
@@ -107,6 +126,7 @@ def test_public_testnet_deploy_profile_allows_signed_intents_route():
     conflicts = evaluate_deploy_profile_consistency(
         profile,
         {
+            **_required_oracle_runtime_facts(),
             "enabled_routes": ("signed_intents",),
             "sensitive_api_enabled": True,
             "auth_bearer_token_set": True,
@@ -114,6 +134,57 @@ def test_public_testnet_deploy_profile_allows_signed_intents_route():
     )
 
     assert conflicts == ()
+
+
+@pytest.mark.parametrize(
+    ("fact_name", "env_name"),
+    (
+        ("dex_routing_oracle_adapter_required", "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED"),
+        ("zusd_oracle_adapter_required", "ZUSD_ORACLE_ADAPTER_REQUIRED"),
+        ("zusd_oracle_authorization_required", "ZUSD_ORACLE_AUTHORIZATION_REQUIRED"),
+        (
+            "perps_clearinghouse_settle_oracle_adapter_required",
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        ),
+        (
+            "perps_isolated_settle_oracle_adapter_required",
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+        ),
+        (
+            "perps_isolated_partial_liquidate_oracle_adapter_required",
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+        ),
+        (
+            "perps_isolated_settle_oracle_authorization_required",
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
+        ),
+    ),
+)
+@pytest.mark.parametrize("profile_id", ("public-testnet", "production-strict"))
+def test_strict_deploy_profiles_reject_missing_required_oracle_gate(profile_id, fact_name, env_name):
+    profile = load_deploy_profile(profile_id)
+    facts = _required_oracle_runtime_facts()
+    facts[fact_name] = False
+
+    conflicts = evaluate_deploy_profile_consistency(profile, facts)
+
+    assert any(f"oracle_policy.{fact_name}=true but {env_name} is not enabled" in c for c in conflicts)
+
+
+def test_deploy_profile_rejects_malformed_oracle_policy():
+    profile = load_deploy_profile("public-testnet")
+    profile["oracle_policy"]["zusd_oracle_authorization_required"] = "yes"
+
+    conflicts = evaluate_deploy_profile_consistency(profile, _required_oracle_runtime_facts())
+
+    assert any("oracle_policy.zusd_oracle_authorization_required must be bool" in c for c in conflicts)
+
+
+def test_public_testnet_startup_rejects_missing_required_oracle_gate(clean_env):
+    clean_env.setenv("ZENODEX_DEPLOY_PROFILE", "public-testnet")
+    clean_env.setenv("ZENODEX_RUNTIME_BIN", "/tmp/zenodex-runtime-missing")
+
+    assert api_server.main([]) == 2
 
 
 def test_production_strict_startup_rejects_perps_api_even_with_auth(clean_env, monkeypatch):

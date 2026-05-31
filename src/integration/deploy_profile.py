@@ -30,6 +30,7 @@ ALLOWED_PROFILE_KEYS = frozenset(
         "peer_policy",
         "gossip_policy",
         "observability_policy",
+        "oracle_policy",
         "runtime_policy",
         "runtime_authority_policy",
     }
@@ -50,6 +51,13 @@ RUNTIME_FACT_KEYS = (
     "zusd_tau_wallet_return_signed_tau_tx_payload",
     "zusd_monetary_wallet_allow_local_signing",
     "autotrader_live_allow_local_signing",
+    "dex_routing_oracle_adapter_required",
+    "zusd_oracle_adapter_required",
+    "zusd_oracle_authorization_required",
+    "perps_clearinghouse_settle_oracle_adapter_required",
+    "perps_isolated_settle_oracle_adapter_required",
+    "perps_isolated_partial_liquidate_oracle_adapter_required",
+    "perps_isolated_settle_oracle_authorization_required",
     "enabled_routes",
 )
 
@@ -106,6 +114,7 @@ def evaluate_deploy_profile_consistency(
     key_policy = profile.get("key_policy") or {}
     runtime_policy = profile.get("runtime_policy") or {}
     required_auth = profile.get("required_auth") or {}
+    oracle_policy = profile.get("oracle_policy") or {}
     allowed_routes_raw = profile.get("allowed_routes") or ()
 
     conflicts: list[str] = []
@@ -121,6 +130,9 @@ def evaluate_deploy_profile_consistency(
     if not isinstance(required_auth, Mapping):
         conflicts.append(f"[{profile_id}] required_auth must be a mapping")
         required_auth = {}
+    if not isinstance(oracle_policy, Mapping):
+        conflicts.append(f"[{profile_id}] oracle_policy must be a mapping")
+        oracle_policy = {}
     if (
         not isinstance(allowed_routes_raw, list)
         or not allowed_routes_raw
@@ -180,6 +192,48 @@ def evaluate_deploy_profile_consistency(
                     f"but {env_name} is active"
                 )
 
+    oracle_runtime_flags = {
+        "dex_routing_oracle_adapter_required": (
+            "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+            "dex_routing_oracle_adapter_required",
+        ),
+        "zusd_oracle_adapter_required": (
+            "ZUSD_ORACLE_ADAPTER_REQUIRED",
+            "zusd_oracle_adapter_required",
+        ),
+        "zusd_oracle_authorization_required": (
+            "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+            "zusd_oracle_authorization_required",
+        ),
+        "perps_clearinghouse_settle_oracle_adapter_required": (
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            "perps_clearinghouse_settle_oracle_adapter_required",
+        ),
+        "perps_isolated_settle_oracle_adapter_required": (
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            "perps_isolated_settle_oracle_adapter_required",
+        ),
+        "perps_isolated_partial_liquidate_oracle_adapter_required": (
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
+            "perps_isolated_partial_liquidate_oracle_adapter_required",
+        ),
+        "perps_isolated_settle_oracle_authorization_required": (
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE_EPOCH",
+            "perps_isolated_settle_oracle_authorization_required",
+        ),
+    }
+    for policy_key, (env_name, fact_name) in oracle_runtime_flags.items():
+        required = oracle_policy.get(policy_key)
+        if required is None:
+            continue
+        if not isinstance(required, bool):
+            conflicts.append(f"[{profile_id}] oracle_policy.{policy_key} must be bool")
+            continue
+        if required and not fact(fact_name):
+            conflicts.append(
+                f"[{profile_id}] oracle_policy.{policy_key}=true but {env_name} is not enabled"
+            )
+
     public_auth = required_auth.get("public_api")
     if public_auth in ("bearer_token", "bearer_token_or_reverse_proxy"):
         has_auth_boundary = fact("auth_bearer_token_set") or fact("external_auth_enforced")
@@ -212,5 +266,6 @@ def enforced_policy_fields() -> tuple[str, ...]:
         "runtime_policy.local_only_routes_allowed",
         "allowed_routes",
         "required_auth.public_api",
+        "oracle_policy",
         "runtime_authority_policy",
     )
