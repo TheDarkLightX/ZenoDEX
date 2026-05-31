@@ -20,6 +20,7 @@ from src.runtime.authority import (  # noqa: E402
     load_authority_policy,
     validate_authority_policy,
 )
+from src.integration.deploy_profile import ALLOWED_PROFILE_KEYS  # noqa: E402
 DEFAULT_PROFILE_DIR = ROOT / "config" / "deploy"
 SCHEMA = "zenodex/deployment_profile/v1"
 REPORT_SCHEMA = "zenodex/deployment_profiles_report/v1"
@@ -77,6 +78,13 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
         errors.append(f"profile has unknown top-level keys: {unknown_keys}")
     if obj.get("schema") != SCHEMA:
         errors.append("schema mismatch")
+    # Mirror the runtime loader's fail-closed contract: an unknown top-level key
+    # (e.g. a mistyped policy block) must be rejected here too, so this CI gate
+    # cannot pass a profile the runtime loader would refuse. Shares the single
+    # ALLOWED_PROFILE_KEYS allowlist with src/integration/deploy_profile.py.
+    unknown = sorted(str(k) for k in obj if k not in ALLOWED_PROFILE_KEYS)
+    if unknown:
+        errors.append(f"unknown top-level keys: {unknown}")
     profile_id = obj.get("profile_id")
     if not isinstance(profile_id, str) or not profile_id:
         errors.append("profile_id must be a non-empty string")

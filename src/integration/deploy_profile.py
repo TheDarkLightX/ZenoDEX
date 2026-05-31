@@ -17,6 +17,13 @@ from src.runtime.authority import AuthorityError, load_authority_policy, validat
 
 DEPLOY_PROFILE_SCHEMA = "zenodex/deployment_profile/v1"
 _DEPLOY_DIR = Path(__file__).resolve().parents[2] / "config" / "deploy"
+
+# Allowed top-level profile keys. A profile carrying any other top-level key is
+# rejected at load (fail closed): a mistyped policy block (e.g. ``runtime_polciy``)
+# must not silently degrade to ``{}`` and thereby disable the corresponding
+# runtime conflict check in ``evaluate_deploy_profile_consistency`` below. Adding
+# a new policy block requires extending this allowlist (and bumping the schema if
+# the contract changes), keeping the profile contract explicit.
 ALLOWED_PROFILE_KEYS = frozenset(
     {
         "schema",
