@@ -290,6 +290,23 @@ fn effective_fee_bps(decayed: u128, floor_bps: u128, max_bps: u128) -> u128 {
     fee
 }
 
+fn liquidation_compensation_split(
+    liquidated_collateral_e8: u128,
+    fixed_compensation_e8: u128,
+    variable_comp_bps: u128,
+) -> Option<(u128, u128)> {
+    if variable_comp_bps > BPS_SCALE {
+        return None;
+    }
+    let variable_comp = liquidated_collateral_e8
+        .checked_mul(variable_comp_bps)?
+        .div_ceil(BPS_SCALE);
+    let requested = fixed_compensation_e8.checked_add(variable_comp)?;
+    let liquidator_compensation = liquidated_collateral_e8.min(requested);
+    let stability_pool_gain = liquidated_collateral_e8 - liquidator_compensation;
+    Some((liquidator_compensation, stability_pool_gain))
+}
+
 fn tcr_ok(state: &ZusdState, price_e8: u128) -> bool {
     if state.debt_e8 == 0 {
         return true;
@@ -746,14 +763,12 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
                 return Err("liquidate_sp_cannot_absorb");
             }
             let liquidated_coll = state.collateral_e8;
-            let variable_comp = to_u128(&mul_div_up(
-                &bu(liquidated_coll),
-                &bu(state.liquidation_gas_comp_bps),
-                BPS_SCALE,
-            ))?;
-            let requested = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp;
-            let liquidator_comp = liquidated_coll.min(requested);
-            let sp_gain = liquidated_coll - liquidator_comp;
+            let (liquidator_comp, sp_gain) = liquidation_compensation_split(
+                liquidated_coll,
+                state.liquidation_gas_comp_fixed_collateral_e8,
+                state.liquidation_gas_comp_bps,
+            )
+            .ok_or(REJ_BOUNDED_CHECK_FAILED)?;
             if state.sp_coll_e8 + sp_gain > state.max_sp_coll_e8 {
                 return Err("liquidate_sp_cap_exceeded");
             }
@@ -897,6 +912,26 @@ mod tests {
     }
 
     #[test]
+    fn liquidation_compensation_split_caps_and_conserves() {
+        assert_eq!(
+            liquidation_compensation_split(1_000, 50, 100),
+            Some((60, 940))
+        );
+        assert_eq!(
+            liquidation_compensation_split(1_000, 2_000, 100),
+            Some((1_000, 0))
+        );
+        assert_eq!(
+            liquidation_compensation_split(1_000, 0, 0),
+            Some((0, 1_000))
+        );
+        assert_eq!(
+            liquidation_compensation_split(1_000, 0, BPS_SCALE + 1),
+            None
+        );
+    }
+
+    #[test]
     fn malformed_pre_state_rejected_before_transition() {
         let s = ZusdState {
             now_epoch: 1,
@@ -1004,5 +1039,35 @@ mod kani_contracts {
             debt_floor_ok(debt_e8, min_debt_open_e8),
             debt_e8 == 0 || debt_e8 >= min_debt_open_e8
         );
+    }
+
+    #[kani::proof]
+    fn liquidation_compensation_split_total_on_state_domain() {
+        let collateral_e8: u128 = kani::any();
+        let fixed_compensation_e8: u128 = kani::any();
+        let variable_comp_bps: u128 = kani::any();
+        kani::assume(collateral_e8 <= MAX_AMOUNT_E8);
+        kani::assume(fixed_compensation_e8 <= MAX_AMOUNT_E8);
+        kani::assume(variable_comp_bps <= BPS_SCALE);
+
+        let Some((liquidator_comp, stability_pool_gain)) =
+            liquidation_compensation_split(collateral_e8, fixed_compensation_e8, variable_comp_bps)
+        else {
+            unreachable!("state-domain liquidation compensation is total")
+        };
+
+        assert!(liquidator_comp <= collateral_e8);
+        assert_eq!(
+            liquidator_comp.checked_add(stability_pool_gain),
+            Some(collateral_e8)
+        );
+    }
+
+    #[kani::proof]
+    fn liquidation_compensation_split_covers_are_reachable() {
+        kani::cover!(liquidation_compensation_split(1_000, 50, 100) == Some((60, 940)));
+        kani::cover!(liquidation_compensation_split(1_000, 2_000, 100) == Some((1_000, 0)));
+        kani::cover!(liquidation_compensation_split(1_000, 0, 0) == Some((0, 1_000)));
+        kani::cover!(liquidation_compensation_split(1_000, 0, BPS_SCALE + 1).is_none());
     }
 }
