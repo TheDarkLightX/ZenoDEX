@@ -132,7 +132,7 @@ Cargo tests. The generated crate itself remains reproducible output under the
 ignored `generated/` tree; the tracked evidence is the model plus receipts under
 `docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/`.
 The broader runtime-core CBC Kani receipt is tracked at
-`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 76 harnesses on the actual
+`docs/runtime/receipts/cbc_runtime_core_kani_v1/`: 78 harnesses on the actual
 runtime crate passed (arith, canonical helper predicates, state-root scalar
 guards, zUSD scalar risk helpers, balance, replay, fee-router, burn rails, the
 tractable CPMM initialization/fail-closed/helper slice, stateless perps

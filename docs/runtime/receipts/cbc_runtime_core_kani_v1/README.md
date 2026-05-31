@@ -22,7 +22,7 @@ cargo kani --lib --output-format terse -j 4 --harness-timeout 10m -Z unstable-op
 
 ```text
 Manual Harness Summary:
-Complete - 76 successfully verified harnesses, 0 failures, 76 total.
+Complete - 78 successfully verified harnesses, 0 failures, 78 total.
 ```
 
 Kani emitted compile-time warnings about unsupported constructs
@@ -42,6 +42,8 @@ Canonical primitive helpers:
 
 - `canonical::kani_contracts::ascii_hex_digit_classifier_is_exact`
 - `canonical::kani_contracts::domain_label_byte_classifier_is_exact`
+- `canonical::kani_contracts::fixed_hex_expected_len_covers_are_reachable`
+- `canonical::kani_contracts::fixed_hex_expected_len_is_total_and_exact`
 - `canonical::kani_contracts::uvarint_encoded_len_boundary_cases`
 
 Balance kernel:
@@ -167,8 +169,8 @@ running Rust crate:
   covers;
 - arithmetic helper totality for checked addition, floor division, and
   multiply-divide floor;
-- canonical helper predicates for ASCII domain labels, ASCII hex digits, and
-  selected LEB128 length boundaries;
+- canonical helper predicates for ASCII domain labels, ASCII hex digits,
+  fixed-width hex length arithmetic, and selected LEB128 length boundaries;
 - fee-router dust-core totality/exactness and split totality;
 - burn rail totality, accept-implies exact supply/budget/batch conservation, and
   non-vacuity covers;
