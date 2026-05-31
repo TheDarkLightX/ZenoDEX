@@ -420,6 +420,45 @@ def test_rust_authority_commits_publish_without_python_handler(rust_env, monkeyp
     assert res.effects[-1]["effects"]["event"] == "ClearingPricePublished"
 
 
+def test_rust_authority_commits_clear_breaker_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-clear"
+    state = _open_market(market_id, [])
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["breaker_active"] = True
+    gs["breaker_last_trigger_epoch"] = int(gs["now_epoch"])
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=gs,
+        accounts=dict(market.accounts),
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python clear_breaker handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "clear_breaker",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "clear_breaker")],
+    )
+    assert res.ok is True, res.error
+    post = res.state.perps.markets[market_id]
+    assert post.global_state["breaker_active"] is False
+    assert int(post.global_state["breaker_last_trigger_epoch"]) == 0
+    assert res.effects[-1]["effects"]["event"] == "BreakerCleared"
+
+
 def _settled(market_id: str):
     state = fa.build_market(
         market_id=market_id, quote_asset=QUOTE, positions=[], clearing_price_e8=100_000_000, deposit=1_000_000

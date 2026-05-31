@@ -3213,7 +3213,7 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
 )
 
 _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
-    {"advance_epoch", "publish_clearing_price"}
+    {"advance_epoch", "publish_clearing_price", "clear_breaker"}
 )
 
 _PERP_STATEFUL_AUTHORITY_BLOCK_MSG = (
