@@ -120,4 +120,9 @@ deploy-profile hardening change.
   other lower-priority bare asserts remain in integration helpers and routing
   search code; they should be converted as their surfaces enter the trusted
   core.
+- Rust zUSD receipt hashing no longer reparses a just-produced hex state root
+  with `expect`. The canonical layer now exposes raw SHA-256 bytes, and zUSD
+  commits those bytes directly into the receipt preimage. This removes a panic
+  edge from the Rust functional core and avoids a needless encode/decode cycle
+  on a consensus commitment path.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.
