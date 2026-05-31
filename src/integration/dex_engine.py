@@ -394,6 +394,15 @@ def production_config_violations(
     if bool(dex_config.allow_snapshot_bound_quote_bindings):
         reasons.append("dex_config.allow_snapshot_bound_quote_bindings must be false")
 
+    # require_proof_when_present makes proofs mandatory for any tx carrying intents,
+    # but with the proof verifier disabled every such tx is rejected at apply time
+    # (_verify_proof_if_present -> "proof required but verification disabled"). That
+    # config is internally incoherent: a node would start and then reject all
+    # intent-bearing traffic (a liveness failure). Refuse it at config validation
+    # time (fail closed) rather than at every transaction.
+    if bool(config.require_proof_when_present) and not bool(config.proof_config.enabled):
+        reasons.append("require_proof_when_present requires proof_config.enabled")
+
     if require_strict_upba:
         if not bool(config.allow_uniform_batch_certificate):
             reasons.append("allow_uniform_batch_certificate must be true")
