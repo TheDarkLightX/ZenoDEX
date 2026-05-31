@@ -1,0 +1,233 @@
+{
+  "inductive_advance_epoch": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 17.572500044479966
+    },
+    "query": "inductive_advance_epoch",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 9.495402977336198
+    }
+  },
+  "inductive_apply_funding": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 19.556277024094015
+    },
+    "query": "inductive_apply_funding",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 10.88861800963059
+    }
+  },
+  "inductive_apply_insurance_claim": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 27.789664978627115
+    },
+    "query": "inductive_apply_insurance_claim",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 7.2770550032146275
+    }
+  },
+  "inductive_clear_breaker": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 14.982580963987857
+    },
+    "query": "inductive_clear_breaker",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 147.2533430205658
+    }
+  },
+  "inductive_deposit_collateral": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 22.24462595768273
+    },
+    "query": "inductive_deposit_collateral",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 8.03035800345242
+    }
+  },
+  "inductive_deposit_insurance": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 22.105004987679422
+    },
+    "query": "inductive_deposit_insurance",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 7.453105004969984
+    }
+  },
+  "inductive_publish_clearing_price": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 20.207699039019644
+    },
+    "query": "inductive_publish_clearing_price",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 6.0460310196504
+    }
+  },
+  "inductive_set_position": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 151.0524739860557
+    },
+    "query": "inductive_set_position",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 263.462028990034
+    }
+  },
+  "inductive_settle_epoch": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 139.14662401657552
+    },
+    "query": "inductive_settle_epoch",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 113.99247800000012
+    }
+  },
+  "inductive_withdraw_collateral": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 20.54345898795873
+    },
+    "query": "inductive_withdraw_collateral",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 6.985053012613207
+    }
+  },
+  "init_implies_inv": {
+    "cvc5": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 16.863427008502185
+    },
+    "query": "init_implies_inv",
+    "z3": {
+      "error": null,
+      "model": null,
+      "proof_format": null,
+      "proof_has_trust": null,
+      "proof_sha256": null,
+      "result": "unsat",
+      "time_ms": 17.10874796845019
+    }
+  }
+}

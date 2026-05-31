@@ -1,0 +1,514 @@
+{
+  "environment_model": {
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "advance_epoch",
+      "apply_funding",
+      "apply_insurance_claim",
+      "clear_breaker",
+      "deposit_collateral",
+      "deposit_insurance",
+      "publish_clearing_price",
+      "set_position",
+      "settle_epoch",
+      "withdraw_collateral"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ],
+    "scheduler": "sequential"
+  },
+  "proofs": {},
+  "query_hashes": {
+    "inductive_advance_epoch": "399ee83a8d44af110e616ca85a563432ed524b05d67bcafedde6e63fdc60ee0b",
+    "inductive_apply_funding": "54cc99660a94f311d3a99b3f39114055dae4fb4f7163e938cf2ef91bbf0981d5",
+    "inductive_apply_insurance_claim": "26ac0e687654a1275781e0cca1b9caac50a59911226d760caf00102bcb859abf",
+    "inductive_clear_breaker": "40061799ad62f4fc99a745ae1fe5aac1cf7e95cc818d030991d5bd841d43d004",
+    "inductive_deposit_collateral": "a5c1f8dcad3bc6deec19783b9d52b7211b71865f2109959557c78026a26f4be6",
+    "inductive_deposit_insurance": "f988f577ae4f59e76a92b3700c5892d4ccf1c5afb5f4bbe9c2e9305bfe2c12d1",
+    "inductive_publish_clearing_price": "bbae12b11655a270ff3eba582e2065b4991f3aa6987b25d31010e1ea29d624e1",
+    "inductive_set_position": "40cc15835a072e045ede5523a9977bf1f24c1aa240c5a8db43f99f6ea630e7c8",
+    "inductive_settle_epoch": "2db59a75434391be313322e2542ccc26b8edb716900404e875d7da8b84ba2523",
+    "inductive_withdraw_collateral": "3e45326105eab5d8dc9cdd63e00282c90f49fe86d787730464fcfd3b703047d1",
+    "init_implies_inv": "69fe5d4634163633ea0de6df6793d12409d9dc2ed5c8a1736e7627d0466a3d5f"
+  },
+  "results": {
+    "inductive_advance_epoch": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_advance_epoch",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_advance_epoch",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_advance_epoch",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_apply_funding": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_funding",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_apply_funding",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_funding",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_apply_insurance_claim": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_insurance_claim",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_apply_insurance_claim",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_apply_insurance_claim",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_clear_breaker": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_clear_breaker",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_clear_breaker",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_clear_breaker",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_deposit_collateral": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_collateral",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_deposit_collateral",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_collateral",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_deposit_insurance": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_insurance",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_deposit_insurance",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_deposit_insurance",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_publish_clearing_price": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_publish_clearing_price",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_publish_clearing_price",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_publish_clearing_price",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_set_position": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_set_position",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_set_position",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_set_position",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_settle_epoch": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_settle_epoch",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_settle_epoch",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_settle_epoch",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_withdraw_collateral": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_withdraw_collateral",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_withdraw_collateral",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_withdraw_collateral",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "init_implies_inv": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "init_implies_inv",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    }
+  },
+  "scope": {
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "log2_state_space_upper_bound": 768.3074418570233,
+      "params": {
+        "advance_epoch": {
+          "delta": {
+            "kind": "int",
+            "max": 10000,
+            "min": 1
+          }
+        },
+        "apply_funding": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "new_rate_bps": {
+            "kind": "int",
+            "max": 10000,
+            "min": -10000
+          }
+        },
+        "apply_insurance_claim": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "claim_amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          }
+        },
+        "clear_breaker": {
+          "auth_ok": {
+            "kind": "bool"
+          }
+        },
+        "deposit_collateral": {
+          "amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          },
+          "auth_ok": {
+            "kind": "bool"
+          }
+        },
+        "deposit_insurance": {
+          "amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          }
+        },
+        "publish_clearing_price": {
+          "price_e8": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          }
+        },
+        "set_position": {
+          "auth_ok": {
+            "kind": "bool"
+          },
+          "new_position_base": {
+            "kind": "int",
+            "max": 1000000,
+            "min": -1000000
+          }
+        },
+        "settle_epoch": {},
+        "withdraw_collateral": {
+          "amount": {
+            "kind": "int",
+            "max": 1000000000000,
+            "min": 1
+          },
+          "auth_ok": {
+            "kind": "bool"
+          }
+        }
+      },
+      "state_vars": {
+        "breaker_active": {
+          "kind": "bool"
+        },
+        "breaker_last_trigger_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "claims_paid": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "clearing_price_e8": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "clearing_price_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "clearing_price_seen": {
+          "kind": "bool"
+        },
+        "collateral_quote": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "depeg_buffer_bps": {
+          "kind": "int",
+          "max": 5000,
+          "min": 0
+        },
+        "entry_price_e8": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "epoch_phase": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "fee_income": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "fee_pool_quote": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "funding_cap_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 1
+        },
+        "funding_last_applied_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "funding_paid_cumulative": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": -1000000000000000
+        },
+        "funding_rate_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": -10000
+        },
+        "index_price_e8": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "initial_insurance": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "initial_margin_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "insurance_balance": {
+          "kind": "int",
+          "max": 1000000000000000,
+          "min": 0
+        },
+        "liquidated_this_step": {
+          "kind": "bool"
+        },
+        "liquidation_penalty_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "maintenance_margin_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "max_oracle_move_bps": {
+          "kind": "int",
+          "max": 10000,
+          "min": 0
+        },
+        "max_oracle_staleness_epochs": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 1
+        },
+        "max_position_abs": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 1
+        },
+        "min_notional_for_bounty": {
+          "kind": "int",
+          "max": 1000000000000,
+          "min": 0
+        },
+        "now_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "oracle_last_update_epoch": {
+          "kind": "int",
+          "max": 1000000,
+          "min": 0
+        },
+        "oracle_seen": {
+          "kind": "bool"
+        },
+        "position_base": {
+          "kind": "int",
+          "max": 1000000,
+          "min": -1000000
+        }
+      }
+    },
+    "fail_closed": true,
+    "k": 1,
+    "kind": "inductive",
+    "solver_seed": 0,
+    "solver_timeout_ms": 30000,
+    "time": "unbounded"
+  },
+  "solvers": [
+    "z3",
+    "cvc5"
+  ],
+  "timeout_ms": 30000,
+  "tool_versions": {
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "platform": "Linux-6.17.0-29-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)",
+    "solvers": {
+      "cvc5": "This is cvc5 version 1.1.2",
+      "z3": "4.15.4"
+    }
+  }
+}
