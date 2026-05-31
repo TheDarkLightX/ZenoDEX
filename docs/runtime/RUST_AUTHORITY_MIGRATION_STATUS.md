@@ -219,6 +219,16 @@ post-state and exact kernel effect (`EpochAdvanced` / `ClearingPricePublished` /
 `partial_liquidate` additionally fail closed on the oracle-adapter / authorization
 facts, matching their Python handlers.
 
+The Python bridge now snapshots those integration facts from the **pre-state**
+shell before running the Python handler. Deposit requests carry the actual wallet
+balance as `balance_available`, and the Rust materializer rejects
+`deposit_collateral` with `insufficient balance for deposit` when that fact is
+below the requested amount. Over-`i128` Python wallet balances are treated as
+sufficient for any in-domain deposit amount, so this guard does not introduce a
+new fail-closed drift on arbitrary-precision wallet balances. This closes a
+promotion blocker where a future Rust authority path could otherwise accept a
+deposit the Python shell would reject.
+
 This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
 post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
