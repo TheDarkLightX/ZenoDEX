@@ -767,6 +767,118 @@ _PERP_STATEFUL_SUBCOMMANDS = frozenset(
         "set-market-params",
     }
 )
+_PERP_STATEFUL_REJECT_FIELDS = {"index", "ok", "code"}
+_PERP_STATEFUL_ACCEPT_FIELDS: dict[str, set[str]] = {
+    "advance-epoch": {
+        "index",
+        "ok",
+        "now_epoch",
+        "epoch_phase",
+        "oracle_last_update_epoch",
+    },
+    "funding-auto": {
+        "index",
+        "ok",
+        "accounts",
+        "funding_rate_bps",
+        "fee_pool_quote",
+        "fee_income",
+        "insurance_balance",
+        "projected_net",
+    },
+    "publish-clearing-price": {
+        "index",
+        "ok",
+        "now_epoch",
+        "epoch_phase",
+        "clearing_price_seen",
+        "clearing_price_epoch",
+        "clearing_price_e8",
+    },
+    "settle-epoch": {
+        "index",
+        "ok",
+        "epoch_phase",
+        "oracle_last_update_epoch",
+        "oracle_seen",
+        "index_price_e8",
+        "breaker_active",
+        "breaker_last_trigger_epoch",
+        "fee_pool_quote",
+        "fee_income",
+        "insurance_balance",
+        "accounts",
+    },
+    "partial-liquidate": {
+        "index",
+        "ok",
+        "position_base",
+        "entry_price_e8",
+        "collateral_quote",
+        "fee_pool_quote",
+        "fee_income",
+        "insurance_balance",
+        "liquidated_this_step",
+    },
+    "account-op": {
+        "index",
+        "ok",
+        "position_base",
+        "entry_price_e8",
+        "collateral_quote",
+        "breaker_active",
+        "breaker_last_trigger_epoch",
+    },
+    "set-market-params": {
+        "index",
+        "ok",
+        "max_oracle_staleness_epochs",
+        "max_oracle_move_bps",
+        "initial_margin_bps",
+        "maintenance_margin_bps",
+        "depeg_buffer_bps",
+        "liquidation_penalty_bps",
+        "max_position_abs",
+        "funding_cap_bps",
+        "min_notional_for_bounty",
+        "funding_rate_bps",
+    },
+}
+_PERP_SETTLE_ACCOUNT_FIELDS = {
+    "key",
+    "position_base",
+    "collateral_quote",
+    "entry_price_e8",
+    "liquidated_this_step",
+}
+_PERP_FUNDING_ACCOUNT_FIELDS = {
+    "key",
+    "position_base",
+    "collateral_quote",
+    "funding_paid_cumulative",
+    "funding_last_applied_epoch",
+}
+
+
+def _validate_perp_stateful_account_array(subcommand: str, accounts: Any) -> None:
+    if subcommand not in {"settle-epoch", "funding-auto"}:
+        return
+    if not isinstance(accounts, list):
+        raise RustInvocationError(f"{subcommand}: accepted accounts must be a list")
+    expected = _PERP_SETTLE_ACCOUNT_FIELDS if subcommand == "settle-epoch" else _PERP_FUNDING_ACCOUNT_FIELDS
+    for account in accounts:
+        if not isinstance(account, dict):
+            raise RustInvocationError(f"{subcommand}: accepted account must be an object")
+        _require_exact_fields(account, expected, f"{subcommand} account")
+        if not isinstance(account.get("key"), str):
+            raise RustInvocationError(f"{subcommand}: accepted account key must be a string")
+        for key, value in account.items():
+            if key == "key":
+                continue
+            if isinstance(value, bool):
+                continue
+            if not isinstance(value, str):
+                raise RustInvocationError(f"{subcommand}: accepted account.{key} must be a string")
 
 
 def perp_stateful_case(
@@ -786,6 +898,7 @@ def perp_stateful_case(
     )
     if not isinstance(out, dict) or out.get("version") != 1:
         raise RustInvocationError(f"{subcommand}: unexpected output header")
+    _require_exact_fields(out, {"version", "results"}, f"{subcommand} output")
     results = out.get("results")
     if not isinstance(results, list) or len(results) != 1:
         raise RustInvocationError(f"{subcommand}: unexpected results shape")
@@ -795,9 +908,10 @@ def perp_stateful_case(
     if not isinstance(result.get("ok"), bool):
         raise RustInvocationError(f"{subcommand}: result.ok must be a bool")
     if result["ok"]:
-        if "code" in result:
-            raise RustInvocationError(f"{subcommand}: accepted result carried code")
+        _require_exact_fields(result, _PERP_STATEFUL_ACCEPT_FIELDS[subcommand], f"{subcommand} result")
+        _validate_perp_stateful_account_array(subcommand, result.get("accounts"))
     else:
+        _require_exact_fields(result, _PERP_STATEFUL_REJECT_FIELDS, f"{subcommand} result")
         if not isinstance(result.get("code"), str):
             raise RustInvocationError(f"{subcommand}: rejected result missing code")
     return result

@@ -216,3 +216,65 @@ def test_zusd_op_rejects_extra_post_state_field(monkeypatch):
     monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
     with pytest.raises(RustInvocationError, match="zusd-op post_state: unexpected fields"):
         rust_invoker.zusd_op(state={}, tx={})
+
+
+def test_perp_stateful_case_rejects_extra_output_field(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {"version": 1, "results": [], "extra": "metadata"}
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="advance-epoch output: unexpected fields"):
+        rust_invoker.perp_stateful_case("advance-epoch", {})
+
+
+def test_perp_stateful_case_rejects_extra_accept_field(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {
+            "version": 1,
+            "results": [
+                {
+                    "index": 0,
+                    "ok": True,
+                    "now_epoch": "2",
+                    "epoch_phase": "1",
+                    "oracle_last_update_epoch": "2",
+                    "extra": "metadata",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="advance-epoch result: unexpected fields"):
+        rust_invoker.perp_stateful_case("advance-epoch", {})
+
+
+def test_perp_stateful_case_rejects_extra_funding_account_field(monkeypatch):
+    def malformed_invoke(*_args, **_kwargs):
+        return {
+            "version": 1,
+            "results": [
+                {
+                    "index": 0,
+                    "ok": True,
+                    "accounts": [
+                        {
+                            "key": "acct",
+                            "position_base": "1",
+                            "collateral_quote": "1000",
+                            "funding_paid_cumulative": "0",
+                            "funding_last_applied_epoch": "1",
+                            "extra": "metadata",
+                        }
+                    ],
+                    "funding_rate_bps": "1",
+                    "fee_pool_quote": "0",
+                    "fee_income": "0",
+                    "insurance_balance": "0",
+                    "projected_net": "0",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(rust_invoker, "invoke", malformed_invoke)
+    with pytest.raises(RustInvocationError, match="funding-auto account: unexpected fields"):
+        rust_invoker.perp_stateful_case("funding-auto", {})
