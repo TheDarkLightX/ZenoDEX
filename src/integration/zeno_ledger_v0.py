@@ -1055,6 +1055,55 @@ def validate_header_body_roots_v0(header: dict[str, Any], body: dict[str, Any]) 
         raise ValueError("header app_hash mismatch")
 
 
+def validate_block_state_transition_v0(
+    *,
+    pre_state: DexState,
+    header: dict[str, Any],
+    body: dict[str, Any],
+    config: DexEngineConfig,
+    default_block_timestamp: int | None = None,
+) -> None:
+    """Fail closed unless ``header.post_state_root`` equals the committed state root
+    obtained by deterministically re-executing ``body.transactions`` against
+    ``pre_state``.
+
+    ``validate_header_body_roots_v0`` binds the header to the body's
+    tx/ingress/evidence/body roots and ``app_hash``, but NOT to the resulting STATE:
+    a header could carry any ``post_state_root`` and still pass. This re-executes the
+    body via ``apply_body_transactions_v0`` (deterministic functional core) and
+    recomputes ``compute_state_root`` on the result, rejecting a mismatch. An
+    un-rootable post-state (e.g. a non-canonical identifier ``compute_state_root``
+    cannot encode) is rejected fail-closed rather than crashing the validator. This
+    is the core state-transition consensus check for a ZenoLedger v0 block: it makes
+    a block whose claimed post-state is wrong, or whose accepted body yields an
+    un-committable state, a deterministic REJECT instead of an unchecked commit or a
+    producer stall.
+    """
+    if not isinstance(pre_state, DexState):
+        raise TypeError("pre_state must be a DexState")
+    if not isinstance(config, DexEngineConfig):
+        raise TypeError("config must be a DexEngineConfig")
+    # Structural header<->body binding first (tx/ingress/evidence/body roots + app_hash).
+    validate_header_body_roots_v0(header, body)
+    # Re-execute the body deterministically; rejected txs become rejection receipts
+    # and do not advance the state, exactly as a producer would have committed it.
+    working_state, _executed_body, _receipts = apply_body_transactions_v0(
+        state=pre_state,
+        body=body,
+        config=config,
+        default_block_timestamp=default_block_timestamp,
+    )
+    try:
+        recomputed_post_state_root = dex_state_root_v0(working_state)
+    except Exception as exc:  # un-rootable post-state -> fail closed, never crash
+        raise ValueError(
+            f"post_state_root not computable from re-executed body "
+            f"(un-rootable post-state): {exc}"
+        ) from exc
+    if header["post_state_root"] != recomputed_post_state_root:
+        raise ValueError("header post_state_root does not match re-executed body state")
+
+
 def validate_proof_metadata_header_binding_v0(
     metadata: dict[str, Any],
     header: dict[str, Any],
