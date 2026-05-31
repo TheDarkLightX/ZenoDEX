@@ -188,12 +188,13 @@ balances, oracle bridge authorization, effects, and state materialization for
 this surface. `advance_epoch`, `publish_clearing_price`, `clear_breaker`,
 `set_position`, `deposit_collateral`, and `withdraw_collateral` now have true
 Rust-authority paths for manual authority policies, and `set_market_params` does
-as well. Rust decides accept/reject from the pre-state, the Python shell commits
-the parsed Rust post-market and effect, and `rust_authority_with_python_shadow`
-reruns the Python handler as a shadow check. The other three isolated ops remain
+as well. `apply_funding_auto` is also inverted. Rust decides accept/reject from
+the pre-state, the Python shell commits the parsed Rust post-market and effect,
+and `rust_authority_with_python_shadow` reruns the Python handler as a shadow
+check. The other two isolated ops remain
 explicitly rejected under `rust_authority*` until each gets the same
 decide-and-commit path (full-state + effect materialization exists for all ten
-isolated ops, but those three are still consumed as shadow checks only).
+isolated ops, but those two are still consumed as shadow checks only).
 
 **Shadow materialization (in progress).** The materializer
 `zenodex-runtime perp-isolated-op` emits the **full post-market
@@ -243,12 +244,12 @@ promotions.
 The first authority-inversion slices are live for `advance_epoch`,
 `publish_clearing_price`, `clear_breaker`, `set_position`, and
 `deposit_collateral` / `withdraw_collateral`, plus `set_market_params`, in
-manual authority policies. `rust_authority` commits Rust's materialized
-post-state without running the Python handler, and
-`rust_authority_with_python_shadow` fails closed on Python/Rust post-state
-disagreement. The deposit/withdraw slices also commit the Python wallet-balance
-debit/credit after Rust accepts. No deployment profile flips in this change;
-`public-testnet` remains `perp_stateful: rust_shadow`.
+manual authority policies; `apply_funding_auto` now follows the same path.
+`rust_authority` commits Rust's materialized post-state without running the
+Python handler, and `rust_authority_with_python_shadow` fails closed on
+Python/Rust post-state disagreement. The deposit/withdraw slices also commit the
+Python wallet-balance debit/credit after Rust accepts. No deployment profile
+flips in this change; `public-testnet` remains `perp_stateful: rust_shadow`.
 
 This is consumed as a **`rust_shadow` check only**: the bridge
 (`rust_invoker.perp_isolated_op`) and `perp_engine` compare the **full** Rust
@@ -256,9 +257,9 @@ post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
 `_effects_agree`), failing closed on any state OR effect divergence. Except for
 the `advance_epoch` / `publish_clearing_price` / `clear_breaker` /
 `set_position` / `deposit_collateral` / `withdraw_collateral` authority slices
-plus `set_market_params` above, Rust post-checks Python's accepted transition
-and does not decide accept/reject from the pre-state or commit its materialized
-result. Accordingly **`perp_stateful` remains
+plus `set_market_params` / `apply_funding_auto` above, Rust post-checks Python's
+accepted transition and does not decide accept/reject from the pre-state or
+commit its materialized result. Accordingly **`perp_stateful` remains
 `rust_shadow` in every deployment profile**, and non-promoted stateful ops stay
 blocked under `rust_authority*`.
 

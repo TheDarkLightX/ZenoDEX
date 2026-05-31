@@ -310,13 +310,13 @@ def test_rust_shadow_advance_full_state_and_effects_parity(rust_env):
     assert int(res.state.perps.markets[market_id].global_state["epoch_phase"]) == 0
 
 
-def test_rust_authority_commits_advance_and_blocks_other_perp_stateful_ops(rust_env):
-    # advance_epoch is the first true Rust-authority slice: Rust decides from the
-    # pre-state and the Python shell commits the parsed Rust post-market. Other
-    # perps stateful ops remain blocked until promoted one by one.
+def test_rust_authority_commits_advance_and_blocks_unpromoted_perp_stateful_ops(rust_env):
+    # Manual Rust-authority slices decide from the pre-state and the Python shell
+    # commits the parsed Rust post-market. Unpromoted perps stateful ops remain
+    # blocked until promoted one by one.
     advance_state = _settled("perp:auth-block-advance")
-    funded = fa.build_market(
-        market_id="perp:auth-block-funding",
+    settle_state = fa.build_market(
+        market_id="perp:auth-block-settle",
         quote_asset=QUOTE,
         positions=[(PK_A, 300_000), (PK_B, -300_000)],
         clearing_price_e8=101_000_000,
@@ -332,14 +332,14 @@ def test_rust_authority_commits_advance_and_blocks_other_perp_stateful_ops(rust_
     assert res_adv.ok is True, res_adv.error
     assert int(res_adv.state.perps.markets["perp:auth-block-advance"].global_state["epoch_phase"]) == 0
 
-    res_fund = fa._apply_result(
-        state=funded,
+    res_settle = fa._apply_result(
+        state=settle_state,
         tx_sender_pubkey=OPERATOR,
         operator_pubkey=OPERATOR,
-        ops=[fa._op("perp:auth-block-funding", "apply_funding_auto")],
+        ops=[fa._op("perp:auth-block-settle", "settle_epoch")],
     )
-    assert res_fund.ok is False
-    assert "not live-wired" in (res_fund.error or "")
+    assert res_settle.ok is False
+    assert "not live-wired" in (res_settle.error or "")
 
 
 def test_rust_authority_advance_does_not_call_python_handler(rust_env, monkeypatch):
@@ -619,6 +619,43 @@ def test_rust_authority_commits_set_market_params_without_python_handler(rust_en
     assert int(market.global_state["maintenance_margin_bps"]) == 550
     assert int(market.global_state["funding_cap_bps"]) == 500
     assert res.effects[-1]["params"] == {"maintenance_margin_bps": 550, "funding_cap_bps": 500}
+
+
+def test_rust_authority_commits_apply_funding_auto_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-funding"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 300_000), (PK_B, -100_000)],
+        clearing_price_e8=101_000_000,
+        deposit=1_000_000,
+    )
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python apply_funding_auto handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "apply_funding_auto",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "apply_funding_auto")],
+    )
+    assert res.ok is True, res.error
+    market = res.state.perps.markets[market_id]
+    effect = res.effects[-1]
+    assert int(market.global_state["funding_rate_bps"]) != 0
+    assert int(market.accounts[PK_A].funding_last_applied_epoch) == int(market.global_state["now_epoch"])
+    assert int(market.accounts[PK_B].funding_last_applied_epoch) == int(market.global_state["now_epoch"])
+    assert int(effect["funding_sink_delta_quote"]) != 0
+    assert "effects" not in effect
 
 
 def _settled(market_id: str):
