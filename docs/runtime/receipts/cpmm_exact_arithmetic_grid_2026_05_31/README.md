@@ -65,7 +65,8 @@ over:
 
 This is bounded SMT evidence, not a live-domain theorem.
 
-The same finite identity is mirrored in Lean:
+The same finite identity and the small-domain exact-in/exact-out accepted-case
+safety grids are mirrored in Lean:
 
 ```text
 lean-mathlib/Proofs/CPMMExactOutFeeInverse.lean
@@ -87,6 +88,14 @@ Receipt:
 
 ```text
 lean-mathlib/proof_receipts/cpmm_exact_out_fee_inverse_bounded.md
+```
+
+Lean-checked bounded claims:
+
+```text
+exactOutFeeInverseBounded 200 = true
+exactInSmallDomainSafetyGrid = true
+exactOutSmallDomainSafetyGrid = true
 ```
 
 ## Commands
