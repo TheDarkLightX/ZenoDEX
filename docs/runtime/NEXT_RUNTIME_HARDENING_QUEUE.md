@@ -107,4 +107,8 @@ deploy-profile hardening change.
   duration metadata, or nonces outside the intent-derived support set. Residual:
   multi-hop/multi-pool batch proofs and large-batch settlement/support-root
   integration remain future work.
+- Settlement commitment normal-form hardening now rejects unbound fields inside
+  balance/reserve/LP delta rows and rejects negative `delta_add`/`delta_sub`
+  amounts before hashing. Residual: this is a boundary/commitment guard, not a
+  proof that every settlement-producing path can only construct canonical rows.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.
