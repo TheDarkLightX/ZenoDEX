@@ -3,15 +3,16 @@
 //! Unlike the per-op *checker* subcommands (which validate selected fields), this
 //! surface emits the **full post-market state** (`quote_asset`, every global key,
 //! every account) plus the **exact kernel effect payload**. The Python bridge
-//! consumes it as a `rust_shadow` check (full state + effect parity, fail-closed
-//! on any mismatch). It is NOT yet an authority *driver*: Rust post-checks
-//! Python's transition; true authority (Rust deciding accept/reject from the
-//! pre-state and committing the materialized result) is a later step, gated on
-//! all ops being materialized and exact effect parity holding everywhere.
+//! can consume it as a `rust_shadow` check or as the public-testnet
+//! `rust_authority_with_python_shadow` result. In authority mode, Rust decides
+//! accept/reject from the pre-state and the Python shell commits the strict
+//! parsed materialized result.
 //!
 //! Design:
-//! * `global_state` is carried as a JSON object so unchanged keys pass through
-//!   verbatim; an op overwrites only the keys it changes.
+//! * `global_state`, account rows, top-level request fields, and integration
+//!   facts are exact-schema objects. Unknown or missing fields fail closed.
+//! * A valid `global_state` is carried as a JSON object so unchanged keys pass
+//!   through verbatim; an op overwrites only the keys it changes.
 //! * Integer fields cross the boundary as decimal strings (exact, no JSON float).
 //! * Crypto / external-oracle verification is **not** reimplemented: the request
 //!   carries explicit integration facts (`operator_ok`, `sender_bound_ok`,
@@ -60,6 +61,68 @@ pub const REJ_ORACLE_AUTHORIZATION: &str = "oracle_authorization_not_accepted";
 /// request boundary cannot silently accept a mis-shaped or future payload.
 const SCHEMA_ID: &str = "zenodex/perp_isolated_op/v1";
 const SCHEMA_VERSION: i64 = 1;
+const TOP_LEVEL_KEYS: &[&str] = &[
+    "schema",
+    "version",
+    "quote_asset",
+    "global_state",
+    "accounts",
+    "op",
+    "facts",
+];
+const FACT_KEYS: &[&str] = &[
+    "operator_ok",
+    "sender_bound_ok",
+    "all_positions_flat",
+    "balance_available",
+    "oracle_adapter_ok",
+    "oracle_authorization_ok",
+    "min_collectible_liquidation_penalty_quote",
+];
+const ACCOUNT_KEYS: &[&str] = &[
+    "key",
+    "position_base",
+    "collateral_quote",
+    "entry_price_e8",
+    "funding_paid_cumulative",
+    "funding_last_applied_epoch",
+    "liquidated_this_step",
+];
+const GLOBAL_KEYS: &[&str] = &[
+    "now_epoch",
+    "epoch_phase",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "fee_pool_quote",
+    "funding_rate_bps",
+    "funding_cap_bps",
+    "insurance_balance",
+    "initial_insurance",
+    "fee_income",
+    "claims_paid",
+    "min_notional_for_bounty",
+];
+
+fn has_unknown_key(map: &Map<String, Value>, allowed: &[&str]) -> bool {
+    map.keys().any(|key| !allowed.contains(&key.as_str()))
+}
+
+fn has_exact_keys(map: &Map<String, Value>, expected: &[&str]) -> bool {
+    map.len() == expected.len() && expected.iter().all(|key| map.contains_key(*key))
+}
 
 #[derive(Clone, Debug)]
 struct Account {
@@ -135,6 +198,9 @@ impl Facts {
     /// Parse all required integration facts. Every key is mandatory; a missing
     /// fact rejects as `REJ_MISSING_FACTS` rather than defaulting to false/zero.
     fn parse(facts: &Map<String, Value>) -> Result<Facts, &'static str> {
+        if has_unknown_key(facts, FACT_KEYS) {
+            return Err(REJ_BAD_REQUEST);
+        }
         Ok(Facts {
             operator_ok: req_fact_bool(facts, "operator_ok")?,
             sender_bound_ok: req_fact_bool(facts, "sender_bound_ok")?,
@@ -152,6 +218,9 @@ impl Facts {
 
 fn parse_account(v: &Value) -> Result<Account, &'static str> {
     let o = v.as_object().ok_or(REJ_BAD_REQUEST)?;
+    if !has_exact_keys(o, ACCOUNT_KEYS) {
+        return Err(REJ_BAD_REQUEST);
+    }
     Ok(Account {
         key: o
             .get("key")
@@ -165,9 +234,8 @@ fn parse_account(v: &Value) -> Result<Account, &'static str> {
         funding_last_applied_epoch: gget(o, "funding_last_applied_epoch")?,
         liquidated_this_step: o
             .get("liquidated_this_step")
-            .map(as_bool)
-            .transpose()?
-            .unwrap_or(false),
+            .ok_or(REJ_BAD_REQUEST)
+            .and_then(as_bool)?,
     })
 }
 
@@ -215,6 +283,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         Some(o) => o,
         None => return reject(REJ_BAD_REQUEST),
     };
+    if has_unknown_key(obj, TOP_LEVEL_KEYS) {
+        return reject(REJ_BAD_REQUEST);
+    }
     // Authority-grade wire format: pin the exact schema id and version.
     if obj.get("schema").and_then(Value::as_str) != Some(SCHEMA_ID) {
         return reject(REJ_BAD_SCHEMA);
@@ -230,6 +301,9 @@ pub fn materialize_isolated_op(request: &Value) -> Value {
         Some(g) => g.clone(),
         None => return reject(REJ_BAD_REQUEST),
     };
+    if !has_exact_keys(&global, GLOBAL_KEYS) {
+        return reject(REJ_BAD_REQUEST);
+    }
     let accounts_val = match obj.get("accounts").and_then(Value::as_array) {
         Some(a) => a,
         None => return reject(REJ_BAD_REQUEST),
@@ -1765,6 +1839,94 @@ mod tests {
         );
         r["facts"]["operator_ok"] = json!(1);
         let out = materialize_isolated_op(&r);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn unknown_top_level_request_field_rejects() {
+        let mut r = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        r.as_object_mut()
+            .unwrap()
+            .insert("debug".to_string(), json!("metadata"));
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn unknown_fact_key_rejects() {
+        let mut r = req(
+            settled_global(5),
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        );
+        r["facts"]
+            .as_object_mut()
+            .unwrap()
+            .insert("debug".to_string(), json!(true));
+        let out = materialize_isolated_op(&r);
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn malformed_global_schema_rejects() {
+        let mut with_extra = settled_global(5);
+        with_extra
+            .as_object_mut()
+            .unwrap()
+            .insert("debug".to_string(), json!("metadata"));
+        let out = materialize_isolated_op(&req(
+            with_extra,
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        ));
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+
+        let mut missing = settled_global(5);
+        missing.as_object_mut().unwrap().remove("now_epoch");
+        let out = materialize_isolated_op(&req(
+            missing,
+            json!({"action": "advance_epoch", "delta": "1"}),
+            true,
+        ));
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+    }
+
+    #[test]
+    fn malformed_account_schema_rejects() {
+        let mut extra_account = acct_json("aa", 0, 1000, 0);
+        extra_account
+            .as_object_mut()
+            .unwrap()
+            .insert("debug".to_string(), json!("metadata"));
+        let out = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "1"}),
+            json!([extra_account]),
+            false,
+        ));
+        assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
+        assert!(out.get("post").is_none());
+
+        let mut missing_account = acct_json("aa", 0, 1000, 0);
+        missing_account
+            .as_object_mut()
+            .unwrap()
+            .remove("liquidated_this_step");
+        let out = materialize_isolated_op(&req_accts(
+            open_global(5),
+            json!({"action": "deposit_collateral", "account_pubkey": "aa", "amount": "1"}),
+            json!([missing_account]),
+            false,
+        ));
         assert_eq!(out["reject_reason"], json!(REJ_BAD_REQUEST));
         assert!(out.get("post").is_none());
     }
