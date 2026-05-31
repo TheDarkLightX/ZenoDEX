@@ -14,6 +14,24 @@ def test_zeno_ledger_proof_profiles_accept_default_registry() -> None:
 
     assert report["ok"] is True
     assert report["profile_count"] == 4
+    spot_v1 = next(profile for profile in registry["profiles"] if profile["profile_id"] == "spot_v1_single_pool_success")
+    assert "swap_exact_in" in spot_v1["covered"]
+    assert "swap_exact_out" not in spot_v1["covered"]
+    assert "swap_exact_out" in spot_v1["not_covered"]
+    assert "does_not_claim_spot_v1_exact_out_zk_execution" in spot_v1["non_claims"]
+
+
+def test_zeno_ledger_proof_profiles_reject_spot_v1_exact_out_overclaim() -> None:
+    registry = json.loads(Path("config/proof_profiles/zeno_ledger_profiles.json").read_text(encoding="utf-8"))
+    bad = copy.deepcopy(registry)
+    spot_v1 = next(profile for profile in bad["profiles"] if profile["profile_id"] == "spot_v1_single_pool_success")
+    spot_v1["covered"].append("swap_exact_out")
+    spot_v1["not_covered"] = [item for item in spot_v1["not_covered"] if item != "swap_exact_out"]
+
+    report = validate_proof_profiles_v1(bad)
+
+    assert report["ok"] is False
+    assert any("forbidden coverage: swap_exact_out" in error for error in report["errors"])
 
 
 def test_zeno_ledger_proof_profiles_reject_hash_mismatch() -> None:
