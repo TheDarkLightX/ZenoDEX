@@ -125,4 +125,9 @@ deploy-profile hardening change.
   commits those bytes directly into the receipt preimage. This removes a panic
   edge from the Rust functional core and avoids a needless encode/decode cycle
   on a consensus commitment path.
+- BLS release-signature and local-key-manager helpers no longer rely on
+  `assert G2Basic is not None` after their optional-dependency checks. A single
+  explicit helper now validates the actual `py_ecc.bls.G2Basic` object before
+  signing, public-key derivation, or verification, preserving the same
+  fail-closed dependency error under `python -O`.
 - Confidential sealed-bid API — absent from runtime-main-sync (present in companion); no surface here.

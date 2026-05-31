@@ -307,6 +307,17 @@ def test_module_has_no_network_client_imports() -> None:
     assert "http.client" not in source
 
 
+def test_local_signer_rejects_inconsistent_bls_dependency_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(zeno_key_manager, "_BLS_AVAILABLE", True)
+    monkeypatch.setattr(zeno_key_manager, "G2Basic", None)
+
+    with pytest.raises(RuntimeError, match="py_ecc\\.bls is required for local BLS signing"):
+        LocalInMemoryBlsSigner.from_private_key_hex(
+            key_id="local-bls-1",
+            private_key_hex="0x" + ("00" * 31) + "01",
+        )
+
+
 @pytest.mark.skipif(not zeno_key_manager._BLS_AVAILABLE, reason="py_ecc not installed")
 def test_local_in_memory_signer_requires_policy_approval_and_keeps_secret_out_of_record() -> None:
     private_key_hex = "0x" + ("00" * 31) + "01"
