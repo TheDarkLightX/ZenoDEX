@@ -315,8 +315,8 @@ def test_rust_authority_commits_advance_and_blocks_unpromoted_perp_stateful_ops(
     # commits the parsed Rust post-market. Unpromoted perps stateful ops remain
     # blocked until promoted one by one.
     advance_state = _settled("perp:auth-block-advance")
-    settle_state = fa.build_market(
-        market_id="perp:auth-block-settle",
+    liquidation_state = fa.build_market(
+        market_id="perp:auth-block-liquidate",
         quote_asset=QUOTE,
         positions=[(PK_A, 300_000), (PK_B, -300_000)],
         clearing_price_e8=101_000_000,
@@ -332,14 +332,14 @@ def test_rust_authority_commits_advance_and_blocks_unpromoted_perp_stateful_ops(
     assert res_adv.ok is True, res_adv.error
     assert int(res_adv.state.perps.markets["perp:auth-block-advance"].global_state["epoch_phase"]) == 0
 
-    res_settle = fa._apply_result(
-        state=settle_state,
-        tx_sender_pubkey=OPERATOR,
+    res_liquidate = fa._apply_result(
+        state=liquidation_state,
+        tx_sender_pubkey=PK_A,
         operator_pubkey=OPERATOR,
-        ops=[fa._op("perp:auth-block-settle", "settle_epoch")],
+        ops=[fa._op("perp:auth-block-liquidate", "partial_liquidate", account_pubkey=PK_A, fraction_bps=0)],
     )
-    assert res_settle.ok is False
-    assert "not live-wired" in (res_settle.error or "")
+    assert res_liquidate.ok is False
+    assert "not live-wired" in (res_liquidate.error or "")
 
 
 def test_rust_authority_advance_does_not_call_python_handler(rust_env, monkeypatch):
@@ -656,6 +656,52 @@ def test_rust_authority_commits_apply_funding_auto_without_python_handler(rust_e
     assert int(market.accounts[PK_B].funding_last_applied_epoch) == int(market.global_state["now_epoch"])
     assert int(effect["funding_sink_delta_quote"]) != 0
     assert "effects" not in effect
+
+
+def test_rust_authority_commits_settle_epoch_liquidation_without_python_handler(rust_env, monkeypatch):
+    from src.integration import perp_engine
+
+    market_id = "perp:auth-rust-only-settle"
+    state = fa.build_market(
+        market_id=market_id,
+        quote_asset=QUOTE,
+        positions=[(PK_A, 500_000)],
+        clearing_price_e8=101_000_000,
+        deposit=1_000_000,
+    )
+    market = state.perps.markets[market_id]
+    gs = dict(market.global_state)
+    gs["min_notional_for_bounty"] = 0
+    gs["liquidation_penalty_bps"] = 200
+    accts = dict(market.accounts)
+    accts[PK_A] = replace(accts[PK_A], collateral_quote=1)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(quote_asset=market.quote_asset, global_state=gs, accounts=accts)
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+    def python_handler_must_not_run(*args, **kwargs):
+        raise AssertionError("Python settle_epoch handler ran under pure rust_authority")
+
+    monkeypatch.setitem(
+        perp_engine._ISOLATED_ACTION_HANDLERS,
+        "settle_epoch",
+        python_handler_must_not_run,
+    )
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY))
+    res = fa._apply_result(
+        state=state,
+        tx_sender_pubkey=OPERATOR,
+        operator_pubkey=OPERATOR,
+        ops=[fa._op(market_id, "settle_epoch")],
+    )
+    assert res.ok is True, res.error
+    market = res.state.perps.markets[market_id]
+    effect = res.effects[-1]
+    assert int(market.global_state["epoch_phase"]) == 2
+    assert int(market.accounts[PK_A].position_base) == 0
+    assert market.accounts[PK_A].liquidated_this_step is True
+    assert int(effect["fee_pool_delta"]) > 0
+    assert effect["effects"]["event"] == "EpochSettled"
 
 
 def _settled(market_id: str):

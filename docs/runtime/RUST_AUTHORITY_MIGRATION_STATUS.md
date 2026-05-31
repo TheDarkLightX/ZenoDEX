@@ -188,13 +188,13 @@ balances, oracle bridge authorization, effects, and state materialization for
 this surface. `advance_epoch`, `publish_clearing_price`, `clear_breaker`,
 `set_position`, `deposit_collateral`, and `withdraw_collateral` now have true
 Rust-authority paths for manual authority policies, and `set_market_params` does
-as well. `apply_funding_auto` is also inverted. Rust decides accept/reject from
-the pre-state, the Python shell commits the parsed Rust post-market and effect,
-and `rust_authority_with_python_shadow` reruns the Python handler as a shadow
-check. The other two isolated ops remain
-explicitly rejected under `rust_authority*` until each gets the same
+as well. `apply_funding_auto` and `settle_epoch` are also inverted. Rust decides
+accept/reject from the pre-state, the Python shell commits the parsed Rust
+post-market and effect, and `rust_authority_with_python_shadow` reruns the Python
+handler as a shadow check. The remaining isolated op remains
+explicitly rejected under `rust_authority*` until it gets the same
 decide-and-commit path (full-state + effect materialization exists for all ten
-isolated ops, but those two are still consumed as shadow checks only).
+isolated ops, but that op is still consumed as a shadow check only).
 
 **Shadow materialization (in progress).** The materializer
 `zenodex-runtime perp-isolated-op` emits the **full post-market
@@ -242,7 +242,7 @@ commit boundary used by the `advance_epoch` authority slice and by later per-op
 promotions.
 
 The first authority-inversion slices are live for `advance_epoch`,
-`publish_clearing_price`, `clear_breaker`, `set_position`, and
+`publish_clearing_price`, `settle_epoch`, `clear_breaker`, `set_position`, and
 `deposit_collateral` / `withdraw_collateral`, plus `set_market_params`, in
 manual authority policies; `apply_funding_auto` now follows the same path.
 `rust_authority` commits Rust's materialized post-state without running the
@@ -257,9 +257,9 @@ post-market **and the effect payload** vs Python (`_full_post_markets_agree` +
 `_effects_agree`), failing closed on any state OR effect divergence. Except for
 the `advance_epoch` / `publish_clearing_price` / `clear_breaker` /
 `set_position` / `deposit_collateral` / `withdraw_collateral` authority slices
-plus `set_market_params` / `apply_funding_auto` above, Rust post-checks Python's
-accepted transition and does not decide accept/reject from the pre-state or
-commit its materialized result. Accordingly **`perp_stateful` remains
+plus `set_market_params` / `apply_funding_auto` / `settle_epoch` above, Rust
+post-checks Python's accepted transition and does not decide accept/reject from
+the pre-state or commit its materialized result. Accordingly **`perp_stateful` remains
 `rust_shadow` in every deployment profile**, and non-promoted stateful ops stay
 blocked under `rust_authority*`.
 

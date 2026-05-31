@@ -3216,6 +3216,7 @@ _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS: frozenset[str] = frozenset(
     {
         "advance_epoch",
         "publish_clearing_price",
+        "settle_epoch",
         "clear_breaker",
         "set_position",
         "deposit_collateral",
@@ -3645,8 +3646,33 @@ def _python_shadow_materialized_isolated_op(
     )
 
 
+def _materialized_settle_epoch_effect_doc(
+    *, pre_market: PerpMarketState, post_market: PerpMarketState, effects: Mapping[str, Any]
+) -> tuple[dict[str, Any] | None, str | None]:
+    pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
+    pre_fee_income = int(pre_market.global_state.get("fee_income", 0))
+    pre_insurance_balance = int(pre_market.global_state.get("insurance_balance", 0))
+    post_fee_pool = int(post_market.global_state.get("fee_pool_quote", 0))
+    post_fee_income = int(post_market.global_state.get("fee_income", 0))
+    post_insurance = int(post_market.global_state.get("insurance_balance", 0))
+
+    fee_pool_delta = post_fee_pool - pre_fee_pool
+    fee_income_delta = post_fee_income - pre_fee_income
+    insurance_delta = post_insurance - pre_insurance_balance
+    if fee_pool_delta < 0 or fee_income_delta < 0 or insurance_delta < 0:
+        return None, "internal error: fee pool decreased during settle_epoch"
+    if fee_pool_delta != fee_income_delta or fee_pool_delta != insurance_delta:
+        return None, "internal error: fee/insurance deltas inconsistent"
+    return {"fee_pool_delta": int(fee_pool_delta), "effects": dict(effects)}, None
+
+
 def _commit_materialized_rust_accept(
-    *, ctx: _PerpApplyCtx, i: int, op: PerpOp, rust_response: Mapping[str, Any]
+    *,
+    ctx: _PerpApplyCtx,
+    i: int,
+    op: PerpOp,
+    pre_market: PerpMarketState,
+    rust_response: Mapping[str, Any],
 ) -> Optional[str]:
     if not bool(rust_response.get("accept")):
         return str(rust_response.get("reject_reason") or "perp_stateful rust authority rejected")
@@ -3672,7 +3698,16 @@ def _commit_materialized_rust_accept(
             )
         except Exception as exc:
             return _safe_error_str(exc)
-    if op.action in _PERP_STATEFUL_TOP_LEVEL_EFFECT_ACTIONS:
+    if op.action == "settle_epoch":
+        settle_effect, err = _materialized_settle_epoch_effect_doc(
+            pre_market=pre_market,
+            post_market=post_market,
+            effects=effects,
+        )
+        if err is not None:
+            return err
+        effect_doc.update(settle_effect or {})
+    elif op.action in _PERP_STATEFUL_TOP_LEVEL_EFFECT_ACTIONS:
         effect_doc.update(dict(effects))
     else:
         effect_doc["effects"] = dict(effects)
@@ -3751,6 +3786,7 @@ def _apply_materialized_isolated_op_rust_authority(
         ctx=ctx,
         i=i,
         op=op,
+        pre_market=market,
         rust_response=decision.result,
     )
 
