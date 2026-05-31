@@ -69,6 +69,36 @@ def test_accepts_canonical_recipient():
     assert _require_canonical_committed_identifiers([_swap("0x" + "22" * 48)]) is None
 
 
+def _swap_from(sender: str) -> Intent:
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "cc" * 32,
+        sender_pubkey=sender,
+        deadline=10**12,
+        fields={
+            "pool_id": "0x" + "dd" * 32,
+            "asset_in": _A0,
+            "asset_out": _A1,
+            "amount_in": 1000,
+            "min_amount_out": 0,
+            "recipient": "0x" + "22" * 48,
+        },
+    )
+
+
+def test_rejects_non_canonical_sender_pubkey():
+    # sender becomes a committed balance/LP key (swap default recipient, create-pool
+    # creator LP); signature verification accepts mixed-case/raw, so it must be checked.
+    assert _require_canonical_committed_identifiers([_swap_from("0x" + "AB" * 48)]) == "non-canonical sender_pubkey"
+    assert _require_canonical_committed_identifiers([_swap_from("11" * 48)]) == "non-canonical sender_pubkey"
+
+
+def test_accepts_canonical_sender_pubkey():
+    assert _require_canonical_committed_identifiers([_swap_from("0x" + "11" * 48)]) is None
+
+
 def test_recipient_default_absent_is_accepted():
     # No explicit recipient -> defaults to the (signature-constrained) sender; not flagged.
     intent = _swap("0x" + "22" * 48)
