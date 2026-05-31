@@ -3208,6 +3208,7 @@ _PERP_STATEFUL_MATERIALIZED_ACTIONS: frozenset[str] = frozenset(
         "set_position",
         "clear_breaker",
         "partial_liquidate",
+        "set_market_params",
     }
 )
 
@@ -3286,7 +3287,9 @@ def _materialized_shadow_response_bounded(python_doc: Mapping[str, Any]) -> bool
     return True
 
 
-def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> dict[str, Any]:
+def _build_isolated_op_request(
+    *, config: PerpEngineConfig, pre_market: PerpMarketState, op: PerpOp
+) -> dict[str, Any]:
     """Build the full `perp-isolated-op` request from the pre-market, op, and the
     explicit integration facts. This runs only after the Python integration has
     already accepted the op, so the upstream gate facts (operator, sender binding,
@@ -3324,6 +3327,11 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
         )
     elif op.action == "apply_funding_auto":
         pass
+    elif op.action == "set_market_params":
+        params = op.data.get("params")
+        if not isinstance(params, Mapping):
+            raise ValueError("params must be an object")
+        op_obj["params"] = dict(params)
     # clear_breaker (and the global ops settle_epoch) carry no op params; the
     # materializer reads everything it needs from global_state + the all_positions_flat
     # fact, so the bare {"action": ...} op object above is complete.
@@ -3342,6 +3350,9 @@ def _build_isolated_op_request(*, pre_market: PerpMarketState, op: PerpOp) -> di
             "balance_available": "0",
             "oracle_adapter_ok": True,
             "oracle_authorization_ok": True,
+            "min_collectible_liquidation_penalty_quote": str(
+                _min_collectible_liquidation_penalty_quote(config)
+            ),
         },
     }
 
@@ -3376,24 +3387,32 @@ def _effects_agree(python_effect: Any, rust_effect: Any) -> bool:
     """Exact effect parity: identical key set; bool fields strict, int fields
     coerced (Python emits JSON numbers, Rust emits decimal strings), event string
     equal. A receipt/effect drift fails closed even when post-state still matches."""
+
+    def values_agree(py_val: Any, rust_val: Any) -> bool:
+        if isinstance(py_val, bool):
+            return isinstance(rust_val, bool) and py_val == rust_val
+        if isinstance(py_val, int):
+            try:
+                return int(str(rust_val)) == py_val
+            except (TypeError, ValueError):
+                return False
+        if isinstance(py_val, Mapping):
+            if not isinstance(rust_val, Mapping) or set(py_val.keys()) != set(rust_val.keys()):
+                return False
+            return all(values_agree(py_val[key], rust_val.get(key)) for key in py_val)
+        if isinstance(py_val, list):
+            if not isinstance(rust_val, list) or len(py_val) != len(rust_val):
+                return False
+            return all(values_agree(a, b) for a, b in zip(py_val, rust_val))
+        return str(py_val) == str(rust_val)
+
     if not isinstance(python_effect, Mapping) or not isinstance(rust_effect, Mapping):
         return False
     if set(python_effect.keys()) != set(rust_effect.keys()):
         return False
     for key, py_val in python_effect.items():
-        rust_val = rust_effect.get(key)
-        if isinstance(py_val, bool):
-            if not isinstance(rust_val, bool) or py_val != rust_val:
-                return False
-        elif isinstance(py_val, int):
-            try:
-                if int(str(rust_val)) != py_val:
-                    return False
-            except (TypeError, ValueError):
-                return False
-        else:
-            if str(py_val) != str(rust_val):
-                return False
+        if not values_agree(py_val, rust_effect.get(key)):
+            return False
     return True
 
 
@@ -3472,7 +3491,7 @@ def _shadow_accepted_isolated_op(
             python_doc = _perp_stateful_full_doc(post_market, python_effect)
             if not _materialized_shadow_response_bounded(python_doc):
                 return None
-            request = _build_isolated_op_request(pre_market=pre_market, op=op)
+            request = _build_isolated_op_request(config=ctx.config, pre_market=pre_market, op=op)
             if not _materialized_shadow_request_bounded(request):
                 return None
             decide(
