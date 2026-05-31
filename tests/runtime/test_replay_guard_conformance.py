@@ -102,3 +102,50 @@ def test_randomized_differential(rust_bin, tmp_path):
 
     accepts = sum(1 for r in rust_out["results"] if r["accept"])
     assert 0 < accepts < len(txs)
+
+
+def _admit(sender, nonce) -> dict:
+    return {"kind": "admit", "sender": sender, "nonce": nonce}
+
+
+def test_reject_code_parity(rust_bin, tmp_path):
+    """Deterministic reject-code + precedence parity — the differential complement
+    to the Kani ``classify_sequence`` proof.
+
+    Covers the accept path and all five reject codes (invalid_sender,
+    invalid_nonce, duplicate_nonce, stale_nonce, nonce_gap) plus the
+    sender-before-nonce precedence. Python and the Rust CLI must agree on the full
+    result AND the exact reject code — pinning reject-code parity, not just
+    accept/reject parity.
+    """
+    a, b = VALID_SENDERS[0], VALID_SENDERS[1]
+    bad_sender = "0xzz" + "11" * 47  # 96-wide but non-hex -> invalid_sender
+    u32_max = 0xFFFFFFFF
+    cases: list[tuple[list, dict, object]] = [
+        ([], _admit(a, 1), None),  # accept: fresh sender, strict successor
+        ([_admit(a, 1)], _admit(a, 1), "duplicate_nonce"),  # re-admit last
+        ([_admit(a, 1), _admit(a, 2), _admit(a, 3)], _admit(a, 1), "stale_nonce"),  # below last
+        ([], _admit(b, 3), "nonce_gap"),  # fresh sender, skips last+1
+        ([], _admit(bad_sender, 1), "invalid_sender"),  # bad sender, valid nonce
+        ([], _admit(a, 0), "invalid_nonce"),  # nonce below range
+        ([], _admit(a, u32_max + 1), "invalid_nonce"),  # nonce above range
+        ([], _admit(bad_sender, 0), "invalid_sender"),  # sender checked before nonce
+    ]
+    for setup, boundary, expected in cases:
+        txs = setup + [boundary]
+        py = replay_guard_lib.replay_txs([json.loads(json.dumps(t)) for t in txs])
+        ru = _run_rust_on_txs(rust_bin, txs, tmp_path)
+        assert py == ru, (
+            f"python/rust diverged for {expected}:\n"
+            f"  python={json.dumps(py['results'][-1])}\n"
+            f"  rust  ={json.dumps(ru['results'][-1])}"
+        )
+        last = ru["results"][-1]
+        if expected is None:
+            assert last["accept"] is True, f"expected accept, got {json.dumps(last)}"
+        else:
+            assert last["accept"] is False
+            assert last["reject_reason"] == expected, (
+                f"expected {expected!r}, got {last['reject_reason']!r} "
+                f"for {json.dumps(boundary)}"
+            )
