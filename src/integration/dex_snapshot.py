@@ -33,6 +33,7 @@ from ..core.vault import VaultState
 from ..state.balances import BalanceTable
 from ..state.canonical import (
     bounded_json_utf8_size,
+    canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
     domain_sep_bytes,
     sha256_hex,
@@ -66,6 +67,23 @@ def _require_bool(value: Any, *, name: str) -> bool:
     if not isinstance(value, bool):
         raise TypeError(f"{name} must be a bool")
     return bool(value)
+
+
+def _snapshot_identity_key(value: str, *, nbytes: int, name: str) -> tuple[str, str]:
+    """Key used only for duplicate detection at snapshot boundaries.
+
+    Explicit ``0x`` fixed-width hex identifiers are compared by their decoded
+    identity (represented by canonical lowercase hex), matching the state-root
+    encoder. Symbolic dev/test identifiers and raw hex strings keep their raw
+    spelling for compatibility with local snapshot paths.
+    """
+
+    if not value.startswith("0x"):
+        return ("raw", value)
+    try:
+        return ("hex", canonical_hex_fixed_allow_0x(value, nbytes=nbytes, name=name))
+    except (TypeError, ValueError):
+        return ("raw", value)
 
 
 @dataclass(frozen=True)
@@ -294,7 +312,7 @@ def state_from_snapshot(
         raise TypeError("snapshot.balances must be a list")
     if len(balances_entries) > max_balances:
         raise ValueError(f"too many balances entries: {len(balances_entries)} > {max_balances}")
-    seen_balances: set[tuple[str, str]] = set()
+    seen_balances: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for entry in balances_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.balances entries must be objects")
@@ -305,9 +323,12 @@ def state_from_snapshot(
         asset_s = _require_str(asset, name="balance.asset", non_empty=True, max_len=min(256, max_str_len))
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError("invalid balance entry (amount)")
-        key = (pk_s, asset_s)
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="balance.pubkey"),
+            _snapshot_identity_key(asset_s, nbytes=32, name="balance.asset"),
+        )
         if key in seen_balances:
-            raise ValueError("duplicate balance entry (pubkey, asset)")
+            raise ValueError("duplicate decoded balance entry (pubkey, asset)")
         seen_balances.add(key)
         balances.set(pk_s, asset_s, amount)
 
@@ -319,12 +340,15 @@ def state_from_snapshot(
         raise TypeError("snapshot.pools must be a list")
     if len(pools_entries) > max_pools:
         raise ValueError(f"too many pools entries: {len(pools_entries)} > {max_pools}")
+    seen_pool_ids: set[tuple[str, str]] = set()
     for entry in pools_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.pools entries must be objects")
         pool_id = _require_str(entry.get("pool_id"), name="pool.pool_id", non_empty=True, max_len=min(256, max_str_len))
-        if pool_id in pools:
-            raise ValueError("duplicate pool entry (pool_id)")
+        pool_key = _snapshot_identity_key(pool_id, nbytes=32, name="pool.pool_id")
+        if pool_key in seen_pool_ids:
+            raise ValueError("duplicate decoded pool entry (pool_id)")
+        seen_pool_ids.add(pool_key)
         asset0 = entry.get("asset0")
         asset1 = entry.get("asset1")
         asset0_s = _require_str(asset0, name="pool.asset0", non_empty=True, max_len=min(256, max_str_len))
@@ -359,7 +383,7 @@ def state_from_snapshot(
         raise TypeError("snapshot.lp_balances must be a list")
     if len(lp_entries) > max_lp_balances:
         raise ValueError(f"too many lp_balances entries: {len(lp_entries)} > {max_lp_balances}")
-    seen_lp: set[tuple[str, str]] = set()
+    seen_lp: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for entry in lp_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.lp_balances entries must be objects")
@@ -370,9 +394,12 @@ def state_from_snapshot(
         pool_id_s = _require_str(pool_id_raw, name="lp.pool_id", non_empty=True, max_len=min(256, max_str_len))
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError("invalid lp entry (amount)")
-        key = (pk_s, pool_id_s)
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="lp.pubkey"),
+            _snapshot_identity_key(pool_id_s, nbytes=32, name="lp.pool_id"),
+        )
         if key in seen_lp:
-            raise ValueError("duplicate lp entry (pubkey, pool_id)")
+            raise ValueError("duplicate decoded lp entry (pubkey, pool_id)")
         seen_lp.add(key)
         lp_balances.set(pk_s, pool_id_s, amount)
 
@@ -387,7 +414,7 @@ def state_from_snapshot(
         raise ValueError(
             f"too many lp_mint_timestamps entries: {len(lp_mint_timestamp_entries)} > {max_lp_balances}"
         )
-    seen_lp_mint: set[tuple[str, str]] = set()
+    seen_lp_mint: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for entry in lp_mint_timestamp_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.lp_mint_timestamps entries must be objects")
@@ -403,9 +430,12 @@ def state_from_snapshot(
         )
         if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
             raise ValueError("invalid lp_mint_timestamps entry (last_mint_timestamp)")
-        key = (pk_s, pool_id_s)
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="lp_mint.pubkey"),
+            _snapshot_identity_key(pool_id_s, nbytes=32, name="lp_mint.pool_id"),
+        )
         if key in seen_lp_mint:
-            raise ValueError("duplicate lp_mint_timestamps entry (pubkey, pool_id)")
+            raise ValueError("duplicate decoded lp_mint_timestamps entry (pubkey, pool_id)")
         seen_lp_mint.add(key)
         lp_balances.set_last_mint_timestamp(pk_s, pool_id_s, timestamp)
 
@@ -418,7 +448,7 @@ def state_from_snapshot(
         raise TypeError("snapshot.lp_duration_risk must be a list")
     if len(lp_duration_risk_entries) > max_lp_balances:
         raise ValueError(f"too many lp_duration_risk entries: {len(lp_duration_risk_entries)} > {max_lp_balances}")
-    seen_lp_duration: set[tuple[str, str]] = set()
+    seen_lp_duration: set[tuple[tuple[str, str], tuple[str, str]]] = set()
     for entry in lp_duration_risk_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.lp_duration_risk entries must be objects")
@@ -431,9 +461,12 @@ def state_from_snapshot(
             non_empty=True,
             max_len=min(256, max_str_len),
         )
-        key = (pk_s, pool_id_s)
+        key = (
+            _snapshot_identity_key(pk_s, nbytes=48, name="lp_duration.pubkey"),
+            _snapshot_identity_key(pool_id_s, nbytes=32, name="lp_duration.pool_id"),
+        )
         if key in seen_lp_duration:
-            raise ValueError("duplicate lp_duration_risk entry (pubkey, pool_id)")
+            raise ValueError("duplicate decoded lp_duration_risk entry (pubkey, pool_id)")
         seen_lp_duration.add(key)
         last_remove = entry.get("last_remove_timestamp")
         if last_remove is not None:
@@ -470,7 +503,7 @@ def state_from_snapshot(
         raise TypeError("snapshot.nonces must be a list")
     if len(nonce_entries) > max_nonces:
         raise ValueError(f"too many nonces entries: {len(nonce_entries)} > {max_nonces}")
-    seen_nonce_pks: set[str] = set()
+    seen_nonce_pks: set[tuple[str, str]] = set()
     for entry in nonce_entries:
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.nonces entries must be objects")
@@ -480,9 +513,10 @@ def state_from_snapshot(
             raise ValueError("invalid nonce entry (last_nonce)")
         if last_nonce > 0xFFFFFFFF:
             raise ValueError("invalid nonce entry (last_nonce out of u32 range)")
-        if pk in seen_nonce_pks:
-            raise ValueError("duplicate nonce entry (pubkey)")
-        seen_nonce_pks.add(pk)
+        nonce_key = _snapshot_identity_key(pk, nbytes=48, name="nonce.pubkey")
+        if nonce_key in seen_nonce_pks:
+            raise ValueError("duplicate decoded nonce entry (pubkey)")
+        seen_nonce_pks.add(nonce_key)
         nonces.set_last(pk, int(last_nonce))
 
     missing = object()
