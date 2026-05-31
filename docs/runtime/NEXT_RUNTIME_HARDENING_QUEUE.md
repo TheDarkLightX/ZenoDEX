@@ -42,16 +42,22 @@ Fixed here: the runtime facts include perps, zUSD Tau wallet, zUSD monetary wall
 AutoTrader local signing, and signed-payload echo flags. Regression:
 `tests/runtime/test_deploy_profile_enforced_at_startup.py`.
 
-## P3 — settle-epoch oracle freshness (S4-F1, documented/intentional)
+## P3 — settle-epoch oracle freshness (S4-F1, deployment-gated)
 
 `guard_settle_epoch` uses `oracle_last_update_epoch >= now_epoch` as an
 idempotency check, not a freshness check; `max_oracle_staleness_epochs` is not
 consulted, so settlement proceeds on a stale index (PnL clamps to a stale
-reference). This is a **documented design tradeoff** (liveness over freshness;
-`test_regression_stale_oracle_settle_epoch_accept_reject_parity` verifies the
-accept). Production should set `require_oracle_authorization_for_isolated_settle_epoch=True`
-in `PerpEngineConfig`. Decision needed: make that the production default, or add a
-staleness reject in `guard_settle_epoch` gated by the control parameter.
+reference). This remains a **documented design tradeoff** (liveness over
+freshness; `test_regression_stale_oracle_settle_epoch_accept_reject_parity`
+verifies the accept). The deployment gap is now closed for strict profiles:
+`config/deploy/{public-testnet,production-strict}.yaml` require the isolated
+settle adapter and typed authorization flags through `oracle_policy`, and
+`api_server.main()` refuses to bind if the matching environment facts are not
+enabled. Local-dev keeps the tradeoff available for replay/debug loops.
+
+Residual: the core guard still accepts by idempotency rather than staleness.
+Changing that requires a deliberate kernel/semantic decision, not a
+deploy-profile hardening change.
 
 ## P4 — pre-existing baseline test failures to triage (not this campaign)
 
@@ -61,7 +67,10 @@ Both committed (not dirty), outside the audited surfaces:
 
 ## P5 — coverage gaps left open by this campaign (negative-receipt boundaries)
 
-- Clearinghouse (CH2P/CH3P) settlement oracle path: `require_oracle_adapter_for_clearinghouse_settle_epoch` defaults False; CH settlement has no oracle-authorization path — not independently probed.
+- Clearinghouse (CH2P/CH3P) settlement oracle path: strict deploy profiles now
+  require `TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH=1`
+  before startup. A typed clearinghouse-specific oracle-authorization path is
+  still future work; current hardening is aggregate-adapter enforcement.
 - OCaml runtime conformance (needs `opam`/`dune`) and SPARK/Ada formal verification (needs `gnatprove`) — not run here; advisory.
 - Golden-trace differential replay (`test_golden_trace_replay.py`, `rust_shadow_replay.py`) — only partially run (collection-time import issues in some ESSO/lint modules).
 - Multi-hop/multi-pool batch proofs and large-batch state/support-root computations — not stress-tested.

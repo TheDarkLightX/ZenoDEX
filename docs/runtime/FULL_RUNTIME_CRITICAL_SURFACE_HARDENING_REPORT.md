@@ -63,7 +63,15 @@ it was **not** applied (would weaken determinism).
 
 ### S4 — perps + oracle — 1 fix + 2 documented + safe-idempotency receipts
 - Negative receipts: double-settle, re-settle-after-advance, split-brain oracle packets — all correctly rejected (idempotency marker `oracle_last_update_epoch=now_epoch`; `OracleRegistry` enforces one-commit-per-epoch + strict monotone sequence). Insurance/margin non-negativity enforced.
-- **F-1 (documented, intentional):** `guard_settle_epoch` checks `oracle_last_update_epoch >= now_epoch` as *idempotency*, not freshness; `max_oracle_staleness_epochs` is not consulted → settlement proceeds on a stale index. This is a documented liveness-over-freshness tradeoff (`test_regression_stale_oracle_settle_epoch_accept_reject_parity` verifies the accept; opt-in `require_oracle_authorization_for_isolated_settle_epoch`). Recommend production sets that flag. → queue P3.
+- **F-1 (documented, intentional):** `guard_settle_epoch` checks `oracle_last_update_epoch >= now_epoch` as *idempotency*, not freshness; `max_oracle_staleness_epochs` is not consulted → settlement proceeds on a stale index. This is a documented liveness-over-freshness tradeoff (`test_regression_stale_oracle_settle_epoch_accept_reject_parity` verifies the accept; opt-in `require_oracle_authorization_for_isolated_settle_epoch`). Strict deploy profiles now require the isolated settle Oracle adapter and typed authorization flags at startup. → queue P3.
+- **FIXED — S4/S5-ORACLE-PROFILE-001 (deployment posture):** the fail-closed
+  ZenoOracle helper required perps/zUSD/routing Oracle gates, but
+  `ZENODEX_DEPLOY_PROFILE` did not enforce those runtime facts. Public-testnet
+  and production-strict profiles now carry an explicit `oracle_policy`, and
+  `api_server.main()` refuses to bind unless routing, zUSD, isolated-perps, and
+  clearinghouse-perps Oracle adapter/authorization flags required by that policy
+  are enabled. Local-dev keeps all flags optional. Regression:
+  `tests/runtime/test_deploy_profile_enforced_at_startup.py`.
 - **FIXED — F-3 (confirmed, fail-closed liveness):** `apply_funding_auto` required `projected_net == 0`, but floor-divided `funding_payment` doesn't sum to zero for a balanced book (`[2000,-1000,-1000]@9bps → [1,0,0]`, net=1 → blocked; ~82% of configs). The fix rejects true net base exposure, then assigns integer rounding residuals on zero-net books to a deterministic counterparty account so adjusted payments sum to zero and `fee_pool_quote` is not used as a hidden subsidy source.
 - **FIXED — F-5 (stale test):** `test_perp_epoch_isolated_v3_native_initial_state_keeps_epoch_phase` asserted `epoch_phase == "Open"`, but the v3 native ABI uses int enums (`Open=0`). Aligned the assertion to the documented int ABI.
 
@@ -88,8 +96,9 @@ API routes"). **Regression:** `tests/runtime/test_api_surface_profile_enforced_a
   `ZENODEX_DEPLOY_PROFILE` with `src/integration/deploy_profile.py` before
   binding. The gate checks raw-key/local-signing flags for perps, zUSD Tau
   wallet, zUSD monetary wallet, and AutoTrader, plus signed-payload echo flags,
-  local-only fixture flags, and public-auth posture. Regression:
-  `tests/runtime/test_deploy_profile_enforced_at_startup.py` (11).
+  local-only fixture flags, public-auth posture, and strict-profile Oracle
+  adapter/authorization posture. Regression:
+  `tests/runtime/test_deploy_profile_enforced_at_startup.py`.
 
 ## Evidence (commands + results)
 
@@ -111,14 +120,25 @@ tests/core/test_perp_epoch_isolated_v2_native.py (F-5)                -> passes 
 tests/core/test_perp_apply_funding_auto_gate.py +
   tests/integration/test_perp_engine.py -k funding_auto                -> 14 passed
 tests/runtime/test_deploy_profile_enforced_at_startup.py +
-  profile/API-surface/authority selectors                              -> 30 passed
+  profile/API-surface/authority selectors                              -> 47 passed
 tools/check_deployment_profiles.py --json                              -> ok
+2026-05-31 follow-up:
+python3 tools/check_deployment_profiles.py                             -> ok
+python3 -m py_compile src/integration/deploy_profile.py
+  src/integration/api_server.py tools/check_deployment_profiles.py      -> clean
+pytest -q tests/runtime/test_deploy_profile_enforced_at_startup.py
+  tests/integration/test_zeno_oracle_fail_closed_config.py              -> 50 passed
+pytest -q tests/integration/test_api_server_main.py
+  tests/integration/test_zeno_oracle_fail_closed_config.py              -> 13 passed
+pytest -q tests/runtime                                                -> 674 passed
 ```
 
 ## Residual risk
-P3 settle-epoch oracle freshness (config-gated);
-clearinghouse settle oracle path, OCaml/SPARK conformance, golden-trace differential,
-multi-hop batch proofs — not fully exercised. Full list: `NEXT_RUNTIME_HARDENING_QUEUE.md`.
+P3 settle-epoch oracle freshness (strict-profile deployment-gated; core
+idempotency-vs-freshness tradeoff remains); typed clearinghouse-specific oracle
+authorization path, OCaml/SPARK conformance, golden-trace differential,
+multi-hop batch proofs — not fully exercised. Full list:
+`NEXT_RUNTIME_HARDENING_QUEUE.md`.
 
 ---
 
@@ -146,7 +166,9 @@ Bugs Found
 - S5-GAP-003 (MEDIUM, D-CONFIG-002): deployment profiles were richer than startup
   enforcement, and zUSD/AutoTrader local-signing facts were not covered. FIX:
   ZENODEX_DEPLOY_PROFILE startup gate, updated profile YAML runtime policy, and
-  zUSD/AutoTrader fact coverage. TEST: test_deploy_profile_enforced_at_startup.py (11).
+  zUSD/AutoTrader fact coverage. Follow-up hardening adds strict-profile
+  `oracle_policy` enforcement for routing, zUSD, isolated perps, and
+  clearinghouse perps Oracle gates. TEST: test_deploy_profile_enforced_at_startup.py.
 - SR-DRIFT-001 (state_root Rust shadow): Rust accepted nonce 2^32 while Python rejected it.
   FIX: enforce the u32 nonce bound in Rust with `nonce_too_large`. TEST:
   test_state_root_disaster_state.py.
@@ -161,6 +183,7 @@ Evidence
   injectivity proof OK, 31 new or updated regression tests pass. See Evidence section above.
 
 Residual Risk
-- P3 settle-epoch oracle freshness (config-gated). See NEXT_RUNTIME_HARDENING_QUEUE.md.
+- P3 settle-epoch oracle freshness (strict-profile deployment-gated; core
+  idempotency-vs-freshness tradeoff remains). See NEXT_RUNTIME_HARDENING_QUEUE.md.
   Not a claim of zero bugs — bounded coverage only.
 ```

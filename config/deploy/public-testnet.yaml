@@ -27,6 +27,14 @@ gossip_policy:
   transport_auth_required: true
 observability_policy:
   metrics_required: true
+oracle_policy:
+  dex_routing_oracle_adapter_required: true
+  zusd_oracle_adapter_required: true
+  zusd_oracle_authorization_required: true
+  perps_clearinghouse_settle_oracle_adapter_required: true
+  perps_isolated_settle_oracle_adapter_required: true
+  perps_isolated_partial_liquidate_oracle_adapter_required: true
+  perps_isolated_settle_oracle_authorization_required: true
 runtime_policy:
   allow_path_lookup: false
   plaintext_fixture_keys_allowed: false

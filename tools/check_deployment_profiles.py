@@ -37,11 +37,21 @@ ALLOWED_PROFILE_KEYS = frozenset(
         "peer_policy",
         "gossip_policy",
         "observability_policy",
+        "oracle_policy",
         "runtime_policy",
         "runtime_authority_policy",
     }
 )
 KNOWN_ALLOWED_ROUTES = frozenset({"health", "local_demo", "signed_intents", "public_bundle", "peer_check"})
+ORACLE_POLICY_KEYS = (
+    "dex_routing_oracle_adapter_required",
+    "zusd_oracle_adapter_required",
+    "zusd_oracle_authorization_required",
+    "perps_clearinghouse_settle_oracle_adapter_required",
+    "perps_isolated_settle_oracle_adapter_required",
+    "perps_isolated_partial_liquidate_oracle_adapter_required",
+    "perps_isolated_settle_oracle_authorization_required",
+)
 
 
 def _mapping(value: Any, name: str, errors: list[str]) -> Mapping[str, Any]:
@@ -81,7 +91,15 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
         if unknown_routes:
             errors.append(f"allowed_routes contains unknown routes: {unknown_routes}")
 
-    for key in ("required_auth", "key_policy", "proof_policy", "peer_policy", "gossip_policy", "observability_policy"):
+    for key in (
+        "required_auth",
+        "key_policy",
+        "proof_policy",
+        "peer_policy",
+        "gossip_policy",
+        "observability_policy",
+        "oracle_policy",
+    ):
         _mapping(obj.get(key), key, errors)
 
     key_policy = _mapping(obj.get("key_policy"), "key_policy", errors)
@@ -89,6 +107,7 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     peer_policy = _mapping(obj.get("peer_policy"), "peer_policy", errors)
     gossip_policy = _mapping(obj.get("gossip_policy"), "gossip_policy", errors)
     observability_policy = _mapping(obj.get("observability_policy"), "observability_policy", errors)
+    oracle_policy = _mapping(obj.get("oracle_policy"), "oracle_policy", errors)
 
     raw_keys = _require_bool(key_policy, "raw_private_key_flags_allowed", errors, "key_policy")
     key_receipts = _require_bool(key_policy, "production_key_receipts_required", errors, "key_policy")
@@ -96,6 +115,10 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
     dynamic_peer_cap = _require_bool(peer_policy, "dynamic_peer_cap_required", errors, "peer_policy")
     transport_auth = _require_bool(gossip_policy, "transport_auth_required", errors, "gossip_policy")
     metrics_required = _require_bool(observability_policy, "metrics_required", errors, "observability_policy")
+    oracle_flags = {
+        key: _require_bool(oracle_policy, key, errors, "oracle_policy")
+        for key in ORACLE_POLICY_KEYS
+    }
 
     upba_policy = obj.get("upba_policy")
     if upba_policy not in {"conservative", "balanced", "fast"}:
@@ -116,9 +139,16 @@ def validate_deployment_profile(profile: Any) -> dict[str, Any]:
             errors.append("production-strict must require metrics")
         if upba_policy != "conservative":
             errors.append("production-strict must use conservative UPBA policy")
+        for key, value in oracle_flags.items():
+            if value is not True:
+                errors.append(f"production-strict must require oracle_policy.{key}")
 
     if profile_id == "public-testnet" and raw_keys is not False:
         errors.append("public-testnet must reject raw private key flags")
+    if profile_id == "public-testnet":
+        for key, value in oracle_flags.items():
+            if value is not True:
+                errors.append(f"public-testnet must require oracle_policy.{key}")
 
     # Runtime authority policy (optional section; absent => safe all-Python).
     # A malformed policy, or a half-configured Rust authority under public
