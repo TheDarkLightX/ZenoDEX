@@ -80,7 +80,7 @@ encoders, CPMM arithmetic, and perps wrappers remain large.
 | CPMM per-pool settlement | yes | yes | Kani on init/fail-closed/non-vacuity, malformed-fee and zero-denominator helper rejects, small-domain fee-ceil boundedness, and small-domain exact-in reserve shape. Full live-domain exact-in/out arithmetic remains outside Kani | unit k-invariant tests, Python/Rust differential, live path, disaster/fuzz, Tau/ESSO/Lean model evidence, exhaustive small-domain exact-in/out arithmetic grid, bounded Z3 fee-inversion and Lean exact-swap safety checks, plus Julia BigInt boundary witnesses replayed against Python quote logic and Rust `cpmm-op` | partial |
 | Perp stateless math | yes | yes | Kani on checked materializer-effect helpers, bridge-domain classifiers, `abs_val` safety, oracle helper totality, sign classifiers, flat-position liquidation rejection, and arith primitives. Full live-domain multiplication/division equivalence remains differential/property evidence | static and randomized Python/Rust differential, live path, disaster/fuzz | partial |
 | Perp stateful isolated ops | yes | yes | Kani on `advance_epoch` and `publish_clearing_price` totality/accept shape/reachability, account-op domain plus deposit/withdraw/set-position/clear-breaker accept shape and reachability, settle-epoch helper classifiers, partial-liquidate boundary/full-close slice, set-market-params scalar/no-account overlay slice, plus funding-auto bounded-sink helpers. Other op wrappers remain differential/live-shadow covered | all 10 ops materialized, golden/live tests, security regressions, disaster/fuzz | partial |
-| Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, fixed-width hex length arithmetic, selected LEB128 length boundaries, and fixed-array uvarint helper totality/terminator shape. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector, exhaustive control-character JSON escape grid with independent encoder oracle, raw uvarint/encode-bytes framing grid with Rust parity | partial |
+| Canonical primitives | yes | yes | Kani on heap-free helper predicates: ASCII domain-label byte classifier, ASCII hex digit classifier, hex-nibble/pair decoding exactness, fixed-width hex length arithmetic, selected LEB128 length boundaries, and fixed-array uvarint helper totality/terminator shape. Full `Vec`/`String` encoders, SHA-256, and canonical JSON remain outside Kani | vectors, fuzz, state-root/receipt differential, live selector, exhaustive control-character JSON escape grid with independent encoder oracle, raw uvarint/encode-bytes framing grid with Rust parity | partial |
 | State root v5 | yes | yes | Kani on scalar root-admission guards: pool fee bps, nonce bounds, LP duration metadata presence, decoded-byte pool-asset order, and pool-status code distinctness. Full section encoding, duplicate detection, BigUint curve-param parsing, and SHA-256 remain outside Kani | state-root differential, malformed/duplicate rejects, fuzz, live selector, LP duration-risk exhaustive field grid plus Z3 semantic injectivity, one-hot section-framing grid with strict decoder and Rust parity, curve-config normalization/BigUint parser grid | partial |
 | zUSD single-vault | yes | yes | Kani on BigInt-free scalar risk helpers: oracle freshness, base-rate decay, fee cap, and debt-floor guard. Full BigInt CDP ratio arithmetic and full `step` remain outside Kani | golden, Python/Rust differential, semantic invariants, disaster/fuzz, live selector, independent CDP threshold arithmetic grid plus bounded Lean boundary formula checks, liquidation compensation accounting grid with Rust parity | partial |
 
@@ -112,11 +112,13 @@ This campaign moved seven surfaces forward:
   direct public-swap and exact-out helper Kani attempts timed out under CBMC.
 - Canonical primitives gained heap-free helper decomposition. Kani now proves
   the domain-label byte classifier, hex-digit byte classifier, fixed-width hex
-  length arithmetic, selected LEB128 length boundaries, and the heap-free
-  fixed-array uvarint helper's totality/nonempty/bounded-length/final-byte
-  terminator shape. `hex_to_bytes_fixed` now fails closed when an impossible
-  requested width would overflow the expected length calculation. This pass also
-  added an independent canonical JSON escape grid over every ASCII control byte,
+  length arithmetic, exact hex-nibble/pair decoding, selected LEB128 length
+  boundaries, and the heap-free fixed-array uvarint helper's totality/nonempty/
+  bounded-length/final-byte terminator shape. `hex_to_bytes_fixed` now fails
+  closed when an impossible requested width would overflow the expected length
+  calculation and decodes validated fixed-width hex with the core's own checked
+  pair decoder instead of delegating to the external `hex` decoder. This pass
+  also added an independent canonical JSON escape grid over every ASCII control byte,
   quote/backslash escapes, non-ASCII UTF-8, escaped object keys, key ordering,
   and nested values, comparing Python and Rust to a small reference encoder. It
   also added raw framing differential ops and an independent grid for unsigned
@@ -191,9 +193,11 @@ includes the live-shadow regression.
    layer. Keep public function parity locked by differential/property tests.
 2. Continue canonical proof decomposition: public `Vec`/`String` wrapper
    allocation, `encode_bytes`, domain-separator construction, fixed-hex
-   decoding, SHA-256, and canonical JSON remain outside Kani. Keep SHA-256 and
-   heap-heavy JSON as vector/differential evidence unless a tractable helper
-   boundary is added.
+   wrapper lowering, SHA-256, and canonical JSON remain outside Kani. The
+   fixed-hex nibble and pair decoder is now machine-checked, but the public
+   `hex_to_bytes_fixed` string/Vec wrapper remains covered by unit tests and
+   Python/Rust replay. Keep SHA-256 and heap-heavy JSON as vector/differential
+   evidence unless a tractable helper boundary is added.
 3. Continue state-root proof decomposition: finite section encoder helpers,
    duplicate-key guards, and curve-config parsers remain outside Kani. Hashing
    and BTreeMap traversal should stay tested by vectors and differential checks
@@ -228,7 +232,7 @@ Result:
 
 ```text
 Manual Harness Summary:
-Complete - 84 successfully verified harnesses, 0 failures, 84 total.
+Complete - 86 successfully verified harnesses, 0 failures, 86 total.
 ```
 
 Focused tests after integrating the security fixes:
