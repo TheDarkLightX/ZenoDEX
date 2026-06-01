@@ -30,6 +30,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
     build_testnet_bundle_v0,
 )
 from src.integration.zeno_ledger_tokenomics import load_role_pubkeys_from_key_bundle_v0
+from tools.zeno_log_redaction import json_dumps_for_log
 
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_public_testnet_bundle_report.v0"
@@ -354,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 
 

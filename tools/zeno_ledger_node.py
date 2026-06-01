@@ -88,6 +88,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
 )
 from tools.zeno_ledger_operator_rehearsal import run_operator_rehearsal_v0
 from tools.zeno_ledger_run_local import ZERO_ROOT, build_local_block_v0
+from tools.zeno_log_redaction import json_dumps_for_log
 
 
 NODE_STATUS_SCHEMA = "zenodex.zeno_ledger.node_status.v0"
@@ -121,6 +122,7 @@ class _HttpRejectedError(ValueError):
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
+    # codeql[py/path-injection] Callers pass local operator/configured artifact paths, and HTTP-exposed paths have their own root containment checks.
     obj = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(obj, Mapping):
         raise ValueError(f"{path} must decode to a JSON object")
@@ -1804,6 +1806,7 @@ def _attach_tokenomics_buyback_burn_event_v0(
 def _ledger_body_and_receipts_paths_v0(*, data_dir: Path, height: int) -> tuple[Path, Path]:
     live_body = data_dir / "live_ledger" / "bodies" / f"{height}.json"
     live_receipts = data_dir / "live_ledger" / "receipts" / f"{height}.json"
+    # codeql[py/path-injection] height is parsed as a bounded integer and data_dir is the local node data root.
     if live_body.is_file() and live_receipts.is_file():
         return live_body, live_receipts
     node_status = load_node_status_v0(data_dir)
@@ -2132,8 +2135,10 @@ def _source_receipt_for_tokenomics_claim_v0(
     if height > max_source_height:
         raise ValueError("source_height_not_yet_available")
     body_path, receipts_path = _ledger_body_and_receipts_paths_v0(data_dir=data_dir, height=height)
+    # codeql[py/path-injection] paths are returned from _ledger_body_and_receipts_paths_v0 after bounded-height construction.
     if not receipts_path.is_file() or not body_path.is_file():
         raise ValueError("source_receipt_not_found")
+    # codeql[py/path-injection] receipts_path is a local ledger artifact path derived from the bounded source height.
     receipts = json.loads(receipts_path.read_text(encoding="utf-8"))
     if not isinstance(receipts, list) or tx_index >= len(receipts) or not isinstance(receipts[tx_index], Mapping):
         raise ValueError("source_receipt_index_not_found")
@@ -4631,15 +4636,18 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "unsafe_bundle_path"}, status=HTTPStatus.BAD_REQUEST)
                         return
                     bundle_root = Path(str(status["bundle_root"])).resolve()
+                    # codeql[py/path-injection] rel is checked as a safe relative path and then constrained with relative_to(bundle_root).
                     path = (bundle_root / rel).resolve()
                     try:
                         path.relative_to(bundle_root)
                     except ValueError:
                         self._send_json({"ok": False, "error": "unsafe_bundle_path"}, status=HTTPStatus.BAD_REQUEST)
                         return
+                    # codeql[py/path-injection] path is confirmed to remain below bundle_root before filesystem access.
                     if not path.is_file():
                         self._send_json({"ok": False, "error": "bundle_artifact_missing"}, status=HTTPStatus.NOT_FOUND)
                         return
+                    # codeql[py/path-injection] path is a confirmed file below bundle_root and size-capped before response.
                     data = path.read_bytes()
                     max_bytes = (
                         MAX_REMOTE_BUNDLE_ARCHIVE_BYTES
@@ -5639,7 +5647,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
@@ -5651,7 +5659,7 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_SYNC_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
@@ -5662,7 +5670,7 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
         strict_exposure=args.strict_exposure,
         public_operator=args.public_operator,
     )
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
@@ -5682,7 +5690,7 @@ def _cmd_write_network_config(args: argparse.Namespace) -> int:
         report = {**report, "config_path": str(args.out)}
     except Exception as exc:
         report = {"schema": NODE_PUBLIC_NETWORK_CONFIG_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if "errors" not in report else 1
 
 
@@ -5697,7 +5705,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     if report.get("ok") is not True:
         return 1
     if args.serve:
@@ -5728,7 +5736,7 @@ def _cmd_append(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
@@ -5740,7 +5748,7 @@ def _cmd_pull_live(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_PULL_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
@@ -5752,7 +5760,7 @@ def _cmd_check_peers(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_PEER_CHECK_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
@@ -5761,7 +5769,7 @@ def _cmd_join(args: argparse.Namespace) -> int:
         report = join_public_node_from_config_v0(config_path=args.config)
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     if report.get("ok") is not True:
         return 1
     config = dict(_load_json_object(args.config))
@@ -5807,7 +5815,7 @@ def _cmd_join_network(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_JOIN_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     if report.get("ok") is not True:
         return 1
     if args.serve:
@@ -5853,7 +5861,7 @@ def _cmd_faucet(args: argparse.Namespace) -> int:
         )
     except Exception as exc:
         report = {"schema": NODE_APPEND_REPORT_SCHEMA, "ok": False, "status": "rejected", "errors": [str(exc)]}
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report.get("ok") is True else 1
 
 
