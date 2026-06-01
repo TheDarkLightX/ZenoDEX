@@ -210,6 +210,21 @@ def tau_rpc_response_is_success(response: object) -> bool:
     return bool(suffix) and suffix[0] in {":", " ", "\t"}
 
 
+def tau_rpc_invalid_sequence_numbers(response: object) -> tuple[int, int] | None:
+    """Parse Tau's invalid-sequence response as ``(expected, got)`` when present."""
+
+    if not isinstance(response, str):
+        return None
+    match = re.search(
+        r"invalid\s+sequence\s+number\s*:\s*expected\s+([0-9]+)\s*,\s*got\s+([0-9]+)",
+        response,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
 def build_signed_tau_transaction(
     *,
     privkey: str | int | bytes | bytearray,

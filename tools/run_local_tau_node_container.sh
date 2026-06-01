@@ -13,7 +13,7 @@ fi
 PYTHON="${PYTHON:-python3}"
 VENV_DIR="${TAU_NODE_VENV_DIR:-/opt/zenodex-tau-venv}"
 
-if [[ ! -d "$VENV_DIR" ]]; then
+if [[ ! -f "$VENV_DIR/bin/activate" ]]; then
   "$PYTHON" -m venv "$VENV_DIR"
 fi
 

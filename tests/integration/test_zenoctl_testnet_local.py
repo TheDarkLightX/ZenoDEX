@@ -217,7 +217,7 @@ def test_writer_token_sha256_is_stable() -> None:
     assert a != c
 
 
-def test_zk_auto_strict_falls_back_without_verifier(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zk_auto_strict_uses_bundled_local_fixture_verifier(monkeypatch: pytest.MonkeyPatch) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
 
     for name in (
@@ -232,16 +232,32 @@ def test_zk_auto_strict_falls_back_without_verifier(monkeypatch: pytest.MonkeyPa
     posture = lc._resolve_zk_posture("auto-strict")
     assert posture["ok"] is True
     assert posture["zk_mode_requested"] == "auto-strict"
-    assert posture["zk_mode_effective"] == "open"
-    assert posture["zk_required"] is False
-    assert posture["zk_fallback_reason"]
+    assert posture["zk_mode_effective"] == "strict"
+    assert posture["zk_required"] is True
+    assert posture["zk_fallback_reason"] is None
+    assert posture["proof_verifier_kind"] == "subprocess"
+    assert posture["proof_artifact_hashes"] == {
+        "verifier": "sha256:" + "33" * 32,
+        "circuit": "sha256:" + "44" * 32,
+    }
     assert posture["production_security_claim"] is False
 
 
-def test_zk_strict_requires_verifier_and_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zk_strict_requires_verifier_and_artifacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
 
-    monkeypatch.delenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", raising=False)
+    for name in (
+        "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+        "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
+        "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
+        "TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(lc, "_local_live_wrapper_verifier_host_path", lambda: tmp_path / "missing.py")
     posture = lc._resolve_zk_posture("strict")
     assert posture["ok"] is False
     assert posture["zk_required"] is True

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
+import tarfile
 import threading
 from functools import partial
 from http import HTTPStatus
@@ -18,6 +20,7 @@ from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.tau_net_client import sign_dex_intent_for_engine
 from src.integration.zeno_ledger_tokenomics import build_protocol_token_distribution_v0
+from src.integration.zeno_ledger_mirror import build_mirror_index_v0
 from src.integration.zeno_ledger_signature import _BLS_AVAILABLE, bls_public_key_hex_from_private_key_v0
 from src.integration.zeno_ledger_v0 import (
     build_header_v0,
@@ -1370,6 +1373,105 @@ def test_zeno_ledger_node_syncs_replays_bundle_and_serves_status(tmp_path: Path)
     finally:
         server.shutdown()
         server.server_close()
+
+def test_zeno_ledger_node_syncs_pinned_bundle_archive(tmp_path: Path) -> None:
+    source_bundle = tmp_path / "source_bundle"
+    bootstrap = source_bundle / "bootstrap"
+    core_features = source_bundle / "core_features"
+    bootstrap.mkdir(parents=True)
+    core_features.mkdir(parents=True)
+    (bootstrap / "manifest.json").write_text(
+        json.dumps({"schema": "test.bootstrap", "ok": True}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    bootstrap_index = build_mirror_index_v0(
+        mirror_root=bootstrap,
+        manifest_path=bootstrap / "manifest.json",
+    )
+    (bootstrap / "mirror_index.json").write_text(
+        json.dumps(bootstrap_index, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (core_features / "feature_suite.json").write_text(
+        json.dumps(
+            {
+                "feature_suite_hash": "0x" + "11" * 32,
+                "feature_count": 0,
+                "features": [],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (source_bundle / "public_testnet_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema": "zenodex.zeno_ledger.public_testnet_bundle.v0",
+                "network_id": "archive-sync-net",
+                "chain_id": "archive-sync-chain",
+                "bootstrap_manifest_path": "bootstrap/manifest.json",
+                "core_suite_path": "core_features/feature_suite.json",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    served_root = tmp_path / "served"
+    served_root.mkdir()
+    archive_path = served_root / "public_testnet_bundle.tar.gz"
+    with tarfile.open(archive_path, "w:gz") as archive:
+        archive.add(source_bundle, arcname="bundle")
+    archive_sha = "0x" + hashlib.sha256(archive_path.read_bytes()).hexdigest()
+    shutil.copyfile(archive_path, source_bundle / "public_testnet_bundle.tar.gz")
+
+    config = build_public_network_config_v0(
+        bundle_root=source_bundle,
+        mirror_base_url="https://seed.example/ledger-bundle",
+        writer_urls=["https://seed.example"],
+        peer_urls=[],
+        poll_seconds=1,
+        node_port=8788,
+    )
+    assert config["bundle_archive_url"] == "https://seed.example/ledger-bundle/public_testnet_bundle.tar.gz"
+    assert config["bundle_archive_sha256"] == archive_sha
+    join_config = _public_network_config_to_join_config_v0(
+        network_config=config,
+        node_id="archive-follower",
+        bundle_root=tmp_path / "downloaded-bundle",
+        data_dir=tmp_path / "node",
+        host="127.0.0.1",
+        port=None,
+        poll_seconds=None,
+        serve=False,
+    )
+    assert join_config["bundle_archive_url"] == config["bundle_archive_url"]
+    assert join_config["bundle_archive_sha256"] == archive_sha
+
+    static_handler = partial(_QuietStaticHandler, directory=str(served_root))
+    static_server = ThreadingHTTPServer(("127.0.0.1", 0), static_handler)
+    static_thread = threading.Thread(target=static_server.serve_forever, daemon=True)
+    static_thread.start()
+    try:
+        host, port = static_server.server_address
+        sync_report = sync_public_bundle_from_url_v0(
+            base_url=f"http://{host}:{port}",
+            out_dir=tmp_path / "synced_bundle",
+            bundle_archive_url=f"http://{host}:{port}/public_testnet_bundle.tar.gz",
+            bundle_archive_sha256=archive_sha,
+        )
+    finally:
+        static_server.shutdown()
+        static_server.server_close()
+
+    assert sync_report["ok"] is True
+    assert sync_report["used_bundle_archive"] is True
+    assert sync_report["network_id"] == "archive-sync-net"
+    assert sync_report["chain_id"] == "archive-sync-chain"
+    assert sync_report["downloaded_mirror_count"] == 1
+    assert sync_report["downloaded_artifact_count"] == 1
 
 
 def test_zeno_ledger_node_preflight_rejects_unsafe_join_config(tmp_path: Path) -> None:

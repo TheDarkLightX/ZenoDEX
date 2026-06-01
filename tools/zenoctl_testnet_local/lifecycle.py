@@ -158,6 +158,13 @@ class ConfidentialLocalFixture:
         }
 
 
+def _tau_testnet_host_dir() -> Path:
+    path = (REPO_ROOT / "external" / "tau-testnet").resolve()
+    if not (path / "server.py").is_file():
+        raise FileNotFoundError(f"required Tau Testnet server missing: {path / 'server.py'}")
+    return path
+
+
 def cmd_up(opts: UpOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     existing_manifest = _load_manifest_if_present(paths.manifest_path, allow_invalid=opts.force)
@@ -283,6 +290,7 @@ def cmd_up(opts: UpOptions) -> int:
         created_at_ms=int(time.time() * 1000),
     )
     manifest["confidential_fixture"] = confidential_fixture.to_runtime_config()
+    manifest["host_paths"]["tau_testnet_dir"] = str(_tau_testnet_host_dir())
     mf.save_manifest(manifest, paths.manifest_path)
     ng.assert_no_token_in_file(paths.manifest_path, writer_token)
     ng.assert_no_token_in_file(paths.manifest_path, stdlib_token)
@@ -778,10 +786,13 @@ def _compose_env(
     env = {
         "ZENO_LEDGER_WRITER_TOKEN": writer_token,
         "ZENODEX_API_BEARER_TOKEN": stdlib_token,
+        "DEMO_API_TOKEN": stdlib_token,
+        "ALLOW_DEMO_TOKEN_AUTH": "1",
         "RENDERED_NGINX_CONF_PATH": str(paths.rendered_nginx),
         "RENDERED_RUNTIME_CONFIG_PATH": str(paths.rendered_runtime_config),
         "FIXTURES_DIR": str(paths.fixtures_dir),
         "SECRETS_DIR": str(paths.secrets_dir),
+        "TAU_TESTNET_DIR": str(_tau_testnet_host_dir()),
         "ORACLE_HOME_DIR": str(paths.oracle_home_dir),
         "HOST_UID": str(_host_uid()),
         "HOST_GID": str(_host_gid()),
@@ -826,23 +837,8 @@ def _compose_env(
 def _local_live_wrapper_zk_env() -> dict[str, str]:
     """Surface-specific fixture ZK verifier env for strict local testnet lanes."""
     cmd_json = json.dumps(["python3", "/app/tools/proof_verifiers/local_live_wrapper_echo_v1.py"])
-    verifier_artifact = json.dumps(
-        {
-            "artifact_id": "local-live-wrapper-echo-v1",
-            "artifact_hash": "sha256:" + "33" * 32,
-            "production_security_claim": False,
-        },
-        sort_keys=True,
-    )
-    circuit_artifact = json.dumps(
-        {
-            "artifact_id": "local-live-wrapper-fixture-circuit-v1",
-            "artifact_hash": "sha256:" + "44" * 32,
-            "proof_system": "local-testnet-live-wrapper-fixture-v1",
-            "production_security_claim": False,
-        },
-        sort_keys=True,
-    )
+    verifier_artifact = json.dumps(_local_live_wrapper_verifier_artifact(), sort_keys=True)
+    circuit_artifact = json.dumps(_local_live_wrapper_circuit_artifact(), sort_keys=True)
     return {
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON": cmd_json,
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP": "true",
@@ -852,6 +848,34 @@ def _local_live_wrapper_zk_env() -> dict[str, str]:
         "PERPS_WALLET_PROOF_VERIFIER_ALLOW_PATH_LOOKUP": "true",
         "PERPS_WALLET_PROOF_VERIFIER_ARTIFACT_JSON": verifier_artifact,
         "PERPS_WALLET_PROOF_CIRCUIT_ARTIFACT_JSON": circuit_artifact,
+    }
+
+
+def _local_live_wrapper_verifier_host_path() -> Path:
+    return REPO_ROOT / "tools" / "proof_verifiers" / "local_live_wrapper_echo_v1.py"
+
+
+def _local_live_wrapper_verifier_artifact() -> dict[str, Any]:
+    return {
+        "artifact_id": "local-live-wrapper-echo-v1",
+        "artifact_hash": "sha256:" + "33" * 32,
+        "production_security_claim": False,
+    }
+
+
+def _local_live_wrapper_circuit_artifact() -> dict[str, Any]:
+    return {
+        "artifact_id": "local-live-wrapper-fixture-circuit-v1",
+        "artifact_hash": "sha256:" + "44" * 32,
+        "proof_system": "local-testnet-live-wrapper-fixture-v1",
+        "production_security_claim": False,
+    }
+
+
+def _local_live_wrapper_artifact_hashes() -> dict[str, str]:
+    return {
+        "verifier": str(_local_live_wrapper_verifier_artifact()["artifact_hash"]),
+        "circuit": str(_local_live_wrapper_circuit_artifact()["artifact_hash"]),
     }
 
 
@@ -947,6 +971,8 @@ def _lifecycle_env_for_compose(manifest: dict[str, Any], paths: mf.ManifestPaths
     env = {
         "ZENO_LEDGER_WRITER_TOKEN": _LIFECYCLE_PLACEHOLDER,
         "ZENODEX_API_BEARER_TOKEN": _LIFECYCLE_PLACEHOLDER,
+        "DEMO_API_TOKEN": _LIFECYCLE_PLACEHOLDER,
+        "ALLOW_DEMO_TOKEN_AUTH": "1",
         "RENDERED_NGINX_CONF_PATH": str(
             ((manifest.get("rendered_paths") or {}).get("nginx_conf"))
             or paths.rendered_nginx
@@ -957,6 +983,7 @@ def _lifecycle_env_for_compose(manifest: dict[str, Any], paths: mf.ManifestPaths
         ),
         "FIXTURES_DIR": str(host_paths.get("fixtures_dir") or paths.fixtures_dir),
         "SECRETS_DIR": str(host_paths.get("secrets_dir") or paths.secrets_dir),
+        "TAU_TESTNET_DIR": str(host_paths.get("tau_testnet_dir") or _tau_testnet_host_dir()),
         "ORACLE_HOME_DIR": str(host_paths.get("oracle_home_dir") or paths.oracle_home_dir),
         "HOST_UID": str(_host_uid()),
         "HOST_GID": str(_host_gid()),
@@ -1245,6 +1272,8 @@ def _strict_zk_env_gap(*, expected: Mapping[str, Any] | None = None) -> str | No
 def _proof_verifier_kind_from_env() -> tuple[str, str | None]:
     raw = os.environ.get("TAU_DEX_PROOF_VERIFIER_CMD_JSON", "").strip()
     if not raw:
+        if _local_live_wrapper_verifier_host_path().is_file() and shutil.which("python3") is not None:
+            return "subprocess", None
         return "disabled", None
     try:
         parsed = json.loads(raw)
@@ -1281,6 +1310,16 @@ def _env_bool(name: str, *, default: bool) -> bool:
 
 
 def _proof_artifact_hashes_from_env() -> tuple[dict[str, str], str | None]:
+    if not any(
+        os.environ.get(name, "").strip()
+        for name in (
+            "TAU_DEX_PROOF_VERIFIER_ARTIFACT_JSON",
+            "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_JSON",
+            "TAU_DEX_PROOF_VERIFIER_ARTIFACT_FILE",
+            "TAU_DEX_PROOF_CIRCUIT_ARTIFACT_FILE",
+        )
+    ):
+        return _local_live_wrapper_artifact_hashes(), None
     hashes: dict[str, str] = {}
     errors: list[str] = []
     verifier_hash, verifier_error = _artifact_hash_from_env(

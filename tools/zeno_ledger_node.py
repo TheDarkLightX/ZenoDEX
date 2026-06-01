@@ -14,6 +14,8 @@ import hmac
 import hashlib
 import json
 import os
+import shutil
+import tarfile
 from collections import OrderedDict
 from contextlib import contextmanager
 import socket
@@ -100,6 +102,7 @@ NODE_PREFLIGHT_REPORT_SCHEMA = "zenodex.zeno_ledger.node_preflight_report.v0"
 NODE_PEER_CHECK_REPORT_SCHEMA = "zenodex.zeno_ledger.node_peer_check_report.v0"
 NODE_PUBLIC_NETWORK_CONFIG_SCHEMA = "zenodex.zeno_ledger.public_network_config.v0"
 MAX_REMOTE_ARTIFACT_BYTES = 16 * 1024 * 1024
+MAX_REMOTE_BUNDLE_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_HTTP_POST_BYTES = 2 * 1024 * 1024
 MAX_TESTNET_FAUCET_AMOUNT = 1_000_000_000_000
 TESTNET_FAUCET_KIND = "ZENODEX_TESTNET_FAUCET"
@@ -107,6 +110,7 @@ TOKENOMICS_REWARD_CLAIM_KIND = "ZENODEX_ACTIVE_PARTICIPANT_REWARD_CLAIM"
 TOKENOMICS_BUYBACK_BURN_OP_STREAM = "12"
 TOKENOMICS_BUYBACK_BURN_OP_KIND = "ZENODEX_TOKENOMICS_BUYBACK_BURN"
 PEER_FOLLOW_ERROR_LOG_CAP_PER_PEER = 64
+PUBLIC_BUNDLE_ARCHIVE_NAME = "public_testnet_bundle.tar.gz"
 
 
 class _HttpRejectedError(ValueError):
@@ -409,6 +413,115 @@ def _sha256_bytes(data: bytes) -> str:
     return "0x" + hashlib.sha256(data).hexdigest()
 
 
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return "0x" + h.hexdigest()
+
+
+def _public_bundle_archive_path_v0(bundle_root: Path) -> Path:
+    return bundle_root / PUBLIC_BUNDLE_ARCHIVE_NAME
+
+
+def _is_relative_safe_archive_name_v0(name: str) -> bool:
+    member_path = Path(name)
+    return (
+        name != ""
+        and not member_path.is_absolute()
+        and ".." not in member_path.parts
+        and "://" not in name
+        and "\\" not in name
+    )
+
+
+def _extract_public_bundle_archive_v0(*, archive_bytes: bytes, out_dir: Path) -> None:
+    with tempfile.TemporaryDirectory(prefix="zeno-ledger-public-bundle-") as tmp:
+        tmp_root = Path(tmp)
+        archive_path = tmp_root / "bundle.tar.gz"
+        archive_path.write_bytes(archive_bytes)
+        extract_root = tmp_root / "extract"
+        extract_root.mkdir()
+        with tarfile.open(archive_path, "r:gz") as archive:
+            members = archive.getmembers()
+            if not members:
+                raise ValueError("bundle archive is empty")
+            for member in members:
+                if not _is_relative_safe_archive_name_v0(member.name):
+                    raise ValueError(f"unsafe bundle archive member: {member.name}")
+                parts = Path(member.name).parts
+                if not parts or parts[0] != "bundle":
+                    raise ValueError(f"bundle archive member must be under bundle/: {member.name}")
+                if member.issym() or member.islnk():
+                    raise ValueError(f"bundle archive links are not allowed: {member.name}")
+                if not (member.isdir() or member.isfile()):
+                    raise ValueError(f"bundle archive member type is not allowed: {member.name}")
+            for member in members:
+                target = (extract_root / member.name).resolve()
+                try:
+                    target.relative_to(extract_root.resolve())
+                except ValueError as exc:
+                    raise ValueError(f"unsafe bundle archive target: {member.name}") from exc
+                if member.isdir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                source = archive.extractfile(member)
+                if source is None:
+                    raise ValueError(f"bundle archive member could not be read: {member.name}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with source, target.open("wb") as out:
+                    shutil.copyfileobj(source, out)
+        extracted_bundle = extract_root / "bundle"
+        if not (extracted_bundle / "public_testnet_manifest.json").is_file():
+            raise ValueError("bundle archive did not contain public_testnet_manifest.json")
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+        out_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(extracted_bundle, out_dir)
+
+
+def _verify_synced_public_bundle_v0(bundle_root: Path) -> dict[str, Any]:
+    public_manifest = _read_public_manifest(bundle_root)
+    bootstrap_manifest_path = str(public_manifest.get("bootstrap_manifest_path", "bootstrap/manifest.json"))
+    if not _is_safe_relative(bootstrap_manifest_path):
+        raise ValueError("bootstrap_manifest_path must be relative and safe")
+    bootstrap_root = Path(bootstrap_manifest_path).parent.as_posix()
+    bootstrap_index = dict(_load_json_object(bundle_root / bootstrap_root / "mirror_index.json"))
+    validate_mirror_index_v0(index=bootstrap_index, mirror_root=bundle_root / bootstrap_root)
+
+    core_suite_path = str(public_manifest.get("core_suite_path", "core_features/feature_suite.json"))
+    if not _is_safe_relative(core_suite_path):
+        raise ValueError("core_suite_path must be relative and safe")
+    feature_suite = _read_feature_suite(bundle_root, public_manifest)
+    features = feature_suite.get("features")
+    if not isinstance(features, list):
+        raise ValueError("feature_suite.features must be a list")
+
+    feature_indexes: list[dict[str, Any]] = []
+    suite_root = Path(core_suite_path).parent
+    for raw_feature in features:
+        if not isinstance(raw_feature, Mapping):
+            raise ValueError("feature entry must be an object")
+        manifest_path = raw_feature.get("manifest_path")
+        if not isinstance(manifest_path, str) or not _is_safe_relative(manifest_path):
+            raise ValueError("feature manifest_path must be relative and safe")
+        feature_root = (suite_root / Path(manifest_path).parent).as_posix()
+        mirror_index_rel = str(raw_feature.get("mirror_index_path", "mirror_index.json"))
+        if not _is_safe_relative(mirror_index_rel):
+            raise ValueError("feature mirror_index_path must be relative and safe")
+        index = dict(_load_json_object(bundle_root / feature_root / mirror_index_rel))
+        validate_mirror_index_v0(index=index, mirror_root=bundle_root / feature_root)
+        feature_indexes.append(index)
+
+    return {
+        "public_manifest": public_manifest,
+        "feature_suite": feature_suite,
+        "bootstrap_index": bootstrap_index,
+        "feature_indexes": feature_indexes,
+    }
+
+
 def _safe_bundle_path(raw: object, *, bundle_root: Path, fallback: Path) -> Path:
     if isinstance(raw, str) and raw:
         path = Path(raw)
@@ -530,67 +643,91 @@ def _download_mirror_artifacts(
     return index
 
 
-def sync_public_bundle_from_url_v0(*, base_url: str, out_dir: Path) -> dict[str, Any]:
+def sync_public_bundle_from_url_v0(
+    *,
+    base_url: str,
+    out_dir: Path,
+    bundle_archive_url: str | None = None,
+    bundle_archive_sha256: str | None = None,
+) -> dict[str, Any]:
     """Download and verify a public ZenoLedger bundle from an HTTP directory."""
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    public_manifest = _download_json(
-        base_url=base_url,
-        rel_path="public_testnet_manifest.json",
-        out_root=out_dir,
-    )
-    if public_manifest.get("schema") != "zenodex.zeno_ledger.public_testnet_bundle.v0":
-        raise ValueError("public testnet manifest schema mismatch")
+    used_bundle_archive = False
+    if bundle_archive_url is not None or bundle_archive_sha256 is not None:
+        if not isinstance(bundle_archive_url, str) or not _is_http_url(bundle_archive_url):
+            raise ValueError("bundle_archive_url must be an http(s) URL without embedded credentials")
+        if (
+            not isinstance(bundle_archive_sha256, str)
+            or not bundle_archive_sha256.startswith("0x")
+            or len(bundle_archive_sha256) != 66
+        ):
+            raise ValueError("bundle_archive_sha256 must be a 0x-prefixed sha256 digest")
+        archive_bytes = _fetch_remote_bytes(bundle_archive_url, max_bytes=MAX_REMOTE_BUNDLE_ARCHIVE_BYTES)
+        if _sha256_bytes(archive_bytes) != bundle_archive_sha256:
+            raise ValueError("bundle archive hash mismatch")
+        _extract_public_bundle_archive_v0(archive_bytes=archive_bytes, out_dir=out_dir)
+        used_bundle_archive = True
+    else:
+        public_manifest = _download_json(
+            base_url=base_url,
+            rel_path="public_testnet_manifest.json",
+            out_root=out_dir,
+        )
+        if public_manifest.get("schema") != "zenodex.zeno_ledger.public_testnet_bundle.v0":
+            raise ValueError("public testnet manifest schema mismatch")
 
-    bootstrap_manifest_path = str(public_manifest.get("bootstrap_manifest_path", "bootstrap/manifest.json"))
-    if not _is_safe_relative(bootstrap_manifest_path):
-        raise ValueError("bootstrap_manifest_path must be relative and safe")
-    bootstrap_root = Path(bootstrap_manifest_path).parent.as_posix()
-    bootstrap_index = _download_mirror_artifacts(
-        base_url=base_url,
-        out_root=out_dir,
-        mirror_root_rel=bootstrap_root,
-        mirror_index_rel="mirror_index.json",
-    )
+        bootstrap_manifest_path = str(public_manifest.get("bootstrap_manifest_path", "bootstrap/manifest.json"))
+        if not _is_safe_relative(bootstrap_manifest_path):
+            raise ValueError("bootstrap_manifest_path must be relative and safe")
+        bootstrap_root = Path(bootstrap_manifest_path).parent.as_posix()
+        _download_mirror_artifacts(
+            base_url=base_url,
+            out_root=out_dir,
+            mirror_root_rel=bootstrap_root,
+            mirror_index_rel="mirror_index.json",
+        )
 
-    core_suite_path = str(public_manifest.get("core_suite_path", "core_features/feature_suite.json"))
-    if not _is_safe_relative(core_suite_path):
-        raise ValueError("core_suite_path must be relative and safe")
-    feature_suite = _download_json(base_url=base_url, rel_path=core_suite_path, out_root=out_dir)
-    features = feature_suite.get("features")
-    if not isinstance(features, list):
-        raise ValueError("feature_suite.features must be a list")
+        core_suite_path = str(public_manifest.get("core_suite_path", "core_features/feature_suite.json"))
+        if not _is_safe_relative(core_suite_path):
+            raise ValueError("core_suite_path must be relative and safe")
+        feature_suite = _download_json(base_url=base_url, rel_path=core_suite_path, out_root=out_dir)
+        features = feature_suite.get("features")
+        if not isinstance(features, list):
+            raise ValueError("feature_suite.features must be a list")
 
-    feature_indexes: list[dict[str, Any]] = []
-    suite_root = Path(core_suite_path).parent
-    for raw_feature in features:
-        if not isinstance(raw_feature, Mapping):
-            raise ValueError("feature entry must be an object")
-        manifest_path = raw_feature.get("manifest_path")
-        if not isinstance(manifest_path, str) or not _is_safe_relative(manifest_path):
-            raise ValueError("feature manifest_path must be relative and safe")
-        feature_root = (suite_root / Path(manifest_path).parent).as_posix()
-        mirror_index_rel = str(raw_feature.get("mirror_index_path", "mirror_index.json"))
-        if not _is_safe_relative(mirror_index_rel):
-            raise ValueError("feature mirror_index_path must be relative and safe")
-        feature_indexes.append(
+        suite_root = Path(core_suite_path).parent
+        for raw_feature in features:
+            if not isinstance(raw_feature, Mapping):
+                raise ValueError("feature entry must be an object")
+            manifest_path = raw_feature.get("manifest_path")
+            if not isinstance(manifest_path, str) or not _is_safe_relative(manifest_path):
+                raise ValueError("feature manifest_path must be relative and safe")
+            feature_root = (suite_root / Path(manifest_path).parent).as_posix()
+            mirror_index_rel = str(raw_feature.get("mirror_index_path", "mirror_index.json"))
+            if not _is_safe_relative(mirror_index_rel):
+                raise ValueError("feature mirror_index_path must be relative and safe")
             _download_mirror_artifacts(
                 base_url=base_url,
                 out_root=out_dir,
                 mirror_root_rel=feature_root,
                 mirror_index_rel=mirror_index_rel,
             )
-        )
 
-    # Re-read through the same local validators used by node run.
-    local_public_manifest = _read_public_manifest(out_dir)
-    local_feature_suite = _read_feature_suite(out_dir, local_public_manifest)
+    verified = _verify_synced_public_bundle_v0(out_dir)
+    local_public_manifest = verified["public_manifest"]
+    local_feature_suite = verified["feature_suite"]
+    bootstrap_index = verified["bootstrap_index"]
+    feature_indexes = verified["feature_indexes"]
     return {
         "schema": NODE_SYNC_REPORT_SCHEMA,
         "ok": True,
         "status": "accepted",
         "base_url": base_url,
         "bundle_root": str(out_dir),
+        "used_bundle_archive": used_bundle_archive,
+        "bundle_archive_url": bundle_archive_url if used_bundle_archive else None,
+        "bundle_archive_sha256": bundle_archive_sha256 if used_bundle_archive else None,
         "network_id": local_public_manifest["network_id"],
         "chain_id": local_public_manifest["chain_id"],
         "bootstrap_mirror_index_hash": bootstrap_index["mirror_index_hash"],
@@ -4504,13 +4641,19 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "bundle_artifact_missing"}, status=HTTPStatus.NOT_FOUND)
                         return
                     data = path.read_bytes()
-                    if len(data) > MAX_REMOTE_ARTIFACT_BYTES:
+                    max_bytes = (
+                        MAX_REMOTE_BUNDLE_ARCHIVE_BYTES
+                        if rel == PUBLIC_BUNDLE_ARCHIVE_NAME
+                        else MAX_REMOTE_ARTIFACT_BYTES
+                    )
+                    if len(data) > max_bytes:
                         self._send_json(
                             {"ok": False, "error": "bundle_artifact_too_large"},
                             status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
                         )
                         return
-                    self._send_bytes(data, content_type="application/json")
+                    content_type = "application/gzip" if rel == PUBLIC_BUNDLE_ARCHIVE_NAME else "application/json"
+                    self._send_bytes(data, content_type=content_type)
                     return
                 if len(parts) == 3 and parts[0] == "live" and parts[1] in {"header", "body", "checkpoint", "snapshot"}:
                     try:
@@ -5250,7 +5393,18 @@ def join_public_node_from_config_v0(*, config_path: Path) -> dict[str, Any]:
         if not isinstance(base_url, str) or base_url == "":
             raise ValueError("base_url must be a non-empty string")
         bundle_root = _as_path(config.get("bundle_root"), name="bundle_root")
-        sync_report = sync_public_bundle_from_url_v0(base_url=base_url, out_dir=bundle_root)
+        bundle_archive_url = config.get("bundle_archive_url")
+        bundle_archive_sha256 = config.get("bundle_archive_sha256")
+        if bundle_archive_url is not None and not isinstance(bundle_archive_url, str):
+            raise ValueError("bundle_archive_url must be a string")
+        if bundle_archive_sha256 is not None and not isinstance(bundle_archive_sha256, str):
+            raise ValueError("bundle_archive_sha256 must be a string")
+        sync_report = sync_public_bundle_from_url_v0(
+            base_url=base_url,
+            out_dir=bundle_root,
+            bundle_archive_url=bundle_archive_url,
+            bundle_archive_sha256=bundle_archive_sha256,
+        )
     else:
         bundle_root = _as_path(config.get("bundle_root"), name="bundle_root")
         _read_public_manifest(bundle_root)
@@ -5358,6 +5512,21 @@ def build_public_network_config_v0(
             "lp_duration_risk_policy": lp_duration_risk_policy_name,
         },
     }
+    archive_path = _public_bundle_archive_path_v0(bundle_root)
+    if archive_path.is_file():
+        archive_size = archive_path.stat().st_size
+        if archive_size <= MAX_REMOTE_BUNDLE_ARCHIVE_BYTES:
+            config.update(
+                {
+                    "bundle_archive_url": urljoin(
+                        mirror_base_url.rstrip("/") + "/",
+                        PUBLIC_BUNDLE_ARCHIVE_NAME,
+                    ),
+                    "bundle_archive_sha256": _sha256_file(archive_path),
+                    "bundle_archive_format": "tar.gz",
+                    "bundle_archive_byte_length": archive_size,
+                }
+            )
     return {**config, "network_config_hash": _public_network_config_hash_v0(config)}
 
 
@@ -5386,7 +5555,7 @@ def _public_network_config_to_join_config_v0(
         recommended = {}
     effective_port = port if port is not None else int(recommended.get("port", 8788))
     effective_poll = poll_seconds if poll_seconds is not None else int(recommended.get("poll_seconds", 5))
-    return {
+    join_config = {
         "schema": NODE_JOIN_CONFIG_SCHEMA,
         "base_url": str(network_config["mirror_base_url"]),
         "bundle_root": str(bundle_root),
@@ -5406,6 +5575,14 @@ def _public_network_config_to_join_config_v0(
             recommended.get("lp_duration_risk_policy", "none")
         ),
     }
+    if network_config.get("bundle_archive_format") == "tar.gz":
+        archive_url = network_config.get("bundle_archive_url")
+        archive_sha = network_config.get("bundle_archive_sha256")
+        if isinstance(archive_url, str) and isinstance(archive_sha, str):
+            join_config["bundle_archive_url"] = archive_url
+            join_config["bundle_archive_sha256"] = archive_sha
+            join_config["bundle_archive_format"] = "tar.gz"
+    return join_config
 
 
 def join_public_node_from_network_config_url_v0(

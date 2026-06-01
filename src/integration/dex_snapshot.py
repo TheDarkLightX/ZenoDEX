@@ -262,6 +262,20 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
     return DexSnapshot(version=version, data=data)
 
 
+def snapshot_with_legacy_lp_metadata_defaults(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+    """Backfill optional LP metadata rails for legacy live app-state snapshots."""
+    if not isinstance(snapshot, Mapping):
+        raise TypeError("snapshot must be a mapping")
+    normalized = dict(snapshot)
+    version = normalized.get("version", DEX_SNAPSHOT_VERSION)
+    if isinstance(version, int) and not isinstance(version, bool):
+        if version >= 3 and "lp_mint_timestamps" not in normalized:
+            normalized["lp_mint_timestamps"] = []
+        if version >= 4 and "lp_duration_risk" not in normalized:
+            normalized["lp_duration_risk"] = []
+    return normalized
+
+
 def state_from_snapshot(
     snapshot: Mapping[str, Any],
     *,

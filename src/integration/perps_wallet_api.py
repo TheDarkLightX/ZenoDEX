@@ -49,7 +49,27 @@ from .perps_wallet_encrypted_sss_backup import (
     perps_wallet_encrypted_sss_backup_hash_v1,
     recipient_root_keys_from_fixture_v1,
 )
-from .production_promotion_evidence import evaluate_production_hardware_wallet_evidence_v1
+try:
+    from .production_promotion_evidence import evaluate_production_hardware_wallet_evidence_v1
+except ModuleNotFoundError:
+    def evaluate_production_hardware_wallet_evidence_v1(
+        evidence: Mapping[str, Any] | None,
+        *,
+        wallet_authority_profile_hash: object | None = None,
+        expected_device_pubkey: object | None = None,
+        **_: object,
+    ) -> dict[str, Any]:
+        return {
+            "schema": "zenodex/production-hardware-wallet-evidence-status/v1",
+            "ok": False,
+            "production_ready": False,
+            "status": "blocked",
+            "lane": "hardware_wallet",
+            "evidence_hash": None,
+            "wallet_authority_profile_hash": wallet_authority_profile_hash,
+            "expected_device_pubkey": expected_device_pubkey,
+            "gaps": ["production promotion evidence verifier module is unavailable"],
+        }
 from .tau_net_client import (
     TauNetRpcError,
     TauNetTcpClient,

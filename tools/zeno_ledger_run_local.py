@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -17,15 +18,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.dex_engine import DexEngineConfig
-from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
-from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
-from src.integration.zeno_ledger_v0 import (
+from src.core.dex import DexConfig  # noqa: E402
+from src.integration.dex_engine import DexEngineConfig  # noqa: E402
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot  # noqa: E402
+from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0  # noqa: E402
+from src.integration.zeno_ledger_v0 import (  # noqa: E402
     apply_body_transactions_v0,
-    build_proof_metadata_v0,
-    build_tx_receipt_v0,
     build_checkpoint_v0,
     build_header_v0,
+    build_proof_metadata_v0,
+    build_tx_receipt_v0,
     canonical_body_root_v0,
     canonical_header_hash_v0,
     compute_app_hash_v0,
@@ -40,11 +42,15 @@ from src.integration.zeno_ledger_v0 import (
     validate_body_v0,
     validate_proof_metadata_header_binding_v0,
 )
-from src.state.canonical import canonical_hex_fixed_allow_0x
-from tools.operator_report_output import emit_operator_json, write_public_json
+from src.state.canonical import canonical_hex_fixed_allow_0x  # noqa: E402
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
+
+
+def _reset_rejection_receipts_v0(executed_body: dict[str, Any]) -> list[dict[str, Any]]:
+    executed_body["evidence"]["rejection_receipts"] = []
+    return executed_body["evidence"]["rejection_receipts"]
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -54,13 +60,49 @@ def _load_json_object(path: Path) -> Mapping[str, Any]:
     return obj
 
 
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Crash-safe single-file write: tmp + fsync + replace + dir fsync.
+
+    Bodies, headers, receipts, snapshots all flow through here. Without it,
+    a writer crash between artifact write and live_state pointer update
+    silently erases an accepted block on the next append.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Random tmp path (mkstemp) avoids symlink/hijack on a fixed *.tmp name
+    # and never collides between concurrent writers in the same directory.
+    fd, tmp_str = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    tmp = Path(tmp_str)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        # Best-effort cleanup so a failed write doesn't leak random tmp files.
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    # fsync the parent directory so the rename itself is durable across crash.
+    try:
+        dir_fd = os.open(path.parent, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
 def _write_json(path: Path, value: object) -> None:
-    write_public_json(path, value)
+    payload = json.dumps(value, indent=2, sort_keys=True) + "\n"
+    _atomic_write_bytes(path, payload.encode("utf-8"))
 
 
 def _write_text(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(value, encoding="utf-8")
+    _atomic_write_bytes(path, value.encode("utf-8"))
 
 
 def _load_chain_balances(path: Path | None) -> dict[str, int]:
@@ -78,7 +120,7 @@ def _load_chain_balances(path: Path | None) -> dict[str, int]:
 
 
 def _zusd_state_root_v0(state: object) -> str:
-    return hash_v0("zusd_state_v0", dict(getattr(state, "__dict__")))
+    return hash_v0("zusd_state_v0", dict(state.__dict__))
 
 
 def _perp_state_root_v0(state: Mapping[str, Any]) -> str:
@@ -86,7 +128,7 @@ def _perp_state_root_v0(state: Mapping[str, Any]) -> str:
 
 
 def _oracle_state_root_v0(state: object) -> str:
-    return hash_v0("oracle_state_v0", dict(getattr(state, "__dict__")))
+    return hash_v0("oracle_state_v0", dict(state.__dict__))
 
 
 def _oracle_reporter_state_root_v0(state: Mapping[str, Any]) -> str:
@@ -94,7 +136,7 @@ def _oracle_reporter_state_root_v0(state: Mapping[str, Any]) -> str:
 
 
 def _upba_state_root_v0(state: object) -> str:
-    return hash_v0("upba_state_v0", dict(getattr(state, "__dict__")))
+    return hash_v0("upba_state_v0", dict(state.__dict__))
 
 
 def _proof_mining_state_root_v0(state: object) -> str:
@@ -243,7 +285,7 @@ def _execute_zusd_body_v0(
     if not isinstance(zusd_state, ZUSDState):
         raise TypeError("zusd_state must be a ZUSDState")
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = zusd_state
@@ -361,7 +403,7 @@ def _execute_perp_body_v0(
     from src.core.perp_epoch import perp_epoch_isolated_default_apply
 
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = dict(perp_state)
@@ -451,7 +493,7 @@ def _execute_oracle_body_v0(
     if not isinstance(oracle_state, OracleState):
         raise TypeError("oracle_state must be an OracleState")
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = oracle_state
@@ -541,10 +583,12 @@ def _execute_oracle_reporter_body_v0(
     body: dict[str, Any],
 ) -> tuple[str, str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     from tools.zenodex_oracle_reporter_lifecycle import verify_lifecycle_trace
-    from tools.zenodex_oracle_reporter_token_settlement_replay import verify_reporter_token_settlement
+    from tools.zenodex_oracle_reporter_token_settlement_replay import (
+        verify_reporter_token_settlement,
+    )
 
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = dict(oracle_reporter_state)
@@ -677,7 +721,7 @@ def _execute_upba_body_v0(
     if not isinstance(upba_state, ref.State):
         raise TypeError("upba_state must be a batch_auction_settler_v1 State")
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = upba_state
@@ -768,7 +812,7 @@ def _execute_proof_mining_body_v0(
     if not isinstance(proof_mining_state, ProofMiningRuntimeState):
         raise TypeError("proof_mining_state must be a ProofMiningRuntimeState")
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = proof_mining_state
@@ -883,7 +927,7 @@ def _execute_autotrader_body_v0(
     if not isinstance(autotrader_state, AutoTraderControllerState):
         raise TypeError("autotrader_state must be an AutoTraderControllerState")
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = autotrader_state
@@ -1088,11 +1132,13 @@ def _execute_confidential_body_v0(
     confidential_state: Mapping[str, Any],
     body: dict[str, Any],
 ) -> tuple[str, str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
-    from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission
+    from src.core.confidential_extension_live_admission import (
+        validate_confidential_extension_live_admission,
+    )
     from src.core.fhe_sealed_bid_alpha import verify_fhe_sealed_bid_alpha_plan
 
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
     working_state = _confidential_state_with_defaults(confidential_state)
@@ -1246,6 +1292,7 @@ def _execute_tau_app_body_v0(
     tau_chain_id: str,
     allow_missing_settlement: bool,
     require_intent_signatures: bool,
+    allow_unsigned_intents_if_tx_sender_matches: bool,
     enable_faucet: bool,
     default_block_timestamp: int,
 ) -> tuple[str, str, str, dict[str, Any], list[dict[str, Any]]]:
@@ -1256,11 +1303,14 @@ def _execute_tau_app_body_v0(
     env = {
         "TAU_DEX_ALLOW_MISSING_SETTLEMENT": "1" if allow_missing_settlement else "0",
         "TAU_DEX_REQUIRE_INTENT_SIGS": "1" if require_intent_signatures else "0",
+        "TAU_DEX_ALLOW_UNSIGNED_INTENTS_IF_TX_SENDER_MATCHES": (
+            "1" if allow_unsigned_intents_if_tx_sender_matches else "0"
+        ),
         "TAU_DEX_FAUCET": "1" if enable_faucet else "0",
         "TAU_DEX_CHAIN_ID": tau_chain_id,
     }
     executed_body = json.loads(json.dumps(body))
-    rejection_receipts = executed_body["evidence"]["rejection_receipts"]
+    rejection_receipts = _reset_rejection_receipts_v0(executed_body)
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
 
@@ -1304,7 +1354,7 @@ def _execute_tau_app_body_v0(
                 raise ValueError(f"transactions[{index}].block_timestamp must be a non-negative int")
 
             before_state_json = app_state_json
-            ok, next_state_json, _app_hash, _patch, err = apply_app_tx(
+            ok, next_state_json, _app_hash, balances_patch, err = apply_app_tx(
                 app_state_json=app_state_json,
                 chain_balances=chain_balances,
                 operations=dict(operations),
@@ -1313,6 +1363,8 @@ def _execute_tau_app_body_v0(
             )
             if ok:
                 app_state_json = next_state_json
+                if balances_patch:
+                    chain_balances = {str(key): int(value) for key, value in balances_patch.items()}
                 receipt = build_tx_receipt_v0(
                     tx_hash=tx_hash,
                     height=height,
@@ -1391,6 +1443,11 @@ def build_local_block_v0(
     signature_set_root: str,
     allow_missing_settlement: bool = False,
     require_intent_signatures: bool = True,
+    allow_unsigned_intents_if_tx_sender_matches: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+    min_lp_position_age_seconds: int = 0,
+    lp_duration_risk_policy: object | None = None,
 ) -> dict[str, Any]:
     body = dict(_load_json_object(body_path))
     validate_body_v0(body)
@@ -1429,6 +1486,14 @@ def build_local_block_v0(
         engine_config = DexEngineConfig(
             allow_missing_settlement=allow_missing_settlement,
             require_intent_signatures=require_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
+            chain_id=chain_id,
+            dex_config=DexConfig(
+                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            ),
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            lp_duration_risk_policy=lp_duration_risk_policy,
         )
         post_state, body, receipts = apply_body_transactions_v0(
             state=pre_state,
@@ -1448,6 +1513,7 @@ def build_local_block_v0(
             tau_chain_id=tau_chain_id or chain_id,
             allow_missing_settlement=allow_missing_settlement,
             require_intent_signatures=require_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
             enable_faucet=tau_enable_faucet,
             default_block_timestamp=max(0, time_ms // 1000),
         )
@@ -1733,6 +1799,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--signature-set-root", default=ZERO_ROOT)
     parser.add_argument("--allow-missing-settlement", action="store_true")
     parser.add_argument("--disable-intent-signatures", action="store_true")
+    parser.add_argument("--allow-unsigned-intents-if-tx-sender-matches", action="store_true")
+    parser.add_argument("--protocol-fee-share-bps", type=int, default=0)
+    parser.add_argument("--protocol-fee-recipient-pubkey")
     args = parser.parse_args(argv)
 
     try:
@@ -1777,6 +1846,9 @@ def main(argv: list[str] | None = None) -> int:
             signature_set_root=args.signature_set_root,
             allow_missing_settlement=args.allow_missing_settlement,
             require_intent_signatures=not args.disable_intent_signatures,
+            allow_unsigned_intents_if_tx_sender_matches=args.allow_unsigned_intents_if_tx_sender_matches,
+            protocol_fee_share_bps=args.protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=args.protocol_fee_recipient_pubkey,
         )
     except Exception as exc:
         result = {
@@ -1785,7 +1857,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    emit_operator_json(result)
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 
 
