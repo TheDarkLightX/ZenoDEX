@@ -125,42 +125,16 @@ class _HttpRejectedError(ValueError):
         super().__init__(str(self.report.get("detail", "request rejected")))
 
 
-def _validated_artifact_path_text_v0(path: Path) -> str:
-    """Return an already-validated local artifact path through a serialization barrier."""
-
-    return str(json.loads(json.dumps(str(path))))
-
-
 def _artifact_is_file_v0(path: Path) -> bool:
-    return os.path.isfile(_validated_artifact_path_text_v0(path))
+    return path.is_file()
 
 
 def _read_artifact_text_v0(path: Path) -> str:
-    fd = os.open(_validated_artifact_path_text_v0(path), os.O_RDONLY)
-    try:
-        chunks: list[bytes] = []
-        while True:
-            chunk = os.read(fd, 1024 * 1024)
-            if not chunk:
-                break
-            chunks.append(chunk)
-    finally:
-        os.close(fd)
-    return b"".join(chunks).decode("utf-8")
+    return path.read_text(encoding="utf-8")
 
 
 def _read_artifact_bytes_v0(path: Path) -> bytes:
-    fd = os.open(_validated_artifact_path_text_v0(path), os.O_RDONLY)
-    try:
-        chunks: list[bytes] = []
-        while True:
-            chunk = os.read(fd, 1024 * 1024)
-            if not chunk:
-                break
-            chunks.append(chunk)
-    finally:
-        os.close(fd)
-    return b"".join(chunks)
+    return path.read_bytes()
 
 
 # Callers pass local operator/configured artifact paths, and HTTP-exposed paths
@@ -619,12 +593,11 @@ def _is_http_url(value: str) -> bool:
 def _tcp_port_available(host: str, port: int) -> bool:
     probe_host = "127.0.0.1" if host in {"", "0.0.0.0", "::"} else host
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(0.2)
         try:
-            sock.bind((probe_host, port))
+            return sock.connect_ex((probe_host, port)) != 0
         except OSError:
-            return False
-    return True
+            return True
 
 
 def _unique_strings(items: list[str]) -> list[str]:
