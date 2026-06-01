@@ -443,6 +443,34 @@ def _extract_tx_operations_v0(tx: object, *, index: int) -> Mapping[str, Any]:
     return _require_mapping(operations, name=f"transactions[{index}].operations")
 
 
+def _looks_like_tauswap_intent_stream_v0(value: object) -> bool:
+    if not isinstance(value, list):
+        return False
+    if not value:
+        return True
+    first = value[0]
+    candidate: object = None
+    if isinstance(first, Mapping):
+        candidate = first
+    elif isinstance(first, (list, tuple)) and first and isinstance(first[0], Mapping):
+        candidate = first[0]
+    if not isinstance(candidate, Mapping):
+        return False
+    module = candidate.get("module")
+    if module is None:
+        return "kind" in candidate
+    return str(module) == "TauSwap"
+
+
+def _normalize_dex_operations_for_apply_v0(operations: Mapping[str, Any]) -> dict[str, Any]:
+    normalized = dict(operations)
+    if "2" not in normalized and _looks_like_tauswap_intent_stream_v0(normalized.get("5")):
+        normalized["2"] = normalized["5"]
+    if "3" not in normalized and "6" in normalized:
+        normalized["3"] = normalized["6"]
+    return normalized
+
+
 def _extract_tx_block_timestamp_v0(tx: object, *, index: int, default: int | None) -> int:
     obj = _require_mapping(tx, name=f"transactions[{index}]")
     value = obj.get("block_timestamp", default)
@@ -485,7 +513,7 @@ def apply_body_transactions_v0(
     for index, tx in enumerate(executed_body["transactions"]):
         tx_hash = tx_hash_v0(tx)
         try:
-            operations = dict(_extract_tx_operations_v0(tx, index=index))
+            operations = _normalize_dex_operations_for_apply_v0(_extract_tx_operations_v0(tx, index=index))
             block_timestamp = _extract_tx_block_timestamp_v0(
                 tx,
                 index=index,

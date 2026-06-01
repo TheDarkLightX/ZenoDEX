@@ -2544,7 +2544,7 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
         token_asset_id=_root("feature-lane-token"),
     )
     runtime_state = ProofMiningRuntimeState(
-        reward_pool_pubkey="proof-mining-pool",
+        reward_pool_pubkey="0x" + "11" * 48,
         snapshot=ProofMiningManagerSnapshot(
             epoch=1,
             base_reward=8,
@@ -2580,7 +2580,7 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
             "ok": True,
             "job_digest": "feature-lane-proof-mining-job",
             "winner": {
-                "miner_id": "proof-miner-0",
+                "miner_id": "0x" + "22" * 48,
                 "witness_sha256": witness_hash,
                 "improvement_u64": 7,
             },
@@ -2604,7 +2604,7 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
             "ok": True,
             "job_digest": "feature-lane-proof-mining-job",
             "winner": {
-                "miner_id": "proof-miner-0",
+                "miner_id": "0x" + "22" * 48,
                 "witness_sha256": witness_hash,
                 "improvement_u64": 7,
             },

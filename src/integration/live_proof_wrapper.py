@@ -256,6 +256,10 @@ def verify_live_proof_wrapper(
         "proof": None if proof is None else dict(proof),
     }
     request_hash = _hash_request(request)
+    request["verifier_request_hash"] = request_hash
+    binding_hash = artifact_binding.get("binding_hash")
+    if isinstance(binding_hash, str) and binding_hash:
+        request["expected_artifact_binding_hash"] = binding_hash
     status: dict[str, Any] = {
         "schema": LIVE_PROOF_WRAPPER_STATUS_SCHEMA,
         "surface": surface,

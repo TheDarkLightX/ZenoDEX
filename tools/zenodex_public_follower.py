@@ -184,6 +184,17 @@ def join_and_accept_public_follower(
         errors.append("live_tip_not_observed")
 
     join_config_fields = _join_config_report_fields(data_dir)
+    sync_report = join_report.get("sync_report") if isinstance(join_report, Mapping) else None
+    bundle_sync = {
+        "used_bundle_archive": sync_report.get("used_bundle_archive") if isinstance(sync_report, Mapping) else None,
+        "bundle_archive_sha256": sync_report.get("bundle_archive_sha256") if isinstance(sync_report, Mapping) else None,
+        "downloaded_artifact_count": (
+            sync_report.get("downloaded_artifact_count") if isinstance(sync_report, Mapping) else None
+        ),
+        "downloaded_mirror_count": (
+            sync_report.get("downloaded_mirror_count") if isinstance(sync_report, Mapping) else None
+        ),
+    }
     ok = (
         isinstance(join_report, Mapping)
         and join_report.get("ok") is True
@@ -213,6 +224,7 @@ def join_and_accept_public_follower(
         "peer_url": peer_url,
         "min_lp_position_age_seconds": join_config_fields["min_lp_position_age_seconds"],
         "lp_duration_risk_policy": join_config_fields["lp_duration_risk_policy"],
+        "bundle_sync": bundle_sync,
         "pull_live": pull_live,
         "require_live": require_live,
         "common_header_match": common_header_match,

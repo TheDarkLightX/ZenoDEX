@@ -486,6 +486,7 @@ def build_testnet_bundle_v0(
             [
                 "--allow-missing-settlement",
                 "--disable-intent-signatures",
+                "--allow-unsigned-intents-if-tx-sender-matches",
                 "--sequencer-set-hash",
                 sequencer_set_hash,
                 "--config-digest",

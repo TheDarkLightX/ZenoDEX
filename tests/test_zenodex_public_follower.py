@@ -40,6 +40,12 @@ def test_public_follower_acceptance_writes_live_common_header_report(
             "status": "accepted",
             "network_config_hash": "0x" + "11" * 32,
             "submit_peer_url": "https://seed.example",
+            "sync_report": {
+                "used_bundle_archive": True,
+                "bundle_archive_sha256": "0x" + "44" * 32,
+                "downloaded_artifact_count": 341,
+                "downloaded_mirror_count": 11,
+            },
         }
 
     monkeypatch.setattr(follower, "join_public_node_from_network_config_url_v0", fake_join)
@@ -93,6 +99,8 @@ def test_public_follower_acceptance_writes_live_common_header_report(
     assert saved["peer_url"] == "https://seed.example"
     assert saved["min_lp_position_age_seconds"] == 300
     assert saved["lp_duration_risk_policy"] == "zeno-oracle"
+    assert saved["bundle_sync"]["used_bundle_archive"] is True
+    assert saved["bundle_sync"]["bundle_archive_sha256"] == "0x" + "44" * 32
 
 
 def test_public_follower_rejects_invalid_join_config_follow_policy(tmp_path: Path) -> None:
