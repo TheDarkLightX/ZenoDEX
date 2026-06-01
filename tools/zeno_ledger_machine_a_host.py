@@ -35,7 +35,12 @@ MACHINE_A_HOST_SCHEMA = "zenodex.zeno_ledger.machine_a_host.v0"
 LOCAL_TESTNET_WRITE_BINDINGS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
-def validate_testnet_write_binding_v0(*, bind_host: str, enable_testnet_writes: bool) -> bool:
+def validate_testnet_write_binding_v0(
+    *,
+    bind_host: str,
+    enable_testnet_writes: bool,
+    write_auth_token: str | None = None,
+) -> bool:
     """Return the validated writer-intake posture for the Machine A runner.
 
     Preconditions:
@@ -44,9 +49,11 @@ def validate_testnet_write_binding_v0(*, bind_host: str, enable_testnet_writes: 
 
     Invariant:
     - unauthenticated write endpoints are never enabled on wildcard/public bindings.
+    - authenticated testnet writes may be exposed for public-testnet drills only.
 
     Postcondition:
-    - True is returned only for loopback-only bindings explicitly opted into writes.
+    - True is returned only for explicitly opted-in writes on loopback or with
+      a non-empty bearer token.
     """
 
     normalized_bind_host = bind_host.strip().lower()
@@ -54,9 +61,11 @@ def validate_testnet_write_binding_v0(*, bind_host: str, enable_testnet_writes: 
         return False
     if normalized_bind_host in LOCAL_TESTNET_WRITE_BINDINGS:
         return True
+    if write_auth_token is not None and write_auth_token.strip() != "":
+        return True
     raise ValueError(
-        "Machine A testnet writes are unsigned and may only be enabled on a loopback bind host; "
-        "use --bind-host 127.0.0.1 for local testing or keep writes disabled for public hosting"
+        "Machine A public testnet writes require bearer-token auth; provide --write-auth-token-file "
+        "or use --bind-host 127.0.0.1 for unauthenticated local testing"
     )
 
 
@@ -81,8 +90,9 @@ def build_machine_b_acceptance_command_v0(
     config_url: str,
     network_config_hash: str,
     token_symbol: str,
+    peer_auth_token_file: str | None = None,
 ) -> list[str]:
-    return [
+    command = [
         "python3",
         "tools/zeno_ledger_machine_b_acceptance.py",
         "--config-url",
@@ -100,6 +110,9 @@ def build_machine_b_acceptance_command_v0(
         "--out",
         "/tmp/zeno-ledger-node-b/machine_b_acceptance_report.json",
     ]
+    if peer_auth_token_file is not None:
+        command.extend(["--peer-auth-token-file", peer_auth_token_file])
+    return command
 
 
 def build_machine_a_ready_report_v0(
@@ -117,6 +130,8 @@ def build_machine_a_ready_report_v0(
     network_config: dict[str, Any],
     machine_b_token_symbol: str,
     enable_testnet_writes: bool = False,
+    write_auth_token_configured: bool = False,
+    machine_b_peer_auth_token_file: str | None = None,
 ) -> dict[str, Any]:
     mirror_base_url = f"http://{public_host}:{mirror_port}/"
     writer_url = f"http://{public_host}:{writer_port}"
@@ -146,11 +161,18 @@ def build_machine_a_ready_report_v0(
             config_url=config_url,
             network_config_hash=network_config_hash,
             token_symbol=machine_b_token_symbol,
+            peer_auth_token_file=machine_b_peer_auth_token_file,
         ),
         "machine_b_acceptance_note": (
             "Run the command from a second machine using Python 3.10 or newer."
         ),
         "testnet_writes_enabled": enable_testnet_writes,
+        "write_auth_required": write_auth_token_configured,
+        "write_auth_token_distribution": (
+            "Copy the Machine A token file contents to the Machine B path shown in the acceptance command."
+            if machine_b_peer_auth_token_file is not None
+            else None
+        ),
         "endpoints": {
             "health": f"{writer_url}/health",
             "status": f"{writer_url}/status",
@@ -184,10 +206,13 @@ def run_machine_a_host_v0(
     poll_seconds: int,
     recommended_node_port: int,
     enable_testnet_writes: bool = False,
+    write_auth_token: str | None = None,
+    machine_b_peer_auth_token_file: str | None = None,
 ) -> dict[str, Any]:
     validated_testnet_writes = validate_testnet_write_binding_v0(
         bind_host=bind_host,
         enable_testnet_writes=enable_testnet_writes,
+        write_auth_token=write_auth_token,
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -216,8 +241,8 @@ def run_machine_a_host_v0(
         port=writer_port,
         enable_testnet_intake=validated_testnet_writes,
         enable_testnet_faucet=validated_testnet_writes,
+        write_auth_token=write_auth_token,
         peer_urls=[],
-        poll_seconds=0,
     )
     actual_mirror_port = int(mirror_server.server_address[1])
     actual_writer_port = int(writer_server.server_address[1])
@@ -231,8 +256,6 @@ def run_machine_a_host_v0(
         peer_urls=[],
         poll_seconds=poll_seconds,
         node_port=recommended_node_port,
-        enable_testnet_intake=validated_testnet_writes,
-        enable_testnet_faucet=validated_testnet_writes,
     )
     network_config_path = out_dir / "public_network_config.json"
     _write_json(network_config_path, network_config)
@@ -253,6 +276,8 @@ def run_machine_a_host_v0(
         network_config=network_config,
         machine_b_token_symbol=machine_b_token_symbol,
         enable_testnet_writes=validated_testnet_writes,
+        write_auth_token_configured=write_auth_token is not None,
+        machine_b_peer_auth_token_file=machine_b_peer_auth_token_file if write_auth_token is not None else None,
     )
     emit_operator_json(ready_report)
     sys.stdout.flush()
@@ -294,9 +319,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--enable-local-testnet-writes",
         action="store_true",
         help=(
-            "Enable unsigned POST /tx and /faucet only when --bind-host is loopback; "
-            "never use on public interfaces."
+            "Enable POST /tx and /faucet. On public binds this requires --write-auth-token-file."
         ),
+    )
+    parser.add_argument(
+        "--write-auth-token-file",
+        type=Path,
+        help="Bearer token file for public testnet write endpoints.",
+    )
+    parser.add_argument(
+        "--machine-b-peer-auth-token-file",
+        default="/tmp/zeno-ledger-machine-b-peer.token",
+        help="Path to use in the printed Machine B acceptance command when write auth is enabled.",
     )
     return parser
 
@@ -305,6 +339,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
+        write_auth_token = (
+            args.write_auth_token_file.read_text(encoding="utf-8").strip()
+            if args.write_auth_token_file is not None
+            else None
+        )
+        if args.write_auth_token_file is not None and write_auth_token == "":
+            raise ValueError("write auth token file is empty")
         run_machine_a_host_v0(
             out_dir=args.out_dir,
             data_dir=args.data_dir,
@@ -321,6 +362,8 @@ def main(argv: list[str] | None = None) -> int:
             poll_seconds=args.poll_seconds,
             recommended_node_port=args.recommended_node_port,
             enable_testnet_writes=args.enable_local_testnet_writes,
+            write_auth_token=write_auth_token,
+            machine_b_peer_auth_token_file=args.machine_b_peer_auth_token_file,
         )
     except Exception as exc:
         print(
