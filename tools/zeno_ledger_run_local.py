@@ -43,7 +43,6 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_proof_metadata_header_binding_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x  # noqa: E402
-from tools.zeno_log_redaction import json_dumps_for_log  # noqa: E402
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
@@ -1756,6 +1755,42 @@ def build_local_block_v0(
     return report
 
 
+_STDOUT_REPORT_KEYS = (
+    "schema",
+    "ok",
+    "status",
+    "chain_id",
+    "height",
+    "header_hash",
+    "header_path",
+    "body_path",
+    "checkpoint_path",
+    "receipts_path",
+    "post_state_root",
+    "app_hash",
+    "proof_metadata_path",
+    "proof_journal_hash",
+    "post_snapshot_path",
+    "post_app_state_path",
+    "post_zusd_state_path",
+    "post_perp_state_path",
+    "post_oracle_state_path",
+    "post_oracle_reporter_state_path",
+    "post_upba_state_path",
+    "post_proof_mining_state_path",
+    "post_autotrader_state_path",
+    "post_confidential_state_path",
+)
+
+
+def _stdout_report_v0(report: Mapping[str, Any]) -> dict[str, Any]:
+    out = {key: report[key] for key in _STDOUT_REPORT_KEYS if key in report}
+    if report.get("ok") is not True:
+        errors = report.get("errors")
+        out["errors"] = [str(item) for item in errors] if isinstance(errors, list) else ["rejected"]
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Build a local ZenoLedger v0 block envelope from a supplied body"
@@ -1858,9 +1893,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    # Report stdout is redacted by key before operator display.
-    redacted_result = json.loads(json_dumps_for_log(result))
-    print(json.dumps(redacted_result, indent=2, sort_keys=True))
+    print(json.dumps(_stdout_report_v0(result), indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 
 
