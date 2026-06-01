@@ -36,6 +36,7 @@ function Install-Wrapper {
 
 Install-Wrapper -Name "zenoctl" -Target (Join-Path $RepoDir "tools\zenoctl.py")
 Install-Wrapper -Name "zenodex-node" -Target (Join-Path $RepoDir "tools\zeno_ledger_node.py")
+Install-Wrapper -Name "zenodex-public-follower" -Target (Join-Path $RepoDir "tools\zenodex_public_follower.py")
 
 $LocalTestnetOut = Join-Path $BinDir "zenodex-local-testnet.cmd"
 if ($DryRun) {
@@ -51,7 +52,23 @@ if ($DryRun) {
   Write-Output "installed $LocalTestnetOut"
 }
 
+$PublicTestnetOut = Join-Path $BinDir "zenodex-public-testnet.cmd"
+if ($DryRun) {
+  Write-Output "would install $PublicTestnetOut -> tools\zenoctl.py testnet local public"
+} else {
+  New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+  $ZenoctlTarget = Join-Path $RepoDir "tools\zenoctl.py"
+  $Content = @(
+    "@echo off",
+    "$python `"$ZenoctlTarget`" testnet local public %*"
+  )
+  Set-Content -Path $PublicTestnetOut -Value $Content -Encoding ASCII
+  Write-Output "installed $PublicTestnetOut"
+}
+
 if (-not $DryRun) {
   Write-Output "run: $BinDir\zenoctl.cmd doctor --engine none --strict"
   Write-Output "run: $BinDir\zenodex-local-testnet.cmd up --out-dir %TEMP%\zenodex-local"
+  Write-Output "run: $BinDir\zenodex-public-testnet.cmd"
+  Write-Output "run: $BinDir\zenodex-public-follower.cmd --config-url <public_network_config.json URL>"
 }
