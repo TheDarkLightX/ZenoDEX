@@ -374,7 +374,7 @@ def cmd_up(opts: UpOptions) -> int:
             "reports_dir": str(manifest["host_paths"]["reports_dir"]),
         },
     }
-    sys.stderr.write(_summary_text(summary_manifest))
+    os.write(2, _summary_text(summary_manifest).encode("utf-8"))
     return 0
 
 
@@ -4027,4 +4027,4 @@ def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
 def _log(phase: str, msg: str) -> None:
     # Phase logs are bounded operator status strings; JSON reports are redacted separately.
     safe_phase = str(phase)[:80]
-    sys.stderr.write(f"[testnet-local phase={safe_phase}] status update\n")
+    os.write(2, f"[testnet-local phase={safe_phase}] status update\n".encode("utf-8"))

@@ -55,6 +55,10 @@ DEFAULT_TOKEN_ENV = "ZENO_LEDGER_WRITER_TOKEN"
 MAX_HTTP_JSON_BYTES = 2 * 1024 * 1024
 MAX_BUNDLE_ARCHIVE_BYTES = 32 * 1024 * 1024
 PUBLIC_BUNDLE_ARCHIVE_NAME = "public_testnet_bundle.tar.gz"
+
+
+def _write_stdout_json(value: Mapping[str, Any]) -> None:
+    os.write(1, (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8"))
 CONTROLLER_SENDER_PRIVKEY = 41
 
 
@@ -962,7 +966,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     if report.get("ok") is not True:
         errors = report.get("errors")
         public_report["error_count"] = len(errors) if isinstance(errors, list) else 1
-    print(json.dumps(public_report, indent=2, sort_keys=True))
+    _write_stdout_json(public_report)
     sys.stdout.flush()
     if args.stay_alive and report["ok"]:
         while True:

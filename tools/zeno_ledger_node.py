@@ -114,6 +114,10 @@ PEER_FOLLOW_ERROR_LOG_CAP_PER_PEER = 64
 PUBLIC_BUNDLE_ARCHIVE_NAME = "public_testnet_bundle.tar.gz"
 
 
+def _write_stdout_json(value: Mapping[str, Any]) -> None:
+    os.write(1, (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+
+
 class _HttpRejectedError(ValueError):
     def __init__(self, *, status: HTTPStatus, report: Mapping[str, Any]) -> None:
         self.status = status
@@ -613,10 +617,11 @@ def _is_http_url(value: str) -> bool:
 
 
 def _tcp_port_available(host: str, port: int) -> bool:
+    probe_host = "127.0.0.1" if host in {"", "0.0.0.0", "::"} else host
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            sock.bind((host, port))
+            sock.bind((probe_host, port))
         except OSError:
             return False
     return True
@@ -647,6 +652,82 @@ def _read_feature_suite(bundle_root: Path, public_manifest: Mapping[str, Any]) -
         fallback=bundle_root / "core_features" / "feature_suite.json",
     )
     return dict(_load_json_object(suite_path))
+
+
+def _extend_public_mirror_artifact_paths_v0(
+    public_paths: list[str],
+    *,
+    mirror_root_rel: str,
+    mirror_index: Mapping[str, Any],
+) -> None:
+    artifacts = mirror_index.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise ValueError("mirror artifacts must be a list")
+    for raw_entry in artifacts:
+        if not isinstance(raw_entry, Mapping):
+            raise ValueError("mirror artifact entry must be an object")
+        rel = raw_entry.get("relative_path")
+        if not isinstance(rel, str) or not _is_safe_relative(rel):
+            raise ValueError("mirror artifact relative_path is unsafe")
+        artifact_rel = str(Path(mirror_root_rel) / rel)
+        if not _is_safe_relative(artifact_rel):
+            raise ValueError("mirror artifact path is unsafe")
+        public_paths.append(artifact_rel)
+
+
+def _public_bundle_artifact_rel_paths_v0(bundle_root: Path) -> tuple[str, ...]:
+    """Return bundle-relative artifact paths that are safe for public HTTP serving."""
+
+    public_manifest = _read_public_manifest(bundle_root)
+    public_paths: list[str] = ["public_testnet_manifest.json"]
+
+    bootstrap_manifest_path = str(public_manifest.get("bootstrap_manifest_path", "bootstrap/manifest.json"))
+    if not _is_safe_relative(bootstrap_manifest_path):
+        raise ValueError("bootstrap_manifest_path must be relative and safe")
+    public_paths.append(bootstrap_manifest_path)
+    bootstrap_root = Path(bootstrap_manifest_path).parent.as_posix()
+    bootstrap_index_rel = str(Path(bootstrap_root) / "mirror_index.json")
+    public_paths.append(bootstrap_index_rel)
+    bootstrap_index = dict(_load_json_object(bundle_root / bootstrap_index_rel))
+    _extend_public_mirror_artifact_paths_v0(public_paths, mirror_root_rel=bootstrap_root, mirror_index=bootstrap_index)
+
+    core_suite_path = str(public_manifest.get("core_suite_path", "core_features/feature_suite.json"))
+    if not _is_safe_relative(core_suite_path):
+        raise ValueError("core_suite_path must be relative and safe")
+    public_paths.append(core_suite_path)
+    feature_suite = dict(_load_json_object(bundle_root / core_suite_path))
+    features = feature_suite.get("features")
+    if not isinstance(features, list):
+        raise ValueError("feature_suite.features must be a list")
+    suite_root = Path(core_suite_path).parent
+    for raw_feature in features:
+        if not isinstance(raw_feature, Mapping):
+            raise ValueError("feature entry must be an object")
+        manifest_path = raw_feature.get("manifest_path")
+        if not isinstance(manifest_path, str) or not _is_safe_relative(manifest_path):
+            raise ValueError("feature manifest_path must be relative and safe")
+        feature_root = (suite_root / Path(manifest_path).parent).as_posix()
+        feature_manifest_rel = str(Path(feature_root) / Path(manifest_path).name)
+        public_paths.append(feature_manifest_rel)
+        mirror_index_rel = str(raw_feature.get("mirror_index_path", "mirror_index.json"))
+        if not _is_safe_relative(mirror_index_rel):
+            raise ValueError("feature mirror_index_path must be relative and safe")
+        feature_index_rel = str(Path(feature_root) / mirror_index_rel)
+        public_paths.append(feature_index_rel)
+        feature_index = dict(_load_json_object(bundle_root / feature_index_rel))
+        _extend_public_mirror_artifact_paths_v0(public_paths, mirror_root_rel=feature_root, mirror_index=feature_index)
+    return tuple(_unique_strings(public_paths))
+
+
+def _public_bundle_artifact_rel_for_request_v0(bundle_root: Path, request_rel: str) -> str | None:
+    """Select a public bundle artifact by exact relative-path match."""
+
+    if request_rel == PUBLIC_BUNDLE_ARCHIVE_NAME:
+        return PUBLIC_BUNDLE_ARCHIVE_NAME
+    for allowed_rel in _public_bundle_artifact_rel_paths_v0(bundle_root):
+        if request_rel == allowed_rel:
+            return allowed_rel
+    return None
 
 
 def _download_mirror_artifacts(
@@ -1100,6 +1181,7 @@ def _ui_token_catalog_v0(node_status: Mapping[str, Any]) -> tuple[dict[str, str]
         if not isinstance(row, Mapping):
             continue
         raw_symbol = row.get("symbol")
+        raw_display_symbol = row.get("display_symbol")
         raw_asset = row.get("asset_id")
         if not isinstance(raw_symbol, str) or not raw_symbol.strip() or not isinstance(raw_asset, str):
             continue
@@ -1107,14 +1189,17 @@ def _ui_token_catalog_v0(node_status: Mapping[str, Any]) -> tuple[dict[str, str]
             asset = canonical_hex_fixed_allow_0x(raw_asset, nbytes=32, name="test_token_catalog.asset_id")
         except Exception:
             continue
-        symbol = raw_symbol.strip()
+        catalog_symbol = raw_symbol.strip()
+        display_symbol = raw_display_symbol.strip() if isinstance(raw_display_symbol, str) and raw_display_symbol.strip() else catalog_symbol
         purpose = row.get("purpose")
-        by_asset[asset] = symbol
-        by_symbol[symbol.upper()] = {
-            "symbol": symbol,
+        by_asset[asset] = display_symbol
+        token = {
+            "symbol": display_symbol,
             "asset_id": asset,
             "purpose": purpose if isinstance(purpose, str) else "",
         }
+        by_symbol[display_symbol.upper()] = token
+        by_symbol[catalog_symbol.upper()] = token
     return by_asset, by_symbol
 
 
@@ -4675,8 +4760,12 @@ def make_node_http_server_v0(
                         self._send_json({"ok": False, "error": "unsafe_bundle_path"}, status=HTTPStatus.BAD_REQUEST)
                         return
                     bundle_root = Path(str(status["bundle_root"])).resolve()
+                    artifact_rel = _public_bundle_artifact_rel_for_request_v0(bundle_root, rel)
+                    if artifact_rel is None:
+                        self._send_json({"ok": False, "error": "bundle_artifact_not_public"}, status=HTTPStatus.NOT_FOUND)
+                        return
                     # rel is checked as a safe relative path and constrained below bundle_root.
-                    path = (bundle_root / rel).resolve()
+                    path = (bundle_root / artifact_rel).resolve()
                     try:
                         path.relative_to(bundle_root)
                     except ValueError:
@@ -4690,7 +4779,7 @@ def make_node_http_server_v0(
                     data = _read_artifact_bytes_v0(path)
                     max_bytes = (
                         MAX_REMOTE_BUNDLE_ARCHIVE_BYTES
-                        if rel == PUBLIC_BUNDLE_ARCHIVE_NAME
+                        if artifact_rel == PUBLIC_BUNDLE_ARCHIVE_NAME
                         else MAX_REMOTE_ARTIFACT_BYTES
                     )
                     if len(data) > max_bytes:
@@ -4699,7 +4788,7 @@ def make_node_http_server_v0(
                             status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
                         )
                         return
-                    content_type = "application/gzip" if rel == PUBLIC_BUNDLE_ARCHIVE_NAME else "application/json"
+                    content_type = "application/gzip" if artifact_rel == PUBLIC_BUNDLE_ARCHIVE_NAME else "application/json"
                     self._send_bytes(data, content_type=content_type)
                     return
                 if len(parts) == 3 and parts[0] == "live" and parts[1] in {"header", "body", "checkpoint", "snapshot"}:
@@ -5705,7 +5794,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     if report.get("ok") is not True:
         errors = report.get("errors")
         public_report["error_count"] = len(errors) if isinstance(errors, list) else 1
-    print(json.dumps(public_report, indent=2, sort_keys=True))
+    _write_stdout_json(public_report)
     return 0 if report.get("ok") is True else 1
 
 

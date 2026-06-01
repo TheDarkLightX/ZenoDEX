@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -343,6 +344,10 @@ _PUBLIC_STDOUT_KEYS = (
 )
 
 
+def _write_stdout_json(value: Mapping[str, Any]) -> None:
+    os.write(1, (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+
+
 def _public_stdout_report(report: Mapping[str, Any]) -> dict[str, Any]:
     out = {key: report[key] for key in _PUBLIC_STDOUT_KEYS if key in report}
     if report.get("ok") is not True:
@@ -379,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print(json.dumps(_public_stdout_report(report), indent=2, sort_keys=True))
+    _write_stdout_json(_public_stdout_report(report))
     return 0 if report["ok"] else 1
 
 
