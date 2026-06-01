@@ -39,34 +39,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-artifacts:
-    name: Build Release Artifacts
+  resolve-version:
+    name: Resolve Release Version
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       release_tag: ${{ steps.version.outputs.release_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install locked Python dependencies
-        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
-
       - name: Resolve release version
         id: version
         env:
@@ -92,6 +74,97 @@ jobs:
             echo "release_tag=${release_tag}"
           } >> "${GITHUB_OUTPUT}"
 
+  build-native-launchers:
+    name: Build Native Launcher (${{ matrix.asset_suffix }})
+    needs: resolve-version
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_suffix: linux-x86_64
+            binary_name: zenodex
+          - os: macos-13
+            asset_suffix: macos-x86_64
+            binary_name: zenodex
+          - os: windows-latest
+            asset_suffix: windows-x86_64
+            binary_name: zenodex.exe
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain fingerprint
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Test native launcher
+        run: cargo test -p zenodex-launcher
+
+      - name: Build release launcher
+        run: cargo build --release -p zenodex-launcher
+
+      - name: Stage native launcher asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p native-dist
+          source="target/release/${{ matrix.binary_name }}"
+          target="native-dist/zenodex-${{ needs.resolve-version.outputs.version }}-${{ matrix.asset_suffix }}"
+          if [[ "${{ matrix.binary_name }}" == *.exe ]]; then
+            target="${target}.exe"
+          fi
+          cp "${source}" "${target}"
+          if [[ "${target}" != *.exe ]]; then
+            chmod 755 "${target}"
+          fi
+
+      - name: Upload native launcher asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-native-launcher-${{ matrix.asset_suffix }}
+          path: rust-runtime/native-dist/*
+          if-no-files-found: error
+
+  build-artifacts:
+    name: Build Release Artifacts
+    needs:
+      - resolve-version
+      - build-native-launchers
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ needs.resolve-version.outputs.version }}
+      release_tag: ${{ needs.resolve-version.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install locked Python dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
       - name: Run packaging readiness checks
         run: |
           python -m py_compile \
@@ -104,32 +177,33 @@ jobs:
         run: |
           mkdir -p dist
           python tools/build_operator_release_bundle.py build \
-            --version "${{ steps.version.outputs.version }}" \
+            --version "${{ needs.resolve-version.outputs.version }}" \
             --out-dir dist \
-            --json | tee "dist/zenodex-operator-${{ steps.version.outputs.version }}.build.json"
+            --json | tee "dist/zenodex-operator-${{ needs.resolve-version.outputs.version }}.build.json"
 
       - name: Build Zeno Oracle Python-local bundle
         run: |
           python tools/build_zenodex_oracle_release.py \
             --json \
             --out-dir dist \
-            --bundle-name "zenodex-oracle-${{ steps.version.outputs.version }}-python-local" \
+            --bundle-name "zenodex-oracle-${{ needs.resolve-version.outputs.version }}-python-local" \
             --zip \
-            --force | tee "dist/zenodex-oracle-${{ steps.version.outputs.version }}-python-local.build.json"
+            --force | tee "dist/zenodex-oracle-${{ needs.resolve-version.outputs.version }}-python-local.build.json"
 
       - name: Pack browser proof-client SDK
         run: |
           cd packages/zeno-proof-client
           npm ci
-          npm version --no-git-tag-version --allow-same-version "${{ steps.version.outputs.version }}"
+          npm version --no-git-tag-version --allow-same-version "${{ needs.resolve-version.outputs.version }}"
           npm test
-          npm pack --pack-destination ../../dist --json | tee "../../dist/zenodex-proof-client-${{ steps.version.outputs.version }}.pack.json"
+          npm pack --pack-destination ../../dist --json | tee "../../dist/zenodex-proof-client-${{ needs.resolve-version.outputs.version }}.pack.json"
 
-      - name: Build Linux native launcher
-        run: |
-          cargo build --manifest-path rust-runtime/Cargo.toml --release -p zenodex-launcher
-          cp rust-runtime/target/release/zenodex "dist/zenodex-${{ steps.version.outputs.version }}-linux-x86_64"
-          chmod 755 "dist/zenodex-${{ steps.version.outputs.version }}-linux-x86_64"
+      - name: Download native launcher assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: zenodex-native-launcher-*
+          path: dist
+          merge-multiple: true
 
       - name: Generate release SBOMs
         run: |
@@ -183,13 +257,13 @@ jobs:
           PY
           (cd dist && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%P\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)
         env:
-          ZENODEX_RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          ZENODEX_RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          ZENODEX_RELEASE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          ZENODEX_RELEASE_TAG: ${{ needs.resolve-version.outputs.release_tag }}
 
       - name: Upload release artifact set
         uses: actions/upload-artifact@v4
         with:
-          name: zenodex-release-${{ steps.version.outputs.version }}
+          name: zenodex-release-${{ needs.resolve-version.outputs.version }}
           path: dist/
           if-no-files-found: error
 
