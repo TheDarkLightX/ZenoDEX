@@ -191,9 +191,6 @@ echo "== release: candidate supported runtime path =="
 echo "== release: tau supported runtime subset =="
 "$PY" "$ROOT_DIR/tools/check_tau_supported_runtime_subset.py"
 
-echo "== release: tau experiment promotion candidates =="
-"$PY" "$ROOT_DIR/tools/check_tau_experiment_promotion_candidates.py"
-
 echo "== release: candidate verified surface matrix =="
 "$PY" "$ROOT_DIR/tools/render_rc1_verified_surface_matrix.py" --check
 

@@ -33,6 +33,14 @@ The first public testnet can keep one designated writer. The immediate goal is
 open node launch and deterministic replay, then validator scheduling and public
 gossip can harden in later releases.
 
+Current evidence separates two lanes:
+
+- Docker multi-machine rehearsal has succeeded and covers multi-node replay
+  behavior in a controlled environment.
+- The public URL lane remains open until a clean machine joins from a published
+  `public_network_config.json` URL without hand-copied local state. This is the
+  practical blocker for v0.1.16.
+
 ## Seed Operator Flow
 
 The seed operator builds a bootstrap bundle, serves it from HTTPS, runs the
@@ -118,7 +126,9 @@ The next release should not claim a public testnet until these checks pass:
 2. Physical 3-host run passes with writer, forwarding follower, and read-only
    follower.
 
-3. `public_network_config.json` is served from a stable HTTPS URL.
+3. `public_network_config.json` is served from a stable public URL. Prefer
+   HTTPS for any internet-facing run. LAN-only HTTP is acceptable only as a
+   rehearsal artifact and should be labeled that way.
 
 4. A clean machine joins from only that config URL, verifies the bundle, checks
    the seed peer, and serves status.
@@ -143,6 +153,20 @@ The next release should not claim a public testnet until these checks pass:
    - fake-token faucet only;
    - no production value;
    - open P2P gossip and rotating validator production are later milestones.
+
+The durable release artifact should be checked by:
+
+```bash
+python3 tools/check_public_testnet_v0_1_16_evidence.py \
+  /path/to/public-testnet-v0.1.16-evidence.json --pretty
+```
+
+That evidence bundle must bind the stable HTTPS `public_network_config.json`
+URL, the pinned network-config hash, the two-machine evidence archive, one clean
+machine join, a second clean follower at the same common header, and the
+phone/browser result. For the phone/browser path, either a public HTTPS UI load
+or a browser-verified checkpoint bundle is acceptable, but backend bearer tokens
+must not be exposed to the browser.
 
 ## Non-Goals For v0.1.16
 

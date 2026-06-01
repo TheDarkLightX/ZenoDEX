@@ -287,7 +287,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sequencer-id", default=DEFAULT_SEQUENCER_ID)
     parser.add_argument("--time-ms", type=int, default=DEFAULT_TIME_MS)
     parser.add_argument("--token-symbol", default="tZENO")
-    parser.add_argument("--machine-b-token-symbol", default="tMANGO")
+    parser.add_argument("--machine-b-token-symbol", default="tZENO")
     parser.add_argument("--poll-seconds", type=int, default=5)
     parser.add_argument("--recommended-node-port", type=int, default=8788)
     parser.add_argument(

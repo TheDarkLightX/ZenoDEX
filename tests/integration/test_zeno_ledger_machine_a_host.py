@@ -13,13 +13,13 @@ def test_machine_b_acceptance_command_binds_config_hash_and_token() -> None:
     command = build_machine_b_acceptance_command_v0(
         config_url="http://192.0.2.10:8000/public_network_config.json",
         network_config_hash="0x" + "11" * 32,
-        token_symbol="tMANGO",
+        token_symbol="tZENO",
     )
 
     assert command[:2] == ["python3", "tools/zeno_ledger_machine_b_acceptance.py"]
     assert command[command.index("--config-url") + 1] == "http://192.0.2.10:8000/public_network_config.json"
     assert command[command.index("--expected-network-config-hash") + 1] == "0x" + "11" * 32
-    assert command[command.index("--token-symbol") + 1] == "tMANGO"
+    assert command[command.index("--token-symbol") + 1] == "tZENO"
 
 
 def test_machine_a_ready_report_contains_join_urls_and_command() -> None:

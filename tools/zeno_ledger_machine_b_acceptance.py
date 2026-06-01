@@ -20,7 +20,6 @@ if str(ROOT) not in sys.path:
 
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_BOOTSTRAP_SENDER
 from tools.zeno_ledger_node import (
-    _read_transport_auth_token_file_v0,
     build_node_evidence_report_v0,
     doctor_public_node_v0,
     join_public_node_from_network_config_url_v0,
@@ -62,6 +61,15 @@ def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _read_transport_auth_token_file_v0(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    token = path.read_text(encoding="utf-8").strip()
+    if token == "":
+        raise ValueError("peer auth token file is empty")
+    return token
+
+
 def _as_string_list(value: object, *, name: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"{name} must be a list of strings")
@@ -70,6 +78,17 @@ def _as_string_list(value: object, *, name: str) -> list[str]:
 
 def _as_mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _asset_for_symbol(network_config: Mapping[str, Any], symbol: str) -> str:
+    catalog = network_config.get("test_token_catalog")
+    if not isinstance(catalog, list):
+        raise ValueError("public network config missing test_token_catalog")
+    for item in catalog:
+        token = _as_mapping(item)
+        if token.get("symbol") == symbol and isinstance(token.get("asset_id"), str):
+            return str(token["asset_id"])
+    raise ValueError(f"test token symbol not found in public network config: {symbol}")
 
 
 def _repo_commit_sha_v0() -> str:
@@ -212,25 +231,23 @@ def run_machine_b_acceptance_v0(
         poll_seconds=poll_seconds,
         serve=False,
         expected_network_config_hash=expected_network_config_hash,
-        peer_auth_token=peer_auth_token,
     )
     network_config = _load_json_object(data_dir / "public_network_config.json")
     writer_urls = _as_string_list(network_config.get("writer_urls"), name="writer_urls")
     peer_urls = _as_string_list(network_config.get("peer_urls"), name="peer_urls")
     selected_writer = writer_url or writer_urls[0]
     selected_peers = list(dict.fromkeys([selected_writer, *peer_urls]))
+    token_asset = _asset_for_symbol(network_config, token_symbol)
 
     token_payload = {
-        "creator_pubkey": creator_pubkey,
-        "decimals": token_decimals,
-        "name": token_name,
-        "salt": token_salt,
-        "symbol": token_symbol,
+        "amount": 1_000_000,
+        "asset": token_asset,
+        "to_pubkey": creator_pubkey,
         "time_ms": observed_time_ms,
-        "tx_id": f"machine-b-acceptance-create-{token_symbol.lower()}-v0",
+        "tx_id": f"machine-b-acceptance-faucet-{token_symbol.lower()}-v0",
     }
     token_report, token_http_status = _post_json(
-        urljoin(selected_writer.rstrip("/") + "/", "tokens"),
+        urljoin(selected_writer.rstrip("/") + "/", "faucet"),
         token_payload,
         auth_token=peer_auth_token,
     )
@@ -317,8 +334,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int)
     parser.add_argument("--poll-seconds", type=int)
     parser.add_argument("--writer-url")
-    parser.add_argument("--token-symbol", default="tMANGO")
-    parser.add_argument("--token-name", default="Test Mango Credit")
+    parser.add_argument("--token-symbol", default="tZENO")
+    parser.add_argument("--token-name", default="Test ZENO Credit")
     parser.add_argument("--token-salt", default="machine-b-acceptance-token-v0")
     parser.add_argument("--token-decimals", type=int, default=8)
     parser.add_argument("--creator-pubkey", default=DEFAULT_BOOTSTRAP_SENDER)

@@ -2544,7 +2544,7 @@ def test_make_feature_lane_manifest_supports_proof_mining_mode(tmp_path: Path) -
         token_asset_id=_root("feature-lane-token"),
     )
     runtime_state = ProofMiningRuntimeState(
-        reward_pool_pubkey="proof-mining-pool",
+        reward_pool_pubkey="0x" + "99" * 48,
         snapshot=ProofMiningManagerSnapshot(
             epoch=1,
             base_reward=8,

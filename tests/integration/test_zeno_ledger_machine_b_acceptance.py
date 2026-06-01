@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tools.zeno_ledger_machine_b_acceptance import (
     MACHINE_B_LATEST_MAIN_SUMMARY_SCHEMA,
+    _read_transport_auth_token_file_v0,
     build_machine_b_latest_main_summary_v0,
 )
 
@@ -80,3 +81,22 @@ def test_machine_b_latest_main_summary_reports_rejected_submission() -> None:
     assert report["ok"] is False
     assert report["accepted_submission_count"] == 0
     assert report["rejected_submission_count"] == 1
+
+
+def test_machine_b_peer_auth_token_file_trims_newline(tmp_path) -> None:
+    token_path = tmp_path / "peer.token"
+    token_path.write_text("secret-token\n", encoding="utf-8")
+
+    assert _read_transport_auth_token_file_v0(token_path) == "secret-token"
+
+
+def test_machine_b_peer_auth_token_file_rejects_empty_file(tmp_path) -> None:
+    token_path = tmp_path / "peer.token"
+    token_path.write_text("\n", encoding="utf-8")
+
+    try:
+        _read_transport_auth_token_file_v0(token_path)
+    except ValueError as exc:
+        assert "empty" in str(exc)
+    else:
+        raise AssertionError("empty peer auth token file was accepted")

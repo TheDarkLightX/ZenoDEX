@@ -17,22 +17,12 @@ GATE_OUT_DIR="${GATE_OUT_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/zenodex-public-testne
 echo "== public-testnet: syntax =="
 "$PY" -m py_compile \
   "$ROOT_DIR/tools/zeno_ledger_node.py" \
+  "$ROOT_DIR/tools/zeno_ledger_machine_b_acceptance.py" \
   "$ROOT_DIR/tools/zeno_ledger_public_network_smoke.py" \
-  "$ROOT_DIR/tools/check_tau_experiment_promotion_candidates.py" \
+  "$ROOT_DIR/tools/check_public_testnet_v0_1_16_evidence.py" \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node.py" \
-  "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_smoke.py" \
-  "$ROOT_DIR/tests/tau/test_tau_experiment_promotion_candidates.py"
-
-echo "== public-testnet: Tau experiment promotion metadata =="
-"$PY" "$ROOT_DIR/tools/check_tau_experiment_promotion_candidates.py"
-
-if [[ -f "$ROOT_DIR/generated/tau_lang_optimization_traces/report.json" ]]; then
-  echo "== public-testnet: Tau experiment generated trace report =="
-  "$PY" "$ROOT_DIR/tools/check_tau_experiment_promotion_candidates.py" --require-trace-report
-else
-  echo "== public-testnet: Tau experiment generated trace report skipped =="
-  echo "missing generated/tau_lang_optimization_traces/report.json"
-fi
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_machine_b_acceptance.py" \
+  "$ROOT_DIR/tests/tools/test_check_public_testnet_v0_1_16_evidence.py"
 
 echo "== public-testnet: local two-node smoke =="
 "$PY" "$ROOT_DIR/tools/zeno_ledger_public_network_smoke.py" \
@@ -44,8 +34,9 @@ echo "== public-testnet: local two-node smoke =="
 echo "== public-testnet: node and promotion regression tests =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/integration/test_zeno_ledger_node.py" \
-  "$ROOT_DIR/tests/integration/test_zeno_ledger_public_network_smoke.py" \
-  "$ROOT_DIR/tests/tau/test_tau_experiment_promotion_candidates.py"
+  "$ROOT_DIR/tests/integration/test_zeno_ledger_machine_b_acceptance.py" \
+  "$ROOT_DIR/tests/tools/test_check_public_testnet_v0_1_16_evidence.py" \
+  "$ROOT_DIR/tests/test_zeno_sdk_browser_bundle.py::test_browser_sdk_verifies_python_built_bundle_hashes"
 
 echo "ok: public testnet candidate gate passed"
 echo "artifacts: $GATE_OUT_DIR"

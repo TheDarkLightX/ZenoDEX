@@ -818,7 +818,7 @@ def build_core_feature_suite_v0(
     proof_mining_state_path = proof_mining_dir / "source" / "proof_mining_state.json"
     proof_mining_state_path.parent.mkdir(parents=True, exist_ok=True)
     proof_mining_state = ProofMiningRuntimeState(
-        reward_pool_pubkey="proof-mining-pool",
+        reward_pool_pubkey="0x" + "99" * 48,
         snapshot=ProofMiningManagerSnapshot(
             epoch=1,
             base_reward=8,

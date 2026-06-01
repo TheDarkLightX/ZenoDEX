@@ -73,6 +73,7 @@ NODE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_report.v0"
 NODE_SYNC_REPORT_SCHEMA = "zenodex.zeno_ledger.node_sync_report.v0"
 NODE_APPEND_REPORT_SCHEMA = "zenodex.zeno_ledger.node_append_report.v0"
 NODE_PULL_REPORT_SCHEMA = "zenodex.zeno_ledger.node_pull_report.v0"
+NODE_EVIDENCE_REPORT_SCHEMA = "zenodex.zeno_ledger.node_evidence_report.v0"
 NODE_JOIN_CONFIG_SCHEMA = "zenodex.zeno_ledger.node_join_config.v0"
 NODE_JOIN_REPORT_SCHEMA = "zenodex.zeno_ledger.node_join_report.v0"
 NODE_PREFLIGHT_REPORT_SCHEMA = "zenodex.zeno_ledger.node_preflight_report.v0"
@@ -1404,10 +1405,15 @@ def pull_live_from_peer_v0(
     *,
     data_dir: Path,
     peer_url: str,
+    peer_auth_token: str | None = None,
 ) -> dict[str, Any]:
     """Pull live blocks from a peer and accept only deterministic replays."""
 
-    peer_admission = check_peer_status_v0(data_dir=data_dir, peer_urls=[peer_url])
+    peer_admission = check_peer_status_v0(
+        data_dir=data_dir,
+        peer_urls=[peer_url],
+        peer_auth_token=peer_auth_token,
+    )
     if peer_admission.get("ok") is not True:
         raise ValueError("peer admission rejected")
 
@@ -1417,7 +1423,10 @@ def pull_live_from_peer_v0(
     bootstrap_manifest = _load_json_object(bundle_root / "bootstrap" / "manifest.json")
     base = _live_base_paths(bundle_root=bundle_root, data_dir=data_dir, node_status=node_status)
     local_latest = int(base["latest_height"])
-    peer_live = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", "live"))
+    peer_live = _fetch_json_url_auth(
+        urljoin(peer_url.rstrip("/") + "/", "live"),
+        bearer_token=peer_auth_token,
+    )
     if peer_live.get("ok") is not True or peer_live.get("live") is not True:
         return {
             "schema": NODE_PULL_REPORT_SCHEMA,
@@ -1448,8 +1457,14 @@ def pull_live_from_peer_v0(
     current_pre_snapshot = Path(str(base["pre_snapshot_path"]))
     live_ledger_dir = data_dir / "live_ledger"
     for height in range(local_latest + 1, peer_latest + 1):
-        peer_body = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"))
-        peer_header = _fetch_json_url(urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"))
+        peer_body = _fetch_json_url_auth(
+            urljoin(peer_url.rstrip("/") + "/", f"live/body/{height}"),
+            bearer_token=peer_auth_token,
+        )
+        peer_header = _fetch_json_url_auth(
+            urljoin(peer_url.rstrip("/") + "/", f"live/header/{height}"),
+            bearer_token=peer_auth_token,
+        )
         if _is_faucet_body_v0(peer_body):
             block_report = _build_faucet_block_from_body_v0(
                 data_dir=data_dir,
@@ -1702,6 +1717,84 @@ def check_peer_status_v0(
         "peer_count": len(peer_reports),
         "peers": peer_reports,
     }
+
+
+def poll_live_peers_once_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str],
+    peer_auth_token: str | None = None,
+) -> dict[str, Any]:
+    """Pull live blocks once from every configured peer."""
+
+    pull_reports: list[dict[str, Any]] = []
+    for peer_url in peer_urls:
+        try:
+            pull_reports.append(
+                pull_live_from_peer_v0(
+                    data_dir=data_dir,
+                    peer_url=peer_url,
+                    peer_auth_token=peer_auth_token,
+                )
+            )
+        except Exception as exc:
+            pull_reports.append(
+                {
+                    "schema": NODE_PULL_REPORT_SCHEMA,
+                    "ok": False,
+                    "status": "rejected",
+                    "peer_url": peer_url,
+                    "errors": [str(exc)],
+                }
+            )
+    ok = all(report.get("ok") is True for report in pull_reports)
+    return {
+        "schema": "zenodex.zeno_ledger.node_peer_poll_report.v0",
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "peer_count": len(pull_reports),
+        "pull_reports": pull_reports,
+    }
+
+
+def build_node_evidence_report_v0(
+    *,
+    data_dir: Path,
+    peer_urls: list[str],
+    peer_auth_token: str | None = None,
+) -> dict[str, Any]:
+    """Build portable node evidence for a public-testnet follower."""
+
+    node_status = load_node_status_v0(data_dir)
+    local_tip = _local_tip_v0(data_dir=data_dir, node_status=node_status)
+    peer_check = (
+        check_peer_status_v0(
+            data_dir=data_dir,
+            peer_urls=peer_urls,
+            peer_auth_token=peer_auth_token,
+        )
+        if peer_urls
+        else {"schema": NODE_PEER_CHECK_REPORT_SCHEMA, "ok": True, "status": "accepted", "peers": []}
+    )
+    test_tokens = list(node_status.get("test_token_catalog", []))
+    ok = node_status.get("ok") is True and peer_check.get("ok") is True
+    body = {
+        "schema": NODE_EVIDENCE_REPORT_SCHEMA,
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
+        "node_id": node_status["node_id"],
+        "network_id": node_status["network_id"],
+        "chain_id": node_status["chain_id"],
+        "feature_suite_hash": node_status["feature_suite_hash"],
+        "covered_feature_count": node_status["covered_feature_count"],
+        "covered_features": list(node_status.get("covered_features", [])),
+        "required_features": list(node_status.get("required_features", [])),
+        "local_tip": local_tip,
+        "peer_check": peer_check,
+        "created_test_token_count": len(test_tokens),
+        "created_test_tokens": test_tokens,
+    }
+    return {**body, "evidence_report_hash": hash_v0("node_evidence_report_v0", body)}
 
 
 def _load_optional_json(path_text: object) -> object | None:
@@ -2621,12 +2714,18 @@ def join_public_node_from_network_config_url_v0(
     port: int | None,
     poll_seconds: int | None,
     serve: bool,
+    expected_network_config_hash: str | None = None,
     write_auth_token_env: str | None = None,
     submit_peer_auth_token_env: str | None = None,
 ) -> dict[str, Any]:
     """Join a public ZenoLedger testnet from one published network config URL."""
 
     network_config = _fetch_json_url(config_url)
+    actual_hash = _public_network_config_hash_v0(network_config)
+    if expected_network_config_hash is not None:
+        pinned_hash = _require_root_v0(expected_network_config_hash, name="expected_network_config_hash")
+        if actual_hash != pinned_hash:
+            raise ValueError("public network config hash did not match expected hash")
     join_config = _public_network_config_to_join_config_v0(
         network_config=network_config,
         node_id=node_id,
@@ -2649,7 +2748,7 @@ def join_public_node_from_network_config_url_v0(
     report = join_public_node_from_config_v0(config_path=join_config_path)
     report["network_config_url"] = config_url
     report["network_config_path"] = str(network_config_path)
-    report["network_config_hash"] = network_config.get("network_config_hash")
+    report["network_config_hash"] = actual_hash
     return report
 
 
