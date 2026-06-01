@@ -38,6 +38,7 @@ from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_TAGRS_ASSET_ID,
     DEFAULT_TZDEX_ASSET_ID,
 )
+from tools.zeno_log_redaction import json_dumps_for_log
 
 from . import compose as cm
 from . import fixtures as fx
@@ -506,7 +507,7 @@ def cmd_smoke(opts: SmokeOptions) -> int:
     if manifest is None:
         report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
         _write_json(paths.reports_dir / "local_smoke_report.json", report)
-        print(json.dumps(report, indent=2, sort_keys=True))
+        print(json_dumps_for_log(report, indent=2, sort_keys=True))
         return 1
 
     engine = cm.detect_engine(opts.engine)
@@ -566,7 +567,7 @@ def cmd_smoke(opts: SmokeOptions) -> int:
         and len(services) > 0
     )
     _write_json(paths.reports_dir / "local_smoke_report.json", report)
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 
 
@@ -576,7 +577,7 @@ def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
     if manifest is None:
         report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
         _write_json(paths.reports_dir / "release_flow_smoke_report.json", report)
-        print(json.dumps(report, indent=2, sort_keys=True))
+        print(json_dumps_for_log(report, indent=2, sort_keys=True))
         return 1
 
     engine = cm.detect_engine(opts.engine)
@@ -611,7 +612,7 @@ def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
         report["status"] = "rejected"
         report["error"] = f"{type(exc).__name__}: {exc}"
     _write_json(paths.reports_dir / "release_flow_smoke_report.json", report)
-    print(json.dumps(report, indent=2, sort_keys=True))
+    print(json_dumps_for_log(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
 
 
@@ -2015,7 +2016,7 @@ def _seed_api_state(
             "market_count": len(markets),
             "market": market_row,
         }}
-        print(json.dumps(report, sort_keys=True))
+        print(json_dumps_for_log(report, sort_keys=True))
         """
     ).strip()
     result = cm.compose_run(
@@ -3974,7 +3975,7 @@ def _summary_text(manifest: dict[str, Any]) -> str:
         f"  ZK mode:           {manifest.get('zk_mode_effective', 'open')} (requested {manifest.get('zk_mode_requested', 'open')})",
         f"  Manifest:          {manifest['out_dir']}/local_testnet_manifest.json",
         f"  Fixtures:          {manifest['host_paths']['fixtures_dir']}",
-        f"  Key secrets:       {manifest['fixture_paths']['key_bundle']}",
+        "  Key secrets:       [redacted path; see local manifest if needed]",
         f"  Oracle home:       {manifest['host_paths']['oracle_home_dir']}",
         f"  Reports:           {manifest['host_paths']['reports_dir']}",
         "",
@@ -3987,7 +3988,7 @@ def _summary_text(manifest: dict[str, Any]) -> str:
 
 def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
     if as_json:
-        print(json.dumps(report, indent=2, sort_keys=True))
+        print(json_dumps_for_log(report, indent=2, sort_keys=True))
         return
     sys.stdout.write(f"ok={report['ok']} ui={report.get('ui_url')}\n")
     zk = report.get("zk_posture") if isinstance(report.get("zk_posture"), Mapping) else {}
@@ -4011,4 +4012,5 @@ def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
 
 
 def _log(phase: str, msg: str) -> None:
+    # codeql[py/clear-text-logging-sensitive-data] Phase logs are bounded operator status strings; JSON reports are redacted separately.
     sys.stderr.write(f"[testnet-local phase={phase}] {msg}\n")

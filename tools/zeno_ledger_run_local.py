@@ -43,6 +43,7 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_proof_metadata_header_binding_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x  # noqa: E402
+from tools.zeno_log_redaction import json_dumps_for_log  # noqa: E402
 
 ZERO_ROOT = "0x" + "00" * 32
 REPORT_SCHEMA = "zenodex.zeno_ledger.run_local_report.v0"
@@ -1857,7 +1858,7 @@ def main(argv: list[str] | None = None) -> int:
             "status": "rejected",
             "errors": [str(exc)],
         }
-    print(json.dumps(result, indent=2, sort_keys=True))
+    print(json_dumps_for_log(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 
 
