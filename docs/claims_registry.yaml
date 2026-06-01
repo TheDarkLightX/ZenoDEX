@@ -784,6 +784,35 @@ claims:
         - docs/CONFIDENTIAL_FEATURES_USE_CASES.md
         - docs/ZENOCOVER_LP_LOSS_COVER_V1.md
 
+  - id: py:confidential_crypto:readiness_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The confidential crypto readiness checker reports TEE attestation,
+      encrypted SSS backup, MPC, and FHE as separate surfaces, hashes the
+      structured report, and fail-closes the current public release posture on
+      non-production readiness. A configured TEE verifier binding, local SSS
+      fixture, MPC placeholder, or FHE alpha planner does not become a
+      production cryptography claim. This is a local status and evidence-shape
+      gate; it does not prove vendor TEE attestation soundness, audited SSS
+      custody, real MPC security, production FHE confidentiality, or live
+      deployment correctness.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 tools/check_confidential_crypto_readiness.py --require-non-production-ready --out /tmp/zenodex_confidential_crypto_readiness.json
+        - cmd: pytest -q tests/integration/test_confidential_crypto_readiness.py tests/test_check_confidential_crypto_readiness.py
+      files:
+        - tools/check_confidential_crypto_readiness.py
+        - src/integration/confidential_crypto_readiness.py
+        - src/integration/confidential_feature_status.py
+        - src/integration/confidential_attestation_api.py
+        - src/integration/perps_wallet_encrypted_sss_backup.py
+        - tests/integration/test_confidential_crypto_readiness.py
+        - tests/test_check_confidential_crypto_readiness.py
+        - docs/CONFIDENTIAL_CRYPTO_READINESS.md
+        - docs/CONFIDENTIAL_EXTENSIONS_TEE_SMPC.md
+
   - id: lean:zeno_ledger:zk_tee_proof_composition_v1
     status: proved
     layer: math

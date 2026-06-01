@@ -75,6 +75,16 @@ echo "== release: public assurance snapshot docs =="
 echo "== release: public claim scope =="
 "$PY" "$ROOT_DIR/tools/check_public_claim_scope.py"
 
+echo "== release: confidential crypto readiness =="
+CONF_CRYPTO_REPORT="$(mktemp)"
+"$PY" "$ROOT_DIR/tools/check_confidential_crypto_readiness.py" \
+  --require-non-production-ready \
+  --out "$CONF_CRYPTO_REPORT"
+rm -f "$CONF_CRYPTO_REPORT"
+"$PY" -m pytest -q \
+  "$ROOT_DIR/tests/integration/test_confidential_crypto_readiness.py" \
+  "$ROOT_DIR/tests/test_check_confidential_crypto_readiness.py"
+
 echo "== release: ZenoLedger proof coverage matrix =="
 "$PY" "$ROOT_DIR/tools/check_zeno_ledger_proof_coverage_matrix.py"
 "$PY" -m pytest -q "$ROOT_DIR/tests/tools/test_check_zeno_ledger_proof_coverage_matrix.py"
