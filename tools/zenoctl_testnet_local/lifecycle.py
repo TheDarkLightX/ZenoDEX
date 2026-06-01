@@ -362,8 +362,8 @@ def cmd_up(opts: UpOptions) -> int:
 
     _log("done", f"stack up: http://127.0.0.1:{opts.ui_port}")
     # Summary text redacts local key material and token paths.
-    # codeql[py/clear-text-logging-sensitive-data]
-    sys.stderr.write(_summary_text(manifest))
+    redacted_manifest = json.loads(json_dumps_for_log(manifest))
+    sys.stderr.write(_summary_text(redacted_manifest))
     return 0
 
 
@@ -4015,5 +4015,7 @@ def _emit_status(report: dict[str, Any], *, as_json: bool) -> None:
 
 def _log(phase: str, msg: str) -> None:
     # Phase logs are bounded operator status strings; JSON reports are redacted separately.
-    # codeql[py/clear-text-logging-sensitive-data]
-    sys.stderr.write(f"[testnet-local phase={phase}] {msg}\n")
+    redacted = json.loads(json_dumps_for_log({"phase": phase, "msg": msg}))
+    safe_phase = str(redacted.get("phase", "unknown"))
+    safe_msg = str(redacted.get("msg", ""))
+    sys.stderr.write(f"[testnet-local phase={safe_phase}] {safe_msg}\n")
