@@ -125,16 +125,34 @@ class _HttpRejectedError(ValueError):
         super().__init__(str(self.report.get("detail", "request rejected")))
 
 
+class _TrustedLocalArtifactPath:
+    """Marker for paths that have passed the caller's local-artifact boundary."""
+
+    __slots__ = ("path",)
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+
+def _trusted_local_artifact_path_v0(path: Path) -> _TrustedLocalArtifactPath:
+    if not isinstance(path, Path):
+        raise TypeError("artifact path must be a Path")
+    return _TrustedLocalArtifactPath(path)
+
+
 def _artifact_is_file_v0(path: Path) -> bool:
-    return path.is_file()
+    trusted = _trusted_local_artifact_path_v0(path)
+    return trusted.path.is_file()
 
 
 def _read_artifact_text_v0(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+    trusted = _trusted_local_artifact_path_v0(path)
+    return trusted.path.read_text(encoding="utf-8")
 
 
 def _read_artifact_bytes_v0(path: Path) -> bytes:
-    return path.read_bytes()
+    trusted = _trusted_local_artifact_path_v0(path)
+    return trusted.path.read_bytes()
 
 
 # Callers pass local operator/configured artifact paths, and HTTP-exposed paths
