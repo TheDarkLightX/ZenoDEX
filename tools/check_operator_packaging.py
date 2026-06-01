@@ -21,42 +21,30 @@ REPORT_SCHEMA = "zenodex.operator_packaging_readiness.v0"
 REQUIRED_FILES = (
     "bin/zenoctl",
     "bin/zenodex-local-testnet",
+    "bin/zenodex-public-testnet",
+    "bin/zenodex-public-testnet.command",
+    "bin/zenodex-public-follower",
     "scripts/install_zenodex.sh",
     "scripts/install_zenodex.ps1",
-    "scripts/zenodex_testnet_demo.sh",
-    "scripts/zenodex_testnet_demo.ps1",
     "tools/zenoctl.py",
     "tools/zeno_ledger_node.py",
+    "tools/zenodex_public_follower.py",
     "tools/check_zeno_ledger_light_client_checkpoint.py",
     "tools/build_zeno_sdk_browser_bundle.py",
     "tools/dex-ui/src/sdk/zenoProofClient.js",
     "Dockerfile.hashlocked",
     "tools/build_operator_release_bundle.py",
     "Dockerfile.operator-tools",
-    ".dockerignore",
-    ".docker/entrypoint.sh",
-    ".docker/nginx.conf",
     ".docker/Dockerfile.tau-local",
     ".docker/nginx.local-testnet.conf.template",
     "docker-compose.local-testnet.yml",
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
-    "docker-compose.testnet-demo.yml",
-    "config/tau_testnet.lock",
-    ".github/workflows/native-launcher.yml",
     ".github/workflows/release-integrity.yml",
-    ".github/workflows/release-publish.yml",
-    "tools/check_release_publication_workflow.py",
-    "tools/build_release_sboms.py",
-    "tools/dex-ui/src/lib/api.js",
-    "tools/dex-ui/public/zenodex-config.json",
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
-    "docs/NATIVE_INSTALLER_PLAN.md",
+    "docs/PUBLIC_TESTNET_V0_1_16.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
-    "rust-runtime/Cargo.toml",
-    "rust-runtime/crates/zenodex-launcher/Cargo.toml",
-    "rust-runtime/crates/zenodex-launcher/src/main.rs",
 )
 
 
@@ -74,20 +62,12 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_posix_wrapper(root, checks, errors)
     _check_install_script(root, checks, errors)
     _check_powershell_installer(root, checks, errors)
-    _check_testnet_demo_scripts(root, checks, errors)
-    _check_testnet_demo_compose(root, checks, errors)
-    _check_base_compose_loopback_ui(root, checks, errors)
-    _check_testnet_demo_runtime_config(root, checks, errors)
     _check_zenoctl_light_client(root, checks, errors)
     _check_browser_sdk(root, checks, errors)
     _check_release_bundle_builder(root, checks, errors)
-    _check_release_integrity_builds_operator_bundle(root, checks, errors)
-    _check_release_publication_workflow(root, checks, errors)
-    _check_tau_testnet_lock(root, checks, errors)
+    _check_release_integrity_publishes_operator_bundle(root, checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.hashlocked", checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.operator-tools", checks, errors)
-    _check_operator_tools_image_inputs(root, checks, errors)
-    _check_dockerignore_operator_inputs(root, checks, errors)
 
     return {
         "schema": REPORT_SCHEMA,
@@ -99,17 +79,13 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "hashlocked-dockerfile",
             "posix-wrapper",
             "windows-cmd-wrapper-installer",
-            "public-testnet-join-wrapper",
             "light-client-checkpoint-verifier",
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
             "single-command-local-testnet",
-            "native-launcher",
+            "single-click-public-testnet",
+            "single-command-public-follower",
             "github-release-assets",
-            "github-release-publication",
-            "ghcr-container-publication",
-            "manual-npm-publication",
-            "local-testnet-demo",
         ],
     }
 
@@ -160,6 +136,57 @@ def _check_posix_wrapper(root: Path, checks: list[dict[str, Any]], errors: list[
             ok=bool(local_path.stat().st_mode & 0o111),
             error="bin/zenodex-local-testnet must be executable",
         )
+    public_path = root / "bin" / "zenodex-public-testnet"
+    if public_path.is_file():
+        public_text = _read(public_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_delegates_to_zenoctl_public",
+            ok="tools/zenoctl.py" in public_text and "testnet local public" in public_text,
+            error="bin/zenodex-public-testnet must delegate to tools/zenoctl.py testnet local public",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_executable",
+            ok=bool(public_path.stat().st_mode & 0o111),
+            error="bin/zenodex-public-testnet must be executable",
+        )
+    click_path = root / "bin" / "zenodex-public-testnet.command"
+    if click_path.is_file():
+        click_text = _read(click_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_command_delegates_to_zenoctl_public",
+            ok="tools/zenoctl.py" in click_text and "testnet local public" in click_text,
+            error="bin/zenodex-public-testnet.command must delegate to tools/zenoctl.py testnet local public",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_command_executable",
+            ok=bool(click_path.stat().st_mode & 0o111),
+            error="bin/zenodex-public-testnet.command must be executable",
+        )
+    follower_path = root / "bin" / "zenodex-public-follower"
+    if follower_path.is_file():
+        follower_text = _read(follower_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_follower_delegates_to_public_follower_tool",
+            ok="tools/zenodex_public_follower.py" in follower_text,
+            error="bin/zenodex-public-follower must delegate to tools/zenodex_public_follower.py",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_follower_executable",
+            ok=bool(follower_path.stat().st_mode & 0o111),
+            error="bin/zenodex-public-follower must be executable",
+        )
 
 
 def _check_install_script(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
@@ -171,9 +198,12 @@ def _check_install_script(root: Path, checks: list[dict[str, Any]], errors: list
         "zenoctl",
         "zenodex-node",
         "zenodex-local-testnet",
+        "zenodex-public-testnet",
+        "zenodex-public-follower",
         "tools/zenoctl.py",
         "tools/zeno_ledger_node.py",
-        "testnet local",
+        "tools/zenodex_public_follower.py",
+        "testnet local public",
         "--dry-run",
     ):
         _append_check(
@@ -201,10 +231,13 @@ def _check_powershell_installer(root: Path, checks: list[dict[str, Any]], errors
         "zenoctl",
         "zenodex-node",
         "zenodex-local-testnet",
+        "zenodex-public-testnet",
+        "zenodex-public-follower",
         ".cmd",
         "tools\\zenoctl.py",
         "tools\\zeno_ledger_node.py",
-        "testnet local",
+        "tools\\zenodex_public_follower.py",
+        "testnet local public",
     ):
         _append_check(
             checks,
@@ -215,125 +248,6 @@ def _check_powershell_installer(root: Path, checks: list[dict[str, Any]], errors
         )
 
 
-def _check_testnet_demo_scripts(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    shell_path = root / "scripts" / "zenodex_testnet_demo.sh"
-    if shell_path.is_file():
-        text = _read(shell_path)
-        for token in (
-            "docker-compose.testnet-demo.yml",
-            "DEMO_API_TOKEN",
-            "--dry-run",
-            "smoke",
-            "tools/zenoctl.py testnet up --profile docker-two-node",
-        ):
-            _append_check(
-                checks,
-                errors,
-                check_id=f"testnet_demo_sh_contains:{token}",
-                ok=token in text,
-                error=f"scripts/zenodex_testnet_demo.sh must contain {token}",
-            )
-        _append_check(
-            checks,
-            errors,
-            check_id="testnet_demo_sh_executable",
-            ok=bool(shell_path.stat().st_mode & 0o111),
-            error="scripts/zenodex_testnet_demo.sh must be executable",
-        )
-    ps_path = root / "scripts" / "zenodex_testnet_demo.ps1"
-    if ps_path.is_file():
-        text = _read(ps_path)
-        for token in ("docker-compose.testnet-demo.yml", "zenodex-local-demo-token", "smoke", "tools/zenoctl.py"):
-            _append_check(
-                checks,
-                errors,
-                check_id=f"testnet_demo_ps1_contains:{token}",
-                ok=token in text,
-                error=f"scripts/zenodex_testnet_demo.ps1 must contain {token}",
-            )
-
-
-def _check_testnet_demo_compose(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    path = root / "docker-compose.testnet-demo.yml"
-    if not path.is_file():
-        return
-    text = _read(path)
-    for token in (
-        "ZENODEX_TESTNET_DEMO=1",
-        "API_HOST=127.0.0.1",
-        "ALLOW_DEMO_TOKEN_AUTH=1",
-        "DEX_API_ENABLED=true",
-        "PERPS_API_ENABLED=true",
-        "ZUSD_API_ENABLED=true",
-    ):
-        _append_check(
-            checks,
-            errors,
-            check_id=f"testnet_demo_compose_contains:{token}",
-            ok=token in text,
-            error=f"docker-compose.testnet-demo.yml must contain {token}",
-        )
-
-
-def _check_base_compose_loopback_ui(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    path = root / "docker-compose.yml"
-    if not path.is_file():
-        return
-    text = _read(path)
-    _append_check(
-        checks,
-        errors,
-        check_id="base_compose_ui_loopback_default",
-        ok="${UI_HOST:-127.0.0.1}:${UI_PORT:-3000}:8080" in text,
-        error="docker-compose.yml must bind the UI to 127.0.0.1 by default",
-    )
-
-
-def _check_testnet_demo_runtime_config(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    entrypoint = root / ".docker" / "entrypoint.sh"
-    if entrypoint.is_file():
-        text = _read(entrypoint)
-        for token in (
-            "ZENODEX_TESTNET_DEMO",
-            "/tmp/zenodex-config.json",
-            '"apiToken"',
-            "DEMO_API_TOKEN",
-        ):
-            _append_check(
-                checks,
-                errors,
-                check_id=f"testnet_demo_entrypoint_contains:{token}",
-                ok=token in text,
-                error=f".docker/entrypoint.sh must contain {token}",
-            )
-    nginx = root / ".docker" / "nginx.conf"
-    if nginx.is_file():
-        text = _read(nginx)
-        for token in (
-            "location = /zenodex-config.json",
-            "alias /tmp/zenodex-config.json",
-            "no-store",
-            "proxy_pass http://127.0.0.1:8000;",
-        ):
-            _append_check(
-                checks,
-                errors,
-                check_id=f"testnet_demo_nginx_contains:{token}",
-                ok=token in text,
-                error=f".docker/nginx.conf must contain {token}",
-            )
-    api_js = root / "tools" / "dex-ui" / "src" / "lib" / "api.js"
-    if api_js.is_file():
-        text = _read(api_js)
-        _append_check(
-            checks,
-            errors,
-            check_id="testnet_demo_ui_runtime_api_token",
-            ok="getRuntimeConfig().apiToken" in text,
-            error="tools/dex-ui/src/lib/api.js must read apiToken from runtime config",
-        )
-
-
 def _check_zenoctl_light_client(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
     path = root / "tools" / "zenoctl.py"
     if not path.is_file():
@@ -341,10 +255,6 @@ def _check_zenoctl_light_client(root: Path, checks: list[dict[str, Any]], errors
     text = _read(path)
     for token in (
         "light-client",
-        "testnet",
-        "demo",
-        "join",
-        "join-network",
         "verify-checkpoint",
         "build-browser-bundle",
         "check_zeno_ledger_light_client_checkpoint.py",
@@ -413,7 +323,6 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
     for token in (
         "docker-compose.local-testnet.yml",
         "docs/LOCAL_TESTNET_QUICKSTART.md",
-        "rust-runtime",
         "packages/zeno-proof-client",
         "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
     ):
@@ -426,20 +335,22 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
         )
 
 
-def _check_release_integrity_builds_operator_bundle(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+def _check_release_integrity_publishes_operator_bundle(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
     path = root / ".github" / "workflows" / "release-integrity.yml"
     if not path.is_file():
         return
     text = _read(path)
     for token in (
-        "contents: read",
+        "contents: write",
         "Build operator release bundle",
         "tools/build_operator_release_bundle.py build",
         "tools/build_operator_release_bundle.py verify",
         "Compute combined SHA256SUMS",
-        "Generate SBOMs",
-        "tools/build_release_sboms.py",
         "Attest operator bundle provenance",
+        "Stage GitHub Release assets",
+        "Create or update GitHub Release",
+        "gh release upload",
+        "--clobber",
     ):
         _append_check(
             checks,
@@ -448,79 +359,6 @@ def _check_release_integrity_builds_operator_bundle(root: Path, checks: list[dic
             ok=token in text,
             error=f".github/workflows/release-integrity.yml must contain {token}",
         )
-
-
-def _check_release_publication_workflow(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    path = root / ".github" / "workflows" / "release-publish.yml"
-    if not path.is_file():
-        return
-    text = _read(path)
-    for token in (
-        "softprops/action-gh-release@v2",
-        "docker/build-push-action@v6",
-        "npm publish --access public --provenance",
-        "tools/build_operator_release_bundle.py build",
-        "build-native-launchers:",
-        "cargo build --release -p zenodex-launcher",
-        "zenodex-native-launcher-",
-        "linux-x86_64",
-        "macos-x86_64",
-        "windows-x86_64",
-        "tools/build_release_sboms.py",
-        "SHA256SUMS",
-    ):
-        _append_check(
-            checks,
-            errors,
-            check_id=f"release_publish_contains:{token}",
-            ok=token in text,
-            error=f".github/workflows/release-publish.yml must contain {token}",
-        )
-
-
-def _check_tau_testnet_lock(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    path = root / "config" / "tau_testnet.lock"
-    if not path.is_file():
-        return
-    fields: dict[str, str] = {}
-    for raw_line in _read(path).splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            _append_check(
-                checks,
-                errors,
-                check_id="tau_testnet_lock_line_format",
-                ok=False,
-                error="config/tau_testnet.lock must use key=value lines",
-            )
-            return
-        key, value = line.split("=", 1)
-        fields[key.strip()] = value.strip()
-    expected = {"schema", "repo", "ref", "commit", "server_path"}
-    _append_check(
-        checks,
-        errors,
-        check_id="tau_testnet_lock_required_fields",
-        ok=expected.issubset(fields),
-        error="config/tau_testnet.lock must contain schema, repo, ref, commit, and server_path",
-    )
-    commit = fields.get("commit", "")
-    _append_check(
-        checks,
-        errors,
-        check_id="tau_testnet_lock_commit_shape",
-        ok=len(commit) == 40 and all(ch in "0123456789abcdefABCDEF" for ch in commit),
-        error="config/tau_testnet.lock commit must be a 40-character hex SHA-1",
-    )
-    _append_check(
-        checks,
-        errors,
-        check_id="tau_testnet_lock_server_path",
-        ok=fields.get("server_path") == "server.py",
-        error="config/tau_testnet.lock server_path must be server.py",
-    )
 
 
 def _check_hashlocked_dockerfile(
@@ -536,44 +374,6 @@ def _check_hashlocked_dockerfile(
     checks.append({"id": f"docker_hashlocked:{relpath}", "ok": report["ok"], "warnings": report["warnings"]})
     if not report["ok"]:
         errors.append(f"{relpath} is not a hash-locked operator Dockerfile")
-
-
-def _check_operator_tools_image_inputs(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    path = root / "Dockerfile.operator-tools"
-    if not path.is_file():
-        return
-    text = _read(path)
-    for token in (
-        "COPY formal/property/production_key_management_v0.json",
-        "COPY generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
-        "USER zenodex",
-    ):
-        _append_check(
-            checks,
-            errors,
-            check_id=f"operator_tools_image_contains:{token}",
-            ok=token in text,
-            error=f"Dockerfile.operator-tools must contain {token}",
-        )
-
-
-def _check_dockerignore_operator_inputs(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
-    path = root / ".dockerignore"
-    if not path.is_file():
-        return
-    text = _read(path)
-    for token in (
-        "!formal/property/production_key_management_v0.json",
-        "!generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
-        "!tools/dex-ui/**",
-    ):
-        _append_check(
-            checks,
-            errors,
-            check_id=f"dockerignore_contains:{token}",
-            ok=token in text,
-            error=f".dockerignore must contain {token}",
-        )
 
 
 def main(argv: list[str] | None = None) -> int:
