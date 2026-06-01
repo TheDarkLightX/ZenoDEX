@@ -388,14 +388,12 @@ def production_config_violations(
         reasons.append("require_proof_when_present requires an enabled proof verifier")
 
     dex_config = config.dex_config
-    if not bool(dex_config.require_all_nonces):
-        reasons.append("dex_config.require_all_nonces must be true")
-    if bool(dex_config.allow_legacy_nonce_free_steps):
-        reasons.append("dex_config.allow_legacy_nonce_free_steps must be false")
     if dex_config.settlement_validation != "strong_proof_carrying":
         reasons.append("dex_config.settlement_validation must be strong_proof_carrying")
     if bool(dex_config.allow_snapshot_bound_quote_bindings):
         reasons.append("dex_config.allow_snapshot_bound_quote_bindings must be false")
+    if not bool(dex_config.reject_settlements_with_rejected_intents):
+        reasons.append("dex_config.reject_settlements_with_rejected_intents must be true")
 
     if require_strict_upba:
         if not bool(config.allow_uniform_batch_certificate):
