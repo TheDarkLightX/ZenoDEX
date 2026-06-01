@@ -47,6 +47,7 @@ def _minimal_repo(tmp_path: Path) -> Path:
         "docker-compose.multimachine.yml",
         "docker-compose.permissionless.yml",
         "docker-compose.testnet-demo.yml",
+        "config/tau_testnet.lock",
         "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
         "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
         "generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py",
@@ -109,6 +110,7 @@ def test_build_operator_release_bundle_writes_archive_and_manifest(tmp_path: Pat
     assert ".dockerignore" in paths
     assert "formal/property/production_key_management_v0.json" in paths
     assert "docker-compose.local-testnet.yml" in paths
+    assert "config/tau_testnet.lock" in paths
     assert "docs/LOCAL_TESTNET_QUICKSTART.md" in paths
     assert "docs/NATIVE_INSTALLER_PLAN.md" in paths
     assert "rust-runtime/crates/zenodex-launcher/src/main.rs" in paths

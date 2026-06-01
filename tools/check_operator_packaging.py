@@ -42,6 +42,7 @@ REQUIRED_FILES = (
     "docker-compose.two-node.yml",
     "docker-compose.multimachine.yml",
     "docker-compose.testnet-demo.yml",
+    "config/tau_testnet.lock",
     ".github/workflows/native-launcher.yml",
     ".github/workflows/release-integrity.yml",
     ".github/workflows/release-publish.yml",
@@ -82,6 +83,7 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_release_bundle_builder(root, checks, errors)
     _check_release_integrity_builds_operator_bundle(root, checks, errors)
     _check_release_publication_workflow(root, checks, errors)
+    _check_tau_testnet_lock(root, checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.hashlocked", checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.operator-tools", checks, errors)
     _check_operator_tools_image_inputs(root, checks, errors)
@@ -469,6 +471,51 @@ def _check_release_publication_workflow(root: Path, checks: list[dict[str, Any]]
             ok=token in text,
             error=f".github/workflows/release-publish.yml must contain {token}",
         )
+
+
+def _check_tau_testnet_lock(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+    path = root / "config" / "tau_testnet.lock"
+    if not path.is_file():
+        return
+    fields: dict[str, str] = {}
+    for raw_line in _read(path).splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            _append_check(
+                checks,
+                errors,
+                check_id="tau_testnet_lock_line_format",
+                ok=False,
+                error="config/tau_testnet.lock must use key=value lines",
+            )
+            return
+        key, value = line.split("=", 1)
+        fields[key.strip()] = value.strip()
+    expected = {"schema", "repo", "ref", "commit", "server_path"}
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_required_fields",
+        ok=expected.issubset(fields),
+        error="config/tau_testnet.lock must contain schema, repo, ref, commit, and server_path",
+    )
+    commit = fields.get("commit", "")
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_commit_shape",
+        ok=len(commit) == 40 and all(ch in "0123456789abcdefABCDEF" for ch in commit),
+        error="config/tau_testnet.lock commit must be a 40-character hex SHA-1",
+    )
+    _append_check(
+        checks,
+        errors,
+        check_id="tau_testnet_lock_server_path",
+        ok=fields.get("server_path") == "server.py",
+        error="config/tau_testnet.lock server_path must be server.py",
+    )
 
 
 def _check_hashlocked_dockerfile(

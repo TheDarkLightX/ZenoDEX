@@ -19,8 +19,9 @@ your machine.
 - Docker (or Podman) with `docker compose` v2 (or `podman compose`) on PATH.
 - Python 3.11+ for the orchestrator (no other Python deps required for the CLI itself).
 - `external/tau-testnet/` cloned into the repo or extracted operator bundle.
-  Tau is fetched by the tester and is not redistributed inside the ZenoDEX
-  bundle:
+  The native `zenodex` launcher fetches the locked Tau commit from
+  `config/tau_testnet.lock` automatically on `local-testnet up`. If you are
+  using `python3 tools/zenoctl.py` directly, clone Tau yourself:
   ```bash
   mkdir -p external
   git clone https://github.com/IDNI/tau-testnet.git external/tau-testnet
@@ -44,7 +45,9 @@ tar -xzf "zenodex-operator-${ZENODEX_VERSION}.tar.gz"
 cd "zenodex-operator-${ZENODEX_VERSION}"
 ```
 
-Clone Tau locally, then bring up the stack:
+Clone Tau locally, then bring up the stack. If you downloaded the native
+launcher, `zenodex --repo-root . local-testnet up --ui-port 18081` performs the
+locked Tau fetch and supplies the default state directory automatically.
 
 ```bash
 mkdir -p external
