@@ -515,7 +515,8 @@ def _apply_create_pool_to_locals(
     amount1 = intent.get_field("amount1")
     created_at = intent.get_field("created_at", created_pool.created_at)
 
-    assert asset0 is not None and asset1 is not None and amount0 is not None and amount1 is not None
+    if asset0 is None or asset1 is None or amount0 is None or amount1 is None:
+        raise ValueError("CREATE_POOL intent missing required liquidity fields")
 
     lp_minted = created_pool.lp_supply - MIN_LP_LOCK
 
@@ -1894,7 +1895,8 @@ def _ab_ordering_key(
 ) -> Tuple[int, int, Tuple[str, ...]]:
     if A_B_order is not None:
         return int(A_B_order[0]), int(A_B_order[1]), tuple(str(x) for x in A_B_order[2])
-    assert ordering is not None and pool_state is not None and reserves is not None
+    if ordering is None or pool_state is None or reserves is None:
+        raise ValueError("_ab_ordering_key requires ordering, pool_state, and reserves")
     A, B = _eval_ordering_ab(ordering, pool_state, reserves)
     return int(A), int(B), tuple(it.intent_id for it in ordering)
 

@@ -4,6 +4,8 @@ import time
 
 import pytest
 
+from src.state.canonical import canonical_hex_fixed_allow_0x
+
 
 pytest.importorskip("py_ecc.bls", reason="py_ecc not installed (install py-ecc to run signing tests)")
 from py_ecc.bls import G2Basic  # type: ignore  # noqa: E402
@@ -47,8 +49,8 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
 
     user_sk = 2
     agg_sk = 3
-    user_pub = bls_pubkey_hex_from_privkey(user_sk)
-    agg_pub = bls_pubkey_hex_from_privkey(agg_sk)
+    user_pub = canonical_hex_fixed_allow_0x(bls_pubkey_hex_from_privkey(user_sk), nbytes=48, name="user_pub")
+    agg_pub = canonical_hex_fixed_allow_0x(bls_pubkey_hex_from_privkey(agg_sk), nbytes=48, name="agg_pub")
 
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32

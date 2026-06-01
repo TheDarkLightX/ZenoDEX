@@ -293,10 +293,14 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
         return None, f"faucet.mint[{index}] invalid pubkey"
     if not isinstance(asset, str) or not asset or len(asset) > 256:
         return None, f"faucet.mint[{index}] invalid asset"
-    if asset == NATIVE_ASSET:
-        return None, "faucet cannot mint native asset"
     if not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
         return None, f"faucet.mint[{index}] amount must be a positive int"
+    try:
+        decoded_asset = canonical_hex_fixed_allow_0x(asset, nbytes=32, name=f"faucet.mint[{index}].asset")
+    except Exception as exc:
+        return None, str(exc)
+    if decoded_asset == NATIVE_ASSET:
+        return None, "faucet cannot mint native asset"
 
     return (pk, asset, int(amount)), None
 
@@ -382,6 +386,12 @@ def _canonical_token_asset(value: Any, *, name: str) -> str:
     if asset == NATIVE_ASSET:
         raise ValueError("token stream does not support native asset")
     return asset
+
+
+def _canonical_tx_sender_pubkey_for_engine(value: Any) -> str:
+    if value == "":
+        return ""
+    return _canonical_pubkey(value, name="tx_sender_pubkey")
 
 
 def _require_u32_positive(value: Any, *, name: str) -> int:
@@ -935,12 +945,17 @@ def apply_app_tx(
         )
         return True, canonical, app_hash, None, None
 
+    try:
+        canonical_tx_sender_pubkey = _canonical_tx_sender_pubkey_for_engine(tx_sender_pubkey)
+    except ValueError as exc:
+        return False, app_state_json, "", None, str(exc)
+
     next_state = state
     if token_ops:
         ok, next_state, token_err = _apply_token_ops(
             next_state,
             token_ops.get(_TOKEN_OPS_KEY),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not ok:
@@ -956,7 +971,7 @@ def apply_app_tx(
             state=next_state,
             zusd_state=zusd_monetary_state,
             operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:
@@ -984,7 +999,7 @@ def apply_app_tx(
             state=next_state,
             operations=dex_ops,
             block_timestamp=int(block_timestamp),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
         )
         if not dex_result.ok or dex_result.state is None:
             return False, app_state_json, "", None, dex_result.error or "DEX rejected"
@@ -999,7 +1014,7 @@ def apply_app_tx(
             proof_mining_state=proof_mining_state,
             proof_mining_op=proof_mining_op,
             proof_mining_context=None if dex_result is None else dex_result.proof_mining_context,
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             chain_balances=chain_balances,
         )
         if not ok:
@@ -1014,7 +1029,7 @@ def apply_app_tx(
             config=perp_cfg,
             state=next_state,
             operations=perp_ops,
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not perp_res.ok or perp_res.state is None:

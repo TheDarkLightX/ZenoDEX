@@ -181,7 +181,7 @@ def rust_eval_cases(
     """Evaluate canonical cases through the Rust runtime CLI."""
 
     bin_path = rust_bin or locate_runtime_binary(allow_build=allow_build)
-    request = json.dumps({"version": RUNTIME_REQUEST_SCHEMA_VERSION, "cases": cases})
+    request = json.dumps({"cases": cases})
     proc = subprocess.run(
         [str(bin_path), "canonical-hash", "-"],
         input=request,
