@@ -98,3 +98,30 @@ def test_check_confidential_crypto_readiness_cli_can_fail_closed(tmp_path: Path)
 
     assert proc.returncode == 1
     assert "production_ready" in proc.stdout
+
+
+def test_check_confidential_crypto_readiness_cli_can_require_current_non_production_posture(tmp_path: Path) -> None:
+    conf = tmp_path / "conf.json"
+    out = tmp_path / "report.json"
+    conf.write_text(json.dumps({"tee_enabled": False, "approved_measurements_count": 0}), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--confidential-status",
+            str(conf),
+            "--require-non-production-ready",
+            "--out",
+            str(out),
+        ],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["production_ready"] is False
+    assert report["host_independent_ready"] is False

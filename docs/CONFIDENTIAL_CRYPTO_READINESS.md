@@ -21,6 +21,11 @@ python3 tools/check_confidential_crypto_readiness.py
 Use `--require-production-ready` when a release gate should fail unless every
 surface is production-ready and host-independent.
 
+The public release gate currently uses `--require-non-production-ready`. That
+keeps the default posture honest: the repo must continue reporting that the
+confidential crypto stack is not production-ready until the missing evidence is
+added deliberately.
+
 ## Current Status
 
 TEE receipt admission is implemented as a deterministic in-repo boundary, but

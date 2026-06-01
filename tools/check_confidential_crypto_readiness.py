@@ -55,7 +55,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit nonzero unless production_ready and host_independent_ready are both true",
     )
+    parser.add_argument(
+        "--require-non-production-ready",
+        action="store_true",
+        help="exit nonzero unless production_ready and host_independent_ready are both false",
+    )
     args = parser.parse_args(argv)
+    if args.require_production_ready and args.require_non_production_ready:
+        parser.error("--require-production-ready and --require-non-production-ready are mutually exclusive")
 
     confidential_status = _read_mapping(args.confidential_status, label="confidential status")
     if confidential_status is None:
@@ -73,6 +80,10 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(encoded)
     if args.require_production_ready and not (
         report.get("production_ready") is True and report.get("host_independent_ready") is True
+    ):
+        return 1
+    if args.require_non_production_ready and not (
+        report.get("production_ready") is False and report.get("host_independent_ready") is False
     ):
         return 1
     return 0
