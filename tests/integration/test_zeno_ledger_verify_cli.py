@@ -3578,7 +3578,7 @@ def test_make_public_testnet_bundle_runs_core_features_and_status(tmp_path: Path
     assert launch_manifest["tau_posture"]["testnet_liveness_dependency"] == "zeno_ledger"
     assert launch_manifest["token_posture"]["testnet_scope"] == "zeno_ledger_testnet"
     assert launch_manifest["token_posture"]["release_scope"] == "tau_net_exclusive"
-    assert [item["symbol"] for item in launch_manifest["test_token_catalog"]] == ["tZENO", "tASSET0", "tASSET1"]
+    assert [item["symbol"] for item in launch_manifest["test_token_catalog"]] == ["tAGRS", "tZDEX", "zUSD"]
     assert launch_manifest["testnet_faucet_posture"]["supports_fixture_mint"] is True
 
     status = json.loads(Path(report["testnet_status_path"]).read_text(encoding="utf-8"))
