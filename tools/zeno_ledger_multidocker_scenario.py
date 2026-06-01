@@ -943,7 +943,7 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         fixture_key_bundle_path=args.fixture_key_bundle,
     )
     # Report stdout is redacted by key before operator display.
-    # lgtm[py/clear-text-logging-sensitive-data]
+    # codeql[py/clear-text-logging-sensitive-data]
     print(json_dumps_for_log(report, indent=2, sort_keys=True))
     sys.stdout.flush()
     if args.stay_alive and report["ok"]:
