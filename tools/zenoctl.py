@@ -755,7 +755,7 @@ def main(argv: list[str] | None = None) -> int:
     init.add_argument("--out-dir", type=Path, default=Path("/tmp/zeno-ledger-public-testnet"))
     init.add_argument("--network-id", default="zeno-ledger-testnet-v0")
     init.add_argument("--chain-id", default="zeno-ledger-testnet-v0")
-    init.add_argument("--token-symbol", default="tZENO")
+    init.add_argument("--token-symbol", default="tZDEX")
     init.add_argument("--dry-run", action="store_true")
     init.set_defaults(func=_cmd_testnet_init)
 

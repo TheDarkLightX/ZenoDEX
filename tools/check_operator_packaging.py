@@ -21,10 +21,14 @@ REPORT_SCHEMA = "zenodex.operator_packaging_readiness.v0"
 REQUIRED_FILES = (
     "bin/zenoctl",
     "bin/zenodex-local-testnet",
+    "bin/zenodex-public-testnet",
+    "bin/zenodex-public-testnet.command",
+    "bin/zenodex-public-follower",
     "scripts/install_zenodex.sh",
     "scripts/install_zenodex.ps1",
     "tools/zenoctl.py",
     "tools/zeno_ledger_node.py",
+    "tools/zenodex_public_follower.py",
     "tools/check_zeno_ledger_light_client_checkpoint.py",
     "tools/build_zeno_sdk_browser_bundle.py",
     "tools/dex-ui/src/sdk/zenoProofClient.js",
@@ -39,6 +43,7 @@ REQUIRED_FILES = (
     ".github/workflows/release-integrity.yml",
     "docs/DEPLOYMENT_QUICKSTART.md",
     "docs/LOCAL_TESTNET_QUICKSTART.md",
+    "docs/PUBLIC_TESTNET_V0_1_16.md",
     "docs/ZENO_SDK_BROWSER_WALLET_SYNC.md",
 )
 
@@ -78,6 +83,8 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
             "proof-carrying-browser-bundle",
             "browser-wallet-sync-sdk",
             "single-command-local-testnet",
+            "single-click-public-testnet",
+            "single-command-public-follower",
             "github-release-assets",
         ],
     }
@@ -129,6 +136,57 @@ def _check_posix_wrapper(root: Path, checks: list[dict[str, Any]], errors: list[
             ok=bool(local_path.stat().st_mode & 0o111),
             error="bin/zenodex-local-testnet must be executable",
         )
+    public_path = root / "bin" / "zenodex-public-testnet"
+    if public_path.is_file():
+        public_text = _read(public_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_delegates_to_zenoctl_public",
+            ok="tools/zenoctl.py" in public_text and "testnet local public" in public_text,
+            error="bin/zenodex-public-testnet must delegate to tools/zenoctl.py testnet local public",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_executable",
+            ok=bool(public_path.stat().st_mode & 0o111),
+            error="bin/zenodex-public-testnet must be executable",
+        )
+    click_path = root / "bin" / "zenodex-public-testnet.command"
+    if click_path.is_file():
+        click_text = _read(click_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_command_delegates_to_zenoctl_public",
+            ok="tools/zenoctl.py" in click_text and "testnet local public" in click_text,
+            error="bin/zenodex-public-testnet.command must delegate to tools/zenoctl.py testnet local public",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_testnet_command_executable",
+            ok=bool(click_path.stat().st_mode & 0o111),
+            error="bin/zenodex-public-testnet.command must be executable",
+        )
+    follower_path = root / "bin" / "zenodex-public-follower"
+    if follower_path.is_file():
+        follower_text = _read(follower_path)
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_follower_delegates_to_public_follower_tool",
+            ok="tools/zenodex_public_follower.py" in follower_text,
+            error="bin/zenodex-public-follower must delegate to tools/zenodex_public_follower.py",
+        )
+        _append_check(
+            checks,
+            errors,
+            check_id="bin_public_follower_executable",
+            ok=bool(follower_path.stat().st_mode & 0o111),
+            error="bin/zenodex-public-follower must be executable",
+        )
 
 
 def _check_install_script(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
@@ -140,9 +198,12 @@ def _check_install_script(root: Path, checks: list[dict[str, Any]], errors: list
         "zenoctl",
         "zenodex-node",
         "zenodex-local-testnet",
+        "zenodex-public-testnet",
+        "zenodex-public-follower",
         "tools/zenoctl.py",
         "tools/zeno_ledger_node.py",
-        "testnet local",
+        "tools/zenodex_public_follower.py",
+        "testnet local public",
         "--dry-run",
     ):
         _append_check(
@@ -170,10 +231,13 @@ def _check_powershell_installer(root: Path, checks: list[dict[str, Any]], errors
         "zenoctl",
         "zenodex-node",
         "zenodex-local-testnet",
+        "zenodex-public-testnet",
+        "zenodex-public-follower",
         ".cmd",
         "tools\\zenoctl.py",
         "tools\\zeno_ledger_node.py",
-        "testnet local",
+        "tools\\zenodex_public_follower.py",
+        "testnet local public",
     ):
         _append_check(
             checks,

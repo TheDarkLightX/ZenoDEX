@@ -159,6 +159,10 @@ def _allow_signing() -> bool:
     return _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False)
 
 
+def _return_signed_tau_tx_payloads() -> bool:
+    return _env_bool("PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False)
+
+
 def _auto_mine() -> bool:
     return _env_bool("PERPS_WALLET_AUTO_MINE", False)
 
@@ -702,8 +706,13 @@ def _build_encrypted_sss_provider_delivery_response(parsed: Mapping[str, Any]) -
         "not_claimed": [
             "does_not_claim_production_custody",
             "does_not_claim_external_audit_completion",
+            "does_not_return_encrypted_share_material",
         ],
-        "backup": backup,
+        "backup_hash": backup.get("backup_hash"),
+        "delivery_evidence_hashes": [
+            item.get("delivery_hash") for item in delivery_evidence if isinstance(item.get("delivery_hash"), str)
+        ],
+        "backup_redacted": True,
         "encrypted_sss_backup": status,
     }
 
@@ -785,10 +794,22 @@ def _bind_oracle_authority_status(
     return status
 
 
-def _require_production_oracle_authority_for_action(action: str) -> bool:
+def _is_local_chain_id(chain_id: str) -> bool:
+    value = str(chain_id or "").strip().lower()
+    return (
+        value in {"tau-local", "local", "localtest"}
+        or "localtest" in value
+        or value.endswith("-local")
+        or value.startswith("tau-test-")
+        or value.startswith("test-")
+    )
+
+
+def _require_production_oracle_authority_for_action(action: str, *, chain_id: str | None = None) -> bool:
     if action not in _ORACLE_AUTHORITY_ACTIONS:
         return False
-    return _env_bool("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", False)
+    default = not _is_local_chain_id(chain_id or _tau_chain_id())
+    return _env_bool("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", default)
 
 
 def _canonical_pubkey(value: object, *, name: str) -> str:
@@ -1039,6 +1060,32 @@ def _hash_payload(domain: str, payload: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes(domain) + canonical_json_bytes(dict(payload)))
 
 
+def _redacted_tau_tx_payload(payload: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    if payload is None:
+        return None
+    if _return_signed_tau_tx_payloads():
+        return dict(payload)
+    raw_operations = payload.get("operations")
+    operation_streams = sorted(str(key) for key in raw_operations.keys()) if isinstance(raw_operations, Mapping) else []
+    return {
+        "redacted": True,
+        "redaction_reason": "signed_tau_tx_payload_response_redaction",
+        "payload_hash": _hash_payload("zenodex.perps_wallet.tau_tx_payload/v1", payload),
+        "sender_pubkey": payload.get("sender_pubkey"),
+        "sequence_number": payload.get("sequence_number"),
+        "expiration_time": payload.get("expiration_time"),
+        "fee_limit": str(payload.get("fee_limit")),
+        "operation_streams": operation_streams,
+    }
+
+
+def _redact_response_authority_material(payload: dict[str, Any]) -> dict[str, Any]:
+    report = payload.get("report")
+    if isinstance(report, dict) and isinstance(report.get("tau_tx_payload"), Mapping):
+        report["tau_tx_payload"] = _redacted_tau_tx_payload(report.get("tau_tx_payload"))
+    return payload
+
+
 def _perps_proof_profile() -> dict[str, Any]:
     return {
         "schema": _PERPS_PROOF_PROFILE_SCHEMA,
@@ -1135,12 +1182,12 @@ def _reject_payload(payload: dict[str, Any], *, status: str, error: str) -> dict
         profile = proof_section.get("profile")
         if isinstance(profile, dict):
             profile["promotion_ready"] = False
-    return {
+    return _redact_response_authority_material({
         **payload,
         "ok": False,
         "status": status,
         "error": error,
-    }
+    })
 
 
 def _safe_sequence_after_submission(client: Any, tx_sender_pubkey: str) -> int | None:
@@ -1250,7 +1297,7 @@ def _oracle_authority_exercise_for_action(
         "action": action,
         "chain_id": chain_id,
         "market_id": operation.get("market_id"),
-        "required_for_action": _require_production_oracle_authority_for_action(action),
+        "required_for_action": _require_production_oracle_authority_for_action(action, chain_id=chain_id),
         "authority_exercised": authority_exercised,
         "production_authority": authority_ready,
         "status": "exercised" if authority_exercised else "blocked",
@@ -1305,6 +1352,7 @@ def _perps_state_delta_witness(
         "position_base_a",
         "position_base_b",
         "index_price_e8",
+        "clearing_price_epoch",
         "clearing_price_e8",
         "now_epoch",
         "oracle_last_update_epoch",
@@ -2287,7 +2335,7 @@ def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
             "app_hash_before": app_hash_before,
             "app_hash_after": app_hash_after,
         }
-    return {
+    return _redact_response_authority_material({
         "ok": True,
         "schema": "zenodex/perps-wallet-testnet-faucet/v1",
         "testnet_only": True,
@@ -2313,7 +2361,7 @@ def _build_testnet_faucet_response(body: Mapping[str, Any]) -> Dict[str, Any]:
             "tau_tx_payload": tau_tx_payload,
         },
         "submission": submission,
-    }
+    })
 
 
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
@@ -2603,7 +2651,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             enforce_required=False,
             wrapper_key="post_submit_zk_wrapper",
         )
-    return payload
+    return _redact_response_authority_material(payload)
 
 
 def _status_payload() -> Dict[str, Any]:

@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 import time
+from typing import Mapping
 
 import pytest
 
@@ -216,6 +217,7 @@ def _perps_wallet_authority_profile(**overrides: object) -> dict[str, object]:
                 "init_market_2p",
                 "deposit_collateral",
                 "withdraw_collateral",
+                "deposit_insurance",
                 "set_position_pair",
                 "advance_epoch",
                 "publish_clearing_price",
@@ -335,6 +337,7 @@ def _perps_wallet_rotated_profile() -> dict[str, object]:
                 "init_market_2p",
                 "deposit_collateral",
                 "withdraw_collateral",
+                "deposit_insurance",
                 "set_position_pair",
                 "advance_epoch",
                 "publish_clearing_price",
@@ -1173,6 +1176,25 @@ class _FakeClient:
         return "BLOCK created"
 
 
+def _assert_redacted_tau_tx_payload(
+    redacted: object,
+    actual: Mapping[str, object],
+    *,
+    operation_streams: list[str] | None = None,
+) -> None:
+    assert isinstance(redacted, Mapping)
+    assert redacted["redacted"] is True
+    assert redacted["redaction_reason"] == "signed_tau_tx_payload_response_redaction"
+    assert redacted["payload_hash"] == perps_wallet_api._hash_payload(
+        "zenodex.perps_wallet.tau_tx_payload/v1",
+        actual,
+    )
+    assert redacted["sender_pubkey"] == actual["sender_pubkey"]
+    assert redacted["sequence_number"] == actual["sequence_number"]
+    assert redacted["fee_limit"] == str(actual["fee_limit"])
+    assert redacted["operation_streams"] == (operation_streams or ["8"])
+
+
 def _fake_client_apply_stream8_payload(client: _FakeClient, payload: object) -> None:
     client.sent.append(dict(payload))
     assert isinstance(payload, dict)
@@ -1198,6 +1220,7 @@ def _fake_client_apply_stream8_payload(client: _FakeClient, payload: object) -> 
     assert result.ok, result.error
     assert result.state is not None
     client.app_state = _wrapped_app_state(result.state)
+    type(client).app_state = client.app_state
     client.app_hash = "sha256:" + hash_v0("test_perps_wallet_app_state", client.app_state)[2:]
 
 
@@ -1251,6 +1274,7 @@ def test_perps_wallet_authority_complete_profile_is_ready() -> None:
     assert status["proof_profile"]["runtime_proof_profile"] == "perps-stream8-risc0-or-equivalent-v1"
     assert status["transaction_scope"]["stream_key"] == "8"
     assert "deposit_collateral" in status["transaction_scope"]["allowed_actions"]
+    assert "deposit_insurance" in status["transaction_scope"]["allowed_actions"]
     assert {policy["subject_key_id"] for policy in status["recovery_policies"]} == {
         "perps-wallet-a",
         "perps-wallet-b",
@@ -1994,6 +2018,7 @@ def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatc
     _FakeClient.native_balances = {ALICE[2:]: 0}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
     monkeypatch.setattr(_FakeClient, "sendtx", lambda self, payload: "SUCCESS tx accepted")
 
@@ -2374,6 +2399,7 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     def hashed_getappstate(self, *, full: bool = False) -> str:
@@ -2410,8 +2436,62 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
     assert payload["report"]["operation"]["account_pubkey"] == ALICE
     assert payload["transport"]["fee_limit_native_balance_ok"] is True
     assert payload["transport"]["quote_balance"] == 5_000
-    assert payload["report"]["tau_tx_payload"]["fee_limit"] == "2"
+    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], _FakeClient.sent[0])
+    assert _FakeClient.sent[0]["fee_limit"] == "2"
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
+
+
+def test_submit_deposit_insurance_uses_isolated_market_and_sender_balance(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    state = _state_with_isolated_liquidatable_account(quote_asset=quote_asset)
+    state.balances.set(ALICE, quote_asset, 1_000)
+    _FakeClient.app_state = _wrapped_app_state(state)
+    _FakeClient.sent = []
+    _FakeClient.native_balances = {ALICE[2:]: 5}
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def hashed_getappstate(self, *, full: bool = False) -> str:
+        assert full is True
+        app_hash = hash_v0("test_perps_wallet_app_state", self.app_state)
+        return json.dumps({"app_hash": "sha256:" + app_hash[2:], "app_state": self.app_state}, sort_keys=True)
+
+    monkeypatch.setattr(_FakeClient, "getappstate", hashed_getappstate)
+    monkeypatch.setattr(_FakeClient, "sendtx", lambda self, payload: (_fake_client_apply_stream8_payload(self, payload), "SUCCESS tx accepted")[1])
+
+    body = {
+        "action": "deposit_insurance",
+        "market_id": ISOLATED_MARKET_ID,
+        "account_pubkey": ALICE,
+        "account_privkey": str(ALICE_PRIVKEY),
+        "amount": 123,
+        "tx_fee_limit": "2",
+        "deadline": FUTURE_DEADLINE,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["operation"]["version"] == "0.1"
+    assert payload["report"]["operation"]["action"] == "deposit_insurance"
+    assert payload["post_submit"]["state_delta_witness"]["changed_markets"][0]["deltas"] == {
+        "insurance_balance": 123,
+    }
+    post_state = perps_wallet_api._state_from_app_state(_FakeClient.app_state)
+    assert post_state.perps is not None
+    market = post_state.perps.markets[ISOLATED_MARKET_ID]
+    assert isinstance(market, PerpMarketState)
+    assert int(market.global_state["initial_insurance"]) == 100_123
+    assert int(market.global_state["insurance_balance"]) == 100_123
+    assert post_state.balances.get(ALICE, quote_asset) == 877
 
 
 def test_state_delta_witness_accepts_set_position_pair_target_already_satisfied() -> None:
@@ -2436,6 +2516,33 @@ def test_state_delta_witness_accepts_set_position_pair_target_already_satisfied(
 
     assert witness["changed_markets"] == []
     assert witness["target_already_satisfied"]["satisfied"] is True
+    assert perps_wallet_api._state_delta_witness_matches_operation(witness, operation) is True
+
+
+def test_state_delta_witness_tracks_same_price_epoch_publish() -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    before = _apply_perps(
+        _apply_perps(
+            _state_ready_to_settle(quote_asset=quote_asset),
+            [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "settle_epoch"}],
+        ),
+        [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "advance_epoch", "delta": 1}],
+    )
+    after = _apply_perps(before, [_signed_publish_price(price_e8=100_000_000, oracle_nonce=2)], sender=ORACLE)
+    operation = {"action": "publish_clearing_price", "market_id": MARKET_ID}
+
+    witness = perps_wallet_api._perps_state_delta_witness(
+        chain_id=CHAIN_ID,
+        action="publish_clearing_price",
+        operation=operation,
+        app_hash_before="before",
+        app_hash_after="after",
+        app_state_before=_wrapped_app_state(before),
+        app_state_after=_wrapped_app_state(after),
+    )
+
+    assert witness["changed_markets"][0]["market_id"] == MARKET_ID
+    assert witness["changed_markets"][0]["deltas"] == {"clearing_price_epoch": 1}
     assert perps_wallet_api._state_delta_witness_matches_operation(witness, operation) is True
 
 
@@ -2737,6 +2844,7 @@ def test_perps_wallet_testnet_faucet_mints_quote_asset_on_stream_7(monkeypatch) 
     sent_ops = _FakeClient.sent[0]["operations"]
     assert isinstance(sent_ops, dict)
     assert json.loads(sent_ops["7"]) == {"mint": [{"pubkey": BOB, "asset": quote_asset, "amount": 5_000}]}
+    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], _FakeClient.sent[0], operation_streams=["7"])
 
 
 def test_perps_wallet_testnet_faucet_rebuilds_once_on_stale_sequence(monkeypatch) -> None:
@@ -3229,10 +3337,10 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
     assert payload["transport"]["allow_local_signing"] is False
     assert payload["transport"]["signing_mode"] == "external_signed_payload"
     assert payload["report"]["preflight"]["ok"] is True
-    assert payload["report"]["tau_tx_payload"] == external_payload
+    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], external_payload)
     assert _FakeClient.sent == [external_payload]
-    assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
-    assert json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])[0]["action"] == "deposit_collateral"
+    assert external_payload["sender_pubkey"] == ALICE[2:]
+    assert json.loads(external_payload["operations"]["8"])[0]["action"] == "deposit_collateral"
     proof_body = payload["proof"]["intent_receipt"]["body"]
     assert proof_body["app_hash_before"] == "sha256:" + "cd" * 32
     assert proof_body["app_hash_after"] == payload["post_submit"]["app_hash"]
@@ -3479,7 +3587,8 @@ def test_submit_withdraw_collateral_uses_sender_bound_account_and_stream_8(monke
     assert payload["ok"] is True
     assert payload["report"]["preflight"]["ok"] is True
     assert payload["report"]["operation"]["action"] == "withdraw_collateral"
-    assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
+    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], _FakeClient.sent[0])
+    assert _FakeClient.sent[0]["sender_pubkey"] == ALICE[2:]
 
 
 def test_prepare_publish_price_signs_oracle_op(monkeypatch) -> None:
@@ -3539,7 +3648,8 @@ def test_submit_advance_epoch_uses_operator_signer(monkeypatch) -> None:
     assert status_code == 200
     assert payload["ok"] is True
     assert payload["report"]["operation"]["action"] == "advance_epoch"
-    assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == OPERATOR[2:]
+    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], _FakeClient.sent[0])
+    assert _FakeClient.sent[0]["sender_pubkey"] == OPERATOR[2:]
 
 
 def test_prepare_settle_epoch_can_fail_closed_on_missing_oracle_bridge(monkeypatch) -> None:
@@ -3693,6 +3803,49 @@ def test_submit_settle_epoch_requires_ready_oracle_authority_when_enabled(monkey
         "market_id": MARKET_ID,
         "operator_privkey": str(OPERATOR_PRIVKEY),
         "oracle_adapter_bridge": bridge_payload["bridge"],
+        "deadline": FUTURE_DEADLINE,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert "production_oracle_authority_required" in payload["error"]
+    assert "oracle production authority profile is missing" in payload["error"]
+    assert _FakeClient.sent == []
+
+
+def test_submit_settle_epoch_requires_ready_oracle_authority_by_default_on_public_chain(monkeypatch) -> None:
+    public_chain_id = "zenodex-public-testnet-v0"
+    quote_asset = derive_zusd_tau_asset_id(chain_id=public_chain_id)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", public_chain_id)
+    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    monkeypatch.delenv("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", raising=False)
+    monkeypatch.delenv("PERPS_ORACLE_AUTHORITY_PROFILE_JSON", raising=False)
+    monkeypatch.delenv("PERPS_ORACLE_AUTHORITY_PROFILE_FILE", raising=False)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID, "chain_id": public_chain_id}).encode("utf-8"),
+    )
+    assert status_code == 200
+
+    body = {
+        "action": "settle_epoch",
+        "market_id": MARKET_ID,
+        "operator_privkey": str(OPERATOR_PRIVKEY),
+        "oracle_adapter_bridge": bridge_payload["bridge"],
+        "chain_id": public_chain_id,
         "deadline": FUTURE_DEADLINE,
         "block_timestamp": 1,
     }
@@ -4635,8 +4788,9 @@ def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) 
     assert payload["report"]["operation"]["version"] == "0.1"
     assert payload["report"]["operation"]["action"] == "partial_liquidate"
     assert payload["report"]["operation"]["fraction_bps"] == 5000
-    assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
-    wire_ops = json.loads(payload["report"]["tau_tx_payload"]["operations"]["8"])
+    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], _FakeClient.sent[0])
+    assert _FakeClient.sent[0]["sender_pubkey"] == ALICE[2:]
+    wire_ops = json.loads(_FakeClient.sent[0]["operations"]["8"])
     assert wire_ops[0]["action"] == "partial_liquidate"
     assert wire_ops[0]["account_pubkey"] == ALICE
     assert wire_ops[0]["fraction_bps"] == 5000

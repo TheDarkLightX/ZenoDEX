@@ -16,6 +16,8 @@ Security contract:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
@@ -23,14 +25,65 @@ from string import Template
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_PATH = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
+UI_SURFACE_CONTRACT_PATH = REPO_ROOT / "tools" / "dex-ui" / "public" / "zenodex-ui-contract.json"
 
 EXPECTED_LOCATION_BLOCKS = (
     "location = /api/health",
+    "location = /status",
+    "location = /features",
+    "location = /tokens",
+    "location = /network",
+    "location = /public_network_config.json",
+    "location ^~ /ledger-bundle/",
+    "location = /live",
+    "location ^~ /live/",
     "location = /api/pools",
     "location = /api/swap",
+    "location = /api/liquidity/create",
+    "location = /api/liquidity/add",
+    "location = /api/liquidity/remove",
+    "location = /api/testnet/faucet",
+    "location = /api/tokenomics/status",
+    "location = /api/tokenomics/active-participant/claim",
+    "location = /tx",
     "location ^~ /api/oracle/",
     "location ^~ /api/",
 )
+
+WRITER_MUTATION_LOCATION_BLOCKS = (
+    "location = /api/swap",
+    "location = /api/liquidity/create",
+    "location = /api/liquidity/add",
+    "location = /api/liquidity/remove",
+    "location = /api/testnet/faucet",
+    "location = /api/tokenomics/active-participant/claim",
+    "location = /tx",
+)
+
+
+def load_ui_surface_contract(*, contract_path: Path = UI_SURFACE_CONTRACT_PATH) -> dict[str, object]:
+    if not contract_path.is_file():
+        raise FileNotFoundError(f"UI surface contract missing: {contract_path}")
+    parsed = json.loads(contract_path.read_text(encoding="utf-8"))
+    if not isinstance(parsed, dict):
+        raise ValueError("UI surface contract must be a JSON object")
+    schema = parsed.get("schema")
+    version = parsed.get("version")
+    if schema != "zenodex.dex_ui.surface_contract.v1":
+        raise ValueError(f"unexpected UI surface contract schema: {schema!r}")
+    if not isinstance(version, str) or not version:
+        raise ValueError("UI surface contract version must be non-empty")
+    return parsed
+
+
+def ui_surface_contract_version(*, contract_path: Path = UI_SURFACE_CONTRACT_PATH) -> str:
+    return str(load_ui_surface_contract(contract_path=contract_path)["version"])
+
+
+def ui_surface_contract_hash(*, contract_path: Path = UI_SURFACE_CONTRACT_PATH) -> str:
+    contract = load_ui_surface_contract(contract_path=contract_path)
+    canonical = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "sha256:" + hashlib.sha256(canonical).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -99,7 +152,47 @@ def validate_rendered_conf(rendered: str, *, inputs: NginxRenderInputs) -> list[
     for upstream in (inputs.writer_upstream, inputs.stdlib_upstream, inputs.oracle_upstream):
         if upstream not in rendered:
             errors.append(f"upstream {upstream!r} missing from rendered config")
+    if "map $http_origin $zenodex_origin_ok" not in rendered:
+        errors.append("origin guard map missing")
+    if 'map "$request_method:$http_content_type" $zenodex_write_content_type_ok' not in rendered:
+        errors.append("writer content-type guard map missing")
+    for block in WRITER_MUTATION_LOCATION_BLOCKS:
+        try:
+            chunk = _extract_location_block(rendered, block)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        if "if ($zenodex_origin_ok = 0) { return 403; }" not in chunk:
+            errors.append(f"{block}: origin guard missing")
+        if "if ($zenodex_write_content_type_ok = 0) { return 415; }" not in chunk:
+            errors.append(f"{block}: JSON content-type guard missing")
+    try:
+        stdlib_chunk = _extract_location_block(rendered, "location ^~ /api/ {")
+    except ValueError as exc:
+        errors.append(str(exc))
+    else:
+        if "if ($zenodex_origin_ok = 0) { return 403; }" not in stdlib_chunk:
+            errors.append("stdlib API origin guard missing")
     return errors
+
+
+def _extract_location_block(rendered: str, marker: str) -> str:
+    marker_idx = rendered.find(marker)
+    if marker_idx < 0:
+        raise ValueError(f"missing expected location block: {marker!r}")
+    brace_idx = rendered.find("{", marker_idx)
+    if brace_idx < 0:
+        raise ValueError(f"malformed location block: {marker!r}")
+    depth = 0
+    for idx in range(brace_idx, len(rendered)):
+        char = rendered[idx]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return rendered[marker_idx:idx + 1]
+    raise ValueError(f"unterminated location block: {marker!r}")
 
 
 def write_rendered_conf(rendered: str, *, out_path: Path) -> None:
@@ -138,19 +231,43 @@ def render_runtime_config(*, demo_mode: bool = False, extra: dict[str, object] |
     already calls `/api/*` relative paths; nginx injects the right token
     server-side.
     """
-    import json
-
+    default_external_signer: dict[str, object] = {
+        "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
+        "signerSecurityProfile": "native-desktop-loopback-signer-v0",
+        "connectUrl": "http://127.0.0.1:8799/public-receipt",
+        "signTauTransactionPayloadUrl": "http://127.0.0.1:8799/sign-tau-transaction-payload",
+        "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent",
+    }
     config: dict[str, object] = {
         "demoMode": bool(demo_mode),
+        "allowDemoMode": False,
         "apiBase": "",
         "zenoOracleApiBase": "",
         "oracleApiBase": "",
         "deployment": "local-testnet",
         "allowBrowserKeyGeneration": True,
+        "allowDefaultExternalSigner": True,
+        "defaultExternalSigner": default_external_signer,
+        "uiSurfaceContractSchema": "zenodex.dex_ui.surface_contract.v1",
+        "uiSurfaceContractVersion": ui_surface_contract_version(),
+        "uiSurfaceContractHash": ui_surface_contract_hash(),
     }
     if extra:
         for key, value in extra.items():
-            if key in ("demoMode", "apiBase", "zenoOracleApiBase", "oracleApiBase", "deployment"):
+            if key in (
+                "demoMode",
+                "allowDemoMode",
+                "apiBase",
+                "zenoOracleApiBase",
+                "oracleApiBase",
+                "deployment",
+                "allowBrowserKeyGeneration",
+                "allowDefaultExternalSigner",
+                "defaultExternalSigner",
+                "uiSurfaceContractSchema",
+                "uiSurfaceContractVersion",
+                "uiSurfaceContractHash",
+            ):
                 raise ValueError(f"extra runtime-config key {key!r} conflicts with built-in")
             config[key] = value
     return json.dumps(config, indent=2, sort_keys=True) + "\n"

@@ -44,10 +44,10 @@ For Windows PowerShell:
 .\scripts\install_zenodex.ps1 -BinDir "$HOME\.zenodex\bin"
 ```
 
-These wrappers install `zenoctl` and `zenodex-node`. They call this checkout's
-Python tools directly and do not install services, write secrets, or modify
-shell profiles. They also install `zenodex-local-testnet`, a short wrapper for
-`zenoctl testnet local`.
+These wrappers install `zenoctl`, `zenodex-node`, `zenodex-local-testnet`,
+`zenodex-public-testnet`, and `zenodex-public-follower`. They call this
+checkout's Python tools directly and do not install services, write secrets, or
+modify shell profiles.
 
 Run the packaging readiness check:
 
@@ -146,9 +146,18 @@ security posture).
 Installed operator-bundle form:
 
 ```bash
+zenodex-public-testnet
+zenodex-public-follower --config-url https://<quick-tunnel-host>/public_network_config.json
 zenodex-local-testnet up --out-dir /tmp/zen-local
 zenodex-local-testnet smoke --out-dir /tmp/zen-local --browser required
 ```
+
+`zenodex-public-testnet` is the point-and-click public path: it uses the
+default public-testnet directory, runs the release smoke, opens the public UI,
+and pre-funds the fixture test accounts before the browser opens.
+`zenodex-public-follower` is the outside-node path: it downloads the public
+config, hash-pins the bundle, replays bootstrap, pulls live blocks, and emits a
+common-header acceptance report.
 
 Lifecycle:
 
