@@ -20,7 +20,7 @@ def test_operator_packaging_check_passes_current_checkout() -> None:
     assert "native-launcher" in report["supported_operator_paths"]
 
 
-def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> None:
+def _copy_packaging_fixture(tmp_path: Path) -> None:
     for relpath in (
         "scripts/install_zenodex.sh",
         "scripts/install_zenodex.ps1",
@@ -29,7 +29,10 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "tools/zenoctl.py",
         "tools/zeno_ledger_node.py",
         "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/build_zeno_sdk_browser_bundle.py",
+        "tools/dex-ui/src/sdk/zenoProofClient.js",
         "Dockerfile.hashlocked",
+        "tools/build_operator_release_bundle.py",
         "Dockerfile.operator-tools",
         ".dockerignore",
         ".docker/entrypoint.sh",
@@ -40,6 +43,7 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         "docker-compose.two-node.yml",
         "docker-compose.multimachine.yml",
         "docker-compose.testnet-demo.yml",
+        "config/tau_testnet.lock",
         ".github/workflows/native-launcher.yml",
         ".github/workflows/release-integrity.yml",
         ".github/workflows/release-publish.yml",
@@ -60,10 +64,31 @@ def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> Non
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
 
+
+def test_operator_packaging_check_rejects_missing_wrapper(tmp_path: Path) -> None:
+    _copy_packaging_fixture(tmp_path)
+
     report = check_operator_packaging(tmp_path)
 
     assert report["ok"] is False
     assert "missing required packaging file: bin/zenoctl" in report["errors"]
+
+
+def test_operator_packaging_rejects_malformed_tau_testnet_lock(tmp_path: Path) -> None:
+    _copy_packaging_fixture(tmp_path)
+    (tmp_path / "config" / "tau_testnet.lock").write_text(
+        "schema=zenodex.tau_testnet_dependency_lock.v0\n"
+        "repo=https://github.com/IDNI/tau-testnet.git\n"
+        "ref=refs/heads/main\n"
+        "commit=not-a-commit\n"
+        "server_path=server.py\n",
+        encoding="utf-8",
+    )
+
+    report = check_operator_packaging(tmp_path)
+
+    assert report["ok"] is False
+    assert "config/tau_testnet.lock commit must be a 40-character hex SHA-1" in report["errors"]
 
 
 def test_operator_packaging_cli_outputs_json(capsys) -> None:

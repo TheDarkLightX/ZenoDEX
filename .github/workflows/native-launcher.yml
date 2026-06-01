@@ -5,6 +5,7 @@ on:
     paths:
       - "rust-runtime/Cargo.toml"
       - "rust-runtime/crates/zenodex-launcher/**"
+      - "config/tau_testnet.lock"
       - "docs/NATIVE_INSTALLER_PLAN.md"
       - ".github/workflows/native-launcher.yml"
   push:
@@ -14,6 +15,7 @@ on:
     paths:
       - "rust-runtime/Cargo.toml"
       - "rust-runtime/crates/zenodex-launcher/**"
+      - "config/tau_testnet.lock"
       - "docs/NATIVE_INSTALLER_PLAN.md"
       - ".github/workflows/native-launcher.yml"
   workflow_dispatch:

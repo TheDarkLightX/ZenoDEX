@@ -35,6 +35,8 @@ explicit:
   is fully native or bundled;
 - missing `external/tau-testnet` is fetched automatically for local testnet
   unless `--no-auto-tau` is set;
+- the default Tau fetch is pinned by `config/tau_testnet.lock` and checked
+  after checkout;
 - the default local-testnet state directory is `~/.zenodex/local-testnet`;
 - all local-testnet lifecycle commands still call the checked `zenoctl.py`
   implementation.
@@ -56,7 +58,7 @@ zenodex zenoctl <existing zenoctl args>
 ```
 
 The launcher is deliberately small. It discovers the operator bundle root,
-checks or fetches the Tau local-testnet dependency, supplies a default
+checks or fetches the pinned Tau local-testnet dependency, supplies a default
 `--out-dir`, and delegates to `tools/zenoctl.py`.
 
 ## Release Artifacts
@@ -88,8 +90,8 @@ ports publicly, or bypass the existing deployment-profile checks.
 
 - Replace the Python orchestration dependency with a fully native command path,
   or bundle a controlled Python runtime.
-- Pin the Tau local-testnet dependency to a manifest with commit hash and
-  checksum, then verify after fetch.
+- Add checksum/provenance verification for packaged Tau source archives. The
+  Git checkout path is already commit-pinned by `config/tau_testnet.lock`.
 - Add release signing and provenance attestations for each native binary.
 - Add a Tauri desktop shell once the CLI path is stable. The desktop shell
   should call the native launcher rather than duplicate orchestration logic.

@@ -106,7 +106,7 @@ zenodex local-testnet up
 ```
 
 It supplies a default local state directory, checks prerequisites, can fetch the
-Tau local-testnet dependency, and delegates to the existing checked
+pinned Tau local-testnet dependency, and delegates to the existing checked
 `zenoctl.py` orchestration. See
 [docs/NATIVE_INSTALLER_PLAN.md](docs/NATIVE_INSTALLER_PLAN.md).
 

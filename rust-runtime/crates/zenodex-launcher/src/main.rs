@@ -11,6 +11,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 const TAU_TESTNET_REPO: &str = "https://github.com/IDNI/tau-testnet.git";
+const TAU_TESTNET_REF: &str = "refs/heads/main";
+const TAU_TESTNET_COMMIT: &str = "638661d654a7449193f103c54fefc9f9b25f7e2d";
+const TAU_TESTNET_SERVER_PATH: &str = "server.py";
+const TAU_TESTNET_LOCK_REL: &str = "config/tau_testnet.lock";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GlobalOptions {
@@ -18,7 +22,9 @@ struct GlobalOptions {
     python: Option<String>,
     dry_run: bool,
     auto_tau: bool,
-    tau_repo: String,
+    tau_repo: Option<String>,
+    tau_commit: Option<String>,
+    allow_unpinned_tau: bool,
 }
 
 impl Default for GlobalOptions {
@@ -28,9 +34,27 @@ impl Default for GlobalOptions {
             python: None,
             dry_run: false,
             auto_tau: true,
-            tau_repo: TAU_TESTNET_REPO.to_string(),
+            tau_repo: None,
+            tau_commit: None,
+            allow_unpinned_tau: false,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TauLock {
+    repo: String,
+    ref_name: String,
+    commit: String,
+    server_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TauSelection {
+    repo: String,
+    commit: Option<String>,
+    server_path: PathBuf,
+    pinned: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,18 +153,38 @@ fn parse_args(raw_args: Vec<String>) -> Result<ParsedArgs, String> {
             }
             "--dry-run" => globals.dry_run = true,
             "--no-auto-tau" => globals.auto_tau = false,
+            "--allow-unpinned-tau" => globals.allow_unpinned_tau = true,
             "--tau-repo" => {
                 index += 1;
-                globals.tau_repo = raw_args
-                    .get(index)
-                    .ok_or_else(|| "--tau-repo requires a value".to_string())?
-                    .clone();
+                globals.tau_repo = Some(
+                    raw_args
+                        .get(index)
+                        .ok_or_else(|| "--tau-repo requires a value".to_string())?
+                        .clone(),
+                );
             }
             arg if arg.starts_with("--tau-repo=") => {
-                globals.tau_repo = arg
-                    .strip_prefix("--tau-repo=")
-                    .unwrap_or_default()
-                    .to_string();
+                globals.tau_repo = Some(
+                    arg.strip_prefix("--tau-repo=")
+                        .unwrap_or_default()
+                        .to_string(),
+                );
+            }
+            "--tau-commit" => {
+                index += 1;
+                globals.tau_commit = Some(
+                    raw_args
+                        .get(index)
+                        .ok_or_else(|| "--tau-commit requires a value".to_string())?
+                        .clone(),
+                );
+            }
+            arg if arg.starts_with("--tau-commit=") => {
+                globals.tau_commit = Some(
+                    arg.strip_prefix("--tau-commit=")
+                        .unwrap_or_default()
+                        .to_string(),
+                );
             }
             "-h" | "--help" => {
                 return Ok(ParsedArgs {
@@ -246,21 +290,37 @@ fn ensure_tau_testnet(
     globals: &GlobalOptions,
     env: &impl HostEnv,
 ) -> Result<(), String> {
+    let lock = load_tau_lock(repo_root, env)?;
+    let selection = resolve_tau_selection(globals, &lock)?;
     let tau_path = tau_testnet_path(repo_root);
-    if env.file_exists(&tau_path.join("server.py")) {
+    if env.file_exists(&tau_path.join(&selection.server_path)) {
+        if selection.pinned && env.file_exists(&tau_path.join(".git").join("HEAD")) {
+            verify_tau_commit(
+                &tau_path,
+                selection.commit.as_deref().unwrap_or_default(),
+                globals.dry_run,
+                env,
+            )?;
+        }
         return Ok(());
     }
     if !globals.auto_tau {
         return Err(format!(
             "required dependency missing: {}. Run `git clone {} {}` or retry without --no-auto-tau.",
             tau_path.display(),
-            globals.tau_repo,
+            selection.repo,
             tau_path.display()
         ));
     }
     if env.which("git").is_none() {
         return Err(
             "git not found; install git or clone external/tau-testnet manually".to_string(),
+        );
+    }
+    if !selection.pinned && !globals.allow_unpinned_tau {
+        return Err(
+            "Tau auto-fetch is unpinned. Pass --tau-commit <40-hex-sha> or --allow-unpinned-tau for local development."
+                .to_string(),
         );
     }
     let external = repo_root.join("external");
@@ -270,19 +330,250 @@ fn ensure_tau_testnet(
         std::fs::create_dir_all(&external)
             .map_err(|exc| format!("could not create {}: {exc}", external.display()))?;
     }
-    run_command(
+    match selection.commit.as_deref() {
+        Some(commit) => fetch_pinned_tau(
+            repo_root,
+            &tau_path,
+            &selection.repo,
+            commit,
+            globals.dry_run,
+            env,
+        )?,
+        None => {
+            run_checked_command(
+                vec![
+                    "git".to_string(),
+                    "clone".to_string(),
+                    "--depth".to_string(),
+                    "1".to_string(),
+                    selection.repo.clone(),
+                    tau_path.display().to_string(),
+                ],
+                Some(repo_root),
+                globals.dry_run,
+                env,
+            )?;
+        }
+    }
+    if !globals.dry_run {
+        if let Some(commit) = selection.commit.as_deref() {
+            verify_tau_commit(&tau_path, commit, false, env)?;
+        }
+        if !env.file_exists(&tau_path.join(&selection.server_path)) {
+            return Err(format!(
+                "Tau checkout missing required {}",
+                tau_path.join(&selection.server_path).display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn load_tau_lock(repo_root: &Path, env: &impl HostEnv) -> Result<TauLock, String> {
+    let path = repo_root.join(TAU_TESTNET_LOCK_REL);
+    if !env.file_exists(&path) {
+        return Ok(TauLock {
+            repo: TAU_TESTNET_REPO.to_string(),
+            ref_name: TAU_TESTNET_REF.to_string(),
+            commit: TAU_TESTNET_COMMIT.to_string(),
+            server_path: PathBuf::from(TAU_TESTNET_SERVER_PATH),
+        });
+    }
+    let text = env
+        .read_to_string(&path)
+        .map_err(|exc| format!("could not read {}: {exc}", path.display()))?;
+    parse_tau_lock(&text)
+}
+
+fn parse_tau_lock(text: &str) -> Result<TauLock, String> {
+    let mut schema = None;
+    let mut repo = None;
+    let mut ref_name = None;
+    let mut commit = None;
+    let mut server_path = None;
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .ok_or_else(|| format!("invalid Tau lock line: {line}"))?;
+        let value = value.trim();
+        match key.trim() {
+            "schema" => schema = Some(value.to_string()),
+            "repo" => repo = Some(value.to_string()),
+            "ref" => ref_name = Some(value.to_string()),
+            "commit" => commit = Some(value.to_string()),
+            "server_path" => server_path = Some(PathBuf::from(value)),
+            other => return Err(format!("unknown Tau lock key: {other}")),
+        }
+    }
+
+    if schema.as_deref() != Some("zenodex.tau_testnet_dependency_lock.v0") {
+        return Err("Tau lock has an unsupported schema".to_string());
+    }
+    let commit = commit.ok_or_else(|| "Tau lock missing commit".to_string())?;
+    validate_commit(&commit)?;
+    let server_path = server_path.ok_or_else(|| "Tau lock missing server_path".to_string())?;
+    if server_path.is_absolute()
+        || server_path.components().any(|part| {
+            matches!(
+                part,
+                std::path::Component::ParentDir | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(
+            "Tau lock server_path must be relative and stay inside the checkout".to_string(),
+        );
+    }
+    Ok(TauLock {
+        repo: repo.ok_or_else(|| "Tau lock missing repo".to_string())?,
+        ref_name: ref_name.ok_or_else(|| "Tau lock missing ref".to_string())?,
+        commit,
+        server_path,
+    })
+}
+
+fn resolve_tau_selection(globals: &GlobalOptions, lock: &TauLock) -> Result<TauSelection, String> {
+    if let Some(commit) = globals.tau_commit.as_deref() {
+        validate_commit(commit)?;
+    }
+    let repo = globals
+        .tau_repo
+        .clone()
+        .unwrap_or_else(|| lock.repo.clone());
+    let custom_repo = globals
+        .tau_repo
+        .as_deref()
+        .is_some_and(|value| value != lock.repo);
+    let commit = if let Some(commit) = &globals.tau_commit {
+        Some(commit.clone())
+    } else if custom_repo {
+        None
+    } else {
+        Some(lock.commit.clone())
+    };
+    Ok(TauSelection {
+        repo,
+        pinned: commit.is_some() && !globals.allow_unpinned_tau,
+        commit,
+        server_path: lock.server_path.clone(),
+    })
+}
+
+fn validate_commit(commit: &str) -> Result<(), String> {
+    if commit.len() != 40 || !commit.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("Tau commit must be a 40-character hex SHA-1".to_string());
+    }
+    Ok(())
+}
+
+fn fetch_pinned_tau(
+    repo_root: &Path,
+    tau_path: &Path,
+    repo: &str,
+    commit: &str,
+    dry_run: bool,
+    env: &impl HostEnv,
+) -> Result<(), String> {
+    run_checked_command(
         vec![
             "git".to_string(),
-            "clone".to_string(),
-            "--depth".to_string(),
-            "1".to_string(),
-            globals.tau_repo.clone(),
+            "init".to_string(),
             tau_path.display().to_string(),
         ],
         Some(repo_root),
-        globals.dry_run,
+        dry_run,
         env,
     )?;
+    let _ = run_command(
+        vec![
+            "git".to_string(),
+            "-C".to_string(),
+            tau_path.display().to_string(),
+            "remote".to_string(),
+            "remove".to_string(),
+            "origin".to_string(),
+        ],
+        Some(repo_root),
+        dry_run,
+        env,
+    )?;
+    run_checked_command(
+        vec![
+            "git".to_string(),
+            "-C".to_string(),
+            tau_path.display().to_string(),
+            "remote".to_string(),
+            "add".to_string(),
+            "origin".to_string(),
+            repo.to_string(),
+        ],
+        Some(repo_root),
+        dry_run,
+        env,
+    )?;
+    run_checked_command(
+        vec![
+            "git".to_string(),
+            "-C".to_string(),
+            tau_path.display().to_string(),
+            "fetch".to_string(),
+            "--depth".to_string(),
+            "1".to_string(),
+            "origin".to_string(),
+            commit.to_string(),
+        ],
+        Some(repo_root),
+        dry_run,
+        env,
+    )?;
+    run_checked_command(
+        vec![
+            "git".to_string(),
+            "-C".to_string(),
+            tau_path.display().to_string(),
+            "checkout".to_string(),
+            "--detach".to_string(),
+            commit.to_string(),
+        ],
+        Some(repo_root),
+        dry_run,
+        env,
+    )
+}
+
+fn verify_tau_commit(
+    tau_path: &Path,
+    expected_commit: &str,
+    dry_run: bool,
+    env: &impl HostEnv,
+) -> Result<(), String> {
+    if dry_run {
+        println!(
+            "+ git -C {} rev-parse HEAD # expect {}",
+            tau_path.display(),
+            expected_commit
+        );
+        return Ok(());
+    }
+    let actual = env.command_output(vec![
+        "git".to_string(),
+        "-C".to_string(),
+        tau_path.display().to_string(),
+        "rev-parse".to_string(),
+        "HEAD".to_string(),
+    ])?;
+    let actual = actual.trim();
+    if actual != expected_commit {
+        return Err(format!(
+            "Tau checkout is not pinned to expected commit {expected_commit}; found {actual}. Remove {} to let zenodex fetch the locked commit, or pass --allow-unpinned-tau for local development.",
+            tau_path.display()
+        ));
+    }
     Ok(())
 }
 
@@ -381,6 +672,21 @@ fn run_command(
     env.run_command(command, cwd)
 }
 
+fn run_checked_command(
+    command: Vec<String>,
+    cwd: Option<&Path>,
+    dry_run: bool,
+    env: &impl HostEnv,
+) -> Result<(), String> {
+    let printable = shell_join(&command);
+    let code = run_command(command, cwd, dry_run, env)?;
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(format!("command failed with exit code {code}: {printable}"))
+    }
+}
+
 fn shell_join(parts: &[String]) -> String {
     parts
         .iter()
@@ -424,14 +730,16 @@ Global options:
   --python PATH         Python interpreter for the existing zenoctl orchestrator.
   --dry-run             Print commands without running them.
   --no-auto-tau         Refuse instead of cloning external/tau-testnet on `up`.
-  --tau-repo URL        Tau testnet Git URL. Default: {TAU_TESTNET_REPO}
+  --tau-repo URL        Tau testnet Git URL. Default comes from {TAU_TESTNET_LOCK_REL}.
+  --tau-commit SHA      Pin a custom Tau checkout to a 40-hex commit.
+  --allow-unpinned-tau  Allow a custom or existing Tau checkout without commit verification.
   -h, --help            Show this help.
   -V, --version         Print launcher version.
 
 Convenience:
   local-testnet commands default --out-dir to ~/.zenodex/local-testnet.
   `local-testnet up` clones external/tau-testnet when missing, unless
-  --no-auto-tau is set.
+  --no-auto-tau is set. The default clone is pinned by {TAU_TESTNET_LOCK_REL}.
 "
     );
 }
@@ -442,6 +750,8 @@ trait HostEnv {
     fn current_dir(&self) -> Option<PathBuf>;
     fn which(&self, name: &str) -> Option<String>;
     fn file_exists(&self, path: &Path) -> bool;
+    fn read_to_string(&self, path: &Path) -> Result<String, String>;
+    fn command_output(&self, command: Vec<String>) -> Result<String, String>;
     fn run_command(&self, command: Vec<String>, cwd: Option<&Path>) -> Result<u8, String>;
 }
 
@@ -466,6 +776,28 @@ impl HostEnv for RealEnv {
 
     fn file_exists(&self, path: &Path) -> bool {
         path.is_file()
+    }
+
+    fn read_to_string(&self, path: &Path) -> Result<String, String> {
+        std::fs::read_to_string(path).map_err(|exc| exc.to_string())
+    }
+
+    fn command_output(&self, command: Vec<String>) -> Result<String, String> {
+        let mut iter = command.into_iter();
+        let program = iter
+            .next()
+            .ok_or_else(|| "internal error: empty command".to_string())?;
+        let output = Command::new(program)
+            .args(iter)
+            .output()
+            .map_err(|exc| format!("failed to execute command: {exc}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "command failed with exit code {}",
+                output.status.code().unwrap_or(1)
+            ));
+        }
+        String::from_utf8(output.stdout).map_err(|exc| exc.to_string())
     }
 
     fn run_command(&self, command: Vec<String>, cwd: Option<&Path>) -> Result<u8, String> {
@@ -520,6 +852,8 @@ mod tests {
         vars: BTreeMap<String, String>,
         bins: BTreeMap<String, String>,
         files: BTreeSet<PathBuf>,
+        texts: BTreeMap<PathBuf, String>,
+        outputs: BTreeMap<String, String>,
         current_exe: Option<PathBuf>,
         current_dir: Option<PathBuf>,
         commands: RefCell<Vec<Vec<String>>>,
@@ -562,7 +896,21 @@ mod tests {
         }
 
         fn file_exists(&self, path: &Path) -> bool {
-            self.files.contains(path)
+            self.files.contains(path) || self.texts.contains_key(path)
+        }
+
+        fn read_to_string(&self, path: &Path) -> Result<String, String> {
+            self.texts
+                .get(path)
+                .cloned()
+                .ok_or_else(|| format!("missing fake file: {}", path.display()))
+        }
+
+        fn command_output(&self, command: Vec<String>) -> Result<String, String> {
+            self.outputs
+                .get(&shell_join(&command))
+                .cloned()
+                .ok_or_else(|| format!("missing fake output: {}", shell_join(&command)))
         }
 
         fn run_command(&self, command: Vec<String>, _cwd: Option<&Path>) -> Result<u8, String> {
@@ -642,6 +990,38 @@ mod tests {
             &env,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn tau_lock_parser_rejects_unpinned_commit_text() {
+        let err = parse_tau_lock(
+            "\
+schema=zenodex.tau_testnet_dependency_lock.v0
+repo=https://github.com/IDNI/tau-testnet.git
+ref=refs/heads/main
+commit=not-a-commit
+server_path=server.py
+",
+        )
+        .unwrap_err();
+        assert!(err.contains("40-character"));
+    }
+
+    #[test]
+    fn custom_tau_repo_requires_pin_or_explicit_unpinned_escape() {
+        let lock = TauLock {
+            repo: TAU_TESTNET_REPO.to_string(),
+            ref_name: TAU_TESTNET_REF.to_string(),
+            commit: TAU_TESTNET_COMMIT.to_string(),
+            server_path: PathBuf::from(TAU_TESTNET_SERVER_PATH),
+        };
+        let globals = GlobalOptions {
+            tau_repo: Some("https://example.invalid/tau-testnet.git".to_string()),
+            ..GlobalOptions::default()
+        };
+        let selected = resolve_tau_selection(&globals, &lock).unwrap();
+        assert_eq!(selected.commit, None);
+        assert!(!selected.pinned);
     }
 
     #[test]
